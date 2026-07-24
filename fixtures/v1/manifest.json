@@ -1,0 +1,60 @@
+{
+  "protocol_version": 1,
+  "fixture_set": "v1",
+  "fixtures": [
+    {
+      "path": "valid/mixed-ed25519-p256.cbor",
+      "kind": "valid",
+      "sha256": "84ddda4fd21787fcc5a1b0a31cc29d9e19ac1f8d45941279eb65e27c08b36a9f",
+      "expected_decision": "Authorized"
+    },
+    {
+      "path": "valid/keri-root-raw-key-agent.cbor",
+      "kind": "valid",
+      "sha256": "e545ac5f83f84096f200e601908fe41ea5363dc7d0013323e83af0df25903243",
+      "expected_decision": "Authorized"
+    },
+    {
+      "path": "valid/raw-key-root-keri-agent.cbor",
+      "kind": "valid",
+      "sha256": "361ee3997660476d0d3cf741e175c1fbf785db359e2842f11a971786ca39df64",
+      "expected_decision": "Authorized"
+    },
+    {
+      "path": "valid/did-key-root-did-web-agent.cbor",
+      "kind": "valid",
+      "sha256": "b14b19e576f538100ec82e920fa26d3cfdc8e0f523f979f68f9ecb6a1e0495a8",
+      "expected_decision": "Authorized",
+      "requires_trust": "trust/did-web-current.trust"
+    },
+    {
+      "path": "trust/did-web-current.trust",
+      "kind": "did-web-current-trust",
+      "sha256": "48255ffca4ef9447703fe05e337d04ba5ad4bf4ec496eed7e059295dac7051f0"
+    },
+    {
+      "path": "trust/did-web-historical.trust",
+      "kind": "did-web-historical-trust",
+      "sha256": "cc183b68a81fcd2205a6226d0b66e978adfb2970d1e1b7c4f480adb68916e1dc"
+    },
+    {
+      "path": "trust/did-web-historical-without-statement.trust",
+      "kind": "did-web-incomplete-historical-trust",
+      "sha256": "de9332b1ec07cf0d90ae3e70e0cf4772a20415d55b5af1d5608679e85154671b",
+      "expected_decision": "Indeterminate",
+      "expected_reason": "HistoricalStateUnavailable"
+    },
+    {
+      "path": "invalid/invalid-action-signature.cbor",
+      "kind": "invalid",
+      "sha256": "ad6cd585ccf03ab5cefeb8b530eaa9e91a258bbd131ca4412239a60028b03397",
+      "expected_decision": "Denied",
+      "expected_reason": "InvalidSignature"
+    },
+    {
+      "path": "valid/action.json",
+      "kind": "action-body",
+      "sha256": "5fb3555c84de863e6b9f7a0594d0438dfe0d29e691a7046bccfd7c07839340a9"
+    }
+  ]
+}

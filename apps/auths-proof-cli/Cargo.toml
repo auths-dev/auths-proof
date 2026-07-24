@@ -1,0 +1,24 @@
+[package]
+name = "auths-proof-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+auths-proof-model = { workspace = true, features = ["std"] }
+auths-proof-codec = { workspace = true, features = ["std"] }
+auths-proof-adapter-api = { workspace = true, features = ["std"] }
+auths-proof-verifier = { workspace = true, features = ["std"] }
+auths-proof-author = { workspace = true, features = ["std"] }
+auths-proof-raw-key = { workspace = true, features = ["std"] }
+auths-proof-did-key = { workspace = true, features = ["std"] }
+auths-proof-did-keri = { workspace = true, features = ["std"] }
+auths-proof-did-web = { workspace = true, features = ["std"] }
+auths-proof-did-web-http.workspace = true
+clap.workspace = true
+hex.workspace = true
+
+[[bin]]
+name = "auths-proof"
+path = "src/main.rs"

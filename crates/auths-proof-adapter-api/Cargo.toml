@@ -1,0 +1,13 @@
+[package]
+name = "auths-proof-adapter-api"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+auths-proof-model.workspace = true
+
+[features]
+default = ["std"]
+std = ["auths-proof-model/std"]

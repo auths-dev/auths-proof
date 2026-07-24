@@ -1,0 +1,4 @@
+/target/
+/fuzz/target/
+*.profraw
+*.profdata

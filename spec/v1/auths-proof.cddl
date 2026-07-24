@@ -1,0 +1,123 @@
+; auths-proof V1 deterministic-CBOR schema
+;
+; All maps use the integer keys shown and no others. Encoders MUST use
+; deterministic CBOR. Decoders MUST reject duplicate keys, non-minimal integer
+; encodings, indefinite lengths, unknown keys, and trailing bytes.
+
+digest32 = bytes .size 32
+timestamp = uint
+principal = text .size (1..512)
+capability = text .size (1..128)
+resource = text .size (1..1024)
+audience = text .size (1..512)
+adapter-id = text .size (1..64)
+method-ref = text .size (1..512)
+algorithm-id = text .size (1..64)
+media-type = text .size (1..128)
+
+permission = {
+  0: capability,
+  1: resource,
+}
+
+; The array MUST be strictly ascending by (capability, resource).
+permission-set = [1*1024 permission]
+
+signature-descriptor = {
+  0: adapter-id,
+  1: method-ref,
+  2: algorithm-id,
+}
+
+signature-envelope = {
+  0: signature-descriptor,
+  1: bytes .size (1..4096),
+}
+
+expiry-only = {
+  0: 0,
+}
+
+status-proof-required = {
+  0: 1,
+  1: text .size (1..64),
+}
+
+revocation-requirement = expiry-only / status-proof-required
+
+grant-payload = {
+  0: 1,                  ; protocol version
+  1: principal,          ; issuer
+  2: principal,          ; subject
+  3: permission-set,
+  4: timestamp,          ; issued_at
+  5: timestamp,          ; valid_from
+  6: timestamp,          ; valid_until
+  7: uint .le 255,       ; remaining delegation depth
+  8: revocation-requirement,
+  9: digest32 / null,    ; parent GrantId
+}
+
+signed-grant = {
+  0: grant-payload,
+  1: signature-envelope,
+}
+
+action-payload = {
+  0: 1,                  ; protocol version
+  1: principal,          ; actor
+  2: permission,
+  3: digest32,           ; SHA-256 of exact application body bytes
+  4: audience,
+  5: timestamp,          ; issued_at
+  6: timestamp,          ; expires_at
+  7: digest32,           ; challenge
+}
+
+signed-action = {
+  0: action-payload,
+  1: signature-envelope,
+}
+
+principal-evidence = {
+  0: digest32,           ; EvidenceId
+  1: adapter-id,
+  2: media-type,
+  3: bytes .size (1..8388608),
+}
+
+statement-kind = 0 / 1  ; 0 = grant, 1 = action
+
+principal-evidence-binding = {
+  0: statement-kind,
+  1: digest32,           ; GrantId or ActionId
+  2: digest32,           ; EvidenceId
+}
+
+authority-state-evidence = {
+  0: digest32,
+  1: text .size (1..64),
+  2: media-type,
+  3: bytes .size (1..8388608),
+}
+
+; Principal evidence, bindings, and authority-state evidence arrays MUST each
+; be strictly ascending according to the V1 model ordering.
+proof-bundle = {
+  0: 1,
+  1: signed-action,
+  2: [*32 signed-grant],
+  3: [*256 principal-evidence],
+  4: [*256 principal-evidence-binding],
+  5: [*256 authority-state-evidence],
+}
+
+grant-signing-input = {
+  0: grant-payload,
+  1: signature-descriptor,
+}
+
+action-signing-input = {
+  0: action-payload,
+  1: signature-descriptor,
+}
