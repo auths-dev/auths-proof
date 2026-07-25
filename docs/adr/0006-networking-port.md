@@ -111,11 +111,12 @@ rotation schedules, and compromise consequences differ.
 
 ## Follow-up
 
-The companion implementation must follow
-`spec/v1/networking.md`, starting with:
+The companion implementation must follow the versioned
+`auths-proof-exchange/spec/v1/protocol.md` specification. The core repository
+keeps only a pointer at `spec/v1/networking.md`. The first implementation
+contains:
 
 1. a transport-independent exchange state machine;
 2. an in-memory conformance adapter;
 3. an Iroh adapter using a versioned ALPN;
-4. one exact MCP tool-call demonstration.
-
+4. one exact MCP tool-call demonstration in a separate application repository.

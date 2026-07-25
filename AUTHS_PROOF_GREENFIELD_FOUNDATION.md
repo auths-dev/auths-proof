@@ -409,8 +409,10 @@ profile and comparing it with transport metadata. That is an application
 check surrounding Auths verification. It does not make the Iroh endpoint key,
 TLS certificate, or socket credential an Auths principal automatically.
 
-The normative companion design is `spec/v1/networking.md`; the architectural
-decision is recorded in `docs/adr/0006-networking-port.md`.
+The normative companion design is versioned in
+`auths-proof-exchange/spec/v1/protocol.md`. This repository retains only the
+boundary pointer in `spec/v1/networking.md`; the architectural decision is
+recorded in `docs/adr/0006-networking-port.md`.
 
 ## 4. Suggested repository structure
 
@@ -2028,11 +2030,18 @@ byte-identical bundled `did:web` proof verifies under both a fresh current
 resolution and a historical document-plus-statement pin; a document-only
 historical pin is indeterminate.
 
-### Milestone 4: one application, not an ecosystem
+### Milestone 4: one application over one independent exchange protocol
 
-Build the MCP integration and proof-exchange port in a separate repository or
-separately versioned workspace. Implement an in-memory conformance transport
-and Iroh as the first network adapter:
+Build two separately versioned repositories:
+
+- `auths-proof-exchange`: the application-neutral proof-exchange protocol,
+  semantic port, in-memory conformance adapter, and Iroh transport adapter;
+- `auths-proof-mcp`: the thin application composition that maps one exact MCP
+  `tools/call` profile to Auths permissions and executes only after approval.
+
+The MCP application depends on both the proof kernel and exchange protocol.
+The exchange repository does not depend on MCP, and neither companion is a
+workspace member of the proof kernel:
 
 ```text
 human/KERI root -> agent key -> exact MCP tool call
@@ -2055,6 +2064,16 @@ Measure:
 Do not add generic TCP, HTTP, message-bus, or other application integrations
 until this flow has real users. Iroh remains optional: its types and
 dependencies must not enter the proof wire format or verifier graph.
+
+**Implementation status:** Complete in the local greenfield repositories.
+`auths-proof-exchange` contains a bounded, deterministic V1 exchange codec,
+semantic client/server ports, in-memory conformance transport, and an Iroh
+adapter with a versioned ALPN and typed peer observations. `auths-proof-mcp`
+implements one canonical immediate `tools/call` profile, atomic one-use
+challenge claiming, exact permission cross-checking, transport policy, and an
+authorization-before-execution gate. The same fixture and request identifier
+are exercised over memory and Iroh; an authenticated Iroh peer cannot rescue
+an invalid Auths proof.
 
 ### Milestone 5: external review
 

@@ -37,6 +37,12 @@ This is version `0.1.0`, pre-audit software. It is not yet production-ready.
 All identity methods remain explicit adapters, not hidden dependencies or
 special cases in the kernel.
 
+Milestone 4 is implemented in two independently versioned companion
+repositories: `auths-proof-exchange` owns the transport-neutral exchange
+protocol and Iroh adapter, while `auths-proof-mcp` owns the first exact MCP
+`tools/call` application profile. Neither networking nor MCP enters this
+kernel's dependency graph.
+
 ## Verify the walkthrough fixture
 
 ```sh
