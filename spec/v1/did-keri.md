@@ -23,8 +23,8 @@ KERI evidence + exact Auths signing bytes + signature
 | Adapter ID | `did-keri-v1` |
 | Principal form | `did:keri:<44-character E-qualified prefix>` |
 | Evidence media type | `application/vnd.auths.did-keri-kel.v1` |
-| Ed25519 algorithm | `ed25519` |
-| P-256 algorithm | `p256-sha256` |
+| Ed25519 suite | `ed25519-v1` |
+| P-256 suite | `p256-sha256-v1` |
 
 The verification method is:
 
@@ -41,7 +41,7 @@ evidence; it is not inferred from signature length or algorithm.
 The evidence bytes are a closed binary envelope:
 
 ```text
-"auths-proof/did-keri/evidence/v1\0"
+"AUTHS-DID-KERI\x00\x01"
 u16-be event_count
 repeat event_count times:
     u32-be event_json_length
@@ -78,17 +78,29 @@ non-canonical JSON, and evidence beyond its bounds.
 A valid result always emits:
 
 ```text
-SelfCertifyingIdentifier
-OfflineVerifiable
+self-certifying-identifier
+offline-verifiable
 ```
 
-It additionally emits `RotationAware` only while the accepted state retains
+It additionally emits `rotation-aware` only while the accepted state retains
 valid next-key commitments. A non-transferable or deliberately abandoned
 identifier is correctly treated as irrevocable by the authority verifier.
 
-The adapter does not emit `ControllerStateCurrentAt`, `ControllerStateHistoricalAt`,
-`WitnessThresholdMet`, `StatementExistenceProvenAt`, or
-`RevocationCheckedAt`.
+The method returns suite-specific verification-key bytes. Verification of the
+Auths statement remains in the separately selected exact signature suite; KEL
+controller signatures are verified internally as evidence authenticity.
+
+An embedded KEL alone does not emit `controller-state-current-at`,
+`witness-threshold-met`, or `revocation-checked-at`. A verifier may supply an
+immutable authenticated checkpoint containing the exact principal, latest
+sequence and event SAID, observation window, and optional satisfied witness
+threshold. When it matches the replayed state and evaluation time, those
+current-state claims are emitted. Checkpoints are local method context and are
+never selected by the proof.
+
+The adapter does not emit `historical-at` or
+`statement-existence-proven-at`; those require separately authenticated
+historical observations.
 
 This distinction is security-critical. A complete, valid embedded KEL proves
 that the selected key follows the rotations present in that KEL. It cannot

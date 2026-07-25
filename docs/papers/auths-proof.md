@@ -837,11 +837,11 @@ Within the core workspace, crate boundaries follow capability:
 
 | Layer | Representative crates | Allowed responsibility |
 |---|---|---|
-| Model | `auths-proof-model` | Validated newtypes, grants, actions, verdicts |
-| Wire | `auths-proof-codec` | Deterministic bounded CBOR |
+| Model | `auths-model` | Validated newtypes, grants, actions, verdicts |
+| Wire | `auths-codec` | Deterministic bounded CBOR |
 | Port | `auths-proof-principal` | Principal-control verification contract |
-| Kernel | `auths-proof-verifier` | Authority, attenuation, action binding |
-| Adapters | `auths-proof-raw-key`, `-did-key`, `-did-keri`, `-did-web` | Exact method evidence |
+| Kernel | `auths-verifier` | Authority, attenuation, action binding |
+| Adapters | `auths-raw-key`, `-did-key`, `-did-keri`, `-did-web` | Exact method evidence |
 | Authoring | authoring and CLI crates | Explicit signing workflows, no verifier secrets |
 | Surfaces | CLI, WASM | Presentation and serialization only |
 | Assurance | testkit, `xtask` | Fixtures, dependency rules, conformance |

@@ -1,60 +1,94 @@
-# Domain Separation and Content Identifiers — V1
+# Domain Separation and Identifiers — V1
 
-## Signature inputs
+## Signing preimage
 
-Signers sign these exact bytes:
+Every signed preimage is:
 
 ```text
-grant signing bytes  = UTF8("auths-proof/grant/v1\0")
-                       || deterministic_cbor(grant-signing-input)
-
-action signing bytes = UTF8("auths-proof/action/v1\0")
-                       || deterministic_cbor(action-signing-input)
+UTF8("AUTHS") ||
+u16be(protocol_major) ||
+u16be(object_type) ||
+u16be(profile_id_length) ||
+UTF8(profile_id) ||
+u16be(profile_version) ||
+u64be(canonical_object_length) ||
+deterministic_cbor(canonical_object)
 ```
 
-The signing input contains the `SignatureDescriptor`, so the adapter,
-verification method, and algorithm cannot be substituted after signing.
+The canonical signing object contains the unsigned statement and its
+`SignatureDescriptor`. This binds the principal method, verification method,
+and signature suite.
 
-Ed25519 signs the complete byte string directly. `p256-sha256` uses ECDSA
-P-256 with SHA-256 as defined by the selected signature implementation and
-encodes signatures as fixed-width 64-byte `r || s`. V1 P-256 signatures MUST
-be low-S.
+Object type identifiers are registered:
+
+| ID | Object |
+|---:|---|
+| 1 | grant |
+| 2 | action |
+| 3 | principal status |
+| 4 | grant status |
+| 5 | decision receipt |
+| 6 | execution receipt |
+| 7 | registry manifest |
+| 8 | bridge grant |
+
+Profile-independent objects use an empty profile ID and version zero.
 
 ## Content identifiers
 
-For `domain_hash(domain, encoded)`:
+`domain_hash` is:
 
 ```text
-SHA-256(domain || uint64_be(len(encoded)) || encoded)
+SHA-256(
+  UTF8("AUTHS-ID") ||
+  u16be(protocol_major) ||
+  u16be(identifier_type) ||
+  u64be(canonical_bytes_length) ||
+  canonical_bytes
+)
 ```
 
-V1 identifiers are:
+Identifier type identifiers are fixed:
 
-```text
-GrantId    = domain_hash("auths-proof/grant-id/v1\0",
-                         deterministic_cbor(signed-grant))
+| ID | Identifier |
+|---:|---|
+| 1 | grant statement |
+| 2 | action envelope |
+| 3 | authorization plan |
+| 4 | evidence object content |
+| 5 | principal-status statement |
+| 6 | grant-status statement |
+| 7 | decision receipt |
+| 8 | execution receipt |
+| 9 | public verifier-context projection |
+| 10 | registry manifest |
 
-ActionId   = domain_hash("auths-proof/action-id/v1\0",
-                         deterministic_cbor(signed-action))
+Identifiers:
 
-EvidenceId = domain_hash("auths-proof/evidence-id/v1\0",
-                         deterministic_cbor({
-                           0: adapter-or-state-method,
-                           1: media-type,
-                           2: evidence-bytes
-                         }))
-```
+- `GrantId`: canonical `grant-statement`, excluding signature;
+- `ActionId`: canonical `action-envelope`, excluding signature;
+- `AuthorizationPlanId`: canonical `authorization-plan`;
+- `EvidenceId`: canonical evidence type, media type, and bytes;
+- status statement IDs: canonical unsigned status statement;
+- attachment digest: raw SHA-256 of exact attachment bytes;
+- decision/execution receipt IDs: canonical unsigned receipt;
+- context digest: canonical public verifier-context projection;
+- canonical body digest: raw SHA-256 of exact profile-canonical body bytes;
+- portable canonical action digest: raw SHA-256 of the complete deterministic
+  `canonical-action` CBOR input;
+- proof digest: raw SHA-256 of exact canonical proof-bundle bytes.
 
-`BodyDigest` is ordinary SHA-256 over the exact application-supplied body
-bytes. Application profiles are responsible for defining which native bytes
-are supplied. Auths does not canonicalize JSON, HTTP, MCP, Git, or another
-application protocol.
+The `proof-ref` is a 32-byte branch identifier generated during authoring and
+covered by the action signature. It is not derived from an action containing
+the plan ID, avoiding an identifier cycle.
 
-## No algorithm agility for object identifiers
+## Algorithms
 
-All V1 object and body digests use SHA-256. A future protocol version may
-define another algorithm, but V1 decoders do not accept an algorithm field for
-these digests. Identity adapters may interpret other secure identifier
-formats internally.
+V1 content identifiers and body digests use SHA-256. The registry contains no
+algorithm field for these identifiers.
 
-SHA-1 is never valid for a security-bearing V1 identifier.
+Ed25519 signs the full domain-separated preimage.
+`p256-sha256-v1` uses ECDSA P-256 with SHA-256 and fixed-width 64-byte
+`r || s`; high-S signatures are rejected.
+
+SHA-1 is prohibited for every security-bearing identifier.

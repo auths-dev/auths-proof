@@ -1,241 +1,268 @@
-# ADR 0009: Build the Target System in the `auths-proof` Repository
+# ADR 0009: Use Three Repositories with Enforced Crate Boundaries
 
-**Status:** Proposed
+**Status:** Accepted
 
 **Date:** 25 July 2026
 
 ## Context
 
-The target architecture names nine release units:
+Auths is prelaunch with zero users. Existing repository names and package APIs
+do not need compatibility support.
 
-- `auths-spec`;
-- `auths-proof`;
-- `auths-evidence`;
-- `auths-exchange`;
-- `auths-profiles`;
-- `auths-runtime`;
-- `auths-authoring`;
-- `auths-receipts`;
-- `auths-lab`.
+The target architecture names proof, evidence, exchange, profiles, runtime,
+authoring, receipts, and lab as separate release units. Those are semantic,
+dependency, and review boundaries; they do not each require a Git repository.
 
-The current experiments are spread across `auths-proof`,
-`auths-proof-exchange`, and `auths-proof-mcp`. Auths has zero users and none of
-these repository boundaries is a supported public contract.
+Two extremes are undesirable:
 
-Separate Git repositories do not provide security isolation. Dependency
-direction, sealed constructors, features, architecture tests, and review
-ownership provide it. During prelaunch development, multiple repositories
-make atomic protocol and conformance changes harder without protecting a user
-or release cadence.
+- putting transports and applications in `auths-proof` would expand the
+  offline kernel's trusted computing base;
+- creating a repository for every target release unit would make atomic
+  protocol, corpus, and conformance changes unnecessarily difficult.
 
 ## Decision
 
-The complete target system is built in one canonical Git repository:
-`auths-proof`.
+Use three repositories:
 
-The target release units are package groups and security boundaries inside the
-repository. They are not separate repositories.
+| Repository | Responsibility |
+|---|---|
+| `auths-proof` | Pure V1 protocol, schemas, registries, deterministic codec, authority kernel, signature and evidence ports, portable adapters, status and assurance, WASM, keyless authoring, canonical CBOR corpus, fuzzing |
+| `auths-proof-exchange` | Exchange protocol, framing, memory/Iroh/HTTPS/TCP/Unix/file transports, typed peer observations, transport conformance |
+| `auths-proof-apps` | Live evidence acquisition and custody integrations, application profiles, runtime, replay and budgets, receipts, configuration, caches, reference applications, Auths Lab, and independent Go/TypeScript verifiers |
 
-The intended top-level layout is:
+The current prelaunch `auths-proof-mcp` repository becomes
+`auths-proof-apps`. MCP remains its first profile and reference application.
+There is no compatibility or migration requirement.
 
-```text
-auths-proof/
-├── spec/                    language-neutral V1 specification and registries
-├── crates/                  pure model, codec, ports, and authority kernel
-├── adapters/                portable principal/signature/status adapters
-├── resolvers/               native evidence acquisition leaves
-├── exchange/                exchange messages, ports, and transports
-├── profiles/                MCP, HTTP, Git, deploy, supply-chain, edge
-├── runtime/                 replay, budgets, config, cache, execution gates
-├── authoring/               planners, approval displays, signer integrations
-├── receipts/                receipt formats, stores, and audit export
-├── lab/                     corpus, fuzzing, matrices, benchmarks
-├── implementations/
-│   ├── go/                  independent Go verifier
-│   └── typescript/          independent browser/Node verifier
-├── apps/                    CLI and reference applications
-└── xtask/                   architecture, conformance, and release checks
-```
+All three implementation branches are named `dev-implementation-delta`.
 
-Rust packages share one Cargo workspace where practical. Go and TypeScript
-implementations remain ordinary language-native modules in the same
-repository.
-
-## Release-unit ownership
-
-| Release unit | Repository location | Responsibility |
-|---|---|---|
-| `auths-spec` | `spec/`, registry data, language-neutral fixtures | Normative meaning; no product-code dependency |
-| `auths-proof` | `crates/` | Model, codec, registries, pure ports, authority, composition, action binding, verifier, WASM |
-| `auths-evidence` | `adapters/`, `resolvers/` | Bounded fact verification and external evidence assembly |
-| `auths-exchange` | `exchange/` | Messages, framing, transports, and peer observations |
-| `auths-profiles` | `profiles/` | Canonical action meaning, approval display, permission mapping, verified decoding |
-| `auths-runtime` | `runtime/` | Orchestration, replay, budgets, configuration, caches, and execution gates |
-| `auths-authoring` | `authoring/` | Safe planning, signing requests, custody integrations |
-| `auths-receipts` | `receipts/` | Decision/execution receipt formats, stores, and audit bundles |
-| `auths-lab` | `lab/`, `implementations/` | Cross-language conformance, fuzzing, benchmarks, and evaluation |
-
-Release units may become independently published packages. Publication does
-not require a separate Git repository.
-
-## Dependency shape
+## Architecture
 
 ```text
-                         +------------------+
-                         |    auths-spec    |
-                         | schemas/vectors  |
-                         +---------+--------+
-                                   |
-                                   v
-+------------------+      +------------------+      +------------------+
-| auths-evidence   | ---> |   auths-proof    | <--- | auths-profiles   |
-| facts/resolvers  |      | pure authority   |      | action meaning   |
-+------------------+      +---------+--------+      +---------+--------+
-                                   ^                         |
-                                   |                         |
-                         +---------+--------+                |
-                         | auths-exchange   |                |
-                         | bytes + peers    |                |
-                         +---------+--------+                |
-                                   \                        /
-                                    \                      /
-                                     v                    v
-                                  +--------------------------+
-                                  |      auths-runtime       |
-                                  | replay/gates/receipts    |
-                                  +------------+-------------+
-                                               |
-                                               v
-                                  +--------------------------+
-                                  |        application       |
-                                  +--------------------------+
-
-auths-lab may depend on public packages. Production packages never depend on
-auths-lab.
+                     +--------------------------+
+                     | auths-proof              |
+                     | pure authority kernel    |
+                     | canonical CBOR corpus    |
+                     +------------+-------------+
+                                  ^
+                                  |
+                +-----------------+-----------------+
+                |                                   |
+     +----------+-----------+            +----------+-----------+
+     | auths-proof-exchange |            | auths-proof-apps     |
+     | bytes + peer facts   |            | profiles + runtime   |
+     +----------+-----------+            | receipts + lab       |
+                |                        +----------+-----------+
+                |                                   ^
+                +-----------------------------------+
+                         public package contracts
 ```
 
-The arrows show public composition, not permission to import private
-constructors.
-
-## Core crate boundaries
-
-The target logical layers are:
+Dependency direction:
 
 ```text
-model <- codec <- registries/signature/principal/status/assurance
-  ^                         |
-  |                         v
-  +------ authority <- composition
-              |
-              v
-            action
-              |
-              v
-           verifier ----> wasm
+auths-proof-exchange  ---> auths-proof public wire/model packages only
+auths-proof-apps      ---> auths-proof + auths-proof-exchange
+auths-proof           -X-> every downstream repository
 ```
 
-A logical layer becomes a separate crate when the crate enforces:
+`auths-proof-exchange` may remain proof-format-neutral where its semantic
+exchange port only carries bounded bytes. Any dependency on proof types must
+be narrow, explicit, and architecture-tested.
 
-- a smaller `no_std + alloc` graph;
-- a private constructor boundary;
-- an adapter/port dependency direction;
-- a feature graph that excludes effects;
-- a useful independent audit or publication surface.
+## Release-unit mapping
 
-Crate splitting is not performed merely to match a diagram.
+| Target release unit | Home |
+|---|---|
+| `auths-spec` | `auths-proof/spec` and `auths-proof/fixtures` |
+| `auths-proof` | `auths-proof` core crates |
+| portable `auths-evidence` | `auths-proof/adapters` and pure ports |
+| native evidence acquisition | resolver, assembler, and signer-integration crates in `auths-proof-apps` |
+| `auths-exchange` | `auths-proof-exchange` |
+| `auths-profiles` | profile crates in `auths-proof-apps` |
+| `auths-runtime` | runtime crates in `auths-proof-apps` |
+| `auths-authoring` | pure builders in `auths-proof`; custody/UI integrations in `auths-proof-apps` |
+| `auths-receipts` | receipt format and store crates in `auths-proof-apps` |
+| `auths-lab` | non-production packages and language implementations in `auths-proof-apps` |
 
-## Use of the current companion prototypes
+Package boundaries inside a repository remain independently versioned and
+machine-enforced where useful.
 
-The current `auths-proof-exchange` and `auths-proof-mcp` directories are source
-material:
+## `auths-proof` boundary
 
-- useful exchange model, codec, port, memory, and Iroh code may be moved under
-  `exchange/`;
-- useful MCP canonicalization moves under `profiles/`;
-- useful replay and authorization-gate code moves under `runtime/`;
-- useful demos and benchmarks move under `apps/` and `lab/`;
-- prototype package names, paths, and public APIs may be discarded.
+The proof repository owns only deterministic authority semantics and bounded
+fact verification.
 
-The target does not keep sibling path dependencies or publish compatibility
-releases for these prototypes.
+```text
+model <- codec -----+----> authoring
+  |                 |
+  +-> ports <-------+----> verifier
+       ^                        ^
+       |                        |
+portable adapters          portable result composition
+```
 
-## Dependency enforcement
+The verifier graph contains no:
 
-`xtask` checks an allow-list derived from workspace metadata.
+- network, transport, or async runtime;
+- filesystem, process, environment, or ambient clock;
+- randomness or private-key custody;
+- replay, budget, receipt, or application storage;
+- profile canonicalizer or executor;
+- application or presentation dependency.
 
-Required invariants:
+Network-capable resolvers, evidence assemblers, and custody clients belong in
+`auths-proof-apps`. They provide explicit inputs to public proof APIs and are
+never callable by the kernel.
 
-- the pure proof graph has no network, filesystem, process, environment,
-  ambient clock, randomness, async runtime, database, private-key, or
-  execution dependencies;
-- evidence adapters cannot import verdict constructors;
-- native resolvers cannot be called by the verifier;
-- transports cannot interpret grants or construct authority results;
-- profiles cannot select trust anchors or construct verified authority;
-- runtime can compose public proof, exchange, profile, and receipt APIs but
-  cannot construct their sealed outputs;
-- receipt storage cannot execute application commands;
-- production packages do not depend on lab code;
-- native and WASM features cannot substitute different authority semantics;
-- dependency cycles fail CI.
+## `auths-proof-exchange` boundary
+
+Exchange owns:
+
+- bounded challenge, submission, response, and session messages;
+- framing and protocol version negotiation;
+- peer and channel observations;
+- memory, Iroh, HTTPS, TCP, Unix, and file transports;
+- shared transport-invariance tests.
+
+Exchange does not:
+
+- interpret grants;
+- select trust anchors;
+- verify or construct authority;
+- canonicalize application actions;
+- execute commands;
+- own replay or budget state.
+
+An authenticated peer remains a fact, never authority.
+
+## `auths-proof-apps` boundary
+
+The downstream application repository contains separate crate groups:
+
+```text
+integrations/
+  evidence-acquisition  resolvers  custody
+
+profiles/
+  mcp  http  git  deploy  supply-chain  edge
+
+runtime/
+  orchestration  replay  budgets  config  cache  execution-gates
+
+receipts/
+  model  codec  stores  audit-export
+
+apps/
+  cli/demo/reference services
+
+lab/
+  corpus-runner  fuzz promotion  matrices  benchmarks
+
+implementations/
+  go  typescript
+```
+
+Internal architecture rules prevent:
+
+- resolvers and assemblers from constructing verified authority;
+- profiles from selecting trust anchors or constructing verdicts;
+- runtime from constructing sealed proof/profile outputs;
+- receipt stores from executing commands;
+- production crates from depending on lab code;
+- reference applications from bypassing verified command decoding.
+
+## Canonical corpus contract
+
+`auths-proof` is the source of truth for V1 `.cbor` fixtures and their
+manifest.
+
+Downstream repositories consume a pinned corpus release and add
+surface-specific fixtures without rewriting core proof bytes.
+
+The corpus manifest records:
+
+- fixture hash and class;
+- expected stage, verdict, and reason;
+- action, plan, context, and receipt digests;
+- assurance report;
+- byte, count, depth, signature, and work-unit metrics.
+
+No downstream `xtask` may update the core corpus.
+
+## `xtask` responsibilities
+
+### `auths-proof`
+
+- spec/CDDL consistency;
+- canonical wire stability;
+- architecture allow-lists;
+- unit, property, and conformance tests;
+- native/WASM parity;
+- fuzz smoke and promoted regressions;
+- release checks for the protocol kernel.
+
+### `auths-proof-exchange`
+
+- exchange wire stability;
+- framing fuzzing;
+- transport-invariance corpus;
+- peer-observation and channel-policy facts;
+- release checks for every transport adapter.
+
+### `auths-proof-apps`
+
+- profile canonicalizer differential tests;
+- runtime replay/budget state-machine tests;
+- receipt stability;
+- end-to-end verified execution;
+- Rust/Go/TypeScript differential conformance;
+- factorial Auths Lab and reproducible benchmarks.
+
+An ecosystem release runs all three release checks against exact revisions.
 
 ## Consequences
 
 ### Positive
 
-- Protocol, implementation, fixtures, and independent verifiers change
-  atomically before launch.
-- There are no cross-repository version or path-dependency coordination
-  problems.
-- The full target remains visibly anchored in `auths-proof`.
-- Security boundaries remain machine-enforced at the package graph.
-- Prototype package and repository structure can be discarded cleanly.
+- The proof kernel remains small, offline, and independently auditable.
+- Only three repositories require coordinated prelaunch changes.
+- Profiles, runtime, receipts, and lab share fixtures and can change
+  atomically.
+- Security boundaries are enforced by crate graphs rather than repository
+  count.
+- Existing exchange and MCP work remain directly reusable.
 
 ### Negative
 
-- The repository contains multiple languages and runtime classes.
-- CI must select targeted jobs rather than building every component for every
-  change.
-- Package ownership and review rules must be documented because Git ownership
-  alone does not separate them.
+- `auths-proof-apps` contains several kinds of downstream package.
+- Its architecture tests and ownership rules must prevent accidental
+  dependency collapse.
+- Ecosystem releases still coordinate three exact revisions.
 
 ## Rejected alternatives
 
-### Preserve the three current repositories
+### Put everything in `auths-proof`
 
-Rejected because no user or published compatibility contract benefits from
-their separation, while the target requires atomic changes across proof,
-exchange, profile, runtime, receipt, and conformance contracts.
+Rejected because transports and application behavior would expand the
+kernel's trusted computing base.
 
-### Create one repository per release unit
+### Create separate profile, runtime, receipt, and lab repositories
 
-Rejected because nine repositories would add coordination and release
-overhead without increasing semantic isolation.
+Rejected because Git separation would add coordination without enforcing
+semantic isolation better than crate graphs.
 
-### Put everything in one crate
+### Keep `auths-proof-mcp` permanently MCP-only
 
-Rejected because effects and private constructors must be separated by the
-compiler and dependency graph even inside one Git repository.
-
-### Defer the target topology
-
-Rejected because direct prelaunch restructuring is cheaper than letting
-prototype paths become de facto public contracts.
-
-## Future repository extraction
-
-Repository extraction is outside the prelaunch target. After launch, a package
-may be extracted if real ownership, release cadence, build isolation, or
-distribution needs justify it. Such an extraction must preserve the public
-conformance contract and dependency direction.
+Rejected because it would require another repository for the shared profile,
+runtime, receipt, and lab contracts. There are no users requiring its current
+name or scope.
 
 ## Required follow-up
 
-- Reshape `auths-proof` to the target top-level layout before broad feature
-  expansion.
-- Move only useful prototype code; do not preserve package names for their own
-  sake.
-- Add dependency allow-lists before introducing runtime and transport
-  dependencies.
-- Remove sibling path dependencies from the target workspace.
-
+- Keep `auths-proof` and `auths-proof-exchange` on
+  `dev-implementation-delta`.
+- Rename/rescope `auths-proof-mcp` to `auths-proof-apps` on the same branch.
+- Update every repository's `AGENTS.md` and `xtask` allow-list to match its
+  boundary.
+- Publish and pin the canonical proof corpus between repositories.

@@ -1,188 +1,84 @@
 # auths-proof
 
-> Bring any cryptographic principal. Auths proves whether its action was
-> authorized.
+The strictly offline reference kernel for Auths Proof Protocol V1.
 
-`auths-proof` is a small protocol and offline verification kernel for
-proof-carrying authorization:
+> Auths owns authority. Adapters establish bounded facts.
 
-> Every action carries proof that it was authorized.
+The workspace contains only the target V1 model, deterministic codec,
+effect-free ports and registries, mandatory Ed25519 and P-256/SHA-256 suites,
+authority attenuation, authorization-plan composition, assurance, status,
+staged verification, keyless authoring, raw-key, `did:key`, `did:keri`,
+bundled `did:web`, SPIFFE/X.509, WebAuthn, and HSM-attested methods, and the
+canonical language-neutral corpus.
 
-The architectural rule is:
-
-> Auths owns authority. Adapters prove principal control.
-
-## Status
-
-Milestones 0 through 3 are implemented:
-
-- frozen pre-audit V1 specification and CDDL;
-- deterministic, bounded CBOR codec;
-- exact permission and delegation attenuation;
-- explicit trust anchors and three-way verdicts;
-- raw Ed25519 and P-256 principals;
-- pure, bounded, offline `did:keri` principal verification;
-- self-contained Ed25519/P-256 `did:key` principals;
-- pure bundled `did:web` verification with explicit current and historical
-  trust records;
-- a separate policy-constrained native `did:web` HTTPS resolver;
-- KERI rotation, threshold, pre-rotation commitment, and CESR verification;
-- independent keripy interoperability fixtures;
-- keyless authoring requests;
-- offline verifier and CLI;
-- mixed-algorithm and mixed-principal golden fixtures;
-- property, conformance, architecture, and WASM checks.
-
-This is version `0.1.0`, pre-audit software. It is not yet production-ready.
-All identity methods remain explicit adapters, not hidden dependencies or
-special cases in the kernel.
-
-Milestone 4 is implemented in two independently versioned companion
-repositories: `auths-proof-exchange` owns the transport-neutral exchange
-protocol and Iroh adapter, while `auths-proof-mcp` owns the first exact MCP
-`tools/call` application profile. Neither networking nor MCP enters this
-kernel's dependency graph.
-
-## Verify the walkthrough fixture
-
-```sh
-cargo run -p auths-proof-cli -- inspect \
-  --proof fixtures/v1/valid/mixed-ed25519-p256.cbor
-```
-
-```sh
-cargo run -p auths-proof-cli -- verify \
-  --proof fixtures/v1/valid/mixed-ed25519-p256.cbor \
-  --body fixtures/v1/valid/action.json \
-  --now 1725000125 \
-  --audience mcp://filesystem \
-  --challenge-hex a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5 \
-  --anchor-principal key:sha256:dn9ZYzD5Wup7QPTK36C8xM2uAKmJNAYXt4-vO9mFkYg \
-  --anchor-capability mcp.tools.call \
-  --anchor-resource mcp://filesystem/read_file \
-  --anchor-valid-from 1725000000 \
-  --anchor-valid-until 1725000300 \
-  --anchor-depth 1
-```
-
-Expected result:
+The sealed verification pipeline is:
 
 ```text
-Authorized
-reason  AuthorizedByGrantChain
+untrusted bytes
+  -> DecodedProof
+  -> ResolvedProof
+  -> ControlVerifiedProof
+  -> VerifiedAuthority
+  -> VerifiedAction
 ```
 
-The root is Ed25519 and the terminal actor is P-256. The verdict also reports
-that raw-key principals and the expiry-only grant are irrevocable until their
-configured expiry.
+The language-neutral boundary is
+`verify_v1(proof_cbor, canonical_action_cbor, trusted_context_cbor) ->
+verification_result_cbor`. The result includes stable stage/code values,
+self-binding digests, authorized branches, assurance satisfactions, and
+resource/work totals.
 
-## CLI
+`VerifiedAction` has no public constructor. The kernel reads no clock,
+environment variable, network connection, filesystem, database, replay store,
+budget store, profile implementation, receipt sink, or private key. Every
+trust anchor, accepted executable registry and manifest, evaluation time,
+expected audience/challenge, status snapshot and issuer/floor trust,
+assurance policy, resource matcher, profile/channel policy, detached
+attachment input, and resource limit is an explicit immutable verifier input.
 
-```text
-auths-proof verify          verify a bundle against explicit local context
-auths-proof inspect         inspect a canonical bundle without trusting it
-auths-proof raw-evidence    package an existing public key as raw-key evidence
-auths-proof grant-request   emit grant request CBOR and exact signing bytes
-auths-proof grant-attach    attach an externally produced grant signature
-auths-proof action-request  emit action request CBOR and exact signing bytes
-auths-proof action-attach   attach an externally produced action signature
-auths-proof bundle          assemble signed objects and evidence
-auths-proof did-web-resolve fetch trusted current did:web evidence explicitly
-```
+Target packages:
 
-The CLI never creates or stores private keys. A KMS, HSM, passkey flow, SSH
-agent, CI signer, or other external signer receives the emitted signing bytes.
+- `auths-model`: validated V1 protocol and context types;
+- `auths-codec`: constrained deterministic CBOR and domain-separated IDs;
+- `auths-ports`: effect-free principal-method and signature-suite ports;
+- `auths-registries`: exact immutable implementation registries;
+- `auths-signature`: mandatory Ed25519 and low-S P-256 suites;
+- `auths-authority`: scoped trust roots and grant attenuation;
+- `auths-composition`: proof, all-of, any-of, and K-of-N plans;
+- `auths-assurance`: role-indexed evidence assurance;
+- `auths-status`: principal/grant freshness and revocation;
+- `auths-verifier`: the sealed pure pipeline;
+- `auths-author`: external-signing requests with no custody;
+- `auths-multikey`: the closed canonical Ed25519/P-256 Multikey subset;
+- `auths-raw-key`: self-certifying raw-key evidence;
+- `auths-did-key`: self-certifying `did:key` evidence;
+- `auths-did-keri`: bounded offline KEL replay with threshold and rotation
+  commitment verification;
+- `auths-did-web`: locally pinned, bundled `did:web` evidence with distinct
+  current, historical, and statement-existence claims;
+- `auths-webauthn`: challenge-bound WebAuthn assertions with RP, origin,
+  presence, verification, counter, and attestation-policy checks;
+- `auths-hsm-attested`: verifier-pinned attestation profiles with protection,
+  exportability, device-chain, key-handle, and transaction binding;
+- `auths-spiffe-x509`: bounded X.509-SVID path, URI SAN, client-EKU,
+  trust-domain, key-suite, validity, and local status verification;
+- `auths-testkit`: canonical positive and negative corpus construction.
 
-`verify` performs no network requests. A `did:web` proof requires one or more
-explicit `--did-web-trust` files. Create a current evidence/trust pair
-separately:
+Focused validation:
 
 ```sh
-auths-proof did-web-resolve \
-  --did did:web:identity.example.com \
-  --allow-host identity.example.com \
-  --observed-at 1725000125 \
-  --valid-until 1725000425 \
-  --evidence-out did-web.evidence.cbor \
-  --trust-out did-web.current.trust
-```
-
-Trust files are verifier configuration and must not be accepted from an
-untrusted prover.
-
-Verification exit codes:
-
-| Code | Meaning |
-|---:|---|
-| 0 | `Authorized` |
-| 1 | CLI/input failure |
-| 2 | `Denied` |
-| 3 | `Indeterminate` |
-
-## Workspace
-
-```text
-model <- codec -----+----> author
-  |                 |
-  +-> adapter-api --+----> verifier
-         ^                    ^
-         |                    |
- raw / DID adapters        CLI composition
-                               ^
-                               |
-                         HTTP resolver leaf
-```
-
-- `auths-proof-model`: validated protocol types;
-- `auths-proof-codec`: deterministic CBOR and domain-separated identifiers;
-- `auths-proof-multikey`: shared closed Ed25519/P-256 Multikey primitive;
-- `auths-proof-adapter-api`: pure principal/status ports;
-- `auths-proof-verifier`: authority and action verification;
-- `auths-proof-author`: keyless signing requests and bundle assembly;
-- `auths-proof-raw-key`: Ed25519/P-256 reference adapter;
-- `auths-proof-did-keri`: pure embedded-KEL principal adapter;
-- `auths-proof-did-key`: pure self-contained DID adapter;
-- `auths-proof-did-web`: pure bundled-document adapter;
-- `auths-proof-did-web-http`: native retrieval and trust-record production;
-- `auths-proof-testkit`: deterministic fixtures and conformance;
-- `xtask`: architecture, vector, WASM, and release checks.
-
-See:
-
-- [Greenfield foundation](AUTHS_PROOF_GREENFIELD_FOUNDATION.md)
-- [V1 protocol](spec/v1/protocol.md)
-- [`did:keri` adapter profile](spec/v1/did-keri.md)
-- [`did:key` adapter profile](spec/v1/did-key.md)
-- [`did:web` evidence and trust profile](spec/v1/did-web.md)
-- [Verification algorithm](spec/v1/verification-algorithm.md)
-- [Threat model](docs/threat-model.md)
-- [Architecture](docs/architecture.md)
-
-## Development
-
-```sh
-cargo xtask ci
-```
-
-Golden vectors are checked byte-for-byte:
-
-```sh
+cargo xtask arch
 cargo xtask wire
+cargo xtask conformance
+cargo xtask fuzz-smoke
 ```
 
-Only after reviewing an intentional protocol change:
+Canonical `.cbor` files are generated only through:
 
 ```sh
 cargo xtask wire --update
 ```
 
-## Strict boundary
-
-The proof kernel does not own key custody, live DID resolution, witness
-networks, identity directories, OAuth, gateways, policy languages, budgets,
-databases, Git registries, dashboards, or action execution. The reference
-`did:web` resolver is an explicit native leaf: it produces evidence and local
-trust records but cannot verify authority.
-
-If a feature cannot be evaluated deterministically from the proof and explicit
-context, it belongs above the kernel.
+Networking and transports belong to `auths-proof-exchange`. Profiles, live
+resolvers, runtime state, receipts, execution, custody, independent
+implementations, and Auths Lab belong to `auths-proof-apps`.

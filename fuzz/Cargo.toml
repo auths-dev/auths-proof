@@ -5,12 +5,67 @@ edition = "2021"
 publish = false
 
 [dependencies]
-auths-proof-codec = { path = "../crates/auths-proof-codec", default-features = false }
+auths-model = { path = "../crates/auths-model", default-features = false }
+auths-codec = { path = "../crates/auths-codec", default-features = false }
+auths-composition = { path = "../crates/auths-composition", default-features = false }
+auths-ports = { path = "../crates/auths-ports", default-features = false }
+auths-registries = { path = "../crates/auths-registries", default-features = false }
+auths-verifier = { path = "../crates/auths-verifier", default-features = false }
+auths-did-key = { path = "../adapters/auths-did-key", default-features = false }
+auths-did-keri = { path = "../adapters/auths-did-keri", default-features = false }
+auths-did-web = { path = "../adapters/auths-did-web", default-features = false }
+auths-hsm-attested = { path = "../adapters/auths-hsm-attested", default-features = false }
+auths-spiffe-x509 = { path = "../adapters/auths-spiffe-x509", default-features = false }
+auths-multikey = { path = "../crates/auths-multikey", default-features = false }
+auths-raw-key = { path = "../adapters/auths-raw-key", default-features = false }
+auths-webauthn = { path = "../adapters/auths-webauthn", default-features = false }
 libfuzzer-sys = "0.4"
 
 [[bin]]
-name = "parse_bundle"
-path = "fuzz_targets/parse_bundle.rs"
+name = "target_model_state"
+path = "fuzz_targets/target_model_state.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "target_codec"
+path = "fuzz_targets/target_codec.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "target_principal_parsers"
+path = "fuzz_targets/target_principal_parsers.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "target_portable_codecs"
+path = "fuzz_targets/target_portable_codecs.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "target_composition"
+path = "fuzz_targets/target_composition.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "target_registry_handlers"
+path = "fuzz_targets/target_registry_handlers.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "target_portable_abi"
+path = "fuzz_targets/target_portable_abi.rs"
 test = false
 doc = false
 bench = false

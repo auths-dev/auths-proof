@@ -1,20 +1,53 @@
 # Auths Target-State Delivery Plan
 
-**Status:** Proposed execution plan
+**Status:** Engineering implementation complete; external launch gates pending
 
 **Date:** 25 July 2026
 
 **Protocol target:** Auths Proof Protocol V1
 
-**Repository:** `auths-proof`
+**Repositories:** `auths-proof`, `auths-proof-exchange`,
+`auths-proof-apps`
 
 ## Product context
 
 Auths is prelaunch with zero users. This plan builds the target directly.
 
-The current implementation is prototype material. The plan does not preserve
-its wire bytes, APIs, fixtures, package names, or repository boundaries. There
-is one target protocol: V1.
+The superseded prototype paths have been removed after their behavior and
+fixtures were ported. There is one supported protocol and one kernel
+implementation: target V1.
+
+## Implementation record
+
+The dependency-ordered engineering work in Slices 0–6 and the reproducible
+code-controlled gates in Slice 7 are implemented across the three target
+repositories. The canonical corpus contains 99 semantic cases and 495
+referenced proof, canonical-action, canonical-body, context, and expected-result
+artifacts. Rust, Go, and TypeScript
+independently derive the same normalized result digest:
+
+```text
+99:6086b4db36264409ec494e2a1b1ebf1e834c5af1eca9c54344e70a49a383a377
+```
+
+The Go and TypeScript deterministic-CBOR auditors independently derive:
+
+```text
+495:2d1656b566a2d4e6fe5827c8873e70336656ea933b4f67fb5308b385f37bc885
+```
+
+The specification synchronization gate also requires a committed portable
+vector for every implemented V1 verdict code. Codes that cannot arise from a
+canonically decoded V1 graph are explicitly marked reserved in the stable
+failure registry.
+
+Repository architecture checks, complete default workspace tests, all-feature
+workspace tests, and strict all-target/all-feature Clippy checks pass. Live
+Iroh, TCP, and Unix conformance remains a host-executed gate because those
+tests require local sockets. Long-running fuzz campaigns, published
+hardware-specific benchmark results, operator studies, independent
+protocol/cryptography review, and launch-candidate sign-off are external
+release activities rather than unimplemented product code.
 
 The work is divided into dependency-ordered slices so each security boundary
 can be reviewed and tested before more surface is added. The slices are build
@@ -74,32 +107,29 @@ repo reset  ---> V1 spec/corpus -> pure V1 kernel -> evidence/status
 Work inside a slice may proceed concurrently only after the shared
 language-neutral contracts and fixtures for that slice are fixed.
 
-## Slice 0 — Reset the repository around the target
+## Slice 0 — Establish the three-repository target
 
 ### Objective
 
-Make `auths-proof` the single target repository and remove prototype structure
-as a design constraint.
+Establish the proof, exchange, and downstream application boundaries before
+the target APIs expand.
 
 ### Work
 
 - Accept ADR 0008 and ADR 0009.
 - Add the target-state paper, build map, and delivery plan to the canonical
   documentation.
-- Establish the target top-level directories:
-
-```text
-spec        crates       adapters      resolvers
-exchange    profiles     runtime       authoring
-receipts    lab          implementations
-apps        xtask
-```
-
-- Update workspace metadata and architecture checks for the target dependency
-  graph.
-- Move useful exchange, Iroh, MCP, replay, demo, and benchmark code into its
-  target package group.
-- Remove sibling path dependencies and prototype-only package names.
+- Keep `auths-proof` as the pure protocol and verification repository.
+- Keep transport work in `auths-proof-exchange`.
+- Rename/rescope prelaunch `auths-proof-mcp` as `auths-proof-apps`, retaining
+  MCP as its first profile and reference application.
+- Put profiles, runtime, receipts, configuration, reference applications,
+  Auths Lab, and independent implementations in separate crate groups inside
+  `auths-proof-apps`.
+- Put every repository on `dev-implementation-delta`.
+- Add repository-local architecture allow-lists and `xtask` release entry
+  points.
+- Define exact-revision and canonical-corpus consumption between repositories.
 - Record current benchmark and test results only as engineering input, not as
   compatibility requirements.
 - Delete obsolete specifications, fixtures, APIs, and code when their target
@@ -107,9 +137,11 @@ apps        xtask
 
 ### Exit gate
 
-- All target package groups have an owner and allowed dependency direction.
-- The pure proof graph is isolated from effectful packages.
-- `auths-proof` is the only repository required to build and test the target.
+- All three repositories have an owner and allowed dependency direction.
+- The pure proof graph cannot depend on exchange or apps.
+- Exchange cannot interpret authority.
+- Apps cannot construct sealed proof or profile outputs.
+- The core corpus has one source of truth and downstream pinned consumers.
 - No target implementation path introduces a second protocol or
   prototype-support layer.
 - Current prototype code has been classified as reuse, rewrite, or removal.
@@ -120,6 +152,8 @@ apps        xtask
 
 Rewrite `spec/v1` and `fixtures/v1` as the only normative Auths protocol.
 
+**Primary repository:** `auths-proof`
+
 ### Work
 
 Define:
@@ -127,7 +161,7 @@ Define:
 - object model and CDDL;
 - deterministic encoding;
 - domain separation and identifiers;
-- protocol registries and compatibility manifests;
+- protocol registries and corpus manifests;
 - verification algorithm;
 - assurance predicates and implication rules;
 - principal and grant status;
@@ -198,6 +232,8 @@ outside this function.
 
 Produce a complete portable authorization result from raw-key evidence.
 
+**Primary repository:** `auths-proof`
+
 ### Work
 
 - Implement validated types and bounded collections.
@@ -224,7 +260,8 @@ ProofBytes
 
 - Return deterministic denial and indeterminate results with stable codes.
 - Compute a deterministic context digest.
-- Rewrite authoring builders and CLI commands around the target objects.
+- Rewrite authoring builders around the target objects; keep command-line and
+  execution integration downstream.
 - Build the same pure implementation for native and
   `wasm32-unknown-unknown`.
 - Remove superseded prototype model, codec, verifier, and fixture paths.
@@ -260,11 +297,15 @@ ProofBytes
 Support all principal families as bounded fact providers without changing
 authority semantics.
 
+**Primary repositories:** deterministic evidence verification in `auths-proof`;
+live acquisition, resolvers, and assemblers in `auths-proof-apps`
+
 ### Slice 3A — Reuse the proven principal work
 
 - Adapt `did:key`, `did:keri`, and bundled `did:web` to target control
   statements and the signature-suite registry.
-- Preserve the pure/native resolver separation for `did:web`.
+- Keep bundled `did:web` document verification in `auths-proof`; place live
+  resolution and evidence assembly in `auths-proof-apps`.
 - Implement parameterized assurance claims carrying principal, role, adapter,
   version, evidence digest, and source.
 - Separate principal status from grant status.
@@ -301,7 +342,8 @@ authority semantics.
   cross-adapter, and work-limit vectors.
 - Ed25519 and P-256 are mandatory suites with no fallback.
 - Every assurance claim is traceable to accepted evidence.
-- No resolver or custody integration appears in the verifier graph.
+- No network-capable resolver or custody integration appears in
+  `auths-proof` or the verifier graph.
 
 ## Slice 4 — Build one complete verified execution vertical
 
@@ -309,6 +351,9 @@ authority semantics.
 
 Execute one exact MCP tool call through the full target gate over memory and
 Iroh.
+
+**Repositories:** proof API/corpus in `auths-proof`, transports in
+`auths-proof-exchange`, profile/runtime/receipts in `auths-proof-apps`
 
 ### Exchange
 
@@ -378,6 +423,10 @@ sent to the signer.
 - The complete vertical uses only target package paths and contracts.
 
 ## Slice 5 — Complete transports, profiles, and authoring
+
+**Repositories:** transports in `auths-proof-exchange`; profiles, custody
+integrations, and applications in `auths-proof-apps`; pure keyless authoring
+remains in `auths-proof`
 
 ### Slice 5A — Transports
 
@@ -452,6 +501,9 @@ Each profile ships:
 
 Make the complete system deployable, observable, and bounded under load.
 
+**Primary repository:** `auths-proof-apps`, consuming explicit cache-validity
+and context-digest outputs from `auths-proof`
+
 ### Work
 
 - Compile declarative configuration into immutable registries,
@@ -500,6 +552,9 @@ replay storage, or policy fixtures are invalid.
 
 Demonstrate portable meaning beyond the Rust implementation and close every
 launch gate.
+
+**Primary repository:** `auths-proof-apps` for Auths Lab and independent
+implementations; all three repository release checks are required
 
 ### Work
 
@@ -601,7 +656,6 @@ No downstream API freezes before its semantic dependencies.
 
 ## Completion
 
-The program is complete when every target row in
-[`DELTA.md`](DELTA.md) is implemented or removed through an accepted
-replacement decision, all Slice 7 gates pass, and the launch candidate
-completes external review.
+The engineering implementation is complete. Product launch remains contingent
+on the host-executed and external Slice 7 activities recorded above, including
+independent review and launch-candidate sign-off.

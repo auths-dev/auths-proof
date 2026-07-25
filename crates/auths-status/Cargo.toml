@@ -1,0 +1,16 @@
+[package]
+name = "auths-status"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[features]
+default = ["std"]
+std = ["auths-model/std"]
+
+[dependencies]
+auths-model.workspace = true
+
+[lints]
+workspace = true

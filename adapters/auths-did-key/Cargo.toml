@@ -1,0 +1,27 @@
+[package]
+name = "auths-did-key"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Pure did:key principal-control method for Auths target V1"
+
+[features]
+default = ["std"]
+std = [
+    "auths-model/std",
+    "auths-multikey/std",
+    "auths-ports/std",
+]
+
+[dependencies]
+auths-model.workspace = true
+auths-multikey.workspace = true
+auths-ports.workspace = true
+
+[dev-dependencies]
+auths-codec = { workspace = true, features = ["std"] }
+ed25519-dalek = { workspace = true, features = ["std"] }
+
+[lints]
+workspace = true

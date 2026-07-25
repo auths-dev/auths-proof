@@ -22,23 +22,22 @@ algorithm inference or fallback.
 ## Evidence
 
 ```text
-"auths-proof/did-key/evidence/v1\0"
+"AUTHS-DID-KEY\x00\x01"
 u16-be multikey_length
 multikey UTF-8 bytes
 ```
 
 The evidence Multikey must reconstruct the exact principal and verification
-method. Both Auths proof purposes are accepted because the generated `did:key`
-document places its signing method in `capabilityDelegation` and
-`capabilityInvocation`.
+method. Signature verification remains in the separately selected exact
+signature-suite implementation.
 
 ## Assurance
 
 The adapter emits:
 
 ```text
-SelfCertifyingIdentifier
-OfflineVerifiable
+self-certifying-identifier
+offline-verifiable
 ```
 
 `did:key` has no rotation, deactivation, or historical controller-state

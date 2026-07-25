@@ -22,16 +22,16 @@ ambient facts explicitly. It does not resolve identities or evidence.
 
 | Layer | Crates | Responsibility |
 |---|---|---|
-| Model | `auths-proof-model` | Validated protocol vocabulary and verdicts |
-| Encoding | `auths-proof-codec` | Deterministic CBOR, signing bytes, identifiers |
-| Ports | `auths-proof-adapter-api` | Principal-control and grant-status traits |
-| Kernel | `auths-proof-verifier` | Authority attenuation and action verification |
-| Authoring | `auths-proof-author` | Keyless draft/signature attachment workflow |
-| Shared pure primitive | `auths-proof-multikey` | Closed Ed25519/P-256 Multikey parsing and verification |
-| Adapters | `auths-proof-raw-key`, `auths-proof-did-key`, `auths-proof-did-keri`, `auths-proof-did-web` | Concrete principal-control proofs |
-| Native resolution | `auths-proof-did-web-http` | Policy-constrained retrieval and trust-record production |
-| Composition | `auths-proof-cli` | Files, flags, output, explicit adapter registry |
-| Assurance | `auths-proof-testkit`, `xtask` | Fixtures, conformance, architecture checks |
+| Model | `auths-model` | Validated protocol vocabulary, context, and verdict reasons |
+| Encoding | `auths-codec` | Deterministic CBOR, signing preimages, and typed identifiers |
+| Ports and registries | `auths-ports`, `auths-registries` | Principal, suite, resource, profile, budget, extension, status, assurance, and immutable manifest-bound executable registries |
+| Kernel | `auths-verifier`, `auths-authority`, `auths-composition`, `auths-assurance`, `auths-status` | Sealed verification, attenuation, plans, assurance, freshness, and revocation |
+| Authoring | `auths-author` | Safe authority planning, diffs, warnings, and keyless signing requests |
+| Shared pure primitive | `auths-multikey` | Closed Ed25519/P-256 Multikey parsing |
+| Adapters | `auths-raw-key`, `auths-did-key`, `auths-did-keri`, `auths-did-web`, `auths-spiffe-x509`, `auths-webauthn`, `auths-hsm-attested` | Exact principal-control and evidence verification |
+| Native resolution | downstream `auths-proof-apps/integrations/auths-resolver-did-web` | Policy-constrained retrieval and trust-record production |
+| Signature suites | `auths-signature` | Mandatory Ed25519 and low-S P-256 verification |
+| Conformance | `auths-testkit`, `xtask`, `fuzz` | Corpus, architecture, native/WASM, property, and parser checks |
 
 Core crates contain no network, filesystem, process, environment, system
 clock, randomness, private keys, databases, Git, or async runtime.
@@ -39,8 +39,8 @@ clock, randomness, private keys, databases, Git, or async runtime.
 Concrete pure adapters also contain no network. The native HTTP resolver is a
 leaf integration crate: adapters and the verifier cannot depend on it.
 
-`cargo xtask arch` reads `cargo metadata` and rejects forbidden dependency
-edges.
+`cargo xtask arch` reads `cargo metadata`, rejects forbidden dependency
+edges, and fails closed on an unclassified workspace package.
 
 ## Verification data flow
 
@@ -54,7 +54,10 @@ bounded strict CBOR decoder
 evidence/reference graph validation
    |
    v
-local trust anchor
+branch-local control results
+   |
+   v
+all plan leaves + local trust anchors
    |
    v
 grant[0] -> grant[1] -> ... -> terminal principal
@@ -65,6 +68,9 @@ grant[0] -> grant[1] -> ... -> terminal principal
 action body/audience/challenge/time/signature
    |
    v
+signed attachment integrity + exact pure policies
+   |
+   v
 Authorized | Denied | Indeterminate
 ```
 
@@ -73,7 +79,7 @@ Authorized | Denied | Indeterminate
 A new principal method:
 
 1. defines an exact adapter ID and evidence media type;
-2. implements `PrincipalControlVerifier`;
+2. implements `PrincipalMethod`;
 3. verifies principal-to-method binding, purpose, algorithm, signature, and
    method-specific evidence;
 4. reports only assurance actually established;
@@ -83,7 +89,8 @@ A new principal method:
 The verifier never depends on the concrete adapter and never tries adapters
 until one happens to accept.
 
-Milestone 2 enforces that separation with mixed chains in both directions:
+The corpus enforces that separation with mixed chains in every supported
+root/actor direction, including:
 
 ```text
 did:keri root -> raw-key agent -> exact action
@@ -93,7 +100,7 @@ raw-key root  -> did:keri agent -> exact action
 The same authority path verifies both. Only the exact adapter lookup and its
 principal-control result differ.
 
-Milestone 3 adds a second boundary:
+Live evidence acquisition adds a second boundary:
 
 ```text
 native HTTP resolver -> document + local trust record
@@ -108,6 +115,6 @@ native HTTP resolver -> document + local trust record
 ## Scope stop
 
 Key custody, live resolution, witness networks, directories, policy engines,
-gateways, budgets, storage, dashboards, and execution are application-layer
-concerns. See the strict-boundary section of
-`AUTHS_PROOF_GREENFIELD_FOUNDATION.md`.
+gateways, budgets, storage, dashboards, and execution are downstream
+application concerns. Exchange/framing belongs to `auths-proof-exchange`;
+profiles and effects belong to `auths-proof-apps`.

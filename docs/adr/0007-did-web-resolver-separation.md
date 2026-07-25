@@ -6,13 +6,13 @@ Accepted.
 
 ## Decision
 
-The pure `auths-proof-did-web` adapter verifies a bundled canonical DID
+The pure `auths-did-web` adapter verifies a bundled canonical DID
 document only when its digest is matched by explicit host trust.
 
-Network retrieval lives in the separate native
-`auths-proof-did-web-http` resolver. The resolver may produce a current trust
-record after policy-constrained HTTPS retrieval, but it cannot authorize an
-action and is never called by the verifier.
+Network retrieval lives in the downstream
+`auths-proof-apps/integrations/auths-resolver-did-web` crate. The resolver may
+produce a current trust record after policy-constrained HTTPS retrieval, but
+it cannot authorize an action and is never callable by the proof repository.
 
 Historical document pins are verifier configuration. Accepting a historical
 key additionally requires evidence that the exact Auths signing bytes existed

@@ -1,0 +1,29 @@
+[package]
+name = "auths-hsm-attested"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Pure verifier-local HSM attestation profiles for Auths target V1"
+
+[features]
+default = ["std"]
+std = [
+    "auths-model/std",
+    "auths-ports/std",
+    "base64ct/std",
+    "ed25519-dalek/std",
+    "p256/std",
+    "sha2/std",
+]
+
+[dependencies]
+auths-model.workspace = true
+auths-ports.workspace = true
+base64ct.workspace = true
+ed25519-dalek.workspace = true
+p256.workspace = true
+sha2.workspace = true
+
+[lints]
+workspace = true

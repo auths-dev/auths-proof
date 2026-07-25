@@ -17,8 +17,8 @@ The kernel and exchange protocol remain independently versioned. Applications
 compose both:
 
 ```text
-auths-proof-mcp -> auths-proof
-auths-proof-mcp -> auths-proof-exchange
+auths-proof-apps -> auths-proof
+auths-proof-apps -> auths-proof-exchange
 
 auths-proof          -X-> networking, Iroh, async runtimes
 auths-proof-exchange -X-> principal methods and authority policy
