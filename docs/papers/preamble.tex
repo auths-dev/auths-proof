@@ -1,0 +1,304 @@
+% auths-proof paper design system.
+% XeLaTeX + STIX Two for scientific typography; TikZ for native vector figures.
+
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{fancyvrb}
+\usepackage{float}
+\usepackage{microtype}
+\usepackage{iftex}
+\usepackage{xcolor}
+\usepackage{titlesec}
+\usepackage{caption}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{etoolbox}
+\usepackage{multicol}
+\usepackage{tikz}
+\usepackage{fontawesome5}
+\usepackage[most]{tcolorbox}
+
+\ifXeTeX\usepackage{fontspec}\usepackage{unicode-math}\fi
+\ifLuaTeX\usepackage{fontspec}\usepackage{unicode-math}\fi
+
+\makeatletter
+\@ifpackageloaded{fontspec}{%
+  \IfFontExistsTF{STIXTwoText-Regular.otf}{%
+    \setmainfont{STIXTwoText}[
+      Extension=.otf,
+      UprightFont=*-Regular,
+      BoldFont=*-Bold,
+      ItalicFont=*-Italic,
+      BoldItalicFont=*-BoldItalic]}{}%
+  \@ifpackageloaded{unicode-math}{%
+    \IfFontExistsTF{STIXTwoMath-Regular.otf}{%
+      \setmathfont{STIXTwoMath-Regular.otf}}{}}{}%
+  \IfFontExistsTF{texgyreheros-regular.otf}{%
+    \setsansfont{texgyreheros}[
+      Extension=.otf,
+      UprightFont=*-regular,
+      BoldFont=*-bold,
+      ItalicFont=*-italic,
+      BoldItalicFont=*-bolditalic,
+      Scale=MatchLowercase]}{}%
+  \IfFontExistsTF{Menlo}{\setmonofont{Menlo}[Scale=0.78]}{%
+    \IfFontExistsTF{Inconsolatazi4-Regular.otf}{%
+      \setmonofont{Inconsolatazi4}[
+        Extension=.otf,
+        UprightFont=*-Regular,
+        BoldFont=*-Bold,
+        Scale=MatchLowercase]}{}}%
+}{}
+\makeatother
+
+\linespread{1.035}
+\frenchspacing
+\setlength{\parskip}{2pt}
+\setlength{\emergencystretch}{2em}
+
+% Corporate editorial palette: dark neutral ink plus four semantic axes.
+\definecolor{ink}{HTML}{202124}
+\definecolor{muted}{HTML}{5F6368}
+\definecolor{line}{HTML}{DADCE0}
+\definecolor{blue}{HTML}{1A73E8}
+\definecolor{blue2}{HTML}{174EA6}
+\definecolor{bluewash}{HTML}{E8F0FE}
+\definecolor{green}{HTML}{188038}
+\definecolor{greenwash}{HTML}{E6F4EA}
+\definecolor{amber}{HTML}{E37400}
+\definecolor{amberwash}{HTML}{FEF7E0}
+\definecolor{purple}{HTML}{9334E6}
+\definecolor{purplewash}{HTML}{F3E8FD}
+\definecolor{red}{HTML}{D93025}
+\definecolor{redwash}{HTML}{FCE8E6}
+\definecolor{slatewash}{HTML}{F8F9FA}
+
+\titleformat{\section}
+  {\Large\bfseries\sffamily\color{ink}}
+  {\textcolor{blue}{\thesection}}{0.78em}{}
+\titleformat{\subsection}
+  {\normalsize\bfseries\sffamily\color{ink}}
+  {\textcolor{blue}{\thesubsection}}{0.72em}{}
+\titleformat{\subsubsection}
+  {\normalsize\bfseries\sffamily\color{ink}}
+  {}{0pt}{}
+\titlespacing*{\section}{0pt}{*2.8}{*1.05}
+\titlespacing*{\subsection}{0pt}{*1.8}{*0.65}
+\titlespacing*{\subsubsection}{0pt}{*1.4}{*0.45}
+
+\captionsetup{
+  font=small,
+  labelfont={bf,sf,color=ink},
+  textfont={color=muted},
+  skip=6pt
+}
+\setlist{itemsep=1.5pt,topsep=4pt,parsep=0pt,leftmargin=1.4em}
+\fvset{rulecolor=\color{line}}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\footnotesize\sffamily\color{muted} AUTHS-PROOF \enspace / \enspace SYSTEMS DESIGN}
+\fancyhead[R]{\footnotesize\sffamily\color{muted}\thepage}
+\renewcommand{\headrulewidth}{0.25pt}
+\renewcommand{\headrule}{\hbox to\headwidth{\color{line}\leaders\hrule height \headrulewidth\hfill}}
+\fancypagestyle{plain}{
+  \fancyhf{}
+  \fancyfoot[C]{\footnotesize\sffamily\color{muted}\thepage}
+  \renewcommand{\headrulewidth}{0pt}
+}
+\AtBeginDocument{\hypersetup{
+  linkcolor=blue2,
+  citecolor=blue2,
+  urlcolor=blue2
+}}
+
+\usetikzlibrary{
+  arrows.meta,
+  positioning,
+  shapes.geometric,
+  fit,
+  backgrounds,
+  calc,
+  matrix,
+  decorations.pathreplacing,
+  shadows.blur
+}
+
+\tikzset{
+  every picture/.style={font=\sffamily},
+  axisbox/.style={
+    draw=#1,
+    fill=#1!5,
+    line width=0.9pt,
+    rounded corners=4pt,
+    align=center,
+    inner xsep=8pt,
+    inner ysep=6pt,
+    text=ink,
+    font=\sffamily\footnotesize
+  },
+  card/.style={
+    draw=line,
+    fill=white,
+    line width=0.65pt,
+    rounded corners=5pt,
+    align=center,
+    inner xsep=9pt,
+    inner ysep=7pt,
+    text=ink,
+    font=\sffamily\footnotesize,
+    blur shadow={shadow blur steps=5,shadow xshift=0.6pt,shadow yshift=-0.8pt,shadow opacity=12}
+  },
+  kernel/.style={
+    draw=blue,
+    fill=blue,
+    line width=1pt,
+    rounded corners=5pt,
+    align=center,
+    inner xsep=11pt,
+    inner ysep=9pt,
+    text=white,
+    font=\sffamily\small\bfseries,
+    blur shadow={shadow blur steps=6,shadow xshift=0.7pt,shadow yshift=-1pt,shadow opacity=18}
+  },
+  boundary/.style={
+    draw=muted,
+    densely dashed,
+    line width=0.8pt,
+    rounded corners=7pt,
+    inner sep=8pt
+  },
+  flow/.style={
+    ->,
+    >=Stealth,
+    draw=#1,
+    line width=1.05pt,
+    shorten >=2pt,
+    shorten <=2pt
+  },
+  flow/.default=muted,
+  thinflow/.style={
+    ->,
+    >=Stealth,
+    draw=#1,
+    line width=0.75pt,
+    shorten >=1.5pt,
+    shorten <=1.5pt
+  },
+  thinflow/.default=muted,
+  pill/.style={
+    draw=#1,
+    fill=white,
+    line width=0.7pt,
+    rounded corners=8pt,
+    text=#1,
+    font=\sffamily\scriptsize\bfseries,
+    inner xsep=7pt,
+    inner ysep=3pt
+  },
+  note/.style={
+    text=muted,
+    font=\sffamily\scriptsize,
+    align=center
+  },
+  verdict/.style={
+    draw=#1,
+    fill=#1!7,
+    line width=1pt,
+    rounded corners=4pt,
+    text=#1,
+    align=center,
+    font=\sffamily\footnotesize\bfseries,
+    inner xsep=8pt,
+    inner ysep=6pt
+  }
+}
+
+\newtcolorbox{thesisbox}{
+  enhanced,
+  colback=bluewash,
+  colframe=blue,
+  boxrule=0pt,
+  borderline west={3pt}{0pt}{blue},
+  arc=4pt,
+  left=10pt,right=10pt,top=8pt,bottom=8pt,
+  fontupper=\sffamily\small,
+  before skip=9pt,after skip=9pt
+}
+
+\newtcolorbox{limitbox}{
+  enhanced,
+  colback=amberwash,
+  colframe=amber,
+  boxrule=0pt,
+  borderline west={3pt}{0pt}{amber},
+  arc=4pt,
+  left=10pt,right=10pt,top=8pt,bottom=8pt,
+  fontupper=\small,
+  before skip=8pt,after skip=8pt
+}
+
+\newtcolorbox{invariantbox}[1]{
+  enhanced,
+  colback=slatewash,
+  colframe=line,
+  boxrule=0.6pt,
+  arc=4pt,
+  left=9pt,right=9pt,top=6pt,bottom=7pt,
+  title={\sffamily\bfseries\footnotesize\textcolor{blue}{#1}},
+  colbacktitle=slatewash,
+  coltitle=blue,
+  titlerule=0pt,
+  before skip=7pt,after skip=7pt
+}
+
+\newcommand{\axislabel}[2]{\textcolor{#1}{\sffamily\bfseries #2}}
+\newcommand{\authsword}{\textsc{Auths-Proof}}
+
+% Purpose-built title treatment: editorial, restrained, and visually tied to
+% the four adapter axes used throughout the figures.
+\makeatletter
+\renewcommand{\maketitle}{%
+  \begin{flushleft}
+    \vspace*{-1.2em}
+    {\sffamily\scriptsize\bfseries\color{blue}
+      AUTHORIZATION SYSTEMS \enspace / \enspace RESEARCH PROTOTYPE\par}
+    \vspace{0.65em}
+    {\sffamily\fontsize{25}{29}\selectfont\bfseries\color{ink}\@title\par}
+    \vspace{0.85em}
+    \begin{tikzpicture}
+      \fill[green]  (0,0) rectangle (2.4,0.08);
+      \fill[purple] (2.4,0) rectangle (4.8,0.08);
+      \fill[amber]  (4.8,0) rectangle (7.2,0.08);
+      \fill[blue]   (7.2,0) rectangle (10.5,0.08);
+    \end{tikzpicture}\par
+    \vspace{0.75em}
+    {\sffamily\small\color{muted}\@author\hfill\@date\par}
+    \vspace{1.0em}
+  \end{flushleft}
+}
+\makeatother
+
+\renewenvironment{abstract}{%
+  \begin{tcolorbox}[
+    enhanced,
+    colback=slatewash,
+    colframe=line,
+    boxrule=0.6pt,
+    arc=5pt,
+    left=11pt,right=11pt,top=8pt,bottom=9pt,
+    title={\sffamily\bfseries\footnotesize\textcolor{blue}{ABSTRACT}},
+    colbacktitle=slatewash,
+    coltitle=blue,
+    titlerule=0pt,
+    before skip=2pt,after skip=12pt]
+  \small
+}{%
+  \end{tcolorbox}
+}
+
+% A compact two-column reference block avoids a nearly empty trailing page and
+% gives the bibliography the visual density expected of a systems paper.
+\BeforeBeginEnvironment{CSLReferences}{\footnotesize\begin{multicols}{2}}
+\AfterEndEnvironment{CSLReferences}{\end{multicols}}
