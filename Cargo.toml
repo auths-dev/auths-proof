@@ -1,6 +1,8 @@
 [workspace]
 resolver = "2"
 members = [
+    "bindings/auths-proof-wasm",
+    "crates/auths-proof",
     "crates/auths-model",
     "crates/auths-codec",
     "crates/auths-ports",
@@ -45,6 +47,7 @@ auths-verifier = { version = "0.1.0", path = "crates/auths-verifier", default-fe
 auths-author = { version = "0.1.0", path = "crates/auths-author", default-features = false }
 auths-multikey = { version = "0.1.0", path = "crates/auths-multikey", default-features = false }
 auths-testkit = { version = "0.1.0", path = "crates/auths-testkit" }
+auths-proof = { version = "0.1.0", path = "crates/auths-proof", default-features = false }
 auths-raw-key = { version = "0.1.0", path = "adapters/auths-raw-key", default-features = false }
 auths-did-key = { version = "0.1.0", path = "adapters/auths-did-key", default-features = false }
 auths-did-keri = { version = "0.1.0", path = "adapters/auths-did-keri", default-features = false }
@@ -69,6 +72,8 @@ rustls-pki-types = { version = "1.15.1", default-features = false, features = ["
 rustls-webpki = { version = "0.103.13", default-features = false, features = ["alloc", "ring"] }
 ring = { version = "0.17.14", default-features = false }
 x509-parser = { version = "0.18.1", default-features = false }
+thiserror = { version = "2.0.19", default-features = false }
+wasm-bindgen = "0.2.114"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
