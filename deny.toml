@@ -8,6 +8,7 @@ yanked = "deny"
 confidence-threshold = 0.8
 allow = [
     "Apache-2.0",
+    "BlueOak-1.0.0",
     "BSD-2-Clause",
     "BSD-3-Clause",
     "CDLA-Permissive-2.0",
