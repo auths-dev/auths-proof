@@ -1,10 +1,11 @@
 # Auths Target-State Build Map
 
-**Status:** Proposed implementation map
+**Status:** Implemented engineering map; external launch validation pending
 
 **Date:** 25 July 2026
 
-**Repository:** `auths-proof`
+**Repositories:** `auths-proof`, `auths-proof-exchange`,
+`auths-proof-apps`
 
 **Target:** *Auths: A Complete Architecture for Portable,
 Principal-Agnostic Authorization*, Target Architecture 1.0
@@ -57,7 +58,8 @@ The current `auths-proof` workspace demonstrates:
 - keyless authoring;
 - an offline CLI, WASM checks, fixtures, and architecture checks.
 
-The local `auths-proof-exchange` and `auths-proof-mcp` prototypes demonstrate:
+The local `auths-proof-exchange` and prelaunch `auths-proof-mcp` prototypes
+demonstrate:
 
 - semantic challenge and submission messages;
 - in-memory and Iroh transports;
@@ -72,33 +74,23 @@ workspace boundaries, and fixture stability do not constrain the target.
 ## Target architecture
 
 ```text
-                           AUTHS-PROOF REPOSITORY
-
-  +----------------+       +--------------------+       +----------------+
-  | evidence       | ----> | pure authority     | <---- | profiles       |
-  | bounded facts  |       | kernel             |       | action meaning |
-  +----------------+       +----------+---------+       +--------+-------+
-                                      ^                          |
-                                      |                          |
-                           +----------+---------+                |
-                           | exchange           |                |
-                           | bytes + peers      |                |
-                           +----------+---------+                |
-                                      \                         /
-                                       \                       /
-                                        v                     v
-                                     +---------------------------+
-                                     | runtime                   |
-                                     | replay/gates/receipts     |
-                                     +-------------+-------------+
-                                                   |
-                                                   v
-                                     +---------------------------+
-                                     | verified application      |
-                                     | execution                 |
-                                     +---------------------------+
-
-  lab consumes all public boundaries. Production code never depends on lab.
+                     +--------------------------+
+                     | auths-proof              |
+                     | pure authority kernel    |
+                     | canonical CBOR corpus    |
+                     +------------+-------------+
+                                  ^
+                                  |
+                +-----------------+-----------------+
+                |                                   |
+     +----------+-----------+            +----------+-----------+
+     | auths-proof-exchange |            | auths-proof-apps     |
+     | bytes + peer facts   |            | profiles + runtime   |
+     +----------+-----------+            | receipts + lab       |
+                |                        +----------+-----------+
+                |                                   ^
+                +-----------------------------------+
+                         public package contracts
 ```
 
 The verification path is:
@@ -166,7 +158,7 @@ fixtures.
 | Evidence | Principal evidence plus bindings | General bounded evidence map | Rewrite |
 | Principal status | Folded into method evidence | Separate status objects and snapshot | Build |
 | Grant status | Port only | Signed status objects and snapshot | Build |
-| Attachments | Not represented | Digest-addressed detached descriptors | Build |
+| Attachments | Not represented | Signed descriptors plus bounded detached bytes, required/opaque policy, and integrity/use checks | Build |
 | Reference validation | Linear checks | Cycle, ambiguity, mismatch, and unused-critical checks | Rewrite |
 
 ### Context and outputs
@@ -181,6 +173,7 @@ fixtures.
 | Channel policy | MCP service-local | Explicit outer-gate policy ID | Rewrite |
 | Limits | Decode limits | Decode, graph, crypto, adapter, plan, and work limits | Rewrite |
 | Context digest | Absent | Deterministic receipt/cache key | Build |
+| Portable result | Rust-local verdict | Canonical stage/code/digest/branch/assurance/resource result CBOR | Build |
 | Authorized value | Data-bearing verdict | Unforgeable `VerifiedAction` | Rewrite |
 | Executable value | Application inspects verdict | Unforgeable `ExecutableAction<P>` | Build |
 
@@ -219,7 +212,8 @@ fixtures.
 | Raw key | Adapt current Ed25519/P-256 code | raw-key adapter | Positive and malformed vectors |
 | `did:key` | Adapt current parser/control code | did-key adapter | Official and confusion vectors |
 | `did:keri` | Extend bounded KEL code with explicit checkpoint/status claims | did-keri adapter | Historical/current distinctions |
-| Bundled `did:web` | Reuse resolver separation; rewrite assurance provenance | did-web adapter/resolver | Native/WASM and backdating tests |
+| Bundled `did:web` | Keep deterministic bundled-document verification; rewrite assurance provenance | `auths-proof` did-web adapter | Native/WASM and backdating tests |
+| Live `did:web` acquisition | Build a network-capable downstream assembler that produces explicit evidence | `auths-proof-apps/integrations` | No resolver-to-kernel effect path |
 | SPIFFE/X.509 | Build path, SAN, EKU, status, and bridge modes | evidence adapter | Trust-domain and bridge-confusion tests |
 | WebAuthn | Build ceremony, origin, flags, credential, and attestation checks | evidence adapter | Ceremony and counter-policy vectors |
 | HSM-backed principals | Build registered attestation profiles | evidence adapter | Downgrade and transaction-binding tests |
@@ -228,46 +222,46 @@ fixtures.
 
 | Target capability | Action | Target owner | Acceptance evidence |
 |---|---|---|---|
-| Exchange messages | Adapt useful prototype semantics to target V1 | `exchange/` | Byte-stable target corpus |
-| Peer observations | Reuse typed fact boundary and add all transports | exchange adapters | Transport substitution preserves verdict |
-| Memory and Iroh | Reuse implementations behind target ports | exchange adapters | Shared conformance |
-| HTTPS, TCP, Unix, file | Build remaining adapters | exchange adapters | Shared conformance and channel-policy tests |
-| Replay lease | Generalize the one-use ledger to action-bound atomic lease | `runtime/` | Concurrent duplicates execute once |
-| Budget ledger | Build stateful atomic consumption | `runtime/` | Exhaustion and concurrency tests |
-| Verified execution | Build `VerifiedAction -> Lease -> ExecutableAction<P>` | runtime/profiles | Executor cannot accept unverified bytes |
-| Decision receipt | Build canonical decision record | `receipts/` | Tamper and offline verification vectors |
-| Execution receipt | Build lease/result record | `receipts/` | Success/failure reconstruction |
-| Audit bundle | Build minimized portable export | receipts/control | Redaction and offline reconstruction |
+| Exchange messages | Adapt useful prototype semantics to target V1 | `auths-proof-exchange` | Byte-stable target corpus |
+| Peer observations | Reuse typed fact boundary and add all transports | `auths-proof-exchange` | Transport substitution preserves verdict |
+| Memory and Iroh | Reuse implementations behind target ports | `auths-proof-exchange` | Shared conformance |
+| HTTPS, TCP, Unix, file | Build remaining adapters | `auths-proof-exchange` | Shared conformance and channel-policy tests |
+| Replay lease | Generalize the one-use ledger to action-bound atomic lease | `auths-proof-apps/runtime` | Concurrent duplicates execute once |
+| Budget ledger | Build stateful atomic consumption | `auths-proof-apps/runtime` | Exhaustion and concurrency tests |
+| Verified execution | Build `VerifiedAction -> Lease -> ExecutableAction<P>` | `auths-proof-apps` | Executor cannot accept unverified bytes |
+| Decision receipt | Build canonical decision record | `auths-proof-apps/receipts` | Tamper and offline verification vectors |
+| Execution receipt | Build lease/result record | `auths-proof-apps/receipts` | Success/failure reconstruction |
+| Audit bundle | Build minimized portable export | `auths-proof-apps/receipts` | Redaction and offline reconstruction |
 
 ### Profiles and authoring
 
 | Target capability | Action | Target owner | Acceptance evidence |
 |---|---|---|---|
-| Profile contract | Extract and formalize canonicalization/display/decoder interface | `profiles/` | Common contract tests |
-| MCP | Adapt prototype to signed target envelope and verified decoder | MCP profile | Memory/Iroh end-to-end tests |
-| HTTP | Build canonical HTTP profile | HTTP profile | URI/header/defaulting corpus |
-| Git | Build commit/tag/ref/merge/release profile | Git profile | Ambiguity and TOCTOU analysis |
-| Deployment | Build artifact/environment/config/strategy profile | deploy profile | Exact digest mismatch tests |
-| Supply chain | Build build/attest/publish/promote profile | supply-chain profile | Provenance and subject tests |
-| Edge control | Build device/firmware/sequence profile | edge profile | Offline and stale-sequence tests |
-| Keyless authoring | Expand current builders and CLI | `authoring/` | External signer round trips |
-| Approval display | Build exact human-readable profile displays | profiles/authoring | Display-to-digest fixtures |
-| Custody integrations | Build WebAuthn, workload, KMS, HSM, and PKCS#11 leaves | authoring adapters | Transaction-binding tests |
+| Profile contract | Extract and formalize canonicalization/display/decoder interface | `auths-proof-apps/profiles` | Common contract tests |
+| MCP | Adapt prototype to signed target envelope and verified decoder | `auths-proof-apps/profiles` | Memory/Iroh end-to-end tests |
+| HTTP | Build canonical HTTP profile | `auths-proof-apps/profiles` | URI/header/defaulting corpus |
+| Git | Build commit/tag/ref/merge/release profile | `auths-proof-apps/profiles` | Ambiguity and TOCTOU analysis |
+| Deployment | Build artifact/environment/config/strategy profile | `auths-proof-apps/profiles` | Exact digest mismatch tests |
+| Supply chain | Build build/attest/publish/promote profile | `auths-proof-apps/profiles` | Provenance and subject tests |
+| Edge control | Build device/firmware/sequence profile | `auths-proof-apps/profiles` | Offline and stale-sequence tests |
+| Keyless authoring | Expand pure builders and CLI | `auths-proof` | External signer round trips |
+| Approval display | Build exact human-readable profile displays | `auths-proof-apps` | Display-to-digest fixtures |
+| Custody integrations | Build WebAuthn, workload, KMS, HSM, and PKCS#11 leaves | `auths-proof-apps` | Transaction-binding tests |
 
 ### Configuration, performance, and conformance
 
 | Target capability | Action | Target owner | Acceptance evidence |
 |---|---|---|---|
-| Declarative configuration | Build compiler to immutable context templates | runtime/control | Startup diagnostics and context digest |
-| Dependency allow-list | Expand current architecture checks | `xtask` | Forbidden edges fail CI |
-| Pure-stage caches | Build exact keys and validity bounds | runtime | Context/status invalidation tests |
-| Stable-prefix cache | Build without skipping action checks | runtime/verifier | Mutated action remains denied |
-| Bounded parallelism | Build deterministic scheduled verification | runtime | Sequential/parallel parity |
-| Language-neutral corpus | Rewrite and expand fixtures | spec/lab | Rust, Go, and TypeScript share files |
-| Go verifier | Build independent server verifier | `implementations/go` | Zero required divergence |
-| TypeScript verifier | Build browser/Node verifier | `implementations/typescript` | Zero required divergence |
-| Auths Lab | Build factorial matrices and raw result artifacts | `lab/` | Reproducible runs |
-| Operator studies | Build and run target workflows | lab/control | Time, error, recovery, and over-granting metrics |
+| Declarative configuration | Build compiler to immutable context templates | `auths-proof-apps/runtime` | Startup diagnostics and context digest |
+| Dependency allow-list | Expand repository-local architecture checks | all three `xtask` packages | Forbidden edges fail CI |
+| Pure-stage caches | Build exact keys and validity bounds | `auths-proof-apps/runtime` | Context/status invalidation tests |
+| Stable-prefix cache | Build without skipping action checks | proof prefix API + apps runtime | Mutated action remains denied |
+| Bounded parallelism | Build deterministic scheduled verification | `auths-proof-apps/runtime` | Sequential/parallel parity |
+| Language-neutral corpus | Rewrite and expand fixtures | `auths-proof` source; downstream consumers | Rust, Go, and TypeScript share files |
+| Go verifier | Build independent server verifier | `auths-proof-apps/implementations` | Zero required divergence |
+| TypeScript verifier | Build browser/Node verifier | `auths-proof-apps/implementations` | Zero required divergence |
+| Auths Lab | Build factorial matrices and raw result artifacts | `auths-proof-apps/lab` | Reproducible runs |
+| Operator studies | Build and run target workflows | `auths-proof-apps/lab` | Time, error, recovery, and over-granting metrics |
 
 ## Build-order correction
 
@@ -313,15 +307,17 @@ For the implementation:
 
 ## Completion
 
-The target is complete only when:
+The target engineering implementation now provides:
 
-- every row above is implemented or removed through an accepted replacement
-  decision;
-- Rust, Go, and TypeScript agree on all canonical digests, verdict classes,
-  reason codes, and assurance reports;
-- all six transports preserve the same Auths verdict for identical inputs;
-- all six profiles execute only commands decoded from `VerifiedAction`;
-- native and WASM verification preserve identical semantics;
-- the architectural acceptance checklist is executable in CI where possible;
-- independent protocol and implementation reviews are resolved against the
-  launch candidate.
+- one direct target V1 contract with no migration or compatibility path;
+- Rust, Go, and TypeScript agreement on canonical semantic projections;
+- six exchange adapters behind one transport-neutral contract;
+- six profiles whose execution boundary consumes verified commands;
+- native and WASM-compatible pure-kernel packages;
+- executable architecture, wire, matrix, cross-language, test, and lint gates.
+
+Launch validation still requires socket-enabled runs of live transport cases,
+long-duration fuzz and performance measurements on published hardware,
+operator studies, and independent protocol/cryptography and implementation
+reviews. Those results are release evidence and are not represented as having
+been completed by this source implementation.

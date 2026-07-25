@@ -8,13 +8,13 @@
 DNS + HTTPS + host policy
           |
           v
-auths-proof-did-web-http
+auths-proof-apps/integrations/auths-resolver-did-web
           |
           +---- canonical document evidence
           +---- explicit host trust record
                             |
                             v
-                 auths-proof-did-web
+                    auths-did-web
                  (pure; no resolution)
                             |
                             v
@@ -44,14 +44,14 @@ encoding, dot segments, and redirects are rejected.
 
 | Field | Value |
 | --- | --- |
-| Adapter ID | `did-web-v1` |
-| Evidence media type | `application/vnd.auths.did-web-document.v1` |
+| Adapter ID | `did-web-bundled-v1` |
+| Evidence media type | `application/vnd.auths.did-web-bundle.v1` |
 | Principal form | closed V1 `did:web:` form |
 
 ## DID document profile
 
-The bundled document is compact insertion-order JSON and is limited to 128
-KiB. V1 requires:
+The bundled document is canonical JSON and is limited to 32 KiB. The closed
+V1 profile contains exactly:
 
 - the sole context `https://www.w3.org/ns/did/v1`;
 - an `id` exactly equal to the principal;
@@ -59,6 +59,7 @@ KiB. V1 requires:
 - `type: "Multikey"`;
 - `controller` exactly equal to the principal;
 - base58btc Ed25519 or compressed P-256 Multikey material;
+- string-reference `assertionMethod` relationships;
 - string-reference `capabilityDelegation` and `capabilityInvocation`
   relationships.
 
@@ -70,10 +71,17 @@ fail closed.
 The evidence envelope is:
 
 ```text
-"auths-proof/did-web/evidence/v1\0"
+"AUTHS-DID-WEB\x00\x01"
+u16-be principal_length
+principal UTF-8 bytes
 u32-be document_length
 canonical document bytes
 ```
+
+This is the exact contract emitted by the native resolver. The pure method
+revalidates the identifier, document profile, canonical bytes, principal,
+verification relationship, and Multikey; acquisition is never trusted merely
+because it occurred.
 
 ## Explicit trust records
 
@@ -91,8 +99,8 @@ valid_until
 ```
 
 The verification time must be within the record window. Successful
-verification emits `ControllerStateCurrentAt(observed_at)` and
-`RevocationCheckedAt(observed_at)`. Policy can bound its age.
+verification emits `controller-state-current-at` and
+`revocation-checked-at` with `observed_at`. Policy can bound their age.
 
 ### Historical pin
 
@@ -108,14 +116,23 @@ optional {
 ```
 
 The asserted signing time must fall within the pinned document interval. This
-establishes `ControllerStateHistoricalAt`, but not by itself that the statement
-actually existed while that key was authorized.
+establishes `historical-at`, but not by itself that the statement actually
+existed while that key was authorized.
 
 When the optional exact-statement pin matches, the adapter additionally emits
-`StatementExistenceProvenAt`. Default verification policies require that claim
-for historical keys. A document-only historical pin therefore produces
-`Indeterminate(HistoricalStateUnavailable)`, preventing a removed key from
-backdating a newly created grant or action.
+`statement-existence-proven-at`. A document-only historical pin cannot satisfy
+a policy requiring that claim, preventing a removed key from backdating a
+newly created grant or action.
+
+If the bundled document is known to the trusted adapter context but no
+historical interval covers the asserted signing time, control verification is
+`historical-state-unavailable`. If no trusted record for the exact document is
+present at all, it is `external-fact-unavailable`.
+
+The principal-control request carries the exact signing preimage, its asserted
+statement time, and one of `CapabilityDelegation`, `CapabilityInvocation`, or
+`Assertion`. This lets the pure method enforce verification relationships and
+match exact-statement pins without performing signature verification.
 
 ## Resolver controls
 

@@ -1,158 +1,250 @@
-# Auths Proof Protocol — V1
+# Auths Proof Protocol V1
 
 ## Status
 
-This document and `auths-proof.cddl` define the Milestone 0 V1 protocol
-implemented by the Rust workspace. The checked-in golden fixtures are
-normative examples. V1 is pre-audit and must not yet be described as a stable
-internet standard.
+This specification defines the prelaunch target contract. Earlier V1
+prototype bytes are obsolete. `auths-proof.cddl`, the registry, the
+verification algorithm, and the checked-in CBOR corpus are normative together.
 
 ## Claim
 
-Given local trust anchors and local verification context, an Auths proof
-establishes that:
+Given a proof bundle, canonical action, and explicit local verifier context,
+Auths answers:
 
-1. every signing principal proved control through its selected adapter;
-2. authority flowed from a local trust anchor through an unbroken grant chain;
-3. every child grant narrowed permission, validity, and delegation depth;
-4. the terminal principal signed the exact action statement;
-5. the action statement matches the verifier's body, audience, challenge, and
-   current time;
-6. the evidence satisfies the verifier's explicit assurance policy.
+> Did authority flow from a locally scoped trust anchor to every required
+> actor without expansion, and does the resulting authority cover this exact
+> action?
 
-It does not establish that an action is wise, that a root should have been
-trusted, or that an executor performed the verified bytes.
+The pure verifier performs no network, filesystem, environment, clock,
+randomness, database, private-key, replay, or execution operation.
 
-## Core objects
+## Four planes
 
-### Local trust anchor
+### Proof
 
-A trust anchor is never serialized into a proof bundle. It is local input:
-
-```text
-principal
-exact permission set
-validity window
-maximum delegation depth
-assurance requirements
-```
-
-A proof cannot declare or broaden its own root.
-
-### Permission
-
-V1 permission is the exact ordered pair:
-
-```text
-(capability, resource)
-```
-
-There are no wildcards, regexes, globs, claims bags, or application callbacks.
-A child permission set attenuates its parent only when it is a mathematical
-subset under exact string equality.
-
-### Grant
-
-A grant transfers its exact permission set from `issuer` to `subject`. The
-issuer signs the grant payload and signature descriptor with the grant domain.
-
-The first grant has a null parent. Every subsequent grant contains the
-`GrantId` of the preceding signed grant.
-
-### Action
-
-An action binds:
-
-- terminal actor;
-- one exact permission;
-- SHA-256 digest of exact application bytes;
-- audience;
-- signer-asserted issue and expiry times;
-- 32-byte verifier challenge.
-
-`issued_at` is not a trusted timestamp. Historical key state alone does not
-prove that an action signature existed before key revocation.
+The proof plane owns deterministic objects, scoped trust anchors,
+attenuation, authorization plans, action binding, and verified values.
 
 ### Evidence
 
-Principal evidence is opaque to the core and interpreted only by the exact
-adapter named in the signed `SignatureDescriptor`. The bundle maps each
-finalized `GrantId` or `ActionId` to one content-addressed evidence entry.
+The evidence plane establishes principal control, signature validity,
+principal status, grant status, freshness, and parameterized assurance.
+Adapters return facts. They cannot construct authority results.
 
-Evidence can be refreshed without changing the signed statement. A verifier
-must re-evaluate the assurance of the evidence it actually receives.
+### Execution
 
-### Revocation
+The execution plane owns challenges, transport observations, replay and budget
+stores, local application policy, execution leases, verified command decoding,
+and execution.
 
-V1 defines:
+### Control
 
-- `ExpiryOnly`: intentionally irrevocable until grant expiry;
-- `StatusProofRequired`: requires authority-state evidence and an explicitly
-  registered verifier.
+The control plane owns authoring, signer integrations, configuration,
+registries, receipts, audit export, observability, conformance, and
+evaluation.
 
-Milestone 1 implements `ExpiryOnly`. A status-required grant with no supported
-status evidence produces `Indeterminate`, never `Authorized`.
+## Authority objects
 
-## Deterministic CBOR
+### Trust anchor
 
-V1 uses the closed schema in `auths-proof.cddl`:
+A trust anchor is verifier-local and never proof-carried authority. It
+contains:
 
-- definite-length arrays, maps, text, and bytes only;
-- shortest integer and length encodings;
-- integer map keys in ascending order;
-- no duplicate keys;
-- no floats;
-- no unregistered tags;
-- no unknown fields;
-- no trailing bytes;
-- permission and evidence collections in canonical strict order.
+- principal and accepted control methods;
+- allowed profiles and versions;
+- exact permission and resource ceilings;
+- audience ceiling;
+- validity window;
+- optional budget ceiling;
+- maximum delegation depth;
+- assurance predicate;
+- status policy.
 
-A decoder must reject a semantically equivalent but non-canonical encoding.
+Adding an unrelated trust anchor cannot authorize a chain anchored elsewhere.
 
-## Resource limits
+### Grant
 
-Default verifier limits:
+A grant transfers a bounded subset of authority from issuer to subject.
+Every edge must narrow or preserve:
 
-| Item | Default | Hard V1 ceiling |
-|---|---:|---:|
-| Bundle | 2 MiB | 16 MiB |
-| One evidence entry | 1 MiB | 8 MiB |
-| Grant chain | 16 | 32 |
-| Permissions per grant | 256 | 1,024 |
-| Evidence entries/bindings | 64 | 256 |
-| Signature | 1,024 bytes expected | 4,096 bytes |
+- exact permissions;
+- validity;
+- audiences;
+- action constraint;
+- budget ceiling;
+- remaining delegation depth;
+- profile and version.
 
-Implementations apply cheap byte and collection limits before cryptographic
-work.
+Issuer/subject and parent linkage must be exact. Cross-profile delegation
+requires a registered bridge extension.
 
-## Raw-key profile
+### Action constraint
 
-Milestone 1 registers `raw-key-v1`.
+V1 has a closed algebra:
 
 ```text
-principal = "key:sha256:" || base64url_no_pad(SHA-256(KeyDescriptorBytes))
-
-KeyDescriptorBytes =
-  UTF8("auths-proof/raw-key/v1\0")
-  || key_type_u8
-  || public_key_length_u16_be
-  || public_key
+ExactBodyDigest(x) <= AllowedBodyDigests(S)  when x is in S
+AllowedBodyDigests(A) <= AllowedBodyDigests(B) when A is a subset of B
+AllowedBodyDigests(S) <= AnyBody
+ExactBodyDigest(x) <= AnyBody
 ```
 
-Key types:
+No application callback changes this order.
 
-| Tag | Type | Public key | Signature |
-|---:|---|---|---|
-| 1 | Ed25519 | 32 bytes | 64 bytes |
-| 2 | P-256 | 33-byte compressed SEC1 | 64-byte low-S `r || s` |
+### Authorization plan
 
-For this adapter the verification method is exactly the principal string.
-Raw keys are self-certifying and offline-verifiable, but have no rotation,
-revocation, or historical controller state.
+V1 supports bounded:
 
-## Portability
+- `Proof`;
+- `AllOf`;
+- `AnyOf`;
+- `KOfN`.
 
-The verification operation receives the bundle, time, body, audience,
-challenge, anchors, policy, and allowlisted adapters explicitly. It performs
-no network, filesystem, environment, clock, randomness, database, or process
-access.
+Every satisfied leaf has one signed action envelope with the same canonical
+body digest, profile, capability, resource, audience, challenge, validity
+context, and plan ID. A `proof-ref` breaks the plan/action identifier cycle and
+uniquely names a branch.
+
+Plan depth, leaves, branching, signatures, and total adapter work are bounded.
+Evaluation order is canonical so parallel and sequential implementations
+produce the same diagnostic.
+
+### Action envelope
+
+Every signed action binds:
+
+- profile and version;
+- body media type and canonical body digest;
+- capability and resource;
+- optional requested budget under a registered monotonic algebra;
+- audience and challenge;
+- issue and expiry times;
+- actor and terminal grant;
+- authorization plan ID and proof reference;
+- channel-binding requirement;
+- signed attachment descriptors and required/opaque-use policy;
+- critical extensions.
+
+Profiles define canonical body bytes and verified command decoding. The
+executor consumes the decoded command from `VerifiedAction`, never the
+original untrusted request.
+
+## Evidence and status
+
+Evidence is content addressed, bounded, and selected by exact type.
+Control bindings associate signed statements with candidate evidence without
+turning resolver output into trust.
+
+Principal status and grant status are separate signed facts. Each carries an
+exact method, subject, issuer, sequence, and validity boundary. The trusted
+snapshot supplies accepted issuers and sequence floors; latest-sequence
+selection is deterministic and revoked dominates active at the same sequence.
+Historical control, current control, statement existence, revocation, and
+freshness are not interchangeable.
+
+Assurance is role-indexed. Every claim records the participant, chain role,
+parameters, adapter and version, evidence digests, and provenance. A strong
+actor cannot satisfy a weak root or intermediate.
+
+## Decisions
+
+The language-neutral pure result is canonical CBOR:
+
+```text
+verify_v1(proof_cbor, canonical_action_cbor, trusted_context_cbor)
+  -> verification_result_cbor
+```
+
+It records `Authorized`, `Denied`, or `Indeterminate`, the final stage and
+stable code, all applicable input/plan/result digests, authorized branches,
+assurance and satisfaction reports, exact resource totals, work reserved, and
+the registry manifest. Native APIs may project an authorized result to a sealed
+`VerifiedAction`.
+
+Denied means available facts establish invalidity or insufficient authority.
+Indeterminate means a required trustworthy fact was not established.
+Neither can execute.
+
+Replay, channel, budget, and application policy are outer gates:
+
+```text
+Authorized action
+AND status freshness
+AND channel policy
+AND replay lease
+AND budget claim
+AND application policy
+= ExecutableAction
+```
+
+## Deterministic encoding
+
+V1 uses the constrained deterministic CBOR profile in `auths-proof.cddl`:
+
+- definite-length maps, arrays, text, and bytes only;
+- shortest integer and length encodings;
+- ascending integer map keys;
+- no duplicate keys, floats, tags, or trailing bytes;
+- canonical strict ordering for every set representation;
+- exact critical-field and registry handling.
+
+Semantically similar but byte-distinct application actions are not assumed
+equivalent. Signed attachment descriptors are part of action signing bytes.
+Detached bytes are part of the portable canonical-action input and are checked
+against their signed SHA-256 identifiers and lengths.
+
+## Default and hard limits
+
+| Resource | Default | Hard maximum |
+|---|---:|---:|
+| Bundle bytes | 256 KiB | 8 MiB |
+| Grants | 16 | 256 |
+| Actions/plan leaves | 16 | 128 |
+| Plan depth | 8 | 16 |
+| Evidence objects | 32 | 512 |
+| One evidence object | 64 KiB | 2 MiB |
+| Control bindings | 32 | 512 |
+| Principal status statements | 32 | 512 |
+| Grant status statements | 32 | 512 |
+| Attachments | 32 | 512 |
+| Signatures | 64 | 1,024 |
+| One signature | 512 B | 4 KiB |
+| Permissions | 64 | 1,024 |
+| Audiences | 32 | 256 |
+| Critical extensions/object | 8 | 32 |
+| One critical extension | 16 KiB | 64 KiB |
+| Allowed body digests | 32 | 256 |
+| Evidence IDs per binding | 8 | 32 |
+| Canonical action body | 1 MiB | 8 MiB protocol ceiling and lower profile limit |
+| Accepted entries per registry | 64 | 1,024 |
+| Trust anchors | 32 | 1,024 |
+| Adapter work units | 50,000 | 1,000,000 |
+
+Deployments may lower limits. Raising a hard maximum requires protocol review.
+
+## Conformance artifacts
+
+`fixtures/v1/manifest.json` indexes every canonical `.cbor` artifact and
+records:
+
+- SHA-256 file digest;
+- fixture class and source specification;
+- expected stage reached;
+- verdict and stable reason code;
+- expected proof, action, context, plan, and self-binding result digests;
+- expected assurance report;
+- byte, object, depth, signature, and work-unit counts.
+
+Fixture classes are:
+
+```text
+valid/
+denied/
+indeterminate/
+malformed/
+maximum/
+metamorphic/
+```
+
+An explicit reviewed `cargo xtask wire --update` is the only operation allowed
+to replace normative bytes. Ordinary tests compare and fail.

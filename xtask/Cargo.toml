@@ -6,16 +6,20 @@ license.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-auths-proof-model = { workspace = true, features = ["std"] }
-auths-proof-codec = { workspace = true, features = ["std"] }
-auths-proof-author = { workspace = true, features = ["std"] }
-auths-proof-verifier = { workspace = true, features = ["std"] }
-auths-proof-raw-key = { workspace = true, features = ["std", "test-signing"] }
-auths-proof-did-key = { workspace = true, features = ["std", "test-signing"] }
-auths-proof-did-keri = { workspace = true, features = ["std", "test-signing"] }
-auths-proof-did-web = { workspace = true, features = ["std", "test-signing"] }
-auths-proof-adapter-api = { workspace = true, features = ["std"] }
-auths-proof-testkit.workspace = true
+auths-codec = { workspace = true, features = ["std"] }
+auths-did-key = { workspace = true, features = ["std"] }
+auths-did-keri = { workspace = true, features = ["std"] }
+auths-did-web = { workspace = true, features = ["std"] }
+auths-hsm-attested = { workspace = true, features = ["std"] }
+auths-model.workspace = true
+auths-ports = { workspace = true, features = ["std"] }
+auths-raw-key = { workspace = true, features = ["std"] }
+auths-registries = { workspace = true, features = ["std"] }
+auths-signature = { workspace = true, features = ["std"] }
+auths-spiffe-x509 = { workspace = true, features = ["std"] }
+auths-testkit.workspace = true
+auths-verifier = { workspace = true, features = ["std"] }
+auths-webauthn = { workspace = true, features = ["std"] }
 hex.workspace = true
 serde_json.workspace = true
 sha2.workspace = true

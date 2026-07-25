@@ -1,32 +1,52 @@
-; auths-proof V1 deterministic-CBOR schema
+; Auths Proof Protocol V1
+; Deterministic CBOR schema
 ;
-; All maps use the integer keys shown and no others. Encoders MUST use
-; deterministic CBOR. Decoders MUST reject duplicate keys, non-minimal integer
-; encodings, indefinite lengths, unknown keys, and trailing bytes.
+; All maps use exactly the integer keys shown. Decoders MUST reject duplicate
+; keys, unknown critical keys, non-minimal integers, indefinite lengths,
+; invalid UTF-8, unsorted set encodings, and trailing bytes.
+;
+; Protocol hard maxima:
+;   bundle bytes       8 MiB
+;   grants             256
+;   actions            128
+;   plan leaves        128
+;   plan depth         16
+;   evidence objects   512
+;   one evidence       2 MiB
+;   signatures         1024
+;   extensions/object  32
+; Deployments use lower limits by default.
 
+protocol-version = 1
 digest32 = bytes .size 32
 timestamp = uint
-principal = text .size (1..512)
+bounded-id = text .size (1..128)
+principal-id = text .size (1..512)
+verification-method = text .size (1..512)
+profile-id = text .size (1..128)
+profile-version = uint .le 65535
 capability = text .size (1..128)
 resource = text .size (1..1024)
 audience = text .size (1..512)
-adapter-id = text .size (1..64)
-method-ref = text .size (1..512)
-algorithm-id = text .size (1..64)
 media-type = text .size (1..128)
+extension-id = text .size (1..128)
+proof-ref = digest32
 
 permission = {
   0: capability,
   1: resource,
 }
 
-; The array MUST be strictly ascending by (capability, resource).
+; Strictly ascending by (capability, resource), without duplicates.
 permission-set = [1*1024 permission]
 
+; Strictly ascending UTF-8 byte order, without duplicates.
+audience-set = [1*256 audience]
+
 signature-descriptor = {
-  0: adapter-id,
-  1: method-ref,
-  2: algorithm-id,
+  0: bounded-id,            ; principal method ID
+  1: verification-method,
+  2: bounded-id,            ; signature-suite ID
 }
 
 signature-envelope = {
@@ -34,90 +54,449 @@ signature-envelope = {
   1: bytes .size (1..4096),
 }
 
-expiry-only = {
+any-body = {
   0: 0,
 }
 
-status-proof-required = {
+exact-body-digest = {
   0: 1,
-  1: text .size (1..64),
+  1: digest32,
 }
 
-revocation-requirement = expiry-only / status-proof-required
+; Digests are strictly ascending and unique.
+allowed-body-digests = {
+  0: 2,
+  1: [1*256 digest32],
+}
 
-grant-payload = {
-  0: 1,                  ; protocol version
-  1: principal,          ; issuer
-  2: principal,          ; subject
-  3: permission-set,
-  4: timestamp,          ; issued_at
-  5: timestamp,          ; valid_from
-  6: timestamp,          ; valid_until
-  7: uint .le 255,       ; remaining delegation depth
-  8: revocation-requirement,
-  9: digest32 / null,    ; parent GrantId
+action-constraint =
+  any-body /
+  exact-body-digest /
+  allowed-body-digests
+
+budget-ceiling = {
+  0: bounded-id,            ; registered budget algebra
+  1: uint,                  ; numeric ceiling for initial registry
+}
+
+expiry-only-status = {
+  0: 0,
+}
+
+snapshot-required-status = {
+  0: 1,
+  1: bounded-id,            ; status method
+  2: uint .ge 1,            ; maximum age in seconds
+}
+
+status-policy = expiry-only-status / snapshot-required-status
+
+critical-extension = {
+  0: extension-id,
+  1: bytes .size (0..65536),
+}
+
+; Strictly ascending by extension ID.
+critical-extensions = [*32 critical-extension]
+
+grant-statement = {
+  0: protocol-version,
+  1: principal-id,          ; issuer
+  2: principal-id,          ; subject
+  3: profile-id,
+  4: profile-version,
+  5: permission-set,
+  6: timestamp,             ; not_before
+  7: timestamp,             ; expires_at
+  8: audience-set,
+  9: action-constraint,
+  10: budget-ceiling / null,
+  11: uint .le 65535,       ; remaining delegation depth
+  12: digest32 / null,      ; parent GrantId
+  13: status-policy,
+  14: bounded-id,           ; assurance predicate ID
+  15: critical-extensions,
 }
 
 signed-grant = {
-  0: grant-payload,
+  0: grant-statement,
   1: signature-envelope,
 }
 
-action-payload = {
-  0: 1,                  ; protocol version
-  1: principal,          ; actor
-  2: permission,
-  3: digest32,           ; SHA-256 of exact application body bytes
-  4: audience,
-  5: timestamp,          ; issued_at
-  6: timestamp,          ; expires_at
-  7: digest32,           ; challenge
+action-envelope = {
+  0: protocol-version,
+  1: profile-id,
+  2: profile-version,
+  3: media-type,
+  4: digest32,              ; canonical body digest
+  5: capability,
+  6: resource,
+  7: budget-ceiling / null, ; requested stateful budget
+  8: audience,
+  9: digest32,              ; challenge
+  10: timestamp,            ; issued_at
+  11: timestamp,            ; expires_at
+  12: principal-id,         ; actor
+  13: digest32 / null,      ; terminal GrantId
+  14: digest32,             ; AuthorizationPlanId
+  15: bounded-id,           ; channel-binding requirement ID
+  16: proof-ref,            ; stable branch reference
+  17: [*512 attachment-descriptor],
+  18: critical-extensions,
 }
 
 signed-action = {
-  0: action-payload,
+  0: action-envelope,
   1: signature-envelope,
 }
 
-principal-evidence = {
-  0: digest32,           ; EvidenceId
-  1: adapter-id,
-  2: media-type,
-  3: bytes .size (1..8388608),
+plan-proof = {
+  0: 0,
+  1: proof-ref,
 }
 
-statement-kind = 0 / 1  ; 0 = grant, 1 = action
-
-principal-evidence-binding = {
-  0: statement-kind,
-  1: digest32,           ; GrantId or ActionId
-  2: digest32,           ; EvidenceId
-}
-
-authority-state-evidence = {
-  0: digest32,
-  1: text .size (1..64),
-  2: media-type,
-  3: bytes .size (1..8388608),
-}
-
-; Principal evidence, bindings, and authority-state evidence arrays MUST each
-; be strictly ascending according to the V1 model ordering.
-proof-bundle = {
+plan-all-of = {
   0: 1,
-  1: signed-action,
-  2: [*32 signed-grant],
-  3: [*256 principal-evidence],
-  4: [*256 principal-evidence-binding],
-  5: [*256 authority-state-evidence],
+  1: [1*128 authorization-plan],
+}
+
+plan-any-of = {
+  0: 2,
+  1: [1*128 authorization-plan],
+}
+
+plan-k-of-n = {
+  0: 3,
+  1: uint .ge 1 .le 128,
+  2: [1*128 authorization-plan],
+}
+
+authorization-plan =
+  plan-proof /
+  plan-all-of /
+  plan-any-of /
+  plan-k-of-n
+
+evidence-object = {
+  0: digest32,              ; EvidenceId
+  1: bounded-id,            ; evidence type
+  2: media-type,
+  3: bytes .size (1..2097152),
+}
+
+grant-statement-ref = {
+  0: 0,
+  1: digest32,
+}
+
+action-statement-ref = {
+  0: 1,
+  1: digest32,
+}
+
+principal-status-statement-ref = {
+  0: 2,
+  1: digest32,
+}
+
+grant-status-statement-ref = {
+  0: 3,
+  1: digest32,
+}
+
+statement-ref =
+  grant-statement-ref /
+  action-statement-ref /
+  principal-status-statement-ref /
+  grant-status-statement-ref
+
+; Evidence IDs are strictly ascending and unique.
+control-binding = {
+  0: statement-ref,
+  1: [1*32 digest32],
+}
+
+principal-state-active = 0
+principal-state-revoked = 1
+principal-state-superseded = 2
+
+principal-status-statement = {
+  0: protocol-version,
+  1: bounded-id,            ; exact status method
+  2: principal-id,
+  3: bounded-id,            ; purpose
+  4: principal-state-active /
+     principal-state-revoked /
+     principal-state-superseded,
+  5: uint,                  ; sequence
+  6: timestamp,             ; observed_at
+  7: timestamp,             ; valid_until
+  8: principal-id,          ; issuer
+  9: critical-extensions,
+}
+
+signed-principal-status = {
+  0: principal-status-statement,
+  1: signature-envelope,
+}
+
+grant-state-active = 0
+grant-state-revoked = 1
+grant-state-superseded = 2
+
+grant-status-statement = {
+  0: protocol-version,
+  1: bounded-id,            ; exact status method
+  2: digest32,              ; GrantId
+  3: grant-state-active /
+     grant-state-revoked /
+     grant-state-superseded,
+  4: uint,                  ; sequence
+  5: timestamp,             ; observed_at
+  6: timestamp,             ; valid_until
+  7: principal-id,          ; issuer
+  8: critical-extensions,
+}
+
+signed-grant-status = {
+  0: grant-status-statement,
+  1: signature-envelope,
+}
+
+attachment-descriptor = {
+  0: digest32,
+  1: media-type,
+  2: uint,                  ; byte length
+  3: bounded-id,            ; disposition
+  4: bool,                  ; encrypted
+  5: bool,                  ; required
+  6: bool,                  ; opaque bytes permitted
+}
+
+bundle-header = {
+  0: protocol-version,
+  1: uint,                  ; flags, currently zero
+}
+
+; Grants sort by GrantId. Actions sort by proof-ref. Evidence and attachments
+; sort by digest. Bindings sort by statement-ref. Status arrays sort by their
+; statement identifiers.
+proof-bundle = {
+  0: bundle-header,
+  1: [*256 signed-grant],
+  2: [1*128 signed-action],
+  3: authorization-plan,
+  4: [*512 evidence-object],
+  5: [*512 control-binding],
+  6: [*512 signed-principal-status],
+  7: [*512 signed-grant-status],
+  8: [*512 attachment-descriptor],
+  9: bytes / null,          ; canonical body or detached
+}
+
+profile-ref = {
+  0: profile-id,
+  1: profile-version .ge 1,
+}
+
+principal-status-snapshot = {
+  0: digest32,              ; StatusSnapshotId
+  1: timestamp,             ; observed_at
+  2: timestamp,             ; valid_until
+  3: [*512 signed-principal-status],
+  4: [*512 digest32],       ; checkpoint evidence IDs
+  5: [*1024 status-trust-rule],
+}
+
+grant-status-snapshot = {
+  0: digest32,              ; StatusSnapshotId
+  1: timestamp,             ; observed_at
+  2: timestamp,             ; valid_until
+  3: [*512 signed-grant-status],
+  4: [*512 digest32],       ; checkpoint evidence IDs
+  5: [*1024 status-trust-rule],
+}
+
+status-trust-rule = {
+  0: bounded-id,            ; exact status method
+  1: principal-id,          ; trusted issuer
+  2: uint,                  ; minimum accepted sequence
+}
+
+accepted-registries = {
+  0: digest32,              ; pinned registry manifest ID
+  1: [1*1024 bounded-id],   ; principal methods
+  2: [1*1024 bounded-id],   ; signature suites
+  3: [*1024 bounded-id],    ; evidence types
+  4: [*1024 bounded-id],    ; principal status methods
+  5: [*1024 bounded-id],    ; grant status methods
+  6: [*1024 bounded-id],    ; assurance claims
+  7: [*1024 bounded-id],    ; assurance implication rules
+  8: [1*1024 bounded-id],   ; resource matchers
+  9: [*1024 bounded-id],    ; budget algebras
+  10: [*1024 extension-id], ; accepted critical extensions
+  11: [1*1024 profile-ref], ; accepted profiles
+  12: [1*1024 bounded-id],  ; profile policies
+}
+
+participant-role = 0 / 1 / 2 / 3 ; root/intermediate/actor/external issuer
+
+assurance-requirement = {
+  0: participant-role,
+  1: bounded-id,            ; assurance claim ID
+  2: [*32 [bounded-id, bounded-id]], ; required parameter pairs
+  3: bounded-id / null,     ; evidence source
+  4: bounded-id / null,     ; exact adapter ID
+  5: uint .ge 1 / null,     ; exact adapter version
+  6: uint .ge 1 / null,     ; optional maximum age in seconds
+}
+
+assurance-policy = {
+  0: bounded-id,            ; assurance policy ID
+  1: [*512 assurance-requirement],
+}
+
+trust-anchor = {
+  0: bounded-id,            ; local anchor ID
+  1: principal-id,
+  2: [1*1024 bounded-id],   ; accepted principal methods
+  3: [1*1024 profile-ref],
+  4: permission-set,
+  5: [*1024 resource],      ; exact local resource namespaces
+  6: audience-set,
+  7: timestamp,             ; not_before
+  8: timestamp,             ; expires_at
+  9: budget-ceiling / null,
+  10: uint .le 65535,       ; maximum delegation depth
+  11: bounded-id,           ; assurance policy ID
+  12: status-policy,
+}
+
+verifier-limits = {
+  0: uint .le 8388608,      ; bundle bytes
+  1: uint .le 256,          ; grants
+  2: uint .le 128,          ; actions
+  3: uint .le 128,          ; plan leaves
+  4: uint .le 16,           ; plan depth
+  5: uint .le 128,          ; plan branching
+  6: uint .le 512,          ; evidence objects
+  7: uint .le 2097152,      ; one evidence object
+  8: uint .le 512,          ; control bindings
+  9: uint .le 512,          ; principal status statements
+  10: uint .le 512,         ; grant status statements
+  11: uint .le 512,         ; attachments
+  12: uint .le 1024,        ; signatures
+  13: uint .le 4096,        ; one signature
+  14: uint .le 1024,        ; permissions
+  15: uint .le 256,         ; audiences
+  16: uint .le 32,          ; critical extensions
+  17: uint .le 65536,       ; one critical extension
+  18: uint .le 256,         ; allowed body digests
+  19: uint .le 32,          ; evidence IDs in one binding
+  20: uint .le 8388608,     ; canonical action body
+  21: uint .le 1024,        ; accepted entries per registry
+  22: uint .le 1024,        ; trust anchors
+  23: uint .le 1000000,     ; total work units
+}
+
+; This explicit public projection is hashed for ContextDigest. Private policy
+; data is represented only by stable identifiers or protected digests.
+verifier-context = {
+  0: [1*1024 trust-anchor],
+  1: accepted-registries,
+  2: audience,
+  3: digest32,              ; expected challenge
+  4: timestamp,             ; evaluation time
+  5: assurance-policy,
+  6: principal-status-snapshot,
+  7: grant-status-snapshot,
+  8: bounded-id,            ; resource matcher ID
+  9: bounded-id,            ; profile policy ID
+  10: bounded-id,           ; channel policy ID
+  11: verifier-limits,
+}
+
+detached-attachment = {
+  0: digest32,
+  1: bytes .size (1..8388608),
+}
+
+canonical-action = {
+  0: profile-ref,
+  1: media-type,
+  2: bytes .size (1..8388608),
+  3: permission,
+  4: budget-ceiling / null,
+  5: [*512 detached-attachment],
+}
+
+verification-resources = {
+  0: uint, ; proof bytes
+  1: uint, ; canonical action bytes
+  2: uint, ; context bytes
+  3: uint, ; decoded object count
+  4: uint, ; plan leaves
+  5: uint, ; plan depth
+  6: uint, ; reserved work units
+}
+
+verification-result = {
+  0: 0 / 1 / 2,            ; authorized / denied / indeterminate
+  1: 0 / 1 / 2 / 3 / 4,    ; decode / resolve / control / authority / complete
+  2: { 0: 0 / 1 / 2, 1: bounded-id }, ; stable class and result code
+  3: digest32,              ; proof digest
+  4: digest32,              ; canonical action digest
+  5: digest32,              ; context digest
+  6: digest32 / null,       ; plan ID
+  7: digest32,              ; self-binding result digest
+  8: [*128 proof-ref],      ; authorized branches
+  9: [*512 any],            ; canonical participant assurance reports
+  10: [*512 any],           ; canonical assurance satisfactions
+  11: verification-resources,
+  12: digest32,             ; registry manifest
+  13: 1,                    ; portable ABI version
 }
 
 grant-signing-input = {
-  0: grant-payload,
+  0: grant-statement,
   1: signature-descriptor,
 }
 
 action-signing-input = {
-  0: action-payload,
+  0: action-envelope,
   1: signature-descriptor,
+}
+
+principal-status-signing-input = {
+  0: principal-status-statement,
+  1: signature-descriptor,
+}
+
+grant-status-signing-input = {
+  0: grant-status-statement,
+  1: signature-descriptor,
+}
+
+decision-receipt = {
+  0: protocol-version,
+  1: digest32,              ; proof digest
+  2: digest32,              ; canonical action digest
+  3: digest32,              ; context digest
+  4: digest32,              ; principal-status snapshot ID
+  5: digest32,              ; grant-status snapshot ID
+  6: profile-id,
+  7: profile-version,
+  8: uint,                  ; verdict class
+  9: [1*32 bounded-id],     ; stable reason codes
+  10: timestamp,
+}
+
+execution-receipt = {
+  0: protocol-version,
+  1: digest32,              ; decision receipt digest
+  2: digest32,              ; execution lease ID
+  3: digest32,              ; verified command digest
+  4: uint,                  ; execution outcome
+  5: digest32 / null,       ; result digest
+  6: timestamp,
 }

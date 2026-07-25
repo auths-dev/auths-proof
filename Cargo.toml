@@ -1,19 +1,26 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/auths-proof-model",
-    "crates/auths-proof-codec",
-    "crates/auths-proof-adapter-api",
-    "crates/auths-proof-verifier",
-    "crates/auths-proof-author",
-    "crates/auths-proof-testkit",
-    "crates/auths-proof-multikey",
-    "adapters/auths-proof-raw-key",
-    "adapters/auths-proof-did-key",
-    "adapters/auths-proof-did-keri",
-    "adapters/auths-proof-did-web",
-    "resolvers/auths-proof-did-web-http",
-    "apps/auths-proof-cli",
+    "crates/auths-model",
+    "crates/auths-codec",
+    "crates/auths-ports",
+    "crates/auths-registries",
+    "crates/auths-signature",
+    "crates/auths-authority",
+    "crates/auths-composition",
+    "crates/auths-assurance",
+    "crates/auths-status",
+    "crates/auths-verifier",
+    "crates/auths-author",
+    "crates/auths-multikey",
+    "crates/auths-testkit",
+    "adapters/auths-raw-key",
+    "adapters/auths-did-key",
+    "adapters/auths-did-keri",
+    "adapters/auths-did-web",
+    "adapters/auths-webauthn",
+    "adapters/auths-hsm-attested",
+    "adapters/auths-spiffe-x509",
     "xtask",
 ]
 exclude = ["fuzz"]
@@ -25,19 +32,26 @@ license = "MIT OR Apache-2.0"
 rust-version = "1.85"
 
 [workspace.dependencies]
-auths-proof-model = { version = "0.1.0", path = "crates/auths-proof-model", default-features = false }
-auths-proof-codec = { version = "0.1.0", path = "crates/auths-proof-codec", default-features = false }
-auths-proof-adapter-api = { version = "0.1.0", path = "crates/auths-proof-adapter-api", default-features = false }
-auths-proof-verifier = { version = "0.1.0", path = "crates/auths-proof-verifier", default-features = false }
-auths-proof-author = { version = "0.1.0", path = "crates/auths-proof-author", default-features = false }
-auths-proof-multikey = { version = "0.1.0", path = "crates/auths-proof-multikey", default-features = false }
-auths-proof-raw-key = { version = "0.1.0", path = "adapters/auths-proof-raw-key", default-features = false }
-auths-proof-did-key = { version = "0.1.0", path = "adapters/auths-proof-did-key", default-features = false }
-auths-proof-did-keri = { version = "0.1.0", path = "adapters/auths-proof-did-keri", default-features = false }
-auths-proof-did-web = { version = "0.1.0", path = "adapters/auths-proof-did-web", default-features = false }
-auths-proof-did-web-http = { version = "0.1.0", path = "resolvers/auths-proof-did-web-http" }
-auths-proof-testkit = { version = "0.1.0", path = "crates/auths-proof-testkit" }
-
+auths-model = { version = "0.1.0", path = "crates/auths-model", default-features = false }
+auths-codec = { version = "0.1.0", path = "crates/auths-codec", default-features = false }
+auths-ports = { version = "0.1.0", path = "crates/auths-ports", default-features = false }
+auths-registries = { version = "0.1.0", path = "crates/auths-registries", default-features = false }
+auths-signature = { version = "0.1.0", path = "crates/auths-signature", default-features = false }
+auths-authority = { version = "0.1.0", path = "crates/auths-authority", default-features = false }
+auths-composition = { version = "0.1.0", path = "crates/auths-composition", default-features = false }
+auths-assurance = { version = "0.1.0", path = "crates/auths-assurance", default-features = false }
+auths-status = { version = "0.1.0", path = "crates/auths-status", default-features = false }
+auths-verifier = { version = "0.1.0", path = "crates/auths-verifier", default-features = false }
+auths-author = { version = "0.1.0", path = "crates/auths-author", default-features = false }
+auths-multikey = { version = "0.1.0", path = "crates/auths-multikey", default-features = false }
+auths-testkit = { version = "0.1.0", path = "crates/auths-testkit" }
+auths-raw-key = { version = "0.1.0", path = "adapters/auths-raw-key", default-features = false }
+auths-did-key = { version = "0.1.0", path = "adapters/auths-did-key", default-features = false }
+auths-did-keri = { version = "0.1.0", path = "adapters/auths-did-keri", default-features = false }
+auths-did-web = { version = "0.1.0", path = "adapters/auths-did-web", default-features = false }
+auths-webauthn = { version = "0.1.0", path = "adapters/auths-webauthn", default-features = false }
+auths-hsm-attested = { version = "0.1.0", path = "adapters/auths-hsm-attested", default-features = false }
+auths-spiffe-x509 = { version = "0.1.0", path = "adapters/auths-spiffe-x509", default-features = false }
 base64ct = { version = "1.8.3", default-features = false, features = ["alloc"] }
 blake3 = { version = "1.8.4", default-features = false, features = ["pure"] }
 bs58 = { version = "0.5.1", default-features = false, features = ["alloc"] }
@@ -46,10 +60,22 @@ ed25519-dalek = { version = "2.2.0", default-features = false, features = ["allo
 hex = "0.4.3"
 p256 = { version = "0.13.2", default-features = false, features = ["ecdsa"] }
 proptest = "1.9.0"
-reqwest = { version = "0.13.2", default-features = false, features = ["blocking", "rustls"] }
 serde = { version = "1.0.228", default-features = false, features = ["alloc", "derive"] }
 serde_json = { version = "1.0.149", default-features = false, features = ["alloc", "preserve_order"] }
 sha2 = { version = "0.10.9", default-features = false }
+subtle = { version = "2.6.1", default-features = false }
+minicbor = { version = "2.3.0", default-features = false, features = ["alloc"] }
+rustls-pki-types = { version = "1.15.1", default-features = false, features = ["alloc"] }
+rustls-webpki = { version = "0.103.13", default-features = false, features = ["alloc", "ring"] }
+ring = { version = "0.17.14", default-features = false }
+x509-parser = { version = "0.18.1", default-features = false }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = "deny"
+pedantic = "deny"
 
 [profile.release]
 lto = "thin"

@@ -19,17 +19,17 @@ or manifest differ. Intentional changes require review and
 
 ## Rust targets
 
-Milestone 3 supports:
+Target V1 supports:
 
 - the pinned stable Rust toolchain;
 - the workspace MSRV declared in `Cargo.toml`;
-- native CLI/tests on supported Rust hosts;
-- `auths-proof-verifier`, `auths-proof-multikey`, and all pure principal
+- native libraries/tests on supported Rust hosts;
+- `auths-verifier`, `auths-multikey`, and all pure principal
   adapters on `wasm32-unknown-unknown` with default features disabled.
 
 The verifier API and pure adapters use no ambient platform facilities. The
-native `auths-proof-did-web-http` resolver is intentionally excluded from the
-WASM compatibility set.
+native `auths-resolver-did-web` integration lives in `auths-proof-apps` and is
+therefore outside both the proof workspace and its WASM compatibility set.
 
 ## Algorithm compatibility
 
@@ -44,7 +44,7 @@ auto-detection are not accepted by the V1 adapter profiles.
 
 ## Stability status
 
-The crates are version `0.1.0` and pre-audit. The fixture set prevents
-accidental change; it does not yet promise long-term wire stability. A V1
-stability declaration requires external review and at least one independent
-implementation or fixture verifier.
+The crates are version `0.1.0` and pre-audit. The 181-file target corpus
+prevents accidental change; it does not yet promise long-term wire stability.
+A stability declaration still requires external review and passing
+independent Go and TypeScript semantic verifiers.
