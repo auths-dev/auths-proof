@@ -169,6 +169,38 @@ dependencies = [
 ]
 
 [[package]]
+name = "auths-proof"
+version = "0.1.0"
+dependencies = [
+ "auths-author",
+ "auths-codec",
+ "auths-model",
+ "auths-ports",
+ "auths-raw-key",
+ "auths-registries",
+ "auths-signature",
+ "auths-testkit",
+ "auths-verifier",
+]
+
+[[package]]
+name = "auths-proof-wasm"
+version = "0.1.0"
+dependencies = [
+ "auths-codec",
+ "auths-did-keri",
+ "auths-did-key",
+ "auths-model",
+ "auths-ports",
+ "auths-raw-key",
+ "auths-registries",
+ "auths-signature",
+ "auths-testkit",
+ "auths-verifier",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "auths-raw-key"
 version = "0.1.0"
 dependencies = [

@@ -38,6 +38,8 @@ attachment input, and resource limit is an explicit immutable verifier input.
 
 Target packages:
 
+- `auths-proof`: supported embedded Rust facade and actionable results;
+- `auths-proof-wasm`: prebuildable three-input WebAssembly boundary;
 - `auths-model`: validated V1 protocol and context types;
 - `auths-codec`: constrained deterministic CBOR and domain-separated IDs;
 - `auths-ports`: effect-free principal-method and signature-suite ports;

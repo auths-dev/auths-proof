@@ -249,6 +249,8 @@ fn cargo(args: &[&str]) -> Result<(), String> {
 
 fn wasm() -> Result<(), String> {
     for package in [
+        "auths-proof",
+        "auths-proof-wasm",
         "auths-model",
         "auths-codec",
         "auths-ports",
@@ -486,6 +488,32 @@ fn arch() -> Result<(), String> {
         .filter_map(|package| package["name"].as_str().map(String::from))
         .collect();
     let allowed: BTreeMap<&str, BTreeSet<&str>> = BTreeMap::from([
+        (
+            "auths-proof",
+            BTreeSet::from([
+                "auths-author",
+                "auths-codec",
+                "auths-model",
+                "auths-ports",
+                "auths-registries",
+                "auths-verifier",
+            ]),
+        ),
+        (
+            "auths-proof-wasm",
+            BTreeSet::from([
+                "auths-codec",
+                "auths-did-keri",
+                "auths-did-key",
+                "auths-model",
+                "auths-ports",
+                "auths-raw-key",
+                "auths-registries",
+                "auths-signature",
+                "auths-testkit",
+                "auths-verifier",
+            ]),
+        ),
         ("auths-model", BTreeSet::new()),
         ("auths-codec", BTreeSet::from(["auths-model"])),
         ("auths-ports", BTreeSet::from(["auths-model"])),

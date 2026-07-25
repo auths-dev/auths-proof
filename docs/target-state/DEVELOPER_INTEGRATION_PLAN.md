@@ -1,6 +1,6 @@
 # Auths Developer Integration Plan
 
-**Status:** Proposed
+**Status:** Implementation in progress
 
 **Date:** 25 July 2026
 
@@ -577,3 +577,27 @@ language-neutral contract and corpus from:
 and each integration can be installed, configured, verified, explained, and
 tested without requiring knowledge of internal Rust crates or any particular
 identity implementation.
+
+## Implementation record
+
+The first developer-ergonomics slice now provides:
+
+- a supported `auths-proof` Rust facade and prebuildable three-input WASM
+  boundary in `auths-proof`;
+- a supported `auths-proof-exchange` facade with one client and one server
+  sequence in `auths-proof-exchange`;
+- a single Rust SDK for trusted contexts, verification, safe authority
+  planning, and external custody;
+- a transport-neutral enforcement kit whose executors accept only commands
+  decoded from sealed verified actions;
+- a replay- and budget-gated internal deployment integration, alongside the
+  existing receipt-producing MCP runtime;
+- a profile fixture/mutation kit;
+- publishable TypeScript/WASM and stable-ABI Python package projects;
+- a pure-Go package with the one-call API and all 99 shared semantic cases in
+  native `go test`;
+- release automation for TypeScript/WASM, Python wheels, and Go conformance;
+- one integration guide spanning all supported language surfaces.
+
+Release publication, hosted package installation checks, and the final
+cross-language hostile-input release gate remain release-engineering work.
