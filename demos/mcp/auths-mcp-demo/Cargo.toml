@@ -1,0 +1,17 @@
+[package]
+name = "auths-mcp-demo"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+rust-version = "1.91"
+description = "Focused target V1 Auths MCP demonstration"
+
+[dependencies]
+auths-apps-testkit.workspace = true
+auths-proof-exchange-model.workspace = true
+clap.workspace = true
+hex.workspace = true
+tokio.workspace = true
+
+[lints]
+workspace = true

@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
-    "examples/offline-verification",
+    "demos/offline-verification",
     "bindings/wasm/auths-proof-wasm",
     "bindings/python",
     "core/crates/auths-proof",
@@ -52,6 +52,10 @@ members = [
     "product/config/auths-config",
     "product/cache/auths-cache",
     "product/operations/auths-operations",
+    "demos/testkit/auths-apps-testkit",
+    "demos/matrix/auths-lab-matrix",
+    "demos/benchmarks/auths-lab-wasm-bench",
+    "demos/mcp/auths-mcp-demo",
     "xtask",
 ]
 exclude = ["core/fuzz"]
@@ -114,6 +118,8 @@ auths-deployment = { version = "0.1.0", path = "product/integrations/auths-deplo
 auths-resolver-did-web = { version = "0.1.0", path = "product/integrations/auths-resolver-did-web" }
 auths-evidence-assemblers = { version = "0.1.0", path = "product/integrations/auths-evidence-assemblers" }
 auths-custody = { version = "0.1.0", path = "product/integrations/auths-custody" }
+auths-apps-testkit = { version = "0.1.0", path = "demos/testkit/auths-apps-testkit" }
+auths-lab-matrix = { version = "0.1.0", path = "demos/matrix/auths-lab-matrix" }
 async-trait = "0.1.91"
 getrandom = "0.3.4"
 iroh = { version = "1.0.3", default-features = false, features = ["tls-ring"] }
@@ -123,6 +129,9 @@ serde_json_canonicalizer = "0.3.2"
 tempfile = "3.27.0"
 tokio = { version = "1.48.0", features = ["fs", "io-util", "macros", "net", "rt-multi-thread", "sync", "time"] }
 toml = "0.9.8"
+wasm-bindgen-test = "=0.3.68"
+js-sys = "=0.3.95"
+web-sys = { version = "=0.3.95", features = ["console"] }
 base64ct = { version = "1.8.3", default-features = false, features = ["alloc"] }
 blake3 = { version = "1.8.4", default-features = false, features = ["pure"] }
 bs58 = { version = "0.5.1", default-features = false, features = ["alloc"] }

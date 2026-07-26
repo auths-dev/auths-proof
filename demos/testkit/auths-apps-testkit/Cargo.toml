@@ -1,0 +1,30 @@
+[package]
+name = "auths-apps-testkit"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+rust-version = "1.91"
+description = "Target V1 end-to-end fixtures and conformance for Auths MCP"
+
+[dependencies]
+auths-profile-mcp.workspace = true
+auths-profile-api.workspace = true
+auths-runtime.workspace = true
+auths-receipts.workspace = true
+auths-proof-exchange-model.workspace = true
+auths-proof-exchange-port.workspace = true
+auths-proof-exchange-memory.workspace = true
+auths-proof-exchange-iroh.workspace = true
+auths-model.workspace = true
+auths-codec.workspace = true
+auths-author.workspace = true
+auths-raw-key.workspace = true
+auths-signature.workspace = true
+async-trait.workspace = true
+ed25519-dalek.workspace = true
+iroh.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+
+[lints]
+workspace = true
