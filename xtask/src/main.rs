@@ -94,10 +94,13 @@ fn format_all() -> Result<(), String> {
     cargo(&["fmt", "--all", "--check"])?;
     let go_root = root().join("bindings/independent/go");
     let go_sources = files_with_extension(&go_root, "go")?;
-    let go_arguments: Vec<_> = go_sources
-        .iter()
-        .map(|path| path_text(path))
-        .collect::<Result<_, _>>()?;
+    let mut go_arguments = vec!["-l"];
+    go_arguments.extend(
+        go_sources
+            .iter()
+            .map(|path| path_text(path))
+            .collect::<Result<Vec<_>, _>>()?,
+    );
     let go_files = command_output_in("gofmt", &go_arguments, &go_root, None)?;
     if !go_files.trim().is_empty() {
         return Err(format!("Go sources require gofmt:\n{}", go_files.trim()));
