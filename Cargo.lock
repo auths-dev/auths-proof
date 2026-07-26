@@ -212,6 +212,8 @@ dependencies = [
  "async-trait",
  "auths-author",
  "auths-codec",
+ "auths-did-keri",
+ "auths-did-key",
  "auths-model",
  "auths-ports",
  "auths-profile-api",
@@ -405,6 +407,21 @@ dependencies = [
  "js-sys",
  "wasm-bindgen-test",
  "web-sys",
+]
+
+[[package]]
+name = "auths-live-lab"
+version = "0.1.0"
+dependencies = [
+ "auths-apps-testkit",
+ "auths-codec",
+ "auths-model",
+ "auths-proof-exchange-model",
+ "auths-proof-wasm",
+ "hex",
+ "serde_json",
+ "sha2 0.10.9",
+ "tokio",
 ]
 
 [[package]]

@@ -18,6 +18,7 @@ digraph auths_architecture {
   "auths-hsm-attested" [group="core"];
   "auths-lab-matrix" [group="demos"];
   "auths-lab-wasm-bench" [group="demos"];
+  "auths-live-lab" [group="demos"];
   "auths-mcp-demo" [group="demos"];
   "auths-model" [group="core"];
   "auths-multikey" [group="core"];
@@ -59,6 +60,8 @@ digraph auths_architecture {
   "xtask" [group="tooling"];
   "auths-apps-testkit" -> "auths-author" [label="normal"];
   "auths-apps-testkit" -> "auths-codec" [label="normal"];
+  "auths-apps-testkit" -> "auths-did-keri" [label="normal"];
+  "auths-apps-testkit" -> "auths-did-key" [label="normal"];
   "auths-apps-testkit" -> "auths-model" [label="normal"];
   "auths-apps-testkit" -> "auths-ports" [label="normal"];
   "auths-apps-testkit" -> "auths-profile-api" [label="normal"];
@@ -114,6 +117,11 @@ digraph auths_architecture {
   "auths-lab-wasm-bench" -> "auths-signature" [label="normal"];
   "auths-lab-wasm-bench" -> "auths-testkit" [label="normal"];
   "auths-lab-wasm-bench" -> "auths-verifier" [label="normal"];
+  "auths-live-lab" -> "auths-apps-testkit" [label="normal"];
+  "auths-live-lab" -> "auths-codec" [label="normal"];
+  "auths-live-lab" -> "auths-model" [label="normal"];
+  "auths-live-lab" -> "auths-proof-exchange-model" [label="normal"];
+  "auths-live-lab" -> "auths-proof-wasm" [label="normal"];
   "auths-mcp-demo" -> "auths-apps-testkit" [label="normal"];
   "auths-mcp-demo" -> "auths-proof-exchange-model" [label="normal"];
   "auths-operations" -> "auths-codec" [label="dev"];

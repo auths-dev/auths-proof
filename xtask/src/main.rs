@@ -47,6 +47,7 @@ fn run() -> Result<(), String> {
         "product-fixtures" => product_fixtures(args.any(|arg| arg == "--update")),
         "semantic-digest" => semantic_digest(),
         "wasm" => wasm(),
+        "live-demo" => live_demo(),
         "fuzz-inventory" => fuzz_inventory(),
         "fuzz-smoke" => fuzz_smoke(),
         "platform-artifact" => {
@@ -62,7 +63,7 @@ fn run() -> Result<(), String> {
                 "usage: cargo xtask <fmt|arch [--update]|core-boundary|workspace-msrv|abi|core|\
                  exchange|product|bindings|demos|package|wire [--update]|spec-sync|\
                  conformance|exchange-conformance|product-conformance|compliance|matrix|cross-language|\
-                 product-fixtures [--update]|semantic-digest|wasm|fuzz-inventory|fuzz-smoke|\
+                 product-fixtures [--update]|semantic-digest|wasm|live-demo|fuzz-inventory|fuzz-smoke|\
                  platform-artifact [output]|ci|release-check>"
             );
             Ok(())
@@ -98,6 +99,7 @@ fn ci() -> Result<(), String> {
     platform_artifact(&root().join("target/release-evidence/platform.json"))?;
     fuzz_smoke()?;
     wasm()?;
+    live_demo()?;
     write_compliance_report(&compliance_inventory)
 }
 
@@ -159,7 +161,8 @@ fn product_check() -> Result<(), String> {
 
 fn demos_check() -> Result<(), String> {
     layer_check("demos")?;
-    matrix()
+    matrix()?;
+    live_demo()
 }
 
 fn bindings_check() -> Result<(), String> {
@@ -360,6 +363,7 @@ fn compliance() -> Result<(), String> {
     matrix()?;
     bindings_check()?;
     package_check()?;
+    live_demo()?;
     write_compliance_report(&inventory)
 }
 
@@ -1992,6 +1996,117 @@ fn wasm() -> Result<(), String> {
             output,
         ],
     )?;
+    Ok(())
+}
+
+fn live_demo() -> Result<(), String> {
+    let output = root().join("target/live-demo/site");
+    if output.exists() {
+        fs::remove_dir_all(&output)
+            .map_err(|error| format!("could not clear {}: {error}", output.display()))?;
+    }
+    let typescript = root().join("bindings/typescript");
+    command_in("npm", &["run", "build"], &typescript, None)?;
+    command_in("npm", &["run", "build:wasm"], &typescript, None)?;
+    cargo(&[
+        "run",
+        "--locked",
+        "-p",
+        "auths-live-lab",
+        "--",
+        path_text(&output)?,
+    ])?;
+
+    let expected: BTreeSet<String> = [
+        "app.js",
+        "assets/scenario.json",
+        "index.html",
+        "lab-core.js",
+        "package.json",
+        "styles.css",
+        "vendor/index.js",
+        "vendor/wasm/auths_proof_wasm.d.ts",
+        "vendor/wasm/auths_proof_wasm.js",
+        "vendor/wasm/auths_proof_wasm_bg.wasm",
+        "vendor/wasm/auths_proof_wasm_bg.wasm.d.ts",
+        "assets/tampered-action/action.cbor",
+        "assets/tampered-action/context.cbor",
+        "assets/tampered-action/native-result.cbor",
+        "assets/tampered-action/proof.cbor",
+        "assets/tampered-proof/action.cbor",
+        "assets/tampered-proof/context.cbor",
+        "assets/tampered-proof/native-result.cbor",
+        "assets/tampered-proof/proof.cbor",
+        "assets/valid/action.cbor",
+        "assets/valid/context.cbor",
+        "assets/valid/native-result.cbor",
+        "assets/valid/proof.cbor",
+        "assets/wrong-configuration/action.cbor",
+        "assets/wrong-configuration/context.cbor",
+        "assets/wrong-configuration/native-result.cbor",
+        "assets/wrong-configuration/proof.cbor",
+    ]
+    .into_iter()
+    .map(str::to_owned)
+    .collect();
+    let actual: BTreeSet<String> = repository_files(&output)?
+        .into_iter()
+        .map(|path| {
+            path.strip_prefix(&output)
+                .map_err(|_| format!("live demo output escaped {}", output.display()))
+                .map(|relative| relative.to_string_lossy().replace('\\', "/"))
+        })
+        .collect::<Result<_, _>>()?;
+    if actual != expected {
+        let missing: Vec<_> = expected.difference(&actual).collect();
+        let extra: Vec<_> = actual.difference(&expected).collect();
+        return Err(format!(
+            "live demo bundle shape drifted; missing={missing:?}, extra={extra:?}"
+        ));
+    }
+
+    let scenario: Value = serde_json::from_slice(
+        &fs::read(output.join("assets/scenario.json"))
+            .map_err(|error| format!("could not read live demo scenario: {error}"))?,
+    )
+    .map_err(|error| format!("invalid live demo scenario JSON: {error}"))?;
+    if scenario["schema"].as_str() != Some("auths-live-lab/v1") {
+        return Err("live demo scenario schema drifted".to_owned());
+    }
+    let variants = scenario["variants"]
+        .as_array()
+        .ok_or("live demo scenario has no variants")?;
+    if variants.len() != 4
+        || variants[0]["id"].as_str() != Some("valid")
+        || variants[0]["native"]["decision"].as_str() != Some("authorized")
+        || variants[1..]
+            .iter()
+            .any(|variant| variant["native"]["decision"].as_str() == Some("authorized"))
+    {
+        return Err("live demo adversarial verdict matrix drifted".to_owned());
+    }
+    if variants[0]["native"]["required_configuration"]
+        != variants[0]["native"]["executed_configuration"]
+        || variants[3]["native"]["required_configuration"]
+            == variants[3]["native"]["executed_configuration"]
+        || variants[3]["native"]["code"].as_str() != Some("verifier-configuration-mismatch")
+    {
+        return Err("live demo configuration commitment evidence drifted".to_owned());
+    }
+    if scenario["runtime"]["first_execution"]["outcome"].as_str() != Some("completed")
+        || scenario["runtime"]["replay"]["kind"].as_str() != Some("consumed-challenge")
+        || scenario["runtime"]["replay_executor_invocations"].as_u64() != Some(1)
+        || scenario["runtime"]["decision_receipts"].as_u64() != Some(1)
+        || scenario["runtime"]["execution_receipts"].as_u64() != Some(1)
+    {
+        return Err("live demo runtime enforcement evidence drifted".to_owned());
+    }
+
+    command(
+        "node",
+        &["demos/live-lab/tests/web-smoke.mjs", path_text(&output)?],
+    )?;
+    println!("live demo bundle passed native/WASM parity, adversarial, replay, and receipt checks");
     Ok(())
 }
 

@@ -92,6 +92,11 @@
       "path": "demos/benchmarks/auths-lab-wasm-bench"
     },
     {
+      "name": "auths-live-lab",
+      "layer": "demos",
+      "path": "demos/live-lab"
+    },
+    {
       "name": "auths-mcp-demo",
       "layer": "demos",
       "path": "demos/mcp/auths-mcp-demo"
@@ -316,6 +321,30 @@
       "source": "auths-apps-testkit",
       "source_layer": "demos",
       "target": "auths-codec",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-apps-testkit",
+      "source_layer": "demos",
+      "target": "auths-did-keri",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-apps-testkit",
+      "source_layer": "demos",
+      "target": "auths-did-key",
       "target_layer": "core",
       "scope": "internal",
       "kind": "normal",
@@ -1475,6 +1504,125 @@
       "default_features": true,
       "features": [
         "console"
+      ]
+    },
+    {
+      "source": "auths-live-lab",
+      "source_layer": "demos",
+      "target": "auths-apps-testkit",
+      "target_layer": "demos",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-live-lab",
+      "source_layer": "demos",
+      "target": "auths-codec",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-live-lab",
+      "source_layer": "demos",
+      "target": "auths-model",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-live-lab",
+      "source_layer": "demos",
+      "target": "auths-proof-exchange-model",
+      "target_layer": "exchange",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-live-lab",
+      "source_layer": "demos",
+      "target": "auths-proof-wasm",
+      "target_layer": "bindings",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-live-lab",
+      "source_layer": "demos",
+      "target": "hex",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-live-lab",
+      "source_layer": "demos",
+      "target": "serde_json",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "preserve_order"
+      ]
+    },
+    {
+      "source": "auths-live-lab",
+      "source_layer": "demos",
+      "target": "sha2",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-live-lab",
+      "source_layer": "demos",
+      "target": "tokio",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": [
+        "fs",
+        "io-util",
+        "macros",
+        "net",
+        "rt-multi-thread",
+        "sync",
+        "time"
       ]
     },
     {

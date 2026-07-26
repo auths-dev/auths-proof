@@ -10,6 +10,45 @@ must not be a UI that merely animates predetermined verdicts.
 The executable demo lives in the monorepo. `auths-proof-site` may link to or
 embed the deployed demo but remains a separate repository.
 
+## Current Implementation Boundary
+
+The first executable vertical slice now lives in `demos/live-lab`. It is a
+generated static lab, built from repository-owned fixtures and actual Auths
+implementations rather than hand-authored verdict JSON.
+
+This slice proves:
+
+- The TypeScript SDK loads the built `auths-proof-wasm` module in the browser.
+- A valid MCP `reports/read_report {"name":"q3"}` action produces the same
+  canonical portable result bytes in native Rust and WASM.
+- Action tampering, proof tampering, and verifier-configuration drift fail
+  closed with real stable codes.
+- Required and executed verifier configurations are both visible. The valid
+  case asserts equality; the drift case asserts inequality and
+  `verifier-configuration-mismatch`.
+- The real native MCP runtime executes once, persists signed decision and
+  execution receipts, and rejects an identical replay as a consumed challenge.
+- All experiment inputs are preloaded, so browser verification continues after
+  the network disconnects.
+
+The authoritative build is:
+
+```text
+cargo xtask live-demo
+```
+
+It regenerates `target/live-demo/site`, enforces the exact bundle shape, and
+runs byte-for-byte native/WASM parity for all four variants. `cargo xtask ci`,
+`cargo xtask demos`, and `cargo xtask compliance` all include this check.
+
+This slice is not yet the public target described below. It has one demo actor,
+one raw-key root, no stateful budget, no live session API, and no external
+deployment. The native runtime evidence is generated at build time rather than
+served by a network service. The two-actor/two-root ceremony, budget behavior,
+receipt explorer, public service, and multi-region deployment remain subsequent
+phases. The UI must label these boundaries and must not imply they are already
+implemented.
+
 ## Audience and Story
 
 Primary audience:
@@ -122,6 +161,10 @@ payloads, and minimal integration code.
 The default view hides raw CBOR and cryptographic detail.
 
 ## Architecture
+
+The diagram in this section is the target public architecture. The current
+`demos/live-lab` slice contains the browser and a deterministic native scenario
+generator; it does not yet expose the native service over a network boundary.
 
 ```text
 +--------------------------- Browser --------------------------------+
@@ -494,18 +537,27 @@ demo closed.
 
 ### Phase 1: Deterministic Local Lab
 
-- Reuse existing demo fixtures and hostile mutations.
-- Build browser UI with real WASM verification.
-- Implement proof graph, verdict, configuration, and receipt visualization.
-- Support offline browser verification.
+- [x] Reuse existing demo fixtures and hostile mutations.
+- [x] Build browser UI with real WASM verification.
+- [x] Show the proof graph, verdict, required/executed configuration, work
+      counters, replay outcome, executor count, and receipt counts.
+- [x] Preload all experiment inputs for verification after disconnection.
+- [x] Generate a deterministic site with `cargo xtask live-demo`.
+- [x] Enforce exact native/WASM portable-result parity in CI.
+- [ ] Add guided-tour narration and richer receipt inspection.
 
 ### Phase 2: Native Enforcement
 
-- Add native demo service.
-- Issue real challenges.
-- Run replay/budget gates and safe executor.
-- Generate signed decision and execution receipts.
-- Compare browser/native result digests.
+- [x] Exercise the native MCP runtime, real challenge ledger, safe executor,
+      replay gate, and signed receipt producer during deterministic generation.
+- [x] Compare browser/native canonical result bytes in CI.
+- [ ] Add a bounded native demo service and session API.
+- [ ] Move challenge issuance and execution from build-time evidence to
+      per-session requests.
+- [ ] Add the real budget gate and independently verify receipt signatures in
+      the lab.
+- [ ] Fail the interactive service closed on browser/native release or result
+      disagreement.
 
 ### Phase 3: Approval Ceremony
 
