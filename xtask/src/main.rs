@@ -227,6 +227,7 @@ fn core_msrv() -> Result<(), String> {
     command
         .arg(format!("+{toolchain}"))
         .args(["check", "--locked", "--no-default-features"])
+        .env("CARGO_TARGET_DIR", root().join("target/core-msrv"))
         .current_dir(root());
     for package in &policy.no_std_packages {
         command.arg("-p").arg(package);
