@@ -1,10 +1,10 @@
 use auths_ports::{PrincipalMethod, SignatureSuite};
 use auths_proof::{Engine, Verdict};
 
-const PROOF: &[u8] = include_bytes!("../../../fixtures/v1/valid/raw-key-chain.proof.cbor");
-const ACTION: &[u8] = include_bytes!("../../../fixtures/v1/valid/raw-key-chain.action.cbor");
+const PROOF: &[u8] = include_bytes!("../../../core/fixtures/v1/valid/raw-key-chain.proof.cbor");
+const ACTION: &[u8] = include_bytes!("../../../core/fixtures/v1/valid/raw-key-chain.action.cbor");
 const TRUSTED_CONTEXT: &[u8] =
-    include_bytes!("../../../fixtures/v1/valid/raw-key-chain.context.cbor");
+    include_bytes!("../../../core/fixtures/v1/valid/raw-key-chain.context.cbor");
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let method = auths_raw_key::RawKeyMethod::new()?;

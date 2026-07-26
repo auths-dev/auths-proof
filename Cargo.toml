@@ -3,29 +3,29 @@ resolver = "2"
 members = [
     "examples/offline-verification",
     "bindings/auths-proof-wasm",
-    "crates/auths-proof",
-    "crates/auths-model",
-    "crates/auths-codec",
-    "crates/auths-ports",
-    "crates/auths-registries",
-    "crates/auths-signature",
-    "crates/auths-authority",
-    "crates/auths-composition",
-    "crates/auths-assurance",
-    "crates/auths-verifier",
-    "crates/auths-author",
-    "crates/auths-multikey",
-    "crates/auths-testkit",
-    "adapters/auths-raw-key",
-    "adapters/auths-did-key",
-    "adapters/auths-did-keri",
-    "adapters/auths-did-web",
-    "adapters/auths-webauthn",
-    "adapters/auths-hsm-attested",
-    "adapters/auths-spiffe-x509",
+    "core/crates/auths-proof",
+    "core/crates/auths-model",
+    "core/crates/auths-codec",
+    "core/crates/auths-ports",
+    "core/crates/auths-registries",
+    "core/crates/auths-signature",
+    "core/crates/auths-authority",
+    "core/crates/auths-composition",
+    "core/crates/auths-assurance",
+    "core/crates/auths-verifier",
+    "core/crates/auths-author",
+    "core/crates/auths-multikey",
+    "core/testkit/auths-testkit",
+    "core/adapters/auths-raw-key",
+    "core/adapters/auths-did-key",
+    "core/adapters/auths-did-keri",
+    "core/adapters/auths-did-web",
+    "core/adapters/auths-webauthn",
+    "core/adapters/auths-hsm-attested",
+    "core/adapters/auths-spiffe-x509",
     "xtask",
 ]
-exclude = ["fuzz"]
+exclude = ["core/fuzz"]
 
 [workspace.package]
 version = "0.1.0"
@@ -36,26 +36,26 @@ repository = "https://github.com/auths-dev/auths-proof"
 homepage = "https://github.com/auths-dev/auths-proof"
 
 [workspace.dependencies]
-auths-model = { version = "0.1.0", path = "crates/auths-model", default-features = false }
-auths-codec = { version = "0.1.0", path = "crates/auths-codec", default-features = false }
-auths-ports = { version = "0.1.0", path = "crates/auths-ports", default-features = false }
-auths-registries = { version = "0.1.0", path = "crates/auths-registries", default-features = false }
-auths-signature = { version = "0.1.0", path = "crates/auths-signature", default-features = false }
-auths-authority = { version = "0.1.0", path = "crates/auths-authority", default-features = false }
-auths-composition = { version = "0.1.0", path = "crates/auths-composition", default-features = false }
-auths-assurance = { version = "0.1.0", path = "crates/auths-assurance", default-features = false }
-auths-verifier = { version = "0.1.0", path = "crates/auths-verifier", default-features = false }
-auths-author = { version = "0.1.0", path = "crates/auths-author", default-features = false }
-auths-multikey = { version = "0.1.0", path = "crates/auths-multikey", default-features = false }
-auths-testkit = { version = "0.1.0", path = "crates/auths-testkit" }
-auths-proof = { version = "0.1.0", path = "crates/auths-proof", default-features = false }
-auths-raw-key = { version = "0.1.0", path = "adapters/auths-raw-key", default-features = false }
-auths-did-key = { version = "0.1.0", path = "adapters/auths-did-key", default-features = false }
-auths-did-keri = { version = "0.1.0", path = "adapters/auths-did-keri", default-features = false }
-auths-did-web = { version = "0.1.0", path = "adapters/auths-did-web", default-features = false }
-auths-webauthn = { version = "0.1.0", path = "adapters/auths-webauthn", default-features = false }
-auths-hsm-attested = { version = "0.1.0", path = "adapters/auths-hsm-attested", default-features = false }
-auths-spiffe-x509 = { version = "0.1.0", path = "adapters/auths-spiffe-x509", default-features = false }
+auths-model = { version = "0.1.0", path = "core/crates/auths-model", default-features = false }
+auths-codec = { version = "0.1.0", path = "core/crates/auths-codec", default-features = false }
+auths-ports = { version = "0.1.0", path = "core/crates/auths-ports", default-features = false }
+auths-registries = { version = "0.1.0", path = "core/crates/auths-registries", default-features = false }
+auths-signature = { version = "0.1.0", path = "core/crates/auths-signature", default-features = false }
+auths-authority = { version = "0.1.0", path = "core/crates/auths-authority", default-features = false }
+auths-composition = { version = "0.1.0", path = "core/crates/auths-composition", default-features = false }
+auths-assurance = { version = "0.1.0", path = "core/crates/auths-assurance", default-features = false }
+auths-verifier = { version = "0.1.0", path = "core/crates/auths-verifier", default-features = false }
+auths-author = { version = "0.1.0", path = "core/crates/auths-author", default-features = false }
+auths-multikey = { version = "0.1.0", path = "core/crates/auths-multikey", default-features = false }
+auths-testkit = { version = "0.1.0", path = "core/testkit/auths-testkit" }
+auths-proof = { version = "0.1.0", path = "core/crates/auths-proof", default-features = false }
+auths-raw-key = { version = "0.1.0", path = "core/adapters/auths-raw-key", default-features = false }
+auths-did-key = { version = "0.1.0", path = "core/adapters/auths-did-key", default-features = false }
+auths-did-keri = { version = "0.1.0", path = "core/adapters/auths-did-keri", default-features = false }
+auths-did-web = { version = "0.1.0", path = "core/adapters/auths-did-web", default-features = false }
+auths-webauthn = { version = "0.1.0", path = "core/adapters/auths-webauthn", default-features = false }
+auths-hsm-attested = { version = "0.1.0", path = "core/adapters/auths-hsm-attested", default-features = false }
+auths-spiffe-x509 = { version = "0.1.0", path = "core/adapters/auths-spiffe-x509", default-features = false }
 base64ct = { version = "1.8.3", default-features = false, features = ["alloc"] }
 blake3 = { version = "1.8.4", default-features = false, features = ["pure"] }
 bs58 = { version = "0.5.1", default-features = false, features = ["alloc"] }
