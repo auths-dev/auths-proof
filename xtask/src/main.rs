@@ -1098,7 +1098,11 @@ fn platform_artifact(output: &Path) -> Result<(), String> {
         .map_err(|error| format!("could not write {}: {error}", output.display()))?;
     let digest = hex::encode(Sha256::digest(&bytes));
     let checksum_path = output.with_extension("sha256");
-    fs::write(&checksum_path, format!("{digest}  platform.json\n"))
+    let artifact_name = output
+        .file_name()
+        .and_then(|value| value.to_str())
+        .ok_or_else(|| format!("platform artifact has no file name: {}", output.display()))?;
+    fs::write(&checksum_path, format!("{digest}  {artifact_name}\n"))
         .map_err(|error| format!("could not write {}: {error}", checksum_path.display()))?;
     println!(
         "generated {} ({digest}) from {}",
