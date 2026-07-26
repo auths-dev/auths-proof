@@ -111,24 +111,61 @@
             >
               <div class="panel-heading">
                 <span class="step-number">01</span>
-                <span class="micro-label">Change the evidence</span>
+                <span class="micro-label">Click one case</span>
                 <span class="auto-verify">
                   <i aria-hidden="true"></i>
-                  Auto-verifies
+                  Result updates automatically
                 </span>
               </div>
               <h2 id="scenario-panel-heading">
-                Choose what the verifier sees.
+                Pick one thing to change.
               </h2>
               <div
                 id="variants"
                 class="variants"
                 aria-label="Experiment variants"
-              ></div>
+              >
+                <button
+                  class="variant active"
+                  data-variant="valid"
+                  type="button"
+                  aria-pressed="true"
+                >
+                  <span>Exact request</span>
+                  <small>Nothing changed after authorization</small>
+                </button>
+                <button
+                  class="variant"
+                  data-variant="tampered-action"
+                  type="button"
+                  aria-pressed="false"
+                >
+                  <span>Request changed</span>
+                  <small>The MCP request bytes changed</small>
+                </button>
+                <button
+                  class="variant"
+                  data-variant="tampered-proof"
+                  type="button"
+                  aria-pressed="false"
+                >
+                  <span>Permission changed</span>
+                  <small>The signed proof no longer matches</small>
+                </button>
+                <button
+                  class="variant"
+                  data-variant="wrong-configuration"
+                  type="button"
+                  aria-pressed="false"
+                >
+                  <span>Verifier policy changed</span>
+                  <small>The required configuration differs</small>
+                </button>
+              </div>
               <div class="selection-explanation">
-                <span class="micro-label">What changed</span>
+                <span class="micro-label">Selected case</span>
                 <p id="tour-copy">
-                  Select an experiment to run through the real WASM boundary.
+                  Exact request selected. Preparing the browser verifier.
                 </p>
               </div>
             </section>
@@ -139,7 +176,7 @@
             >
               <header class="result-header">
                 <div>
-                  <span class="micro-label">Live authorization result</span>
+                  <span class="micro-label">02 · See the decision</span>
                   <span class="proof-id">AUTH-V1 / LIVE</span>
                 </div>
                 <span class="verdict-state">
@@ -197,13 +234,14 @@
               <section class="native-result" aria-labelledby="native-heading">
                 <div class="native-heading">
                   <div>
-                    <span class="micro-label">Native enforcement</span>
+                    <span class="micro-label">03 · Optional native check</span>
                     <h3 id="native-heading">
                       Verification can repeat. Execution cannot.
                     </h3>
                   </div>
                   <p id="session-status" class="session-status">
-                    Connecting to a short-lived native session.
+                    Browser verification runs first. Native Rust becomes
+                    available after it connects.
                   </p>
                 </div>
                 <div class="runtime-grid">
@@ -230,9 +268,10 @@
                 id="native-button"
                 class="primary-button"
                 type="button"
+                aria-describedby="session-status"
                 disabled
               >
-                Connecting to native Rust
+                Run selected case in native Rust
               </button>
             </article>
           </div>

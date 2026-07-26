@@ -13,6 +13,7 @@ const state = {
   scenario: null,
   activeVariant: "valid",
   inputs: new Map(),
+  inputLoads: new Map(),
   native: new Map(),
   result: null,
   digest: null,
@@ -21,6 +22,9 @@ const state = {
   runtime: new Map(),
   runtimeMessages: new Map(),
   connectionError: null,
+  initializationError: null,
+  verificationRun: 0,
+  resultVariant: null,
 };
 
 const elements = {
@@ -52,9 +56,25 @@ const elements = {
   developerPanel: document.querySelector("#developer-panel"),
 };
 
+async function fetchWithRetry(path, options = {}, attempts = 2) {
+  let lastError;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      const response = await fetch(path, { ...options, cache: "no-store" });
+      if (!response.ok) throw new Error(`could not load ${path}`);
+      return response;
+    } catch (error) {
+      lastError = error;
+      if (attempt < attempts) {
+        await new Promise((resolve) => setTimeout(resolve, 150));
+      }
+    }
+  }
+  throw lastError;
+}
+
 async function fetchBytes(path) {
-  const response = await fetch(path, { cache: "no-store" });
-  if (!response.ok) throw new Error(`could not load ${path}`);
+  const response = await fetchWithRetry(path);
   return new Uint8Array(await response.arrayBuffer());
 }
 
@@ -76,6 +96,25 @@ function activeVariant() {
 
 function activeNative() {
   return state.native.get(state.activeVariant) ?? activeVariant().native;
+}
+
+async function loadVariantInputs(variant) {
+  if (state.inputs.has(variant.id)) return;
+  const pending = state.inputLoads.get(variant.id);
+  if (pending) return pending;
+  const load = Promise.all([
+    fetchBytes(variant.files.proof),
+    fetchBytes(variant.files.action),
+    fetchBytes(variant.files.context),
+  ])
+    .then(([proof, action, context]) => {
+      state.inputs.set(variant.id, { proof, action, context });
+    })
+    .finally(() => {
+      state.inputLoads.delete(variant.id);
+    });
+  state.inputLoads.set(variant.id, load);
+  return load;
 }
 
 function variantPresentation(variant) {
@@ -125,7 +164,12 @@ function resultSummary(result) {
 
 async function verify() {
   const variant = activeVariant();
+  const run = ++state.verificationRun;
   elements.appStatus.textContent = "verifying";
+  state.result = null;
+  state.digest = null;
+  state.resultVariant = null;
+  updateNativeButton();
   const inputs = state.inputs.get(variant.id);
   if (inputs === undefined) {
     throw new Error(`variant ${variant.id} was not preloaded`);
@@ -137,8 +181,10 @@ async function verify() {
     sha256(action),
     sha256(proof),
   ]);
+  if (run !== state.verificationRun) return;
   state.result = result;
   state.digest = digest;
+  state.resultVariant = variant.id;
   elements.actionDigest.textContent = short(actionDigest, 16);
   elements.proofDigest.textContent = short(proofDigest, 16);
   renderResult({
@@ -151,6 +197,7 @@ async function verify() {
     native: activeNative(),
   });
   elements.appStatus.textContent = "ready";
+  updateNativeButton();
 }
 
 function renderResult({
@@ -222,37 +269,66 @@ function renderScenario() {
   const scenario = state.scenario;
   elements.rootPrincipal.textContent = short(scenario.proof.root_principal, 22);
   elements.rootPrincipal.title = scenario.proof.root_principal;
-  elements.variants.innerHTML = scenario.variants
-    .map((variant) => {
-      const presentation = variantPresentation(variant);
-      return `
-        <button
-          class="variant ${variant.id === state.activeVariant ? "active" : ""}"
-          data-variant="${variant.id}"
-          type="button"
-          aria-pressed="${variant.id === state.activeVariant}"
-        >
-          <span>${presentation.title}</span>
-          <small>${presentation.detail}</small>
-        </button>
-      `;
-    })
-    .join("");
+  const controls = new Set(
+    Array.from(elements.variants.querySelectorAll("[data-variant]")).map(
+      (button) => button.dataset.variant,
+    ),
+  );
+  for (const variant of scenario.variants) {
+    if (!controls.has(variant.id)) {
+      throw new Error(`missing static control for variant ${variant.id}`);
+    }
+  }
+  updateVariantSelection();
+}
+
+function updateVariantSelection() {
   elements.variants.querySelectorAll("[data-variant]").forEach((button) => {
-    button.addEventListener("click", async () => {
-      state.activeVariant = button.dataset.variant;
-      elements.variants.querySelectorAll(".variant").forEach((candidate) => {
-        candidate.classList.remove("active");
-        candidate.setAttribute("aria-pressed", "false");
-      });
-      button.classList.add("active");
-      button.setAttribute("aria-pressed", "true");
-      await verify();
-      renderActiveRuntime();
-      updateNativeButton();
+    const selected = button.dataset.variant === state.activeVariant;
+    button.classList.toggle("active", selected);
+    button.setAttribute("aria-pressed", String(selected));
+  });
+}
+
+async function selectVariant(variantId) {
+  state.activeVariant = variantId;
+  updateVariantSelection();
+  const button = elements.variants.querySelector(
+    `[data-variant="${variantId}"]`,
+  );
+  const title = button?.querySelector("span")?.textContent ?? "Case";
+  if (state.initializationError) {
+    elements.tourCopy.textContent =
+      `${title} selected. The browser verifier is unavailable; reload to try again.`;
+    return;
+  }
+  if (!state.scenario || !state.auths) {
+    elements.tourCopy.textContent =
+      `${title} selected. Preparing the browser verifier.`;
+    elements.verdictSummary.textContent =
+      `Loading the ${title.toLowerCase()} evidence.`;
+    return;
+  }
+  const variant = activeVariant();
+  if (!state.inputs.has(variant.id)) {
+    elements.tourCopy.textContent =
+      `${title} selected. Loading its proof evidence.`;
+    elements.verdictSummary.textContent =
+      `Loading the ${title.toLowerCase()} evidence.`;
+    await loadVariantInputs(variant);
+    if (state.activeVariant !== variantId) return;
+  }
+  await verify();
+  renderActiveRuntime();
+  updateNativeButton();
+}
+
+function bindVariantControls() {
+  elements.variants.querySelectorAll("[data-variant]").forEach((button) => {
+    button.addEventListener("click", () => {
+      selectVariant(button.dataset.variant).catch(showVerifierError);
     });
   });
-  renderActiveRuntime();
 }
 
 function updateNativeButton() {
@@ -260,7 +336,12 @@ function updateNativeButton() {
     elements.nativeButton.disabled = true;
     elements.nativeButton.textContent = state.connectionError
       ? "Native runtime unavailable"
-      : "Connecting to native Rust";
+      : "Run selected case in native Rust";
+    return;
+  }
+  if (!state.result || state.resultVariant !== state.activeVariant) {
+    elements.nativeButton.disabled = true;
+    elements.nativeButton.textContent = "Verify selected case first";
     return;
   }
   if (state.activeVariant === "valid" && state.session.validSubmissions >= 2) {
@@ -289,7 +370,9 @@ function defaultSessionStatus() {
     return `${state.connectionError}. Browser verification remains fully available.`;
   }
   if (!state.session) {
-    return "Connecting to a short-lived native session.";
+    return state.result
+      ? "Browser result is ready. Connecting the optional native Rust check."
+      : "Browser verification runs first. Native Rust becomes available after it connects.";
   }
   return (
     `Live session ${short(state.session.id, 10)} is owned by ${state.session.region}. ` +
@@ -330,6 +413,8 @@ function releaseMatches(meta) {
 async function connectNative() {
   state.apiBase = apiBase();
   elements.nativeStatus.textContent = "checking release";
+  elements.sessionStatus.textContent =
+    "Browser result is ready. Connecting the optional native Rust check.";
   const metaResponse = await fetch(`${state.apiBase}/api/v1/meta`, {
     cache: "no-store",
   });
@@ -440,6 +525,7 @@ async function executeNative() {
 }
 
 async function boot() {
+  bindVariantControls();
   elements.nativeButton.addEventListener("click", () => {
     executeNative().catch((error) => {
       elements.nativeStatus.textContent = "failed closed";
@@ -456,34 +542,27 @@ async function boot() {
     elements.developerPanel.hidden = !hidden;
     elements.developerToggle.setAttribute("aria-expanded", String(hidden));
   });
+  const wasmModuleUrl = new URL(
+    "./vendor/wasm/auths_proof_wasm.js",
+    import.meta.url,
+  ).href;
   const [scenario, auths] = await Promise.all([
-    fetch("./assets/scenario.json", { cache: "no-store" }).then((response) => {
-      if (!response.ok) throw new Error("could not load scenario metadata");
-      return response.json();
-    }),
-    loadAuths({
-      moduleUrl: new URL("./vendor/wasm/auths_proof_wasm.js", import.meta.url)
-        .href,
-    }),
+    fetchWithRetry("./assets/scenario.json").then((response) =>
+      response.json(),
+    ),
+    fetchBytes("./vendor/wasm/auths_proof_wasm_bg.wasm").then((wasmInput) =>
+      loadAuths({ moduleUrl: wasmModuleUrl, wasmInput }),
+    ),
   ]);
   state.scenario = scenario;
   state.auths = auths;
-  const inputs = await Promise.all(
-    scenario.variants.map(async (variant) => {
-      const [proof, action, context] = await Promise.all([
-        fetchBytes(variant.files.proof),
-        fetchBytes(variant.files.action),
-        fetchBytes(variant.files.context),
-      ]);
-      return [variant.id, { proof, action, context }];
-    }),
-  );
-  state.inputs = new Map(inputs);
   state.native = new Map(
     scenario.variants.map((variant) => [variant.id, variant.native]),
   );
   renderScenario();
+  await loadVariantInputs(activeVariant());
   await verify();
+  renderActiveRuntime();
   connectNative().catch((error) => {
     state.connectionError = error.message;
     elements.nativeStatus.textContent = "offline lab";
@@ -495,12 +574,16 @@ async function boot() {
   });
 }
 
-boot().catch((error) => {
+boot().catch(showVerifierError);
+
+function showVerifierError(error) {
+  state.initializationError = error.message;
   elements.appStatus.textContent = "failed closed";
   elements.verdict.textContent = "UNAVAILABLE";
   elements.verdict.dataset.kind = "indeterminate";
   elements.verdictSummary.textContent =
-    "The verifier could not initialize, so the demo failed closed.";
+    "The verifier could not process this case, so the demo failed closed.";
   elements.tourCopy.textContent = error.message;
+  updateNativeButton();
   console.error(error);
-});
+}

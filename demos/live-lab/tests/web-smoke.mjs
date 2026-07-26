@@ -111,6 +111,38 @@ for (const designHook of [
   assert.match(html, new RegExp(designHook));
 }
 assert.doesNotMatch(html, /id="verify-button"/);
+for (const variant of [
+  "valid",
+  "tampered-action",
+  "tampered-proof",
+  "wrong-configuration",
+]) {
+  assert.match(
+    html,
+    new RegExp(`data-variant="${variant}"`),
+    `first paint must include the ${variant} control`,
+  );
+}
+assert.equal(
+  html.match(/data-variant="/g)?.length,
+  4,
+  "first paint must include exactly four scenario controls",
+);
+assert.match(
+  html,
+  /id="native-button"[\s\S]*?Run selected case in native Rust[\s\S]*?<\/button>/,
+);
+assert.doesNotMatch(
+  html,
+  /id="native-button"[\s\S]*?Connecting to native Rust[\s\S]*?<\/button>/,
+);
+
+const app = await readFile(join(site, "app.js"), "utf8");
+assert.doesNotMatch(
+  app,
+  /elements\.variants\.innerHTML/,
+  "scenario controls must not depend on JavaScript rendering",
+);
 
 const styles = await readFile(join(site, "styles.css"), "utf8");
 for (const designToken of [
