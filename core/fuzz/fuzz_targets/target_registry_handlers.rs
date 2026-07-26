@@ -49,8 +49,7 @@ fuzz_target!(|data: &[u8]| {
             || resource_text
                 .strip_prefix(namespace_text)
                 .is_some_and(|suffix| {
-                    namespace_text.ends_with('/')
-                        || suffix.starts_with(['/', '?', '#'])
+                    namespace_text.ends_with('/') || suffix.starts_with(['/', '?', '#'])
                 });
         assert_eq!(handler.matches(&namespace, &resource), Ok(expected_match));
     }

@@ -790,7 +790,9 @@ fn context_with_assurance(
     .expect("context")
 }
 
-fn corpus_configuration_id() -> VerifierConfigurationId {
+/// Returns the exact executable verifier configuration used by the V1 corpus.
+#[must_use]
+pub fn corpus_configuration_id() -> VerifierConfigurationId {
     static CONFIGURATION: std::sync::OnceLock<VerifierConfigurationId> = std::sync::OnceLock::new();
     *CONFIGURATION.get_or_init(|| {
         let raw_key = auths_raw_key::RawKeyMethod::new().expect("raw-key method");

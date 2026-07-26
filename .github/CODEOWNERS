@@ -1,0 +1,9 @@
+/architecture.toml @auths-dev/architecture @auths-dev/security
+/architecture/ @auths-dev/architecture @auths-dev/security
+/.github/ @auths-dev/architecture @auths-dev/security
+/xtask/ @auths-dev/architecture @auths-dev/security
+/core/ @auths-dev/core-maintainers @auths-dev/security
+/exchange/ @auths-dev/exchange-maintainers @auths-dev/security
+/product/ @auths-dev/product-maintainers @auths-dev/security
+/bindings/ @auths-dev/binding-maintainers @auths-dev/security
+/demos/ @auths-dev/product-maintainers

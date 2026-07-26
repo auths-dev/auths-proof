@@ -24,6 +24,7 @@ members = [
     "core/adapters/auths-webauthn",
     "core/adapters/auths-hsm-attested",
     "core/adapters/auths-spiffe-x509",
+    "core/fuzz",
     "exchange/crates/auths-proof-exchange",
     "exchange/crates/auths-proof-exchange-model",
     "exchange/crates/auths-proof-exchange-codec",
@@ -58,7 +59,6 @@ members = [
     "demos/mcp/auths-mcp-demo",
     "xtask",
 ]
-exclude = ["core/fuzz"]
 
 [workspace.package]
 version = "0.1.0"

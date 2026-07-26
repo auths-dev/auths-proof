@@ -4,6 +4,7 @@
   "fixture_set": "target-v1",
   "hash": "sha-256",
   "adapter_context": {
+    "configuration": "d994f6e8642fc71330a979f4a3bf141fdf4b83b25fa649726e504df3d540a3cf",
     "did_web": [
       {
         "kind": "current",

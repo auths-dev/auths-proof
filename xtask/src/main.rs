@@ -25,10 +25,25 @@ fn run() -> Result<(), String> {
     let command = args.next().unwrap_or_else(|| "help".into());
     match command.as_str() {
         "ci" => ci(),
-        "arch" => arch(),
+        "arch" => arch(args.any(|arg| arg == "--update")),
+        "fmt" => format_all(),
+        "core-boundary" => core_boundary(),
+        "core-msrv" => core_msrv(),
+        "abi" => abi(),
+        "core" => layer_check("core"),
+        "exchange" => exchange_check(),
+        "product" => product_check(),
+        "bindings" => bindings_check(),
+        "demos" => demos_check(),
+        "package" => package_check(),
         "wire" => wire(args.any(|arg| arg == "--update")),
         "spec-sync" => spec_sync(),
         "conformance" => target_conformance(),
+        "exchange-conformance" => exchange_conformance(),
+        "product-conformance" => product_conformance(),
+        "matrix" => matrix(),
+        "cross-language" => cross_language_corpus(),
+        "product-fixtures" => product_fixtures(args.any(|arg| arg == "--update")),
         "semantic-digest" => semantic_digest(),
         "wasm" => wasm(),
         "fuzz-inventory" => fuzz_inventory(),
@@ -36,7 +51,11 @@ fn run() -> Result<(), String> {
         "release-check" => release_check(),
         _ => {
             println!(
-                "usage: cargo xtask <ci|arch|wire [--update]|spec-sync|conformance|semantic-digest|wasm|fuzz-inventory|fuzz-smoke|release-check>"
+                "usage: cargo xtask <fmt|arch [--update]|core-boundary|core-msrv|abi|core|exchange|\
+                 product|bindings|demos|package|wire [--update]|spec-sync|conformance|\
+                 exchange-conformance|product-conformance|matrix|cross-language|\
+                 product-fixtures [--update]|semantic-digest|wasm|fuzz-inventory|\
+                 fuzz-smoke|ci|release-check>"
             );
             Ok(())
         }
@@ -44,7 +63,9 @@ fn run() -> Result<(), String> {
 }
 
 fn ci() -> Result<(), String> {
-    cargo(&["fmt", "--all", "--check"])?;
+    format_all()?;
+    arch(false)?;
+    repository_hygiene()?;
     cargo(&["check", "--workspace", "--all-targets", "--all-features"])?;
     cargo(&["test", "--workspace", "--all-features"])?;
     cargo(&[
@@ -56,12 +77,399 @@ fn ci() -> Result<(), String> {
         "-D",
         "warnings",
     ])?;
-    arch()?;
+    core_boundary()?;
+    core_msrv()?;
+    abi()?;
+    exchange_conformance()?;
+    product_conformance()?;
+    product_fixtures(false)?;
+    matrix()?;
+    bindings_check()?;
+    package_check()?;
+    fuzz_smoke()?;
+    wasm()
+}
+
+fn format_all() -> Result<(), String> {
+    cargo(&["fmt", "--all", "--check"])?;
+    let go_root = root().join("bindings/independent/go");
+    let go_sources = files_with_extension(&go_root, "go")?;
+    let go_arguments: Vec<_> = go_sources
+        .iter()
+        .map(|path| path_text(path))
+        .collect::<Result<_, _>>()?;
+    let go_files = command_output_in("gofmt", &go_arguments, &go_root, None)?;
+    if !go_files.trim().is_empty() {
+        return Err(format!("Go sources require gofmt:\n{}", go_files.trim()));
+    }
+    Ok(())
+}
+
+fn layer_check(layer: &str) -> Result<(), String> {
+    let policy = load_architecture_policy()?;
+    let packages: Vec<_> = policy
+        .packages
+        .iter()
+        .filter(|(_, package_layer)| package_layer.as_str() == layer)
+        .map(|(name, _)| name.as_str())
+        .collect();
+    if packages.is_empty() {
+        return Err(format!("architecture layer {layer} has no packages"));
+    }
+    let mut command = Command::new("cargo");
+    command
+        .arg("test")
+        .arg("--all-features")
+        .current_dir(root());
+    for package in packages {
+        command.arg("-p").arg(package);
+    }
+    let status = command
+        .status()
+        .map_err(|error| format!("could not test {layer} layer: {error}"))?;
+    if !status.success() {
+        return Err(format!("{layer} layer tests failed with {status}"));
+    }
+    Ok(())
+}
+
+fn exchange_check() -> Result<(), String> {
+    layer_check("exchange")?;
+    exchange_conformance()
+}
+
+fn product_check() -> Result<(), String> {
+    layer_check("product")?;
+    product_conformance()
+}
+
+fn demos_check() -> Result<(), String> {
+    layer_check("demos")?;
+    matrix()
+}
+
+fn bindings_check() -> Result<(), String> {
+    layer_check("bindings")?;
+    command_in("npm", &["test"], &root().join("bindings/typescript"), None)?;
+    npm_package_smoke()?;
+    let go_cache = root().join("target/go-build-cache");
+    fs::create_dir_all(&go_cache).map_err(|error| format!("could not create Go cache: {error}"))?;
+    command_in(
+        "go",
+        &["vet", "./..."],
+        &root().join("bindings/independent/go"),
+        Some(("GOCACHE", &go_cache)),
+    )?;
+    command_in(
+        "go",
+        &["test", "-race", "./..."],
+        &root().join("bindings/independent/go"),
+        Some(("GOCACHE", &go_cache)),
+    )?;
+    python_wheel_smoke()?;
+    cross_language_corpus()
+}
+
+fn npm_package_smoke() -> Result<(), String> {
+    let package_directory = root().join("target/npm-package");
+    let install_directory = root().join("target/npm-install-smoke");
+    for directory in [&package_directory, &install_directory] {
+        if directory.exists() {
+            fs::remove_dir_all(directory)
+                .map_err(|error| format!("could not clear {}: {error}", directory.display()))?;
+        }
+        fs::create_dir_all(directory)
+            .map_err(|error| format!("could not create {}: {error}", directory.display()))?;
+    }
+    command_in(
+        "npm",
+        &["pack", "--pack-destination", path_text(&package_directory)?],
+        &root().join("bindings/typescript"),
+        None,
+    )?;
+    let archives: Vec<_> = fs::read_dir(&package_directory)
+        .map_err(|error| format!("could not list npm package output: {error}"))?
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .filter(|path| path.extension().and_then(|value| value.to_str()) == Some("tgz"))
+        .collect();
+    if archives.len() != 1 {
+        return Err(format!(
+            "expected one npm archive, found {} in {}",
+            archives.len(),
+            package_directory.display()
+        ));
+    }
+    command_in("npm", &["init", "--yes"], &install_directory, None)?;
+    command_in(
+        "npm",
+        &["install", path_text(&archives[0])?],
+        &install_directory,
+        None,
+    )?;
+    let smoke = install_directory.join("smoke.mjs");
+    fs::write(
+        &smoke,
+        "import * as auths from '@auths-dev/proof';\n\
+         if (typeof auths.Auths !== 'function') throw new Error('Auths export missing');\n",
+    )
+    .map_err(|error| format!("could not write npm install smoke: {error}"))?;
+    command_in("node", &[path_text(&smoke)?], &install_directory, None)
+}
+
+fn core_msrv() -> Result<(), String> {
+    let policy = load_architecture_policy()?;
+    let toolchain = env::var("AUTHS_CORE_MSRV_TOOLCHAIN").unwrap_or_else(|_| "1.85.1".to_owned());
+    let mut command = Command::new("cargo");
+    command
+        .arg(format!("+{toolchain}"))
+        .args(["check", "--locked", "--no-default-features"])
+        .current_dir(root());
+    for package in &policy.no_std_packages {
+        command.arg("-p").arg(package);
+    }
+    let status = command
+        .status()
+        .map_err(|error| format!("could not run core MSRV toolchain {toolchain}: {error}"))?;
+    if status.success() {
+        println!("core MSRV {toolchain} check passed");
+        Ok(())
+    } else {
+        Err(format!("core MSRV {toolchain} check failed with {status}"))
+    }
+}
+
+fn python_wheel_smoke() -> Result<(), String> {
+    let wheel_directory = root().join("target/python-wheels");
+    let virtual_environment = root().join("target/python-smoke-venv");
+    if wheel_directory.exists() {
+        fs::remove_dir_all(&wheel_directory)
+            .map_err(|error| format!("could not clear Python wheel directory: {error}"))?;
+    }
+    if virtual_environment.exists() {
+        fs::remove_dir_all(&virtual_environment)
+            .map_err(|error| format!("could not clear Python smoke environment: {error}"))?;
+    }
+    fs::create_dir_all(&wheel_directory)
+        .map_err(|error| format!("could not create Python wheel directory: {error}"))?;
+    command_in(
+        "maturin",
+        &[
+            "build",
+            "--out",
+            path_text(&wheel_directory)?,
+            "--manifest-path",
+            "bindings/python/Cargo.toml",
+        ],
+        &root(),
+        None,
+    )?;
+    let wheels: Vec<_> = fs::read_dir(&wheel_directory)
+        .map_err(|error| format!("could not list Python wheels: {error}"))?
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .filter(|path| path.extension().and_then(|value| value.to_str()) == Some("whl"))
+        .collect();
+    if wheels.len() != 1 {
+        return Err(format!(
+            "expected one Python wheel, found {} in {}",
+            wheels.len(),
+            wheel_directory.display()
+        ));
+    }
+    command("python3", &["-m", "venv", path_text(&virtual_environment)?])?;
+    let python = if cfg!(windows) {
+        virtual_environment.join("Scripts/python.exe")
+    } else {
+        virtual_environment.join("bin/python")
+    };
+    command(path_text(&python)?, &["-m", "pip", "install", "pytest"])?;
+    command(
+        path_text(&python)?,
+        &["-m", "pip", "install", path_text(&wheels[0])?],
+    )?;
+    command_in(
+        path_text(&python)?,
+        &["-m", "pytest", "tests"],
+        &root().join("bindings/python"),
+        None,
+    )
+}
+
+fn abi() -> Result<(), String> {
     spec_sync()?;
     wire(false)?;
     target_conformance()?;
-    fuzz_smoke()?;
-    wasm()
+    cross_language_corpus()
+}
+
+fn exchange_conformance() -> Result<(), String> {
+    let runtime = tokio::runtime::Runtime::new().map_err(|error| error.to_string())?;
+    runtime.block_on(async {
+        auths_proof_exchange_testkit::assert_memory_conformance().await;
+        auths_proof_exchange_testkit::assert_iroh_conformance().await;
+        auths_proof_exchange_testkit::assert_tcp_conformance().await;
+        #[cfg(unix)]
+        auths_proof_exchange_testkit::assert_unix_conformance().await;
+        auths_proof_exchange_testkit::assert_file_conformance().await;
+    });
+    auths_proof_exchange_testkit::assert_https_codec_conformance();
+    println!("exchange transport conformance passed");
+    Ok(())
+}
+
+fn product_conformance() -> Result<(), String> {
+    let runtime = tokio::runtime::Runtime::new().map_err(|error| error.to_string())?;
+    runtime.block_on(async {
+        auths_apps_testkit::assert_target_conformance().await;
+        auths_apps_testkit::assert_iroh_target_conformance().await;
+    });
+    println!("product MCP and Iroh conformance passed");
+    Ok(())
+}
+
+fn matrix() -> Result<(), String> {
+    let nominal = auths_lab_matrix::nominal_matrix();
+    let compatible = auths_lab_matrix::compatible_matrix();
+    if nominal.len() != 504 || compatible.len() != 396 {
+        return Err(format!(
+            "unexpected target matrix shape: {} nominal, {} compatible",
+            nominal.len(),
+            compatible.len()
+        ));
+    }
+    println!(
+        "Auths Lab matrix: {} nominal points, {} baseline-compatible points",
+        nominal.len(),
+        compatible.len()
+    );
+    Ok(())
+}
+
+fn cross_language_corpus() -> Result<(), String> {
+    let manifest = root().join("core/fixtures/v1/manifest.json");
+    let go_root = root().join("bindings/independent/go");
+    let go_cache = root().join("target/go-build-cache");
+    fs::create_dir_all(&go_cache).map_err(|error| format!("could not create Go cache: {error}"))?;
+    let typescript_program = root().join("bindings/independent/typescript/auths-corpus-check.ts");
+    let go = command_output_in(
+        "go",
+        &["run", "./cmd/auths-corpus-check", path_text(&manifest)?],
+        &go_root,
+        Some(("GOCACHE", &go_cache)),
+    )?;
+    let typescript = command_output_in(
+        "node",
+        &[
+            "--experimental-strip-types",
+            path_text(&typescript_program)?,
+            path_text(&manifest)?,
+        ],
+        &root(),
+        None,
+    )?;
+    let go = go.trim();
+    let typescript = typescript.trim();
+    if go != typescript {
+        return Err(format!(
+            "independent corpus auditors disagreed: Go={go:?}, TypeScript={typescript:?}"
+        ));
+    }
+    let go_semantic = command_output_in(
+        "go",
+        &[
+            "run",
+            "./cmd/auths-corpus-check",
+            "--semantic",
+            path_text(&manifest)?,
+        ],
+        &go_root,
+        Some(("GOCACHE", &go_cache)),
+    )?;
+    let typescript_semantic = command_output_in(
+        "node",
+        &[
+            "--experimental-strip-types",
+            path_text(&typescript_program)?,
+            "--semantic",
+            path_text(&manifest)?,
+        ],
+        &root(),
+        None,
+    )?;
+    let rust_semantic = semantic_digest_value()?;
+    let go_semantic = go_semantic.trim();
+    let typescript_semantic = typescript_semantic.trim();
+    if go_semantic != typescript_semantic || go_semantic != rust_semantic {
+        return Err(format!(
+            "independent semantic verifiers disagreed: \
+             Rust={rust_semantic:?}, Go={go_semantic:?}, TypeScript={typescript_semantic:?}"
+        ));
+    }
+    println!("Rust, Go, and TypeScript corpus verifiers agree: {go_semantic}");
+    Ok(())
+}
+
+fn product_fixtures(update: bool) -> Result<(), String> {
+    let fixture = auths_apps_testkit::demo_fixture_bytes();
+    let expected = BTreeMap::from([
+        (PathBuf::from("mcp-call.json"), fixture.body),
+        (PathBuf::from("mcp-call.proof.cbor"), fixture.proof),
+        (
+            PathBuf::from("root-principal.txt"),
+            format!("{}\n", fixture.root_principal).into_bytes(),
+        ),
+    ]);
+    let directory = root().join("product/fixtures/v1");
+    if update {
+        fs::create_dir_all(&directory)
+            .map_err(|error| format!("could not create product fixtures: {error}"))?;
+        for (relative, bytes) in expected {
+            fs::write(directory.join(relative), bytes)
+                .map_err(|error| format!("could not write product fixture: {error}"))?;
+        }
+        println!("product fixtures updated");
+        return Ok(());
+    }
+    for (relative, expected) in expected {
+        let actual = fs::read(directory.join(&relative)).map_err(|error| {
+            format!(
+                "could not read product fixture {}: {error}",
+                relative.display()
+            )
+        })?;
+        if actual != expected {
+            return Err(format!(
+                "product fixture {} drifted; run `cargo xtask product-fixtures --update`",
+                relative.display()
+            ));
+        }
+    }
+    println!("product fixtures are stable");
+    Ok(())
+}
+
+fn package_check() -> Result<(), String> {
+    cargo(&[
+        "package",
+        "--workspace",
+        "--exclude",
+        "xtask",
+        "--exclude",
+        "auths-proof-fuzz",
+        "--exclude",
+        "auths-proof-offline-example",
+        "--exclude",
+        "auths-apps-testkit",
+        "--exclude",
+        "auths-lab-matrix",
+        "--exclude",
+        "auths-lab-wasm-bench",
+        "--exclude",
+        "auths-mcp-demo",
+        "--allow-dirty",
+        "--no-verify",
+    ])
 }
 
 fn spec_sync() -> Result<(), String> {
@@ -531,13 +939,13 @@ const FUZZ_TARGETS: [&str; 7] = [
 
 fn fuzz_smoke() -> Result<(), String> {
     fuzz_inventory()?;
-    cargo(&["check", "--manifest-path", "fuzz/Cargo.toml", "--bins"])?;
+    cargo(&["check", "--manifest-path", "core/fuzz/Cargo.toml", "--bins"])?;
     for target in FUZZ_TARGETS {
-        let corpus = format!("fuzz/corpus/{target}");
+        let corpus = format!("core/fuzz/corpus/{target}");
         cargo(&[
             "run",
             "--manifest-path",
-            "fuzz/Cargo.toml",
+            "core/fuzz/Cargo.toml",
             "--bin",
             target,
             "--",
@@ -551,7 +959,7 @@ fn fuzz_smoke() -> Result<(), String> {
 }
 
 fn fuzz_inventory() -> Result<(), String> {
-    let manifest = fs::read_to_string(root().join("fuzz/Cargo.toml"))
+    let manifest = fs::read_to_string(root().join("core/fuzz/Cargo.toml"))
         .map_err(|error| format!("could not read fuzz manifest: {error}"))?;
     let manifest_targets: BTreeSet<_> = manifest
         .lines()
@@ -577,7 +985,7 @@ fn fuzz_inventory() -> Result<(), String> {
                 "scheduled fuzz workflow is missing authoritative target {target}"
             ));
         }
-        let corpus = root().join("fuzz/corpus").join(target);
+        let corpus = root().join("core/fuzz/corpus").join(target);
         if !corpus.is_dir() {
             return Err(format!(
                 "missing structured seed directory {}",
@@ -604,6 +1012,59 @@ fn command(program: &str, args: &[&str]) -> Result<(), String> {
     } else {
         Err(format!("{program} {} failed with {status}", args.join(" ")))
     }
+}
+
+fn command_in(
+    program: &str,
+    arguments: &[&str],
+    directory: &Path,
+    environment: Option<(&str, &Path)>,
+) -> Result<(), String> {
+    let mut command = Command::new(program);
+    command.args(arguments).current_dir(directory);
+    if let Some((key, value)) = environment {
+        command.env(key, value);
+    }
+    let status = command
+        .status()
+        .map_err(|error| format!("could not run {program}: {error}"))?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!(
+            "{program} {} failed with {status}",
+            arguments.join(" ")
+        ))
+    }
+}
+
+fn command_output_in(
+    program: &str,
+    arguments: &[&str],
+    directory: &Path,
+    environment: Option<(&str, &Path)>,
+) -> Result<String, String> {
+    let mut command = Command::new(program);
+    command.args(arguments).current_dir(directory);
+    if let Some((key, value)) = environment {
+        command.env(key, value);
+    }
+    let output = command
+        .output()
+        .map_err(|error| format!("could not run {program}: {error}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "{program} {} failed: {}",
+            arguments.join(" "),
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+    String::from_utf8(output.stdout).map_err(|error| error.to_string())
+}
+
+fn path_text(path: &Path) -> Result<&str, String> {
+    path.to_str()
+        .ok_or_else(|| format!("path is not valid UTF-8: {}", path.display()))
 }
 
 fn wasm() -> Result<(), String> {
@@ -758,6 +1219,11 @@ fn target_conformance() -> Result<(), String> {
 }
 
 fn semantic_digest() -> Result<(), String> {
+    println!("{}", semantic_digest_value()?);
+    Ok(())
+}
+
+fn semantic_digest_value() -> Result<String, String> {
     use auths_model::ParticipantRole;
     use auths_verifier::VerificationOutcome;
 
@@ -875,8 +1341,11 @@ fn semantic_digest() -> Result<(), String> {
         }
         write_field(&mut summary, "\n");
     }
-    println!("{}:{}", fixtures.len(), hex::encode(summary.finalize()));
-    Ok(())
+    Ok(format!(
+        "{}:{}",
+        fixtures.len(),
+        hex::encode(summary.finalize())
+    ))
 }
 
 fn write_field(summary: &mut Sha256, value: &str) {
@@ -888,7 +1357,24 @@ fn write_bytes(summary: &mut Sha256, value: &[u8]) {
     write_field(summary, &hex::encode(value));
 }
 
-fn arch() -> Result<(), String> {
+#[derive(Clone)]
+struct ArchitectureLayer {
+    path: String,
+    allowed_dependencies: BTreeSet<String>,
+    owners: BTreeSet<String>,
+}
+
+struct ArchitecturePolicy {
+    layers: BTreeMap<String, ArchitectureLayer>,
+    packages: BTreeMap<String, String>,
+    core_forbidden_dependencies: BTreeSet<String>,
+    core_default_feature_exceptions: BTreeSet<String>,
+    approved_build_scripts: BTreeSet<String>,
+    no_std_packages: BTreeSet<String>,
+}
+
+fn arch(update: bool) -> Result<(), String> {
+    let policy = load_architecture_policy()?;
     let output = Command::new("cargo")
         .args(["metadata", "--format-version", "1", "--no-deps"])
         .current_dir(root())
@@ -905,142 +1391,76 @@ fn arch() -> Result<(), String> {
 
     let workspace_names: BTreeSet<String> = packages
         .iter()
-        .filter_map(|package| package["name"].as_str().map(String::from))
-        .collect();
-    let allowed: BTreeMap<&str, BTreeSet<&str>> = BTreeMap::from([
-        (
-            "auths-proof",
-            BTreeSet::from([
-                "auths-codec",
-                "auths-model",
-                "auths-registries",
-                "auths-verifier",
-            ]),
-        ),
-        (
-            "auths-proof-wasm",
-            BTreeSet::from([
-                "auths-codec",
-                "auths-did-keri",
-                "auths-did-key",
-                "auths-model",
-                "auths-ports",
-                "auths-raw-key",
-                "auths-registries",
-                "auths-signature",
-                "auths-testkit",
-                "auths-verifier",
-            ]),
-        ),
-        ("auths-model", BTreeSet::new()),
-        ("auths-codec", BTreeSet::from(["auths-model"])),
-        ("auths-ports", BTreeSet::from(["auths-model"])),
-        (
-            "auths-registries",
-            BTreeSet::from(["auths-model", "auths-ports"]),
-        ),
-        (
-            "auths-signature",
-            BTreeSet::from(["auths-model", "auths-ports"]),
-        ),
-        ("auths-authority", BTreeSet::from(["auths-model"])),
-        ("auths-composition", BTreeSet::from(["auths-model"])),
-        ("auths-assurance", BTreeSet::from(["auths-model"])),
-        (
-            "auths-verifier",
-            BTreeSet::from([
-                "auths-model",
-                "auths-codec",
-                "auths-ports",
-                "auths-registries",
-                "auths-authority",
-                "auths-composition",
-                "auths-assurance",
-                "auths-raw-key",
-                "auths-signature",
-                "auths-testkit",
-            ]),
-        ),
-        (
-            "auths-author",
-            BTreeSet::from(["auths-model", "auths-codec"]),
-        ),
-        ("auths-multikey", BTreeSet::new()),
-        (
-            "auths-raw-key",
-            BTreeSet::from(["auths-model", "auths-ports"]),
-        ),
-        (
-            "auths-did-key",
-            BTreeSet::from(["auths-model", "auths-multikey", "auths-ports"]),
-        ),
-        (
-            "auths-did-keri",
-            BTreeSet::from(["auths-model", "auths-ports"]),
-        ),
-        (
-            "auths-did-web",
-            BTreeSet::from(["auths-model", "auths-multikey", "auths-ports"]),
-        ),
-        (
-            "auths-hsm-attested",
-            BTreeSet::from(["auths-model", "auths-ports"]),
-        ),
-        (
-            "auths-spiffe-x509",
-            BTreeSet::from(["auths-model", "auths-ports"]),
-        ),
-        (
-            "auths-webauthn",
-            BTreeSet::from(["auths-model", "auths-ports"]),
-        ),
-        (
-            "auths-testkit",
-            BTreeSet::from([
-                "auths-model",
-                "auths-ports",
-                "auths-codec",
-                "auths-author",
-                "auths-did-key",
-                "auths-did-keri",
-                "auths-did-web",
-                "auths-hsm-attested",
-                "auths-multikey",
-                "auths-raw-key",
-                "auths-registries",
-                "auths-signature",
-                "auths-spiffe-x509",
-                "auths-webauthn",
-            ]),
-        ),
-        (
-            "auths-proof-offline-example",
-            BTreeSet::from([
-                "auths-codec",
-                "auths-ports",
-                "auths-proof",
-                "auths-raw-key",
-                "auths-registries",
-                "auths-signature",
-            ]),
-        ),
-    ]);
-    let forbidden_external = [
-        "tokio", "reqwest", "hyper", "git2", "sqlx", "rusqlite", "keyring",
-    ];
+        .map(|package| {
+            package["name"]
+                .as_str()
+                .ok_or_else(|| "workspace package has no name".to_owned())
+                .map(str::to_owned)
+        })
+        .collect::<Result<_, _>>()?;
+    let classified: BTreeSet<_> = policy.packages.keys().cloned().collect();
+    if workspace_names != classified {
+        let missing: Vec<_> = workspace_names.difference(&classified).cloned().collect();
+        let stale: Vec<_> = classified.difference(&workspace_names).cloned().collect();
+        return Err(format!(
+            "architecture package classification drift; missing={missing:?}, stale={stale:?}"
+        ));
+    }
 
+    check_codeowners(&policy)?;
+    let mut package_records = Vec::new();
+    let mut dependency_records = Vec::new();
+    let mut internal_edges = BTreeMap::<String, BTreeSet<String>>::new();
     for package in packages {
-        let Some(name) = package["name"].as_str() else {
-            continue;
-        };
-        let Some(allowed_dependencies) = allowed.get(name) else {
-            if name == "xtask" {
-                continue;
-            }
+        let name = package["name"]
+            .as_str()
+            .ok_or("workspace package has no name")?;
+        let layer_name = policy
+            .packages
+            .get(name)
+            .ok_or_else(|| format!("package {name} is not classified"))?;
+        let layer = policy
+            .layers
+            .get(layer_name)
+            .ok_or_else(|| format!("package {name} names unknown layer {layer_name}"))?;
+        let manifest = Path::new(
+            package["manifest_path"]
+                .as_str()
+                .ok_or("workspace package has no manifest path")?,
+        );
+        let relative_manifest = manifest
+            .strip_prefix(root())
+            .map_err(|_| format!("package {name} is outside the repository"))?;
+        let relative_directory = relative_manifest
+            .parent()
+            .ok_or_else(|| format!("package {name} has no package directory"))?;
+        let relative_text = relative_directory.to_string_lossy().replace('\\', "/");
+        let layer_path = layer.path.trim_end_matches('/');
+        if relative_text != layer_path && !relative_text.starts_with(&format!("{layer_path}/")) {
             return Err(format!(
-                "unknown workspace package {name}; assign an architecture layer or tooling exemption"
+                "package {name} is classified as {layer_name} but lives at {relative_text}"
             ));
-        };
+        }
+        let has_build_script = package["targets"].as_array().is_some_and(|targets| {
+            targets.iter().any(|target| {
+                target["kind"].as_array().is_some_and(|kinds| {
+                    kinds
+                        .iter()
+                        .any(|kind| kind.as_str() == Some("custom-build"))
+                })
+            })
+        });
+        if has_build_script && !policy.approved_build_scripts.contains(name) {
+            return Err(format!(
+                "workspace package {name} has an unapproved build script"
+            ));
+        }
+        package_records.push(json!({
+            "name": name,
+            "layer": layer_name,
+            "path": relative_text,
+        }));
+        internal_edges.entry(name.to_owned()).or_default();
         let dependencies = package["dependencies"]
             .as_array()
             .ok_or("package dependencies are not an array")?;
@@ -1048,24 +1468,629 @@ fn arch() -> Result<(), String> {
             let dependency_name = dependency["name"]
                 .as_str()
                 .ok_or("dependency has no name")?;
-            let is_dev = dependency["kind"].as_str() == Some("dev");
-            if forbidden_external.contains(&dependency_name) {
-                return Err(format!(
-                    "forbidden dependency edge: {name} -> {dependency_name}"
-                ));
+            let dependency_layer = policy.packages.get(dependency_name);
+            if let Some(dependency_layer) = dependency_layer {
+                if !layer.allowed_dependencies.contains(dependency_layer) {
+                    return Err(format!(
+                        "forbidden {layer_name} -> {dependency_layer} dependency: \
+                         {name} -> {dependency_name}"
+                    ));
+                }
+                internal_edges
+                    .entry(name.to_owned())
+                    .or_default()
+                    .insert(dependency_name.to_owned());
             }
-            if workspace_names.contains(dependency_name)
-                && !allowed_dependencies.contains(dependency_name)
-                && !is_dev
+            if layer_name == "core"
+                && dependency_layer.is_none()
+                && policy.core_forbidden_dependencies.iter().any(|forbidden| {
+                    dependency_name == forbidden
+                        || dependency_name.starts_with(&format!("{forbidden}-"))
+                })
             {
                 return Err(format!(
-                    "disallowed workspace edge: {name} -> {dependency_name}"
+                    "core capability dependency is forbidden: {name} -> {dependency_name}"
+                ));
+            }
+            let kind = dependency["kind"].as_str().unwrap_or("normal");
+            let uses_default_features = dependency["uses_default_features"]
+                .as_bool()
+                .unwrap_or(true);
+            if layer_name == "core"
+                && dependency_layer.is_none()
+                && kind != "dev"
+                && uses_default_features
+                && !policy
+                    .core_default_feature_exceptions
+                    .contains(dependency_name)
+            {
+                return Err(format!(
+                    "core dependency enables unapproved default features: \
+                     {name} -> {dependency_name}"
+                ));
+            }
+            let mut features: Vec<_> = dependency["features"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(Value::as_str)
+                .map(str::to_owned)
+                .collect();
+            features.sort();
+            dependency_records.push((
+                format!(
+                    "{name}\0{dependency_name}\0{kind}\0{}\0{}",
+                    dependency["target"].as_str().unwrap_or_default(),
+                    dependency["optional"].as_bool().unwrap_or(false)
+                ),
+                json!({
+                    "source": name,
+                    "source_layer": layer_name,
+                    "target": dependency_name,
+                    "target_layer": dependency_layer,
+                    "scope": if dependency_layer.is_some() { "internal" } else { "external" },
+                    "kind": kind,
+                    "target_condition": dependency["target"].as_str(),
+                    "optional": dependency["optional"].as_bool().unwrap_or(false),
+                    "default_features": uses_default_features,
+                    "features": features,
+                }),
+            ));
+        }
+    }
+
+    reject_dependency_cycles(&internal_edges)?;
+    package_records.sort_by(|left, right| {
+        left["name"]
+            .as_str()
+            .unwrap_or_default()
+            .cmp(right["name"].as_str().unwrap_or_default())
+    });
+    dependency_records.sort_by(|left, right| left.0.cmp(&right.0));
+    let dependencies: Vec<_> = dependency_records
+        .into_iter()
+        .map(|(_, value)| value)
+        .collect();
+    let snapshot = json!({
+        "schema": 1,
+        "packages": package_records,
+        "dependencies": dependencies,
+    });
+    let mut snapshot_bytes =
+        serde_json::to_vec_pretty(&snapshot).map_err(|error| error.to_string())?;
+    snapshot_bytes.push(b'\n');
+    let dot = architecture_dot(&snapshot)?;
+    let architecture_directory = root().join("architecture");
+    let json_path = architecture_directory.join("dependency-graph.json");
+    let dot_path = architecture_directory.join("dependency-graph.dot");
+    if update {
+        fs::create_dir_all(&architecture_directory)
+            .map_err(|error| format!("could not create architecture directory: {error}"))?;
+        fs::write(&json_path, &snapshot_bytes)
+            .map_err(|error| format!("could not write {}: {error}", json_path.display()))?;
+        fs::write(&dot_path, dot)
+            .map_err(|error| format!("could not write {}: {error}", dot_path.display()))?;
+        println!("architecture dependency snapshots updated");
+        return Ok(());
+    }
+    let committed = fs::read(&json_path).map_err(|error| {
+        format!(
+            "could not read {}: {error}; run `cargo xtask arch --update`",
+            json_path.display()
+        )
+    })?;
+    if committed != snapshot_bytes {
+        let previous: Value =
+            serde_json::from_slice(&committed).map_err(|error| error.to_string())?;
+        return Err(architecture_snapshot_diff(&previous, &snapshot));
+    }
+    let committed_dot = fs::read_to_string(&dot_path)
+        .map_err(|error| format!("could not read {}: {error}", dot_path.display()))?;
+    if committed_dot != dot {
+        return Err(
+            "architecture DOT snapshot drifted; run `cargo xtask arch --update`".to_owned(),
+        );
+    }
+    println!("architecture policy and dependency snapshots passed");
+    Ok(())
+}
+
+fn load_architecture_policy() -> Result<ArchitecturePolicy, String> {
+    let source = fs::read_to_string(root().join("architecture.toml"))
+        .map_err(|error| format!("could not read architecture.toml: {error}"))?;
+    let document: toml::Value =
+        toml::from_str(&source).map_err(|error| format!("invalid architecture.toml: {error}"))?;
+    if document.get("schema").and_then(toml::Value::as_integer) != Some(1) {
+        return Err("architecture.toml must declare schema = 1".to_owned());
+    }
+    let layer_table = document
+        .get("layers")
+        .and_then(toml::Value::as_table)
+        .ok_or("architecture.toml has no layers table")?;
+    let mut layers = BTreeMap::new();
+    for (name, value) in layer_table {
+        let table = value
+            .as_table()
+            .ok_or_else(|| format!("layer {name} is not a table"))?;
+        layers.insert(
+            name.clone(),
+            ArchitectureLayer {
+                path: required_toml_string(table, "path", name)?,
+                allowed_dependencies: required_toml_strings(table, "allowed_dependencies", name)?,
+                owners: required_toml_strings(table, "owners", name)?,
+            },
+        );
+    }
+    for (name, layer) in &layers {
+        for allowed in &layer.allowed_dependencies {
+            if !layers.contains_key(allowed) {
+                return Err(format!("layer {name} allows unknown layer {allowed}"));
+            }
+        }
+        if layer.owners.is_empty() {
+            return Err(format!("layer {name} has no owners"));
+        }
+    }
+    let packages = document
+        .get("packages")
+        .and_then(toml::Value::as_table)
+        .ok_or("architecture.toml has no packages table")?
+        .iter()
+        .map(|(name, layer)| {
+            let layer = layer
+                .as_str()
+                .ok_or_else(|| format!("package {name} layer is not a string"))?;
+            if !layers.contains_key(layer) {
+                return Err(format!("package {name} names unknown layer {layer}"));
+            }
+            Ok((name.clone(), layer.to_owned()))
+        })
+        .collect::<Result<_, String>>()?;
+    let policy = document
+        .get("policy")
+        .and_then(toml::Value::as_table)
+        .ok_or("architecture.toml has no policy table")?;
+    let exceptions = document
+        .get("exceptions")
+        .and_then(toml::Value::as_table)
+        .ok_or("architecture.toml has no exceptions table")?;
+    for (name, exception) in exceptions {
+        let table = exception
+            .as_table()
+            .ok_or_else(|| format!("architecture exception {name} is not a table"))?;
+        for field in ["owner", "reason", "issue", "expires"] {
+            required_toml_string(table, field, name)?;
+        }
+        return Err(format!(
+            "architecture exception {name} exists; exception expiry validation must be \
+             implemented before exceptions are accepted"
+        ));
+    }
+    Ok(ArchitecturePolicy {
+        layers,
+        packages,
+        core_forbidden_dependencies: required_toml_strings(
+            policy,
+            "core_forbidden_dependencies",
+            "policy",
+        )?,
+        core_default_feature_exceptions: required_toml_strings(
+            policy,
+            "core_default_feature_exceptions",
+            "policy",
+        )?,
+        approved_build_scripts: required_toml_strings(policy, "approved_build_scripts", "policy")?,
+        no_std_packages: required_toml_strings(policy, "no_std_packages", "policy")?,
+    })
+}
+
+fn required_toml_string(
+    table: &toml::map::Map<String, toml::Value>,
+    field: &str,
+    owner: &str,
+) -> Result<String, String> {
+    table
+        .get(field)
+        .and_then(toml::Value::as_str)
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned)
+        .ok_or_else(|| format!("{owner}.{field} must be a non-empty string"))
+}
+
+fn required_toml_strings(
+    table: &toml::map::Map<String, toml::Value>,
+    field: &str,
+    owner: &str,
+) -> Result<BTreeSet<String>, String> {
+    table
+        .get(field)
+        .and_then(toml::Value::as_array)
+        .ok_or_else(|| format!("{owner}.{field} must be an array"))?
+        .iter()
+        .map(|value| {
+            value
+                .as_str()
+                .filter(|item| !item.is_empty())
+                .map(str::to_owned)
+                .ok_or_else(|| format!("{owner}.{field} contains a non-string or empty value"))
+        })
+        .collect()
+}
+
+fn check_codeowners(policy: &ArchitecturePolicy) -> Result<(), String> {
+    let codeowners = fs::read_to_string(root().join(".github/CODEOWNERS"))
+        .map_err(|error| format!("could not read CODEOWNERS: {error}"))?;
+    for layer in policy.layers.values() {
+        let pattern = if layer.path == "xtask" {
+            "/xtask/".to_owned()
+        } else {
+            format!("/{}/", layer.path.trim_end_matches('/'))
+        };
+        let line = codeowners
+            .lines()
+            .find(|line| line.starts_with(&pattern))
+            .ok_or_else(|| format!("CODEOWNERS has no entry for {pattern}"))?;
+        for owner in &layer.owners {
+            if !line.split_whitespace().any(|candidate| candidate == owner) {
+                return Err(format!("CODEOWNERS entry {pattern} omits {owner}"));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn reject_dependency_cycles(edges: &BTreeMap<String, BTreeSet<String>>) -> Result<(), String> {
+    let mut remaining = edges.clone();
+    loop {
+        if remaining.is_empty() {
+            return Ok(());
+        }
+        let removable: Vec<_> = remaining
+            .iter()
+            .filter(|(_, dependencies)| {
+                dependencies
+                    .iter()
+                    .all(|dependency| !remaining.contains_key(dependency))
+            })
+            .map(|(name, _)| name.clone())
+            .collect();
+        if removable.is_empty() {
+            return Err(format!(
+                "workspace dependency cycle detected among {:?}",
+                remaining.keys().collect::<Vec<_>>()
+            ));
+        }
+        for name in removable {
+            remaining.remove(&name);
+        }
+    }
+}
+
+fn architecture_dot(snapshot: &Value) -> Result<String, String> {
+    let mut output = String::from("digraph auths_architecture {\n  rankdir=LR;\n");
+    for package in snapshot["packages"]
+        .as_array()
+        .ok_or("architecture snapshot has no packages")?
+    {
+        let name = package["name"].as_str().ok_or("package has no name")?;
+        let layer = package["layer"].as_str().ok_or("package has no layer")?;
+        output.push_str(&format!("  \"{name}\" [group=\"{layer}\"];\n"));
+    }
+    for dependency in snapshot["dependencies"]
+        .as_array()
+        .ok_or("architecture snapshot has no dependencies")?
+    {
+        if dependency["scope"].as_str() != Some("internal") {
+            continue;
+        }
+        let source = dependency["source"].as_str().ok_or("edge has no source")?;
+        let target = dependency["target"].as_str().ok_or("edge has no target")?;
+        let kind = dependency["kind"].as_str().ok_or("edge has no kind")?;
+        output.push_str(&format!(
+            "  \"{source}\" -> \"{target}\" [label=\"{kind}\"];\n"
+        ));
+    }
+    output.push_str("}\n");
+    Ok(output)
+}
+
+fn architecture_snapshot_diff(previous: &Value, current: &Value) -> String {
+    fn edges(value: &Value) -> BTreeSet<String> {
+        value["dependencies"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .map(Value::to_string)
+            .collect()
+    }
+    let previous = edges(previous);
+    let current = edges(current);
+    let added: Vec<_> = current.difference(&previous).cloned().collect();
+    let removed: Vec<_> = previous.difference(&current).cloned().collect();
+    format!(
+        "architecture dependency snapshot drifted\nadded={added:#?}\nremoved={removed:#?}\n\
+         run `cargo xtask arch --update` after reviewing every edge"
+    )
+}
+
+fn core_boundary() -> Result<(), String> {
+    arch(false)?;
+    let policy = load_architecture_policy()?;
+    let package_paths = workspace_package_paths()?;
+    for package in &policy.no_std_packages {
+        if policy.packages.get(package).map(String::as_str) != Some("core") {
+            return Err(format!(
+                "no_std package {package} is missing or is not classified as core"
+            ));
+        }
+        let package_root = package_paths
+            .get(package)
+            .ok_or_else(|| format!("no_std package {package} has no workspace path"))?;
+        scan_restricted_core_source(package, &package_root.join("src"))?;
+        let status = Command::new("cargo")
+            .args(["check", "-p", package, "--no-default-features", "--locked"])
+            .env("CARGO_NET_OFFLINE", "true")
+            .current_dir(root())
+            .status()
+            .map_err(|error| format!("could not check no_std package {package}: {error}"))?;
+        if !status.success() {
+            return Err(format!(
+                "no_std/offline build failed for {package} with {status}"
+            ));
+        }
+    }
+    for package in policy
+        .packages
+        .iter()
+        .filter(|(_, layer)| layer.as_str() == "core")
+        .map(|(name, _)| name)
+    {
+        let package_root = package_paths
+            .get(package)
+            .ok_or_else(|| format!("core package {package} has no workspace path"))?;
+        let manifest = fs::read_to_string(package_root.join("Cargo.toml"))
+            .map_err(|error| format!("could not read {package} manifest: {error}"))?;
+        for line in manifest.lines().filter(|line| line.contains("path")) {
+            if line.contains("../..") {
+                return Err(format!(
+                    "core manifest {package} has a path escaping core/: {line}"
                 ));
             }
         }
     }
-    println!("architecture dependency rules passed");
+    repository_hygiene()?;
+    println!("core offline, no_std, source, and repository boundaries passed");
     Ok(())
+}
+
+fn workspace_package_paths() -> Result<BTreeMap<String, PathBuf>, String> {
+    let output = Command::new("cargo")
+        .args(["metadata", "--format-version", "1", "--no-deps"])
+        .current_dir(root())
+        .output()
+        .map_err(|error| format!("could not run cargo metadata: {error}"))?;
+    if !output.status.success() {
+        return Err("cargo metadata failed".to_owned());
+    }
+    let metadata: Value =
+        serde_json::from_slice(&output.stdout).map_err(|error| error.to_string())?;
+    metadata["packages"]
+        .as_array()
+        .ok_or("cargo metadata has no packages")?
+        .iter()
+        .map(|package| {
+            let name = package["name"]
+                .as_str()
+                .ok_or("workspace package has no name")?;
+            let manifest = PathBuf::from(
+                package["manifest_path"]
+                    .as_str()
+                    .ok_or("workspace package has no manifest")?,
+            );
+            let directory = manifest
+                .parent()
+                .ok_or("workspace manifest has no parent")?
+                .to_path_buf();
+            Ok((name.to_owned(), directory))
+        })
+        .collect()
+}
+
+fn scan_restricted_core_source(package: &str, source: &Path) -> Result<(), String> {
+    const FORBIDDEN: [&str; 10] = [
+        "std::env",
+        "std::fs",
+        "std::net",
+        "std::process",
+        "hyper::",
+        "iroh::",
+        "reqwest::",
+        "rmcp::",
+        "tokio::net",
+        "tokio::process",
+    ];
+    for path in files_with_extension(source, "rs")? {
+        let contents = fs::read_to_string(&path)
+            .map_err(|error| format!("could not scan {}: {error}", path.display()))?;
+        for forbidden in FORBIDDEN {
+            if contents.contains(forbidden) {
+                return Err(format!(
+                    "restricted core package {package} uses {forbidden} in {}",
+                    path.display()
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn repository_hygiene() -> Result<(), String> {
+    let repository = root();
+    let mut locks = Vec::new();
+    let mut nested_workspaces = Vec::new();
+    let mut sibling_references = Vec::new();
+    let mut corpus_manifests = Vec::new();
+    for path in repository_files(&repository)? {
+        let relative = path
+            .strip_prefix(&repository)
+            .map_err(|_| "repository traversal escaped root")?;
+        if relative.file_name().and_then(|name| name.to_str()) == Some("Cargo.lock") {
+            locks.push(relative.to_path_buf());
+        }
+        if relative.file_name().and_then(|name| name.to_str()) == Some("manifest.json")
+            && relative
+                .components()
+                .any(|component| component.as_os_str() == "fixtures")
+        {
+            corpus_manifests.push(relative.to_path_buf());
+        }
+        if relative.file_name().and_then(|name| name.to_str()) == Some("Cargo.toml")
+            && relative != Path::new("Cargo.toml")
+        {
+            let manifest = fs::read_to_string(&path)
+                .map_err(|error| format!("could not read {}: {error}", path.display()))?;
+            if manifest.lines().any(|line| line.trim() == "[workspace]") {
+                nested_workspaces.push(relative.to_path_buf());
+            }
+        }
+        let scannable = matches!(
+            path.extension().and_then(|extension| extension.to_str()),
+            Some("cjs" | "go" | "js" | "json" | "py" | "rs" | "toml" | "ts" | "yaml" | "yml")
+        );
+        if scannable {
+            let contents = fs::read_to_string(&path)
+                .map_err(|error| format!("could not read {}: {error}", path.display()))?;
+            let sibling_needles = [
+                ["..", "auths-proof", ""].join("/"),
+                ["..", "auths-proof-apps", ""].join("/"),
+                ["..", "auths-proof-exchange", ""].join("/"),
+                ["auths-proof-apps", ""].join("/"),
+            ];
+            if sibling_needles
+                .iter()
+                .any(|needle| contents.contains(needle))
+            {
+                sibling_references.push(relative.to_path_buf());
+            }
+        }
+    }
+    if locks != [PathBuf::from("Cargo.lock")] {
+        return Err(format!(
+            "repository must contain exactly one root Cargo.lock, found {locks:?}"
+        ));
+    }
+    if !nested_workspaces.is_empty() {
+        return Err(format!(
+            "nested Cargo workspaces are forbidden: {nested_workspaces:?}"
+        ));
+    }
+    if corpus_manifests != [PathBuf::from("core/fixtures/v1/manifest.json")] {
+        return Err(format!(
+            "canonical fixture manifest must have one core owner, found {corpus_manifests:?}"
+        ));
+    }
+    if !sibling_references.is_empty() {
+        return Err(format!(
+            "sibling-repository path assumptions remain: {sibling_references:?}"
+        ));
+    }
+    let tracked = command_output_in("git", &["ls-files"], &repository, None)?;
+    let generated: Vec<_> = tracked
+        .lines()
+        .filter(|path| {
+            repository.join(path).exists()
+                && (path.contains("/node_modules/")
+                    || path.contains("/__pycache__/")
+                    || path.ends_with(".so")
+                    || path.starts_with("bindings/typescript/dist/")
+                    || path.starts_with("bindings/typescript/wasm/"))
+        })
+        .collect();
+    if !generated.is_empty() {
+        return Err(format!(
+            "generated build outputs are tracked and must be recreated: {generated:?}"
+        ));
+    }
+    check_workflow_action_pins()?;
+    Ok(())
+}
+
+fn check_workflow_action_pins() -> Result<(), String> {
+    let workflows = root().join(".github/workflows");
+    for path in files_with_extension(&workflows, "yml")?
+        .into_iter()
+        .chain(files_with_extension(&workflows, "yaml")?)
+    {
+        let source = fs::read_to_string(&path)
+            .map_err(|error| format!("could not read {}: {error}", path.display()))?;
+        for (index, line) in source.lines().enumerate() {
+            let Some(reference) = line.trim().strip_prefix("- uses: ") else {
+                continue;
+            };
+            if reference.starts_with("./") {
+                continue;
+            }
+            let revision = reference
+                .split('#')
+                .next()
+                .unwrap_or(reference)
+                .trim()
+                .rsplit_once('@')
+                .map(|(_, revision)| revision)
+                .ok_or_else(|| {
+                    format!(
+                        "{}:{} action has no revision",
+                        path.display(),
+                        index.saturating_add(1)
+                    )
+                })?;
+            if revision.len() != 40 || !revision.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+                return Err(format!(
+                    "{}:{} action is not pinned to an immutable commit: {reference}",
+                    path.display(),
+                    index.saturating_add(1)
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn repository_files(directory: &Path) -> Result<Vec<PathBuf>, String> {
+    fn visit(directory: &Path, output: &mut Vec<PathBuf>) -> Result<(), String> {
+        for entry in fs::read_dir(directory)
+            .map_err(|error| format!("could not read {}: {error}", directory.display()))?
+        {
+            let entry = entry.map_err(|error| error.to_string())?;
+            let path = entry.path();
+            if path.is_dir() {
+                let name = path.file_name().and_then(|value| value.to_str());
+                if matches!(
+                    name,
+                    Some(".git" | ".pytest_cache" | "__pycache__" | "node_modules" | "target")
+                ) {
+                    continue;
+                }
+                visit(&path, output)?;
+            } else {
+                output.push(path);
+            }
+        }
+        Ok(())
+    }
+    let mut output = Vec::new();
+    visit(directory, &mut output)?;
+    output.sort();
+    Ok(output)
+}
+
+fn files_with_extension(directory: &Path, extension: &str) -> Result<Vec<PathBuf>, String> {
+    let mut files: Vec<_> = repository_files(directory)?
+        .into_iter()
+        .filter(|path| path.extension().and_then(|value| value.to_str()) == Some(extension))
+        .collect();
+    files.sort();
+    Ok(files)
 }
 
 fn wire(update: bool) -> Result<(), String> {
@@ -1379,6 +2404,7 @@ fn corpus_adapter_context() -> Value {
         })
         .collect::<Vec<_>>();
     json!({
+        "configuration": hex::encode(auths_testkit::corpus_configuration_id().as_bytes()),
         "did_web": did_web,
         "webauthn": webauthn,
         "hsm": hsm,

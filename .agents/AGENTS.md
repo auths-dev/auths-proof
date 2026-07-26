@@ -3,47 +3,42 @@
 - Use `cargo xtask ci` frequently to ensure all checks pass.
 
 # Repository Scope and Ecosystem Topology
-This file governs the `auths-proof` repository only. It defines the quality bar
-for the offline protocol kernel and must not be interpreted as permission to
-place downstream transport, runtime, profile, or application code here.
+This file governs the `auths-proof` monorepo. Shipping code is split into five
+machine-enforced layers:
 
-The target ecosystem has exactly three repositories:
-
-| Repository | Responsibility |
+| Layer | Responsibility |
 | --- | --- |
-| `auths-proof` | Offline protocol kernel, canonical model and codec, deterministic evidence verification and ports, canonical core corpus, fuzzing, WASM verification, and pure/keyless authoring |
-| `auths-proof-exchange` | Exchange protocol and every transport implementation, including memory and Iroh |
-| `auths-proof-apps` | Live evidence acquisition, custody integrations, application profiles, runtime, replay and budget state, receipts, configuration, caches, reference applications, Auths Lab, and independent Go/TypeScript verifiers |
+| `core/` | Offline protocol kernel, canonical model and codec, deterministic evidence verification and ports, canonical corpus, fuzzing, and pure/keyless authoring |
+| `exchange/` | Exchange protocol and transport implementations |
+| `product/` | SDK, profiles, runtime, evidence acquisition, custody, replay and budget state, receipts, stores, configuration, cache, and operations |
+| `bindings/` | WASM, TypeScript, Python, Go, and independent verifier surfaces |
+| `demos/` | Reference applications, Auths Lab, examples, benchmarks, and integration testkits |
 
-The current prelaunch `auths-proof-mcp` repository is renamed and broadened to
-`auths-proof-apps`; MCP remains its first profile and reference application.
-There are no users or compatibility commitments, so no migration plan is
-required.
-
-The allowed repository dependency direction is:
+Root `xtask` automation is a non-shipping control plane. The allowed dependency
+direction is:
 
 ```text
-auths-proof-exchange ---> auths-proof
-auths-proof-apps     ---> auths-proof + auths-proof-exchange
-auths-proof          -X-> auths-proof-exchange
-auths-proof          -X-> auths-proof-apps
+core <- exchange <- product <- bindings
+  ^         ^           ^          ^
+  +---------+-----------+----------+--- demos
 ```
 
-A security boundary does not imply a repository per release unit. Crates and
-packages for profiles, runtime, receipts, reference applications, Auths Lab,
-and independent implementations remain separated inside `auths-proof-apps`.
-Enforce their boundaries with dependency direction, narrow public APIs,
-fixtures, tests, and CI.
+The complete classification and allowed edges live in `architecture.toml`.
+`cargo xtask arch` rejects unclassified packages, misplaced packages, reverse
+dependencies, cycles, owner drift, and dependency-snapshot drift. Never weaken
+that policy to make a dependency convenient; move the abstraction or introduce
+a port at the lowest valid layer.
 
-For the target-state implementation, all three repositories use the
-`dev-implementation-delta` branch.
+`auths-proof-site` and `auths-proof-docs` remain separate repositories and must
+consume published artifacts or pinned release assets, never mutable sibling
+paths.
 
 # Working with `auths-proof`
 This repository contains the `auths-proof` protocol kernel, an offline verification engine for proof-carrying authorization. It is built to **stringent, pre-audit security standards**. When working on this codebase, you must adhere strictly to the following guidelines.
 
 ## 1. Core Principles & Boundary
 - **Zero Networking in the Kernel**: The proof kernel is strictly an offline verification engine. It does not own key custody, live DID resolution, witness networks, or HTTP transport. If a feature cannot be evaluated deterministically from a static proof and explicit context, it belongs above the kernel.
-- **Strict Separation from Downstream Repositories**: Do not add dependencies or logic owned by `auths-proof-exchange` or `auths-proof-apps`. The kernel must remain agnostic to how proofs are transmitted, acquired, resolved, stored, approved, executed, or mapped to application semantics.
+- **Strict Layer Separation**: Core must not depend on exchange, product, bindings, demos, or tooling. Exchange must not depend on product, bindings, or demos. Product must not depend on bindings or demos. The kernel remains agnostic to how proofs are transmitted, acquired, resolved, stored, approved, executed, or mapped to application semantics.
 - **Crate Boundaries Inside the Kernel**: Separation between model, codec, adapter API, verifier, evidence, WASM, and authoring is normally a crate boundary inside this repository, not a reason to create another repository.
 - **Deterministic & Bounded**: All parsing (especially CBOR) and verification must be deterministic and bounded to prevent resource exhaustion attacks.
 
@@ -52,20 +47,20 @@ This repository contains the `auths-proof` protocol kernel, an offline verificat
 - **No Default Features**: When adding dependencies, typically use `default-features = false` and explicitly opt-in to `alloc` or specific features. Avoid pulling in the standard library unless required.
 - **Workspace Architecture**: Observe the crate separation (e.g., `model`, `codec`, `adapter-api`, `verifier`, `author`). Code must be placed in the appropriate layer according to the workspace dependency graph (`verifier` depends on `model`, `codec`, and `adapter-api`).
 
-## 3. Fixtures and Wire Formats (`fixtures/v1`)
+## 3. Fixtures and Wire Formats (`core/fixtures/v1`)
 - **Golden Vectors**: The `.cbor` files in `fixtures/v1` are deterministic golden fixtures. They are checked byte-for-byte to ensure the wire format is never accidentally broken.
-- **Canonical Ownership**: `auths-proof` is the source of truth for the core wire corpus and its manifest. Downstream repositories consume a pinned corpus revision and may add repository-specific scenario fixtures, but they must not fork or regenerate the canonical core vectors.
+- **Canonical Ownership**: `core/fixtures/v1` is the single source of truth for the core wire corpus and its manifest. Higher layers consume it directly and may add layer-specific scenario fixtures, but they must not fork or regenerate the canonical core vectors.
 - **Updating Vectors**: If you make an intentional protocol change that affects the wire format, you must regenerate the fixtures by running `cargo xtask wire --update`.
 - **Validation**: Never modify `.cbor` files by hand. If a test fails due to fixture mismatch, either your code is non-deterministic/broken, or you explicitly need to update the wire fixtures.
 
 ## 4. Fuzzing & Quality Assurance
-- **Fuzzing (`fuzz/`)**: We rely on fuzzing to ensure the codec and verifier are robust against malformed or adversarial inputs. Any new parsing logic or state transitions must be fuzzed. When making significant changes, verify they do not introduce panics or unbounded allocations under fuzzing.
+- **Fuzzing (`core/fuzz/`)**: We rely on fuzzing to ensure the codec and verifier are robust against malformed or adversarial inputs. Any new parsing logic or state transitions must be fuzzed. When making significant changes, verify they do not introduce panics or unbounded allocations under fuzzing.
 - **`xtask` Automation**: Use the `xtask` tooling for development and verification.
   - Run `cargo xtask ci` to run the complete suite of tests, formatting, and lint checks.
   - Run `cargo xtask wire` to verify golden vectors byte-for-byte.
-  - Keep core corpus generation and validation in this repository. Downstream
-    repositories may wrap these checks, but must not silently produce different
-    core `.cbor` bytes.
+  - Keep core corpus generation and validation in the core layer. Higher layers
+    may wrap these checks, but must not silently produce different core `.cbor`
+    bytes.
 
 ## 5. Security & Review
 - Treat all input as adversarial.

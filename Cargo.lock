@@ -112,6 +112,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "arbitrary"
+version = "1.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c3d036a3c4ab069c7b410a2ce876bd74808d2d0888a82667669f8e783a898bf1"
+
+[[package]]
 name = "arc-swap"
 version = "1.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -207,6 +213,7 @@ dependencies = [
  "auths-author",
  "auths-codec",
  "auths-model",
+ "auths-ports",
  "auths-profile-api",
  "auths-profile-mcp",
  "auths-proof-exchange-iroh",
@@ -215,6 +222,7 @@ dependencies = [
  "auths-proof-exchange-port",
  "auths-raw-key",
  "auths-receipts",
+ "auths-registries",
  "auths-runtime",
  "auths-signature",
  "ed25519-dalek 2.2.0",
@@ -634,6 +642,28 @@ dependencies = [
  "auths-proof-exchange-framing",
  "auths-proof-exchange-model",
  "tokio",
+]
+
+[[package]]
+name = "auths-proof-fuzz"
+version = "0.1.0"
+dependencies = [
+ "auths-codec",
+ "auths-composition",
+ "auths-did-keri",
+ "auths-did-key",
+ "auths-did-web",
+ "auths-hsm-attested",
+ "auths-model",
+ "auths-multikey",
+ "auths-ports",
+ "auths-raw-key",
+ "auths-registries",
+ "auths-signature",
+ "auths-spiffe-x509",
+ "auths-verifier",
+ "auths-webauthn",
+ "libfuzzer-sys",
 ]
 
 [[package]]
@@ -1427,6 +1457,9 @@ name = "deranged"
 version = "0.5.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7cd812cc2bc1d69d4764bd80df88b4317eaef9e773c75226407d9bc0876b211c"
+dependencies = [
+ "powerfmt",
+]
 
 [[package]]
 name = "derive_more"
@@ -2628,6 +2661,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3eaf3ede3fee6db1a4c2ee091bf8a8b4dccdc6d17f656fb07896ee72867612f2"
 
 [[package]]
+name = "libfuzzer-sys"
+version = "0.4.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a9fd2f41a1cba099f79a0b6b6c35656cf7c03351a7bae8ff0f28f25270f929d2"
+dependencies = [
+ "arbitrary",
+ "cc",
+]
+
+[[package]]
 name = "libm"
 version = "0.2.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3024,9 +3067,9 @@ dependencies = [
 
 [[package]]
 name = "num-conv"
-version = "0.2.2"
+version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "521739c6d2bac4aa25192232afe6841231376b2b26d4d9fae5ecf8ca5772e441"
+checksum = "51d515d32fb182ee37cda2ccdcb92950d6a3c2893aa280e540671c2cd0f3b1d9"
 
 [[package]]
 name = "num-integer"
@@ -3354,9 +3397,9 @@ checksum = "19f132c84eca552bf34cab8ec81f1c1dcc229b811638f9d283dceabe58c5569e"
 
 [[package]]
 name = "plist"
-version = "1.10.0"
+version = "1.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7da1d65da6dd5d1e44199ac0f58712d241c0f439f80adea8924d832384087f85"
+checksum = "740ebea15c5d1428f910cd1a5f52cebf8d25006245ed8ade92702f4943d91e07"
 dependencies = [
  "base64",
  "indexmap",
@@ -3556,9 +3599,9 @@ checksum = "a1d01941d82fa2ab50be1e79e6714289dd7cde78eba4c074bc5a4374f650dfe0"
 
 [[package]]
 name = "quick-xml"
-version = "0.41.0"
+version = "0.38.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e660451e55124f798a69a5af3f49ccfbefbd41910eefd25caf2393e1f3473ec1"
+checksum = "b66c2058c55a409d601666cffe35f04333cf1013010882cec174a7467cd4e21c"
 dependencies = [
  "memchr",
 ]
@@ -4556,11 +4599,12 @@ dependencies = [
 
 [[package]]
 name = "time"
-version = "0.3.54"
+version = "0.3.45"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3e1d5e639ff6bab73cb6885cc7e7b1de96c3f32c68ec55f3952614bec1092244"
+checksum = "f9e442fc33d7fdb45aa9bfeb312c095964abdf596f7567261062b2a7107aaabd"
 dependencies = [
  "deranged",
+ "itoa",
  "js-sys",
  "num-conv",
  "powerfmt",
@@ -4571,15 +4615,15 @@ dependencies = [
 
 [[package]]
 name = "time-core"
-version = "0.1.9"
+version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9e1c906769ad99c88eaa54e728060edef082f8e358ff32030cb7c7d315e81109"
+checksum = "8b36ee98fd31ec7426d599183e8fe26932a8dc1fb76ddb6214d05493377d34ca"
 
 [[package]]
 name = "time-macros"
-version = "0.2.32"
+version = "0.2.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7e689342a48d2ea927c87ea50cabf8594854bf940e9310208848d680d668ed85"
+checksum = "71e552d1249bf61ac2a52db88179fd0673def1e1ad8243a00d9ec9ed71fee3dd"
 dependencies = [
  "num-conv",
  "time-core",
@@ -5540,13 +5584,16 @@ dependencies = [
 name = "xtask"
 version = "0.1.0"
 dependencies = [
+ "auths-apps-testkit",
  "auths-codec",
  "auths-did-keri",
  "auths-did-key",
  "auths-did-web",
  "auths-hsm-attested",
+ "auths-lab-matrix",
  "auths-model",
  "auths-ports",
+ "auths-proof-exchange-testkit",
  "auths-raw-key",
  "auths-registries",
  "auths-signature",
@@ -5557,6 +5604,8 @@ dependencies = [
  "hex",
  "serde_json",
  "sha2 0.10.9",
+ "tokio",
+ "toml",
 ]
 
 [[package]]

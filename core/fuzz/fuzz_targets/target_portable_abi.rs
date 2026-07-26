@@ -30,8 +30,7 @@ fn framed(data: &[u8]) -> Option<(&[u8], &[u8], &[u8])> {
         return None;
     }
     let proof_len = usize::try_from(u32::from_be_bytes(data.get(4..8)?.try_into().ok()?)).ok()?;
-    let action_len =
-        usize::try_from(u32::from_be_bytes(data.get(8..12)?.try_into().ok()?)).ok()?;
+    let action_len = usize::try_from(u32::from_be_bytes(data.get(8..12)?.try_into().ok()?)).ok()?;
     let context_len =
         usize::try_from(u32::from_be_bytes(data.get(12..16)?.try_into().ok()?)).ok()?;
     let proof_end = 16usize.checked_add(proof_len)?;
