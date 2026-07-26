@@ -217,6 +217,10 @@ func verifySemantic(
 		return failedResult(result, err)
 	}
 	result.plan = domainHash(3, bundle.plan.raw)
+	if context.composition.expectedPlan != nil &&
+		!bytes.Equal(context.composition.expectedPlan, result.plan) {
+		return failedResult(result, denied("composition-requirement-not-met"))
+	}
 	controls, err := resolveAndVerifyControl(bundle, context, adapters)
 	if err != nil {
 		return failedResult(result, err)
@@ -257,6 +261,11 @@ func resolveAndVerifyControl(
 ) ([]verifiedControl, error) {
 	if !bytes.Equal(context.registryManifest, bytes.Repeat([]byte{0x33}, 32)) {
 		return nil, denied("registry-manifest-mismatch")
+	}
+	localConfiguration, err := hex.DecodeString(adapters.Configuration)
+	if err != nil || len(localConfiguration) != 32 ||
+		!bytes.Equal(context.configuration, localConfiguration) {
+		return nil, denied("verifier-configuration-mismatch")
 	}
 	planID := domainHash(3, bundle.plan.raw)
 	grants := make(map[string]*signedGrant, len(bundle.grants))
@@ -484,11 +493,11 @@ func resolveAndVerifyControl(
 		if input.signature.descriptor.suite == "p256-sha256-v1" {
 			suiteWork = 250
 		}
-		if work > context.limits[23] || control.work > context.limits[23]-work {
+		if work > context.limits[26] || control.work > context.limits[26]-work {
 			return nil, denied("resource-limit-exceeded")
 		}
 		work += control.work
-		if work > context.limits[23] || suiteWork > context.limits[23]-work {
+		if work > context.limits[26] || suiteWork > context.limits[26]-work {
 			return nil, denied("resource-limit-exceeded")
 		}
 		work += suiteWork
@@ -714,6 +723,21 @@ func verifyAuthority(
 		return reports[i].principal < reports[j].principal
 	})
 	reports = uniqueReports(reports)
+	actors := make(map[string]struct{})
+	roots := make(map[string]struct{})
+	for _, report := range reports {
+		switch report.role {
+		case 0:
+			roots[report.principal] = struct{}{}
+		case 2:
+			actors[report.principal] = struct{}{}
+		}
+	}
+	if uint64(len(authorizedBranches)) < context.composition.minimumAuthorizedBranches ||
+		uint64(len(actors)) < context.composition.minimumDistinctActors ||
+		uint64(len(roots)) < context.composition.minimumDistinctRoots {
+		return nil, nil, nil, denied("composition-requirement-not-met")
+	}
 	return actionIDs, authorizedBranches, reports, nil
 }
 
@@ -747,7 +771,7 @@ func validateAttachments(
 		}
 		total += uint64(len(attachment.bytes))
 	}
-	if total > context.limits[0] {
+	if total > context.limits[14] {
 		return denied("resource-limit-exceeded")
 	}
 	for _, descriptor := range descriptors {
@@ -1162,25 +1186,34 @@ func assuranceSatisfied(
 	evaluationTime uint64,
 ) bool {
 	for _, requirement := range requirements {
-		satisfied := false
+		selected := 0
+		satisfied := 0
 		for _, report := range reports {
 			if report.role != requirement.role {
 				continue
 			}
+			selected++
+			reportSatisfied := false
 			for _, claim := range report.claims {
 				if claim.kind != requirement.claim {
 					continue
 				}
 				if requirement.maximumAge == nil {
-					satisfied = true
+					reportSatisfied = true
 				} else if claim.observedAt != nil &&
 					*claim.observedAt <= evaluationTime &&
 					evaluationTime-*claim.observedAt <= *requirement.maximumAge {
-					satisfied = true
+					reportSatisfied = true
 				}
 			}
+			if reportSatisfied {
+				satisfied++
+			} else if requirement.quantifier == 1 {
+				return false
+			}
 		}
-		if !satisfied {
+		if selected == 0 || satisfied == 0 ||
+			(requirement.quantifier == 1 && satisfied != selected) {
 			return false
 		}
 	}

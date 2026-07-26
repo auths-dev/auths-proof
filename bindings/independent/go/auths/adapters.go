@@ -85,10 +85,11 @@ type spiffeContext struct {
 }
 
 type adapterContext struct {
-	DidWeb   []didWebContext   `json:"did_web"`
-	WebAuthn []webauthnContext `json:"webauthn"`
-	HSM      []hsmContext      `json:"hsm"`
-	Spiffe   spiffeContext     `json:"spiffe"`
+	Configuration string            `json:"configuration"`
+	DidWeb        []didWebContext   `json:"did_web"`
+	WebAuthn      []webauthnContext `json:"webauthn"`
+	HSM           []hsmContext      `json:"hsm"`
+	Spiffe        spiffeContext     `json:"spiffe"`
 }
 
 type assuranceClaim struct {

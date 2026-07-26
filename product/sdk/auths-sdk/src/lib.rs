@@ -4,10 +4,10 @@
 
 use auths_model::{
     AcceptedRegistries, AssuranceClaimId, AssurancePolicy, Audience, BudgetAlgebraId, Challenge,
-    ChannelBindingId, EvidenceTypeId, ExtensionId, GrantStatusSnapshot, PrincipalMethodId,
-    PrincipalStatusSnapshot, ProfilePolicyId, ProfileRef, ResourceMatcherId, SignatureSuiteId,
-    StatusMethodId, StatusPolicy, StatusSnapshotId, Timestamp, TrustAnchor, VerifierContext,
-    VerifierLimits,
+    ChannelBindingId, CompositionRequirement, EvidenceTypeId, ExtensionId, GrantStatusSnapshot,
+    PrincipalMethodId, PrincipalStatusSnapshot, ProfilePolicyId, ProfileRef, ResourceMatcherId,
+    SignatureSuiteId, StatusMethodId, StatusPolicy, StatusSnapshotId, Timestamp, TrustAnchor,
+    VerifierConfigurationId, VerifierContext, VerifierLimits,
 };
 use auths_profile_api::{ActionProfile, ProfileContractError};
 use auths_runtime::AuthsKernel;
@@ -75,6 +75,8 @@ impl RequestContext {
 
 /// Builder for an explicit immutable trusted-context template.
 pub struct TrustedContextBuilder {
+    configuration: VerifierConfigurationId,
+    composition: CompositionRequirement,
     trust_anchors: Vec<TrustAnchor>,
     assurance_policy: AssurancePolicy,
     principal_status: PrincipalStatusSnapshot,
@@ -98,6 +100,8 @@ impl TrustedContextBuilder {
     /// Returns a typed error when roots are empty or compiled V1 identifiers
     /// are invalid.
     pub fn new(
+        configuration: VerifierConfigurationId,
+        composition: CompositionRequirement,
         trust_anchors: Vec<TrustAnchor>,
         assurance_policy: AssurancePolicy,
     ) -> Result<Self, SdkError> {
@@ -116,6 +120,8 @@ impl TrustedContextBuilder {
             .map(|method| EvidenceTypeId::parse(method.as_str()))
             .collect::<Result<BTreeSet<_>, _>>()?;
         Ok(Self {
+            configuration,
+            composition,
             trust_anchors,
             assurance_policy,
             principal_status: empty_principal_status()?,
@@ -223,6 +229,8 @@ impl TrustedContextBuilder {
             vec![ProfilePolicyId::parse(auths_registries::EXACT_PROFILE_V1)?],
         )?;
         Ok(VerifierContext::new(
+            self.configuration,
+            self.composition,
             self.trust_anchors,
             accepted,
             Audience::parse("auths://request-template")?,

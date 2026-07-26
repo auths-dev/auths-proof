@@ -230,9 +230,18 @@ type Anchor = {
   budget?: Budget; maxDepth: bigint;
   assurance: string; status: StatusPolicy;
 };
-type AssuranceRequirement = { role: bigint; claim: string; maximumAge?: bigint };
+type AssuranceRequirement = {
+  role: bigint; claim: string; maximumAge?: bigint; quantifier: bigint;
+};
+type CompositionRequirement = {
+  expectedPlan?: Uint8Array;
+  minimumAuthorizedBranches: bigint;
+  minimumDistinctActors: bigint;
+  minimumDistinctRoots: bigint;
+};
 type Context = {
-  raw: Uint8Array; anchors: Anchor[]; principalMethods: string[]; signatureSuites: string[];
+  raw: Uint8Array; configuration: Uint8Array; composition: CompositionRequirement;
+  anchors: Anchor[]; principalMethods: string[]; signatureSuites: string[];
   registryManifest: Uint8Array;
   evidenceTypes: string[]; principalStatuses: string[]; grantStatuses: string[];
   assuranceClaims: string[]; budgetAlgebras: string[];
@@ -389,14 +398,14 @@ const denied = (code: string): Failure => new Failure("denied", code);
 const indeterminate = (code: string): Failure => new Failure("indeterminate", code);
 
 function plan(value: V, depth: number, limits: bigint[]): Plan {
-  if (BigInt(depth) > limits[4]!) throw denied("resource-limit-exceeded");
+  if (BigInt(depth) > limits[6]!) throw denied("resource-limit-exceeded");
   const kind = uint(mapAt(value, 0));
   if (kind === 0n && value.pairs?.length === 2) {
     return { kind, k: 0n, proofRef: bytes(mapAt(value, 1), 32), children: [], raw: value.raw };
   }
   const childrenValue = mapAt(value, kind === 3n ? 2 : 1);
   const childValues = array(childrenValue);
-  if (childValues.length === 0 || BigInt(childValues.length) > limits[5]!) {
+  if (childValues.length === 0 || BigInt(childValues.length) > limits[7]!) {
     throw denied("resource-limit-exceeded");
   }
   if (kind === 1n || kind === 2n) {
@@ -499,14 +508,36 @@ function snapshot<T>(value: V, decode: (entry: V) => T): Snapshot<T> {
 
 function context(data: Uint8Array): Context {
   const root = new Decoder(data).complete();
-  exactMap(root, 12);
-  const registries = mapAt(root, 1);
+  exactMap(root, 14);
+  const limitMap = mapAt(root, 0);
+  exactMap(limitMap, 27);
+  const compositionValue = mapAt(root, 2);
+  exactMap(compositionValue, 4);
+  const expectedPlan = mapAt(compositionValue, 0);
+  const composition: CompositionRequirement = {
+    expectedPlan: expectedPlan.major === 7 && expectedPlan.uint === 22n
+      ? undefined
+      : bytes(expectedPlan, 32),
+    minimumAuthorizedBranches: uint(mapAt(compositionValue, 1)),
+    minimumDistinctActors: uint(mapAt(compositionValue, 2)),
+    minimumDistinctRoots: uint(mapAt(compositionValue, 3)),
+  };
+  if (
+    composition.minimumAuthorizedBranches === 0n ||
+    composition.minimumDistinctActors === 0n ||
+    composition.minimumDistinctRoots === 0n ||
+    composition.minimumDistinctActors > composition.minimumAuthorizedBranches ||
+    composition.minimumDistinctRoots > composition.minimumAuthorizedBranches
+  ) throw new Error("invalid composition requirement");
+  const registries = mapAt(root, 4);
   exactMap(registries, 13);
-  const assurance = mapAt(root, 5);
+  const assurance = mapAt(root, 8);
   exactMap(assurance, 2);
   const result: Context = {
     raw: data,
-    anchors: array(mapAt(root, 0)).map((value) => {
+    configuration: bytes(mapAt(root, 1), 32),
+    composition,
+    anchors: array(mapAt(root, 3)).map((value) => {
       exactMap(value, 13);
       return {
         principal: text(mapAt(value, 1)),
@@ -535,29 +566,29 @@ function context(data: Uint8Array): Context {
     extensions: textArray(mapAt(registries, 10)),
     profiles: array(mapAt(registries, 11)).map(profile),
     profilePolicies: textArray(mapAt(registries, 12)),
-    expectedAudience: text(mapAt(root, 2)),
-    expectedChallenge: bytes(mapAt(root, 3), 32),
-    evaluationTime: uint(mapAt(root, 4)),
+    expectedAudience: text(mapAt(root, 5)),
+    expectedChallenge: bytes(mapAt(root, 6), 32),
+    evaluationTime: uint(mapAt(root, 7)),
     assuranceID: text(mapAt(assurance, 0)),
     assurance: array(mapAt(assurance, 1)).map((entry) => {
-      exactMap(entry, 7);
+      exactMap(entry, 8);
       const maximum = mapAt(entry, 6);
+      const quantifier = uint(mapAt(entry, 7));
+      if (quantifier > 1n) throw new Error("invalid assurance quantifier");
       return {
         role: uint(mapAt(entry, 0)),
         claim: text(mapAt(entry, 1)),
         maximumAge: maximum.major === 7 && maximum.uint === 22n ? undefined : uint(maximum),
+        quantifier,
       };
     }),
-    principalSnapshot: snapshot(mapAt(root, 6), principalStatus),
-    grantSnapshot: snapshot(mapAt(root, 7), grantStatus),
-    resourceMatcher: text(mapAt(root, 8)),
-    profilePolicy: text(mapAt(root, 9)),
-    channelPolicy: text(mapAt(root, 10)),
-    limits: [],
+    principalSnapshot: snapshot(mapAt(root, 9), principalStatus),
+    grantSnapshot: snapshot(mapAt(root, 10), grantStatus),
+    resourceMatcher: text(mapAt(root, 11)),
+    profilePolicy: text(mapAt(root, 12)),
+    channelPolicy: text(mapAt(root, 13)),
+    limits: Array.from({ length: 27 }, (_, index) => uint(mapAt(limitMap, index))),
   };
-  const limitMap = mapAt(root, 11);
-  exactMap(limitMap, 24);
-  result.limits = Array.from({ length: 24 }, (_, index) => uint(mapAt(limitMap, index)));
   return result;
 }
 
@@ -587,25 +618,35 @@ function bundle(data: Uint8Array, limits: bigint[]): Bundle {
   const principalValues = array(mapAt(root, 6));
   const grantValues = array(mapAt(root, 7));
   if (
-    BigInt(grants.length) > limits[1]! ||
-    BigInt(actions.length) > limits[2]! ||
-    BigInt(evidenceValues.length) > limits[6]! ||
-    BigInt(bindingValues.length) > limits[8]! ||
-    BigInt(principalValues.length) > limits[9]! ||
-    BigInt(grantValues.length) > limits[10]!
+    BigInt(grants.length) > limits[3]! ||
+    BigInt(actions.length) > limits[4]! ||
+    BigInt(evidenceValues.length) > limits[8]! ||
+    BigInt(bindingValues.length) > limits[10]! ||
+    BigInt(principalValues.length) > limits[11]! ||
+    BigInt(grantValues.length) > limits[12]!
   ) throw denied("resource-limit-exceeded");
+  const decodedPlan = plan(mapAt(root, 3), 1, limits);
+  if (BigInt(collectLeaves(decodedPlan).length) > limits[5]!) {
+    throw denied("resource-limit-exceeded");
+  }
+  const attachments = array(mapAt(root, 8));
+  if (BigInt(attachments.length) > limits[13]!) throw denied("resource-limit-exceeded");
   const body = mapAt(root, 9);
+  const canonicalBody = body.major === 7 && body.uint === 22n ? undefined : bytes(body);
+  if (canonicalBody !== undefined && BigInt(canonicalBody.length) > limits[23]!) {
+    throw denied("resource-limit-exceeded");
+  }
   return {
     raw: data,
     grants,
     actions,
-    plan: plan(mapAt(root, 3), 1, limits),
-    evidence: evidenceValues.map((entry) => evidence(entry, limits[7]!)),
-    bindings: bindingValues.map((entry) => binding(entry, limits[19]!)),
+    plan: decodedPlan,
+    evidence: evidenceValues.map((entry) => evidence(entry, limits[9]!)),
+    bindings: bindingValues.map((entry) => binding(entry, limits[22]!)),
     principalStatus: principalValues.map(principalStatus),
     grantStatus: grantValues.map(grantStatus),
-    attachments: array(mapAt(root, 8)),
-    canonicalBody: body.major === 7 && body.uint === 22n ? undefined : bytes(body),
+    attachments,
+    canonicalBody,
   };
 }
 
@@ -1256,6 +1297,13 @@ function resolveAndVerifyControl(
   if (!equal(contextValue.registryManifest, new Uint8Array(32).fill(0x33))) {
     throw denied("registry-manifest-mismatch");
   }
+  const localConfiguration = typeof adapters.configuration === "string"
+    ? Buffer.from(adapters.configuration, "hex")
+    : new Uint8Array();
+  if (localConfiguration.length !== 32 ||
+      !equal(contextValue.configuration, localConfiguration)) {
+    throw denied("verifier-configuration-mismatch");
+  }
   const planID = domainHash(3, value.plan.raw);
   const grants = new Map<string, Grant>();
   for (const grantValue of value.grants) {
@@ -1416,9 +1464,9 @@ function resolveAndVerifyControl(
     }
     const suiteWork = input.signature.descriptor.suite === "p256-sha256-v1" ? 250n : 100n;
     work += result.work;
-    if (work > contextValue.limits[23]!) throw denied("resource-limit-exceeded");
+    if (work > contextValue.limits[26]!) throw denied("resource-limit-exceeded");
     work += suiteWork;
-    if (work > contextValue.limits[23]!) throw denied("resource-limit-exceeded");
+    if (work > contextValue.limits[26]!) throw denied("resource-limit-exceeded");
     result.consumed.forEach((id) => consumed.add(keyOf(id)));
     controls.push({ ...result, statement: input.statement, principal: input.principal });
   }
@@ -1611,16 +1659,21 @@ function assuranceSatisfied(
   reports: Participant[],
   evaluationTime: bigint,
 ): boolean {
-  return requirements.every((requirement) => reports.some((participant) =>
-    participant.role === requirement.role &&
-    participant.claims.some((claim) =>
+  return requirements.every((requirement) => {
+    const selected = reports.filter((participant) => participant.role === requirement.role);
+    if (selected.length === 0) return false;
+    const matches = (participant: Participant): boolean =>
+      participant.claims.some((claim) =>
       claim.kind === requirement.claim &&
       (requirement.maximumAge === undefined ||
         (claim.observedAt !== undefined &&
           claim.observedAt <= evaluationTime &&
           evaluationTime - claim.observedAt <= requirement.maximumAge))
-    )
-  ));
+      );
+    return requirement.quantifier === 0n
+      ? selected.some(matches)
+      : selected.every(matches);
+  });
 }
 
 function verifyFromAnchor(
@@ -1776,7 +1829,7 @@ function validateAttachments(
     detached.set(key, attachment);
     total += BigInt(attachment.bytes.length);
   }
-  if (total > contextValue.limits[0]!) throw denied("resource-limit-exceeded");
+  if (total > contextValue.limits[14]!) throw denied("resource-limit-exceeded");
   for (const descriptor of descriptors) {
     const digest = bytes(mapAt(descriptor, 0), 32);
     const attachment = detached.get(keyOf(digest));
@@ -1941,10 +1994,25 @@ function verifyAuthority(
   };
   const outcome = evaluatePlan(value.plan, branch, branches, actionIDs, reports);
   if (outcome.error) throw outcome.error;
+  const uniqueBranches = uniqueDigests(branches);
+  const uniqueAssurance = uniqueReports(reports);
+  const actors = new Set(
+    uniqueAssurance.filter((participant) => participant.role === 2n)
+      .map((participant) => participant.principal),
+  );
+  const roots = new Set(
+    uniqueAssurance.filter((participant) => participant.role === 0n)
+      .map((participant) => participant.principal),
+  );
+  if (
+    BigInt(uniqueBranches.length) < contextValue.composition.minimumAuthorizedBranches ||
+    BigInt(actors.size) < contextValue.composition.minimumDistinctActors ||
+    BigInt(roots.size) < contextValue.composition.minimumDistinctRoots
+  ) throw denied("composition-requirement-not-met");
   return {
     actionIDs: uniqueDigests(actionIDs),
-    branches: uniqueDigests(branches),
-    assurance: uniqueReports(reports),
+    branches: uniqueBranches,
+    assurance: uniqueAssurance,
   };
 }
 
@@ -1965,6 +2033,10 @@ function verifySemantic(
     const contextValue = context(contextBytes);
     const proof = bundle(proofBytes, contextValue.limits);
     result.plan = domainHash(3, proof.plan.raw);
+    if (contextValue.composition.expectedPlan !== undefined &&
+        !equal(contextValue.composition.expectedPlan, result.plan)) {
+      throw denied("composition-requirement-not-met");
+    }
     const controls = resolveAndVerifyControl(proof, contextValue, adapters);
     const authority = verifyAuthority(proof, controls, contextValue, canonical);
     result.decision = "authorized";

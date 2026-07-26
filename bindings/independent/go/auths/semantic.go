@@ -405,6 +405,14 @@ type assuranceRequirement struct {
 	role       uint64
 	claim      string
 	maximumAge *uint64
+	quantifier uint64
+}
+
+type compositionRequirement struct {
+	expectedPlan              []byte
+	minimumAuthorizedBranches uint64
+	minimumDistinctActors     uint64
+	minimumDistinctRoots      uint64
 }
 
 type statusTrustRule struct {
@@ -423,6 +431,8 @@ type statusSnapshot[T any] struct {
 
 type verifierContext struct {
 	raw               []byte
+	configuration     []byte
+	composition       compositionRequirement
 	anchors           []*trustAnchor
 	registryManifest  []byte
 	principalMethods  []string
@@ -446,7 +456,7 @@ type verifierContext struct {
 	resourceMatcher   string
 	profilePolicy     string
 	channelPolicy     string
-	limits            [24]uint64
+	limits            [27]uint64
 }
 
 type canonicalAction struct {
@@ -1025,8 +1035,8 @@ func decodeAction(value *cborValue) (*signedAction, error) {
 	}, nil
 }
 
-func decodePlan(value *cborValue, depth int, limits [24]uint64) (*planNode, int, error) {
-	if uint64(depth) > limits[4] {
+func decodePlan(value *cborValue, depth int, limits [27]uint64) (*planNode, int, error) {
+	if uint64(depth) > limits[6] {
 		return nil, 0, denied("resource-limit-exceeded")
 	}
 	kindValue, err := mapValue(value, 0)
@@ -1052,7 +1062,7 @@ func decodePlan(value *cborValue, depth int, limits [24]uint64) (*planNode, int,
 		}
 		childrenValue, _ := mapValue(value, 1)
 		children, err := arrayValue(childrenValue)
-		if err != nil || len(children) == 0 || uint64(len(children)) > limits[5] {
+		if err != nil || len(children) == 0 || uint64(len(children)) > limits[7] {
 			return nil, 0, denied("resource-limit-exceeded")
 		}
 		leaves := 0
@@ -1077,7 +1087,7 @@ func decodePlan(value *cborValue, depth int, limits [24]uint64) (*planNode, int,
 		childrenValue, _ := mapValue(value, 2)
 		children, err := arrayValue(childrenValue)
 		if err != nil || len(children) == 0 || result.k == 0 ||
-			result.k > uint64(len(children)) || uint64(len(children)) > limits[5] {
+			result.k > uint64(len(children)) || uint64(len(children)) > limits[7] {
 			return nil, 0, denied("resource-limit-exceeded")
 		}
 		leaves := 0

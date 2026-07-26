@@ -64,6 +64,8 @@ class Authorized:
     stage: VerificationStage
     explanation: Explanation
     metrics: VerificationMetrics
+    required_configuration: bytes | None
+    local_configuration: bytes
     result_cbor: bytes
     action: VerifiedAction
 
@@ -77,6 +79,8 @@ class Denied:
     stage: VerificationStage
     explanation: Explanation
     metrics: VerificationMetrics
+    required_configuration: bytes | None
+    local_configuration: bytes
     result_cbor: bytes
 
 
@@ -89,6 +93,8 @@ class Indeterminate:
     stage: VerificationStage
     explanation: Explanation
     metrics: VerificationMetrics
+    required_configuration: bytes | None
+    local_configuration: bytes
     result_cbor: bytes
 
 
@@ -105,13 +111,22 @@ def verify(
     result_cbor = bytes(
         verify_v1(proof_cbor, canonical_action_cbor, trusted_context_cbor)
     )
-    kind, code, stage, metrics = _decode_result(result_cbor)
+    (
+        kind,
+        code,
+        stage,
+        metrics,
+        required_configuration,
+        local_configuration,
+    ) = _decode_result(result_cbor)
     explanation = _explain(kind, code)
     common = {
         "code": code,
         "stage": stage,
         "explanation": explanation,
         "metrics": metrics,
+        "required_configuration": required_configuration,
+        "local_configuration": local_configuration,
         "result_cbor": result_cbor,
     }
     if kind == "authorized":
@@ -178,6 +193,27 @@ class _Reader:
         self._offset = end
         return value
 
+    def nullable_bytes(self, expected_length: int) -> bytes | None:
+        major, length = self.head()
+        if major == 7 and length == 22:
+            return None
+        if (
+            major != 2
+            or length != expected_length
+            or length > len(self._data) - self._offset
+        ):
+            raise ValueError("invalid CBOR bytes")
+        end = self._offset + length
+        value = bytes(self._data[self._offset : end])
+        self._offset = end
+        return value
+
+    def bytes(self, expected_length: int) -> bytes:
+        value = self.nullable_bytes(expected_length)
+        if value is None:
+            raise ValueError("unexpected CBOR null")
+        return value
+
     def map(self) -> int:
         major, length = self.head()
         if major != 5 or length > 1_000_000:
@@ -211,13 +247,23 @@ class _Reader:
 
 def _decode_result(
     data: bytes,
-) -> tuple[VerdictKind, str, VerificationStage, VerificationMetrics]:
+) -> tuple[
+    VerdictKind,
+    str,
+    VerificationStage,
+    VerificationMetrics,
+    bytes | None,
+    bytes,
+]:
     reader = _Reader(data)
     fields = reader.map()
     decision: int | None = None
     stage_number: int | None = None
     code: str | None = None
     metrics: VerificationMetrics | None = None
+    required_configuration: bytes | None = None
+    local_configuration: bytes | None = None
+    abi_version: int | None = None
     previous_key = -1
     for _ in range(fields):
         key = reader.uint()
@@ -238,6 +284,12 @@ def _decode_result(
             code = reader.text()
         elif key == 11:
             metrics = _decode_metrics(reader)
+        elif key == 13:
+            required_configuration = reader.nullable_bytes(32)
+        elif key == 14:
+            local_configuration = reader.bytes(32)
+        elif key == 15:
+            abi_version = reader.uint()
         else:
             reader.skip()
     if not reader.complete:
@@ -254,9 +306,23 @@ def _decode_result(
         3: "authority",
         4: "complete",
     }
-    if decision not in kinds or stage_number not in stages or code is None or metrics is None:
+    if (
+        decision not in kinds
+        or stage_number not in stages
+        or code is None
+        or metrics is None
+        or local_configuration is None
+        or abi_version != 2
+    ):
         raise ValueError("incomplete Auths result")
-    return kinds[decision], code, stages[stage_number], metrics
+    return (
+        kinds[decision],
+        code,
+        stages[stage_number],
+        metrics,
+        required_configuration,
+        local_configuration,
+    )
 
 
 def _decode_metrics(reader: _Reader) -> VerificationMetrics:

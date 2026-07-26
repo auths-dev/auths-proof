@@ -7,13 +7,14 @@ use auths_author::prepare_action;
 use auths_codec::{action_id, body_digest, encode_bundle, evidence_id, plan_id};
 use auths_model::{
     AcceptedRegistries, ActionEnvelope, AssuranceClaimId, AssurancePolicy, AssurancePolicyId,
-    AssuranceRequirement, AudienceSet, AuthorizationPlan, BundleHeader, Challenge,
-    ChannelBindingId, ControlBinding, CriticalExtensions, EvidenceId, EvidenceObject,
-    EvidenceTypeId, GrantStatusSnapshot, MediaType, ParticipantRole, Permission, PermissionSet,
-    PrincipalMethodId, PrincipalStatusSnapshot, ProfilePolicyId, ProofBundle, ProofRef,
-    RegistryManifestId, ResourceMatcherId, SignatureBytes, SignatureDescriptor, SignatureSuiteId,
-    StatementRef, StatusPolicy, StatusSnapshotId, Timestamp, TrustAnchor, TrustAnchorId,
-    ValidityWindow, VerificationMethod, VerifierContext, VerifierLimits,
+    AssuranceQuantifier, AssuranceRequirement, AudienceSet, AuthorizationPlan, BundleHeader,
+    Challenge, ChannelBindingId, CompositionRequirement, ControlBinding, CriticalExtensions,
+    EvidenceId, EvidenceObject, EvidenceTypeId, GrantStatusSnapshot, MediaType, ParticipantRole,
+    Permission, PermissionSet, PrincipalMethodId, PrincipalStatusSnapshot, ProfilePolicyId,
+    ProofBundle, ProofRef, RegistryManifestId, ResourceMatcherId, SignatureBytes,
+    SignatureDescriptor, SignatureSuiteId, StatementRef, StatusPolicy, StatusSnapshotId, Timestamp,
+    TrustAnchor, TrustAnchorId, ValidityWindow, VerificationMethod, VerifierContext,
+    VerifierLimits,
 };
 use auths_profile_api::ActionProfile;
 use auths_profile_mcp::{McpProfile, McpToolCall};
@@ -609,6 +610,7 @@ fn build_fixture(challenge: ChallengeNonce, signed_permission: Option<Permission
         AssurancePolicyId::parse("raw-key-baseline").unwrap(),
         vec![AssuranceRequirement::new(
             ParticipantRole::Actor,
+            AssuranceQuantifier::Every,
             AssuranceClaimId::parse("self-certifying-identifier").unwrap(),
             None,
         )],
@@ -652,7 +654,16 @@ fn build_fixture(challenge: ChallengeNonce, signed_permission: Option<Permission
         vec![ProfilePolicyId::parse("exact-v1").unwrap()],
     )
     .unwrap();
+    let raw_key = RawKeyMethod::new().unwrap();
+    let signature_suite = Ed25519Suite::new().unwrap();
+    let methods: [&dyn auths_ports::PrincipalMethod; 1] = [&raw_key];
+    let suites: [&dyn auths_ports::SignatureSuite; 1] = [&signature_suite];
+    let configuration = auths_registries::ImmutableRegistries::new(&methods, &suites)
+        .unwrap()
+        .configuration_id();
     let context = VerifierContext::new(
+        configuration,
+        CompositionRequirement::exact(plan_id(proof.plan()).unwrap()),
         vec![anchor],
         registries,
         call.audience().unwrap(),

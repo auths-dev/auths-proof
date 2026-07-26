@@ -19,8 +19,9 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "build:wasm": "wasm-pack build ../wasm/auths-proof-wasm --target web --out-dir ../typescript/wasm",
-    "pretest": "npm run build && npm run build:wasm",
+    "build:wasm": "wasm-pack build ../wasm/auths-proof-wasm --target web --out-dir ../../typescript/wasm",
+    "build:vectors": "cargo run -p auths-proof-wasm --example generate-node-vectors -- ../../target/binding-vectors",
+    "pretest": "npm run build && npm run build:wasm && npm run build:vectors",
     "test": "node --test test/*.test.js"
   },
   "devDependencies": {

@@ -54,6 +54,8 @@ interface CommonResult {
   readonly stage: VerificationStage;
   readonly explanation: Explanation;
   readonly metrics: VerificationMetrics;
+  readonly requiredConfiguration: Uint8Array | undefined;
+  readonly localConfiguration: Uint8Array;
   readonly resultCbor: Uint8Array;
 }
 
@@ -107,6 +109,8 @@ export class Auths {
       stage: decoded.stage,
       explanation,
       metrics: decoded.metrics,
+      requiredConfiguration: decoded.requiredConfiguration?.slice(),
+      localConfiguration: decoded.localConfiguration.slice(),
       resultCbor: bytes.slice(),
     };
     if (decoded.kind === "authorized") {
@@ -160,6 +164,8 @@ type DecodedResult = {
   code: string;
   stage: VerificationStage;
   metrics: VerificationMetrics;
+  requiredConfiguration: Uint8Array | undefined;
+  localConfiguration: Uint8Array;
 };
 
 class Reader {
@@ -222,6 +228,28 @@ class Reader {
     return value;
   }
 
+  nullableBytes(expectedLength: number): Uint8Array | undefined {
+    const [major, length] = this.head();
+    if (major === 7 && length === 22n) return undefined;
+    if (
+      major !== 2 ||
+      length !== BigInt(expectedLength) ||
+      length > BigInt(this.#bytes.length - this.#offset)
+    ) {
+      throw new TypeError("invalid CBOR bytes");
+    }
+    const size = Number(length);
+    const value = this.#bytes.slice(this.#offset, this.#offset + size);
+    this.#offset += size;
+    return value;
+  }
+
+  bytes(expectedLength: number): Uint8Array {
+    const value = this.nullableBytes(expectedLength);
+    if (value === undefined) throw new TypeError("unexpected CBOR null");
+    return value;
+  }
+
   map(): number {
     const [major, length] = this.head();
     if (major !== 5 || length > 1_000_000n) {
@@ -269,12 +297,15 @@ class Reader {
 
 function decodeResult(bytes: Uint8Array): DecodedResult {
   const reader = new Reader(bytes);
-  if (reader.map() !== 14) throw new TypeError("invalid Auths result shape");
+  if (reader.map() !== 16) throw new TypeError("invalid Auths result shape");
   let decision = -1;
   let stage = -1;
   let code = "";
   let metrics: bigint[] = [];
-  for (let index = 0; index < 14; index += 1) {
+  let requiredConfiguration: Uint8Array | undefined;
+  let localConfiguration: Uint8Array | undefined;
+  let abiVersion = -1n;
+  for (let index = 0; index < 16; index += 1) {
     const key = Number(reader.uint());
     if (key === 0) decision = Number(reader.uint());
     else if (key === 1) stage = Number(reader.uint());
@@ -294,11 +325,23 @@ function decodeResult(bytes: Uint8Array): DecodedResult {
         }
         metrics.push(reader.uint());
       }
+    } else if (key === 13) {
+      requiredConfiguration = reader.nullableBytes(32);
+    } else if (key === 14) {
+      localConfiguration = reader.bytes(32);
+    } else if (key === 15) {
+      abiVersion = reader.uint();
     } else {
       reader.skip();
     }
   }
-  if (!reader.complete || !code || metrics.length !== 7) {
+  if (
+    !reader.complete ||
+    !code ||
+    metrics.length !== 7 ||
+    localConfiguration === undefined ||
+    abiVersion !== 2n
+  ) {
     throw new TypeError("incomplete Auths result");
   }
   const kinds: VerdictKind[] = ["authorized", "denied", "indeterminate"];
@@ -318,6 +361,8 @@ function decodeResult(bytes: Uint8Array): DecodedResult {
     kind,
     code,
     stage: stageName,
+    requiredConfiguration,
+    localConfiguration,
     metrics: {
       proofBytes: metrics[0]!,
       actionBytes: metrics[1]!,

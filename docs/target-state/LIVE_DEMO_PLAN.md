@@ -60,7 +60,7 @@ isolated demo state and increments a visible execution counter.
 
 ```text
 +----------------------------------------------------------------------------+
-| Auths Live Lab                         Browser WASM: ready   Backend: ready  |
+| Auths Live Lab         WASM: ready  API: lhr  Release: 8f31c2  Config: match |
 +----------------------------------------------------------------------------+
 | Agent request                                                              |
 | deploy_service payments-api → production / eu-west                         |
@@ -153,6 +153,188 @@ The default view hides raw CBOR and cryptographic detail.
 The browser and backend verify independently. The backend never trusts the
 browser verdict.
 
+## Physical Deployment
+
+### Current platform inventory
+
+As verified on 26 July 2026, the authenticated Fly.io account contains:
+
+| App | Region | Current shape |
+| --- | --- | --- |
+| `auths-network` | London (`lhr`) | One started Machine with passing checks |
+| `auths-network-2` | Virginia (`iad`) | One started Machine with passing checks |
+
+These deployments establish the two available GEOs but are separate Fly apps.
+They must not become independent authorities over the same replay, budget, or
+execution state. The demo should not reuse either app's production authority
+or implicitly couple the demo lifecycle to the network services.
+
+### Selected topology
+
+Use four deployment environments:
+
+| Surface | Staging | Production |
+| --- | --- | --- |
+| Browser UI and WASM | Vercel Preview | Vercel Production |
+| Native demo service | `auths-live-demo-staging` | `auths-live-demo` |
+
+Each Fly app contains one Machine in `lhr` and one in `iad`. This is preferable
+to maintaining one app per region because Fly Proxy can route a session to its
+owning region or Machine inside one deployment and one configuration boundary.
+
+```text
++------------------------- Vercel --------------------------+
+| Scenario UI + exact release metadata + real WASM verifier |
++------------------------------+----------------------------+
+                               |
+                      demo-api.auths.dev
+                               |
+                      Fly global proxy
+                               |
+                 +-------------+-------------+
+                 |                           |
+                 v                           v
++-------------------------------+  +-------------------------------+
+| auths-live-demo / lhr         |  | auths-live-demo / iad         |
+| Native verifier              |  | Native verifier               |
+| Region-owned sessions        |  | Region-owned sessions         |
+| Atomic replay/budget store   |  | Atomic replay/budget store    |
+| Safe executor + receipts     |  | Safe executor + receipts      |
++-------------------------------+  +-------------------------------+
+```
+
+Vercel serves the UI, immutable WASM, and release metadata. It does not own
+replay, budget, execution, or receipt state. Fly serves the bounded native API
+and event stream.
+
+### Session ownership and failover
+
+The initial `POST /api/v1/sessions` is handled in the nearest healthy Fly
+region. The response contains an authenticated opaque session token binding:
+
+- random session ID;
+- owner Fly app, region, and Machine;
+- release ID;
+- absolute expiry; and
+- token version.
+
+All later stateful requests are handled by that owner. A request received by a
+different Machine is replayed to the owner with Fly dynamic request routing.
+The application validates the authenticated ownership claim before issuing a
+`fly-replay` response; it never trusts a visitor-supplied region header.
+
+The demo keeps proof and request limits below Fly's 1 MB replay ceiling. If a
+future profile legitimately exceeds that ceiling, the client must address the
+owner directly or use an explicitly validated preferred-region flow rather
+than silently bypass session affinity. See
+[Fly dynamic request routing](https://fly.io/docs/networking/dynamic-request-routing/).
+
+Fly Volumes are local and are not automatically replicated. The two regional
+stores therefore remain independent and each owns only the sessions it
+created. See [Fly Volumes](https://fly.io/docs/volumes/overview/).
+
+If a session's owning Machine or region is unavailable:
+
+- verification and execution fail closed;
+- the other region does not reconstruct or continue the session;
+- the UI explains that the short-lived session was lost; and
+- the visitor may reset and create a new session in a healthy region.
+
+This is an intentional availability boundary. Seamless failover of an active
+session would require one authoritative transactional writer or a
+consensus-backed global store and is not part of the first public demo.
+
+### State and TTLs
+
+Sessions have a fixed **15-minute absolute TTL** from creation. Activity does
+not extend it. The remaining lifetimes are:
+
+| State | Lifetime |
+| --- | --- |
+| Approval ceremony | No later than session expiry |
+| Issued execution challenge | Five minutes and never later than session expiry |
+| Event replay buffer | Session lifetime |
+| Signed receipt retrieval | One hour |
+| Rate-limit counters | Fifteen-minute rolling window |
+
+The owner uses a local transactional store. One atomic transaction:
+
+1. claims the challenge through a uniqueness constraint;
+2. reserves the requested budget;
+3. records the sealed verified command;
+4. increments the safe executor counter; and
+5. commits the immutable execution record.
+
+Receipt signing is idempotent over the committed execution record. A retry may
+return the same receipt but must never invoke the executor again.
+
+Production Machines remain running in both regions to avoid a cold-start pause
+during the guided tour. Use `auto_stop_machines = "off"` in production.
+Staging may suspend when idle and auto-start on demand. Fly documents that
+`min_machines_running` only applies to the primary region when autostop is
+enabled, so it is not sufficient by itself to keep one Machine warm in both
+GEOs. See [Fly app configuration](https://fly.io/docs/reference/configuration/).
+
+### Release identity and configuration parity
+
+CI builds one immutable release bundle containing:
+
+```text
+release_id
+git_commit
+native_image_digest
+wasm_sha256
+protocol_major
+verifier_configuration_id
+canonical_corpus_digest
+```
+
+Both Fly regions receive the same image, demo custody material, trust records,
+and verifier configuration. Keys may rotate between releases but not
+independently between regions in one release.
+
+`GET /api/v1/meta` returns the public release fields. The frontend embeds its
+expected release ID, WASM digest, protocol major, and verifier configuration
+ID. It visibly fails closed and disables approval and execution if they do not
+match the backend.
+
+### Deployment and promotion
+
+Every candidate follows this path:
+
+1. Run monorepo CI and build native, WASM, frontend, and canonical corpus
+   artifacts once.
+2. Deploy the native image to `auths-live-demo-staging` in `lhr` and `iad`.
+3. Create a Vercel Preview configured with the staging API origin.
+4. Run the guided tour and every required experiment against each Fly region,
+   including browser/native digest equality, replay, and concurrent duplicate
+   execution.
+5. Start new production Fly Machines in both regions with the tested image.
+6. Stop assigning new sessions to the old Machines, but retain them for at
+   least the 15-minute session TTL.
+7. Create a staged Vercel production deployment without assigning the public
+   domain, run smoke checks, and then promote that exact deployment.
+8. Verify the production alias, both Fly regions, stable codes, configuration
+   parity, and browser/native digests.
+9. Remove drained Fly Machines only after their final sessions expire.
+
+Vercel Preview is always paired with the staging Fly app; Vercel Production is
+always paired with the production Fly app. Secrets and origins must not be
+shared across those environments. Vercel supports inspecting and testing a
+Preview before promoting it to Production; see
+[Vercel preview promotion](https://vercel.com/docs/deployments/promote-preview-to-production).
+
+Rollback keeps the previous Vercel deployment and drained Fly Machines
+available until the session TTL passes:
+
+- frontend failure: immediately restore the prior Vercel deployment;
+- backend failure before new sessions: route new sessions to the prior Fly
+  release;
+- backend failure after new sessions: fail those sessions closed rather than
+  execute against a different release;
+- configuration disagreement: disable execution globally until parity is
+  restored.
+
 ## Frontend Components
 
 - Scenario selector and reset control.
@@ -177,6 +359,8 @@ runtime events; no security outcome is inferred from UI state.
 
 - Creates short-lived isolated demo sessions.
 - Issues cryptographically random challenges.
+- Applies the fixed 15-minute absolute session TTL.
+- Authenticates and enforces Fly app, region, Machine, and release ownership.
 - Applies strict request, proof, and session limits.
 - Resets all state on expiry.
 
@@ -225,6 +409,7 @@ POST /api/v1/sessions/{session_id}/execute
 POST /api/v1/sessions/{session_id}/replay
 GET  /api/v1/sessions/{session_id}/receipts
 GET  /api/v1/sessions/{session_id}/events
+GET  /api/v1/meta
 ```
 
 Representative session response:
@@ -239,7 +424,10 @@ Representative session response:
   },
   "browser_verdict": null,
   "native_verdict": null,
-  "execution_count": 0
+  "execution_count": 0,
+  "owner_region": "lhr",
+  "expires_at": "2026-07-26T12:15:00Z",
+  "release_id": "8f31c2"
 }
 ```
 
@@ -274,6 +462,10 @@ and are not embedded as unconstrained JSON arrays.
 - Per-IP and per-session rate limits apply.
 - Concurrent requests are bounded.
 - Backend state is namespaced by unpredictable session ID.
+- Session ownership tokens are authenticated, expire absolutely, and cannot
+  select an arbitrary Fly region or Machine.
+- CORS allows only the exact Vercel Preview or Production origins assigned to
+  the corresponding Fly environment.
 - Responses never contain private custody material.
 - Logs use privacy-preserving operational events.
 - The executor performs only sandboxed state transitions.
@@ -291,6 +483,9 @@ Track:
 - Replay and concurrent-duplicate rejections.
 - Browser/native digest disagreements.
 - Receipt persistence failures.
+- Sessions, failures, and latency by owner region and release ID.
+- Cross-region replay routing, failed owner routing, and session resets.
+- Release, WASM, protocol, and verifier-configuration disagreements.
 
 Any browser/native disagreement is a high-severity alert and visibly fails the
 demo closed.
@@ -323,6 +518,12 @@ demo closed.
 
 - Add abuse controls, deployment isolation, observability, fault injection,
   accessibility, mobile layout, and load tests.
+- Create separate staging and production Fly apps, each in `lhr` and `iad`.
+- Add region/Machine-bound session routing and fail-closed owner loss.
+- Add Vercel Preview-to-staging and Production-to-production environment
+  isolation.
+- Add immutable release metadata, two-region smoke tests, draining, promotion,
+  and rollback automation.
 - Publish a stable URL and link/embed it from `auths-proof-site`.
 
 ## Acceptance Criteria
@@ -337,4 +538,13 @@ demo closed.
 - Browser verification works after network disconnection.
 - The demo contains no production authority or external execution capability.
 - End-to-end tests run in monorepo CI using built WASM and native artifacts.
-
+- New sessions can be created in both `lhr` and `iad`.
+- A session remains bound to exactly one Fly owner and cannot execute in the
+  other region.
+- Loss of the owner fails closed and permits only an explicit session reset.
+- Vercel Preview uses only the staging Fly app, and Vercel Production uses only
+  the production Fly app.
+- The UI refuses execution when release, WASM, protocol, or verifier
+  configuration metadata disagree.
+- Old Fly Machines remain available for the full 15-minute drain window during
+  a deployment.

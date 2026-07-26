@@ -221,7 +221,7 @@ func decodeBinding(value *cborValue, maximum uint64) (*controlBinding, error) {
 	return result, nil
 }
 
-func decodeBundle(data []byte, limits [24]uint64) (*proofBundle, error) {
+func decodeBundle(data []byte, limits [27]uint64) (*proofBundle, error) {
 	if uint64(len(data)) > limits[0] {
 		return nil, denied("resource-limit-exceeded")
 	}
@@ -253,7 +253,7 @@ func decodeBundle(data []byte, limits [24]uint64) (*proofBundle, error) {
 	result := &proofBundle{raw: append([]byte(nil), data...)}
 	grantsValue, _ := mapValue(root, 1)
 	grantNodes, err := arrayValue(grantsValue)
-	if err != nil || uint64(len(grantNodes)) > limits[1] {
+	if err != nil || uint64(len(grantNodes)) > limits[3] {
 		return nil, denied("resource-limit-exceeded")
 	}
 	for _, node := range grantNodes {
@@ -266,7 +266,7 @@ func decodeBundle(data []byte, limits [24]uint64) (*proofBundle, error) {
 	}
 	actionsValue, _ := mapValue(root, 2)
 	actionNodes, err := arrayValue(actionsValue)
-	if err != nil || len(actionNodes) == 0 || uint64(len(actionNodes)) > limits[2] {
+	if err != nil || len(actionNodes) == 0 || uint64(len(actionNodes)) > limits[4] {
 		return nil, denied("resource-limit-exceeded")
 	}
 	for _, node := range actionNodes {
@@ -278,17 +278,21 @@ func decodeBundle(data []byte, limits [24]uint64) (*proofBundle, error) {
 		result.actions = append(result.actions, action)
 	}
 	planValue, _ := mapValue(root, 3)
-	result.plan, _, err = decodePlan(planValue, 1, limits)
+	var leaves int
+	result.plan, leaves, err = decodePlan(planValue, 1, limits)
 	if err != nil {
 		return nil, semanticDecodeFailure(err)
 	}
+	if uint64(leaves) > limits[5] {
+		return nil, denied("resource-limit-exceeded")
+	}
 	evidenceValue, _ := mapValue(root, 4)
 	evidenceNodes, err := arrayValue(evidenceValue)
-	if err != nil || uint64(len(evidenceNodes)) > limits[6] {
+	if err != nil || uint64(len(evidenceNodes)) > limits[8] {
 		return nil, denied("resource-limit-exceeded")
 	}
 	for _, node := range evidenceNodes {
-		evidence, err := decodeEvidence(node, limits[7])
+		evidence, err := decodeEvidence(node, limits[9])
 		if err != nil {
 			return nil, semanticDecodeFailure(err)
 		}
@@ -296,11 +300,11 @@ func decodeBundle(data []byte, limits [24]uint64) (*proofBundle, error) {
 	}
 	bindingsValue, _ := mapValue(root, 5)
 	bindingNodes, err := arrayValue(bindingsValue)
-	if err != nil || uint64(len(bindingNodes)) > limits[8] {
+	if err != nil || uint64(len(bindingNodes)) > limits[10] {
 		return nil, denied("resource-limit-exceeded")
 	}
 	for _, node := range bindingNodes {
-		binding, err := decodeBinding(node, limits[19])
+		binding, err := decodeBinding(node, limits[22])
 		if err != nil {
 			return nil, semanticDecodeFailure(err)
 		}
@@ -308,7 +312,7 @@ func decodeBundle(data []byte, limits [24]uint64) (*proofBundle, error) {
 	}
 	principalStatusValue, _ := mapValue(root, 6)
 	principalStatusNodes, err := arrayValue(principalStatusValue)
-	if err != nil || uint64(len(principalStatusNodes)) > limits[9] {
+	if err != nil || uint64(len(principalStatusNodes)) > limits[11] {
 		return nil, denied("resource-limit-exceeded")
 	}
 	for _, node := range principalStatusNodes {
@@ -320,7 +324,7 @@ func decodeBundle(data []byte, limits [24]uint64) (*proofBundle, error) {
 	}
 	grantStatusValue, _ := mapValue(root, 7)
 	grantStatusNodes, err := arrayValue(grantStatusValue)
-	if err != nil || uint64(len(grantStatusNodes)) > limits[10] {
+	if err != nil || uint64(len(grantStatusNodes)) > limits[12] {
 		return nil, denied("resource-limit-exceeded")
 	}
 	for _, node := range grantStatusNodes {
@@ -330,12 +334,9 @@ func decodeBundle(data []byte, limits [24]uint64) (*proofBundle, error) {
 		}
 		result.grantStatus = append(result.grantStatus, status)
 	}
-	if uint64(len(result.grants)+len(result.actions)+len(result.principalStatus)+len(result.grantStatus)) > limits[12] {
-		return nil, denied("resource-limit-exceeded")
-	}
 	attachmentsValue, _ := mapValue(root, 8)
 	attachmentNodes, err := arrayValue(attachmentsValue)
-	if err != nil || uint64(len(attachmentNodes)) > limits[11] {
+	if err != nil || uint64(len(attachmentNodes)) > limits[13] {
 		return nil, denied("resource-limit-exceeded")
 	}
 	for _, node := range attachmentNodes {
@@ -350,7 +351,7 @@ func decodeBundle(data []byte, limits [24]uint64) (*proofBundle, error) {
 		result.canonicalBody = nil
 	} else {
 		result.canonicalBody, err = bytesValue(bodyValue, -1)
-		if err != nil || uint64(len(result.canonicalBody)) > limits[20] {
+		if err != nil || uint64(len(result.canonicalBody)) > limits[23] {
 			return nil, denied("resource-limit-exceeded")
 		}
 	}
@@ -583,11 +584,55 @@ func decodeContext(data []byte) (*verifierContext, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := exactMap(root, 12); err != nil {
+	if err := exactMap(root, 14); err != nil {
 		return nil, err
 	}
 	result := &verifierContext{raw: append([]byte(nil), data...)}
-	anchorsValue, _ := mapValue(root, 0)
+	limits := mustMap(root, 0)
+	if err := exactMap(limits, 27); err != nil {
+		return nil, err
+	}
+	for index := range result.limits {
+		result.limits[index], err = uintValue(mustMap(limits, uint64(index)))
+		if err != nil {
+			return nil, err
+		}
+	}
+	result.configuration, err = bytesValue(mustMap(root, 1), 32)
+	if err != nil {
+		return nil, err
+	}
+	composition := mustMap(root, 2)
+	if err := exactMap(composition, 4); err != nil {
+		return nil, err
+	}
+	expectedPlan := mustMap(composition, 0)
+	if !(expectedPlan.major == 7 && expectedPlan.uint == 22) {
+		result.composition.expectedPlan, err = bytesValue(expectedPlan, 32)
+		if err != nil {
+			return nil, err
+		}
+	}
+	result.composition.minimumAuthorizedBranches, err = uintValue(mustMap(composition, 1))
+	if err != nil {
+		return nil, err
+	}
+	result.composition.minimumDistinctActors, err = uintValue(mustMap(composition, 2))
+	if err != nil {
+		return nil, err
+	}
+	result.composition.minimumDistinctRoots, err = uintValue(mustMap(composition, 3))
+	if err != nil {
+		return nil, err
+	}
+	if result.composition.minimumAuthorizedBranches == 0 ||
+		result.composition.minimumDistinctActors == 0 ||
+		result.composition.minimumDistinctRoots == 0 ||
+		result.composition.minimumDistinctActors > result.composition.minimumAuthorizedBranches ||
+		result.composition.minimumDistinctRoots > result.composition.minimumAuthorizedBranches {
+		return nil, errors.New("invalid composition requirement")
+	}
+	anchorsValue, _ := mapValue(root, 3)
 	anchorNodes, err := arrayValue(anchorsValue)
 	if err != nil || len(anchorNodes) == 0 {
 		return nil, errors.New("invalid trust anchors")
@@ -599,7 +644,7 @@ func decodeContext(data []byte) (*verifierContext, error) {
 		}
 		result.anchors = append(result.anchors, anchor)
 	}
-	registries, _ := mapValue(root, 1)
+	registries, _ := mapValue(root, 4)
 	if err := exactMap(registries, 13); err != nil {
 		return nil, err
 	}
@@ -639,19 +684,19 @@ func decodeContext(data []byte) (*verifierContext, error) {
 	if result.profilePolicies, err = textArray(mustMap(registries, 12)); err != nil {
 		return nil, err
 	}
-	result.expectedAudience, err = textValue(mustMap(root, 2))
+	result.expectedAudience, err = textValue(mustMap(root, 5))
 	if err != nil {
 		return nil, err
 	}
-	result.expectedChallenge, err = bytesValue(mustMap(root, 3), 32)
+	result.expectedChallenge, err = bytesValue(mustMap(root, 6), 32)
 	if err != nil {
 		return nil, err
 	}
-	result.evaluationTime, err = uintValue(mustMap(root, 4))
+	result.evaluationTime, err = uintValue(mustMap(root, 7))
 	if err != nil {
 		return nil, err
 	}
-	assurance, _ := mapValue(root, 5)
+	assurance, _ := mapValue(root, 8)
 	if err := exactMap(assurance, 2); err != nil {
 		return nil, err
 	}
@@ -664,7 +709,7 @@ func decodeContext(data []byte) (*verifierContext, error) {
 		return nil, err
 	}
 	for _, node := range requirementNodes {
-		if err := exactMap(node, 7); err != nil {
+		if err := exactMap(node, 8); err != nil {
 			return nil, err
 		}
 		role, err := uintValue(mustMap(node, 0))
@@ -684,39 +729,33 @@ func decodeContext(data []byte) (*verifierContext, error) {
 			}
 			maximum = &value
 		}
+		quantifier, err := uintValue(mustMap(node, 7))
+		if err != nil || quantifier > 1 {
+			return nil, errors.New("invalid assurance quantifier")
+		}
 		result.assurance = append(result.assurance, assuranceRequirement{
-			role: role, claim: claim, maximumAge: maximum,
+			role: role, claim: claim, maximumAge: maximum, quantifier: quantifier,
 		})
 	}
-	result.principalSnapshot, err = decodePrincipalSnapshot(mustMap(root, 6))
+	result.principalSnapshot, err = decodePrincipalSnapshot(mustMap(root, 9))
 	if err != nil {
 		return nil, err
 	}
-	result.grantSnapshot, err = decodeGrantSnapshot(mustMap(root, 7))
+	result.grantSnapshot, err = decodeGrantSnapshot(mustMap(root, 10))
 	if err != nil {
 		return nil, err
 	}
-	result.resourceMatcher, err = textValue(mustMap(root, 8))
+	result.resourceMatcher, err = textValue(mustMap(root, 11))
 	if err != nil {
 		return nil, err
 	}
-	result.profilePolicy, err = textValue(mustMap(root, 9))
+	result.profilePolicy, err = textValue(mustMap(root, 12))
 	if err != nil {
 		return nil, err
 	}
-	result.channelPolicy, err = textValue(mustMap(root, 10))
+	result.channelPolicy, err = textValue(mustMap(root, 13))
 	if err != nil {
 		return nil, err
-	}
-	limits := mustMap(root, 11)
-	if err := exactMap(limits, 24); err != nil {
-		return nil, err
-	}
-	for index := range result.limits {
-		result.limits[index], err = uintValue(mustMap(limits, uint64(index)))
-		if err != nil {
-			return nil, err
-		}
 	}
 	return result, nil
 }

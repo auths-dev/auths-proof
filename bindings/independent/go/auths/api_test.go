@@ -1,6 +1,7 @@
 package auths
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -21,7 +22,18 @@ func proofFixture(t *testing.T, name string) []byte {
 
 func TestVerifyReturnsNativeAuthorizedResult(t *testing.T) {
 	t.Parallel()
-	result := Verify(
+	manifestBytes, err := os.ReadFile(filepath.Join(
+		"..", "..", "..", "..", "core", "fixtures", "v1", "manifest.json",
+	))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var corpus manifest
+	if err := json.Unmarshal(manifestBytes, &corpus); err != nil {
+		t.Fatal(err)
+	}
+	engine := &Engine{adapters: corpus.AdapterContext}
+	result := engine.Verify(
 		proofFixture(t, "raw-key-chain.proof.cbor"),
 		proofFixture(t, "raw-key-chain.action.cbor"),
 		proofFixture(t, "raw-key-chain.context.cbor"),
@@ -50,7 +62,7 @@ func TestSharedCorpusRunsInNativeGoTest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	const expected = "99:6086b4db36264409ec494e2a1b1ebf1e834c5af1eca9c54344e70a49a383a377"
+	const expected = "101:2dc38d7c3581d242a7b56f3e5de2fb2c0d5aa3e7cac1f0b82f88dbc3aa443aeb"
 	if digest != expected {
 		t.Fatalf("semantic corpus digest mismatch: got %s", digest)
 	}

@@ -1421,6 +1421,10 @@ mod tests {
             &self.id
         }
 
+        fn configuration_id(&self) -> auths_model::AdapterConfigurationId {
+            auths_ports::configuration_id(self.id.as_str().as_bytes(), core::iter::empty())
+        }
+
         fn verify(&self, input: SignatureInput<'_>) -> Result<(), SignatureError> {
             if input.verification_key != [7] {
                 return Err(SignatureError::InvalidKey);
