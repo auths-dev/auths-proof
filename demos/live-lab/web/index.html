@@ -78,101 +78,178 @@
     </header>
 
     <main id="main">
-      <section class="hero section-shell">
-        <div class="hero-copy-block">
-          <p class="eyebrow">
-            <span class="eyebrow-mark" aria-hidden="true"></span>
-            Authorization, running
-          </p>
-          <h1>See permission <em>become executable.</em></h1>
-          <p class="hero-lead">
-            Verify a real Auths proof in your browser. Submit the same exact
-            action to native Rust. Then replay it and watch the runtime refuse
-            to execute twice.
-          </p>
-          <div class="hero-actions">
-            <a class="button button-primary" href="#experiment">
-              Run the live proof <span aria-hidden="true">→</span>
-            </a>
-            <a class="button button-secondary" href="#evidence">
-              Inspect the evidence <span aria-hidden="true">↓</span>
-            </a>
+      <section class="lab-intro">
+        <div class="section-shell intro-grid">
+          <div>
+            <p class="eyebrow">
+              <span class="eyebrow-mark" aria-hidden="true"></span>
+              Proof-carrying authorization, live
+            </p>
+            <h1>Change the evidence. <em>See the decision.</em></h1>
           </div>
-          <ul class="hero-properties" aria-label="Live lab guarantees">
-            <li>Real WASM verifier</li>
-            <li>Native Rust parity</li>
-            <li>Execute once</li>
-          </ul>
+          <div class="intro-copy">
+            <p>
+              Select what the verifier sees. Auths immediately checks the proof
+              in your browser, then lets you submit those same bytes to native
+              Rust.
+            </p>
+            <ul aria-label="Live lab guarantees">
+              <li>Real WASM verifier</li>
+              <li>Native Rust parity</li>
+              <li>Execute once</li>
+            </ul>
+          </div>
         </div>
+      </section>
 
-        <div class="hero-artifact">
-          <div class="artifact-orbit orbit-one" aria-hidden="true"></div>
-          <div class="artifact-orbit orbit-two" aria-hidden="true"></div>
-          <article class="hero-verdict" aria-label="Live authorization result">
-            <header class="verdict-header">
-              <div>
-                <span class="micro-label">Authorization result</span>
-                <span class="proof-id">AUTH-V1 / LIVE</span>
+      <section class="experiment-section workbench-section" id="experiment">
+        <div class="section-shell">
+          <div class="workbench-frame">
+            <section
+              class="scenario-panel"
+              aria-labelledby="scenario-panel-heading"
+            >
+              <div class="panel-heading">
+                <span class="step-number">01</span>
+                <span class="micro-label">Change the evidence</span>
+                <span class="auto-verify">
+                  <i aria-hidden="true"></i>
+                  Auto-verifies
+                </span>
               </div>
-              <span class="verdict-state">
-                <i aria-hidden="true"></i>
-                Browser
-              </span>
-            </header>
-            <div class="verdict-body">
-              <span class="micro-label">Current verdict</span>
-              <strong id="verdict" data-kind="indeterminate">LOADING</strong>
-              <dl>
+              <h2 id="scenario-panel-heading">
+                Choose what the verifier sees.
+              </h2>
+              <div
+                id="variants"
+                class="variants"
+                aria-label="Experiment variants"
+              ></div>
+              <div class="selection-explanation">
+                <span class="micro-label">What changed</span>
+                <p id="tour-copy">
+                  Select an experiment to run through the real WASM boundary.
+                </p>
+              </div>
+            </section>
+
+            <article
+              class="result-panel"
+              aria-label="Live authorization result"
+            >
+              <header class="result-header">
+                <div>
+                  <span class="micro-label">Live authorization result</span>
+                  <span class="proof-id">AUTH-V1 / LIVE</span>
+                </div>
+                <span class="verdict-state">
+                  <i aria-hidden="true"></i>
+                  Browser / WASM
+                </span>
+              </header>
+
+              <div class="result-summary" aria-live="polite" aria-atomic="true">
+                <div>
+                  <span class="micro-label">Current verdict</span>
+                  <strong id="verdict" data-kind="indeterminate"
+                    >LOADING</strong
+                  >
+                </div>
+                <p id="verdict-summary">
+                  Loading the verifier and proof evidence.
+                </p>
+              </div>
+
+              <dl class="result-details">
                 <div>
                   <dt>Stable code</dt>
                   <dd id="verdict-code">—</dd>
                 </div>
                 <div>
-                  <dt>Final stage</dt>
+                  <dt>Decision stage</dt>
                   <dd id="verdict-stage">—</dd>
                 </div>
                 <div>
-                  <dt>Native parity</dt>
+                  <dt>Generated native parity</dt>
                   <dd id="parity">—</dd>
                 </div>
               </dl>
-            </div>
-            <footer class="verdict-footer">
-              <span>proof</span><i aria-hidden="true"></i> <span>verify</span
-              ><i aria-hidden="true"></i>
-              <span>action</span>
-            </footer>
-          </article>
+
+              <div class="system-status" aria-label="Runtime status">
+                <div>
+                  <span>Browser verifier</span>
+                  <strong id="app-status">loading</strong>
+                </div>
+                <div>
+                  <span>Native service</span>
+                  <strong id="native-status">connecting</strong>
+                </div>
+                <div>
+                  <span>Region</span>
+                  <strong id="connection-status">—</strong>
+                </div>
+                <div>
+                  <span>Configuration</span>
+                  <strong id="config-status">checking</strong>
+                </div>
+              </div>
+
+              <section class="native-result" aria-labelledby="native-heading">
+                <div class="native-heading">
+                  <div>
+                    <span class="micro-label">Native enforcement</span>
+                    <h3 id="native-heading">
+                      Verification can repeat. Execution cannot.
+                    </h3>
+                  </div>
+                  <p id="session-status" class="session-status">
+                    Connecting to a short-lived native session.
+                  </p>
+                </div>
+                <div class="runtime-grid">
+                  <article>
+                    <span>First submission</span>
+                    <strong id="runtime-outcome">—</strong>
+                  </article>
+                  <article>
+                    <span>Replay</span>
+                    <strong id="replay-outcome">—</strong>
+                  </article>
+                  <article>
+                    <span>Executions</span>
+                    <strong id="execution-count">—</strong>
+                  </article>
+                  <article>
+                    <span>Receipts</span>
+                    <strong id="receipt-count">—</strong>
+                  </article>
+                </div>
+              </section>
+
+              <button
+                id="native-button"
+                class="primary-button"
+                type="button"
+                disabled
+              >
+                Connecting to native Rust
+              </button>
+            </article>
+          </div>
         </div>
       </section>
-
-      <div class="signal-strip" aria-label="Runtime status">
-        <div class="section-shell status-strip">
-          <span>
-            <i class="status-dot" aria-hidden="true"></i>
-            WASM <b id="app-status">loading</b>
-          </span>
-          <span>Native <b id="native-status">connecting</b></span>
-          <span>Region <b id="connection-status">—</b></span>
-          <span>Config <b id="config-status">checking</b></span>
-        </div>
-      </div>
 
       <section class="evidence-section" id="evidence">
         <div class="section-shell">
           <div class="section-kicker">
-            <span>01</span>
-            <span>What is proven</span>
+            <span>02</span>
+            <span>Why this result</span>
           </div>
           <div class="section-heading">
-            <h2>
-              The request is part of
-              <em>the permission.</em>
-            </h2>
+            <h2>Inspect the exact <em>evidence.</em></h2>
             <p>
-              Auths binds the exact MCP call, audience, challenge, principal,
-              and verifier configuration into evidence both implementations can
-              check independently.
+              The active experiment above changes the real proof, request, or
+              trusted context. These are the exact values Auths evaluates.
             </p>
           </div>
 
@@ -185,8 +262,8 @@
                 <code>{ "name": "q3" }</code>
               </div>
               <div class="digest-stack">
-                <span> Canonical action <b id="action-digest">—</b> </span>
-                <span> Proof bundle <b id="proof-digest">—</b> </span>
+                <span>Canonical action <b id="action-digest">—</b></span>
+                <span>Proof bundle <b id="proof-digest">—</b></span>
               </div>
             </div>
           </section>
@@ -229,86 +306,37 @@
         </div>
       </section>
 
-      <section class="experiment-section" id="experiment">
+      <section class="flow-section">
         <div class="section-shell">
-          <div class="section-kicker section-kicker-light">
-            <span>02</span>
-            <span>Change the evidence</span>
-          </div>
-          <div class="experiment">
-            <div class="experiment-copy">
-              <h2>Break one guarantee. Keep the verifier.</h2>
-              <p id="tour-copy">
-                Select an experiment to run through the real WASM boundary.
-              </p>
-            </div>
-            <div class="experiment-controls">
-              <div
-                id="variants"
-                class="variants"
-                aria-label="Experiment variants"
-              ></div>
-              <div class="experiment-actions">
-                <button
-                  id="verify-button"
-                  class="secondary-button"
-                  type="button"
-                >
-                  Verify in browser
-                </button>
-                <button
-                  id="native-button"
-                  class="primary-button"
-                  type="button"
-                  disabled
-                >
-                  Submit to native runtime
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section class="runtime-section">
-        <div class="section-shell runtime">
           <div class="section-kicker">
             <span>03</span>
-            <span>Native enforcement</span>
+            <span>What Auths changes</span>
           </div>
-          <div class="runtime-heading">
-            <h2>Verification can repeat. Execution cannot.</h2>
-            <p id="session-status" class="session-status">
-              Connecting to a short-lived native session. The browser verifier
-              remains available offline.
-            </p>
-          </div>
-          <div class="runtime-grid">
+          <div class="flow-grid">
             <article>
-              <span class="runtime-index">01</span>
-              <p>First submission</p>
-              <strong id="runtime-outcome">—</strong>
+              <span>01 / Browser</span>
+              <h3>Verify the exact action.</h3>
+              <p>
+                Proof, request, and trusted context cross the real portable WASM
+                boundary.
+              </p>
             </article>
             <article>
-              <span class="runtime-index">02</span>
-              <p>Replay submission</p>
-              <strong id="replay-outcome">—</strong>
+              <span>02 / Native</span>
+              <h3>Require the same decision.</h3>
+              <p>
+                Native Rust must return the identical canonical result before
+                the safe executor runs.
+              </p>
             </article>
             <article>
-              <span class="runtime-index">03</span>
-              <p>Executor invocations</p>
-              <strong id="execution-count">—</strong>
+              <span>03 / Replay</span>
+              <h3>Refuse a second execution.</h3>
+              <p>
+                The consumed challenge can be verified again, but it cannot
+                invoke the executor twice.
+              </p>
             </article>
-            <article>
-              <span class="runtime-index">04</span>
-              <p>Signed receipts</p>
-              <strong id="receipt-count">—</strong>
-            </article>
-          </div>
-          <div class="timeline" aria-label="Runtime enforcement stages">
-            <span>challenge</span><i></i><span>verify</span><i></i>
-            <span>replay claim</span><i></i><span>execute once</span><i></i>
-            <span>receipts</span>
           </div>
         </div>
       </section>

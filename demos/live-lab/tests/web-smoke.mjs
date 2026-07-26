@@ -84,6 +84,7 @@ assert.throws(
 const html = await readFile(join(site, "index.html"), "utf8");
 for (const id of [
   "verdict",
+  "verdict-summary",
   "variants",
   "runtime-outcome",
   "replay-outcome",
@@ -100,12 +101,16 @@ for (const id of [
 for (const designHook of [
   'class="site-header"',
   'class="wordmark"',
-  'class="experiment-section"',
+  'class="experiment-section workbench-section"',
+  'class="workbench-frame"',
+  'class="scenario-panel"',
+  'class="result-panel"',
   'class="site-footer"',
   'name="color-scheme" content="light"',
 ]) {
   assert.match(html, new RegExp(designHook));
 }
+assert.doesNotMatch(html, /id="verify-button"/);
 
 const styles = await readFile(join(site, "styles.css"), "utf8");
 for (const designToken of [
