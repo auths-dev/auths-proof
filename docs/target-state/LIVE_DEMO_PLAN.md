@@ -395,14 +395,14 @@ Deployed and verified on 26 July 2026:
 | Field | Value |
 | --- | --- |
 | Browser alias | `https://auths-live-demo.vercel.app` |
-| Immutable browser URL | `https://auths-live-demo-hz1xcssev-bordumbs-projects.vercel.app` |
-| Vercel deployment | `dpl_6qUpg93h6TMWiUg4RMeEwM1Rbvnw` |
+| Immutable browser URL | `https://auths-live-demo-cr1zoxdsv-bordumbs-projects.vercel.app` |
+| Vercel deployment | `dpl_F1kWNAqh2oSNP323rNbUUdrPXJbL` |
 | Native API | `https://auths-live-demo.fly.dev` |
-| Release ID | `40a07c56b87104e2b325e057b2598a3a0044af66` |
+| Release ID | `8a230d716db4f8801dc5432854df15545d05b781` |
 | WASM SHA-256 | `2d5b8aa9982f6ee04e107f37727ade56eedd99676c7c1801ed3d9d94f2a2f9c8` |
 | Verifier configuration | `df14e85024bf099cef6396b1a3515209625d73a86ed1da92b118dddcf6a486d5` |
-| Fly release | Version 3, `rel_v6gwzpglk9r7z9ok` |
-| Fly image | `registry.fly.io/auths-live-demo:deployment-01KYG40KWVNCCZRST3Z292WMXB` |
+| Fly release | Version 4, `rel_p98o26qnd0klz3ld` |
+| Fly image | `registry.fly.io/auths-live-demo:deployment-01KYG7AGC19DXR9Q9CM5CJ1CAA` |
 | London Machine | `8d96959be23498`, started, check 1/1 |
 | Virginia Machine | `7812615f2201d8`, started, check 1/1 |
 
@@ -423,6 +423,12 @@ Production evidence:
 - A real production browser showed `READY / NOT RUN / 0`, then
   `COMPLETED / READY / 1`, then
   `COMPLETED / CONSUMED-CHALLENGE / 1`; the replay control became disabled.
+- The production workbench keeps scenario controls and the live result
+  side-by-side. Every scenario selection immediately reruns the WASM verifier;
+  native execution remains an explicit action in the adjacent result panel.
+- Native execution state is isolated per scenario: switching from a blocked
+  replay to a denial and back restored the blocked replay without leaking that
+  state into the denial.
 - The production browser surface was visually checked against
   `auths-proof-site` and uses the same canvas, typography, color, evidence-card,
   technical-section, navigation, and footer language.
