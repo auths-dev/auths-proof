@@ -11,7 +11,9 @@ import {
 } from "../web/lab-core.js";
 
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
-const site = resolve(process.argv[2] ?? join(repository, "target/live-demo/site"));
+const site = resolve(
+  process.argv[2] ?? join(repository, "target/live-demo/site"),
+);
 
 const original = Uint8Array.from([1, 2, 3]);
 const changed = copyAndFlipLast(original);
@@ -95,16 +97,36 @@ for (const id of [
   assert.match(html, new RegExp(`id="${id}"`));
 }
 
+for (const designHook of [
+  'class="site-header"',
+  'class="wordmark"',
+  'class="experiment-section"',
+  'class="site-footer"',
+  'name="color-scheme" content="light"',
+]) {
+  assert.match(html, new RegExp(designHook));
+}
+
+const styles = await readFile(join(site, "styles.css"), "utf8");
+for (const designToken of [
+  "--canvas: #f6f5f1",
+  "--brand: #3157d5",
+  "--verified: #167456",
+  "--code: #171a18",
+  "@media (prefers-reduced-motion: reduce)",
+]) {
+  assert.ok(
+    styles.includes(designToken),
+    `missing Auths design-system contract: ${designToken}`,
+  );
+}
+
 const { loadAuths } = await import(
   pathToFileURL(join(site, "vendor/index.js")).href
 );
 const auths = await loadAuths({
-  moduleUrl: pathToFileURL(
-    join(site, "vendor/wasm/auths_proof_wasm.js"),
-  ).href,
-  wasmInput: await readFile(
-    join(site, "vendor/wasm/auths_proof_wasm_bg.wasm"),
-  ),
+  moduleUrl: pathToFileURL(join(site, "vendor/wasm/auths_proof_wasm.js")).href,
+  wasmInput: await readFile(join(site, "vendor/wasm/auths_proof_wasm_bg.wasm")),
 });
 const scenario = JSON.parse(
   await readFile(join(site, "assets/scenario.json"), "utf8"),
