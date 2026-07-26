@@ -2144,6 +2144,11 @@ fn live_demo() -> Result<(), String> {
     if fly.get("app").and_then(toml::Value::as_str) != Some("auths-live-demo")
         || fly.get("primary_region").and_then(toml::Value::as_str) != Some("lhr")
         || fly
+            .get("build")
+            .and_then(|build| build.get("dockerfile"))
+            .and_then(toml::Value::as_str)
+            != Some("Dockerfile")
+        || fly
             .get("http_service")
             .and_then(|service| service.get("internal_port"))
             .and_then(toml::Value::as_integer)
@@ -2166,6 +2171,13 @@ fn live_demo() -> Result<(), String> {
     ] {
         if !dockerfile.contains(required) {
             return Err(format!("live service container policy omits {required}"));
+        }
+    }
+    let dockerignore = fs::read_to_string(root().join(".dockerignore"))
+        .map_err(|error| format!("could not read Docker ignore policy: {error}"))?;
+    for required in ["target", "**/target", "**/pkg", "**/node_modules", "docs"] {
+        if !dockerignore.lines().any(|line| line == required) {
+            return Err(format!("Docker build-context policy omits {required}"));
         }
     }
 

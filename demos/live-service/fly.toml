@@ -4,7 +4,7 @@ kill_signal = "SIGINT"
 kill_timeout = 10
 
 [build]
-dockerfile = "demos/live-service/Dockerfile"
+dockerfile = "Dockerfile"
 
 [env]
 PORT = "8080"
