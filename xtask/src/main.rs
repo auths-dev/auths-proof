@@ -48,6 +48,13 @@ fn run() -> Result<(), String> {
         "wasm" => wasm(),
         "fuzz-inventory" => fuzz_inventory(),
         "fuzz-smoke" => fuzz_smoke(),
+        "platform-artifact" => {
+            let output = args
+                .next()
+                .map(PathBuf::from)
+                .unwrap_or_else(|| root().join("target/release-evidence/platform.json"));
+            platform_artifact(&output)
+        }
         "release-check" => release_check(),
         _ => {
             println!(
@@ -55,7 +62,7 @@ fn run() -> Result<(), String> {
                  product|bindings|demos|package|wire [--update]|spec-sync|conformance|\
                  exchange-conformance|product-conformance|matrix|cross-language|\
                  product-fixtures [--update]|semantic-digest|wasm|fuzz-inventory|\
-                 fuzz-smoke|ci|release-check>"
+                 fuzz-smoke|platform-artifact [output]|ci|release-check>"
             );
             Ok(())
         }
@@ -86,6 +93,7 @@ fn ci() -> Result<(), String> {
     matrix()?;
     bindings_check()?;
     package_check()?;
+    platform_artifact(&root().join("target/release-evidence/platform.json"))?;
     fuzz_smoke()?;
     wasm()
 }
@@ -785,6 +793,7 @@ fn release_evidence() -> Result<(), String> {
     if package_checksums.is_empty() {
         return Err("release packaging produced no crate archives".to_owned());
     }
+    let crate_archive_count = package_checksums.len();
     let commit = Command::new("git")
         .args(["rev-parse", "HEAD"])
         .current_dir(root())
@@ -805,6 +814,14 @@ fn release_evidence() -> Result<(), String> {
     let evidence = root().join("target/release-evidence");
     fs::create_dir_all(&evidence)
         .map_err(|error| format!("could not create release evidence directory: {error}"))?;
+    let platform_path = evidence.join("platform.json");
+    platform_artifact(&platform_path)?;
+    for relative in [
+        "target/release-evidence/platform.json",
+        "target/release-evidence/platform.sha256",
+    ] {
+        package_checksums.insert(relative.to_owned(), sha256_file(&root().join(relative))?);
+    }
     let sbom = serde_json::to_vec_pretty(&json!({
         "bomFormat": "CycloneDX",
         "specVersion": "1.5",
@@ -868,7 +885,225 @@ fn release_evidence() -> Result<(), String> {
     validate_release_evidence(&evidence, &checksums)?;
     println!(
         "generated and validated release evidence for {} crate archives",
-        checksums.len() - 2
+        crate_archive_count
+    );
+    Ok(())
+}
+
+fn platform_artifact(output: &Path) -> Result<(), String> {
+    use auths_model::{
+        DenialReason as D, Requirement as R, VerificationDecision as V, VerificationStage as S,
+    };
+
+    let policy = load_architecture_policy()?;
+    let manifest_bytes = fs::read(root().join("core/fixtures/v1/manifest.json"))
+        .map_err(|error| format!("could not read corpus manifest: {error}"))?;
+    let manifest: Value = serde_json::from_slice(&manifest_bytes)
+        .map_err(|error| format!("could not parse corpus manifest: {error}"))?;
+    let fixture_values = manifest["fixtures"]
+        .as_array()
+        .ok_or("corpus manifest has no fixtures")?;
+    let fixtures: Vec<_> = fixture_values
+        .iter()
+        .map(|fixture| {
+            json!({
+                "name": fixture["name"],
+                "class": fixture["class"],
+                "decision": fixture["expected_result"]["decision"],
+                "code": fixture["expected_result"]["code"],
+                "stage": fixture["expected_result"]["stage"],
+                "profile": fixture["canonical_action"]["profile"],
+            })
+        })
+        .collect();
+    let mut fixture_counts = BTreeMap::<String, usize>::new();
+    for fixture in fixture_values {
+        let class = fixture["class"]
+            .as_str()
+            .ok_or("corpus fixture has no class")?;
+        *fixture_counts.entry(class.to_owned()).or_default() += 1;
+    }
+
+    let mut packages = BTreeMap::<String, Vec<String>>::new();
+    for (name, layer) in &policy.packages {
+        packages
+            .entry(layer.clone())
+            .or_default()
+            .push(name.clone());
+    }
+    let dependency_graph: Value = serde_json::from_slice(
+        &fs::read(root().join("architecture/dependency-graph.json"))
+            .map_err(|error| format!("could not read architecture snapshot: {error}"))?,
+    )
+    .map_err(|error| format!("could not parse architecture snapshot: {error}"))?;
+    let graph_packages = dependency_graph["packages"]
+        .as_array()
+        .ok_or("architecture snapshot has no packages")?;
+    let package_names_under = |prefix: &str| {
+        graph_packages
+            .iter()
+            .filter_map(|package| {
+                package["path"]
+                    .as_str()
+                    .is_some_and(|path| path.starts_with(prefix))
+                    .then(|| package["name"].as_str().map(str::to_owned))
+                    .flatten()
+            })
+            .collect::<Vec<_>>()
+    };
+    let mut adapters = package_names_under("core/adapters/");
+    let mut transports = package_names_under("exchange/adapters/");
+    adapters.sort();
+    transports.sort();
+
+    let mut profiles = fs::read_dir(root().join("product/spec/v1"))
+        .map_err(|error| format!("could not list product profiles: {error}"))?
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .filter(|path| path.extension().and_then(|value| value.to_str()) == Some("md"))
+        .filter(|path| path.file_stem().and_then(|value| value.to_str()) != Some("receipts"))
+        .filter_map(|path| {
+            path.file_stem()
+                .and_then(|value| value.to_str())
+                .map(str::to_owned)
+        })
+        .collect::<Vec<_>>();
+    profiles.sort();
+
+    let denials = [
+        D::MalformedProof,
+        D::NonCanonicalProof,
+        D::ResourceLimitExceeded,
+        D::DigestMismatch,
+        D::DuplicateObject,
+        D::MissingReference,
+        D::ReferenceCycle,
+        D::AmbiguousTerminalGrant,
+        D::UnusedCriticalEvidence,
+        D::InvalidSignature,
+        D::PrincipalMethodMismatch,
+        D::VerificationMethodMismatch,
+        D::SignatureSuiteMismatch,
+        D::UntrustedRoot,
+        D::BrokenGrantChain,
+        D::DelegationExpanded,
+        D::PermissionNotGranted,
+        D::ActionConstraintMismatch,
+        D::BudgetCeilingExceeded,
+        D::AuthorizationPlanInvalid,
+        D::CompositionRequirementNotMet,
+        D::PlanActionMismatch,
+        D::ActionBodyMismatch,
+        D::AudienceMismatch,
+        D::ChallengeMismatch,
+        D::ActionOutsideValidity,
+        D::PrincipalRevoked,
+        D::GrantRevoked,
+        D::StatusSequenceRollback,
+        D::StatusMethodMismatch,
+        D::StatusIssuerUntrusted,
+        D::RegistryManifestMismatch,
+        D::VerifierConfigurationMismatch,
+        D::ResourceNamespaceMismatch,
+        D::CriticalExtensionUnknown,
+        D::AttachmentMissing,
+        D::AttachmentDigestMismatch,
+        D::AttachmentLengthMismatch,
+        D::DuplicateAttachment,
+        D::UnusedCriticalAttachment,
+        D::OpaqueAttachmentNotAllowed,
+        D::LocalPolicyDenied,
+    ];
+    let requirements = [
+        R::UnsupportedProtocol,
+        R::UnsupportedPrincipalMethod,
+        R::UnsupportedSignatureSuite,
+        R::UnsupportedEvidenceType,
+        R::UnsupportedStatusMethod,
+        R::UnsupportedProfile,
+        R::UnsupportedProfilePolicy,
+        R::UnsupportedResourceMatcher,
+        R::UnsupportedBudgetAlgebra,
+        R::UnsupportedCriticalExtension,
+        R::UnsupportedAssuranceClaim,
+        R::MissingPrincipalEvidence,
+        R::MissingPrincipalStatus,
+        R::MissingGrantStatus,
+        R::StaleStatus,
+        R::HistoricalStateUnavailable,
+        R::AssuranceRequirementNotMet,
+        R::ExternalFactUnavailable,
+    ];
+    let code_record = |variant: String, code: &str, decision: &str| {
+        json!({
+            "variant": variant,
+            "code": code,
+            "decision": decision,
+        })
+    };
+
+    let commit = command_output_in("git", &["rev-parse", "HEAD"], &root(), None)?;
+    let generated = json!({
+        "schemaVersion": 2,
+        "artifactSchema": "auths-proof-platform/v1",
+        "source": {
+            "repository": "auths-dev/auths-proof",
+            "commit": commit.trim(),
+        },
+        "protocol": manifest["protocol"],
+        "protocolMajor": manifest["protocol_major"],
+        "fixtureSet": manifest["fixture_set"],
+        "packages": packages,
+        "adapters": adapters,
+        "transports": transports,
+        "profiles": profiles,
+        "verification": {
+            "stages": [
+                format!("{:?}", S::Decode),
+                format!("{:?}", S::Resolve),
+                format!("{:?}", S::PrincipalControl),
+                format!("{:?}", S::Authority),
+                format!("{:?}", S::Complete),
+            ],
+            "decisions": [
+                format!("{:?}", V::Authorized),
+                format!("{:?}", V::Denied),
+                format!("{:?}", V::Indeterminate),
+            ],
+            "denialCodes": denials
+                .iter()
+                .map(|value| code_record(format!("{value:?}"), value.code(), "denied"))
+                .collect::<Vec<_>>(),
+            "requirementCodes": requirements
+                .iter()
+                .map(|value| code_record(format!("{value:?}"), value.code(), "indeterminate"))
+                .collect::<Vec<_>>(),
+        },
+        "corpus": {
+            "count": fixtures.len(),
+            "byClass": fixture_counts,
+            "fixtures": fixtures,
+        },
+        "fuzzTargets": FUZZ_TARGETS,
+    });
+    let mut bytes = serde_json::to_vec_pretty(&generated)
+        .map_err(|error| format!("could not encode platform artifact: {error}"))?;
+    bytes.push(b'\n');
+    let parent = output
+        .parent()
+        .ok_or_else(|| format!("platform artifact path has no parent: {}", output.display()))?;
+    fs::create_dir_all(parent)
+        .map_err(|error| format!("could not create platform artifact directory: {error}"))?;
+    fs::write(output, &bytes)
+        .map_err(|error| format!("could not write {}: {error}", output.display()))?;
+    let digest = hex::encode(Sha256::digest(&bytes));
+    let checksum_path = output.with_extension("sha256");
+    fs::write(&checksum_path, format!("{digest}  platform.json\n"))
+        .map_err(|error| format!("could not write {}: {error}", checksum_path.display()))?;
+    println!(
+        "generated {} ({digest}) from {}",
+        output.display(),
+        commit.trim()
     );
     Ok(())
 }
