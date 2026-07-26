@@ -390,19 +390,19 @@ match the backend.
 
 #### Production deployment record
 
-Deployed and verified on 26 July 2026:
+Deployed and verified on 27 July 2026:
 
 | Field | Value |
 | --- | --- |
 | Browser alias | `https://auths-live-demo.vercel.app` |
-| Immutable browser URL | `https://auths-live-demo-cr1zoxdsv-bordumbs-projects.vercel.app` |
-| Vercel deployment | `dpl_F1kWNAqh2oSNP323rNbUUdrPXJbL` |
+| Immutable browser URL | `https://auths-live-demo-jpunumbji-bordumbs-projects.vercel.app` |
+| Vercel deployment | `dpl_4CY5boPtQpZ7JVPLmBXKAvzrHgSA` |
 | Native API | `https://auths-live-demo.fly.dev` |
-| Release ID | `8a230d716db4f8801dc5432854df15545d05b781` |
+| Release ID | `4bf706d08c7c16450cd0dfd267bdeaac109c998e` |
 | WASM SHA-256 | `2d5b8aa9982f6ee04e107f37727ade56eedd99676c7c1801ed3d9d94f2a2f9c8` |
 | Verifier configuration | `df14e85024bf099cef6396b1a3515209625d73a86ed1da92b118dddcf6a486d5` |
-| Fly release | Version 4, `rel_p98o26qnd0klz3ld` |
-| Fly image | `registry.fly.io/auths-live-demo:deployment-01KYG7AGC19DXR9Q9CM5CJ1CAA` |
+| Fly release | Version 5, `rel_p98o26qnd54kz3ld` |
+| Fly image | `registry.fly.io/auths-live-demo:deployment-01KYG9BWD7ESXZ9FH2HPY2SMKP` |
 | London Machine | `8d96959be23498`, started, check 1/1 |
 | Virginia Machine | `7812615f2201d8`, started, check 1/1 |
 
@@ -426,6 +426,10 @@ Production evidence:
 - The production workbench keeps scenario controls and the live result
   side-by-side. Every scenario selection immediately reruns the WASM verifier;
   native execution remains an explicit action in the adjacent result panel.
+- A cold production load showed all four scenario controls before WASM
+  initialization completed. The selected case was explicit while the verdict
+  remained `LOADING`, and the disabled native control retained an action label
+  rather than presenting connection state as the action.
 - Native execution state is isolated per scenario: switching from a blocked
   replay to a denial and back restored the blocked replay without leaking that
   state into the denial.
