@@ -3,6 +3,7 @@ import {
   configurationState,
   formatNumber,
   hex,
+  runtimeDisplay,
   sha256,
   short,
 } from "./lab-core.js";
@@ -206,12 +207,27 @@ function updateNativeButton() {
     elements.nativeButton.disabled = true;
     return;
   }
+  if (
+    state.activeVariant === "valid" &&
+    state.session.validSubmissions >= 2
+  ) {
+    elements.nativeButton.disabled = true;
+    elements.nativeButton.textContent = "Replay blocked";
+    return;
+  }
   elements.nativeButton.disabled = false;
   elements.nativeButton.textContent =
     state.activeVariant === "valid" &&
     state.session.validSubmissions > 0
       ? "Submit exact replay"
       : "Submit to native runtime";
+}
+
+function renderRuntime(display) {
+  elements.runtimeOutcome.textContent = display.first;
+  elements.replayOutcome.textContent = display.replay;
+  elements.executionCount.textContent = display.executorInvocations;
+  elements.receiptCount.textContent = display.receiptCount;
 }
 
 function apiBase() {
@@ -284,7 +300,8 @@ async function connectNative() {
   elements.connectionStatus.textContent = session.region;
   elements.sessionStatus.textContent =
     `Live session ${short(session.session_id, 10)} is owned by ${session.region}. ` +
-    "Its token stays in browser memory and expires in 15 minutes.";
+    "Press submit to run the safe executor; the token stays in browser memory and expires in 15 minutes.";
+  renderRuntime(runtimeDisplay("valid"));
   updateNativeButton();
   await verify();
 }
@@ -318,28 +335,19 @@ async function executeNative() {
   if (state.activeVariant === "valid") {
     state.session.validSubmissions += 1;
     const runtime = body.runtime;
-    if (state.session.validSubmissions === 1) {
-      elements.runtimeOutcome.textContent =
-        runtime.response.outcome.toUpperCase();
-      elements.replayOutcome.textContent = "READY";
-    } else {
-      elements.runtimeOutcome.textContent = "COMPLETED";
-      elements.replayOutcome.textContent =
-        runtime.response.kind?.toUpperCase() ?? "UNEXPECTED";
-    }
-    elements.executionCount.textContent = runtime.executor_invocations;
-    elements.receiptCount.textContent =
-      `${runtime.decision_receipts} decision · ` +
-      `${runtime.execution_receipts} execution`;
+    renderRuntime(
+      runtimeDisplay(
+        state.activeVariant,
+        runtime,
+        state.session.validSubmissions,
+      ),
+    );
     elements.sessionStatus.textContent =
       runtime.response.outcome === "completed"
         ? `Native ${body.region}: proof authorized, safe executor ran once. Submit the exact replay now.`
         : `Native ${body.region}: replay refused by the consumed-challenge ledger; executor remains at one.`;
   } else {
-    elements.runtimeOutcome.textContent = "DENIED";
-    elements.replayOutcome.textContent = "NOT ENTERED";
-    elements.executionCount.textContent = body.runtime.executor_invocations;
-    elements.receiptCount.textContent = "0 decision · 0 execution";
+    renderRuntime(runtimeDisplay(state.activeVariant, body.runtime));
     elements.sessionStatus.textContent =
       `Native ${body.region}: ${state.activeVariant} was denied before the runtime executor boundary.`;
   }

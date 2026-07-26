@@ -6,6 +6,7 @@ import {
   configurationState,
   copyAndFlipLast,
   hex,
+  runtimeDisplay,
   short,
 } from "../web/lab-core.js";
 
@@ -20,6 +21,63 @@ assert.equal(hex(original), "010203");
 assert.equal(short("0123456789abcdef", 8), "01234567…cdef");
 assert.equal(configurationState("a", "a"), "match");
 assert.equal(configurationState("a", "b"), "mismatch");
+assert.deepEqual(runtimeDisplay("valid"), {
+  first: "READY",
+  replay: "NOT RUN",
+  executorInvocations: 0,
+  receiptCount: "0 decision · 0 execution",
+});
+const completedRuntime = {
+  entered: true,
+  response: { outcome: "completed" },
+  executor_invocations: 1,
+  decision_receipts: 1,
+  execution_receipts: 1,
+};
+assert.deepEqual(runtimeDisplay("valid", completedRuntime, 1), {
+  first: "COMPLETED",
+  replay: "READY",
+  executorInvocations: 1,
+  receiptCount: "1 decision · 1 execution",
+});
+assert.deepEqual(
+  runtimeDisplay(
+    "valid",
+    {
+      ...completedRuntime,
+      response: { outcome: "refused", kind: "consumed-challenge" },
+    },
+    2,
+  ),
+  {
+    first: "COMPLETED",
+    replay: "CONSUMED-CHALLENGE",
+    executorInvocations: 1,
+    receiptCount: "1 decision · 1 execution",
+  },
+);
+assert.deepEqual(
+  runtimeDisplay("tampered-proof", {
+    entered: false,
+    executor_invocations: 0,
+    decision_receipts: 0,
+    execution_receipts: 0,
+  }),
+  {
+    first: "DENIED",
+    replay: "NOT ENTERED",
+    executorInvocations: 0,
+    receiptCount: "0 decision · 0 execution",
+  },
+);
+assert.throws(
+  () => runtimeDisplay("tampered-proof", completedRuntime),
+  /crossed the native executor boundary/,
+);
+assert.throws(
+  () => runtimeDisplay("valid", completedRuntime, 2),
+  /replay transition/,
+);
 
 const html = await readFile(join(site, "index.html"), "utf8");
 for (const id of [
