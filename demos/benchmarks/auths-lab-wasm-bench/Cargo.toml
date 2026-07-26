@@ -1,9 +1,9 @@
 [package]
 name = "auths-lab-wasm-bench"
 version.workspace = true
-edition = "2024"
+edition.workspace = true
 license.workspace = true
-rust-version = "1.91"
+rust-version.workspace = true
 description = "Browser verification benchmark for the target V1 canonical corpus"
 publish = false
 

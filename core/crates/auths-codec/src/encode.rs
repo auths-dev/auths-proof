@@ -1,8 +1,8 @@
 //! Deterministic target V1 encoders.
 
 use crate::{
-    hash::{grant_id, grant_status_id, principal_status_id},
     CodecError,
+    hash::{grant_id, grant_status_id, principal_status_id},
 };
 use alloc::vec::Vec;
 use auths_model::{

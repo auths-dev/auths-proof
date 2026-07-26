@@ -616,10 +616,12 @@ mod tests {
                 evaluation_time: Timestamp::new(20),
             })
             .unwrap();
-        assert!(control
-            .claims()
-            .iter()
-            .any(|claim| claim.kind().as_str() == "hardware-attested"));
+        assert!(
+            control
+                .claims()
+                .iter()
+                .any(|claim| claim.kind().as_str() == "hardware-attested")
+        );
 
         let error = method
             .verify_control(PrincipalControlInput {

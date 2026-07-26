@@ -638,19 +638,18 @@ fn trust_claims(
                     Some(input.asserted_signing_time),
                     source,
                 )?];
-                if let Some(pin) = statement {
-                    if pin.signing_preimage_digest
+                if let Some(pin) = statement
+                    && pin.signing_preimage_digest
                         == <[u8; 32]>::from(Sha256::digest(input.signing_preimage))
-                        && pin.existed_at >= input.asserted_signing_time
-                        && pin.existed_at <= *valid_until
-                    {
-                        claims.push(claim(
-                            "statement-existence-proven-at",
-                            Some(pin.existed_at),
-                            source,
-                        )?);
-                        return Ok(claims);
-                    }
+                    && pin.existed_at >= input.asserted_signing_time
+                    && pin.existed_at <= *valid_until
+                {
+                    claims.push(claim(
+                        "statement-existence-proven-at",
+                        Some(pin.existed_at),
+                        source,
+                    )?);
+                    return Ok(claims);
                 }
                 document_only = Some(claims);
             }
@@ -1052,13 +1051,15 @@ mod tests {
         let (bundled, method) = identity();
         let evidence = addressed(&bundled);
         let refs = [&evidence];
-        let verifier = DidWebMethod::new(vec![DidWebTrustRecord::current(
-            bundled.principal().clone(),
-            bundled.document_digest(),
-            Timestamp::new(10),
-            Timestamp::new(20),
-        )
-        .unwrap()])
+        let verifier = DidWebMethod::new(vec![
+            DidWebTrustRecord::current(
+                bundled.principal().clone(),
+                bundled.document_digest(),
+                Timestamp::new(10),
+                Timestamp::new(20),
+            )
+            .unwrap(),
+        ])
         .unwrap();
         let control = verifier
             .verify_control(PrincipalControlInput {
@@ -1073,10 +1074,12 @@ mod tests {
             })
             .unwrap();
         assert_eq!(control.verification_key().len(), 32);
-        assert!(control
-            .claims()
-            .iter()
-            .any(|claim| claim.kind().as_str() == "controller-state-current-at"));
+        assert!(
+            control
+                .claims()
+                .iter()
+                .any(|claim| claim.kind().as_str() == "controller-state-current-at")
+        );
     }
 
     #[test]
@@ -1084,14 +1087,16 @@ mod tests {
         let (bundled, method) = identity();
         let evidence = addressed(&bundled);
         let refs = [&evidence];
-        let verifier = DidWebMethod::new(vec![DidWebTrustRecord::historical(
-            bundled.principal().clone(),
-            bundled.document_digest(),
-            Timestamp::new(10),
-            Timestamp::new(20),
-            Some(HistoricalStatementPin::new(b"signed", Timestamp::new(13))),
-        )
-        .unwrap()])
+        let verifier = DidWebMethod::new(vec![
+            DidWebTrustRecord::historical(
+                bundled.principal().clone(),
+                bundled.document_digest(),
+                Timestamp::new(10),
+                Timestamp::new(20),
+                Some(HistoricalStatementPin::new(b"signed", Timestamp::new(13))),
+            )
+            .unwrap(),
+        ])
         .unwrap();
         let control = verifier
             .verify_control(PrincipalControlInput {
@@ -1105,14 +1110,18 @@ mod tests {
                 evaluation_time: Timestamp::new(30),
             })
             .unwrap();
-        assert!(control
-            .claims()
-            .iter()
-            .any(|claim| claim.kind().as_str() == "historical-at"));
-        assert!(control
-            .claims()
-            .iter()
-            .any(|claim| claim.kind().as_str() == "statement-existence-proven-at"));
+        assert!(
+            control
+                .claims()
+                .iter()
+                .any(|claim| claim.kind().as_str() == "historical-at")
+        );
+        assert!(
+            control
+                .claims()
+                .iter()
+                .any(|claim| claim.kind().as_str() == "statement-existence-proven-at")
+        );
     }
 
     #[test]

@@ -294,7 +294,7 @@ pub trait ProfilePolicy {
     ///
     /// Returns a typed failure for invalid or over-limit input.
     fn evaluate(&self, action: &CanonicalAction)
-        -> Result<ProfileDecision, RegistryOperationError>;
+    -> Result<ProfileDecision, RegistryOperationError>;
 }
 
 /// Pure stateful-budget attenuation algebra.

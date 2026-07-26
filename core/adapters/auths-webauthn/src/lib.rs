@@ -742,14 +742,18 @@ mod tests {
             })
             .unwrap();
         assert!(control.signature_message().is_some());
-        assert!(control
-            .claims()
-            .iter()
-            .any(|claim| claim.kind().as_str() == "user-verified"));
-        assert!(control
-            .claims()
-            .iter()
-            .any(|claim| claim.kind().as_str() == "origin-bound"));
+        assert!(
+            control
+                .claims()
+                .iter()
+                .any(|claim| claim.kind().as_str() == "user-verified")
+        );
+        assert!(
+            control
+                .claims()
+                .iter()
+                .any(|claim| claim.kind().as_str() == "origin-bound")
+        );
 
         let error = method
             .verify_control(PrincipalControlInput {

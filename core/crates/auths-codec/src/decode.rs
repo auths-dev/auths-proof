@@ -1,9 +1,9 @@
 //! Strict, bounded target V1 decoders.
 
 use crate::{
+    CodecError,
     encode::{encode_bundle, encode_verifier_context},
     hash::evidence_id,
-    CodecError,
 };
 use alloc::vec::Vec;
 use auths_model::{
@@ -27,7 +27,7 @@ use auths_model::{
     VerificationResultDigest, VerificationStage, VerifierConfigurationId, VerifierContext,
     VerifierLimits,
 };
-use minicbor::{data::Type, Decoder};
+use minicbor::{Decoder, data::Type};
 
 type V1Decoder<'a> = Decoder<'a>;
 

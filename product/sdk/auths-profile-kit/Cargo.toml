@@ -1,9 +1,9 @@
 [package]
 name = "auths-profile-kit"
 version.workspace = true
-edition = "2024"
+edition.workspace = true
 license.workspace = true
-rust-version = "1.91"
+rust-version.workspace = true
 description = "Conformance and fixture kit for Auths V1 application profiles"
 
 [dependencies]

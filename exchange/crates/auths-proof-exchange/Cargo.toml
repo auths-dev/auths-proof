@@ -1,9 +1,9 @@
 [package]
 name = "auths-proof-exchange"
 version.workspace = true
-edition = "2024"
+edition.workspace = true
 license.workspace = true
-rust-version = "1.91"
+rust-version.workspace = true
 description = "Supported proof-exchange facade for Auths Proof Protocol V1"
 
 [features]

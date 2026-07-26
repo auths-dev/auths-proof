@@ -1,6 +1,6 @@
 #![no_main]
 
-use auths_composition::{evaluate, BranchOutcome};
+use auths_composition::{BranchOutcome, evaluate};
 use auths_model::{AuthorizationPlan, DenialReason, ProofRef, Requirement, VerifierLimits};
 use libfuzzer_sys::fuzz_target;
 

@@ -1,9 +1,9 @@
 [package]
 name = "auths-operations"
 version.workspace = true
-edition = "2024"
+edition.workspace = true
 license.workspace = true
-rust-version = "1.91"
+rust-version.workspace = true
 description = "Readiness, stable metrics, and privacy-preserving diagnostics for Auths applications"
 
 [dependencies]

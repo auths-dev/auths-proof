@@ -7,7 +7,7 @@ use auths_model::{
 };
 use auths_ports::ProfileDecision;
 use auths_registries::{
-    ImmutableRegistries, EXACT_PROFILE_V1, NUMERIC_CEILING_V1, TARGET_V1_REGISTRY_MANIFEST,
+    EXACT_PROFILE_V1, ImmutableRegistries, NUMERIC_CEILING_V1, TARGET_V1_REGISTRY_MANIFEST,
     URI_NAMESPACE_V1,
 };
 use libfuzzer_sys::fuzz_target;

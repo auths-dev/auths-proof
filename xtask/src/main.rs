@@ -1,7 +1,7 @@
 #![forbid(unsafe_code)]
 
 use auths_testkit::Expected;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -28,7 +28,7 @@ fn run() -> Result<(), String> {
         "arch" => arch(args.any(|arg| arg == "--update")),
         "fmt" => format_all(),
         "core-boundary" => core_boundary(),
-        "core-msrv" => core_msrv(),
+        "workspace-msrv" | "core-msrv" => workspace_msrv(),
         "abi" => abi(),
         "core" => layer_check("core"),
         "exchange" => exchange_check(),
@@ -58,11 +58,11 @@ fn run() -> Result<(), String> {
         "release-check" => release_check(),
         _ => {
             println!(
-                "usage: cargo xtask <fmt|arch [--update]|core-boundary|core-msrv|abi|core|exchange|\
-                 product|bindings|demos|package|wire [--update]|spec-sync|conformance|\
-                 exchange-conformance|product-conformance|matrix|cross-language|\
-                 product-fixtures [--update]|semantic-digest|wasm|fuzz-inventory|\
-                 fuzz-smoke|platform-artifact [output]|ci|release-check>"
+                "usage: cargo xtask <fmt|arch [--update]|core-boundary|workspace-msrv|abi|core|\
+                 exchange|product|bindings|demos|package|wire [--update]|spec-sync|\
+                 conformance|exchange-conformance|product-conformance|matrix|cross-language|\
+                 product-fixtures [--update]|semantic-digest|wasm|fuzz-inventory|fuzz-smoke|\
+                 platform-artifact [output]|ci|release-check>"
             );
             Ok(())
         }
@@ -85,7 +85,7 @@ fn ci() -> Result<(), String> {
         "warnings",
     ])?;
     core_boundary()?;
-    core_msrv()?;
+    workspace_msrv()?;
     abi()?;
     exchange_conformance()?;
     product_conformance()?;
@@ -228,26 +228,32 @@ fn npm_package_smoke() -> Result<(), String> {
     command_in("node", &[path_text(&smoke)?], &install_directory, None)
 }
 
-fn core_msrv() -> Result<(), String> {
+fn workspace_msrv() -> Result<(), String> {
     let policy = load_architecture_policy()?;
-    let toolchain = env::var("AUTHS_CORE_MSRV_TOOLCHAIN").unwrap_or_else(|_| "1.88.0".to_owned());
+    let default_toolchain = format!("{}.0", policy.workspace_msrv);
+    let toolchain = env::var("AUTHS_WORKSPACE_MSRV_TOOLCHAIN").unwrap_or(default_toolchain);
     let mut command = Command::new("cargo");
     command
         .arg(format!("+{toolchain}"))
-        .args(["check", "--locked", "--no-default-features"])
-        .env("CARGO_TARGET_DIR", root().join("target/core-msrv"))
+        .args([
+            "check",
+            "--locked",
+            "--workspace",
+            "--all-targets",
+            "--all-features",
+        ])
+        .env("CARGO_TARGET_DIR", root().join("target/workspace-msrv"))
         .current_dir(root());
-    for package in &policy.no_std_packages {
-        command.arg("-p").arg(package);
-    }
     let status = command
         .status()
-        .map_err(|error| format!("could not run core MSRV toolchain {toolchain}: {error}"))?;
+        .map_err(|error| format!("could not run workspace MSRV toolchain {toolchain}: {error}"))?;
     if status.success() {
-        println!("core MSRV {toolchain} check passed");
+        println!("workspace MSRV {toolchain} check passed");
         Ok(())
     } else {
-        Err(format!("core MSRV {toolchain} check failed with {status}"))
+        Err(format!(
+            "workspace MSRV {toolchain} check failed with {status}"
+        ))
     }
 }
 
@@ -713,13 +719,14 @@ fn release_check() -> Result<(), String> {
             return Err("release checks require a clean CI worktree".to_owned());
         }
     }
-    if let Ok(tag) = env::var("GITHUB_REF_NAME") {
-        if tag.starts_with('v') && tag != format!("v{}", env!("CARGO_PKG_VERSION")) {
-            return Err(format!(
-                "release tag {tag} does not match workspace version v{}",
-                env!("CARGO_PKG_VERSION")
-            ));
-        }
+    if let Ok(tag) = env::var("GITHUB_REF_NAME")
+        && tag.starts_with('v')
+        && tag != format!("v{}", env!("CARGO_PKG_VERSION"))
+    {
+        return Err(format!(
+            "release tag {tag} does not match workspace version v{}",
+            env!("CARGO_PKG_VERSION")
+        ));
     }
     ci()?;
     cargo(&["test", "--workspace", "--no-default-features"])?;
@@ -1626,6 +1633,10 @@ struct ArchitectureLayer {
 struct ArchitecturePolicy {
     layers: BTreeMap<String, ArchitectureLayer>,
     packages: BTreeMap<String, String>,
+    workspace_edition: String,
+    workspace_resolver: String,
+    workspace_msrv: String,
+    development_toolchain: String,
     core_forbidden_dependencies: BTreeSet<String>,
     core_default_feature_exceptions: BTreeSet<String>,
     approved_build_scripts: BTreeSet<String>,
@@ -1666,6 +1677,7 @@ fn arch(update: bool) -> Result<(), String> {
         ));
     }
 
+    check_workspace_rust_policy(&policy, packages)?;
     check_codeowners(&policy)?;
     let mut package_records = Vec::new();
     let mut dependency_records = Vec::new();
@@ -1928,6 +1940,10 @@ fn load_architecture_policy() -> Result<ArchitecturePolicy, String> {
     Ok(ArchitecturePolicy {
         layers,
         packages,
+        workspace_edition: required_toml_string(policy, "workspace_edition", "policy")?,
+        workspace_resolver: required_toml_string(policy, "workspace_resolver", "policy")?,
+        workspace_msrv: required_toml_string(policy, "workspace_msrv", "policy")?,
+        development_toolchain: required_toml_string(policy, "development_toolchain", "policy")?,
         core_forbidden_dependencies: required_toml_strings(
             policy,
             "core_forbidden_dependencies",
@@ -1941,6 +1957,126 @@ fn load_architecture_policy() -> Result<ArchitecturePolicy, String> {
         approved_build_scripts: required_toml_strings(policy, "approved_build_scripts", "policy")?,
         no_std_packages: required_toml_strings(policy, "no_std_packages", "policy")?,
     })
+}
+
+fn check_workspace_rust_policy(
+    policy: &ArchitecturePolicy,
+    packages: &[Value],
+) -> Result<(), String> {
+    let workspace_source = fs::read_to_string(root().join("Cargo.toml"))
+        .map_err(|error| format!("could not read workspace Cargo.toml: {error}"))?;
+    let workspace_document: toml::Value = toml::from_str(&workspace_source)
+        .map_err(|error| format!("invalid workspace Cargo.toml: {error}"))?;
+    let workspace = workspace_document
+        .get("workspace")
+        .and_then(toml::Value::as_table)
+        .ok_or("root Cargo.toml has no workspace table")?;
+    let resolver = required_toml_string(workspace, "resolver", "workspace")?;
+    if resolver != policy.workspace_resolver {
+        return Err(format!(
+            "workspace resolver must be {}, found {resolver}",
+            policy.workspace_resolver
+        ));
+    }
+    let package_policy = workspace
+        .get("package")
+        .and_then(toml::Value::as_table)
+        .ok_or("root Cargo.toml has no workspace.package table")?;
+    let edition = required_toml_string(package_policy, "edition", "workspace.package")?;
+    if edition != policy.workspace_edition {
+        return Err(format!(
+            "workspace edition must be {}, found {edition}",
+            policy.workspace_edition
+        ));
+    }
+    let msrv = required_toml_string(package_policy, "rust-version", "workspace.package")?;
+    if msrv != policy.workspace_msrv {
+        return Err(format!(
+            "workspace rust-version must be {}, found {msrv}",
+            policy.workspace_msrv
+        ));
+    }
+
+    for package in packages {
+        let name = package["name"]
+            .as_str()
+            .ok_or("workspace package has no name")?;
+        if package["edition"].as_str() != Some(policy.workspace_edition.as_str()) {
+            return Err(format!(
+                "package {name} does not resolve to edition {}",
+                policy.workspace_edition
+            ));
+        }
+        if package["rust_version"].as_str() != Some(policy.workspace_msrv.as_str()) {
+            return Err(format!(
+                "package {name} does not resolve to rust-version {}",
+                policy.workspace_msrv
+            ));
+        }
+        let manifest_path = Path::new(
+            package["manifest_path"]
+                .as_str()
+                .ok_or("workspace package has no manifest path")?,
+        );
+        let manifest_source = fs::read_to_string(manifest_path)
+            .map_err(|error| format!("could not read {}: {error}", manifest_path.display()))?;
+        let manifest: toml::Value = toml::from_str(&manifest_source)
+            .map_err(|error| format!("invalid {}: {error}", manifest_path.display()))?;
+        let package_table = manifest
+            .get("package")
+            .and_then(toml::Value::as_table)
+            .ok_or_else(|| format!("package {name} manifest has no package table"))?;
+        for field in ["edition", "rust-version"] {
+            let inherited = package_table
+                .get(field)
+                .and_then(toml::Value::as_table)
+                .and_then(|value| value.get("workspace"))
+                .and_then(toml::Value::as_bool)
+                == Some(true);
+            if !inherited {
+                return Err(format!(
+                    "package {name} must declare {field}.workspace = true"
+                ));
+            }
+        }
+    }
+
+    let toolchain_source = fs::read_to_string(root().join("rust-toolchain.toml"))
+        .map_err(|error| format!("could not read rust-toolchain.toml: {error}"))?;
+    let toolchain_document: toml::Value = toml::from_str(&toolchain_source)
+        .map_err(|error| format!("invalid rust-toolchain.toml: {error}"))?;
+    let channel = toolchain_document
+        .get("toolchain")
+        .and_then(toml::Value::as_table)
+        .and_then(|toolchain| toolchain.get("channel"))
+        .and_then(toml::Value::as_str)
+        .ok_or("rust-toolchain.toml has no toolchain.channel")?;
+    if channel != policy.development_toolchain {
+        return Err(format!(
+            "development toolchain must be {}, found {channel}",
+            policy.development_toolchain
+        ));
+    }
+
+    let required_toolchains = [
+        policy.development_toolchain.clone(),
+        format!("{}.0", policy.workspace_msrv),
+    ];
+    for workflow in ["ci.yml", "release.yml"] {
+        let path = root().join(".github/workflows").join(workflow);
+        let source = fs::read_to_string(&path)
+            .map_err(|error| format!("could not read {}: {error}", path.display()))?;
+        for toolchain in &required_toolchains {
+            let declaration = format!("toolchain: {toolchain}");
+            if !source.lines().any(|line| line.trim() == declaration) {
+                return Err(format!(
+                    "{} must install Rust toolchain {toolchain}",
+                    path.display()
+                ));
+            }
+        }
+    }
+    Ok(())
 }
 
 fn required_toml_string(

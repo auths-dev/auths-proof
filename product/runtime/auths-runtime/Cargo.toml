@@ -1,9 +1,9 @@
 [package]
 name = "auths-runtime"
 version.workspace = true
-edition = "2024"
+edition.workspace = true
 license.workspace = true
-rust-version = "1.91"
+rust-version.workspace = true
 description = "Authorization-before-execution service for Auths-protected MCP tools"
 
 [dependencies]

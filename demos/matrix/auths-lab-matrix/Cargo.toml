@@ -1,9 +1,9 @@
 [package]
 name = "auths-lab-matrix"
 version.workspace = true
-edition = "2024"
+edition.workspace = true
 license.workspace = true
-rust-version = "1.91"
+rust-version.workspace = true
 description = "Bounded factorial experiment and operator-study model for Auths Lab"
 publish = false
 

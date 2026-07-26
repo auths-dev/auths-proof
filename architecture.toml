@@ -31,6 +31,10 @@ allowed_dependencies = ["core", "exchange", "product", "bindings", "demos", "too
 owners = ["@auths-dev/architecture", "@auths-dev/security"]
 
 [policy]
+workspace_edition = "2024"
+workspace_resolver = "3"
+workspace_msrv = "1.91"
+development_toolchain = "1.97.1"
 core_forbidden_dependencies = [
   "actix",
   "axum",

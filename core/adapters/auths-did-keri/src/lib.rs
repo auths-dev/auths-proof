@@ -1252,8 +1252,8 @@ impl std::error::Error for KeriError {}
 #[cfg(any(test, feature = "test-signing"))]
 pub mod test_signing {
     use super::{
-        encode_digest, encode_one_char_matter, KelEvent, KeriError, KeriEvidence, ADAPTER_ID,
-        ED25519_SUITE, PRINCIPAL_PREFIX, SAID_PLACEHOLDER,
+        ADAPTER_ID, ED25519_SUITE, KelEvent, KeriError, KeriEvidence, PRINCIPAL_PREFIX,
+        SAID_PLACEHOLDER, encode_digest, encode_one_char_matter,
     };
     use alloc::{
         format,
@@ -1503,18 +1503,24 @@ mod tests {
             .expect("verified");
 
         assert_eq!(verified.verification_key().len(), 32);
-        assert!(verified
-            .claims()
-            .iter()
-            .any(|claim| claim.kind().as_str() == "rotation-aware"));
-        assert!(verified
-            .claims()
-            .iter()
-            .any(|claim| claim.kind().as_str() == "controller-state-current-at"));
-        assert!(verified
-            .claims()
-            .iter()
-            .any(|claim| claim.kind().as_str() == "witness-threshold-met"));
+        assert!(
+            verified
+                .claims()
+                .iter()
+                .any(|claim| claim.kind().as_str() == "rotation-aware")
+        );
+        assert!(
+            verified
+                .claims()
+                .iter()
+                .any(|claim| claim.kind().as_str() == "controller-state-current-at")
+        );
+        assert!(
+            verified
+                .claims()
+                .iter()
+                .any(|claim| claim.kind().as_str() == "witness-threshold-met")
+        );
     }
 
     #[test]

@@ -9,13 +9,13 @@ use alloc::{boxed::Box, collections::BTreeSet, vec::Vec};
 use auths_assurance::{evaluate_with_implications, grant_issuer_role};
 use auths_authority::EffectiveAuthority;
 use auths_codec::{
-    action_id, action_signing_preimage, attachment_digest, body_digest, context_digest,
+    CodecError, action_id, action_signing_preimage, attachment_digest, body_digest, context_digest,
     decode_bundle, decode_canonical_action, decode_verifier_context, encode_canonical_action,
     encode_verification_result, encode_verifier_context, grant_id, grant_signing_preimage,
     grant_status_id, grant_status_signing_preimage, plan_id, principal_status_id,
-    principal_status_signing_preimage, proof_digest, CodecError,
+    principal_status_signing_preimage, proof_digest,
 };
-use auths_composition::{evaluate as evaluate_plan, BranchOutcome};
+use auths_composition::{BranchOutcome, evaluate as evaluate_plan};
 use auths_model::{
     ActionId, AssuranceSatisfaction, CanonicalAction, ContextDigest, DenialReason, Digest,
     EvidenceObject, GrantId, GrantStatusId, ParticipantAssurance, ParticipantRole, PlanId,
@@ -1945,9 +1945,9 @@ mod tests {
         VerifierLimits,
     };
     use auths_raw_key::{
-        RawKeyDescriptor, RawKeyMethod, RawKeyType, RAW_KEY_MEDIA_TYPE, RAW_KEY_V1,
+        RAW_KEY_MEDIA_TYPE, RAW_KEY_V1, RawKeyDescriptor, RawKeyMethod, RawKeyType,
     };
-    use auths_signature::{Ed25519Suite, ED25519_V1};
+    use auths_signature::{ED25519_V1, Ed25519Suite};
     use ed25519_dalek::{Signer as _, SigningKey};
 
     struct Fixture {

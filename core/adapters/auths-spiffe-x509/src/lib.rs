@@ -806,10 +806,12 @@ mod tests {
                 evaluation_time: Timestamp::new(1_700_000_000),
             })
             .unwrap();
-        assert!(control
-            .claims()
-            .iter()
-            .any(|claim| claim.kind().as_str() == "pki-chain-validated"));
+        assert!(
+            control
+                .claims()
+                .iter()
+                .any(|claim| claim.kind().as_str() == "pki-chain-validated")
+        );
 
         let revoked = SpiffeStatusRecord::new(
             digest,

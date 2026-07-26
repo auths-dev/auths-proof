@@ -146,17 +146,19 @@ mod tests {
         let expected_value = ClaimParameterId::parse("hardware").unwrap();
         let policy = AssurancePolicy::new(
             AssurancePolicyId::parse("constrained-test").unwrap(),
-            vec![AssuranceRequirement::constrained(
-                ParticipantRole::Actor,
-                AssuranceQuantifier::Every,
-                kind.clone(),
-                vec![(parameter_name.clone(), expected_value)],
-                Some(EvidenceSourceId::parse("attestation").unwrap()),
-                Some(AdapterId::parse("hsm-attested-v1").unwrap()),
-                Some(1),
-                Some(FreshnessLimit::new(10).unwrap()),
-            )
-            .unwrap()],
+            vec![
+                AssuranceRequirement::constrained(
+                    ParticipantRole::Actor,
+                    AssuranceQuantifier::Every,
+                    kind.clone(),
+                    vec![(parameter_name.clone(), expected_value)],
+                    Some(EvidenceSourceId::parse("attestation").unwrap()),
+                    Some(AdapterId::parse("hsm-attested-v1").unwrap()),
+                    Some(1),
+                    Some(FreshnessLimit::new(10).unwrap()),
+                )
+                .unwrap(),
+            ],
         )
         .unwrap();
         let claim = AssuranceClaim::new(
@@ -276,20 +278,24 @@ mod tests {
             )],
         )
         .unwrap();
-        assert!(evaluate(
-            &alternate,
-            core::slice::from_ref(&report),
-            Timestamp::new(50)
-        )
-        .is_err());
-        assert!(evaluate_with_implications(
-            &alternate,
-            &[report],
-            Timestamp::new(50),
-            |claim, expected| claim.kind().as_str() == "hardware-attested"
-                && expected.as_str() == "workload-attested"
-        )
-        .is_ok());
+        assert!(
+            evaluate(
+                &alternate,
+                core::slice::from_ref(&report),
+                Timestamp::new(50)
+            )
+            .is_err()
+        );
+        assert!(
+            evaluate_with_implications(
+                &alternate,
+                &[report],
+                Timestamp::new(50),
+                |claim, expected| claim.kind().as_str() == "hardware-attested"
+                    && expected.as_str() == "workload-attested"
+            )
+            .is_ok()
+        );
     }
 
     #[test]

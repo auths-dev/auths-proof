@@ -6,7 +6,7 @@
 use auths_model::{AdapterConfigurationId, ModelError, SignatureSuiteId};
 use auths_ports::{SignatureError, SignatureInput, SignatureSuite};
 use ed25519_dalek::{Signature as Ed25519Signature, VerifyingKey as Ed25519Key};
-use p256::ecdsa::{signature::Verifier as _, Signature as P256Signature, VerifyingKey as P256Key};
+use p256::ecdsa::{Signature as P256Signature, VerifyingKey as P256Key, signature::Verifier as _};
 
 /// Exact V1 Ed25519 suite identifier.
 pub const ED25519_V1: &str = "ed25519-v1";
@@ -114,13 +114,15 @@ mod tests {
         let signing = SigningKey::from_bytes(&[9; 32]);
         let signature = signing.sign(b"target-v1");
         let suite = Ed25519Suite::new().unwrap();
-        assert!(suite
-            .verify(SignatureInput {
-                verification_key: signing.verifying_key().as_bytes(),
-                signing_preimage: b"target-v1",
-                signature: &signature.to_bytes(),
-            })
-            .is_ok());
+        assert!(
+            suite
+                .verify(SignatureInput {
+                    verification_key: signing.verifying_key().as_bytes(),
+                    signing_preimage: b"target-v1",
+                    signature: &signature.to_bytes(),
+                })
+                .is_ok()
+        );
         assert_eq!(
             suite.verify(SignatureInput {
                 verification_key: signing.verifying_key().as_bytes(),

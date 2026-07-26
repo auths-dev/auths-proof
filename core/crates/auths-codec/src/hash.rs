@@ -1,19 +1,20 @@
 //! Target V1 domain separation and content identifiers.
 
 use crate::{
+    CodecError,
     encode::{
         encode_evidence_content, encode_grant_status_statement, encode_principal_status_statement,
         encode_verification_result_digest_input,
     },
     encode_action_envelope, encode_action_signing_input, encode_authorization_plan, encode_bundle,
-    encode_grant_signing_input, encode_grant_statement, encode_verifier_context, CodecError,
+    encode_grant_signing_input, encode_grant_statement, encode_verifier_context,
 };
 use alloc::vec::Vec;
 use auths_model::{
     ActionEnvelope, ActionId, AttachmentDigest, ContextDigest, Digest, EvidenceId, EvidenceObject,
-    GrantId, GrantStatement, GrantStatusId, GrantStatusStatement, PlanId,
+    GrantId, GrantStatement, GrantStatusId, GrantStatusStatement, PROTOCOL_V1, PlanId,
     PortableVerificationResult, PrincipalStatusId, PrincipalStatusStatement, ProofBundle,
-    SignatureDescriptor, VerificationResultDigest, VerifierContext, PROTOCOL_V1,
+    SignatureDescriptor, VerificationResultDigest, VerifierContext,
 };
 use sha2::{Digest as _, Sha256};
 

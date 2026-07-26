@@ -139,7 +139,7 @@ impl ResolverPolicy {
     ///
     /// Returns a policy error outside `(0, 60s]`.
     pub fn with_timeout(mut self, timeout: Duration) -> Result<Self, ResolveError> {
-        if timeout.is_zero() || timeout > Duration::from_secs(60) {
+        if timeout.is_zero() || timeout > Duration::from_mins(1) {
             return Err(ResolveError::InvalidPolicy);
         }
         self.timeout = timeout;

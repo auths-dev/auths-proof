@@ -39,7 +39,7 @@ use alloc::vec::Vec;
 
 pub use auths_verifier::{VerificationOutcome, VerifiedAction};
 
-use auths_codec::{decode_verification_result, CodecError};
+use auths_codec::{CodecError, decode_verification_result};
 use auths_model::{
     CanonicalAction, PortableVerificationResult, Requirement, VerificationCode,
     VerificationDecision, VerificationResources, VerificationStage, VerifierContext,

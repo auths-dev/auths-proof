@@ -1,9 +1,9 @@
 [package]
 name = "auths-enforcement"
 version.workspace = true
-edition = "2024"
+edition.workspace = true
 license.workspace = true
-rust-version = "1.91"
+rust-version.workspace = true
 description = "Transport-neutral in-process enforcement kit for Auths V1"
 
 [dependencies]

@@ -1,9 +1,9 @@
 [package]
 name = "auths-stores"
 version.workspace = true
-edition = "2024"
+edition.workspace = true
 license.workspace = true
-rust-version = "1.91"
+rust-version.workspace = true
 description = "Concrete replay-adjacent budget and canonical receipt stores for Auths applications"
 
 [dependencies]

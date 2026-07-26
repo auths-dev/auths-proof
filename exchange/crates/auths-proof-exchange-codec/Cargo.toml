@@ -1,9 +1,9 @@
 [package]
 name = "auths-proof-exchange-codec"
 version.workspace = true
-edition = "2024"
+edition.workspace = true
 license.workspace = true
-rust-version = "1.91"
+rust-version.workspace = true
 description = "Deterministic bounded CBOR codec for Auths proof exchange"
 
 [dependencies]

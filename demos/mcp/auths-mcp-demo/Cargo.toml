@@ -1,9 +1,9 @@
 [package]
 name = "auths-mcp-demo"
 version.workspace = true
-edition = "2024"
+edition.workspace = true
 license.workspace = true
-rust-version = "1.91"
+rust-version.workspace = true
 description = "Focused target V1 Auths MCP demonstration"
 publish = false
 

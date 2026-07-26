@@ -8,13 +8,13 @@ use auths_codec::{
     encode_verifier_context, evidence_id, grant_id, grant_status_id, plan_id, principal_status_id,
 };
 use auths_did_keri::{
-    test_signing::TestKeriIdentity, KeriEvidence, ADAPTER_ID as DID_KERI_V1,
-    ED25519_SUITE as KERI_ED25519_SUITE, EVIDENCE_MEDIA_TYPE as DID_KERI_MEDIA_TYPE,
+    ADAPTER_ID as DID_KERI_V1, ED25519_SUITE as KERI_ED25519_SUITE,
+    EVIDENCE_MEDIA_TYPE as DID_KERI_MEDIA_TYPE, KeriEvidence, test_signing::TestKeriIdentity,
 };
-use auths_did_key::{DidKeyEvidence, DID_KEY_MEDIA_TYPE, DID_KEY_V1};
-use auths_did_web::{DidWebEvidence, DidWebTrustRecord, DID_WEB_MEDIA_TYPE, DID_WEB_V1};
+use auths_did_key::{DID_KEY_MEDIA_TYPE, DID_KEY_V1, DidKeyEvidence};
+use auths_did_web::{DID_WEB_MEDIA_TYPE, DID_WEB_V1, DidWebEvidence, DidWebTrustRecord};
 use auths_hsm_attested::{
-    HsmAttestationEvidence, HsmKeyRecord, HSM_ATTESTED_MEDIA_TYPE, HSM_ATTESTED_V1,
+    HSM_ATTESTED_MEDIA_TYPE, HSM_ATTESTED_V1, HsmAttestationEvidence, HsmKeyRecord,
 };
 use auths_model::{
     AcceptedRegistries, ActionConstraint, ActionEnvelope, AssuranceClaimId, AssurancePolicy,
@@ -34,21 +34,21 @@ use auths_model::{
     VerifierConfigurationId, VerifierContext, VerifierLimits,
 };
 use auths_multikey::{Multikey, MultikeyType};
-use auths_raw_key::{RawKeyDescriptor, RawKeyType, RAW_KEY_MEDIA_TYPE, RAW_KEY_V1};
+use auths_raw_key::{RAW_KEY_MEDIA_TYPE, RAW_KEY_V1, RawKeyDescriptor, RawKeyType};
 use auths_signature::{ED25519_V1, P256_SHA256_V1};
 use auths_spiffe_x509::{
-    svid_verification_method, SpiffeStatusRecord, SpiffeTrustDomain, SpiffeX509Evidence,
-    SPIFFE_X509_MEDIA_TYPE, SPIFFE_X509_V1,
+    SPIFFE_X509_MEDIA_TYPE, SPIFFE_X509_V1, SpiffeStatusRecord, SpiffeTrustDomain,
+    SpiffeX509Evidence, svid_verification_method,
 };
 use auths_webauthn::{
-    CounterPolicy, WebAuthnCredential, WebAuthnEvidence, WEBAUTHN_MEDIA_TYPE, WEBAUTHN_V1,
+    CounterPolicy, WEBAUTHN_MEDIA_TYPE, WEBAUTHN_V1, WebAuthnCredential, WebAuthnEvidence,
 };
 use base64ct::{Base64UrlUnpadded, Encoding as _};
-use ed25519_dalek::{pkcs8::EncodePrivateKey as _, Signer as _, SigningKey as Ed25519SigningKey};
+use ed25519_dalek::{Signer as _, SigningKey as Ed25519SigningKey, pkcs8::EncodePrivateKey as _};
 use p256::ecdsa::{Signature as P256Signature, SigningKey as P256SigningKey};
 use rcgen::{
     BasicConstraints, CertificateParams, ExtendedKeyUsagePurpose, IsCa, KeyPair, KeyUsagePurpose,
-    SanType, SerialNumber, PKCS_ED25519,
+    PKCS_ED25519, SanType, SerialNumber,
 };
 use rustls_pki_types::PrivatePkcs8KeyDer;
 use sha2::{Digest as _, Sha256};
@@ -1123,7 +1123,7 @@ fn two_party_chain(
     };
     let audiences = if matches!(variation, GrantVariation::AudienceExpanded) {
         AudienceSet::new(vec![
-            Audience::parse("mcp://other-service").expect("audience")
+            Audience::parse("mcp://other-service").expect("audience"),
         ])
         .expect("audience")
     } else {
@@ -2469,11 +2469,13 @@ fn action_authority_fixture(name: &'static str, variation: ActionVariation) -> C
         ValidityWindow::new(Timestamp::new(40), Timestamp::new(60)).expect("validity")
     };
     let extensions = if matches!(variation, ActionVariation::UnknownExtension) {
-        CriticalExtensions::new(vec![CriticalExtension::new(
-            ExtensionId::parse("unknown-critical-v1").expect("extension"),
-            vec![1],
-        )
-        .expect("extension")])
+        CriticalExtensions::new(vec![
+            CriticalExtension::new(
+                ExtensionId::parse("unknown-critical-v1").expect("extension"),
+                vec![1],
+            )
+            .expect("extension"),
+        ])
         .expect("extensions")
     } else {
         CriticalExtensions::empty()
@@ -3814,7 +3816,7 @@ fn exact_marker_extension(name: &'static str, bytes: Vec<u8>, expected: Expected
         proof_ref,
         Vec::new(),
         CriticalExtensions::new(vec![
-            CriticalExtension::new(extension_id.clone(), bytes).expect("extension")
+            CriticalExtension::new(extension_id.clone(), bytes).expect("extension"),
         ])
         .expect("extension set"),
     );
@@ -3826,11 +3828,13 @@ fn exact_marker_extension(name: &'static str, bytes: Vec<u8>, expected: Expected
         vec![action.clone()],
         plan,
         vec![evidence.clone()],
-        vec![ControlBinding::new(
-            StatementRef::Action(action_id(action.envelope()).expect("action ID")),
-            vec![evidence.id()],
-        )
-        .expect("binding")],
+        vec![
+            ControlBinding::new(
+                StatementRef::Action(action_id(action.envelope()).expect("action ID")),
+                vec![evidence.id()],
+            )
+            .expect("binding"),
+        ],
         Vec::new(),
         Vec::new(),
         Vec::new(),
@@ -4092,11 +4096,13 @@ fn unsupported_budget_algebra() -> CorpusFixture {
         vec![action.clone()],
         plan,
         vec![evidence.clone()],
-        vec![ControlBinding::new(
-            StatementRef::Action(action_id(action.envelope()).unwrap()),
-            vec![evidence.id()],
-        )
-        .unwrap()],
+        vec![
+            ControlBinding::new(
+                StatementRef::Action(action_id(action.envelope()).unwrap()),
+                vec![evidence.id()],
+            )
+            .unwrap(),
+        ],
         Vec::new(),
         Vec::new(),
         Vec::new(),
@@ -4207,11 +4213,13 @@ fn control_mismatch(name: &'static str, mismatch: ControlMismatch) -> CorpusFixt
         vec![action.clone()],
         plan,
         vec![evidence.clone()],
-        vec![ControlBinding::new(
-            StatementRef::Action(action_id(action.envelope()).unwrap()),
-            vec![evidence.id()],
-        )
-        .unwrap()],
+        vec![
+            ControlBinding::new(
+                StatementRef::Action(action_id(action.envelope()).unwrap()),
+                vec![evidence.id()],
+            )
+            .unwrap(),
+        ],
         Vec::new(),
         Vec::new(),
         Vec::new(),
@@ -4272,11 +4280,13 @@ fn plan_action_mismatch() -> CorpusFixture {
         vec![action.clone()],
         plan,
         vec![evidence.clone()],
-        vec![ControlBinding::new(
-            StatementRef::Action(action_id(action.envelope()).unwrap()),
-            vec![evidence.id()],
-        )
-        .unwrap()],
+        vec![
+            ControlBinding::new(
+                StatementRef::Action(action_id(action.envelope()).unwrap()),
+                vec![evidence.id()],
+            )
+            .unwrap(),
+        ],
         Vec::new(),
         Vec::new(),
         Vec::new(),

@@ -7,9 +7,9 @@ extern crate alloc;
 
 use alloc::vec::Vec;
 use auths_codec::{
-    action_id, action_signing_preimage, grant_id, grant_signing_preimage, grant_status_id,
-    grant_status_signing_preimage, principal_status_id, principal_status_signing_preimage,
-    CodecError,
+    CodecError, action_id, action_signing_preimage, grant_id, grant_signing_preimage,
+    grant_status_id, grant_status_signing_preimage, principal_status_id,
+    principal_status_signing_preimage,
 };
 use auths_model::{
     ActionConstraint, ActionEnvelope, ActionId, AssurancePolicyId, AudienceSet, AuthorizationPlan,

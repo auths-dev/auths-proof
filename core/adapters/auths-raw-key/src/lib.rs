@@ -265,17 +265,19 @@ mod tests {
         .unwrap();
         let refs = [&evidence];
         let method = RawKeyMethod::new().unwrap();
-        assert!(method
-            .verify_control(PrincipalControlInput {
-                principal: &principal,
-                verification_method: &VerificationMethod::parse(principal.as_str()).unwrap(),
-                signature_suite: &SignatureSuiteId::parse(ED25519_V1).unwrap(),
-                purpose: auths_ports::ControlPurpose::CapabilityInvocation,
-                signing_preimage: b"test",
-                asserted_signing_time: Timestamp::new(0),
-                evidence: &refs,
-                evaluation_time: Timestamp::new(0),
-            })
-            .is_ok());
+        assert!(
+            method
+                .verify_control(PrincipalControlInput {
+                    principal: &principal,
+                    verification_method: &VerificationMethod::parse(principal.as_str()).unwrap(),
+                    signature_suite: &SignatureSuiteId::parse(ED25519_V1).unwrap(),
+                    purpose: auths_ports::ControlPurpose::CapabilityInvocation,
+                    signing_preimage: b"test",
+                    asserted_signing_time: Timestamp::new(0),
+                    evidence: &refs,
+                    evaluation_time: Timestamp::new(0),
+                })
+                .is_ok()
+        );
     }
 }
