@@ -349,6 +349,7 @@ assurance-requirement = {
   4: bounded-id / null,     ; exact adapter ID
   5: uint .ge 1 / null,     ; exact adapter version
   6: uint .ge 1 / null,     ; optional maximum age in seconds
+  7: 0 / 1,                 ; any / every selected participant
 }
 
 assurance-policy = {
@@ -374,46 +375,58 @@ trust-anchor = {
 
 verifier-limits = {
   0: uint .le 8388608,      ; bundle bytes
-  1: uint .le 256,          ; grants
-  2: uint .le 128,          ; actions
-  3: uint .le 128,          ; plan leaves
-  4: uint .le 16,           ; plan depth
-  5: uint .le 128,          ; plan branching
-  6: uint .le 512,          ; evidence objects
-  7: uint .le 2097152,      ; one evidence object
-  8: uint .le 512,          ; control bindings
-  9: uint .le 512,          ; principal status statements
-  10: uint .le 512,         ; grant status statements
-  11: uint .le 512,         ; attachments
-  12: uint .le 1024,        ; signatures
-  13: uint .le 4096,        ; one signature
-  14: uint .le 1024,        ; permissions
-  15: uint .le 256,         ; audiences
-  16: uint .le 32,          ; critical extensions
-  17: uint .le 65536,       ; one critical extension
-  18: uint .le 256,         ; allowed body digests
-  19: uint .le 32,          ; evidence IDs in one binding
-  20: uint .le 8388608,     ; canonical action body
-  21: uint .le 1024,        ; accepted entries per registry
-  22: uint .le 1024,        ; trust anchors
-  23: uint .le 1000000,     ; total work units
+  1: uint .le 16777216,     ; canonical-action input bytes
+  2: uint .le 16777216,     ; trusted-context input bytes
+  3: uint .le 256,          ; grants
+  4: uint .le 128,          ; actions
+  5: uint .le 128,          ; plan leaves
+  6: uint .le 16,           ; plan depth
+  7: uint .le 128,          ; plan branching
+  8: uint .le 512,          ; evidence objects
+  9: uint .le 2097152,      ; one evidence object
+  10: uint .le 512,         ; control bindings
+  11: uint .le 512,         ; principal status statements
+  12: uint .le 512,         ; grant status statements
+  13: uint .le 512,         ; attachments
+  14: uint .le 8388608,     ; aggregate detached attachment bytes
+  15: uint .le 1024,        ; signatures
+  16: uint .le 4096,        ; one signature
+  17: uint .le 1024,        ; permissions
+  18: uint .le 256,         ; audiences
+  19: uint .le 32,          ; critical extensions
+  20: uint .le 65536,       ; one critical extension
+  21: uint .le 256,         ; allowed body digests
+  22: uint .le 32,          ; evidence IDs in one binding
+  23: uint .le 8388608,     ; canonical action body
+  24: uint .le 1024,        ; accepted entries per registry
+  25: uint .le 1024,        ; trust anchors
+  26: uint .le 1000000,     ; total work units
 }
 
-; This explicit public projection is hashed for ContextDigest. Private policy
-; data is represented only by stable identifiers or protected digests.
+composition-requirement = {
+  0: digest32 / null,       ; exact required AuthorizationPlanId
+  1: uint .ge 1 .le 128,   ; minimum authorized branches
+  2: uint .ge 1 .le 128,   ; minimum distinct actors
+  3: uint .ge 1 .le 128,   ; minimum distinct roots
+}
+
+; This canonical trusted context is hashed for ContextDigest. Key 1 commits
+; every decision-affecting executable adapter and registry configuration.
 verifier-context = {
-  0: [1*1024 trust-anchor],
-  1: accepted-registries,
-  2: audience,
-  3: digest32,              ; expected challenge
-  4: timestamp,             ; evaluation time
-  5: assurance-policy,
-  6: principal-status-snapshot,
-  7: grant-status-snapshot,
-  8: bounded-id,            ; resource matcher ID
-  9: bounded-id,            ; profile policy ID
-  10: bounded-id,           ; channel policy ID
-  11: verifier-limits,
+  0: verifier-limits,
+  1: digest32,              ; VerifierConfigurationId
+  2: composition-requirement,
+  3: [1*1024 trust-anchor],
+  4: accepted-registries,
+  5: audience,
+  6: digest32,              ; expected challenge
+  7: timestamp,             ; evaluation time
+  8: assurance-policy,
+  9: principal-status-snapshot,
+  10: grant-status-snapshot,
+  11: bounded-id,           ; resource matcher ID
+  12: bounded-id,           ; profile policy ID
+  13: bounded-id,           ; channel policy ID
 }
 
 detached-attachment = {
@@ -454,7 +467,8 @@ verification-result = {
   10: [*512 any],           ; canonical assurance satisfactions
   11: verification-resources,
   12: digest32,             ; registry manifest
-  13: 1,                    ; portable ABI version
+  13: digest32,             ; exact verifier configuration commitment
+  14: 1,                    ; portable ABI version
 }
 
 grant-signing-input = {

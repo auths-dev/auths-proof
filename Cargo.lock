@@ -166,13 +166,13 @@ name = "auths-ports"
 version = "0.1.0"
 dependencies = [
  "auths-model",
+ "sha2",
 ]
 
 [[package]]
 name = "auths-proof"
 version = "0.1.0"
 dependencies = [
- "auths-author",
  "auths-codec",
  "auths-model",
  "auths-ports",
@@ -181,6 +181,18 @@ dependencies = [
  "auths-signature",
  "auths-testkit",
  "auths-verifier",
+]
+
+[[package]]
+name = "auths-proof-offline-example"
+version = "0.1.0"
+dependencies = [
+ "auths-codec",
+ "auths-ports",
+ "auths-proof",
+ "auths-raw-key",
+ "auths-registries",
+ "auths-signature",
 ]
 
 [[package]]
@@ -217,6 +229,7 @@ version = "0.1.0"
 dependencies = [
  "auths-model",
  "auths-ports",
+ "sha2",
 ]
 
 [[package]]
@@ -246,13 +259,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "auths-status"
-version = "0.1.0"
-dependencies = [
- "auths-model",
-]
-
-[[package]]
 name = "auths-testkit"
 version = "0.1.0"
 dependencies = [
@@ -264,7 +270,9 @@ dependencies = [
  "auths-hsm-attested",
  "auths-model",
  "auths-multikey",
+ "auths-ports",
  "auths-raw-key",
+ "auths-registries",
  "auths-signature",
  "auths-spiffe-x509",
  "auths-webauthn",
@@ -294,7 +302,6 @@ dependencies = [
  "auths-registries",
  "auths-signature",
  "auths-spiffe-x509",
- "auths-status",
  "auths-testkit",
  "auths-webauthn",
  "ed25519-dalek",
@@ -342,7 +349,7 @@ version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "08807e080ed7f9d5433fa9b275196cfc35414f66a0c79d864dc51a0d825231a3"
 dependencies = [
- "bit-vec 0.8.0",
+ "bit-vec",
 ]
 
 [[package]]
@@ -350,15 +357,6 @@ name = "bit-vec"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5e764a1d40d510daf35e07be9eb06e75770908c27d411ee6c92109c9840eaaf7"
-
-[[package]]
-name = "bit-vec"
-version = "0.9.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b71798fca2c1fe1086445a7258a4bc81e6e49dcd24c8d0dd9a1e57395b603f51"
-dependencies = [
- "serde",
-]
 
 [[package]]
 name = "bitflags"
@@ -534,6 +532,9 @@ name = "deranged"
 version = "0.5.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7cd812cc2bc1d69d4764bd80df88b4317eaef9e773c75226407d9bc0876b211c"
+dependencies = [
+ "powerfmt",
+]
 
 [[package]]
 name = "digest"
@@ -828,9 +829,9 @@ dependencies = [
 
 [[package]]
 name = "num-conv"
-version = "0.2.2"
+version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "521739c6d2bac4aa25192232afe6841231376b2b26d4d9fae5ecf8ca5772e441"
+checksum = "51d515d32fb182ee37cda2ccdcb92950d6a3c2893aa280e540671c2cd0f3b1d9"
 
 [[package]]
 name = "num-integer"
@@ -937,7 +938,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4b45fcc2344c680f5025fe57779faef368840d0bd1f42f216291f0dc4ace4744"
 dependencies = [
  "bit-set",
- "bit-vec 0.8.0",
+ "bit-vec",
  "bitflags",
  "num-traits",
  "rand",
@@ -1025,15 +1026,14 @@ dependencies = [
 
 [[package]]
 name = "rcgen"
-version = "0.14.8"
+version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57f6d249aad744e274e682777a50283a225a32705394ee6d5fcc01efa25e4055"
+checksum = "75e669e5202259b5314d1ea5397316ad400819437857b90861765f24c4cf80a2"
 dependencies = [
  "pem",
  "ring",
  "rustls-pki-types",
  "time",
- "x509-parser",
  "yasna",
 ]
 
@@ -1311,11 +1311,12 @@ dependencies = [
 
 [[package]]
 name = "time"
-version = "0.3.54"
+version = "0.3.45"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3e1d5e639ff6bab73cb6885cc7e7b1de96c3f32c68ec55f3952614bec1092244"
+checksum = "f9e442fc33d7fdb45aa9bfeb312c095964abdf596f7567261062b2a7107aaabd"
 dependencies = [
  "deranged",
+ "itoa",
  "num-conv",
  "powerfmt",
  "serde_core",
@@ -1325,15 +1326,15 @@ dependencies = [
 
 [[package]]
 name = "time-core"
-version = "0.1.9"
+version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9e1c906769ad99c88eaa54e728060edef082f8e358ff32030cb7c7d315e81109"
+checksum = "8b36ee98fd31ec7426d599183e8fe26932a8dc1fb76ddb6214d05493377d34ca"
 
 [[package]]
 name = "time-macros"
-version = "0.2.32"
+version = "0.2.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7e689342a48d2ea927c87ea50cabf8594854bf940e9310208848d680d668ed85"
+checksum = "71e552d1249bf61ac2a52db88179fd0673def1e1ad8243a00d9ec9ed71fee3dd"
 dependencies = [
  "num-conv",
  "time-core",
@@ -1559,7 +1560,6 @@ dependencies = [
  "lazy_static",
  "nom",
  "oid-registry",
- "ring",
  "rusticata-macros",
  "thiserror",
  "time",
@@ -1590,11 +1590,10 @@ dependencies = [
 
 [[package]]
 name = "yasna"
-version = "0.6.0"
+version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b5f6765e852b9b4dc8e2a76843e4d64d1cea8e79bcde0b6901aea8e7c7f08282"
+checksum = "e17bb3549cc1321ae1296b9cdc2698e2b6cb1992adfa19a8c72e5b7a738f44cd"
 dependencies = [
- "bit-vec 0.9.1",
  "time",
 ]
 

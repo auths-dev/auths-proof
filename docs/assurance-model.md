@@ -1,96 +1,49 @@
-# Assurance Model
+# Assurance model
 
-Cryptographic validity and authorization are not synonyms.
+Cryptographic validity and authorization are not synonyms. A successful
+principal adapter returns canonical `AssuranceClaim` values and an
+`ParticipantAssurance` report that records the exact principal, chain role,
+adapter ID/version, and consumed evidence.
 
-Each successful principal adapter returns typed assurance claims, such as:
+`AssuranceRequirement` has no implicit role-only interpretation. It always
+contains:
 
-- `SelfCertifyingIdentifier`;
-- `OfflineVerifiable`;
-- `ControllerStateCurrentAt`;
-- `ControllerStateHistoricalAt`;
-- `StatementExistenceProvenAt`;
-- `RotationAware`;
-- `RevocationCheckedAt`;
-- `WitnessThresholdMet`;
-- `PkiChainValidated`;
-- `HardwareAttested`.
+- a role selector (`Root`, `Intermediate`, `Actor`, or `ExternalIssuer`);
+- an explicit `Any` or `Every` quantifier;
+- an exact claim kind;
+- optional parameter, evidence-source, adapter, adapter-version, and freshness
+  constraints.
 
-The verifier requires every principal in a chain to satisfy the global policy.
-The root must additionally satisfy its trust anchor's requirements. The
-verdict reports only assurance common to all verified principals, preventing a
-strong root from masking a weak terminal actor.
+`Every` requires every report selected by the role to satisfy the requirement.
+`Any` requires at least one. Both fail when the selected role has no
+participant. The portable result records every satisfaction needed to audit
+the chosen quantifier.
 
 ## Historical state is not statement time
 
-`ControllerStateHistoricalAt(t)` says a key was valid at `t`.
-`StatementExistenceProvenAt(t)` says the exact Auths statement existed by `t`.
+`historical-at` says a controller key was valid at a time.
+`statement-existence-proven-at` says the exact Auths signing preimage existed by
+a time. A revoked key can backdate `issued_at`, so an archival policy normally
+needs both claims.
 
-A revoked key can backdate `issued_at`; therefore an archival policy accepting
-historical keys needs both facts.
+## Adapter ceilings
 
-## Milestone 1 raw-key assurance
+- Raw key and `did:key` establish `self-certifying-identifier` and
+  `offline-verifiable`; they do not establish rotation or revocation.
+- `did:keri` additionally establishes `rotation-aware` for transferable state.
+  A verifier-bound current checkpoint can establish
+  `controller-state-current-at`, `revocation-checked-at`, and, where recorded,
+  `witness-threshold-met`.
+- `did:web` requires verifier-bound trust records. Current records can
+  establish current-state and revocation-check claims. Historical records can
+  establish historical state, and only an exact statement pin establishes
+  statement existence.
+- WebAuthn, HSM-attested, and SPIFFE/X.509 claims are limited to the exact
+  verifier-bound credential, attestation, trust, and status records.
 
-Raw Ed25519 and P-256 principals produce:
+The executable registry commits all of this decision-affecting configuration
+to `VerifierConfigurationId`. A context/configuration mismatch is a stable
+denial; the verifier never falls back to a weaker adapter.
 
-```text
-SelfCertifyingIdentifier
-OfflineVerifiable
-```
-
-They do not produce rotation, revocation, current status, historical state, or
-hardware claims. The verifier reports `IrrevocablePrincipal` as a limitation.
-
-## Milestone 2 embedded KERI assurance
-
-The `did-keri-v1` adapter always produces:
-
-```text
-SelfCertifyingIdentifier
-OfflineVerifiable
-```
-
-It produces `RotationAware` only when the accepted state retains valid next-key
-commitments. Non-transferable and abandoned identifiers remain subject to the
-verifier's irrevocable-principal policy. `RotationAware` means the adapter
-replayed and validated the rotations included in the bounded KEL. It does not
-mean that the KEL is globally current. An attacker can present a valid prefix
-of a KEL that omits a later rotation, so the adapter does not claim current
-state, historical state at a supplied time, witness quorum, statement
-existence, or revocation checking.
-
-Current-state KERI policy therefore requires a separate, authenticated
-freshness/status mechanism above this adapter. The offline kernel does not
-silently fetch one.
-
-## Milestone 3 DID assurance
-
-`did:key` has the same assurance ceiling as raw-key identities:
-`SelfCertifyingIdentifier` and `OfflineVerifiable`, with no rotation or
-history.
-
-`did:web` never emits `SelfCertifyingIdentifier`. A bare document has no
-authority because anyone can construct one with a chosen `id`. With a matching
-host-controlled current-resolution record, the adapter emits:
-
-```text
-OfflineVerifiable
-RotationAware
-ControllerStateCurrentAt(observed_at)
-RevocationCheckedAt(observed_at)
-```
-
-A historical document pin emits `ControllerStateHistoricalAt`. It emits
-`StatementExistenceProvenAt` only when the pin also commits to the exact Auths
-signing bytes. Default policies reject historical key state without that
-separate existence fact as indeterminate.
-
-## Policy profiles
-
-`VerificationPolicy` intentionally has no `Default`.
-
-- `live_action()` requires offline-verifiable principal evidence and checks
-  current action/grant validity.
-- `offline_audit()` relaxes live assurance but does not skip cryptographic,
-  authority, body, audience, challenge, or explicit-time checks.
-
-Applications should define stricter named profiles as their adapters mature.
+Applications construct explicit `AssurancePolicy` values. There is no default
+policy profile and no implicit upgrade from `Indeterminate` to authorization.

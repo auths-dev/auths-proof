@@ -16,6 +16,10 @@ use subtle::ConstantTimeEq;
 pub const PROTOCOL_V1: u16 = 1;
 pub const HARD_MAX_BUNDLE_BYTES: usize = 8 * 1024 * 1024;
 pub const DEFAULT_MAX_BUNDLE_BYTES: usize = 256 * 1024;
+pub const HARD_MAX_ACTION_BYTES: usize = 16 * 1024 * 1024;
+pub const DEFAULT_MAX_ACTION_BYTES: usize = 2 * 1024 * 1024;
+pub const HARD_MAX_CONTEXT_BYTES: usize = 16 * 1024 * 1024;
+pub const DEFAULT_MAX_CONTEXT_BYTES: usize = 2 * 1024 * 1024;
 pub const HARD_MAX_GRANTS: usize = 256;
 pub const DEFAULT_MAX_GRANTS: usize = 16;
 pub const HARD_MAX_ACTIONS: usize = 128;
@@ -38,6 +42,8 @@ pub const HARD_MAX_GRANT_STATUS: usize = 512;
 pub const DEFAULT_MAX_GRANT_STATUS: usize = 32;
 pub const HARD_MAX_ATTACHMENTS: usize = 512;
 pub const DEFAULT_MAX_ATTACHMENTS: usize = 32;
+pub const HARD_MAX_ATTACHMENT_BYTES: usize = 8 * 1024 * 1024;
+pub const DEFAULT_MAX_ATTACHMENT_BYTES: usize = 1024 * 1024;
 pub const HARD_MAX_SIGNATURES: usize = 1_024;
 pub const DEFAULT_MAX_SIGNATURES: usize = 64;
 pub const HARD_MAX_SIGNATURE_BYTES: usize = 4_096;
@@ -276,6 +282,8 @@ digest_identifier!(ContextDigest);
 digest_identifier!(ProofRef);
 digest_identifier!(StatusSnapshotId);
 digest_identifier!(RegistryManifestId);
+digest_identifier!(AdapterConfigurationId);
+digest_identifier!(VerifierConfigurationId);
 digest_identifier!(VerificationResultDigest);
 
 /// Unpredictable 32-byte verifier challenge compared in constant time.
@@ -1130,7 +1138,7 @@ impl CanonicalAction {
     ///
     /// Returns [`ModelError::InvalidAttachment`] when the collection exceeds
     /// protocol bounds, contains duplicate identifiers, or the accumulated
-    /// detached bytes exceed the bundle byte hard limit.
+    /// detached bytes exceed the attachment-byte hard limit.
     pub fn with_detached_attachments(
         mut self,
         mut attachments: Vec<DetachedAttachment>,
@@ -1145,7 +1153,7 @@ impl CanonicalAction {
                 .try_fold(0usize, |total, attachment| {
                     total.checked_add(attachment.bytes().len())
                 })
-                .is_none_or(|total| total > HARD_MAX_BUNDLE_BYTES)
+                .is_none_or(|total| total > HARD_MAX_ATTACHMENT_BYTES)
         {
             return Err(ModelError::InvalidAttachment);
         }
@@ -2182,6 +2190,83 @@ impl BundleHeader {
     }
 }
 
+/// Verifier-trusted requirements applied in addition to the proof-carried
+/// authorization plan.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct CompositionRequirement {
+    expected_plan: Option<PlanId>,
+    minimum_authorized_branches: u16,
+    minimum_distinct_actors: u16,
+    minimum_distinct_roots: u16,
+}
+
+impl CompositionRequirement {
+    /// Constructs a bounded composition requirement.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ModelError::InvalidVerifierContext`] when a minimum is zero,
+    /// a diversity minimum exceeds the branch minimum, or the branch minimum
+    /// exceeds the protocol plan-leaf maximum.
+    pub fn new(
+        expected_plan: Option<PlanId>,
+        minimum_authorized_branches: u16,
+        minimum_distinct_actors: u16,
+        minimum_distinct_roots: u16,
+    ) -> Result<Self, ModelError> {
+        if minimum_authorized_branches == 0
+            || minimum_distinct_actors == 0
+            || minimum_distinct_roots == 0
+            || minimum_distinct_actors > minimum_authorized_branches
+            || minimum_distinct_roots > minimum_authorized_branches
+            || usize::from(minimum_authorized_branches) > HARD_MAX_PLAN_LEAVES
+        {
+            return Err(ModelError::InvalidVerifierContext);
+        }
+        Ok(Self {
+            expected_plan,
+            minimum_authorized_branches,
+            minimum_distinct_actors,
+            minimum_distinct_roots,
+        })
+    }
+
+    /// Requires one exact plan and at least one independent root and actor.
+    #[must_use]
+    pub const fn exact(plan: PlanId) -> Self {
+        Self {
+            expected_plan: Some(plan),
+            minimum_authorized_branches: 1,
+            minimum_distinct_actors: 1,
+            minimum_distinct_roots: 1,
+        }
+    }
+
+    /// Returns the exact accepted plan identifier, when constrained.
+    #[must_use]
+    pub const fn expected_plan(self) -> Option<PlanId> {
+        self.expected_plan
+    }
+
+    /// Returns the minimum number of branches that must establish authority.
+    #[must_use]
+    pub const fn minimum_authorized_branches(self) -> u16 {
+        self.minimum_authorized_branches
+    }
+
+    /// Returns the minimum number of distinct authorized actors.
+    #[must_use]
+    pub const fn minimum_distinct_actors(self) -> u16 {
+        self.minimum_distinct_actors
+    }
+
+    /// Returns the minimum number of distinct authorized roots.
+    #[must_use]
+    pub const fn minimum_distinct_roots(self) -> u16 {
+        self.minimum_distinct_roots
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProofBundle {
     header: BundleHeader,
@@ -2310,6 +2395,16 @@ pub enum ParticipantRole {
     Intermediate,
     Actor,
     ExternalIssuer,
+}
+
+/// Number of participants selected by an assurance requirement that must
+/// satisfy its claim constraints.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
+pub enum AssuranceQuantifier {
+    /// At least one selected participant must satisfy the requirement.
+    Any,
+    /// Every selected participant must satisfy the requirement.
+    Every,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
@@ -2441,6 +2536,7 @@ impl ParticipantAssurance {
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub struct AssuranceRequirement {
     role: ParticipantRole,
+    quantifier: AssuranceQuantifier,
     claim_kind: AssuranceClaimId,
     parameters: Vec<(ClaimParameterId, ClaimParameterId)>,
     source: Option<EvidenceSourceId>,
@@ -2453,11 +2549,13 @@ impl AssuranceRequirement {
     #[must_use]
     pub const fn new(
         role: ParticipantRole,
+        quantifier: AssuranceQuantifier,
         claim_kind: AssuranceClaimId,
         maximum_age: Option<FreshnessLimit>,
     ) -> Self {
         Self {
             role,
+            quantifier,
             claim_kind,
             parameters: Vec::new(),
             source: None,
@@ -2477,6 +2575,7 @@ impl AssuranceRequirement {
     #[allow(clippy::too_many_arguments)]
     pub fn constrained(
         role: ParticipantRole,
+        quantifier: AssuranceQuantifier,
         claim_kind: AssuranceClaimId,
         mut parameters: Vec<(ClaimParameterId, ClaimParameterId)>,
         source: Option<EvidenceSourceId>,
@@ -2496,6 +2595,7 @@ impl AssuranceRequirement {
         }
         Ok(Self {
             role,
+            quantifier,
             claim_kind,
             parameters,
             source,
@@ -2507,6 +2607,11 @@ impl AssuranceRequirement {
     #[must_use]
     pub const fn role(&self) -> ParticipantRole {
         self.role
+    }
+    /// Returns the explicit participant quantifier.
+    #[must_use]
+    pub const fn quantifier(&self) -> AssuranceQuantifier {
+        self.quantifier
     }
     #[must_use]
     pub const fn claim_kind(&self) -> &AssuranceClaimId {
@@ -2745,6 +2850,8 @@ impl TrustAnchor {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct VerifierLimits {
     bundle_bytes: usize,
+    action_bytes: usize,
+    context_bytes: usize,
     grants: usize,
     actions: usize,
     plan_leaves: usize,
@@ -2756,6 +2863,7 @@ pub struct VerifierLimits {
     principal_status: usize,
     grant_status: usize,
     attachments: usize,
+    attachment_bytes: usize,
     signatures: usize,
     signature_bytes: usize,
     permissions: usize,
@@ -2774,6 +2882,8 @@ pub struct VerifierLimits {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum LimitKind {
     BundleBytes,
+    ActionBytes,
+    ContextBytes,
     Grants,
     Actions,
     PlanLeaves,
@@ -2785,6 +2895,7 @@ pub enum LimitKind {
     PrincipalStatusStatements,
     GrantStatusStatements,
     Attachments,
+    AttachmentBytes,
     Signatures,
     SignatureBytes,
     Permissions,
@@ -2803,6 +2914,8 @@ impl VerifierLimits {
     pub const fn default_deployment() -> Self {
         Self {
             bundle_bytes: DEFAULT_MAX_BUNDLE_BYTES,
+            action_bytes: DEFAULT_MAX_ACTION_BYTES,
+            context_bytes: DEFAULT_MAX_CONTEXT_BYTES,
             grants: DEFAULT_MAX_GRANTS,
             actions: DEFAULT_MAX_ACTIONS,
             plan_leaves: DEFAULT_MAX_PLAN_LEAVES,
@@ -2814,6 +2927,7 @@ impl VerifierLimits {
             principal_status: DEFAULT_MAX_PRINCIPAL_STATUS,
             grant_status: DEFAULT_MAX_GRANT_STATUS,
             attachments: DEFAULT_MAX_ATTACHMENTS,
+            attachment_bytes: DEFAULT_MAX_ATTACHMENT_BYTES,
             signatures: DEFAULT_MAX_SIGNATURES,
             signature_bytes: DEFAULT_MAX_SIGNATURE_BYTES,
             permissions: DEFAULT_MAX_PERMISSIONS,
@@ -2833,6 +2947,8 @@ impl VerifierLimits {
     pub const fn hard() -> Self {
         Self {
             bundle_bytes: HARD_MAX_BUNDLE_BYTES,
+            action_bytes: HARD_MAX_ACTION_BYTES,
+            context_bytes: HARD_MAX_CONTEXT_BYTES,
             grants: HARD_MAX_GRANTS,
             actions: HARD_MAX_ACTIONS,
             plan_leaves: HARD_MAX_PLAN_LEAVES,
@@ -2844,6 +2960,7 @@ impl VerifierLimits {
             principal_status: HARD_MAX_PRINCIPAL_STATUS,
             grant_status: HARD_MAX_GRANT_STATUS,
             attachments: HARD_MAX_ATTACHMENTS,
+            attachment_bytes: HARD_MAX_ATTACHMENT_BYTES,
             signatures: HARD_MAX_SIGNATURES,
             signature_bytes: HARD_MAX_SIGNATURE_BYTES,
             permissions: HARD_MAX_PERMISSIONS,
@@ -2868,6 +2985,8 @@ impl VerifierLimits {
     pub fn with_limit(mut self, kind: LimitKind, value: usize) -> Result<Self, ModelError> {
         match kind {
             LimitKind::BundleBytes => self.bundle_bytes = value,
+            LimitKind::ActionBytes => self.action_bytes = value,
+            LimitKind::ContextBytes => self.context_bytes = value,
             LimitKind::Grants => self.grants = value,
             LimitKind::Actions => self.actions = value,
             LimitKind::PlanLeaves => self.plan_leaves = value,
@@ -2879,6 +2998,7 @@ impl VerifierLimits {
             LimitKind::PrincipalStatusStatements => self.principal_status = value,
             LimitKind::GrantStatusStatements => self.grant_status = value,
             LimitKind::Attachments => self.attachments = value,
+            LimitKind::AttachmentBytes => self.attachment_bytes = value,
             LimitKind::Signatures => self.signatures = value,
             LimitKind::SignatureBytes => self.signature_bytes = value,
             LimitKind::Permissions => self.permissions = value,
@@ -2912,6 +3032,8 @@ impl VerifierLimits {
     pub const fn get(&self, kind: LimitKind) -> usize {
         match kind {
             LimitKind::BundleBytes => self.bundle_bytes,
+            LimitKind::ActionBytes => self.action_bytes,
+            LimitKind::ContextBytes => self.context_bytes,
             LimitKind::Grants => self.grants,
             LimitKind::Actions => self.actions,
             LimitKind::PlanLeaves => self.plan_leaves,
@@ -2923,6 +3045,7 @@ impl VerifierLimits {
             LimitKind::PrincipalStatusStatements => self.principal_status,
             LimitKind::GrantStatusStatements => self.grant_status,
             LimitKind::Attachments => self.attachments,
+            LimitKind::AttachmentBytes => self.attachment_bytes,
             LimitKind::Signatures => self.signatures,
             LimitKind::SignatureBytes => self.signature_bytes,
             LimitKind::Permissions => self.permissions,
@@ -2953,6 +3076,8 @@ impl VerifierLimits {
     pub fn validate(&self) -> Result<(), ModelError> {
         let hard = Self::hard();
         if self.bundle_bytes > hard.bundle_bytes
+            || self.action_bytes > hard.action_bytes
+            || self.context_bytes > hard.context_bytes
             || self.grants > hard.grants
             || self.actions > hard.actions
             || self.plan_leaves > hard.plan_leaves
@@ -2964,6 +3089,7 @@ impl VerifierLimits {
             || self.principal_status > hard.principal_status
             || self.grant_status > hard.grant_status
             || self.attachments > hard.attachments
+            || self.attachment_bytes > hard.attachment_bytes
             || self.signatures > hard.signatures
             || self.signature_bytes > hard.signature_bytes
             || self.permissions > hard.permissions
@@ -3249,6 +3375,8 @@ impl AcceptedRegistries {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct VerifierContext {
+    configuration: VerifierConfigurationId,
+    composition: CompositionRequirement,
     trust_anchors: Vec<TrustAnchor>,
     accepted_registries: AcceptedRegistries,
     expected_audience: Audience,
@@ -3272,6 +3400,8 @@ impl VerifierContext {
     /// Returns an error when `limits` exceed protocol maxima or when trust
     /// anchors or accepted profiles are empty.
     pub fn new(
+        configuration: VerifierConfigurationId,
+        composition: CompositionRequirement,
         mut trust_anchors: Vec<TrustAnchor>,
         accepted_registries: AcceptedRegistries,
         expected_audience: Audience,
@@ -3288,6 +3418,8 @@ impl VerifierContext {
         limits.validate()?;
         trust_anchors.sort_by(|left, right| left.id().cmp(right.id()));
         if trust_anchors.is_empty()
+            || usize::from(composition.minimum_authorized_branches())
+                > limits.get(LimitKind::PlanLeaves)
             || trust_anchors.len() > limits.get(LimitKind::TrustAnchors)
             || trust_anchors
                 .windows(2)
@@ -3313,10 +3445,22 @@ impl VerifierContext {
             || !accepted_registries.accepts_resource_matcher(&resource_matcher)
             || !accepted_registries.accepts_profile_policy(&profile_policy)
             || accepted_registries.maximum_entry_count() > limits.get(LimitKind::RegistryEntries)
+            || assurance_policy.requirements().len() > limits.get(LimitKind::EvidenceObjects)
+            || principal_status_snapshot.statements().len()
+                > limits.get(LimitKind::PrincipalStatusStatements)
+            || grant_status_snapshot.statements().len()
+                > limits.get(LimitKind::GrantStatusStatements)
+            || principal_status_snapshot.checkpoints().len()
+                > limits.get(LimitKind::EvidenceObjects)
+            || grant_status_snapshot.checkpoints().len() > limits.get(LimitKind::EvidenceObjects)
+            || principal_status_snapshot.trust().len() > limits.get(LimitKind::RegistryEntries)
+            || grant_status_snapshot.trust().len() > limits.get(LimitKind::RegistryEntries)
         {
             return Err(ModelError::InvalidVerifierContext);
         }
         Ok(Self {
+            configuration,
+            composition,
             trust_anchors,
             accepted_registries,
             expected_audience,
@@ -3346,6 +3490,8 @@ impl VerifierContext {
         evaluation_time: Timestamp,
     ) -> Result<Self, ModelError> {
         Self::new(
+            self.configuration,
+            self.composition,
             self.trust_anchors.clone(),
             self.accepted_registries.clone(),
             expected_audience,
@@ -3361,6 +3507,96 @@ impl VerifierContext {
         )
     }
 
+    /// Replaces only the verifier-trusted composition requirement.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the replacement exceeds the existing deployment
+    /// limits or makes the context invalid.
+    pub fn with_composition(
+        &self,
+        composition: CompositionRequirement,
+    ) -> Result<Self, ModelError> {
+        Self::new(
+            self.configuration,
+            composition,
+            self.trust_anchors.clone(),
+            self.accepted_registries.clone(),
+            self.expected_audience.clone(),
+            self.expected_challenge,
+            self.evaluation_time,
+            self.assurance_policy.clone(),
+            self.principal_status_snapshot.clone(),
+            self.grant_status_snapshot.clone(),
+            self.resource_matcher.clone(),
+            self.profile_policy.clone(),
+            self.channel_policy.clone(),
+            self.limits.clone(),
+        )
+    }
+
+    /// Replaces only the exact executable verifier configuration commitment.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if rebuilding the context violates an invariant.
+    pub fn with_configuration(
+        &self,
+        configuration: VerifierConfigurationId,
+    ) -> Result<Self, ModelError> {
+        Self::new(
+            configuration,
+            self.composition,
+            self.trust_anchors.clone(),
+            self.accepted_registries.clone(),
+            self.expected_audience.clone(),
+            self.expected_challenge,
+            self.evaluation_time,
+            self.assurance_policy.clone(),
+            self.principal_status_snapshot.clone(),
+            self.grant_status_snapshot.clone(),
+            self.resource_matcher.clone(),
+            self.profile_policy.clone(),
+            self.channel_policy.clone(),
+            self.limits.clone(),
+        )
+    }
+
+    /// Replaces deployment limits and revalidates the complete context.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when a limit exceeds a hard maximum or any existing
+    /// context collection or composition requirement exceeds the replacement.
+    pub fn with_limits(&self, limits: VerifierLimits) -> Result<Self, ModelError> {
+        Self::new(
+            self.configuration,
+            self.composition,
+            self.trust_anchors.clone(),
+            self.accepted_registries.clone(),
+            self.expected_audience.clone(),
+            self.expected_challenge,
+            self.evaluation_time,
+            self.assurance_policy.clone(),
+            self.principal_status_snapshot.clone(),
+            self.grant_status_snapshot.clone(),
+            self.resource_matcher.clone(),
+            self.profile_policy.clone(),
+            self.channel_policy.clone(),
+            limits,
+        )
+    }
+
+    /// Returns the exact verifier configuration commitment.
+    #[must_use]
+    pub const fn configuration(&self) -> VerifierConfigurationId {
+        self.configuration
+    }
+    /// Returns the verifier-trusted composition requirement.
+    #[must_use]
+    pub const fn composition(&self) -> CompositionRequirement {
+        self.composition
+    }
     #[must_use]
     pub fn trust_anchors(&self) -> &[TrustAnchor] {
         &self.trust_anchors
@@ -3531,6 +3767,7 @@ pub struct PortableVerificationResult {
     assurance_satisfactions: Vec<AssuranceSatisfaction>,
     resources: VerificationResources,
     registry_manifest: RegistryManifestId,
+    verifier_configuration: VerifierConfigurationId,
 }
 
 impl PortableVerificationResult {
@@ -3551,6 +3788,7 @@ impl PortableVerificationResult {
         assurance_satisfactions: Vec<AssuranceSatisfaction>,
         resources: VerificationResources,
         registry_manifest: RegistryManifestId,
+        verifier_configuration: VerifierConfigurationId,
     ) -> Self {
         Self {
             decision,
@@ -3566,6 +3804,7 @@ impl PortableVerificationResult {
             assurance_satisfactions,
             resources,
             registry_manifest,
+            verifier_configuration,
         }
     }
 
@@ -3628,6 +3867,11 @@ impl PortableVerificationResult {
     pub const fn registry_manifest(&self) -> RegistryManifestId {
         self.registry_manifest
     }
+    /// Returns the exact verifier configuration commitment.
+    #[must_use]
+    pub const fn verifier_configuration(&self) -> VerifierConfigurationId {
+        self.verifier_configuration
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -3652,6 +3896,7 @@ pub enum DenialReason {
     ActionConstraintMismatch,
     BudgetCeilingExceeded,
     AuthorizationPlanInvalid,
+    CompositionRequirementNotMet,
     PlanActionMismatch,
     ActionBodyMismatch,
     AudienceMismatch,
@@ -3663,6 +3908,7 @@ pub enum DenialReason {
     StatusMethodMismatch,
     StatusIssuerUntrusted,
     RegistryManifestMismatch,
+    VerifierConfigurationMismatch,
     ResourceNamespaceMismatch,
     CriticalExtensionUnknown,
     AttachmentMissing,
@@ -3699,6 +3945,7 @@ impl DenialReason {
             Self::ActionConstraintMismatch => "action-constraint-mismatch",
             Self::BudgetCeilingExceeded => "budget-ceiling-exceeded",
             Self::AuthorizationPlanInvalid => "authorization-plan-invalid",
+            Self::CompositionRequirementNotMet => "composition-requirement-not-met",
             Self::PlanActionMismatch => "plan-action-mismatch",
             Self::ActionBodyMismatch => "action-body-mismatch",
             Self::AudienceMismatch => "audience-mismatch",
@@ -3710,6 +3957,7 @@ impl DenialReason {
             Self::StatusMethodMismatch => "status-method-mismatch",
             Self::StatusIssuerUntrusted => "status-issuer-untrusted",
             Self::RegistryManifestMismatch => "registry-manifest-mismatch",
+            Self::VerifierConfigurationMismatch => "verifier-configuration-mismatch",
             Self::ResourceNamespaceMismatch => "resource-namespace-mismatch",
             Self::CriticalExtensionUnknown => "critical-extension-unknown",
             Self::AttachmentMissing => "attachment-missing",
@@ -3746,6 +3994,7 @@ impl DenialReason {
             Self::ActionConstraintMismatch,
             Self::BudgetCeilingExceeded,
             Self::AuthorizationPlanInvalid,
+            Self::CompositionRequirementNotMet,
             Self::PlanActionMismatch,
             Self::ActionBodyMismatch,
             Self::AudienceMismatch,
@@ -3757,6 +4006,7 @@ impl DenialReason {
             Self::StatusMethodMismatch,
             Self::StatusIssuerUntrusted,
             Self::RegistryManifestMismatch,
+            Self::VerifierConfigurationMismatch,
             Self::ResourceNamespaceMismatch,
             Self::CriticalExtensionUnknown,
             Self::AttachmentMissing,

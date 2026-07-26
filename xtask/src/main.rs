@@ -31,11 +31,12 @@ fn run() -> Result<(), String> {
         "conformance" => target_conformance(),
         "semantic-digest" => semantic_digest(),
         "wasm" => wasm(),
+        "fuzz-inventory" => fuzz_inventory(),
         "fuzz-smoke" => fuzz_smoke(),
         "release-check" => release_check(),
         _ => {
             println!(
-                "usage: cargo xtask <ci|arch|wire [--update]|spec-sync|conformance|semantic-digest|wasm|fuzz-smoke|release-check>"
+                "usage: cargo xtask <ci|arch|wire [--update]|spec-sync|conformance|semantic-digest|wasm|fuzz-inventory|fuzz-smoke|release-check>"
             );
             Ok(())
         }
@@ -87,6 +88,7 @@ fn spec_sync() -> Result<(), String> {
         D::ActionConstraintMismatch,
         D::BudgetCeilingExceeded,
         D::AuthorizationPlanInvalid,
+        D::CompositionRequirementNotMet,
         D::PlanActionMismatch,
         D::ActionBodyMismatch,
         D::AudienceMismatch,
@@ -98,6 +100,7 @@ fn spec_sync() -> Result<(), String> {
         D::StatusMethodMismatch,
         D::StatusIssuerUntrusted,
         D::RegistryManifestMismatch,
+        D::VerifierConfigurationMismatch,
         D::ResourceNamespaceMismatch,
         D::CriticalExtensionUnknown,
         D::AttachmentMissing,
@@ -192,15 +195,174 @@ fn spec_sync() -> Result<(), String> {
             ));
         }
     }
+    let traceability = fs::read_to_string(root().join("docs/TRACEABILITY.md"))
+        .map_err(|error| format!("could not read traceability matrix: {error}"))?;
+    for family in [
+        "Canonical CBOR",
+        "Signed fields and domains",
+        "Identifier derivation",
+        "Graph/reference rules",
+        "Attenuation",
+        "Required composition",
+        "Status",
+        "Assurance quantifiers",
+        "Evidence consumption",
+        "Registry/configuration",
+        "Resource limits",
+        "Portable normalization",
+    ] {
+        if !traceability.contains(family) {
+            return Err(format!("traceability matrix is missing {family}"));
+        }
+    }
+    let limit_coverage = fs::read_to_string(root().join("docs/LIMIT_COVERAGE.md"))
+        .map_err(|error| format!("could not read limit coverage matrix: {error}"))?;
+    for limit in [
+        "BundleBytes",
+        "ActionBytes",
+        "ContextBytes",
+        "Grants",
+        "Actions",
+        "PlanLeaves",
+        "PlanDepth",
+        "PlanBranching",
+        "EvidenceObjects",
+        "EvidenceBytes",
+        "ControlBindings",
+        "PrincipalStatusStatements",
+        "GrantStatusStatements",
+        "Attachments",
+        "AttachmentBytes",
+        "Signatures",
+        "SignatureBytes",
+        "Permissions",
+        "Audiences",
+        "CriticalExtensions",
+        "CriticalExtensionBytes",
+        "AllowedBodyDigests",
+        "BindingEvidence",
+        "CanonicalBodyBytes",
+        "RegistryEntries",
+        "TrustAnchors",
+        "work units",
+    ] {
+        if !limit_coverage.contains(limit) {
+            return Err(format!("limit coverage matrix is missing {limit}"));
+        }
+    }
     println!("specification, registry, and result-code registries are synchronized");
     Ok(())
 }
 
 fn release_check() -> Result<(), String> {
+    if env::var_os("CI").is_some() {
+        let status = Command::new("git")
+            .args(["status", "--porcelain"])
+            .current_dir(root())
+            .output()
+            .map_err(|error| format!("could not inspect release worktree: {error}"))?;
+        if !status.status.success() || !status.stdout.is_empty() {
+            return Err("release checks require a clean CI worktree".to_owned());
+        }
+    }
+    if let Ok(tag) = env::var("GITHUB_REF_NAME") {
+        if tag.starts_with('v') && tag != format!("v{}", env!("CARGO_PKG_VERSION")) {
+            return Err(format!(
+                "release tag {tag} does not match workspace version v{}",
+                env!("CARGO_PKG_VERSION")
+            ));
+        }
+    }
     ci()?;
     cargo(&["test", "--workspace", "--no-default-features"])?;
     wire(false)?;
+    let status = Command::new("cargo")
+        .args(["doc", "--workspace", "--all-features", "--no-deps"])
+        .env("RUSTDOCFLAGS", "-D warnings")
+        .current_dir(root())
+        .status()
+        .map_err(|error| format!("could not build release documentation: {error}"))?;
+    if !status.success() {
+        return Err(format!("documentation build failed with {status}"));
+    }
+    cargo(&[
+        "package",
+        "--workspace",
+        "--exclude",
+        "xtask",
+        "--exclude",
+        "auths-proof-offline-example",
+        "--allow-dirty",
+        "--no-verify",
+    ])?;
+    release_evidence()?;
     println!("release checks passed");
+    Ok(())
+}
+
+fn release_evidence() -> Result<(), String> {
+    let metadata = Command::new("cargo")
+        .args(["metadata", "--format-version", "1", "--locked"])
+        .current_dir(root())
+        .output()
+        .map_err(|error| format!("could not generate dependency metadata: {error}"))?;
+    if !metadata.status.success() {
+        return Err("cargo metadata failed while generating release evidence".to_owned());
+    }
+    let metadata_value: Value = serde_json::from_slice(&metadata.stdout)
+        .map_err(|error| format!("could not parse dependency metadata: {error}"))?;
+    let packages = metadata_value["packages"]
+        .as_array()
+        .ok_or("cargo metadata has no packages")?;
+    let components: Vec<_> = packages
+        .iter()
+        .map(|package| {
+            json!({
+                "name": package["name"],
+                "version": package["version"],
+                "license": package["license"],
+                "source": package["source"],
+            })
+        })
+        .collect();
+    let commit = Command::new("git")
+        .args(["rev-parse", "HEAD"])
+        .current_dir(root())
+        .output()
+        .map_err(|error| format!("could not identify release commit: {error}"))?;
+    if !commit.status.success() {
+        return Err("could not identify release commit".to_owned());
+    }
+    let toolchain = Command::new("rustc")
+        .arg("--version")
+        .output()
+        .map_err(|error| format!("could not identify Rust toolchain: {error}"))?;
+    if !toolchain.status.success() {
+        return Err("could not identify Rust toolchain".to_owned());
+    }
+    let manifest = fs::read(root().join("fixtures/v1/manifest.json"))
+        .map_err(|error| format!("could not read corpus manifest: {error}"))?;
+    let evidence = root().join("target/release-evidence");
+    fs::create_dir_all(&evidence)
+        .map_err(|error| format!("could not create release evidence directory: {error}"))?;
+    let sbom = serde_json::to_vec_pretty(&json!({
+        "bomFormat": "CycloneDX",
+        "specVersion": "1.5",
+        "components": components,
+    }))
+    .map_err(|error| format!("could not encode SBOM: {error}"))?;
+    fs::write(evidence.join("sbom.cdx.json"), sbom)
+        .map_err(|error| format!("could not write SBOM: {error}"))?;
+    let provenance = serde_json::to_vec_pretty(&json!({
+        "commit": String::from_utf8_lossy(&commit.stdout).trim(),
+        "toolchain": String::from_utf8_lossy(&toolchain.stdout).trim(),
+        "corpus_manifest_sha256": hex::encode(Sha256::digest(manifest)),
+        "wire_schema": "spec/v1/auths-proof.cddl",
+        "configuration_commitment": "PortableVerificationResult.verifier_configuration",
+    }))
+    .map_err(|error| format!("could not encode provenance: {error}"))?;
+    fs::write(evidence.join("provenance.json"), provenance)
+        .map_err(|error| format!("could not write provenance: {error}"))?;
     Ok(())
 }
 
@@ -215,6 +377,7 @@ const FUZZ_TARGETS: [&str; 7] = [
 ];
 
 fn fuzz_smoke() -> Result<(), String> {
+    fuzz_inventory()?;
     cargo(&["check", "--manifest-path", "fuzz/Cargo.toml", "--bins"])?;
     for target in FUZZ_TARGETS {
         let corpus = format!("fuzz/corpus/{target}");
@@ -234,16 +397,59 @@ fn fuzz_smoke() -> Result<(), String> {
     Ok(())
 }
 
+fn fuzz_inventory() -> Result<(), String> {
+    let manifest = fs::read_to_string(root().join("fuzz/Cargo.toml"))
+        .map_err(|error| format!("could not read fuzz manifest: {error}"))?;
+    let manifest_targets: BTreeSet<_> = manifest
+        .lines()
+        .filter_map(|line| line.trim().strip_prefix("name = \""))
+        .filter_map(|value| value.strip_suffix('"'))
+        .filter(|name| name.starts_with("target_"))
+        .collect();
+    let expected: BTreeSet<_> = FUZZ_TARGETS.into_iter().collect();
+    if manifest_targets != expected {
+        return Err(format!(
+            "fuzz manifest and authoritative inventory differ: manifest={manifest_targets:?}, expected={expected:?}"
+        ));
+    }
+
+    let workflow = fs::read_to_string(root().join(".github/workflows/fuzz.yml"))
+        .map_err(|error| format!("could not read fuzz workflow: {error}"))?;
+    for target in FUZZ_TARGETS {
+        if !workflow
+            .lines()
+            .any(|line| line.trim() == format!("- {target}"))
+        {
+            return Err(format!(
+                "scheduled fuzz workflow is missing authoritative target {target}"
+            ));
+        }
+        let corpus = root().join("fuzz/corpus").join(target);
+        if !corpus.is_dir() {
+            return Err(format!(
+                "missing structured seed directory {}",
+                corpus.display()
+            ));
+        }
+    }
+    println!("all {} fuzz targets are synchronized", FUZZ_TARGETS.len());
+    Ok(())
+}
+
 fn cargo(args: &[&str]) -> Result<(), String> {
-    let status = Command::new("cargo")
+    command("cargo", args)
+}
+
+fn command(program: &str, args: &[&str]) -> Result<(), String> {
+    let status = Command::new(program)
         .args(args)
         .current_dir(root())
         .status()
-        .map_err(|error| format!("could not run cargo: {error}"))?;
+        .map_err(|error| format!("could not run {program}: {error}"))?;
     if status.success() {
         Ok(())
     } else {
-        Err(format!("cargo {} failed with {status}", args.join(" ")))
+        Err(format!("{program} {} failed with {status}", args.join(" ")))
     }
 }
 
@@ -259,7 +465,6 @@ fn wasm() -> Result<(), String> {
         "auths-authority",
         "auths-composition",
         "auths-assurance",
-        "auths-status",
         "auths-verifier",
         "auths-author",
         "auths-multikey",
@@ -280,6 +485,65 @@ fn wasm() -> Result<(), String> {
             "--no-default-features",
         ])?;
     }
+    cargo(&[
+        "build",
+        "--release",
+        "--target",
+        "wasm32-unknown-unknown",
+        "-p",
+        "auths-proof-wasm",
+    ])?;
+    let package_directory = root().join("target/wasm-node");
+    fs::create_dir_all(&package_directory)
+        .map_err(|error| format!("could not create WASM package directory: {error}"))?;
+    let input = root().join("target/wasm32-unknown-unknown/release/auths_proof_wasm.wasm");
+    let input = input.to_str().ok_or("WASM input path is not valid UTF-8")?;
+    let output = package_directory
+        .to_str()
+        .ok_or("WASM package path is not valid UTF-8")?;
+    command(
+        "wasm-bindgen",
+        &["--target", "nodejs", "--out-dir", output, input],
+    )?;
+    let repeat_directory = root().join("target/wasm-node-repeat");
+    fs::create_dir_all(&repeat_directory)
+        .map_err(|error| format!("could not create repeated WASM package directory: {error}"))?;
+    let repeat = repeat_directory
+        .to_str()
+        .ok_or("repeated WASM package path is not valid UTF-8")?;
+    command(
+        "wasm-bindgen",
+        &["--target", "nodejs", "--out-dir", repeat, input],
+    )?;
+    for name in [
+        "auths_proof_wasm.js",
+        "auths_proof_wasm.d.ts",
+        "auths_proof_wasm_bg.wasm",
+        "auths_proof_wasm_bg.wasm.d.ts",
+    ] {
+        let first = fs::read(package_directory.join(name))
+            .map_err(|error| format!("could not read generated WASM artifact {name}: {error}"))?;
+        let second = fs::read(repeat_directory.join(name))
+            .map_err(|error| format!("could not read repeated WASM artifact {name}: {error}"))?;
+        if first != second {
+            return Err(format!(
+                "generated WASM artifact {name} is not reproducible"
+            ));
+        }
+    }
+    cargo(&[
+        "run",
+        "-p",
+        "auths-proof-wasm",
+        "--example",
+        "generate-node-vectors",
+        "--",
+        output,
+    ])?;
+    command(
+        "node",
+        &["bindings/auths-proof-wasm/tests/node-smoke.cjs", output],
+    )?;
     Ok(())
 }
 
@@ -491,10 +755,8 @@ fn arch() -> Result<(), String> {
         (
             "auths-proof",
             BTreeSet::from([
-                "auths-author",
                 "auths-codec",
                 "auths-model",
-                "auths-ports",
                 "auths-registries",
                 "auths-verifier",
             ]),
@@ -528,7 +790,6 @@ fn arch() -> Result<(), String> {
         ("auths-authority", BTreeSet::from(["auths-model"])),
         ("auths-composition", BTreeSet::from(["auths-model"])),
         ("auths-assurance", BTreeSet::from(["auths-model"])),
-        ("auths-status", BTreeSet::from(["auths-model"])),
         (
             "auths-verifier",
             BTreeSet::from([
@@ -539,7 +800,6 @@ fn arch() -> Result<(), String> {
                 "auths-authority",
                 "auths-composition",
                 "auths-assurance",
-                "auths-status",
                 "auths-raw-key",
                 "auths-signature",
                 "auths-testkit",
@@ -582,6 +842,7 @@ fn arch() -> Result<(), String> {
             "auths-testkit",
             BTreeSet::from([
                 "auths-model",
+                "auths-ports",
                 "auths-codec",
                 "auths-author",
                 "auths-did-key",
@@ -590,9 +851,21 @@ fn arch() -> Result<(), String> {
                 "auths-hsm-attested",
                 "auths-multikey",
                 "auths-raw-key",
+                "auths-registries",
                 "auths-signature",
                 "auths-spiffe-x509",
                 "auths-webauthn",
+            ]),
+        ),
+        (
+            "auths-proof-offline-example",
+            BTreeSet::from([
+                "auths-codec",
+                "auths-ports",
+                "auths-proof",
+                "auths-raw-key",
+                "auths-registries",
+                "auths-signature",
             ]),
         ),
     ]);

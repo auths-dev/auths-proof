@@ -156,6 +156,7 @@ name = "auths-ports"
 version = "0.1.0"
 dependencies = [
  "auths-model",
+ "sha2",
 ]
 
 [[package]]
@@ -173,6 +174,7 @@ dependencies = [
  "auths-ports",
  "auths-raw-key",
  "auths-registries",
+ "auths-signature",
  "auths-spiffe-x509",
  "auths-verifier",
  "auths-webauthn",
@@ -195,6 +197,17 @@ version = "0.1.0"
 dependencies = [
  "auths-model",
  "auths-ports",
+ "sha2",
+]
+
+[[package]]
+name = "auths-signature"
+version = "0.1.0"
+dependencies = [
+ "auths-model",
+ "auths-ports",
+ "ed25519-dalek",
+ "p256",
 ]
 
 [[package]]
@@ -213,13 +226,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "auths-status"
-version = "0.1.0"
-dependencies = [
- "auths-model",
-]
-
-[[package]]
 name = "auths-verifier"
 version = "0.1.0"
 dependencies = [
@@ -230,7 +236,6 @@ dependencies = [
  "auths-model",
  "auths-ports",
  "auths-registries",
- "auths-status",
 ]
 
 [[package]]

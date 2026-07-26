@@ -4,7 +4,9 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
-publish = false
+repository.workspace = true
+homepage.workspace = true
+description = "Canonical conformance fixtures and adapter test support for Auths Proof Protocol V1"
 
 [dependencies]
 auths-author = { workspace = true, features = ["std"] }
@@ -15,14 +17,16 @@ auths-did-web = { workspace = true, features = ["std"] }
 auths-hsm-attested = { workspace = true, features = ["std"] }
 auths-model = { workspace = true, features = ["std"] }
 auths-multikey = { workspace = true, features = ["std"] }
+auths-ports = { workspace = true, features = ["std"] }
 auths-raw-key = { workspace = true, features = ["std"] }
+auths-registries = { workspace = true, features = ["std"] }
 auths-signature = { workspace = true, features = ["std"] }
 auths-spiffe-x509 = { workspace = true, features = ["std"] }
 auths-webauthn = { workspace = true, features = ["std"] }
 base64ct = { workspace = true, features = ["std"] }
 ed25519-dalek = { workspace = true, features = ["std", "pkcs8"] }
 p256 = { workspace = true, features = ["std"] }
-rcgen = "0.14.8"
+rcgen = "=0.13.2"
 rustls-pki-types = { workspace = true, features = ["std"] }
 sha2 = { workspace = true, features = ["std"] }
 

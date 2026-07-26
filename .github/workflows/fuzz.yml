@@ -9,10 +9,27 @@ permissions:
   contents: read
 
 jobs:
-  parser:
+  campaign:
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - target_codec
+          - target_portable_codecs
+          - target_model_state
+          - target_composition
+          - target_registry_handlers
+          - target_principal_parsers
+          - target_portable_abi
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly
       - run: cargo install cargo-fuzz --locked
-      - run: cargo fuzz run parse_bundle --manifest-path fuzz/Cargo.toml -- -max_total_time=300
+      - run: cargo xtask fuzz-inventory
+      - run: cargo fuzz run ${{ matrix.target }} --manifest-path fuzz/Cargo.toml -- -max_total_time=300 -artifact_prefix=artifacts/${{ matrix.target }}/
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: fuzz-${{ matrix.target }}
+          path: artifacts/${{ matrix.target }}/

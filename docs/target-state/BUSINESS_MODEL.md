@@ -1,5 +1,8 @@
 # Auths Platform Business Model
 
+> Historical planning document. It is nonnormative and does not define kernel
+> protocol or security guarantees.
+
 **Status:** Proposed
 
 **Date:** 25 July 2026

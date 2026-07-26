@@ -12,9 +12,9 @@ extern crate alloc;
 
 use alloc::{format, string::String, vec, vec::Vec};
 use auths_model::{
-    AdapterId, AssuranceClaim, AssuranceClaimId, ClaimParameterId, EvidenceId, EvidenceSourceId,
-    EvidenceTypeId, MediaType, ModelError, PrincipalId, PrincipalMethodId, Timestamp,
-    VerificationMethod,
+    AdapterConfigurationId, AdapterId, AssuranceClaim, AssuranceClaimId, ClaimParameterId,
+    EvidenceId, EvidenceSourceId, EvidenceTypeId, MediaType, ModelError, PrincipalId,
+    PrincipalMethodId, Timestamp, VerificationMethod,
 };
 use auths_ports::{ControlEvidence, PrincipalControlError, PrincipalControlInput, PrincipalMethod};
 use base64ct::{Base64UrlUnpadded, Encoding as _};
@@ -293,6 +293,33 @@ impl SpiffeX509Method {
 impl PrincipalMethod for SpiffeX509Method {
     fn id(&self) -> &PrincipalMethodId {
         &self.id
+    }
+
+    fn configuration_id(&self) -> AdapterConfigurationId {
+        let mut components = Vec::new();
+        for trust in &self.trust_domains {
+            components.push(trust.name.as_bytes().to_vec());
+            components.push(
+                u64::try_from(trust.roots.len())
+                    .unwrap_or(u64::MAX)
+                    .to_be_bytes()
+                    .to_vec(),
+            );
+            for root in &trust.roots {
+                components.push(root.clone());
+            }
+            components.push(vec![u8::from(trust.require_status)]);
+        }
+        for status in &self.status {
+            components.push(status.leaf_digest.to_vec());
+            components.push(vec![u8::from(status.active)]);
+            components.push(status.observed_at.get().to_be_bytes().to_vec());
+            components.push(status.valid_until.get().to_be_bytes().to_vec());
+        }
+        auths_ports::configuration_id(
+            SPIFFE_X509_V1.as_bytes(),
+            components.iter().map(Vec::as_slice),
+        )
     }
 
     fn maximum_work_units(&self) -> u64 {
@@ -648,7 +675,7 @@ mod tests {
     use auths_model::{Digest, EvidenceObject, SignatureSuiteId};
     use auths_ports::{ControlPurpose, PrincipalControlInput};
     use rcgen::{
-        BasicConstraints, CertificateParams, ExtendedKeyUsagePurpose, IsCa, Issuer, KeyPair,
+        BasicConstraints, CertificateParams, ExtendedKeyUsagePurpose, IsCa, KeyPair,
         KeyUsagePurpose, SanType,
     };
 
@@ -665,7 +692,6 @@ mod tests {
         ca_params.not_after = rcgen::date_time_ymd(2030, 1, 1);
         let ca_key = KeyPair::generate().unwrap();
         let ca = ca_params.self_signed(&ca_key).unwrap();
-        let issuer = Issuer::new(ca_params, ca_key);
 
         let mut leaf_params = CertificateParams::new(Vec::<String>::new()).unwrap();
         leaf_params.subject_alt_names = vec![SanType::URI(
@@ -678,7 +704,7 @@ mod tests {
         leaf_params.not_before = rcgen::date_time_ymd(2020, 1, 1);
         leaf_params.not_after = rcgen::date_time_ymd(2030, 1, 1);
         let leaf_key = KeyPair::generate().unwrap();
-        let leaf = leaf_params.signed_by(&leaf_key, &issuer).unwrap();
+        let leaf = leaf_params.signed_by(&leaf_key, &ca, &ca_key).unwrap();
         let evidence = SpiffeX509Evidence::new(vec![leaf.der().to_vec()]).unwrap();
         let digest = evidence.leaf_digest();
         let trust =

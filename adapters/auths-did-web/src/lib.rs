@@ -16,8 +16,9 @@ use alloc::{
     vec::Vec,
 };
 use auths_model::{
-    AdapterId, AssuranceClaim, AssuranceClaimId, EvidenceId, EvidenceSourceId, EvidenceTypeId,
-    MediaType, ModelError, PrincipalId, PrincipalMethodId, Timestamp, VerificationMethod,
+    AdapterConfigurationId, AdapterId, AssuranceClaim, AssuranceClaimId, EvidenceId,
+    EvidenceSourceId, EvidenceTypeId, MediaType, ModelError, PrincipalId, PrincipalMethodId,
+    Timestamp, VerificationMethod,
 };
 use auths_multikey::{Multikey, MultikeyError};
 use auths_ports::{
@@ -414,9 +415,20 @@ impl DidWebMethod {
     /// # Errors
     ///
     /// Rejects an oversized trust set or invalid compiled identifiers.
-    pub fn new(trust: Vec<DidWebTrustRecord>) -> Result<Self, DidWebError> {
+    pub fn new(mut trust: Vec<DidWebTrustRecord>) -> Result<Self, DidWebError> {
         if trust.len() > MAX_TRUST_RECORDS {
             return Err(DidWebError::LimitExceeded);
+        }
+        trust.sort_by_key(did_web_trust_record_id);
+        if trust.windows(2).any(|window| window[0] == window[1])
+            || trust.iter().enumerate().any(|(index, left)| {
+                trust
+                    .iter()
+                    .skip(index.saturating_add(1))
+                    .any(|right| did_web_records_ambiguous(left, right))
+            })
+        {
+            return Err(DidWebError::InvalidTrustRecord);
         }
         Ok(Self {
             id: PrincipalMethodId::parse(DID_WEB_V1)?,
@@ -432,6 +444,15 @@ impl DidWebMethod {
 impl PrincipalMethod for DidWebMethod {
     fn id(&self) -> &PrincipalMethodId {
         &self.id
+    }
+
+    fn configuration_id(&self) -> AdapterConfigurationId {
+        let components: Vec<_> = self
+            .trust
+            .iter()
+            .map(|record| did_web_trust_record_id(record).as_bytes().to_vec())
+            .collect();
+        auths_ports::configuration_id(DID_WEB_V1.as_bytes(), components.iter().map(Vec::as_slice))
     }
 
     fn maximum_work_units(&self) -> u64 {
@@ -480,6 +501,87 @@ impl PrincipalMethod for DidWebMethod {
             1,
             45,
         )
+    }
+}
+
+fn did_web_trust_record_id(record: &DidWebTrustRecord) -> AdapterConfigurationId {
+    let mut components = Vec::new();
+    match record {
+        DidWebTrustRecord::Current {
+            principal,
+            document_digest,
+            observed_at,
+            valid_until,
+        } => {
+            components.push(vec![0]);
+            components.push(principal.as_str().as_bytes().to_vec());
+            components.push(document_digest.to_vec());
+            components.push(observed_at.get().to_be_bytes().to_vec());
+            components.push(valid_until.get().to_be_bytes().to_vec());
+        }
+        DidWebTrustRecord::Historical {
+            principal,
+            document_digest,
+            valid_from,
+            valid_until,
+            statement,
+        } => {
+            components.push(vec![1]);
+            components.push(principal.as_str().as_bytes().to_vec());
+            components.push(document_digest.to_vec());
+            components.push(valid_from.get().to_be_bytes().to_vec());
+            components.push(valid_until.get().to_be_bytes().to_vec());
+            match statement {
+                Some(statement) => {
+                    components.push(vec![1]);
+                    components.push(statement.signing_preimage_digest.to_vec());
+                    components.push(statement.existed_at.get().to_be_bytes().to_vec());
+                }
+                None => components.push(vec![0]),
+            }
+        }
+    }
+    auths_ports::configuration_id(
+        b"auths-did-web-trust-record-v1",
+        components.iter().map(Vec::as_slice),
+    )
+}
+
+fn did_web_records_ambiguous(left: &DidWebTrustRecord, right: &DidWebTrustRecord) -> bool {
+    match (left, right) {
+        (
+            DidWebTrustRecord::Current {
+                principal: left_principal,
+                observed_at: left_start,
+                valid_until: left_end,
+                ..
+            },
+            DidWebTrustRecord::Current {
+                principal: right_principal,
+                observed_at: right_start,
+                valid_until: right_end,
+                ..
+            },
+        )
+        | (
+            DidWebTrustRecord::Historical {
+                principal: left_principal,
+                valid_from: left_start,
+                valid_until: left_end,
+                ..
+            },
+            DidWebTrustRecord::Historical {
+                principal: right_principal,
+                valid_from: right_start,
+                valid_until: right_end,
+                ..
+            },
+        ) => {
+            left_principal == right_principal
+                && *left_start <= *right_end
+                && *right_start <= *left_end
+        }
+        _ => false,
     }
 }
 
@@ -1011,5 +1113,43 @@ mod tests {
             .claims()
             .iter()
             .any(|claim| claim.kind().as_str() == "statement-existence-proven-at"));
+    }
+
+    #[test]
+    fn configuration_commitment_is_order_independent_and_value_sensitive() {
+        let (bundled, _) = identity();
+        let current = DidWebTrustRecord::current(
+            bundled.principal().clone(),
+            bundled.document_digest(),
+            Timestamp::new(10),
+            Timestamp::new(20),
+        )
+        .unwrap();
+        let historical = DidWebTrustRecord::historical(
+            bundled.principal().clone(),
+            bundled.document_digest(),
+            Timestamp::new(1),
+            Timestamp::new(9),
+            None,
+        )
+        .unwrap();
+        let forward = DidWebMethod::new(vec![current.clone(), historical.clone()]).unwrap();
+        let reverse = DidWebMethod::new(vec![historical, current.clone()]).unwrap();
+        assert_eq!(forward.configuration_id(), reverse.configuration_id());
+
+        let changed = DidWebMethod::new(vec![
+            current.clone(),
+            DidWebTrustRecord::historical(
+                bundled.principal().clone(),
+                bundled.document_digest(),
+                Timestamp::new(1),
+                Timestamp::new(8),
+                None,
+            )
+            .unwrap(),
+        ])
+        .unwrap();
+        assert_ne!(forward.configuration_id(), changed.configuration_id());
+        assert!(DidWebMethod::new(vec![current.clone(), current]).is_err());
     }
 }

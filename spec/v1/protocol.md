@@ -107,7 +107,14 @@ uniquely names a branch.
 
 Plan depth, leaves, branching, signatures, and total adapter work are bounded.
 Evaluation order is canonical so parallel and sequential implementations
-produce the same diagnostic.
+produce the same primary outcome.
+
+The proof-carried plan is not the policy. The trusted verifier context carries
+an independent `CompositionRequirement` with an optional exact plan ID and
+minimum authorized-branch, distinct-actor, and distinct-root counts. An
+authorized result proves both that the branches satisfy the signed plan and
+that the outcome satisfies this host-required obligation. Distinct proof
+references alone never imply independent signers or roots.
 
 ### Action envelope
 
@@ -132,8 +139,10 @@ original untrusted request.
 ## Evidence and status
 
 Evidence is content addressed, bounded, and selected by exact type.
-Control bindings associate signed statements with candidate evidence without
-turning resolver output into trust.
+Control bindings associate signed statements with evidence without turning
+resolver output into trust. For each successfully verified statement, the
+binding must exactly equal the evidence IDs reported consumed by the selected
+principal adapter. Extra, ignored, or adapter-invented evidence fails closed.
 
 Principal status and grant status are separate signed facts. Each carries an
 exact method, subject, issuer, sequence, and validity boundary. The trusted
@@ -142,7 +151,8 @@ selection is deterministic and revoked dominates active at the same sequence.
 Historical control, current control, statement existence, revocation, and
 freshness are not interchangeable.
 
-Assurance is role-indexed. Every claim records the participant, chain role,
+Assurance is role-indexed and every requirement explicitly selects `Any` or
+`Every` participant with that role. Every claim records the participant, chain role,
 parameters, adapter and version, evidence digests, and provenance. A strong
 actor cannot satisfy a weak root or intermediate.
 
@@ -158,7 +168,8 @@ verify_v1(proof_cbor, canonical_action_cbor, trusted_context_cbor)
 It records `Authorized`, `Denied`, or `Indeterminate`, the final stage and
 stable code, all applicable input/plan/result digests, authorized branches,
 assurance and satisfaction reports, exact resource totals, work reserved, and
-the registry manifest. Native APIs may project an authorized result to a sealed
+the registry manifest, and the exact executable verifier-configuration
+commitment. Native APIs may project an authorized result to a sealed
 `VerifiedAction`.
 
 Denied means available facts establish invalidity or insufficient authority.
@@ -198,6 +209,8 @@ against their signed SHA-256 identifiers and lengths.
 | Resource | Default | Hard maximum |
 |---|---:|---:|
 | Bundle bytes | 256 KiB | 8 MiB |
+| Canonical-action input bytes | 2 MiB | 16 MiB |
+| Trusted-context input bytes | 2 MiB | 16 MiB |
 | Grants | 16 | 256 |
 | Actions/plan leaves | 16 | 128 |
 | Plan depth | 8 | 16 |
@@ -207,6 +220,7 @@ against their signed SHA-256 identifiers and lengths.
 | Principal status statements | 32 | 512 |
 | Grant status statements | 32 | 512 |
 | Attachments | 32 | 512 |
+| Aggregate detached attachment bytes | 1 MiB | 8 MiB |
 | Signatures | 64 | 1,024 |
 | One signature | 512 B | 4 KiB |
 | Permissions | 64 | 1,024 |

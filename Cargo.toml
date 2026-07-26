@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
+    "examples/offline-verification",
     "bindings/auths-proof-wasm",
     "crates/auths-proof",
     "crates/auths-model",
@@ -11,7 +12,6 @@ members = [
     "crates/auths-authority",
     "crates/auths-composition",
     "crates/auths-assurance",
-    "crates/auths-status",
     "crates/auths-verifier",
     "crates/auths-author",
     "crates/auths-multikey",
@@ -32,6 +32,8 @@ version = "0.1.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 rust-version = "1.85"
+repository = "https://github.com/auths-dev/auths-proof"
+homepage = "https://github.com/auths-dev/auths-proof"
 
 [workspace.dependencies]
 auths-model = { version = "0.1.0", path = "crates/auths-model", default-features = false }
@@ -42,7 +44,6 @@ auths-signature = { version = "0.1.0", path = "crates/auths-signature", default-
 auths-authority = { version = "0.1.0", path = "crates/auths-authority", default-features = false }
 auths-composition = { version = "0.1.0", path = "crates/auths-composition", default-features = false }
 auths-assurance = { version = "0.1.0", path = "crates/auths-assurance", default-features = false }
-auths-status = { version = "0.1.0", path = "crates/auths-status", default-features = false }
 auths-verifier = { version = "0.1.0", path = "crates/auths-verifier", default-features = false }
 auths-author = { version = "0.1.0", path = "crates/auths-author", default-features = false }
 auths-multikey = { version = "0.1.0", path = "crates/auths-multikey", default-features = false }
@@ -73,7 +74,7 @@ rustls-webpki = { version = "0.103.13", default-features = false, features = ["a
 ring = { version = "0.17.14", default-features = false }
 x509-parser = { version = "0.18.1", default-features = false }
 thiserror = { version = "2.0.19", default-features = false }
-wasm-bindgen = "0.2.114"
+wasm-bindgen = "=0.2.118"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

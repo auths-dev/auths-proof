@@ -4,6 +4,9 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Pure raw-key principal-control method for Auths Proof Protocol V1"
 
 [features]
 default = ["std"]

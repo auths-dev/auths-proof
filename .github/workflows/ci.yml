@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  authoritative:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -18,14 +18,8 @@ jobs:
         with:
           components: rustfmt, clippy
           targets: wasm32-unknown-unknown
-      - run: cargo fmt --all --check
-      - run: cargo check --workspace --all-targets --all-features
-      - run: cargo test --workspace --all-features
-      - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
-      - run: cargo run -p xtask -- arch
-      - run: cargo run -p xtask -- wire
-      - run: cargo run -p xtask -- conformance
-      - run: cargo run -p xtask -- wasm
+      - run: cargo install wasm-bindgen-cli --version 0.2.118 --locked
+      - run: cargo xtask ci
 
   dependencies:
     runs-on: ubuntu-latest

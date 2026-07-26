@@ -1,5 +1,8 @@
 # Auths Developer Integration Plan
 
+> Historical planning document. The supported integration is the
+> `auths-proof` façade and compiling `examples/offline-verification` consumer.
+
 **Status:** Implementation in progress
 
 **Date:** 25 July 2026

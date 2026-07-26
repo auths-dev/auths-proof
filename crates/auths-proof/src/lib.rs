@@ -1,8 +1,34 @@
 //! Supported embedded API for Auths Proof Protocol V1.
 //!
 //! Most applications need only [`Engine::verify_cbor`]. Lower-level model,
-//! registry, and authoring APIs remain available through the re-exported
-//! modules when an integration needs explicit control.
+//! registry, codec, and authoring APIs remain available from their deliberately
+//! separate crates when an integration needs explicit control.
+//!
+//! ```no_run
+//! use auths_proof::{Engine, Verdict};
+//!
+//! # fn verify(
+//! #     engine: &Engine<'_>,
+//! #     proof: &[u8],
+//! #     action: &[u8],
+//! #     trusted_context: &[u8],
+//! # ) -> Result<(), auths_codec::CodecError> {
+//! let result = engine.verify_cbor(proof, action, trusted_context)?;
+//! match result.verdict() {
+//!     Verdict::Authorized => {
+//!         // Execute only the sealed verified action or an exact profile
+//!         // projection of it.
+//!     }
+//!     Verdict::Denied => {
+//!         // Stable failure: do not retry through a weaker path.
+//!     }
+//!     Verdict::Indeterminate => {
+//!         // Still not authorized. Retry only with new trusted facts.
+//!     }
+//! }
+//! # Ok(())
+//! # }
+//! ```
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![forbid(unsafe_code)]
@@ -11,11 +37,6 @@ extern crate alloc;
 
 use alloc::vec::Vec;
 
-pub use auths_author as author;
-pub use auths_codec as codec;
-pub use auths_model as model;
-pub use auths_ports as ports;
-pub use auths_registries as registries;
 pub use auths_verifier::{VerificationOutcome, VerifiedAction};
 
 use auths_codec::{decode_verification_result, CodecError};
@@ -272,10 +293,15 @@ mod tests {
         let methods: [&dyn PrincipalMethod; 1] = [&method];
         let suites: [&dyn SignatureSuite; 1] = [&suite];
         let registries = ImmutableRegistries::new(&methods, &suites).unwrap();
+        let context = auths_codec::decode_verifier_context(fixture.context_bytes())
+            .unwrap()
+            .with_configuration(registries.configuration_id())
+            .unwrap();
+        let context = auths_codec::encode_verifier_context(&context).unwrap();
         let engine = Engine::new(registries);
         let action = auths_codec::encode_canonical_action(fixture.canonical_action()).unwrap();
         let result = engine
-            .verify_cbor(fixture.proof_bytes(), &action, fixture.context_bytes())
+            .verify_cbor(fixture.proof_bytes(), &action, &context)
             .unwrap();
         assert_eq!(result.verdict(), Verdict::Authorized);
         assert_eq!(result.code(), "authorized");

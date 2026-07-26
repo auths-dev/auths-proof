@@ -30,6 +30,7 @@ verifier retains three diagnostic classes.
 | `permission-not-granted` | authority | Terminal authority lacks the exact permission |
 | `action-constraint-mismatch` | authority | Body digest is outside the granted constraint |
 | `budget-ceiling-exceeded` | authority | Requested budget exceeds or mismatches the signed ceiling |
+| `composition-requirement-not-met` | authority | Authorized branches do not satisfy the trusted expected plan, quorum, actor-diversity, or root-diversity obligation |
 | `plan-action-mismatch` | action | Branches bind different action meaning or plan |
 | `action-body-mismatch` | action | Canonical body digest differs |
 | `audience-mismatch` | action | Audience differs from verifier context |
@@ -41,6 +42,7 @@ verifier retains three diagnostic classes.
 | `status-method-mismatch` | status | Subject status exists only under another exact method |
 | `status-issuer-untrusted` | status | A valid status signature was made by an issuer outside snapshot trust |
 | `registry-manifest-mismatch` | control | Context manifest differs from the immutable executable registry |
+| `verifier-configuration-mismatch` | control | Context configuration commitment differs from the exact executable adapter and registry configuration |
 | `resource-namespace-mismatch` | authority | Selected matcher rejects every root namespace |
 | `critical-extension-unknown` | extension | Required extension is not registered |
 | `attachment-missing` | action | Required signed attachment bytes are absent |

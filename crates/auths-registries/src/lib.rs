@@ -5,13 +5,13 @@
 
 extern crate alloc;
 
-use alloc::vec::Vec;
+use alloc::{string::String, vec, vec::Vec};
 use auths_model::{
-    AcceptedRegistries, AssuranceClaim, AssuranceClaimId, BudgetAlgebraId, BudgetCeiling,
-    CanonicalAction, ExtensionId, GrantId, GrantState, GrantStatusSnapshot, PrincipalId,
-    PrincipalMethodId, PrincipalState, PrincipalStatusSnapshot, ProfilePolicyId,
+    AcceptedRegistries, AdapterConfigurationId, AssuranceClaim, AssuranceClaimId, BudgetAlgebraId,
+    BudgetCeiling, CanonicalAction, ExtensionId, GrantId, GrantState, GrantStatusSnapshot,
+    PrincipalId, PrincipalMethodId, PrincipalState, PrincipalStatusSnapshot, ProfilePolicyId,
     RegistryManifestId, ResourceId, ResourceMatcherId, SignatureSuiteId, StatusMethodId,
-    StatusPolicy, Timestamp,
+    StatusPolicy, Timestamp, VerifierConfigurationId,
 };
 use auths_ports::{
     AssuranceClaimRule, AssuranceImplication, BudgetAlgebra, CriticalExtensionHandler,
@@ -57,6 +57,10 @@ impl ResourceMatcher for UriNamespaceMatcher {
         &self.id
     }
 
+    fn configuration_id(&self) -> AdapterConfigurationId {
+        auths_ports::configuration_id(self.id.as_str().as_bytes(), core::iter::empty())
+    }
+
     fn maximum_work_units(&self, namespace: &ResourceId, resource: &ResourceId) -> u64 {
         u64::try_from(
             namespace
@@ -90,6 +94,10 @@ impl ProfilePolicy for ExactProfilePolicy {
         &self.id
     }
 
+    fn configuration_id(&self) -> AdapterConfigurationId {
+        auths_ports::configuration_id(self.id.as_str().as_bytes(), core::iter::empty())
+    }
+
     fn maximum_work_units(&self, action: &CanonicalAction) -> u64 {
         u64::try_from(action.body().len()).unwrap_or(u64::MAX)
     }
@@ -109,6 +117,10 @@ struct NumericBudgetAlgebra {
 impl BudgetAlgebra for NumericBudgetAlgebra {
     fn id(&self) -> &BudgetAlgebraId {
         &self.id
+    }
+
+    fn configuration_id(&self) -> AdapterConfigurationId {
+        auths_ports::configuration_id(self.id.as_str().as_bytes(), core::iter::empty())
     }
 
     fn maximum_work_units(&self) -> u64 {
@@ -144,6 +156,10 @@ impl CriticalExtensionHandler for ExactMarkerExtension {
         &self.id
     }
 
+    fn configuration_id(&self) -> AdapterConfigurationId {
+        auths_ports::configuration_id(self.id.as_str().as_bytes(), core::iter::empty())
+    }
+
     fn maximum_work_units(&self, extension: &auths_model::CriticalExtension) -> u64 {
         u64::try_from(extension.bytes().len().saturating_add(1)).unwrap_or(u64::MAX)
     }
@@ -167,6 +183,10 @@ struct ExactClaimRule {
 impl AssuranceClaimRule for ExactClaimRule {
     fn id(&self) -> &AssuranceClaimId {
         &self.id
+    }
+
+    fn configuration_id(&self) -> AdapterConfigurationId {
+        auths_ports::configuration_id(self.id.as_str().as_bytes(), core::iter::empty())
     }
 
     fn maximum_work_units(&self, claim: &AssuranceClaim) -> u64 {
@@ -210,6 +230,10 @@ impl ExactStatusMethod {
 impl StatusMethod for ExactStatusMethod {
     fn id(&self) -> &StatusMethodId {
         &self.id
+    }
+
+    fn configuration_id(&self) -> AdapterConfigurationId {
+        auths_ports::configuration_id(self.id.as_str().as_bytes(), core::iter::empty())
     }
 
     fn maximum_work_units(&self, statement_count: usize) -> u64 {
@@ -487,12 +511,134 @@ impl CoreSemantics {
     }
 }
 
+// Kept as one exhaustive, auditable inventory so adding a registry category
+// cannot silently omit its configuration commitment.
+#[allow(clippy::too_many_lines)]
+fn verifier_configuration_id(
+    principal_methods: &[&dyn PrincipalMethod],
+    signature_suites: &[&dyn SignatureSuite],
+    pure: &PureRegistrySet<'_>,
+    core: &CoreSemantics,
+) -> VerifierConfigurationId {
+    let mut entries: Vec<(u8, String, AdapterConfigurationId)> = Vec::new();
+    entries.extend(principal_methods.iter().map(|implementation| {
+        (
+            0,
+            implementation.id().as_str().into(),
+            implementation.configuration_id(),
+        )
+    }));
+    entries.extend(signature_suites.iter().map(|implementation| {
+        (
+            1,
+            implementation.id().as_str().into(),
+            implementation.configuration_id(),
+        )
+    }));
+    entries.extend(pure.resource_matchers.iter().map(|implementation| {
+        (
+            2,
+            implementation.id().as_str().into(),
+            implementation.configuration_id(),
+        )
+    }));
+    entries.push((
+        2,
+        core.resource.id().as_str().into(),
+        core.resource.configuration_id(),
+    ));
+    entries.extend(pure.profile_policies.iter().map(|implementation| {
+        (
+            3,
+            implementation.id().as_str().into(),
+            implementation.configuration_id(),
+        )
+    }));
+    entries.push((
+        3,
+        core.profile.id().as_str().into(),
+        core.profile.configuration_id(),
+    ));
+    entries.extend(pure.budget_algebras.iter().map(|implementation| {
+        (
+            4,
+            implementation.id().as_str().into(),
+            implementation.configuration_id(),
+        )
+    }));
+    entries.push((
+        4,
+        core.budget.id().as_str().into(),
+        core.budget.configuration_id(),
+    ));
+    entries.extend(pure.extension_handlers.iter().map(|implementation| {
+        (
+            5,
+            implementation.id().as_str().into(),
+            implementation.configuration_id(),
+        )
+    }));
+    entries.push((
+        5,
+        core.extension.id().as_str().into(),
+        core.extension.configuration_id(),
+    ));
+    entries.extend(pure.status_methods.iter().map(|implementation| {
+        (
+            6,
+            implementation.id().as_str().into(),
+            implementation.configuration_id(),
+        )
+    }));
+    entries.extend(core.status.iter().map(|implementation| {
+        (
+            6,
+            implementation.id().as_str().into(),
+            implementation.configuration_id(),
+        )
+    }));
+    entries.extend(pure.assurance_claims.iter().map(|implementation| {
+        (
+            7,
+            implementation.id().as_str().into(),
+            implementation.configuration_id(),
+        )
+    }));
+    entries.extend(core.claims.iter().map(|implementation| {
+        (
+            7,
+            implementation.id().as_str().into(),
+            implementation.configuration_id(),
+        )
+    }));
+    entries.extend(pure.assurance_implications.iter().map(|implementation| {
+        (
+            8,
+            implementation.id().as_str().into(),
+            implementation.configuration_id(),
+        )
+    }));
+    entries.sort_by(|left, right| left.0.cmp(&right.0).then_with(|| left.1.cmp(&right.1)));
+    let mut components = Vec::with_capacity(entries.len().saturating_mul(3));
+    for (kind, id, configuration) in entries {
+        components.push(vec![kind]);
+        components.push(id.into_bytes());
+        components.push(configuration.as_bytes().to_vec());
+    }
+    let digest = auths_ports::configuration_id(
+        b"auths-proof-verifier-configuration-v1",
+        components.iter().map(Vec::as_slice),
+    );
+    VerifierConfigurationId::new(*digest.as_bytes())
+}
+
 /// Concrete implementations available to one verification call.
 pub struct ImmutableRegistries<'a> {
     principal_methods: &'a [&'a dyn PrincipalMethod],
     signature_suites: &'a [&'a dyn SignatureSuite],
     pure: PureRegistrySet<'a>,
     core: CoreSemantics,
+    configuration: VerifierConfigurationId,
 }
 
 impl<'a> ImmutableRegistries<'a> {
@@ -569,11 +715,14 @@ impl<'a> ImmutableRegistries<'a> {
         {
             return Err(RegistryError::DuplicateImplementation);
         }
+        let configuration =
+            verifier_configuration_id(principal_methods, signature_suites, &pure, &core);
         Ok(Self {
             principal_methods,
             signature_suites,
             pure,
             core,
+            configuration,
         })
     }
 
@@ -581,6 +730,13 @@ impl<'a> ImmutableRegistries<'a> {
     #[must_use]
     pub const fn manifest_id(&self) -> RegistryManifestId {
         TARGET_V1_REGISTRY_MANIFEST
+    }
+
+    /// Returns a canonical commitment to all executable registry
+    /// implementations and their immutable configuration.
+    #[must_use]
+    pub const fn configuration_id(&self) -> VerifierConfigurationId {
+        self.configuration
     }
 
     /// Selects one exact, context-accepted principal method.

@@ -27,6 +27,8 @@ The language-neutral boundary is
 verification_result_cbor`. The result includes stable stage/code values,
 self-binding digests, authorized branches, assurance satisfactions, and
 resource/work totals.
+The trusted context also binds the verifier-required composition obligation
+and the exact executable adapter/registry configuration commitment.
 
 `VerifiedAction` has no public constructor. The kernel reads no clock,
 environment variable, network connection, filesystem, database, replay store,
@@ -43,12 +45,12 @@ Target packages:
 - `auths-model`: validated V1 protocol and context types;
 - `auths-codec`: constrained deterministic CBOR and domain-separated IDs;
 - `auths-ports`: effect-free principal-method and signature-suite ports;
-- `auths-registries`: exact immutable implementation registries;
+- `auths-registries`: exact immutable implementations, status handlers, and
+  verifier-configuration commitments;
 - `auths-signature`: mandatory Ed25519 and low-S P-256 suites;
 - `auths-authority`: scoped trust roots and grant attenuation;
 - `auths-composition`: proof, all-of, any-of, and K-of-N plans;
 - `auths-assurance`: role-indexed evidence assurance;
-- `auths-status`: principal/grant freshness and revocation;
 - `auths-verifier`: the sealed pure pipeline;
 - `auths-author`: external-signing requests with no custody;
 - `auths-multikey`: the closed canonical Ed25519/P-256 Multikey subset;
@@ -73,6 +75,7 @@ cargo xtask arch
 cargo xtask wire
 cargo xtask conformance
 cargo xtask fuzz-smoke
+cargo run -p auths-proof-offline-example
 ```
 
 Canonical `.cbor` files are generated only through:
@@ -84,3 +87,6 @@ cargo xtask wire --update
 Networking and transports belong to `auths-proof-exchange`. Profiles, live
 resolvers, runtime state, receipts, execution, custody, independent
 implementations, and Auths Lab belong to `auths-proof-apps`.
+
+This repository is prelaunch and pre-audit. Passing corpus, fuzz-smoke, and
+WASM equivalence gates is not an independent security review.

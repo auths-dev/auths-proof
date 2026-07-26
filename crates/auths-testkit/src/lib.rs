@@ -18,19 +18,20 @@ use auths_hsm_attested::{
 };
 use auths_model::{
     AcceptedRegistries, ActionConstraint, ActionEnvelope, AssuranceClaimId, AssurancePolicy,
-    AssurancePolicyId, AssuranceRequirement, AttachmentDescriptor, AttachmentDigest, Audience,
-    AudienceSet, AuthorizationPlan, BudgetAlgebraId, BudgetCeiling, BundleHeader, CanonicalAction,
-    CapabilityId, Challenge, ChannelBindingId, ControlBinding, CriticalExtension,
-    CriticalExtensions, DenialReason, DetachedAttachment, Digest, DispositionId, EvidenceId,
-    EvidenceObject, EvidenceTypeId, ExtensionId, FreshnessLimit, GrantId, GrantState,
-    GrantStatement, GrantStatusSnapshot, GrantStatusStatement, LimitKind, MediaType,
-    ParticipantRole, Permission, PermissionSet, PlanId, PrincipalId, PrincipalMethodId,
-    PrincipalState, PrincipalStatusSnapshot, PrincipalStatusStatement, ProfileId, ProfilePolicyId,
-    ProfileRef, ProofBundle, ProofRef, PurposeId, RegistryManifestId, Requirement, ResourceId,
-    ResourceMatcherId, SignatureBytes, SignatureDescriptor, SignatureEnvelope, SignatureSuiteId,
-    SignedAction, SignedGrant, SignedGrantStatus, SignedPrincipalStatus, StatementRef,
-    StatusMethodId, StatusPolicy, StatusSnapshotId, Timestamp, TrustAnchor, TrustAnchorId,
-    ValidityWindow, VerificationMethod, VerifierContext, VerifierLimits,
+    AssurancePolicyId, AssuranceQuantifier, AssuranceRequirement, AttachmentDescriptor,
+    AttachmentDigest, Audience, AudienceSet, AuthorizationPlan, BudgetAlgebraId, BudgetCeiling,
+    BundleHeader, CanonicalAction, CapabilityId, Challenge, ChannelBindingId,
+    CompositionRequirement, ControlBinding, CriticalExtension, CriticalExtensions, DenialReason,
+    DetachedAttachment, Digest, DispositionId, EvidenceId, EvidenceObject, EvidenceTypeId,
+    ExtensionId, FreshnessLimit, GrantId, GrantState, GrantStatement, GrantStatusSnapshot,
+    GrantStatusStatement, LimitKind, MediaType, ParticipantRole, Permission, PermissionSet, PlanId,
+    PrincipalId, PrincipalMethodId, PrincipalState, PrincipalStatusSnapshot,
+    PrincipalStatusStatement, ProfileId, ProfilePolicyId, ProfileRef, ProofBundle, ProofRef,
+    PurposeId, RegistryManifestId, Requirement, ResourceId, ResourceMatcherId, SignatureBytes,
+    SignatureDescriptor, SignatureEnvelope, SignatureSuiteId, SignedAction, SignedGrant,
+    SignedGrantStatus, SignedPrincipalStatus, StatementRef, StatusMethodId, StatusPolicy,
+    StatusSnapshotId, Timestamp, TrustAnchor, TrustAnchorId, ValidityWindow, VerificationMethod,
+    VerifierConfigurationId, VerifierContext, VerifierLimits,
 };
 use auths_multikey::{Multikey, MultikeyType};
 use auths_raw_key::{RawKeyDescriptor, RawKeyType, RAW_KEY_MEDIA_TYPE, RAW_KEY_V1};
@@ -46,8 +47,8 @@ use base64ct::{Base64UrlUnpadded, Encoding as _};
 use ed25519_dalek::{pkcs8::EncodePrivateKey as _, Signer as _, SigningKey as Ed25519SigningKey};
 use p256::ecdsa::{Signature as P256Signature, SigningKey as P256SigningKey};
 use rcgen::{
-    BasicConstraints, CertificateParams, ExtendedKeyUsagePurpose, IsCa, Issuer, KeyPair,
-    KeyUsagePurpose, SanType, SerialNumber, PKCS_ED25519,
+    BasicConstraints, CertificateParams, ExtendedKeyUsagePurpose, IsCa, KeyPair, KeyUsagePurpose,
+    SanType, SerialNumber, PKCS_ED25519,
 };
 use rustls_pki_types::PrivatePkcs8KeyDer;
 use sha2::{Digest as _, Sha256};
@@ -560,7 +561,6 @@ fn spiffe_material(seed: u8) -> SpiffeMaterial {
     ca_params.not_after = rcgen::date_time_ymd(2099, 1, 1);
     ca_params.serial_number = Some(SerialNumber::from(60u64));
     let ca_certificate = ca_params.self_signed(&ca_key).expect("CA certificate");
-    let issuer = Issuer::new(ca_params, ca_key);
 
     let key = Ed25519SigningKey::from_bytes(&[seed; 32]);
     let leaf_key = rcgen_ed25519_key(&key);
@@ -576,7 +576,7 @@ fn spiffe_material(seed: u8) -> SpiffeMaterial {
     leaf_params.not_after = rcgen::date_time_ymd(2099, 1, 1);
     leaf_params.serial_number = Some(SerialNumber::from(u64::from(seed)));
     let leaf = leaf_params
-        .signed_by(&leaf_key, &issuer)
+        .signed_by(&leaf_key, &ca_certificate, &ca_key)
         .expect("leaf certificate");
     let evidence = SpiffeX509Evidence::new(vec![leaf.der().to_vec()]).expect("SVID evidence");
     let leaf_digest = evidence.leaf_digest();
@@ -644,8 +644,18 @@ fn assurance_policy(identities: &[Identity]) -> AssurancePolicy {
     AssurancePolicy::new(
         AssurancePolicyId::parse("raw-key-baseline").expect("policy"),
         vec![
-            AssuranceRequirement::new(ParticipantRole::Root, root_claim, None),
-            AssuranceRequirement::new(ParticipantRole::Actor, actor_claim, None),
+            AssuranceRequirement::new(
+                ParticipantRole::Root,
+                AssuranceQuantifier::Every,
+                root_claim,
+                None,
+            ),
+            AssuranceRequirement::new(
+                ParticipantRole::Actor,
+                AssuranceQuantifier::Every,
+                actor_claim,
+                None,
+            ),
         ],
     )
     .expect("assurance policy")
@@ -748,6 +758,8 @@ fn context_with_assurance(
     assurance: AssurancePolicy,
 ) -> VerifierContext {
     VerifierContext::new(
+        corpus_configuration_id(),
+        CompositionRequirement::new(None, 1, 1, 1).expect("baseline composition"),
         anchors,
         registries(identities),
         audience(),
@@ -776,6 +788,33 @@ fn context_with_assurance(
         VerifierLimits::default(),
     )
     .expect("context")
+}
+
+fn corpus_configuration_id() -> VerifierConfigurationId {
+    static CONFIGURATION: std::sync::OnceLock<VerifierConfigurationId> = std::sync::OnceLock::new();
+    *CONFIGURATION.get_or_init(|| {
+        let raw_key = auths_raw_key::RawKeyMethod::new().expect("raw-key method");
+        let did_key = auths_did_key::DidKeyMethod::new().expect("did:key method");
+        let did_keri = auths_did_keri::DidKeriMethod::new().expect("KERI method");
+        let did_web = auths_did_web::DidWebMethod::new(did_web_corpus_trust_records())
+            .expect("DID-web method");
+        let webauthn = auths_webauthn::WebAuthnMethod::new(webauthn_corpus_credentials())
+            .expect("WebAuthn method");
+        let hsm =
+            auths_hsm_attested::HsmAttestedMethod::new(hsm_corpus_records()).expect("HSM method");
+        let (spiffe_trust, spiffe_status) = spiffe_corpus_context();
+        let spiffe = auths_spiffe_x509::SpiffeX509Method::new(spiffe_trust, spiffe_status)
+            .expect("SPIFFE method");
+        let ed25519 = auths_signature::Ed25519Suite::new().expect("Ed25519 suite");
+        let p256 = auths_signature::P256Sha256Suite::new().expect("P-256 suite");
+        let methods: [&dyn auths_ports::PrincipalMethod; 7] = [
+            &raw_key, &did_key, &did_keri, &did_web, &webauthn, &hsm, &spiffe,
+        ];
+        let suites: [&dyn auths_ports::SignatureSuite; 2] = [&ed25519, &p256];
+        auths_registries::ImmutableRegistries::new(&methods, &suites)
+            .expect("canonical corpus registries")
+            .configuration_id()
+    })
 }
 
 fn action_envelope(
@@ -847,11 +886,16 @@ fn fixture(
     canonical_action: CanonicalAction,
     expected: Expected,
 ) -> CorpusFixture {
+    let expected_plan = plan_id(bundle.plan()).expect("fixture plan ID");
+    let context = context
+        .clone()
+        .with_composition(CompositionRequirement::exact(expected_plan))
+        .expect("exact fixture composition");
     CorpusFixture {
         name,
         class,
         proof_bytes: encode_bundle(bundle).expect("canonical proof"),
-        context_bytes: encode_verifier_context(context).expect("canonical context"),
+        context_bytes: encode_verifier_context(&context).expect("canonical context"),
         canonical_action,
         expected,
     }
@@ -916,8 +960,18 @@ fn composed_fixture(
         AssurancePolicy::new(
             AssurancePolicyId::parse("raw-key-baseline").expect("assurance policy"),
             vec![
-                AssuranceRequirement::new(ParticipantRole::Root, offline.clone(), None),
-                AssuranceRequirement::new(ParticipantRole::Actor, offline, None),
+                AssuranceRequirement::new(
+                    ParticipantRole::Root,
+                    AssuranceQuantifier::Every,
+                    offline.clone(),
+                    None,
+                ),
+                AssuranceRequirement::new(
+                    ParticipantRole::Actor,
+                    AssuranceQuantifier::Every,
+                    offline,
+                    None,
+                ),
             ],
         )
         .expect("composition assurance policy"),
@@ -1578,11 +1632,13 @@ pub fn did_web_history_without_statement_existence() -> CorpusFixture {
         vec![
             AssuranceRequirement::new(
                 ParticipantRole::Root,
+                AssuranceQuantifier::Every,
                 AssuranceClaimId::parse("historical-at").expect("claim"),
                 None,
             ),
             AssuranceRequirement::new(
                 ParticipantRole::Actor,
+                AssuranceQuantifier::Every,
                 AssuranceClaimId::parse("statement-existence-proven-at").expect("claim"),
                 None,
             ),
@@ -2073,6 +2129,8 @@ fn status_fixture(name: &'static str, variation: StatusVariation) -> CorpusFixtu
         StatusPolicy::ExpiryOnly
     };
     let verifier_context = VerifierContext::new(
+        corpus_configuration_id(),
+        CompositionRequirement::new(None, 1, 1, 1).expect("baseline composition"),
         vec![anchor_with_status(&identities[0], 1, anchor_policy)],
         registries_with_status(&identities, principal_methods, grant_methods),
         audience(),
@@ -2240,6 +2298,8 @@ fn principal_status_selection_fixture(
     let status_id = principal_status_id(status.statement()).expect("status ID");
     let action_id = action_id(action.envelope()).expect("action ID");
     let context = VerifierContext::new(
+        corpus_configuration_id(),
+        CompositionRequirement::new(None, 1, 1, 1).expect("baseline composition"),
         vec![anchor_with_status(&root, 1, required_status(METHOD))],
         registries_with_status(
             core::slice::from_ref(&root),
@@ -2908,6 +2968,8 @@ fn replace_context(
 ) -> CorpusFixture {
     let context = decode_context(&fixture);
     let limited = VerifierContext::new(
+        context.configuration(),
+        context.composition(),
         context.trust_anchors().to_vec(),
         context.accepted_registries().clone(),
         context.expected_audience().clone(),
@@ -3376,6 +3438,42 @@ pub fn wrong_challenge() -> CorpusFixture {
     fixture
 }
 
+/// Trusted context requires a different authorization plan.
+///
+/// # Panics
+///
+/// Panics only if repository-owned fixture constants violate model invariants.
+#[must_use]
+pub fn composition_requirement_not_met() -> CorpusFixture {
+    let mut fixture = raw_key_chain();
+    let context = decode_context(&fixture)
+        .with_composition(CompositionRequirement::exact(PlanId::new([0xa5; 32])))
+        .expect("composition replacement");
+    fixture.name = "composition-requirement-not-met";
+    fixture.class = "denied";
+    fixture.context_bytes = encode_verifier_context(&context).expect("canonical context");
+    fixture.expected = Expected::Denied(DenialReason::CompositionRequirementNotMet);
+    fixture
+}
+
+/// Trusted context commitment differs from the executable verifier registry.
+///
+/// # Panics
+///
+/// Panics only if repository-owned fixture constants violate model invariants.
+#[must_use]
+pub fn verifier_configuration_mismatch() -> CorpusFixture {
+    let mut fixture = raw_key_chain();
+    let context = decode_context(&fixture)
+        .with_configuration(VerifierConfigurationId::new([0x5a; 32]))
+        .expect("configuration replacement");
+    fixture.name = "verifier-configuration-mismatch";
+    fixture.class = "denied";
+    fixture.context_bytes = encode_verifier_context(&context).expect("canonical context");
+    fixture.expected = Expected::Denied(DenialReason::VerifierConfigurationMismatch);
+    fixture
+}
+
 fn decode_context(fixture: &CorpusFixture) -> VerifierContext {
     auths_codec::decode_verifier_context(fixture.context_bytes())
         .expect("repository-owned canonical context")
@@ -3415,6 +3513,8 @@ fn context_replacement(
     profile_policy: ProfilePolicyId,
 ) -> VerifierContext {
     VerifierContext::new(
+        source.configuration(),
+        source.composition(),
         anchors,
         accepted,
         source.expected_audience().clone(),
@@ -4298,6 +4398,8 @@ pub fn corpus() -> Vec<CorpusFixture> {
         byte_distinct_action(),
         wrong_audience(),
         wrong_challenge(),
+        composition_requirement_not_met(),
+        verifier_configuration_mismatch(),
         registry_manifest_mismatch(),
         unsupported_resource_matcher(),
         unsupported_profile_policy(),

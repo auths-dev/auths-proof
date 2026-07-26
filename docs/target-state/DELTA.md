@@ -1,5 +1,8 @@
 # Auths Target-State Build Map
 
+> Historical planning document. It is nonnormative and may describe superseded
+> crate boundaries and protocol behavior.
+
 **Status:** Implemented engineering map; external launch validation pending
 
 **Date:** 25 July 2026

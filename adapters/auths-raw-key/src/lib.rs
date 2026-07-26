@@ -7,8 +7,8 @@ extern crate alloc;
 
 use alloc::{format, vec, vec::Vec};
 use auths_model::{
-    AdapterId, AssuranceClaim, AssuranceClaimId, EvidenceId, EvidenceSourceId, EvidenceTypeId,
-    MediaType, ModelError, PrincipalId, PrincipalMethodId,
+    AdapterConfigurationId, AdapterId, AssuranceClaim, AssuranceClaimId, EvidenceId,
+    EvidenceSourceId, EvidenceTypeId, MediaType, ModelError, PrincipalId, PrincipalMethodId,
 };
 use auths_ports::{ControlEvidence, PrincipalControlError, PrincipalControlInput, PrincipalMethod};
 use base64ct::{Base64UrlUnpadded, Encoding};
@@ -171,6 +171,10 @@ impl RawKeyMethod {
 impl PrincipalMethod for RawKeyMethod {
     fn id(&self) -> &PrincipalMethodId {
         &self.id
+    }
+
+    fn configuration_id(&self) -> AdapterConfigurationId {
+        auths_ports::configuration_id(RAW_KEY_V1.as_bytes(), core::iter::empty())
     }
 
     fn maximum_work_units(&self) -> u64 {

@@ -44,7 +44,9 @@ auto-detection are not accepted by the V1 adapter profiles.
 
 ## Stability status
 
-The crates are version `0.1.0` and pre-audit. The 181-file target corpus
-prevents accidental change; it does not yet promise long-term wire stability.
-A stability declaration still requires external review and passing
-independent Go and TypeScript semantic verifiers.
+The crates are version `0.1.0`, prelaunch, and pre-audit. Until the launch
+candidate is explicitly frozen, the V1 label and checked-in corpus are
+provisional and may be replaced directly; there is no legacy decode promise.
+After freeze, the recorded API/wire baseline becomes the compatibility floor.
+External review remains a launch requirement and is not implied by corpus or
+CI success.

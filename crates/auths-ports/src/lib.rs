@@ -7,13 +7,40 @@ extern crate alloc;
 
 use alloc::vec::Vec;
 use auths_model::{
-    AdapterId, AssuranceClaim, AssuranceClaimId, AssuranceImplicationId, BudgetAlgebraId,
-    BudgetCeiling, CanonicalAction, CriticalExtension, EvidenceId, EvidenceObject, ExtensionId,
-    GrantId, GrantStatusSnapshot, PrincipalId, PrincipalMethodId, PrincipalStatusSnapshot,
-    ProfilePolicyId, ResourceId, ResourceMatcherId, SignatureSuiteId, StatusMethodId, StatusPolicy,
-    Timestamp, VerificationMethod,
+    AdapterConfigurationId, AdapterId, AssuranceClaim, AssuranceClaimId, AssuranceImplicationId,
+    BudgetAlgebraId, BudgetCeiling, CanonicalAction, CriticalExtension, EvidenceId, EvidenceObject,
+    ExtensionId, GrantId, GrantStatusSnapshot, PrincipalId, PrincipalMethodId,
+    PrincipalStatusSnapshot, ProfilePolicyId, ResourceId, ResourceMatcherId, SignatureSuiteId,
+    StatusMethodId, StatusPolicy, Timestamp, VerificationMethod,
 };
 use core::fmt;
+use sha2::{Digest as _, Sha256};
+
+/// Computes an unambiguous domain-separated commitment to ordered immutable
+/// configuration components.
+#[must_use]
+pub fn configuration_id<'a>(
+    domain: &[u8],
+    components: impl IntoIterator<Item = &'a [u8]>,
+) -> AdapterConfigurationId {
+    let mut hasher = Sha256::new();
+    hasher.update(b"auths-proof-adapter-configuration-v1");
+    hasher.update(
+        u64::try_from(domain.len())
+            .unwrap_or(u64::MAX)
+            .to_be_bytes(),
+    );
+    hasher.update(domain);
+    for component in components {
+        hasher.update(
+            u64::try_from(component.len())
+                .unwrap_or(u64::MAX)
+                .to_be_bytes(),
+        );
+        hasher.update(component);
+    }
+    AdapterConfigurationId::new(hasher.finalize().into())
+}
 
 /// Bounded facts a principal method established from immutable evidence.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -165,6 +192,10 @@ pub trait PrincipalMethod {
     /// Returns the exact registry identifier implemented by this adapter.
     fn id(&self) -> &PrincipalMethodId;
 
+    /// Returns a canonical commitment to every decision-affecting immutable
+    /// configuration value held by this adapter instance.
+    fn configuration_id(&self) -> AdapterConfigurationId;
+
     /// Declares a conservative upper bound charged before adapter execution.
     fn maximum_work_units(&self) -> u64;
 
@@ -195,6 +226,10 @@ pub trait SignatureSuite {
     /// Returns the exact suite registry identifier.
     fn id(&self) -> &SignatureSuiteId;
 
+    /// Returns a canonical commitment to the suite implementation
+    /// configuration.
+    fn configuration_id(&self) -> AdapterConfigurationId;
+
     /// Verifies the exact signing preimage.
     ///
     /// # Errors
@@ -220,6 +255,8 @@ pub enum RegistryOperationError {
 pub trait ResourceMatcher {
     /// Returns the exact implementation identifier.
     fn id(&self) -> &ResourceMatcherId;
+    /// Returns the exact immutable implementation-configuration commitment.
+    fn configuration_id(&self) -> AdapterConfigurationId;
     /// Returns a conservative pre-execution work reservation.
     fn maximum_work_units(&self, namespace: &ResourceId, resource: &ResourceId) -> u64;
     /// Evaluates one namespace constraint.
@@ -247,6 +284,8 @@ pub enum ProfileDecision {
 pub trait ProfilePolicy {
     /// Returns the exact profile-policy identifier.
     fn id(&self) -> &ProfilePolicyId;
+    /// Returns the exact immutable implementation-configuration commitment.
+    fn configuration_id(&self) -> AdapterConfigurationId;
     /// Returns a conservative pre-execution work reservation.
     fn maximum_work_units(&self, action: &CanonicalAction) -> u64;
     /// Evaluates policy without acquiring evidence, choosing trust, or doing I/O.
@@ -262,6 +301,8 @@ pub trait ProfilePolicy {
 pub trait BudgetAlgebra {
     /// Returns the exact budget-algebra identifier.
     fn id(&self) -> &BudgetAlgebraId;
+    /// Returns the exact immutable implementation-configuration commitment.
+    fn configuration_id(&self) -> AdapterConfigurationId;
     /// Returns a conservative pre-execution work reservation.
     fn maximum_work_units(&self) -> u64;
     /// Checks child attenuation under this exact algebra.
@@ -290,6 +331,8 @@ pub trait BudgetAlgebra {
 pub trait CriticalExtensionHandler {
     /// Returns the exact extension identifier.
     fn id(&self) -> &ExtensionId;
+    /// Returns the exact immutable implementation-configuration commitment.
+    fn configuration_id(&self) -> AdapterConfigurationId;
     /// Returns a conservative pre-execution work reservation.
     fn maximum_work_units(&self, extension: &CriticalExtension) -> u64;
     /// Validates extension bytes without expanding enclosing authority.
@@ -323,6 +366,8 @@ pub enum StatusDecision {
 pub trait StatusMethod {
     /// Returns the exact status-method identifier.
     fn id(&self) -> &StatusMethodId;
+    /// Returns the exact immutable implementation-configuration commitment.
+    fn configuration_id(&self) -> AdapterConfigurationId;
     /// Returns a conservative pre-execution work reservation.
     fn maximum_work_units(&self, statement_count: usize) -> u64;
     /// Evaluates principal status.
@@ -355,6 +400,8 @@ pub trait StatusMethod {
 pub trait AssuranceClaimRule {
     /// Returns the exact claim-kind identifier.
     fn id(&self) -> &AssuranceClaimId;
+    /// Returns the exact immutable implementation-configuration commitment.
+    fn configuration_id(&self) -> AdapterConfigurationId;
     /// Returns a conservative pre-execution work reservation.
     fn maximum_work_units(&self, claim: &AssuranceClaim) -> u64;
     /// Validates typed claim parameters and source.
@@ -369,6 +416,8 @@ pub trait AssuranceClaimRule {
 pub trait AssuranceImplication {
     /// Returns the exact implication-rule identifier.
     fn id(&self) -> &AssuranceImplicationId;
+    /// Returns the exact immutable implementation-configuration commitment.
+    fn configuration_id(&self) -> AdapterConfigurationId;
     /// Returns the stronger source claim.
     fn source(&self) -> &AssuranceClaimId;
     /// Returns the weaker target claim.

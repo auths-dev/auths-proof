@@ -1,5 +1,8 @@
 # `auths-proof`: Greenfield Foundation
 
+> Historical planning document. It is nonnormative and may describe features
+> absent from the launch contract in `spec/v1/`.
+
 **Status:** Proposed architecture  
 **Date:** 24 July 2026  
 **Repository assumption:** A completely new Rust workspace named `auths-proof`  

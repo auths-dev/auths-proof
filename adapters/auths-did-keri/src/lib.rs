@@ -18,8 +18,9 @@ use alloc::{
     vec::Vec,
 };
 use auths_model::{
-    AdapterId, AssuranceClaim, AssuranceClaimId, EvidenceId, EvidenceSourceId, EvidenceTypeId,
-    MediaType, ModelError, PrincipalId, PrincipalMethodId, Timestamp, VerificationMethod,
+    AdapterConfigurationId, AdapterId, AssuranceClaim, AssuranceClaimId, EvidenceId,
+    EvidenceSourceId, EvidenceTypeId, MediaType, ModelError, PrincipalId, PrincipalMethodId,
+    Timestamp, VerificationMethod,
 };
 use auths_ports::{ControlEvidence, PrincipalControlError, PrincipalControlInput, PrincipalMethod};
 use base64ct::{Base64UrlUnpadded, Encoding};
@@ -294,10 +295,33 @@ impl DidKeriMethod {
     /// values, or an excessive checkpoint collection.
     pub fn with_context(
         limits: KeriLimits,
-        checkpoints: Vec<KeriCheckpoint>,
+        mut checkpoints: Vec<KeriCheckpoint>,
     ) -> Result<Self, KeriError> {
         if checkpoints.len() > MAX_CHECKPOINTS {
             return Err(KeriError::LimitExceeded);
+        }
+        checkpoints.sort_by(|left, right| {
+            (
+                &left.principal,
+                left.sequence,
+                &left.event_said,
+                left.observed_at,
+                left.valid_until,
+                left.witness_threshold,
+            )
+                .cmp(&(
+                    &right.principal,
+                    right.sequence,
+                    &right.event_said,
+                    right.observed_at,
+                    right.valid_until,
+                    right.witness_threshold,
+                ))
+        });
+        if checkpoints.windows(2).any(|window| {
+            window[0].principal == window[1].principal && window[0].sequence == window[1].sequence
+        }) {
+            return Err(KeriError::InvalidCheckpoint);
         }
         Ok(Self {
             id: PrincipalMethodId::parse(ADAPTER_ID)?,
@@ -314,6 +338,44 @@ impl DidKeriMethod {
 impl PrincipalMethod for DidKeriMethod {
     fn id(&self) -> &PrincipalMethodId {
         &self.id
+    }
+
+    fn configuration_id(&self) -> AdapterConfigurationId {
+        let mut components = vec![
+            u64::try_from(self.limits.max_events)
+                .unwrap_or(u64::MAX)
+                .to_be_bytes()
+                .to_vec(),
+            u64::try_from(self.limits.max_event_bytes)
+                .unwrap_or(u64::MAX)
+                .to_be_bytes()
+                .to_vec(),
+            u64::try_from(self.limits.max_attachment_bytes)
+                .unwrap_or(u64::MAX)
+                .to_be_bytes()
+                .to_vec(),
+            u64::try_from(self.limits.max_keys)
+                .unwrap_or(u64::MAX)
+                .to_be_bytes()
+                .to_vec(),
+        ];
+        for checkpoint in &self.checkpoints {
+            components.push(checkpoint.principal.as_str().as_bytes().to_vec());
+            components.push(checkpoint.sequence.to_be_bytes().to_vec());
+            components.push(checkpoint.event_said.as_bytes().to_vec());
+            components.push(checkpoint.observed_at.get().to_be_bytes().to_vec());
+            components.push(checkpoint.valid_until.get().to_be_bytes().to_vec());
+            components.push(match checkpoint.witness_threshold {
+                Some((required, verified)) => {
+                    let mut value = vec![1];
+                    value.extend_from_slice(&required.to_be_bytes());
+                    value.extend_from_slice(&verified.to_be_bytes());
+                    value
+                }
+                None => vec![0],
+            });
+        }
+        auths_ports::configuration_id(ADAPTER_ID.as_bytes(), components.iter().map(Vec::as_slice))
     }
 
     fn maximum_work_units(&self) -> u64 {

@@ -4,13 +4,17 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Pure extension ports for Auths Proof Protocol V1 verifiers"
 
 [features]
 default = ["std"]
-std = ["auths-model/std"]
+std = ["auths-model/std", "sha2/std"]
 
 [dependencies]
 auths-model.workspace = true
+sha2.workspace = true
 
 [lints]
 workspace = true

@@ -5,6 +5,7 @@ use auths_model::{
     CapabilityId, MediaType, Permission, PrincipalMethodId, ProfileId, ProfilePolicyId, ProfileRef,
     RegistryManifestId, ResourceId, ResourceMatcherId, SignatureSuiteId,
 };
+use auths_ports::ProfileDecision;
 use auths_registries::{
     ImmutableRegistries, EXACT_PROFILE_V1, NUMERIC_CEILING_V1, TARGET_V1_REGISTRY_MANIFEST,
     URI_NAMESPACE_V1,
@@ -42,9 +43,16 @@ fuzz_target!(|data: &[u8]| {
     let resource = ResourceId::parse(&format!("fuzz://root/{suffix}"))
         .unwrap_or_else(|_| ResourceId::parse("fuzz://root/opaque").unwrap());
     if let Some(handler) = registries.resource_matcher(&accepted, &matcher) {
-        let first = handler.matches(&namespace, &resource);
-        let second = handler.matches(&namespace, &resource);
-        assert_eq!(first, second);
+        let namespace_text = namespace.as_str();
+        let resource_text = resource.as_str();
+        let expected_match = resource_text == namespace_text
+            || resource_text
+                .strip_prefix(namespace_text)
+                .is_some_and(|suffix| {
+                    namespace_text.ends_with('/')
+                        || suffix.starts_with(['/', '?', '#'])
+                });
+        assert_eq!(handler.matches(&namespace, &resource), Ok(expected_match));
     }
     let action = CanonicalAction::new(
         profile,
@@ -59,14 +67,12 @@ fuzz_target!(|data: &[u8]| {
     )
     .unwrap();
     if let Some(handler) = registries.profile_policy(&accepted, &policy) {
-        assert_eq!(handler.evaluate(&action), handler.evaluate(&action));
+        assert_eq!(handler.evaluate(&action), Ok(ProfileDecision::Accept));
     }
     if let Some(handler) = registries.budget_algebra(&accepted, &algebra) {
         let ceiling = BudgetCeiling::new(algebra.clone(), 2);
         let requested = BudgetCeiling::new(algebra, 1);
-        assert_eq!(
-            handler.covers(&ceiling, &requested),
-            handler.covers(&ceiling, &requested)
-        );
+        assert_eq!(handler.covers(&ceiling, &requested), Ok(true));
+        assert_eq!(handler.covers(&requested, &ceiling), Ok(false));
     }
 });

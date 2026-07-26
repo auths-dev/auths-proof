@@ -19,10 +19,10 @@ use auths_composition::{evaluate as evaluate_plan, BranchOutcome};
 use auths_model::{
     ActionId, AssuranceSatisfaction, CanonicalAction, ContextDigest, DenialReason, Digest,
     EvidenceObject, GrantId, GrantStatusId, ParticipantAssurance, ParticipantRole, PlanId,
-    PortableVerificationResult, PrincipalId, PrincipalStatusId, ProofBundle, ProofRef,
-    RegistryManifestId, Requirement, SignatureEnvelope, SignedAction, SignedGrant, StatementRef,
-    StatusPolicy, Timestamp, TrustAnchor, VerificationCode, VerificationDecision,
-    VerificationResources, VerificationStage, VerifierContext,
+    PortableVerificationResult, PrincipalId, PrincipalStatusId, ProofBundle, ProofRef, Requirement,
+    SignatureEnvelope, SignedAction, SignedGrant, StatementRef, StatusPolicy, Timestamp,
+    TrustAnchor, VerificationCode, VerificationDecision, VerificationResources, VerificationStage,
+    VerifierConfigurationId, VerifierContext,
 };
 use auths_ports::{
     ControlEvidence, ControlPurpose, PrincipalControlError, PrincipalControlInput, ProfileDecision,
@@ -319,12 +319,13 @@ pub fn verify_v1(
                 ContextDigest::new([0; 32]),
                 None,
                 input_resources,
-                RegistryManifestId::new([0; 32]),
+                registries.manifest_id(),
+                registries.configuration_id(),
             );
             return encode_verification_result(&result);
         }
     };
-    let canonical_action = match decode_canonical_action(canonical_action_cbor) {
+    let canonical_action = match decode_canonical_action(canonical_action_cbor, context.limits()) {
         Ok(action) => action,
         Err(error) => {
             let result = portable_failure(
@@ -336,6 +337,7 @@ pub fn verify_v1(
                 None,
                 input_resources,
                 context.accepted_registries().manifest_id(),
+                context.configuration(),
             );
             return encode_verification_result(&result);
         }
@@ -386,6 +388,7 @@ pub fn verify_portable(
                 None,
                 resources,
                 context.accepted_registries().manifest_id(),
+                context.configuration(),
             );
         }
     };
@@ -425,6 +428,7 @@ pub fn verify_portable(
                 None,
                 resources,
                 context.accepted_registries().manifest_id(),
+                context.configuration(),
             );
         }
     };
@@ -441,6 +445,7 @@ pub fn verify_portable(
                 resolved_plan,
                 resources,
                 context.accepted_registries().manifest_id(),
+                context.configuration(),
             );
         }
     };
@@ -485,6 +490,7 @@ pub fn verify_portable(
                 authority.assurance_satisfactions,
                 resources,
                 context.accepted_registries().manifest_id(),
+                context.configuration(),
             ))
         }
         Err(failure) => {
@@ -506,6 +512,7 @@ pub fn verify_portable(
                 resolved_plan,
                 resources,
                 context.accepted_registries().manifest_id(),
+                context.configuration(),
             )
         }
     }
@@ -521,6 +528,7 @@ fn portable_failure(
     plan_id: Option<PlanId>,
     resources: VerificationResources,
     manifest: auths_model::RegistryManifestId,
+    configuration: VerifierConfigurationId,
 ) -> PortableVerificationResult {
     let (decision, code) = match failure {
         VerificationFailure::Denied(reason) => (
@@ -545,6 +553,7 @@ fn portable_failure(
         Vec::new(),
         resources,
         manifest,
+        configuration,
     ))
 }
 
@@ -583,6 +592,7 @@ pub fn resolve_proof(
 ) -> Result<ResolvedProof, VerificationFailure> {
     let bundle = decoded.bundle();
     let computed_plan_id = plan_id(bundle.plan()).map_err(codec_failure)?;
+    require_expected_plan(context, computed_plan_id)?;
     let mut grants = Vec::with_capacity(bundle.grants().len());
     for (index, grant) in bundle.grants().iter().enumerate() {
         grants.push(GrantRecord {
@@ -594,7 +604,6 @@ pub fn resolve_proof(
     if grants.windows(2).any(|window| window[0].id == window[1].id) {
         return Err(VerificationFailure::Denied(DenialReason::DuplicateObject));
     }
-
     let mut actions = Vec::with_capacity(bundle.actions().len());
     let mut proof_refs = BTreeSet::new();
     for (index, action) in bundle.actions().iter().enumerate() {
@@ -681,6 +690,23 @@ pub fn resolve_proof(
     })
 }
 
+fn require_expected_plan(
+    context: &VerifierContext,
+    actual: PlanId,
+) -> Result<(), VerificationFailure> {
+    if context
+        .composition()
+        .expected_plan()
+        .is_some_and(|expected| expected != actual)
+    {
+        Err(VerificationFailure::Denied(
+            DenialReason::CompositionRequirementNotMet,
+        ))
+    } else {
+        Ok(())
+    }
+}
+
 /// Verifies exact principal methods, exact signature suites, and all supplied
 /// signed statements.
 ///
@@ -696,6 +722,11 @@ pub fn verify_principal_control(
     if context.accepted_registries().manifest_id() != registries.manifest_id() {
         return Err(VerificationFailure::Denied(
             DenialReason::RegistryManifestMismatch,
+        ));
+    }
+    if context.configuration() != registries.configuration_id() {
+        return Err(VerificationFailure::Denied(
+            DenialReason::VerifierConfigurationMismatch,
         ));
     }
     let mut controls = Vec::new();
@@ -739,6 +770,26 @@ pub fn verify_principal_control(
         controls.push(control);
     }
     verify_status_controls(bundle, context, registries, &mut meter, &mut controls)?;
+    for control in &controls {
+        let Ok(evidence) = &control.result else {
+            continue;
+        };
+        let bound: BTreeSet<_> = bundle
+            .bindings()
+            .iter()
+            .find(|binding| binding.statement() == control.statement)
+            .map(auths_model::ControlBinding::evidence)
+            .unwrap_or_default()
+            .iter()
+            .copied()
+            .collect();
+        let consumed: BTreeSet<_> = evidence.consumed_evidence().iter().copied().collect();
+        if bound != consumed {
+            return Err(VerificationFailure::Denied(
+                DenialReason::UnusedCriticalEvidence,
+            ));
+        }
+    }
     let consumed: BTreeSet<_> = bundle
         .bindings()
         .iter()
@@ -884,6 +935,25 @@ fn verify_authority_measured(
         BranchOutcome::StructurallyInvalid(reason) => {
             return Err(VerificationFailure::Denied(reason));
         }
+    }
+    let composition = context.composition();
+    let distinct_actors: BTreeSet<_> = assurance
+        .iter()
+        .filter(|report| report.role() == ParticipantRole::Actor)
+        .map(ParticipantAssurance::principal)
+        .collect();
+    let distinct_roots: BTreeSet<_> = assurance
+        .iter()
+        .filter(|report| report.role() == ParticipantRole::Root)
+        .map(ParticipantAssurance::principal)
+        .collect();
+    if authorized_branches.len() < usize::from(composition.minimum_authorized_branches())
+        || distinct_actors.len() < usize::from(composition.minimum_distinct_actors())
+        || distinct_roots.len() < usize::from(composition.minimum_distinct_roots())
+    {
+        return Err(VerificationFailure::Denied(
+            DenialReason::CompositionRequirementNotMet,
+        ));
     }
     assurance.sort_by(|left, right| {
         left.role()
@@ -1855,13 +1925,14 @@ mod tests {
     use auths_codec::{encode_bundle, evidence_id};
     use auths_model::{
         AcceptedRegistries, AssuranceClaimId, AssurancePolicy, AssurancePolicyId,
-        AssuranceRequirement, Audience, AudienceSet, AuthorizationPlan, BundleHeader, CapabilityId,
-        Challenge, ChannelBindingId, ControlBinding, CriticalExtensions, EvidenceId,
-        EvidenceTypeId, GrantStatusSnapshot, MediaType, ParticipantRole, Permission, PermissionSet,
-        PrincipalMethodId, PrincipalStatusSnapshot, ProfileId, ProfilePolicyId, ProfileRef,
-        RegistryManifestId, ResourceId, SignatureBytes, SignatureDescriptor, SignatureSuiteId,
-        SignedAction, StatusSnapshotId, Timestamp, TrustAnchorId, ValidityWindow,
-        VerificationMethod, VerifierLimits,
+        AssuranceQuantifier, AssuranceRequirement, Audience, AudienceSet, AuthorizationPlan,
+        BundleHeader, CapabilityId, Challenge, ChannelBindingId, CompositionRequirement,
+        ControlBinding, CriticalExtensions, EvidenceId, EvidenceTypeId, GrantStatusSnapshot,
+        MediaType, ParticipantRole, Permission, PermissionSet, PrincipalMethodId,
+        PrincipalStatusSnapshot, ProfileId, ProfilePolicyId, ProfileRef, RegistryManifestId,
+        ResourceId, SignatureBytes, SignatureDescriptor, SignatureSuiteId, SignedAction,
+        StatusSnapshotId, Timestamp, TrustAnchorId, ValidityWindow, VerificationMethod,
+        VerifierLimits,
     };
     use auths_raw_key::{
         RawKeyDescriptor, RawKeyMethod, RawKeyType, RAW_KEY_MEDIA_TYPE, RAW_KEY_V1,
@@ -1974,8 +2045,18 @@ mod tests {
         let assurance_policy = AssurancePolicy::new(
             policy_id.clone(),
             vec![
-                AssuranceRequirement::new(ParticipantRole::Root, claim.clone(), None),
-                AssuranceRequirement::new(ParticipantRole::Actor, claim.clone(), None),
+                AssuranceRequirement::new(
+                    ParticipantRole::Root,
+                    AssuranceQuantifier::Every,
+                    claim.clone(),
+                    None,
+                ),
+                AssuranceRequirement::new(
+                    ParticipantRole::Actor,
+                    AssuranceQuantifier::Every,
+                    claim.clone(),
+                    None,
+                ),
             ],
         )
         .unwrap();
@@ -2013,7 +2094,16 @@ mod tests {
             StatusPolicy::ExpiryOnly,
         )
         .unwrap();
+        let method = RawKeyMethod::new().unwrap();
+        let suite = Ed25519Suite::new().unwrap();
+        let methods: [&dyn auths_ports::PrincipalMethod; 1] = [&method];
+        let suites: [&dyn auths_ports::SignatureSuite; 1] = [&suite];
+        let configuration = ImmutableRegistries::new(&methods, &suites)
+            .unwrap()
+            .configuration_id();
         let context = VerifierContext::new(
+            configuration,
+            CompositionRequirement::exact(computed_plan),
             vec![anchor],
             accepted,
             Audience::parse("mcp://reports").unwrap(),
@@ -2192,6 +2282,71 @@ mod tests {
         assert_eq!(
             malformed.result_digest(),
             auths_codec::verification_result_digest(&malformed).unwrap()
+        );
+    }
+
+    #[test]
+    fn verifier_required_plan_and_actor_diversity_cannot_be_weakened() {
+        let fixture = auths_testkit::raw_key_chain();
+        let method = RawKeyMethod::new().unwrap();
+        let suite = Ed25519Suite::new().unwrap();
+        let methods: [&dyn auths_ports::PrincipalMethod; 1] = [&method];
+        let suites: [&dyn auths_ports::SignatureSuite; 1] = [&suite];
+        let registries = ImmutableRegistries::new(&methods, &suites).unwrap();
+        let context = auths_codec::decode_verifier_context(fixture.context_bytes())
+            .unwrap()
+            .with_configuration(registries.configuration_id())
+            .unwrap();
+
+        let wrong_plan = context
+            .with_composition(CompositionRequirement::exact(auths_model::PlanId::new(
+                [0xa5; 32],
+            )))
+            .unwrap();
+        assert_eq!(
+            verify(
+                fixture.proof_bytes(),
+                fixture.canonical_action(),
+                &wrong_plan,
+                &registries,
+            ),
+            VerificationOutcome::Denied(DenialReason::CompositionRequirementNotMet)
+        );
+
+        let insufficient_diversity = context
+            .with_composition(
+                CompositionRequirement::new(context.composition().expected_plan(), 2, 2, 1)
+                    .unwrap(),
+            )
+            .unwrap();
+        assert_eq!(
+            verify(
+                fixture.proof_bytes(),
+                fixture.canonical_action(),
+                &insufficient_diversity,
+                &registries,
+            ),
+            VerificationOutcome::Denied(DenialReason::CompositionRequirementNotMet)
+        );
+    }
+
+    #[test]
+    fn executable_configuration_mismatch_fails_closed() {
+        let fixture = auths_testkit::raw_key_chain();
+        let method = RawKeyMethod::new().unwrap();
+        let suite = Ed25519Suite::new().unwrap();
+        let methods: [&dyn auths_ports::PrincipalMethod; 1] = [&method];
+        let suites: [&dyn auths_ports::SignatureSuite; 1] = [&suite];
+        let registries = ImmutableRegistries::new(&methods, &suites).unwrap();
+        let context = auths_codec::decode_verifier_context(fixture.context_bytes()).unwrap();
+        assert_eq!(
+            verify(
+                fixture.proof_bytes(),
+                fixture.canonical_action(),
+                &context,
+                &registries,
+            ),
+            VerificationOutcome::Denied(DenialReason::VerifierConfigurationMismatch)
         );
     }
 

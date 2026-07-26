@@ -1,18 +1,17 @@
 # Offline verification example
 
-The normative Milestone 1 example is
-`../../fixtures/v1/valid/mixed-ed25519-p256.cbor`.
+This is a real external consumer crate, compiled by the workspace gate. It
+embeds the committed `raw-key-chain` proof, action, and trusted context; binds
+the context to the exact executable registry; and calls only the supported
+`auths-proof::Engine` façade.
 
-It contains:
+Run it with:
 
-```text
-raw Ed25519 root
-  -> exact mcp.tools.call / mcp://filesystem/read_file grant
-  -> raw P-256 actor
-  -> exact action body, audience, challenge, and time
+```console
+cargo run -p auths-proof-offline-example
 ```
 
-Run the `inspect` and `verify` commands from the repository `README.md`.
-
-No resolver, network, database, system clock, or private key is used during
-verification.
+The verification call performs no resolver, network, database, filesystem,
+clock, or private-key I/O. `Indeterminate` is handled as a non-authorizing
+result that may become decidable only after the host supplies new trusted
+facts.

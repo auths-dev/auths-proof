@@ -3,7 +3,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![forbid(unsafe_code)]
 
-use auths_model::{ModelError, SignatureSuiteId};
+use auths_model::{AdapterConfigurationId, ModelError, SignatureSuiteId};
 use auths_ports::{SignatureError, SignatureInput, SignatureSuite};
 use ed25519_dalek::{Signature as Ed25519Signature, VerifyingKey as Ed25519Key};
 use p256::ecdsa::{signature::Verifier as _, Signature as P256Signature, VerifyingKey as P256Key};
@@ -35,6 +35,10 @@ impl Ed25519Suite {
 impl SignatureSuite for Ed25519Suite {
     fn id(&self) -> &SignatureSuiteId {
         &self.id
+    }
+
+    fn configuration_id(&self) -> AdapterConfigurationId {
+        auths_ports::configuration_id(ED25519_V1.as_bytes(), core::iter::empty())
     }
 
     fn verify(&self, input: SignatureInput<'_>) -> Result<(), SignatureError> {
@@ -76,6 +80,10 @@ impl P256Sha256Suite {
 impl SignatureSuite for P256Sha256Suite {
     fn id(&self) -> &SignatureSuiteId {
         &self.id
+    }
+
+    fn configuration_id(&self) -> AdapterConfigurationId {
+        auths_ports::configuration_id(P256_SHA256_V1.as_bytes(), core::iter::empty())
     }
 
     fn verify(&self, input: SignatureInput<'_>) -> Result<(), SignatureError> {

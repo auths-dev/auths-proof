@@ -39,6 +39,36 @@ pub fn verify_self_contained_v1(
     )?)
 }
 
+/// Returns the exact configuration commitment for this fixed WASM
+/// distribution.
+///
+/// # Errors
+///
+/// Returns an error if a compiled adapter or registry cannot initialize.
+pub fn self_contained_v1_configuration() -> Result<[u8; 32], EngineError> {
+    let raw_key = auths_raw_key::RawKeyMethod::new()?;
+    let did_key = auths_did_key::DidKeyMethod::new()?;
+    let did_keri = auths_did_keri::DidKeriMethod::new()?;
+    let ed25519 = auths_signature::Ed25519Suite::new()?;
+    let p256 = auths_signature::P256Sha256Suite::new()?;
+    let methods: [&dyn PrincipalMethod; 3] = [&raw_key, &did_key, &did_keri];
+    let suites: [&dyn SignatureSuite; 2] = [&ed25519, &p256];
+    let registries = ImmutableRegistries::new(&methods, &suites)?;
+    Ok(*registries.configuration_id().as_bytes())
+}
+
+/// JavaScript-facing exact configuration commitment for this distribution.
+///
+/// # Errors
+///
+/// Returns a JavaScript error only if compiled engine initialization fails.
+#[wasm_bindgen(js_name = configurationV1)]
+pub fn configuration_v1() -> Result<Vec<u8>, JsValue> {
+    self_contained_v1_configuration()
+        .map(|bytes| bytes.to_vec())
+        .map_err(|error| JsValue::from_str(&error.to_string()))
+}
+
 /// JavaScript-facing three-input portable V1 verifier.
 ///
 /// Protocol failures are canonical result bytes, not JavaScript exceptions.
@@ -124,15 +154,27 @@ mod tests {
     fn native_wasm_boundary_matches_the_portable_contract() {
         let fixture = auths_testkit::raw_key_chain();
         let action = auths_codec::encode_canonical_action(fixture.canonical_action()).unwrap();
-        let result =
-            verify_self_contained_v1(fixture.proof_bytes(), &action, fixture.context_bytes())
-                .unwrap();
+        let context = auths_codec::decode_verifier_context(fixture.context_bytes())
+            .unwrap()
+            .with_configuration(auths_model::VerifierConfigurationId::new(
+                self_contained_v1_configuration().unwrap(),
+            ))
+            .unwrap();
+        let context = auths_codec::encode_verifier_context(&context).unwrap();
+        let result = verify_self_contained_v1(fixture.proof_bytes(), &action, &context).unwrap();
         assert_eq!(
             auths_codec::decode_verification_result(&result)
                 .unwrap()
                 .code()
                 .code(),
             "authorized"
+        );
+        assert_eq!(
+            auths_codec::decode_verification_result(&result)
+                .unwrap()
+                .verifier_configuration()
+                .as_bytes(),
+            &self_contained_v1_configuration().unwrap()
         );
     }
 }

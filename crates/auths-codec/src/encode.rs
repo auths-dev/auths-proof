@@ -6,16 +6,16 @@ use crate::{
 };
 use alloc::vec::Vec;
 use auths_model::{
-    AcceptedRegistries, ActionConstraint, ActionEnvelope, AssuranceClaim, AssuranceSatisfaction,
-    AttachmentDescriptor, AuthorizationPlan, AuthorizationPlanRef, BudgetCeiling, CanonicalAction,
-    ControlBinding, CriticalExtension, CriticalExtensions, EvidenceObject, GrantState,
-    GrantStatement, GrantStatusSnapshot, GrantStatusStatement, LimitKind, ParticipantAssurance,
-    ParticipantRole, Permission, PermissionSet, PortableVerificationResult, PrincipalState,
-    PrincipalStatusSnapshot, PrincipalStatusStatement, ProfileRef, ProofBundle,
-    SignatureDescriptor, SignatureEnvelope, SignedAction, SignedGrant, SignedGrantStatus,
-    SignedPrincipalStatus, StatementRef, StatusPolicy, StatusTrustRule, TrustAnchor,
-    VerificationCode, VerificationDecision, VerificationResources, VerificationStage,
-    VerifierContext, VerifierLimits,
+    AcceptedRegistries, ActionConstraint, ActionEnvelope, AssuranceClaim, AssuranceQuantifier,
+    AssuranceSatisfaction, AttachmentDescriptor, AuthorizationPlan, AuthorizationPlanRef,
+    BudgetCeiling, CanonicalAction, CompositionRequirement, ControlBinding, CriticalExtension,
+    CriticalExtensions, EvidenceObject, GrantState, GrantStatement, GrantStatusSnapshot,
+    GrantStatusStatement, LimitKind, ParticipantAssurance, ParticipantRole, Permission,
+    PermissionSet, PortableVerificationResult, PrincipalState, PrincipalStatusSnapshot,
+    PrincipalStatusStatement, ProfileRef, ProofBundle, SignatureDescriptor, SignatureEnvelope,
+    SignedAction, SignedGrant, SignedGrantStatus, SignedPrincipalStatus, StatementRef,
+    StatusPolicy, StatusTrustRule, TrustAnchor, VerificationCode, VerificationDecision,
+    VerificationResources, VerificationStage, VerifierContext, VerifierLimits,
 };
 use minicbor::Encoder;
 
@@ -505,7 +505,7 @@ fn encode_verification_result_to(
     result: &PortableVerificationResult,
     include_result_digest: bool,
 ) -> Result<(), CodecError> {
-    map(encoder, 14)?;
+    map(encoder, 15)?;
     key(encoder, 0)?;
     encoder
         .u8(match result.decision() {
@@ -573,6 +573,8 @@ fn encode_verification_result_to(
     key(encoder, 12)?;
     bytes(encoder, result.registry_manifest().as_bytes())?;
     key(encoder, 13)?;
+    bytes(encoder, result.verifier_configuration().as_bytes())?;
+    key(encoder, 14)?;
     encoder.u16(1).map_err(encode_error)?;
     Ok(())
 }
@@ -1076,7 +1078,7 @@ fn encode_assurance_policy(
     key(encoder, 1)?;
     array(encoder, policy.requirements().len())?;
     for requirement in policy.requirements() {
-        map(encoder, 7)?;
+        map(encoder, 8)?;
         key(encoder, 0)?;
         let role = match requirement.role() {
             ParticipantRole::Root => 0,
@@ -1118,6 +1120,13 @@ fn encode_assurance_policy(
         } else {
             encoder.null().map_err(encode_error)?;
         }
+        key(encoder, 7)?;
+        encoder
+            .u8(match requirement.quantifier() {
+                AssuranceQuantifier::Any => 0,
+                AssuranceQuantifier::Every => 1,
+            })
+            .map_err(encode_error)?;
     }
     Ok(())
 }
@@ -1304,8 +1313,10 @@ fn encode_grant_snapshot(
 }
 
 fn encode_limits(encoder: &mut V1Encoder, limits: &VerifierLimits) -> Result<(), CodecError> {
-    const LIMITS: [LimitKind; 23] = [
+    const LIMITS: [LimitKind; 26] = [
         LimitKind::BundleBytes,
+        LimitKind::ActionBytes,
+        LimitKind::ContextBytes,
         LimitKind::Grants,
         LimitKind::Actions,
         LimitKind::PlanLeaves,
@@ -1317,6 +1328,7 @@ fn encode_limits(encoder: &mut V1Encoder, limits: &VerifierLimits) -> Result<(),
         LimitKind::PrincipalStatusStatements,
         LimitKind::GrantStatusStatements,
         LimitKind::Attachments,
+        LimitKind::AttachmentBytes,
         LimitKind::Signatures,
         LimitKind::SignatureBytes,
         LimitKind::Permissions,
@@ -1329,7 +1341,7 @@ fn encode_limits(encoder: &mut V1Encoder, limits: &VerifierLimits) -> Result<(),
         LimitKind::RegistryEntries,
         LimitKind::TrustAnchors,
     ];
-    map(encoder, 24)?;
+    map(encoder, 27)?;
     for (index, kind) in LIMITS.into_iter().enumerate() {
         key(
             encoder,
@@ -1339,8 +1351,34 @@ fn encode_limits(encoder: &mut V1Encoder, limits: &VerifierLimits) -> Result<(),
             .u64(length(limits.get(kind))?)
             .map_err(encode_error)?;
     }
-    key(encoder, 23)?;
+    key(encoder, 26)?;
     encoder.u64(limits.max_work_units()).map_err(encode_error)?;
+    Ok(())
+}
+
+fn encode_composition_requirement(
+    encoder: &mut V1Encoder,
+    requirement: CompositionRequirement,
+) -> Result<(), CodecError> {
+    map(encoder, 4)?;
+    key(encoder, 0)?;
+    if let Some(plan) = requirement.expected_plan() {
+        bytes(encoder, plan.as_bytes())?;
+    } else {
+        encoder.null().map_err(encode_error)?;
+    }
+    key(encoder, 1)?;
+    encoder
+        .u16(requirement.minimum_authorized_branches())
+        .map_err(encode_error)?;
+    key(encoder, 2)?;
+    encoder
+        .u16(requirement.minimum_distinct_actors())
+        .map_err(encode_error)?;
+    key(encoder, 3)?;
+    encoder
+        .u16(requirement.minimum_distinct_roots())
+        .map_err(encode_error)?;
     Ok(())
 }
 
@@ -1348,36 +1386,40 @@ fn encode_verifier_context_to(
     encoder: &mut V1Encoder,
     context: &VerifierContext,
 ) -> Result<(), CodecError> {
-    map(encoder, 12)?;
+    map(encoder, 14)?;
     key(encoder, 0)?;
+    encode_limits(encoder, context.limits())?;
+    key(encoder, 1)?;
+    bytes(encoder, context.configuration().as_bytes())?;
+    key(encoder, 2)?;
+    encode_composition_requirement(encoder, context.composition())?;
+    key(encoder, 3)?;
     array(encoder, context.trust_anchors().len())?;
     for anchor in context.trust_anchors() {
         encode_anchor(encoder, anchor)?;
     }
-    key(encoder, 1)?;
-    encode_registries(encoder, context.accepted_registries())?;
-    key(encoder, 2)?;
-    text(encoder, context.expected_audience().as_str())?;
-    key(encoder, 3)?;
-    bytes(encoder, context.expected_challenge().as_bytes())?;
     key(encoder, 4)?;
+    encode_registries(encoder, context.accepted_registries())?;
+    key(encoder, 5)?;
+    text(encoder, context.expected_audience().as_str())?;
+    key(encoder, 6)?;
+    bytes(encoder, context.expected_challenge().as_bytes())?;
+    key(encoder, 7)?;
     encoder
         .u64(context.evaluation_time().get())
         .map_err(encode_error)?;
-    key(encoder, 5)?;
-    encode_assurance_policy(encoder, context.assurance_policy())?;
-    key(encoder, 6)?;
-    encode_principal_snapshot(encoder, context.principal_status_snapshot())?;
-    key(encoder, 7)?;
-    encode_grant_snapshot(encoder, context.grant_status_snapshot())?;
     key(encoder, 8)?;
-    text(encoder, context.resource_matcher().as_str())?;
+    encode_assurance_policy(encoder, context.assurance_policy())?;
     key(encoder, 9)?;
-    text(encoder, context.profile_policy().as_str())?;
+    encode_principal_snapshot(encoder, context.principal_status_snapshot())?;
     key(encoder, 10)?;
-    text(encoder, context.channel_policy().as_str())?;
+    encode_grant_snapshot(encoder, context.grant_status_snapshot())?;
     key(encoder, 11)?;
-    encode_limits(encoder, context.limits())?;
+    text(encoder, context.resource_matcher().as_str())?;
+    key(encoder, 12)?;
+    text(encoder, context.profile_policy().as_str())?;
+    key(encoder, 13)?;
+    text(encoder, context.channel_policy().as_str())?;
     Ok(())
 }
 

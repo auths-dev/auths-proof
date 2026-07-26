@@ -8,7 +8,8 @@ context.
 
 ## Trust assumptions
 
-- The host selects trustworthy principal adapters and trust anchors.
+- The host selects trustworthy principal adapters and trust anchors and binds
+  their exact configuration commitment into the trusted context.
 - Cryptographic dependencies behave according to their specifications.
 - The host supplies the intended body, audience, challenge, time, and policy.
 - The executor executes the same body it asked Auths to verify.
@@ -19,6 +20,9 @@ context.
 | Threat | Control |
 |---|---|
 | Weaker adapter substitution | Adapter, method, and algorithm are signed; registry is explicit |
+| Hidden adapter configuration | Context and result bind the exact executable registry and every adapter configuration digest |
+| Prover weakens quorum | Host context independently requires the exact plan and minimum branch/actor/root diversity |
+| Same signer cloned into leaves | Distinct-actor and distinct-root obligations count principals, not proof references |
 | Same key under another identifier | Principals use exact identifier equality |
 | Algorithm confusion | Exact algorithm registry and key compatibility checks |
 | Body modification | SHA-256 of exact body is signed |
@@ -27,16 +31,16 @@ context.
 | Authority expansion | Permission subset, contained validity, decreasing depth |
 | Grant reordering/removal | Signed parent `GrantId` chain |
 | Self-declared trust | Roots exist only in local verifier context |
-| Evidence replacement | Evidence is content-addressed and adapter re-evaluated |
+| Evidence replacement or smuggling | Evidence is content-addressed; each successful statement binding exactly equals adapter-reported consumption |
 | Backdating after key revocation | Historical key state alone is insufficient |
 | Non-canonical signature bytes | Closed deterministic CBOR and low-S P-256 |
 | Parser resource exhaustion | Byte/collection/depth limits before cryptography |
 | Adapter fallback | Exact lookup; unsupported is `Indeterminate` |
 | Hidden network trust | Verification performs no resolution or I/O |
-| Truncated/stale embedded KEL | KERI adapter does not claim globally current or historical state; stricter hosts must require separate freshness assurance |
+| Truncated/stale embedded KEL | KERI claims current/revocation status only when the exact accepted state matches a fresh verifier-bound checkpoint |
 | Forged bundled `did:web` document | Document digest must match explicit host trust supplied outside the proof |
-| DNS rebinding / SSRF during resolution | Exact host allowlist, public-address checks, address pinning, no redirects |
 | Removed `did:web` key backdates a statement | Historical document state and exact-statement existence are separate required claims |
+| Host retry amplification | `Indeterminate` never authorizes; hosts must bound retries and require new trusted facts |
 
 ## Not protected
 
@@ -62,18 +66,19 @@ report this limitation.
 A valid embedded KERI event log can still omit a later event known elsewhere.
 The KERI adapter validates the supplied chain, including rotations and
 pre-rotation commitments, but cannot prove non-existence of a later rotation
-without an external freshness or witness mechanism. It deliberately emits no
-current-state, historical-time, witness-quorum, or revocation-check claim.
+without an external freshness or witness mechanism. Current-state,
+witness-quorum, and revocation-check claims therefore require an exact fresh
+checkpoint in the verifier configuration.
 
 ## `did:web` trust limitation
 
 A resolver trust record is verifier configuration, not evidence an untrusted
-prover may self-assert. Compromise of the configured resolver process, its
-clock, DNS/TLS validation, archival pin store, or the trust-record file can
-authorize a forged DID document. The reference resolver is a constrained
-bootstrap implementation, not a transparency log.
+prover may self-assert. Compromise of the process that created current or
+historical records, its clock, DNS/TLS validation, archival pin store, or the
+trust-record file can authorize a forged DID document. The pure kernel
+performs no resolution and the pinned records are not a transparency log.
 
 ## Reporting
 
-Security reports should follow `SECURITY.md`. This Milestone 3 implementation
-is pre-audit and must not be represented as production-hardened.
+Security reports should follow `SECURITY.md`. This prelaunch implementation is
+pre-audit and must not be represented as production-hardened.

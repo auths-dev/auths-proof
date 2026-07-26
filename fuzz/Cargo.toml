@@ -18,6 +18,7 @@ auths-hsm-attested = { path = "../adapters/auths-hsm-attested", default-features
 auths-spiffe-x509 = { path = "../adapters/auths-spiffe-x509", default-features = false }
 auths-multikey = { path = "../crates/auths-multikey", default-features = false }
 auths-raw-key = { path = "../adapters/auths-raw-key", default-features = false }
+auths-signature = { path = "../crates/auths-signature", default-features = false }
 auths-webauthn = { path = "../adapters/auths-webauthn", default-features = false }
 libfuzzer-sys = "0.4"
 

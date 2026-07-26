@@ -9,12 +9,13 @@ use alloc::vec::Vec;
 use auths_model::{
     AcceptedRegistries, ActionConstraint, ActionEnvelope, ActionId, AdapterId, AssuranceClaim,
     AssuranceClaimId, AssuranceImplicationId, AssurancePolicy, AssurancePolicyId,
-    AssuranceRequirement, AssuranceSatisfaction, AttachmentDescriptor, AttachmentDigest, Audience,
-    AudienceSet, AuthorizationPlan, BudgetAlgebraId, BudgetCeiling, BundleHeader, CanonicalAction,
-    CapabilityId, Challenge, ChannelBindingId, ControlBinding, CriticalExtension,
-    CriticalExtensions, DetachedAttachment, Digest, DispositionId, EvidenceId, EvidenceObject,
-    EvidenceSourceId, EvidenceTypeId, ExtensionId, FreshnessLimit, GrantId, GrantState,
-    GrantStatement, GrantStatusId, GrantStatusSnapshot, GrantStatusStatement, LimitKind, MediaType,
+    AssuranceQuantifier, AssuranceRequirement, AssuranceSatisfaction, AttachmentDescriptor,
+    AttachmentDigest, Audience, AudienceSet, AuthorizationPlan, BudgetAlgebraId, BudgetCeiling,
+    BundleHeader, CanonicalAction, CapabilityId, Challenge, ChannelBindingId,
+    CompositionRequirement, ControlBinding, CriticalExtension, CriticalExtensions,
+    DetachedAttachment, Digest, DispositionId, EvidenceId, EvidenceObject, EvidenceSourceId,
+    EvidenceTypeId, ExtensionId, FreshnessLimit, GrantId, GrantState, GrantStatement,
+    GrantStatusId, GrantStatusSnapshot, GrantStatusStatement, LimitKind, MediaType,
     ParticipantAssurance, Permission, PermissionSet, PlanId, PortableVerificationResult,
     PrincipalId, PrincipalMethodId, PrincipalState, PrincipalStatusId, PrincipalStatusSnapshot,
     PrincipalStatusStatement, ProfileId, ProfilePolicyId, ProfileRef, ProofBundle, ProofRef,
@@ -23,7 +24,8 @@ use auths_model::{
     SignedGrantStatus, SignedPrincipalStatus, StatementRef, StatusMethodId, StatusPolicy,
     StatusSnapshotId, StatusTrustRule, Timestamp, TrustAnchor, TrustAnchorId, ValidityWindow,
     VerificationCode, VerificationDecision, VerificationMethod, VerificationResources,
-    VerificationResultDigest, VerificationStage, VerifierContext, VerifierLimits,
+    VerificationResultDigest, VerificationStage, VerifierConfigurationId, VerifierContext,
+    VerifierLimits,
 };
 use minicbor::{data::Type, Decoder};
 
@@ -791,7 +793,7 @@ fn assurance_policy(
     let length = array(decoder, limits.get(LimitKind::EvidenceObjects))?;
     let mut requirements = Vec::with_capacity(length);
     for _ in 0..length {
-        map(decoder, 7)?;
+        map(decoder, 8)?;
         key(decoder, 0)?;
         let role = role(decoder)?;
         key(decoder, 1)?;
@@ -836,8 +838,15 @@ fn assurance_policy(
                 decoder.u64().map_err(|_| CodecError::Malformed)?,
             )?)
         };
+        key(decoder, 7)?;
+        let quantifier = match decoder.u8().map_err(|_| CodecError::Malformed)? {
+            0 => AssuranceQuantifier::Any,
+            1 => AssuranceQuantifier::Every,
+            _ => return Err(CodecError::Malformed),
+        };
         requirements.push(AssuranceRequirement::constrained(
             role,
+            quantifier,
             claim_kind,
             parameters,
             source,
@@ -1066,8 +1075,10 @@ fn grant_snapshot(
         .map_err(CodecError::from)
 }
 
-const LIMIT_KINDS: [LimitKind; 23] = [
+const LIMIT_KINDS: [LimitKind; 26] = [
     LimitKind::BundleBytes,
+    LimitKind::ActionBytes,
+    LimitKind::ContextBytes,
     LimitKind::Grants,
     LimitKind::Actions,
     LimitKind::PlanLeaves,
@@ -1079,6 +1090,7 @@ const LIMIT_KINDS: [LimitKind; 23] = [
     LimitKind::PrincipalStatusStatements,
     LimitKind::GrantStatusStatements,
     LimitKind::Attachments,
+    LimitKind::AttachmentBytes,
     LimitKind::Signatures,
     LimitKind::SignatureBytes,
     LimitKind::Permissions,
@@ -1093,7 +1105,7 @@ const LIMIT_KINDS: [LimitKind; 23] = [
 ];
 
 fn verifier_limits(decoder: &mut V1Decoder<'_>) -> Result<VerifierLimits, CodecError> {
-    map(decoder, 24)?;
+    map(decoder, 27)?;
     let mut limits = VerifierLimits::hard();
     for (index, kind) in LIMIT_KINDS.into_iter().enumerate() {
         key(
@@ -1104,44 +1116,68 @@ fn verifier_limits(decoder: &mut V1Decoder<'_>) -> Result<VerifierLimits, CodecE
         let value = usize::try_from(value).map_err(|_| CodecError::LimitExceeded)?;
         limits = limits.with_limit(kind, value)?;
     }
-    key(decoder, 23)?;
+    key(decoder, 26)?;
     limits
         .with_work_units(decoder.u64().map_err(|_| CodecError::Malformed)?)
         .map_err(CodecError::from)
 }
 
 fn context_from(decoder: &mut V1Decoder<'_>) -> Result<VerifierContext, CodecError> {
-    let hard = VerifierLimits::hard();
-    map(decoder, 12)?;
+    map(decoder, 14)?;
     key(decoder, 0)?;
-    let length = array(decoder, hard.get(LimitKind::TrustAnchors))?;
+    let limits = verifier_limits(decoder)?;
+    key(decoder, 1)?;
+    let configuration = digest_id!(decoder, VerifierConfigurationId)?;
+    key(decoder, 2)?;
+    map(decoder, 4)?;
+    key(decoder, 0)?;
+    let expected_plan = if is_null(decoder)? {
+        null(decoder)?;
+        None
+    } else {
+        Some(digest_id!(decoder, PlanId)?)
+    };
+    key(decoder, 1)?;
+    let minimum_authorized_branches = decoder.u16().map_err(|_| CodecError::Malformed)?;
+    key(decoder, 2)?;
+    let minimum_distinct_actors = decoder.u16().map_err(|_| CodecError::Malformed)?;
+    key(decoder, 3)?;
+    let minimum_distinct_roots = decoder.u16().map_err(|_| CodecError::Malformed)?;
+    let composition = CompositionRequirement::new(
+        expected_plan,
+        minimum_authorized_branches,
+        minimum_distinct_actors,
+        minimum_distinct_roots,
+    )?;
+    key(decoder, 3)?;
+    let length = array(decoder, limits.get(LimitKind::TrustAnchors))?;
     let mut trust_anchors = Vec::with_capacity(length);
     for _ in 0..length {
-        trust_anchors.push(anchor(decoder, &hard)?);
+        trust_anchors.push(anchor(decoder, &limits)?);
     }
-    key(decoder, 1)?;
-    let accepted_registries = registries(decoder, &hard)?;
-    key(decoder, 2)?;
-    let expected_audience = parse_text!(decoder, Audience)?;
-    key(decoder, 3)?;
-    let expected_challenge = Challenge::new(digest_bytes(decoder)?);
     key(decoder, 4)?;
-    let evaluation_time = Timestamp::new(decoder.u64().map_err(|_| CodecError::Malformed)?);
+    let accepted_registries = registries(decoder, &limits)?;
     key(decoder, 5)?;
-    let assurance_policy = assurance_policy(decoder, &hard)?;
+    let expected_audience = parse_text!(decoder, Audience)?;
     key(decoder, 6)?;
-    let principal_status_snapshot = principal_snapshot(decoder, &hard)?;
+    let expected_challenge = Challenge::new(digest_bytes(decoder)?);
     key(decoder, 7)?;
-    let grant_status_snapshot = grant_snapshot(decoder, &hard)?;
+    let evaluation_time = Timestamp::new(decoder.u64().map_err(|_| CodecError::Malformed)?);
     key(decoder, 8)?;
-    let resource_matcher = parse_text!(decoder, ResourceMatcherId)?;
+    let assurance_policy = assurance_policy(decoder, &limits)?;
     key(decoder, 9)?;
-    let profile_policy = parse_text!(decoder, ProfilePolicyId)?;
+    let principal_status_snapshot = principal_snapshot(decoder, &limits)?;
     key(decoder, 10)?;
-    let channel_policy = parse_text!(decoder, ChannelBindingId)?;
+    let grant_status_snapshot = grant_snapshot(decoder, &limits)?;
     key(decoder, 11)?;
-    let limits = verifier_limits(decoder)?;
+    let resource_matcher = parse_text!(decoder, ResourceMatcherId)?;
+    key(decoder, 12)?;
+    let profile_policy = parse_text!(decoder, ProfilePolicyId)?;
+    key(decoder, 13)?;
+    let channel_policy = parse_text!(decoder, ChannelBindingId)?;
     VerifierContext::new(
+        configuration,
+        composition,
         trust_anchors,
         accepted_registries,
         expected_audience,
@@ -1192,8 +1228,12 @@ pub fn decode_bundle(input: &[u8], limits: &VerifierLimits) -> Result<ProofBundl
 ///
 /// Returns a typed codec error for malformed, non-canonical, duplicate, or
 /// over-limit action and detached-attachment bytes.
-pub fn decode_canonical_action(input: &[u8]) -> Result<CanonicalAction, CodecError> {
-    if input.len() > auths_model::HARD_MAX_BUNDLE_BYTES {
+pub fn decode_canonical_action(
+    input: &[u8],
+    limits: &VerifierLimits,
+) -> Result<CanonicalAction, CodecError> {
+    limits.validate()?;
+    if input.len() > limits.get(LimitKind::ActionBytes) {
         return Err(CodecError::LimitExceeded);
     }
     let mut decoder = Decoder::new(input);
@@ -1205,7 +1245,7 @@ pub fn decode_canonical_action(input: &[u8]) -> Result<CanonicalAction, CodecErr
     key(&mut decoder, 2)?;
     let body = bounded_bytes(
         &mut decoder,
-        auths_model::HARD_MAX_CANONICAL_BODY_BYTES,
+        limits.get(LimitKind::CanonicalBodyBytes),
         true,
     )?;
     key(&mut decoder, 3)?;
@@ -1213,14 +1253,21 @@ pub fn decode_canonical_action(input: &[u8]) -> Result<CanonicalAction, CodecErr
     key(&mut decoder, 4)?;
     let requested_budget = optional_budget(&mut decoder)?;
     key(&mut decoder, 5)?;
-    let count = array(&mut decoder, auths_model::HARD_MAX_ATTACHMENTS)?;
+    let count = array(&mut decoder, limits.get(LimitKind::Attachments))?;
     let mut attachments = Vec::with_capacity(count);
+    let mut attachment_bytes = 0usize;
     for _ in 0..count {
         map(&mut decoder, 2)?;
         key(&mut decoder, 0)?;
         let digest = digest_id!(&mut decoder, AttachmentDigest)?;
         key(&mut decoder, 1)?;
-        let bytes = bounded_bytes(&mut decoder, auths_model::HARD_MAX_BUNDLE_BYTES, true)?;
+        let bytes = bounded_bytes(&mut decoder, limits.get(LimitKind::AttachmentBytes), true)?;
+        attachment_bytes = attachment_bytes
+            .checked_add(bytes.len())
+            .ok_or(CodecError::LimitExceeded)?;
+        if attachment_bytes > limits.get(LimitKind::AttachmentBytes) {
+            return Err(CodecError::LimitExceeded);
+        }
         attachments.push(DetachedAttachment::new(digest, bytes)?);
     }
     let action = CanonicalAction::new(profile, media_type, body, permission, requested_budget)?
@@ -1350,7 +1397,7 @@ pub fn decode_verification_result(input: &[u8]) -> Result<PortableVerificationRe
         return Err(CodecError::LimitExceeded);
     }
     let mut decoder = Decoder::new(input);
-    map(&mut decoder, 14)?;
+    map(&mut decoder, 15)?;
     key(&mut decoder, 0)?;
     let decision = match decoder.u8().map_err(|_| CodecError::Malformed)? {
         0 => VerificationDecision::Authorized,
@@ -1434,6 +1481,8 @@ pub fn decode_verification_result(input: &[u8]) -> Result<PortableVerificationRe
     key(&mut decoder, 12)?;
     let registry_manifest = digest_id!(&mut decoder, RegistryManifestId)?;
     key(&mut decoder, 13)?;
+    let verifier_configuration = digest_id!(&mut decoder, VerifierConfigurationId)?;
+    key(&mut decoder, 14)?;
     if decoder.u16().map_err(|_| CodecError::Malformed)? != 1 {
         return Err(CodecError::Malformed);
     }
@@ -1450,6 +1499,7 @@ pub fn decode_verification_result(input: &[u8]) -> Result<PortableVerificationRe
         satisfactions,
         resources,
         registry_manifest,
+        verifier_configuration,
     )
     .with_result_digest(result_digest);
     ensure_complete(&decoder, input)?;
@@ -1468,11 +1518,14 @@ pub fn decode_verification_result(input: &[u8]) -> Result<PortableVerificationRe
 /// Returns a typed codec error for malformed, non-canonical, over-limit, or
 /// semantically invalid input.
 pub fn decode_verifier_context(input: &[u8]) -> Result<VerifierContext, CodecError> {
-    if input.len() > auths_model::HARD_MAX_BUNDLE_BYTES {
+    if input.len() > auths_model::HARD_MAX_CONTEXT_BYTES {
         return Err(CodecError::LimitExceeded);
     }
     let mut decoder = Decoder::new(input);
     let context = context_from(&mut decoder)?;
+    if input.len() > context.limits().get(LimitKind::ContextBytes) {
+        return Err(CodecError::LimitExceeded);
+    }
     ensure_complete(&decoder, input)?;
     if encode_verifier_context(&context)?.as_slice() != input {
         return Err(CodecError::NonCanonical);
@@ -1483,7 +1536,7 @@ pub fn decode_verifier_context(input: &[u8]) -> Result<VerifierContext, CodecErr
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::encode::{encode_bundle, encode_verifier_context};
+    use crate::encode::{encode_bundle, encode_canonical_action, encode_verifier_context};
     use proptest::prelude::*;
 
     fn identifier(bytes: u8) -> [u8; 32] {
@@ -1578,6 +1631,8 @@ mod tests {
         )
         .unwrap();
         VerifierContext::new(
+            VerifierConfigurationId::new(identifier(8)),
+            CompositionRequirement::exact(PlanId::new(identifier(4))),
             vec![anchor],
             registries,
             Audience::parse("urn:test:verifier").unwrap(),
@@ -1608,6 +1663,20 @@ mod tests {
         .unwrap()
     }
 
+    fn minimal_canonical_action() -> CanonicalAction {
+        CanonicalAction::new(
+            ProfileRef::new(ProfileId::parse("test").unwrap(), 1).unwrap(),
+            MediaType::parse("application/octet-stream").unwrap(),
+            vec![1, 2, 3],
+            Permission::new(
+                CapabilityId::parse("read").unwrap(),
+                ResourceId::parse("urn:test:item").unwrap(),
+            ),
+            None,
+        )
+        .unwrap()
+    }
+
     #[test]
     fn bundle_round_trip_is_unique() {
         let bundle = minimal_bundle();
@@ -1623,6 +1692,83 @@ mod tests {
         let context = minimal_context();
         let encoded = encode_verifier_context(&context).unwrap();
         assert_eq!(decode_verifier_context(&encoded).unwrap(), context);
+    }
+
+    #[test]
+    fn portable_input_byte_limits_enforce_exact_boundaries() {
+        let action = minimal_canonical_action();
+        let encoded_action = encode_canonical_action(&action).unwrap();
+        let exact_action = VerifierLimits::default()
+            .with_limit(LimitKind::ActionBytes, encoded_action.len())
+            .unwrap();
+        assert_eq!(
+            decode_canonical_action(&encoded_action, &exact_action).unwrap(),
+            action
+        );
+        let short_action = exact_action
+            .with_limit(LimitKind::ActionBytes, encoded_action.len() - 1)
+            .unwrap();
+        assert_eq!(
+            decode_canonical_action(&encoded_action, &short_action),
+            Err(CodecError::LimitExceeded)
+        );
+
+        let provisional = minimal_context()
+            .with_limits(
+                VerifierLimits::default()
+                    .with_limit(LimitKind::ContextBytes, 65_535)
+                    .unwrap(),
+            )
+            .unwrap();
+        let provisional_length = encode_verifier_context(&provisional).unwrap().len();
+        let exact_context = provisional
+            .with_limits(
+                provisional
+                    .limits()
+                    .clone()
+                    .with_limit(LimitKind::ContextBytes, provisional_length)
+                    .unwrap(),
+            )
+            .unwrap();
+        let encoded_context = encode_verifier_context(&exact_context).unwrap();
+        assert_eq!(encoded_context.len(), provisional_length);
+        assert_eq!(
+            decode_verifier_context(&encoded_context).unwrap(),
+            exact_context
+        );
+        let short_context = exact_context
+            .with_limits(
+                exact_context
+                    .limits()
+                    .clone()
+                    .with_limit(LimitKind::ContextBytes, encoded_context.len() - 1)
+                    .unwrap(),
+            )
+            .unwrap();
+        assert_eq!(
+            decode_verifier_context(&encode_verifier_context(&short_context).unwrap()),
+            Err(CodecError::LimitExceeded)
+        );
+    }
+
+    #[test]
+    fn detached_attachment_limit_is_aggregate() {
+        let action = minimal_canonical_action()
+            .with_detached_attachments(vec![
+                DetachedAttachment::new(AttachmentDigest::new([1; 32]), vec![1, 2]).unwrap(),
+                DetachedAttachment::new(AttachmentDigest::new([2; 32]), vec![3, 4]).unwrap(),
+            ])
+            .unwrap();
+        let encoded = encode_canonical_action(&action).unwrap();
+        let exact = VerifierLimits::default()
+            .with_limit(LimitKind::AttachmentBytes, 4)
+            .unwrap();
+        assert_eq!(decode_canonical_action(&encoded, &exact).unwrap(), action);
+        let short = exact.with_limit(LimitKind::AttachmentBytes, 3).unwrap();
+        assert_eq!(
+            decode_canonical_action(&encoded, &short),
+            Err(CodecError::LimitExceeded)
+        );
     }
 
     #[test]

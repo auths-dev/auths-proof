@@ -16,9 +16,9 @@ use alloc::{
     vec::Vec,
 };
 use auths_model::{
-    AdapterId, AssuranceClaim, AssuranceClaimId, ClaimParameterId, EvidenceId, EvidenceSourceId,
-    EvidenceTypeId, MediaType, ModelError, PrincipalId, PrincipalMethodId, SignatureSuiteId,
-    Timestamp, VerificationMethod,
+    AdapterConfigurationId, AdapterId, AssuranceClaim, AssuranceClaimId, ClaimParameterId,
+    EvidenceId, EvidenceSourceId, EvidenceTypeId, MediaType, ModelError, PrincipalId,
+    PrincipalMethodId, SignatureSuiteId, Timestamp, VerificationMethod,
 };
 use auths_ports::{ControlEvidence, PrincipalControlError, PrincipalControlInput, PrincipalMethod};
 use base64ct::{Base64UrlUnpadded, Encoding as _};
@@ -307,6 +307,28 @@ impl HsmAttestedMethod {
 impl PrincipalMethod for HsmAttestedMethod {
     fn id(&self) -> &PrincipalMethodId {
         &self.id
+    }
+
+    fn configuration_id(&self) -> AdapterConfigurationId {
+        let mut components = Vec::new();
+        for record in &self.records {
+            components.push(record.principal.as_str().as_bytes().to_vec());
+            components.push(record.verification_method.as_str().as_bytes().to_vec());
+            components.push(record.suite.as_str().as_bytes().to_vec());
+            components.push(record.public_key.clone());
+            components.push(record.profile.as_bytes().to_vec());
+            components.push(record.provider.as_bytes().to_vec());
+            components.push(record.protection_level.as_bytes().to_vec());
+            components.push(record.key_handle_digest.to_vec());
+            components.push(record.device_chain_digest.to_vec());
+            components.push(vec![u8::from(record.non_exportable)]);
+            components.push(record.observed_at.get().to_be_bytes().to_vec());
+            components.push(record.valid_until.get().to_be_bytes().to_vec());
+        }
+        auths_ports::configuration_id(
+            HSM_ATTESTED_V1.as_bytes(),
+            components.iter().map(Vec::as_slice),
+        )
     }
 
     fn maximum_work_units(&self) -> u64 {

@@ -6,6 +6,9 @@
 - canonical `CanonicalAction` CBOR, including profile, media type, permission,
   budget request, canonical body, and bounded detached attachment bytes;
 - immutable verifier context:
+  - exact executable verifier-configuration commitment;
+  - verifier-required plan, quorum, actor-diversity, and root-diversity
+    obligation;
   - local scoped trust anchors;
   - exact accepted registries;
   - expected audience and challenge;
@@ -40,9 +43,9 @@ The proof cannot add a trust anchor or weaken context.
 
 ### 3. Principal control
 
-First require the context registry-manifest identifier to equal the immutable
-implementation registry manifest. For every signed grant, action, and accepted
-status statement:
+First require both the context registry-manifest identifier and exact
+verifier-configuration commitment to match the immutable executable registry.
+For every signed grant, action, and accepted status statement:
 
 1. select exactly one principal method and signature suite;
 2. reserve the method's conservative maximum work and suite work before either
@@ -50,8 +53,10 @@ status statement:
 3. gather the bounded evidence bound to that statement;
 4. verify the domain-separated signature;
 5. verify method-specific principal/control semantics;
-6. return parameterized assurance and evidence provenance;
-7. reject an implementation that exceeds its reservation.
+6. return parameterized assurance and the exact evidence IDs actually
+   consumed;
+7. require those IDs to equal the relevant statement binding exactly;
+8. reject an implementation that exceeds its reservation.
 
 Unavailable required capability is `Indeterminate`; invalid supplied evidence
 is `Denied`. A signed-statement failure is stored on the statement/leaf result;
@@ -71,7 +76,7 @@ For each plan leaf:
 4. walk the referenced grant chain root to terminal:
    - issuer equals current subject;
    - parent is exact;
-   - profile/version remains exact unless a registered bridge applies;
+   - profile/version remains exact;
    - permissions, validity, audiences, action constraints, budget, and depth
      attenuate;
    - grant status policy is satisfied;
@@ -96,7 +101,9 @@ Produce one `VerifiedAuthority` per valid branch.
    lexicographically smallest stable code is primary.
 5. Never skip a branch for resource accounting after another branch succeeds.
 6. Apply plan leaf, depth, branch, signature, and total work limits.
-7. Sort authorized branches and diagnostics canonically.
+7. Enforce the trusted context's expected plan, minimum authorized branches,
+   distinct actors, and distinct roots.
+8. Sort authorized branches canonically.
 
 ### 6. Action binding
 
@@ -120,11 +127,11 @@ verify_v1(proof_cbor, canonical_action_cbor, trusted_context_cbor)
 ```
 
 The result contains the three-way verdict, final stage and stable code, proof,
-action, context, plan, and self-binding result digests, authorized branches,
-assurance reports and exact requirement satisfactions, resource/work totals,
-registry manifest, and ABI version. The native convenience API projects that
-result to `Authorized(VerifiedAction)`, `Denied(DenialReason)`, or
-`Indeterminate(Requirement)`.
+action, context, plan, self-binding result, and verifier-configuration
+digests, authorized branches, assurance reports and exact requirement
+satisfactions, resource/work totals, registry manifest, and ABI version. The
+native convenience API projects that result to `Authorized(VerifiedAction)`,
+`Denied(DenialReason)`, or `Indeterminate(Requirement)`.
 
 ## Execution
 
@@ -144,13 +151,13 @@ No outer fact upgrades a denied or indeterminate Auths result.
 
 ## Determinism
 
-Given identical proof bytes, canonical action, registries, and verifier
-context, every conforming implementation produces identical:
+Given identical proof bytes, canonical action, trusted context, and executable
+registry matching its bound configuration commitment, every conforming
+implementation produces identical:
 
 - canonical digests;
 - verdict class;
 - primary reason code;
-- ordered diagnostic list;
 - assurance report;
 - assurance satisfaction report;
 - action and context digests;

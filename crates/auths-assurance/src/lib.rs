@@ -7,8 +7,8 @@ extern crate alloc;
 
 use alloc::vec::Vec;
 use auths_model::{
-    AssuranceClaim, AssurancePolicy, AssuranceSatisfaction, ParticipantAssurance, ParticipantRole,
-    Requirement, Timestamp,
+    AssuranceClaim, AssurancePolicy, AssuranceQuantifier, AssuranceSatisfaction,
+    ParticipantAssurance, ParticipantRole, Requirement, Timestamp,
 };
 
 /// Checks every policy requirement against claims for the exact participant
@@ -41,53 +41,71 @@ pub fn evaluate_with_implications(
 ) -> Result<Vec<AssuranceSatisfaction>, Requirement> {
     let mut satisfactions = Vec::new();
     for (index, requirement) in policy.requirements().iter().enumerate() {
-        let mut candidates: Vec<_> = reports
+        let selected: Vec<_> = reports
             .iter()
             .filter(|report| report.role() == requirement.role())
-            .flat_map(|report| report.claims().iter().map(move |claim| (report, claim)))
-            .filter(|(report, claim)| {
-                (claim.kind() == requirement.claim_kind()
-                    || implies(claim, requirement.claim_kind()))
-                    && requirement
-                        .parameters()
-                        .iter()
-                        .all(|parameter| claim.parameters().binary_search(parameter).is_ok())
-                    && requirement
-                        .source()
-                        .is_none_or(|source| claim.source() == source)
-                    && requirement
-                        .adapter()
-                        .is_none_or(|adapter| report.adapter() == adapter)
-                    && requirement
-                        .adapter_version()
-                        .is_none_or(|version| report.adapter_version() == version)
-                    && requirement.maximum_age().is_none_or(|maximum_age| {
-                        claim.observed_at().is_some_and(|observed_at| {
-                            observed_at <= evaluation_time
-                                && evaluation_time.get() - observed_at.get() <= maximum_age.get()
-                        })
-                    })
-            })
             .collect();
-        candidates.sort_by(|(left_report, left_claim), (right_report, right_claim)| {
-            left_report
-                .principal()
-                .cmp(right_report.principal())
-                .then_with(|| left_claim.cmp(right_claim))
-                .then_with(|| left_report.evidence().cmp(right_report.evidence()))
-        });
-        let Some((report, claim)) = candidates.first() else {
+        if selected.is_empty() {
             return Err(Requirement::AssuranceRequirementNotMet);
-        };
+        }
         let requirement_index =
             u16::try_from(index).map_err(|_| Requirement::AssuranceRequirementNotMet)?;
-        satisfactions.push(AssuranceSatisfaction::new(
-            requirement_index,
-            report.principal().clone(),
-            (*claim).clone(),
-            report.evidence().to_vec(),
-        ));
+        let required = match requirement.quantifier() {
+            AssuranceQuantifier::Any => 1,
+            AssuranceQuantifier::Every => selected.len(),
+        };
+        let mut matched = 0usize;
+        for report in selected {
+            let mut candidates: Vec<_> = report
+                .claims()
+                .iter()
+                .filter(|claim| {
+                    (claim.kind() == requirement.claim_kind()
+                        || implies(claim, requirement.claim_kind()))
+                        && requirement
+                            .parameters()
+                            .iter()
+                            .all(|parameter| claim.parameters().binary_search(parameter).is_ok())
+                        && requirement
+                            .source()
+                            .is_none_or(|source| claim.source() == source)
+                        && requirement
+                            .adapter()
+                            .is_none_or(|adapter| report.adapter() == adapter)
+                        && requirement
+                            .adapter_version()
+                            .is_none_or(|version| report.adapter_version() == version)
+                        && requirement.maximum_age().is_none_or(|maximum_age| {
+                            claim.observed_at().is_some_and(|observed_at| {
+                                observed_at <= evaluation_time
+                                    && evaluation_time.get().saturating_sub(observed_at.get())
+                                        <= maximum_age.get()
+                            })
+                        })
+                })
+                .collect();
+            candidates.sort();
+            if let Some(claim) = candidates.first() {
+                matched = matched.saturating_add(1);
+                satisfactions.push(AssuranceSatisfaction::new(
+                    requirement_index,
+                    report.principal().clone(),
+                    (*claim).clone(),
+                    report.evidence().to_vec(),
+                ));
+                if requirement.quantifier() == AssuranceQuantifier::Any {
+                    break;
+                }
+            } else if requirement.quantifier() == AssuranceQuantifier::Every {
+                return Err(Requirement::AssuranceRequirementNotMet);
+            }
+        }
+        if matched < required {
+            return Err(Requirement::AssuranceRequirementNotMet);
+        }
     }
+    satisfactions.sort();
+    satisfactions.dedup();
     Ok(satisfactions)
 }
 
@@ -105,8 +123,8 @@ pub const fn grant_issuer_role(chain_index: usize) -> ParticipantRole {
 mod tests {
     use super::*;
     use auths_model::{
-        AdapterId, AssuranceClaimId, AssurancePolicyId, AssuranceRequirement, ClaimParameterId,
-        EvidenceId, EvidenceSourceId, FreshnessLimit, PrincipalId,
+        AdapterId, AssuranceClaimId, AssurancePolicyId, AssuranceQuantifier, AssuranceRequirement,
+        ClaimParameterId, EvidenceId, EvidenceSourceId, FreshnessLimit, PrincipalId,
     };
 
     #[test]
@@ -130,6 +148,7 @@ mod tests {
             AssurancePolicyId::parse("constrained-test").unwrap(),
             vec![AssuranceRequirement::constrained(
                 ParticipantRole::Actor,
+                AssuranceQuantifier::Every,
                 kind.clone(),
                 vec![(parameter_name.clone(), expected_value)],
                 Some(EvidenceSourceId::parse("attestation").unwrap()),
@@ -251,6 +270,7 @@ mod tests {
             policy.id().clone(),
             vec![AssuranceRequirement::new(
                 ParticipantRole::Actor,
+                AssuranceQuantifier::Every,
                 AssuranceClaimId::parse("workload-attested").unwrap(),
                 None,
             )],
@@ -270,5 +290,60 @@ mod tests {
                 && expected.as_str() == "workload-attested"
         )
         .is_ok());
+    }
+
+    #[test]
+    fn every_rejects_one_weak_intermediate_while_any_accepts_one_strong_intermediate() {
+        let (_, strong) = constrained_fixture(
+            ParticipantRole::Intermediate,
+            "hardware",
+            "attestation",
+            "hsm-attested-v1",
+            1,
+            40,
+        );
+        let (_, weak) = constrained_fixture(
+            ParticipantRole::Intermediate,
+            "software",
+            "attestation",
+            "hsm-attested-v1",
+            1,
+            40,
+        );
+        let claim = AssuranceClaimId::parse("hardware-attested").unwrap();
+        let requirement = |quantifier| {
+            AssuranceRequirement::constrained(
+                ParticipantRole::Intermediate,
+                quantifier,
+                claim.clone(),
+                vec![(
+                    ClaimParameterId::parse("protection").unwrap(),
+                    ClaimParameterId::parse("hardware").unwrap(),
+                )],
+                Some(EvidenceSourceId::parse("attestation").unwrap()),
+                Some(AdapterId::parse("hsm-attested-v1").unwrap()),
+                Some(1),
+                Some(FreshnessLimit::new(10).unwrap()),
+            )
+            .unwrap()
+        };
+        let every = AssurancePolicy::new(
+            AssurancePolicyId::parse("every-intermediate").unwrap(),
+            vec![requirement(AssuranceQuantifier::Every)],
+        )
+        .unwrap();
+        let any = AssurancePolicy::new(
+            AssurancePolicyId::parse("any-intermediate").unwrap(),
+            vec![requirement(AssuranceQuantifier::Any)],
+        )
+        .unwrap();
+
+        assert_eq!(
+            evaluate(&every, &[strong.clone(), weak.clone()], Timestamp::new(50)),
+            Err(Requirement::AssuranceRequirementNotMet)
+        );
+        let satisfactions =
+            evaluate(&any, &[weak, strong], Timestamp::new(50)).expect("one strong intermediate");
+        assert_eq!(satisfactions.len(), 1);
     }
 }

@@ -17,9 +17,9 @@ use alloc::{
     vec::Vec,
 };
 use auths_model::{
-    AdapterId, AssuranceClaim, AssuranceClaimId, ClaimParameterId, EvidenceId, EvidenceSourceId,
-    EvidenceTypeId, MediaType, ModelError, PrincipalId, PrincipalMethodId, Timestamp,
-    VerificationMethod,
+    AdapterConfigurationId, AdapterId, AssuranceClaim, AssuranceClaimId, ClaimParameterId,
+    EvidenceId, EvidenceSourceId, EvidenceTypeId, MediaType, ModelError, PrincipalId,
+    PrincipalMethodId, Timestamp, VerificationMethod,
 };
 use auths_ports::{ControlEvidence, PrincipalControlError, PrincipalControlInput, PrincipalMethod};
 use base64ct::{Base64UrlUnpadded, Encoding as _};
@@ -332,6 +332,46 @@ impl WebAuthnMethod {
 impl PrincipalMethod for WebAuthnMethod {
     fn id(&self) -> &PrincipalMethodId {
         &self.id
+    }
+
+    fn configuration_id(&self) -> AdapterConfigurationId {
+        let mut components = Vec::new();
+        for credential in &self.credentials {
+            components.push(credential.credential_id.clone());
+            components.push(credential.principal.as_str().as_bytes().to_vec());
+            components.push(credential.verification_method.as_str().as_bytes().to_vec());
+            components.push(credential.public_key.to_vec());
+            components.push(credential.rp_id.as_bytes().to_vec());
+            components.push(
+                u64::try_from(credential.origins.len())
+                    .unwrap_or(u64::MAX)
+                    .to_be_bytes()
+                    .to_vec(),
+            );
+            for origin in &credential.origins {
+                components.push(origin.as_bytes().to_vec());
+            }
+            components.push(vec![u8::from(credential.require_user_verification)]);
+            components.push(match credential.counter_policy {
+                CounterPolicy::Disabled => vec![0],
+                CounterPolicy::GreaterThan(counter) => {
+                    let mut value = vec![1];
+                    value.extend_from_slice(&counter.to_be_bytes());
+                    value
+                }
+            });
+            components.push(
+                credential
+                    .attestation_level
+                    .as_deref()
+                    .unwrap_or_default()
+                    .as_bytes()
+                    .to_vec(),
+            );
+            components.push(credential.observed_at.get().to_be_bytes().to_vec());
+            components.push(credential.valid_until.get().to_be_bytes().to_vec());
+        }
+        auths_ports::configuration_id(WEBAUTHN_V1.as_bytes(), components.iter().map(Vec::as_slice))
     }
 
     fn maximum_work_units(&self) -> u64 {
