@@ -10,10 +10,10 @@ if (!packageDirectory) {
 const wasm = require(path.join(packageDirectory, "auths_proof_wasm.js"));
 const root = path.resolve(packageDirectory, "../..");
 const proof = fs.readFileSync(
-  path.join(root, "fixtures/v1/valid/raw-key-chain.proof.cbor"),
+  path.join(root, "core/fixtures/v1/valid/raw-key-chain.proof.cbor"),
 );
 const action = fs.readFileSync(
-  path.join(root, "fixtures/v1/valid/raw-key-chain.action.cbor"),
+  path.join(root, "core/fixtures/v1/valid/raw-key-chain.action.cbor"),
 );
 const context = fs.readFileSync(
   path.join(packageDirectory, "authorized.context.cbor"),

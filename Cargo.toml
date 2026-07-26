@@ -2,7 +2,8 @@
 resolver = "2"
 members = [
     "examples/offline-verification",
-    "bindings/auths-proof-wasm",
+    "bindings/wasm/auths-proof-wasm",
+    "bindings/python",
     "core/crates/auths-proof",
     "core/crates/auths-model",
     "core/crates/auths-codec",
@@ -77,6 +78,7 @@ auths-author = { version = "0.1.0", path = "core/crates/auths-author", default-f
 auths-multikey = { version = "0.1.0", path = "core/crates/auths-multikey", default-features = false }
 auths-testkit = { version = "0.1.0", path = "core/testkit/auths-testkit" }
 auths-proof = { version = "0.1.0", path = "core/crates/auths-proof", default-features = false }
+auths-proof-wasm = { version = "0.1.0", path = "bindings/wasm/auths-proof-wasm" }
 auths-raw-key = { version = "0.1.0", path = "core/adapters/auths-raw-key", default-features = false }
 auths-did-key = { version = "0.1.0", path = "core/adapters/auths-did-key", default-features = false }
 auths-did-keri = { version = "0.1.0", path = "core/adapters/auths-did-keri", default-features = false }
@@ -128,6 +130,7 @@ clap = { version = "4.5.60", features = ["derive"] }
 ed25519-dalek = { version = "2.2.0", default-features = false, features = ["alloc"] }
 hex = "0.4.3"
 p256 = { version = "0.13.2", default-features = false, features = ["ecdsa"] }
+pyo3 = { version = "0.29.0", features = ["abi3-py39"] }
 proptest = "1.9.0"
 serde = { version = "1.0.228", default-features = false, features = ["alloc", "derive"] }
 serde_json = { version = "1.0.149", default-features = false, features = ["alloc", "preserve_order"] }

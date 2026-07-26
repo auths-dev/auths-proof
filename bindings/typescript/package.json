@@ -1,0 +1,32 @@
+{
+  "name": "@auths-dev/proof",
+  "version": "0.1.0",
+  "description": "Embedded Auths Proof Protocol V1 verifier for browser and Node",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "wasm/auths_proof_wasm.js",
+    "wasm/auths_proof_wasm.d.ts",
+    "wasm/auths_proof_wasm_bg.wasm",
+    "wasm/auths_proof_wasm_bg.wasm.d.ts",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "build:wasm": "wasm-pack build ../wasm/auths-proof-wasm --target web --out-dir ../typescript/wasm",
+    "pretest": "npm run build && npm run build:wasm",
+    "test": "node --test test/*.test.js"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -7,9 +7,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .ok_or("expected generated-package output directory")?,
     );
     fs::create_dir_all(&output)?;
-    let proof = include_bytes!("../../../core/fixtures/v1/valid/raw-key-chain.proof.cbor");
-    let action = include_bytes!("../../../core/fixtures/v1/valid/raw-key-chain.action.cbor");
-    let context = include_bytes!("../../../core/fixtures/v1/valid/raw-key-chain.context.cbor");
+    let proof = include_bytes!("../../../../core/fixtures/v1/valid/raw-key-chain.proof.cbor");
+    let action = include_bytes!("../../../../core/fixtures/v1/valid/raw-key-chain.action.cbor");
+    let context = include_bytes!("../../../../core/fixtures/v1/valid/raw-key-chain.context.cbor");
     let context = auths_codec::decode_verifier_context(context)?.with_configuration(
         auths_model::VerifierConfigurationId::new(
             auths_proof_wasm::self_contained_v1_configuration()?,

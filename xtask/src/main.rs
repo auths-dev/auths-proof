@@ -131,7 +131,7 @@ fn spec_sync() -> Result<(), String> {
         R::AssuranceRequirementNotMet,
         R::ExternalFactUnavailable,
     ];
-    let errors = fs::read_to_string(root().join("spec/v1/error-codes.md"))
+    let errors = fs::read_to_string(root().join("core/spec/v1/error-codes.md"))
         .map_err(|error| format!("could not read error registry: {error}"))?;
     for code in denied
         .iter()
@@ -149,7 +149,7 @@ fn spec_sync() -> Result<(), String> {
         D::AuthorizationPlanInvalid.code(),
         D::ReferenceCycle.code(),
     ]);
-    let manifest_bytes = fs::read(root().join("fixtures/v1/manifest.json"))
+    let manifest_bytes = fs::read(root().join("core/fixtures/v1/manifest.json"))
         .map_err(|error| format!("could not read corpus manifest: {error}"))?;
     let manifest: Value = serde_json::from_slice(&manifest_bytes)
         .map_err(|error| format!("could not parse corpus manifest: {error}"))?;
@@ -181,7 +181,7 @@ fn spec_sync() -> Result<(), String> {
     if !covered.contains("authorized") {
         return Err("authorized V1 result has no committed corpus vector".to_owned());
     }
-    let registry = fs::read_to_string(root().join("spec/v1/registry.md"))
+    let registry = fs::read_to_string(root().join("core/spec/v1/registry.md"))
         .map_err(|error| format!("could not read registry specification: {error}"))?;
     for identifier in [
         auths_registries::URI_NAMESPACE_V1,
@@ -388,7 +388,7 @@ fn release_evidence() -> Result<(), String> {
     if !toolchain.status.success() {
         return Err("could not identify Rust toolchain".to_owned());
     }
-    let manifest = fs::read(root().join("fixtures/v1/manifest.json"))
+    let manifest = fs::read(root().join("core/fixtures/v1/manifest.json"))
         .map_err(|error| format!("could not read corpus manifest: {error}"))?;
     let evidence = root().join("target/release-evidence");
     fs::create_dir_all(&evidence)
@@ -426,7 +426,7 @@ fn release_evidence() -> Result<(), String> {
         },
         "inputs": {
             "corpus_manifest_sha256": hex::encode(Sha256::digest(manifest)),
-            "wire_schema": "spec/v1/auths-proof.cddl",
+            "wire_schema": "core/spec/v1/auths-proof.cddl",
             "configuration_commitments": [
                 "PortableVerificationResult.required_configuration",
                 "PortableVerificationResult.local_configuration",
@@ -695,7 +695,10 @@ fn wasm() -> Result<(), String> {
     ])?;
     command(
         "node",
-        &["bindings/auths-proof-wasm/tests/node-smoke.cjs", output],
+        &[
+            "bindings/wasm/auths-proof-wasm/tests/node-smoke.cjs",
+            output,
+        ],
     )?;
     Ok(())
 }
@@ -1067,7 +1070,7 @@ fn arch() -> Result<(), String> {
 
 fn wire(update: bool) -> Result<(), String> {
     let generated = generated_vectors()?;
-    let fixture_root = root().join("fixtures/v1");
+    let fixture_root = root().join("core/fixtures/v1");
     if update {
         for (relative, bytes) in &generated {
             let path = fixture_root.join(relative);
