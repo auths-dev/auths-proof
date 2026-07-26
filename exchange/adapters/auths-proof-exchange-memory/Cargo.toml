@@ -1,0 +1,17 @@
+[package]
+name = "auths-proof-exchange-memory"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+rust-version = "1.91"
+description = "In-memory conformance adapter for Auths proof exchange"
+
+[dependencies]
+auths-proof-exchange-model.workspace = true
+auths-proof-exchange-port.workspace = true
+async-trait.workspace = true
+tokio.workspace = true
+
+[lints]
+workspace = true
+

@@ -1,0 +1,16 @@
+[package]
+name = "auths-proof-exchange-file"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+rust-version = "1.91"
+
+[dependencies]
+auths-proof-exchange-codec.workspace = true
+auths-proof-exchange-model.workspace = true
+sha2.workspace = true
+tempfile.workspace = true
+tokio.workspace = true
+
+[lints]
+workspace = true

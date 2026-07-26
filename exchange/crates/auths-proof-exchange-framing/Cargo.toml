@@ -1,0 +1,16 @@
+[package]
+name = "auths-proof-exchange-framing"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+rust-version = "1.91"
+
+[dependencies]
+async-trait.workspace = true
+auths-proof-exchange-codec.workspace = true
+auths-proof-exchange-model.workspace = true
+auths-proof-exchange-port.workspace = true
+tokio.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,17 @@
+[package]
+name = "auths-proof-exchange-codec"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+rust-version = "1.91"
+description = "Deterministic bounded CBOR codec for Auths proof exchange"
+
+[dependencies]
+auths-proof-exchange-model.workspace = true
+minicbor.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+
+[lints]
+workspace = true

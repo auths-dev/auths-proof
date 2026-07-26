@@ -1,0 +1,15 @@
+[package]
+name = "auths-proof-exchange-model"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+rust-version = "1.91"
+description = "Validated semantic types for Auths proof exchange"
+
+[features]
+default = ["std"]
+std = []
+
+[lints]
+workspace = true
+

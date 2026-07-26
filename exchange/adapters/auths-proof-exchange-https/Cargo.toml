@@ -1,0 +1,16 @@
+[package]
+name = "auths-proof-exchange-https"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+rust-version = "1.91"
+
+[dependencies]
+async-trait.workspace = true
+auths-proof-exchange-codec.workspace = true
+auths-proof-exchange-model.workspace = true
+auths-proof-exchange-port.workspace = true
+reqwest.workspace = true
+
+[lints]
+workspace = true

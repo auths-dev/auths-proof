@@ -1,0 +1,14 @@
+[package]
+name = "auths-proof-exchange-unix"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+rust-version = "1.91"
+
+[dependencies]
+auths-proof-exchange-framing.workspace = true
+auths-proof-exchange-model.workspace = true
+tokio.workspace = true
+
+[lints]
+workspace = true
