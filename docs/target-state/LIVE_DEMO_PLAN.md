@@ -395,14 +395,14 @@ Deployed and verified on 26 July 2026:
 | Field | Value |
 | --- | --- |
 | Browser alias | `https://auths-live-demo.vercel.app` |
-| Immutable browser URL | `https://auths-live-demo-3etkd5d8q-bordumbs-projects.vercel.app` |
-| Vercel deployment | `dpl_3XhMh1bfTpakH8ZEFMEU21DdU2zp` |
+| Immutable browser URL | `https://auths-live-demo-hz1xcssev-bordumbs-projects.vercel.app` |
+| Vercel deployment | `dpl_6qUpg93h6TMWiUg4RMeEwM1Rbvnw` |
 | Native API | `https://auths-live-demo.fly.dev` |
-| Release ID | `18ae8fa4737cbc54ce9928ccda723cd3bea45010` |
+| Release ID | `40a07c56b87104e2b325e057b2598a3a0044af66` |
 | WASM SHA-256 | `2d5b8aa9982f6ee04e107f37727ade56eedd99676c7c1801ed3d9d94f2a2f9c8` |
 | Verifier configuration | `df14e85024bf099cef6396b1a3515209625d73a86ed1da92b118dddcf6a486d5` |
-| Fly release | Version 2, `9zA0gKNwwbBAqT08LlgyADxOB` |
-| Fly image | `registry.fly.io/auths-live-demo:deployment-01KYG1BCY59668ASFKA5YKASX7` |
+| Fly release | Version 3, `rel_v6gwzpglk9r7z9ok` |
+| Fly image | `registry.fly.io/auths-live-demo:deployment-01KYG40KWVNCCZRST3Z292WMXB` |
 | London Machine | `8d96959be23498`, started, check 1/1 |
 | Virginia Machine | `7812615f2201d8`, started, check 1/1 |
 
@@ -423,6 +423,9 @@ Production evidence:
 - A real production browser showed `READY / NOT RUN / 0`, then
   `COMPLETED / READY / 1`, then
   `COMPLETED / CONSUMED-CHALLENGE / 1`; the replay control became disabled.
+- The production browser surface was visually checked against
+  `auths-proof-site` and uses the same canvas, typography, color, evidence-card,
+  technical-section, navigation, and footer language.
 - The hostile browser flow showed `DENIED / NOT ENTERED / 0` and browser/native
   result-digest parity remained `MATCH`.
 - The exact production origin passed CORS. An untrusted origin received the
