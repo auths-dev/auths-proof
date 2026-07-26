@@ -33,8 +33,8 @@ fuzz_target!(|data: &[u8]| {
             2 => BranchOutcome::Indeterminate(Requirement::StaleStatus),
             _ => BranchOutcome::StructurallyInvalid(DenialReason::MissingReference),
         };
-    let first = evaluate(&plan, &VerifierLimits::default_deployment(), &mut branch);
-    let second = evaluate(&plan, &VerifierLimits::default_deployment(), &mut branch);
+    let first = evaluate(&plan, &VerifierLimits::hard(), &mut branch);
+    let second = evaluate(&plan, &VerifierLimits::hard(), &mut branch);
     assert_eq!(first, second);
 
     let outcomes: Vec<_> = (0..count)

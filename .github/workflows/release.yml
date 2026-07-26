@@ -22,5 +22,18 @@ jobs:
           toolchain: 1.85.0
       - run: cargo install wasm-bindgen-cli --version 0.2.118 --locked
       - run: cargo +1.85.0 check --workspace --all-targets --all-features
-      - run: cargo xtask release-check
+      - name: Run release checks and generate evidence
+        id: release_check
+        run: cargo xtask release-check
       - uses: EmbarkStudios/cargo-deny-action@v2
+      - name: Preserve release archives and evidence
+        if: ${{ always() && steps.release_check.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: auths-proof-release-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            target/package/*.crate
+            target/release-evidence/
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 9

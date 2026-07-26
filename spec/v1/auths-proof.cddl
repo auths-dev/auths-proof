@@ -467,8 +467,9 @@ verification-result = {
   10: [*512 any],           ; canonical assurance satisfactions
   11: verification-resources,
   12: digest32,             ; registry manifest
-  13: digest32,             ; exact verifier configuration commitment
-  14: 1,                    ; portable ABI version
+  13: digest32 / null,      ; configuration required by the trusted context
+  14: digest32,             ; verifier-local executable configuration
+  15: 2,                    ; portable ABI version
 }
 
 grant-signing-input = {

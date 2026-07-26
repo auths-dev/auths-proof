@@ -1397,7 +1397,7 @@ pub fn decode_verification_result(input: &[u8]) -> Result<PortableVerificationRe
         return Err(CodecError::LimitExceeded);
     }
     let mut decoder = Decoder::new(input);
-    map(&mut decoder, 15)?;
+    map(&mut decoder, 16)?;
     key(&mut decoder, 0)?;
     let decision = match decoder.u8().map_err(|_| CodecError::Malformed)? {
         0 => VerificationDecision::Authorized,
@@ -1481,9 +1481,16 @@ pub fn decode_verification_result(input: &[u8]) -> Result<PortableVerificationRe
     key(&mut decoder, 12)?;
     let registry_manifest = digest_id!(&mut decoder, RegistryManifestId)?;
     key(&mut decoder, 13)?;
-    let verifier_configuration = digest_id!(&mut decoder, VerifierConfigurationId)?;
+    let required_configuration = if is_null(&decoder)? {
+        null(&mut decoder)?;
+        None
+    } else {
+        Some(digest_id!(&mut decoder, VerifierConfigurationId)?)
+    };
     key(&mut decoder, 14)?;
-    if decoder.u16().map_err(|_| CodecError::Malformed)? != 1 {
+    let local_configuration = digest_id!(&mut decoder, VerifierConfigurationId)?;
+    key(&mut decoder, 15)?;
+    if decoder.u16().map_err(|_| CodecError::Malformed)? != 2 {
         return Err(CodecError::Malformed);
     }
     let result = PortableVerificationResult::new(
@@ -1499,7 +1506,8 @@ pub fn decode_verification_result(input: &[u8]) -> Result<PortableVerificationRe
         satisfactions,
         resources,
         registry_manifest,
-        verifier_configuration,
+        required_configuration,
+        local_configuration,
     )
     .with_result_digest(result_digest);
     ensure_complete(&decoder, input)?;

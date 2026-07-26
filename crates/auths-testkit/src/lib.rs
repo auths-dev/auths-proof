@@ -937,7 +937,8 @@ fn composed_fixture(
             }
         })
         .collect();
-    let evidence = addressed_evidence(identities);
+    let mut evidence = addressed_evidence(identities);
+    evidence.dedup_by_key(|object| object.id());
     let bindings = actions
         .iter()
         .zip(identities.iter())
@@ -949,10 +950,15 @@ fn composed_fixture(
             .expect("binding")
         })
         .collect();
-    let anchors = identities
-        .iter()
-        .map(|identity| anchor(identity, 4))
-        .collect();
+    let mut anchors = Vec::new();
+    for identity in identities {
+        if !anchors
+            .iter()
+            .any(|candidate: &TrustAnchor| candidate.principal() == &identity.principal)
+        {
+            anchors.push(anchor(identity, 4));
+        }
+    }
     let offline = AssuranceClaimId::parse("offline-verifiable").expect("assurance claim");
     let verifier_context = context_with_assurance(
         identities,
@@ -2635,6 +2641,139 @@ pub fn threshold() -> CorpusFixture {
         ],
         &[],
         |members| AuthorizationPlan::k_of_n(2, members).expect("threshold"),
+        Expected::Authorized,
+    )
+}
+
+/// Two authorized plan branches controlled by the same actor and root.
+///
+/// This fixture is intentionally outside the normative corpus and exists to
+/// isolate verifier composition-diversity tests.
+///
+/// # Panics
+///
+/// Panics only if repository-owned fixture constants violate model invariants.
+#[must_use]
+pub fn composition_same_actor_two_branches() -> CorpusFixture {
+    let actor = Identity::ed25519(34);
+    composed_fixture(
+        "composition-same-actor-two-branches",
+        &[actor.clone(), actor],
+        &[],
+        |members| AuthorizationPlan::all_of(members).expect("all-of"),
+        Expected::Authorized,
+    )
+}
+
+/// Two authorized actors delegated by one shared root.
+///
+/// This fixture is intentionally outside the normative corpus and exists to
+/// isolate verifier composition-diversity tests.
+///
+/// # Panics
+///
+/// Panics only if repository-owned fixture constants violate model invariants.
+#[must_use]
+pub fn composition_shared_root_two_actors() -> CorpusFixture {
+    let root = Identity::ed25519(35);
+    let actors = [Identity::ed25519(36), Identity::ed25519(37)];
+    let canonical = canonical_action(BODY.to_vec());
+    let proof_refs = [ProofRef::new([1; 32]), ProofRef::new([2; 32])];
+    let plan = AuthorizationPlan::all_of(
+        proof_refs
+            .iter()
+            .copied()
+            .map(AuthorizationPlan::proof)
+            .collect(),
+    )
+    .expect("all-of");
+    let plan_identifier = plan_id(&plan).expect("plan ID");
+    let grants: Vec<_> = actors
+        .iter()
+        .map(|actor| {
+            signed_grant(
+                &root,
+                exact_grant_statement(&root.principal, &actor.principal, &canonical),
+            )
+        })
+        .collect();
+    let actions: Vec<_> = actors
+        .iter()
+        .zip(proof_refs)
+        .zip(grants.iter())
+        .map(|((actor, proof_ref), grant)| {
+            signed_action(
+                actor,
+                action_envelope(
+                    actor,
+                    &canonical,
+                    plan_identifier,
+                    proof_ref,
+                    Some(grant_id(grant.statement()).expect("grant ID")),
+                ),
+            )
+        })
+        .collect();
+    let identities = [root.clone(), actors[0].clone(), actors[1].clone()];
+    let evidence = addressed_evidence(&identities);
+    let mut bindings = Vec::new();
+    for grant in &grants {
+        bindings.push(
+            ControlBinding::new(
+                StatementRef::Grant(grant_id(grant.statement()).expect("grant ID")),
+                vec![root.evidence().id()],
+            )
+            .expect("grant binding"),
+        );
+    }
+    for (action, actor) in actions.iter().zip(&actors) {
+        bindings.push(
+            ControlBinding::new(
+                StatementRef::Action(action_id(action.envelope()).expect("action ID")),
+                vec![actor.evidence().id()],
+            )
+            .expect("action binding"),
+        );
+    }
+    let verifier_context = context(&identities, vec![anchor(&root, 1)]);
+    let bundle = ProofBundle::new(
+        BundleHeader::v1(),
+        grants,
+        actions,
+        plan,
+        evidence,
+        bindings,
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+        Some(canonical.body().to_vec()),
+    )
+    .expect("shared-root composition proof");
+    fixture(
+        "composition-shared-root-two-actors",
+        "valid",
+        &bundle,
+        &verifier_context,
+        canonical,
+        Expected::Authorized,
+    )
+}
+
+/// Two authorized actors that are also two distinct roots.
+///
+/// This fixture is intentionally outside the normative corpus and exists to
+/// isolate verifier composition-diversity tests.
+///
+/// # Panics
+///
+/// Panics only if repository-owned fixture constants violate model invariants.
+#[must_use]
+pub fn composition_distinct_roots_two_actors() -> CorpusFixture {
+    composed_fixture(
+        "composition-distinct-roots-two-actors",
+        &[Identity::ed25519(38), Identity::ed25519(39)],
+        &[],
+        |members| AuthorizationPlan::all_of(members).expect("all-of"),
         Expected::Authorized,
     )
 }

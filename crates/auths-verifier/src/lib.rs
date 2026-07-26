@@ -320,6 +320,7 @@ pub fn verify_v1(
                 None,
                 input_resources,
                 registries.manifest_id(),
+                None,
                 registries.configuration_id(),
             );
             return encode_verification_result(&result);
@@ -337,7 +338,8 @@ pub fn verify_v1(
                 None,
                 input_resources,
                 context.accepted_registries().manifest_id(),
-                context.configuration(),
+                Some(context.configuration()),
+                registries.configuration_id(),
             );
             return encode_verification_result(&result);
         }
@@ -366,6 +368,7 @@ pub fn verify_portable(
     let action_digest = body_digest(&action_bytes);
     let public_context_digest =
         context_digest(context).unwrap_or_else(|_| ContextDigest::new([0; 32]));
+    let local_configuration = registries.configuration_id();
     let mut resources = VerificationResources::new(
         u64::try_from(proof_bytes.len()).unwrap_or(u64::MAX),
         u64::try_from(action_bytes.len()).unwrap_or(u64::MAX),
@@ -388,7 +391,8 @@ pub fn verify_portable(
                 None,
                 resources,
                 context.accepted_registries().manifest_id(),
-                context.configuration(),
+                Some(context.configuration()),
+                local_configuration,
             );
         }
     };
@@ -428,7 +432,8 @@ pub fn verify_portable(
                 None,
                 resources,
                 context.accepted_registries().manifest_id(),
-                context.configuration(),
+                Some(context.configuration()),
+                local_configuration,
             );
         }
     };
@@ -445,7 +450,8 @@ pub fn verify_portable(
                 resolved_plan,
                 resources,
                 context.accepted_registries().manifest_id(),
-                context.configuration(),
+                Some(context.configuration()),
+                local_configuration,
             );
         }
     };
@@ -490,7 +496,8 @@ pub fn verify_portable(
                 authority.assurance_satisfactions,
                 resources,
                 context.accepted_registries().manifest_id(),
-                context.configuration(),
+                Some(context.configuration()),
+                local_configuration,
             ))
         }
         Err(failure) => {
@@ -512,7 +519,8 @@ pub fn verify_portable(
                 resolved_plan,
                 resources,
                 context.accepted_registries().manifest_id(),
-                context.configuration(),
+                Some(context.configuration()),
+                local_configuration,
             )
         }
     }
@@ -528,7 +536,8 @@ fn portable_failure(
     plan_id: Option<PlanId>,
     resources: VerificationResources,
     manifest: auths_model::RegistryManifestId,
-    configuration: VerifierConfigurationId,
+    required_configuration: Option<VerifierConfigurationId>,
+    local_configuration: VerifierConfigurationId,
 ) -> PortableVerificationResult {
     let (decision, code) = match failure {
         VerificationFailure::Denied(reason) => (
@@ -553,7 +562,8 @@ fn portable_failure(
         Vec::new(),
         resources,
         manifest,
-        configuration,
+        required_configuration,
+        local_configuration,
     ))
 }
 
@@ -2236,6 +2246,10 @@ mod tests {
             &registries,
         );
         assert_eq!(result.decision(), VerificationDecision::Authorized);
+        assert_eq!(
+            result.required_configuration(),
+            Some(result.local_configuration())
+        );
         assert_ne!(result.result_digest().as_bytes(), &[0; 32]);
         let bytes = auths_codec::encode_verification_result(&result).unwrap();
         assert_eq!(
@@ -2285,8 +2299,42 @@ mod tests {
         );
     }
 
+    fn verify_composition_fixture(
+        fixture: &auths_testkit::CorpusFixture,
+        minimum_authorized_branches: u16,
+        minimum_distinct_actors: u16,
+        minimum_distinct_roots: u16,
+    ) -> VerificationOutcome {
+        let method = RawKeyMethod::new().unwrap();
+        let suite = Ed25519Suite::new().unwrap();
+        let methods: [&dyn auths_ports::PrincipalMethod; 1] = [&method];
+        let suites: [&dyn auths_ports::SignatureSuite; 1] = [&suite];
+        let registries = ImmutableRegistries::new(&methods, &suites).unwrap();
+        let context = auths_codec::decode_verifier_context(fixture.context_bytes())
+            .unwrap()
+            .with_configuration(registries.configuration_id())
+            .unwrap();
+        let context = context
+            .with_composition(
+                CompositionRequirement::new(
+                    context.composition().expected_plan(),
+                    minimum_authorized_branches,
+                    minimum_distinct_actors,
+                    minimum_distinct_roots,
+                )
+                .unwrap(),
+            )
+            .unwrap();
+        verify(
+            fixture.proof_bytes(),
+            fixture.canonical_action(),
+            &context,
+            &registries,
+        )
+    }
+
     #[test]
-    fn verifier_required_plan_and_actor_diversity_cannot_be_weakened() {
+    fn verifier_required_plan_cannot_be_weakened() {
         let fixture = auths_testkit::raw_key_chain();
         let method = RawKeyMethod::new().unwrap();
         let suite = Ed25519Suite::new().unwrap();
@@ -2297,7 +2345,6 @@ mod tests {
             .unwrap()
             .with_configuration(registries.configuration_id())
             .unwrap();
-
         let wrong_plan = context
             .with_composition(CompositionRequirement::exact(auths_model::PlanId::new(
                 [0xa5; 32],
@@ -2312,22 +2359,50 @@ mod tests {
             ),
             VerificationOutcome::Denied(DenialReason::CompositionRequirementNotMet)
         );
+    }
 
-        let insufficient_diversity = context
-            .with_composition(
-                CompositionRequirement::new(context.composition().expected_plan(), 2, 2, 1)
-                    .unwrap(),
-            )
-            .unwrap();
+    #[test]
+    fn minimum_authorized_branches_is_enforced_independently() {
+        let fixture = auths_testkit::raw_key_chain();
         assert_eq!(
-            verify(
-                fixture.proof_bytes(),
-                fixture.canonical_action(),
-                &insufficient_diversity,
-                &registries,
-            ),
+            verify_composition_fixture(&fixture, 2, 1, 1),
             VerificationOutcome::Denied(DenialReason::CompositionRequirementNotMet)
         );
+    }
+
+    #[test]
+    fn actor_diversity_counts_principals_not_authorized_branches() {
+        let fixture = auths_testkit::composition_same_actor_two_branches();
+        assert!(matches!(
+            verify_composition_fixture(&fixture, 2, 1, 1),
+            VerificationOutcome::Authorized(_)
+        ));
+        assert_eq!(
+            verify_composition_fixture(&fixture, 2, 2, 1),
+            VerificationOutcome::Denied(DenialReason::CompositionRequirementNotMet)
+        );
+    }
+
+    #[test]
+    fn root_diversity_counts_principals_not_distinct_actors() {
+        let fixture = auths_testkit::composition_shared_root_two_actors();
+        assert!(matches!(
+            verify_composition_fixture(&fixture, 2, 2, 1),
+            VerificationOutcome::Authorized(_)
+        ));
+        assert_eq!(
+            verify_composition_fixture(&fixture, 2, 2, 2),
+            VerificationOutcome::Denied(DenialReason::CompositionRequirementNotMet)
+        );
+    }
+
+    #[test]
+    fn distinct_actors_and_roots_satisfy_composition_diversity() {
+        let fixture = auths_testkit::composition_distinct_roots_two_actors();
+        assert!(matches!(
+            verify_composition_fixture(&fixture, 2, 2, 2),
+            VerificationOutcome::Authorized(_)
+        ));
     }
 
     #[test]
@@ -2348,6 +2423,43 @@ mod tests {
             ),
             VerificationOutcome::Denied(DenialReason::VerifierConfigurationMismatch)
         );
+    }
+
+    #[test]
+    fn portable_mismatch_reports_required_and_local_configurations() {
+        let fixture = auths_testkit::raw_key_chain();
+        let method = RawKeyMethod::new().unwrap();
+        let suite = Ed25519Suite::new().unwrap();
+        let methods: [&dyn auths_ports::PrincipalMethod; 1] = [&method];
+        let suites: [&dyn auths_ports::SignatureSuite; 1] = [&suite];
+        let registries = ImmutableRegistries::new(&methods, &suites).unwrap();
+        let context = auths_codec::decode_verifier_context(fixture.context_bytes()).unwrap();
+        let required_configuration = context.configuration();
+        let local_configuration = registries.configuration_id();
+        assert_ne!(required_configuration, local_configuration);
+
+        let action_bytes =
+            auths_codec::encode_canonical_action(fixture.canonical_action()).unwrap();
+        let result_bytes = verify_v1(
+            fixture.proof_bytes(),
+            &action_bytes,
+            fixture.context_bytes(),
+            &registries,
+        )
+        .unwrap();
+        let result = auths_codec::decode_verification_result(&result_bytes).unwrap();
+
+        assert_eq!(result.decision(), VerificationDecision::Denied);
+        assert_eq!(result.stage(), VerificationStage::PrincipalControl);
+        assert_eq!(
+            result.code(),
+            VerificationCode::Denied(DenialReason::VerifierConfigurationMismatch)
+        );
+        assert_eq!(
+            result.required_configuration(),
+            Some(required_configuration)
+        );
+        assert_eq!(result.local_configuration(), local_configuration);
     }
 
     #[test]

@@ -3767,7 +3767,8 @@ pub struct PortableVerificationResult {
     assurance_satisfactions: Vec<AssuranceSatisfaction>,
     resources: VerificationResources,
     registry_manifest: RegistryManifestId,
-    verifier_configuration: VerifierConfigurationId,
+    required_configuration: Option<VerifierConfigurationId>,
+    local_configuration: VerifierConfigurationId,
 }
 
 impl PortableVerificationResult {
@@ -3788,7 +3789,8 @@ impl PortableVerificationResult {
         assurance_satisfactions: Vec<AssuranceSatisfaction>,
         resources: VerificationResources,
         registry_manifest: RegistryManifestId,
-        verifier_configuration: VerifierConfigurationId,
+        required_configuration: Option<VerifierConfigurationId>,
+        local_configuration: VerifierConfigurationId,
     ) -> Self {
         Self {
             decision,
@@ -3804,7 +3806,8 @@ impl PortableVerificationResult {
             assurance_satisfactions,
             resources,
             registry_manifest,
-            verifier_configuration,
+            required_configuration,
+            local_configuration,
         }
     }
 
@@ -3867,10 +3870,17 @@ impl PortableVerificationResult {
     pub const fn registry_manifest(&self) -> RegistryManifestId {
         self.registry_manifest
     }
-    /// Returns the exact verifier configuration commitment.
+    /// Returns the verifier configuration required by the trusted context.
+    ///
+    /// This is absent only when the context could not be decoded.
     #[must_use]
-    pub const fn verifier_configuration(&self) -> VerifierConfigurationId {
-        self.verifier_configuration
+    pub const fn required_configuration(&self) -> Option<VerifierConfigurationId> {
+        self.required_configuration
+    }
+    /// Returns the verifier's locally loaded executable configuration.
+    #[must_use]
+    pub const fn local_configuration(&self) -> VerifierConfigurationId {
+        self.local_configuration
     }
 }
 

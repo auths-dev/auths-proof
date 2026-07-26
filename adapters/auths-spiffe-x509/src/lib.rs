@@ -53,11 +53,11 @@ impl SpiffeTrustDomain {
     ///
     /// # Errors
     ///
-    /// Rejects malformed domains, empty/oversized roots, and roots that cannot
-    /// be interpreted as X.509 trust anchors.
+    /// Rejects malformed domains, empty/oversized or duplicate roots, and roots
+    /// that cannot be interpreted as X.509 trust anchors.
     pub fn new(
         name: String,
-        roots: Vec<Vec<u8>>,
+        mut roots: Vec<Vec<u8>>,
         require_status: bool,
     ) -> Result<Self, SpiffeError> {
         if !valid_trust_domain(&name)
@@ -70,6 +70,10 @@ impl SpiffeTrustDomain {
                         .is_err()
             })
         {
+            return Err(SpiffeError::InvalidTrustBundle);
+        }
+        roots.sort();
+        if roots.windows(2).any(|window| window[0] == window[1]) {
             return Err(SpiffeError::InvalidTrustBundle);
         }
         Ok(Self {
@@ -678,6 +682,68 @@ mod tests {
         BasicConstraints, CertificateParams, ExtendedKeyUsagePurpose, IsCa, KeyPair,
         KeyUsagePurpose, SanType,
     };
+
+    fn trust_anchor(serial: u64) -> Vec<u8> {
+        let mut params = CertificateParams::new(Vec::<String>::new()).unwrap();
+        params.is_ca = IsCa::Ca(BasicConstraints::Unconstrained);
+        params.key_usages = vec![
+            KeyUsagePurpose::DigitalSignature,
+            KeyUsagePurpose::KeyCertSign,
+            KeyUsagePurpose::CrlSign,
+        ];
+        params.not_before = rcgen::date_time_ymd(2020, 1, 1);
+        params.not_after = rcgen::date_time_ymd(2030, 1, 1);
+        params.serial_number = Some(serial.into());
+        params
+            .self_signed(&KeyPair::generate().unwrap())
+            .unwrap()
+            .der()
+            .to_vec()
+    }
+
+    #[test]
+    fn trust_roots_are_canonical_and_configuration_bound() {
+        let first = trust_anchor(1);
+        let second = trust_anchor(2);
+        let forward = SpiffeTrustDomain::new(
+            "auths.example".to_string(),
+            vec![first.clone(), second.clone()],
+            false,
+        )
+        .unwrap();
+        let reverse = SpiffeTrustDomain::new(
+            "auths.example".to_string(),
+            vec![second.clone(), first.clone()],
+            false,
+        )
+        .unwrap();
+        assert_eq!(forward.roots(), reverse.roots());
+
+        let forward_id = SpiffeX509Method::new(vec![forward], Vec::new())
+            .unwrap()
+            .configuration_id();
+        let reverse_id = SpiffeX509Method::new(vec![reverse], Vec::new())
+            .unwrap()
+            .configuration_id();
+        assert_eq!(forward_id, reverse_id);
+
+        let changed_id = SpiffeX509Method::new(
+            vec![SpiffeTrustDomain::new("auths.example".to_string(), vec![first], false).unwrap()],
+            Vec::new(),
+        )
+        .unwrap()
+        .configuration_id();
+        assert_ne!(forward_id, changed_id);
+
+        assert_eq!(
+            SpiffeTrustDomain::new(
+                "auths.example".to_string(),
+                vec![second.clone(), second],
+                false,
+            ),
+            Err(SpiffeError::InvalidTrustBundle)
+        );
+    }
 
     #[test]
     fn validates_path_spiffe_san_eku_and_status() {

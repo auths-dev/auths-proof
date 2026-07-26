@@ -36,11 +36,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         resources.work_units()
     );
     println!(
-        "proof={:?} action={:?} context={:?} configuration={:?}",
+        "proof={:?} action={:?} context={:?} required_configuration={:?} local_configuration={:?}",
         portable.proof_digest().as_bytes(),
         portable.action_digest().as_bytes(),
         portable.context_digest().as_bytes(),
-        portable.verifier_configuration().as_bytes()
+        portable
+            .required_configuration()
+            .map(|configuration| *configuration.as_bytes()),
+        portable.local_configuration().as_bytes()
     );
 
     match result.verdict() {

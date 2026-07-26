@@ -172,9 +172,16 @@ mod tests {
         assert_eq!(
             auths_codec::decode_verification_result(&result)
                 .unwrap()
-                .verifier_configuration()
-                .as_bytes(),
-            &self_contained_v1_configuration().unwrap()
+                .required_configuration(),
+            Some(auths_model::VerifierConfigurationId::new(
+                self_contained_v1_configuration().unwrap()
+            ))
+        );
+        assert_eq!(
+            auths_codec::decode_verification_result(&result)
+                .unwrap()
+                .local_configuration(),
+            auths_model::VerifierConfigurationId::new(self_contained_v1_configuration().unwrap())
         );
     }
 }

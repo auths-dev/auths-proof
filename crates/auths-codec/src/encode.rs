@@ -505,7 +505,7 @@ fn encode_verification_result_to(
     result: &PortableVerificationResult,
     include_result_digest: bool,
 ) -> Result<(), CodecError> {
-    map(encoder, 15)?;
+    map(encoder, 16)?;
     key(encoder, 0)?;
     encoder
         .u8(match result.decision() {
@@ -573,9 +573,15 @@ fn encode_verification_result_to(
     key(encoder, 12)?;
     bytes(encoder, result.registry_manifest().as_bytes())?;
     key(encoder, 13)?;
-    bytes(encoder, result.verifier_configuration().as_bytes())?;
+    if let Some(configuration) = result.required_configuration() {
+        bytes(encoder, configuration.as_bytes())?;
+    } else {
+        encoder.null().map_err(encode_error)?;
+    }
     key(encoder, 14)?;
-    encoder.u16(1).map_err(encode_error)?;
+    bytes(encoder, result.local_configuration().as_bytes())?;
+    key(encoder, 15)?;
+    encoder.u16(2).map_err(encode_error)?;
     Ok(())
 }
 
