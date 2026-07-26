@@ -439,6 +439,7 @@ dependencies = [
 name = "auths-operations"
 version = "0.1.0"
 dependencies = [
+ "auths-codec",
  "auths-config",
 ]
 

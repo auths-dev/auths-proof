@@ -2,287 +2,252 @@
 
 ## Objective
 
-Bring every component moved from `auths-proof-apps` into exact alignment with
-the current `auths-proof` kernel, schemas, fixtures, result semantics,
-configuration commitments, and security boundaries.
+Keep every product, binding, and demo surface exactly aligned with the
+authoritative Auths kernel after the monorepo consolidation.
 
-Compliance means more than compiling. Every product and language surface must
-preserve the same authorization meaning, fail closed on the same malformed
-inputs, and expose the same stable result information.
+Compliance is a continuously enforced property, not a one-time migration. A
+surface is compliant only when it preserves authorization meaning, fails
+closed on malformed or unavailable inputs, declares every core and wire
+contract it consumes, and has executable evidence for every claimed role.
 
-## Current Baseline
+## Post-Merge Baseline
 
-Before migration, record the known incompatibilities as regression tests:
+The repository now has five shipping layers:
 
-- Product SDK uses the previous `VerifierContext` constructor.
-- Product testkit uses the previous assurance requirement and context shapes.
-- Receipt test adapters do not implement the current configuration commitment.
-- TypeScript decodes an obsolete portable-result shape.
-- TypeScript and Python do not expose both required and local verifier
-  configuration IDs.
-- Product fixtures and generated packages are not proven to match the current
-  core portable ABI.
+- `core/`: offline protocol kernel, model, codec, verifier, adapters, canonical
+  corpus, and fuzzing.
+- `exchange/`: transport-neutral exchange protocol and transport adapters.
+- `product/`: profiles, SDK, runtime, configuration, state, custody, evidence,
+  receipts, cache, and operations.
+- `bindings/`: WASM, TypeScript, Python, and independent implementations.
+- `demos/`: reference flows, testkits, matrix analysis, and benchmarks.
 
-The initial compliance branch is expected to be red until these findings are
-converted into passing tests.
+`xtask` remains the non-shipping control plane. `auths-proof-site` and
+`auths-proof-docs` remain separate consumers of immutable platform artifacts.
 
-## Compliance Inventory
+The migration-era compatibility failures are already corrected:
 
-Generate `target/compliance/inventory.json` from workspace metadata and source
-manifests. Classify every moved package as:
+- Product code uses the current `VerifierContext`, assurance, registry, limit,
+  and work-meter APIs.
+- Registry construction commits every adapter configuration.
+- Portable results expose the configuration required by the trusted context
+  and the configuration executed locally.
+- Rust, WASM, TypeScript, and Python consume portable ABI version 2.
+- The canonical core corpus is byte-stable and has independent Rust, Go, and
+  TypeScript semantic verification.
+- Runtime execution is reachable only through sealed verified actions.
+- Replay, budget, receipt, cache, and transport-policy invariants have
+  deterministic tests.
+- Release checks build and install the published Rust, npm, Python, and WASM
+  artifacts.
 
-- Core API consumer.
-- Core wire producer.
-- Core wire consumer.
-- Profile canonicalizer.
-- Proof author or assembler.
-- Principal/evidence integration.
-- Runtime enforcement boundary.
-- Stateful replay/budget component.
-- Receipt producer/consumer.
-- Language binding.
-- Independent semantic implementation.
-- Demo or conformance fixture.
+The remaining work is therefore enforcement against future drift.
 
-Every package must declare:
+## Authoritative Compliance Manifest
 
-- Core APIs and protocol versions consumed.
-- Wire objects encoded or decoded.
+`compliance.toml` is the checked-in source of truth for product-facing
+compliance claims.
+
+It covers every Cargo package classified by `architecture.toml` as `product`,
+`bindings`, or `demos`, plus every publishable npm package and every Go module
+under those layers.
+
+Every package declares:
+
+- Package kind, layer, and repository path.
+- Direct core APIs consumed.
+- Supported protocol versions and wire objects.
 - Canonical fixture suites exercised.
-- Supported principal, signature, profile, and transport families.
-- Configuration-ID inputs.
+- Principal, signature, profile, and transport families.
+- Configuration commitment inputs.
 - Security-sensitive state owned.
+- One or more behavioral roles.
+- At least one executable test anchor for every role.
 
-CI fails when a package is unclassified or its declared surface lacks a test.
+The allowed roles cover:
 
-## Phase 1: Restore Rust API Compatibility
+- Core API and wire consumers/producers.
+- Profile contracts and canonicalizers.
+- Proof authors, custody, and evidence integrations.
+- Runtime enforcement and replay/budget state.
+- Receipt/audit producers and consumers.
+- Configuration compilation and operational diagnostics.
+- Verification caches.
+- Language bindings and independent semantic implementations.
+- Demo and conformance fixtures.
 
-Update all product Rust packages to the current core API:
+Adding, removing, moving, or reclassifying a package without updating its
+compliance declaration fails CI. A Cargo package's declared core APIs must
+exactly match its direct core dependencies from `cargo metadata`.
 
-- Construct `VerifierContext` with an explicit verifier configuration ID and
-  composition requirement.
-- Require explicit assurance quantifiers.
-- Implement `configuration_id` for all adapter and test implementations.
-- Include adapter configuration IDs in immutable registry construction.
-- Propagate required/local verifier configurations through SDK explanations,
-  receipts, audit artifacts, and operational diagnostics where appropriate.
-- Use the current resource limits and work-meter semantics.
-- Remove compatibility shims rather than carrying obsolete constructors.
+## Configuration Terminology
 
-Add compile-fail or API tests proving old ambiguous construction paths are no
-longer available.
+The trusted context carries the `required_configuration`: the exact verifier
+configuration the caller requires.
 
-## Phase 2: Portable ABI Alignment
+The process reports the `executed_configuration`: the immutable registry and
+adapter configuration actually installed for verification.
 
-Treat the core schema and golden corpus as authoritative.
+The portable ABI retains the stable `local_configuration` field name; its
+meaning is the executed configuration. Authorized results require equality.
+`verifier-configuration-mismatch` requires both values to be present and
+unequal. Startup configuration and readiness APIs use the clearer required and
+executed terminology.
 
-For every Rust, WASM, TypeScript, Python, and Go result decoder:
+## Compliance Command
 
-- Support exactly the current portable ABI version.
-- Decode `required_configuration` as optional only when the trusted context
-  cannot be decoded.
-- Decode `local_configuration` on every result.
-- Verify canonical key order, exact map shape, bounded collections, stable
-  result code, and self-binding result digest.
-- Reject older/newer unsupported ABI versions explicitly.
-- Reject missing, duplicate, reordered, or trailing fields.
-- Assert authorized results carry equal required/local configuration IDs.
-- Assert `verifier-configuration-mismatch` carries two present and unequal IDs.
-
-Where practical, generate field numbers and ABI constants from one checked-in
-schema projection. Handwritten decoders remain independently tested and must
-not copy behavior from one another.
-
-## Phase 3: Canonical Fixture Compliance
-
-Core owns `core/fixtures/v1`; product code cannot regenerate or edit it.
-
-Build a language-neutral compliance runner that executes every core fixture
-through:
-
-- Native Rust verifier.
-- WASM verifier.
-- TypeScript package.
-- Python wheel.
-- Independent Go verifier where its supported scope applies.
-
-For each implementation compare:
-
-- Decision class.
-- Stable code.
-- Verification stage.
-- Plan ID.
-- Required/local configuration IDs.
-- Resource counters.
-- Canonical result bytes when the implementation promises byte identity.
-
-Product-specific scenarios live under `product/fixtures` or `demos/fixtures`
-and record the exact core corpus/schema fingerprint against which they were
-generated.
-
-## Phase 4: Profile Semantic Compliance
-
-For MCP, HTTP, Git, deployment, supply-chain, and edge profiles:
-
-- Canonicalizing identical semantic input twice produces identical bytes.
-- Reference and independent implementations agree.
-- Approval display digest binds the exact canonical action.
-- Hostile mutations cannot retain the original permission or action digest.
-- Derived permission, audience, budget, and resource identifiers are exact.
-- Unknown fields, duplicate fields, ambiguous JSON, excessive depth, excessive
-  size, and non-canonical values fail closed.
-- A verified action is decoded only from the sealed verifier output, never from
-  the original untrusted request.
-
-Add cross-language profile vectors for every supported profile before claiming
-that profile in a language SDK.
-
-## Phase 5: Runtime and Enforcement Compliance
-
-Verify the product runtime preserves core decisions without widening:
-
-- Denied and indeterminate results never reach an executor.
-- Executors receive only commands decoded from sealed verified actions.
-- Challenge claim occurs atomically before execution.
-- Concurrent duplicate requests execute exactly once.
-- Budget claims are atomic, bounded, and keyed by the correct action identity.
-- Unavailable replay or budget state fails closed.
-- Receipt-policy behavior is explicit for fail-closed and local-spool modes.
-- Transport authentication never upgrades an invalid Auths proof.
-- Signed channel-binding policy agrees with runtime transport policy.
-- Configuration mismatch exposes required and local IDs without executing.
-- Cache keys include proof, canonical action, complete context, registry
-  manifest, and verifier configuration commitments.
-
-Use deterministic concurrency tests plus Loom/model tests for claim state
-machines.
-
-## Phase 6: Identity, Custody, and Evidence Compliance
-
-For custody and evidence assemblers:
-
-- Signing intent includes the exact core signing preimage and descriptor.
-- Private material is never copied into ordinary long-lived buffers.
-- Sensitive values are zeroized on drop.
-- Security-sensitive equality uses constant-time comparison.
-- External signer implementations cannot substitute method, suite, key,
-  purpose, or action bytes.
-- Evidence assemblers bind the exact expected media type and evidence ID.
-- Trust-root and status ordering are canonical.
-- Duplicate trust or status records fail closed.
-- Resolver output is bounded, host-policy constrained, and converted into
-  explicit evidence rather than hidden verifier I/O.
-
-Add at least one negative test for every field an external provider could
-substitute.
-
-## Phase 7: Configuration and Operations Compliance
-
-Unify declarative product configuration with the core context:
-
-- Configuration compilation produces a deterministic digest.
-- The compiled product configuration binds to the complete core context,
-  registry manifest, local verifier configuration, profiles, limits, and
-  channel policy.
-- Startup fails before serving when any binding differs.
-- Readiness reports required and local configuration IDs.
-- Fleet diagnostics can identify configuration drift without exposing proof
-  contents or principals.
-- Operational events remain low-cardinality and payload-free.
-- Metrics exporters preserve privacy classifications.
-
-Add a startup conformance test that loads every supported production
-configuration and verifies the resulting context and registry IDs.
-
-## Phase 8: Storage and Receipt Compliance
-
-For replay, budget, receipt, and audit stores:
-
-- Persisted formats are canonical, versioned, and bounded.
-- Corrupt or partially written state fails closed.
-- No-clobber and idempotency behavior is tested.
-- Concurrent claims are atomic across threads and, for distributed adapters,
-  across processes.
-- Receipt IDs and attestations are recomputed before acceptance.
-- Decision receipts include the exact portable result commitments.
-- Execution receipts bind the authorized decision and actual execution
-  outcome.
-- Audit bundles reject missing, duplicated, or unrelated artifacts.
-- Migration and recovery tests cover every persistent schema version.
-
-Add production distributed adapters only after their atomicity behavior has a
-backend-specific integration test.
-
-## Phase 9: Language Package Compliance
-
-Rust, npm, Python, and Go packages must provide equivalent minimum semantics:
-
-- Three-way authorized/denied/indeterminate result.
-- Stable code and stage.
-- Required/local configuration IDs.
-- Resource metrics.
-- Sealed verified-action boundary.
-- Canonical result bytes.
-- Explicit supported ABI and profile versions.
-
-Test only built artifacts:
-
-- Rust `.crate` in a clean consumer.
-- npm `.tgz` with packaged WASM.
-- Python wheel in a fresh virtual environment.
-- Go module without local replacements.
-
-Generated distributions must either be release artifacts or checked for exact
-source reproducibility; stale checked-in `dist` output is forbidden.
-
-## Phase 10: Differential and Adversarial Testing
-
-Add:
-
-- Differential result testing across native, WASM, TypeScript, Python, and Go.
-- Property tests for every handwritten decoder.
-- Fuzzing for FFI, WASM, JSON profile, receipt, and exchange boundaries.
-- Mutation tests for configuration, proof, action, receipt, and channel
-  bindings.
-- Resource-boundary tests at exact limit, one below, and one above.
-- Replay and budget race tests.
-- Fault injection for storage, clocks, receipt sinks, resolvers, and executors.
-
-No implementation may treat a panic, exception, or unavailable dependency as
-authorization.
-
-## Compliance CI Command
-
-Add:
+The authoritative command is:
 
 ```text
 cargo xtask compliance
 ```
 
-It runs:
+It performs these gates:
 
-1. Inventory completeness.
-2. Rust API and architecture checks.
-3. ABI/schema synchronization.
-4. Canonical core corpus across all languages.
-5. Product profile vectors.
-6. Runtime and state-machine tests.
-7. Receipt/audit verification.
-8. Built-package smoke tests.
-9. Differential semantic report.
+1. Validate the complete package and external-language inventory.
+2. Validate every declared surface and executable test anchor.
+3. Enforce architecture, ownership, dependency direction, and exact direct
+   core API declarations.
+4. Run all product package tests.
+5. Verify schema synchronization and all canonical core fixtures.
+6. Compare Rust, Go, and TypeScript semantic results.
+7. Run exchange and product end-to-end conformance.
+8. Verify product profile fixtures and the compatibility matrix.
+9. Build and test WASM, TypeScript, Python, and Go surfaces.
+10. Install npm and Python artifacts in clean consumers.
+11. Package every publishable Rust crate.
+12. Emit deterministic compliance evidence.
 
-The command writes a deterministic machine-readable report and a concise human
-summary. CI uploads both.
+The command writes:
+
+- `target/compliance/inventory.json`
+- `target/compliance/report.json`
+- `target/compliance/summary.txt`
+
+The inventory binds the compliance manifest, architecture snapshot, and
+canonical corpus by SHA-256. The report contains only deterministic pass/fail
+claims and the shared semantic digest; it contains no timestamps, absolute
+paths, proof contents, or principals.
+
+## Continuous Gates
+
+### Core API and Architecture
+
+- `architecture.toml` remains authoritative for package placement and allowed
+  dependency direction.
+- Core cannot depend on exchange, product, bindings, demos, networking,
+  persistence, custody, or ambient configuration.
+- Product contracts depend on the lowest valid layer.
+- Direct core dependency drift must update both the architecture snapshot and
+  the compliance declaration after review.
+- Compatibility shims for obsolete constructors or ABI versions are not
+  accepted.
+
+### Portable ABI
+
+Rust, WASM, TypeScript, and Python:
+
+- Support exactly portable ABI version 2.
+- Enforce bounded canonical CBOR and exact ordered map semantics.
+- Reject missing, duplicate, reordered, unsupported, or trailing fields.
+- Expose decision, stable code, stage, resource counters, result bytes,
+  required configuration, and executed/local configuration.
+- Construct executable actions only from sealed authorized output.
+
+Independent semantic implementations such as Go do not claim portable-result
+byte identity unless they implement the portable encoder. They must still
+match the canonical corpus decision, code, digests, plan, authorized branches,
+and assurance semantics for their declared scope.
+
+### Fixtures and Profiles
+
+- `core/fixtures/v1` is the only canonical core corpus.
+- Product and demos may consume but never regenerate core fixtures.
+- Product scenarios live under `product/fixtures` or `demos/fixtures`.
+- Profile canonicalization must be deterministic and reject ambiguous,
+  unknown, duplicate, oversized, excessive-depth, Unicode-confusable, or
+  non-canonical inputs.
+- Approval displays bind the exact canonical action.
+- Cross-language profile support cannot be claimed without vectors and test
+  evidence.
+
+### Runtime and State
+
+- Denied and indeterminate results never reach executors.
+- Executors receive only commands decoded from sealed verified actions.
+- Replay claims occur atomically before execution.
+- Concurrent duplicate requests execute at most once.
+- Budget claims are atomic, bounded, and keyed by exact action identity.
+- Replay, budget, receipt, or resolver unavailability fails closed.
+- Transport authentication never upgrades an invalid Auths proof.
+- Signed channel policy must agree with runtime transport policy.
+- Cache keys bind proof, canonical action, complete context, registry manifest,
+  and verifier configuration commitments.
+
+### Identity, Custody, and Evidence
+
+- Signing intent binds the exact core signing preimage and descriptor.
+- External providers cannot substitute method, suite, key, purpose, or action.
+- Sensitive equality uses constant-time comparison.
+- Secret material is zeroized at ownership boundaries.
+- Resolver output is bounded, host-policy constrained, and converted into
+  explicit evidence.
+- Every provider-controlled substitution field has negative test evidence
+  before production support is claimed.
+
+### Configuration and Operations
+
+- Configuration compilation is deterministic.
+- Startup binds configuration digest, complete context digest, registry
+  manifest, profiles, limits, channel policy, required verifier
+  configuration, and executed verifier configuration.
+- Startup fails before serving when required and executed configurations
+  differ.
+- Readiness exposes both configuration commitments.
+- Diagnostics remain low-cardinality, payload-free, and principal-free.
+
+### Storage and Receipts
+
+- Persistent formats are canonical, versioned, and bounded.
+- Corrupt or partially written state fails closed.
+- No-clobber, idempotency, reopen, and failure-spool behavior is tested.
+- Decision and execution receipts bind the exact verification and execution
+  commitments.
+- Audit bundles reject missing, duplicate, mutated, or unrelated artifacts.
+- Distributed adapters are not production-claimed until backend-specific
+  cross-process atomicity tests exist.
+
+### Packages and Releases
+
+- Rust consumers are tested from `.crate` archives.
+- npm consumers are tested from the packed `.tgz` with packaged WASM.
+- Python consumers are tested from a wheel in a fresh virtual environment.
+- Go has no local replacements.
+- Generated distributions are reproducible and stale checked-in output is
+  rejected.
+- Release evidence includes the compliance inventory, report, and human
+  summary as checksummed subjects.
+
+## CI and Branch Protection
+
+GitHub Actions exposes a dedicated `compliance` job that runs
+`cargo xtask compliance` and uploads `target/compliance/` as a retained
+artifact.
+
+Repository branch protection must require the `compliance` job in addition to
+the authoritative build, dependency policy, and secret scanning jobs.
 
 ## Completion Criteria
 
-- The full monorepo builds from one commit.
-- No obsolete core constructor or ABI assumption remains.
-- Every binding exposes required/local configuration semantics.
-- Every canonical core fixture passes in every claimed implementation.
-- Every product profile has canonical and hostile cross-language vectors.
-- Runtime replay, budget, execution, and receipt invariants pass concurrency
-  and fault-injection tests.
-- All packages install and run from release artifacts.
-- `cargo xtask compliance` is a required branch-protection check.
-
+- Every scoped Cargo, npm, and Go package is inventoried.
+- Every claimed behavioral role resolves to executable test evidence.
+- Declared Cargo core APIs exactly match workspace metadata.
+- Required and executed verifier configurations are compared at startup and
+  exposed in readiness diagnostics.
+- Portable bindings reject malformed shape, ABI version, and trailing data.
+- Every claimed implementation passes its canonical fixture scope.
+- Runtime, replay, budget, receipt, cache, and transport invariants pass.
+- Built package smoke tests pass in clean consumers.
+- `cargo xtask compliance` produces deterministic evidence.
+- CI has a standalone, artifact-producing `compliance` job suitable for branch
+  protection.

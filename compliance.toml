@@ -1,0 +1,467 @@
+schema = 1
+canonical_corpus = "core/fixtures/v1/manifest.json"
+portable_abi_version = 2
+report_schema = "auths-product-core-compliance/v1"
+scope_layers = ["bindings", "demos", "product"]
+
+[packages.auths-apps-testkit]
+kind = "cargo"
+layer = "demos"
+path = "demos/testkit/auths-apps-testkit"
+core_apis = ["auths-author", "auths-codec", "auths-model", "auths-ports", "auths-raw-key", "auths-registries", "auths-signature"]
+protocol_versions = ["auths-proof/v1"]
+wire_objects = ["ActionSubmission", "CanonicalAction", "PortableVerificationResult", "ProofBundle", "VerifierContext"]
+fixture_suites = ["core/fixtures/v1", "product/fixtures/v1"]
+principal_families = ["raw-key-v1"]
+signature_families = ["ed25519-v1"]
+profiles = ["auths.mcp/1"]
+transports = ["iroh", "memory"]
+configuration_inputs = ["channel-policy", "registry-manifest", "verifier-configuration", "verifier-limits"]
+security_state = ["budget-ledger", "challenge-ledger", "receipt-sink"]
+
+[packages.auths-apps-testkit.claims]
+demo-conformance-fixture = ["demos/testkit/auths-apps-testkit/src/lib.rs#target_flow_is_transport_independent_and_replay_safe"]
+runtime-enforcement-boundary = ["demos/testkit/auths-apps-testkit/src/lib.rs#concurrent_duplicate_executes_exactly_once"]
+
+[packages.auths-cache]
+kind = "cargo"
+layer = "product"
+path = "product/cache/auths-cache"
+core_apis = ["auths-model", "auths-verifier"]
+protocol_versions = ["auths-proof/v1"]
+wire_objects = ["CanonicalAction", "VerificationOutcome"]
+fixture_suites = []
+principal_families = []
+signature_families = []
+profiles = []
+transports = []
+configuration_inputs = ["action-digest", "context-digest", "proof-digest", "registry-manifest"]
+security_state = ["bounded-verification-cache"]
+
+[packages.auths-cache.claims]
+core-api-consumer = ["product/cache/auths-cache/src/lib.rs#complete_key_and_capacity_prevent_context_aliasing"]
+verification-cache = ["product/cache/auths-cache/src/lib.rs#byte_distinct_actions_never_alias"]
+
+[packages.auths-config]
+kind = "cargo"
+layer = "product"
+path = "product/config/auths-config"
+core_apis = ["auths-codec", "auths-model"]
+protocol_versions = ["auths-proof/v1"]
+wire_objects = ["VerifierContext"]
+fixture_suites = ["core/fixtures/v1"]
+principal_families = []
+signature_families = []
+profiles = ["auths.deploy/1", "auths.edge/1", "auths.git/1", "auths.http/1", "auths.mcp/1", "auths.supply-chain/1"]
+transports = []
+configuration_inputs = ["channel-policy", "executed-verifier-configuration", "profile-set", "required-verifier-configuration", "resolver-policy", "store-policy", "verifier-limits"]
+security_state = []
+
+[packages.auths-config.claims]
+configuration-compiler = ["product/config/auths-config/src/lib.rs#startup_binding_reports_required_and_executed_configurations"]
+core-api-consumer = ["product/config/auths-config/src/lib.rs#strict_target_configuration_parses"]
+
+[packages.auths-custody]
+kind = "cargo"
+layer = "product"
+path = "product/integrations/auths-custody"
+core_apis = ["auths-author", "auths-model"]
+protocol_versions = ["auths-proof/v1"]
+wire_objects = ["SigningIntent"]
+fixture_suites = []
+principal_families = ["external-custody"]
+signature_families = ["provider-selected"]
+profiles = []
+transports = []
+configuration_inputs = ["key-descriptor", "signature-suite", "signing-preimage"]
+security_state = ["external-key-handle", "signing-preimage"]
+
+[packages.auths-custody.claims]
+proof-author-or-assembler = ["product/integrations/auths-custody/src/lib.rs#mismatched_provider_transaction_cannot_produce_a_signed_object"]
+
+[packages.auths-deployment]
+kind = "cargo"
+layer = "product"
+path = "product/integrations/auths-deployment"
+core_apis = []
+protocol_versions = ["auths-proof/v1"]
+wire_objects = ["VerifiedAction"]
+fixture_suites = ["product/fixtures/v1"]
+principal_families = []
+signature_families = []
+profiles = ["auths.deploy/1"]
+transports = []
+configuration_inputs = ["action-id", "evaluation-time", "verifier-context"]
+security_state = ["deployment-budget", "replay-claim"]
+
+[packages.auths-deployment.claims]
+runtime-enforcement-boundary = ["demos/testkit/auths-apps-testkit/src/lib.rs#authenticated_transport_does_not_upgrade_bad_proof"]
+stateful-replay-budget-component = ["demos/testkit/auths-apps-testkit/src/lib.rs#concurrent_duplicate_executes_exactly_once"]
+
+[packages.auths-enforcement]
+kind = "cargo"
+layer = "product"
+path = "product/integrations/auths-enforcement"
+core_apis = []
+protocol_versions = ["auths-proof/v1"]
+wire_objects = ["CanonicalAction", "VerifiedAction"]
+fixture_suites = ["product/fixtures/v1"]
+principal_families = []
+signature_families = []
+profiles = ["caller-selected"]
+transports = []
+configuration_inputs = ["action-profile", "request-context", "verifier"]
+security_state = []
+
+[packages.auths-enforcement.claims]
+runtime-enforcement-boundary = ["demos/testkit/auths-apps-testkit/src/lib.rs#signed_permission_must_match_tool"]
+
+[packages.auths-evidence-assemblers]
+kind = "cargo"
+layer = "product"
+path = "product/integrations/auths-evidence-assemblers"
+core_apis = ["auths-codec", "auths-hsm-attested", "auths-model", "auths-spiffe-x509", "auths-webauthn"]
+protocol_versions = ["auths-proof/v1"]
+wire_objects = ["EvidenceObject"]
+fixture_suites = []
+principal_families = ["hsm-attested-v1", "spiffe-x509-v1", "webauthn-v1"]
+signature_families = ["provider-selected"]
+profiles = []
+transports = []
+configuration_inputs = ["evidence-id", "media-type", "signing-preimage"]
+security_state = ["attestation-bytes", "provider-evidence"]
+
+[packages.auths-evidence-assemblers.claims]
+principal-evidence-integration = ["product/integrations/auths-evidence-assemblers/src/lib.rs#hsm_evidence_changes_with_the_auths_transaction"]
+
+[packages.auths-lab-matrix]
+kind = "cargo"
+layer = "demos"
+path = "demos/matrix/auths-lab-matrix"
+core_apis = []
+protocol_versions = ["auths-proof/v1"]
+wire_objects = []
+fixture_suites = ["product/fixtures/v1"]
+principal_families = ["did-key-v1", "raw-key-v1"]
+signature_families = ["ed25519-v1", "p256-sha256-v1"]
+profiles = ["auths.mcp/1"]
+transports = ["file", "https", "iroh", "memory", "tcp", "unix"]
+configuration_inputs = ["adapter-family", "profile-family", "transport-family"]
+security_state = []
+
+[packages.auths-lab-matrix.claims]
+demo-conformance-fixture = ["demos/matrix/auths-lab-matrix/src/lib.rs#matrix_has_504_nominal_and_396_compatible_points"]
+
+[packages.auths-lab-wasm-bench]
+kind = "cargo"
+layer = "demos"
+path = "demos/benchmarks/auths-lab-wasm-bench"
+core_apis = ["auths-codec", "auths-ports", "auths-raw-key", "auths-registries", "auths-signature", "auths-testkit", "auths-verifier"]
+protocol_versions = ["auths-proof/v1"]
+wire_objects = ["CanonicalAction", "PortableVerificationResult", "ProofBundle", "VerifierContext"]
+fixture_suites = ["core/fixtures/v1"]
+principal_families = ["raw-key-v1"]
+signature_families = ["ed25519-v1"]
+profiles = ["auths.mcp/1"]
+transports = []
+configuration_inputs = ["registry-manifest", "verifier-configuration"]
+security_state = []
+
+[packages.auths-lab-wasm-bench.claims]
+demo-conformance-fixture = ["bindings/wasm/auths-proof-wasm/src/lib.rs#native_wasm_boundary_matches_the_portable_contract"]
+
+[packages.auths-mcp-demo]
+kind = "cargo"
+layer = "demos"
+path = "demos/mcp/auths-mcp-demo"
+core_apis = []
+protocol_versions = ["auths-proof/v1"]
+wire_objects = ["ActionSubmission", "PortableVerificationResult"]
+fixture_suites = ["product/fixtures/v1"]
+principal_families = ["raw-key-v1"]
+signature_families = ["ed25519-v1"]
+profiles = ["auths.mcp/1"]
+transports = ["iroh", "memory"]
+configuration_inputs = ["channel-policy", "verifier-configuration"]
+security_state = ["challenge-ledger", "receipt-sink"]
+
+[packages.auths-mcp-demo.claims]
+demo-conformance-fixture = ["demos/testkit/auths-apps-testkit/src/lib.rs#target_flow_is_transport_independent_and_replay_safe"]
+
+[packages.auths-operations]
+kind = "cargo"
+layer = "product"
+path = "product/operations/auths-operations"
+core_apis = ["auths-codec"]
+protocol_versions = ["auths-proof/v1"]
+wire_objects = []
+fixture_suites = ["core/fixtures/v1"]
+principal_families = []
+signature_families = []
+profiles = []
+transports = []
+configuration_inputs = ["configuration-digest", "context-digest", "executed-verifier-configuration", "required-verifier-configuration"]
+security_state = ["low-cardinality-metrics"]
+
+[packages.auths-operations.claims]
+operational-diagnostics = ["product/operations/auths-operations/src/lib.rs#readiness_exposes_required_and_executed_configuration_ids"]
+
+[packages.auths-profile-api]
+kind = "cargo"
+layer = "product"
+path = "product/profiles/auths-profile-api"
+core_apis = ["auths-model", "auths-verifier"]
+protocol_versions = ["auths-proof/v1"]
+wire_objects = ["CanonicalAction", "VerifiedAction"]
+fixture_suites = []
+principal_families = []
+signature_families = []
+profiles = ["caller-defined"]
+transports = []
+configuration_inputs = ["profile-id", "profile-version"]
+security_state = []
+
+[packages.auths-profile-api.claims]
+profile-contract = ["product/profiles/auths-profile-domains/src/lib.rs#every_profile_matches_the_reference_canonicalizer"]
+
+[packages.auths-profile-domains]
+kind = "cargo"
+layer = "product"
+path = "product/profiles/auths-profile-domains"
+core_apis = ["auths-model", "auths-verifier"]
+protocol_versions = ["auths-proof/v1"]
+wire_objects = ["CanonicalAction", "VerifiedAction"]
+fixture_suites = ["product/fixtures/v1"]
+principal_families = []
+signature_families = []
+profiles = ["auths.deploy/1", "auths.edge/1", "auths.git/1", "auths.http/1", "auths.supply-chain/1"]
+transports = []
+configuration_inputs = ["canonical-action", "profile-id", "profile-version"]
+security_state = []
+
+[packages.auths-profile-domains.claims]
+profile-canonicalizer = ["product/profiles/auths-profile-domains/src/lib.rs#unknown_fields_and_noncanonical_bytes_fail_closed"]
+
+[packages.auths-profile-kit]
+kind = "cargo"
+layer = "product"
+path = "product/sdk/auths-profile-kit"
+core_apis = ["auths-codec", "auths-model", "auths-verifier"]
+protocol_versions = ["auths-proof/v1"]
+wire_objects = ["CanonicalAction", "VerifiedAction"]
+fixture_suites = []
+principal_families = []
+signature_families = []
+profiles = ["caller-defined"]
+transports = []
+configuration_inputs = ["approval-display", "canonical-action", "profile-id"]
+security_state = []
+
+[packages.auths-profile-kit.claims]
+profile-canonicalizer = ["product/sdk/auths-profile-kit/src/lib.rs#fixture_rejects_nondeterministic_profile"]
+
+[packages.auths-profile-mcp]
+kind = "cargo"
+layer = "product"
+path = "product/profiles/auths-profile-mcp"
+core_apis = ["auths-model", "auths-verifier"]
+protocol_versions = ["auths-proof/v1"]
+wire_objects = ["CanonicalAction", "VerifiedAction"]
+fixture_suites = ["product/fixtures/v1"]
+principal_families = []
+signature_families = []
+profiles = ["auths.mcp/1"]
+transports = []
+configuration_inputs = ["channel-endpoint", "profile-id", "profile-version"]
+security_state = []
+
+[packages.auths-profile-mcp.claims]
+profile-canonicalizer = ["product/profiles/auths-profile-mcp/src/lib.rs#noncanonical_json_is_rejected"]
+
+[packages.auths-proof-offline-example]
+kind = "cargo"
+layer = "demos"
+path = "demos/offline-verification"
+core_apis = ["auths-codec", "auths-ports", "auths-proof", "auths-raw-key", "auths-registries", "auths-signature"]
+protocol_versions = ["auths-proof/v1"]
+wire_objects = ["CanonicalAction", "PortableVerificationResult", "ProofBundle", "VerifierContext"]
+fixture_suites = ["core/fixtures/v1"]
+principal_families = ["raw-key-v1"]
+signature_families = ["ed25519-v1"]
+profiles = ["auths.mcp/1"]
+transports = []
+configuration_inputs = ["registry-manifest", "verifier-configuration"]
+security_state = []
+
+[packages.auths-proof-offline-example.claims]
+demo-conformance-fixture = ["core/crates/auths-proof/src/lib.rs#facade_returns_native_and_canonical_results"]
+
+[packages.auths-proof-python]
+kind = "cargo"
+layer = "bindings"
+path = "bindings/python"
+core_apis = []
+protocol_versions = ["auths-proof/v1"]
+wire_objects = ["CanonicalAction", "PortableVerificationResult", "ProofBundle", "VerifierContext"]
+fixture_suites = ["core/fixtures/v1"]
+principal_families = ["self-contained-v1"]
+signature_families = ["ed25519-v1", "p256-sha256-v1"]
+profiles = ["core-corpus"]
+transports = []
+configuration_inputs = ["executed-verifier-configuration", "required-verifier-configuration"]
+security_state = []
+
+[packages.auths-proof-python.claims]
+core-wire-consumer = ["bindings/python/tests/test_api.py#test_portable_decoder_rejects_shape_version_and_trailing_data"]
+language-binding = ["bindings/python/tests/test_api.py#test_configuration_mismatch_reports_required_and_executed_commitments"]
+
+[packages.auths-proof-wasm]
+kind = "cargo"
+layer = "bindings"
+path = "bindings/wasm/auths-proof-wasm"
+core_apis = ["auths-codec", "auths-did-keri", "auths-did-key", "auths-model", "auths-ports", "auths-raw-key", "auths-registries", "auths-signature", "auths-testkit", "auths-verifier"]
+protocol_versions = ["auths-proof/v1"]
+wire_objects = ["CanonicalAction", "PortableVerificationResult", "ProofBundle", "VerifierContext"]
+fixture_suites = ["core/fixtures/v1"]
+principal_families = ["did-keri-v1", "did-key-v1", "raw-key-v1"]
+signature_families = ["ed25519-v1", "p256-sha256-v1"]
+profiles = ["core-corpus"]
+transports = []
+configuration_inputs = ["executed-verifier-configuration", "registry-manifest", "required-verifier-configuration"]
+security_state = []
+
+[packages.auths-proof-wasm.claims]
+core-wire-consumer = ["bindings/wasm/auths-proof-wasm/src/lib.rs#native_wasm_boundary_matches_the_portable_contract"]
+language-binding = ["bindings/typescript/test/api.test.js#precompiled WASM matches the canonical Rust result"]
+
+[packages.auths-receipts]
+kind = "cargo"
+layer = "product"
+path = "product/receipts/auths-receipts"
+core_apis = ["auths-model", "auths-ports"]
+protocol_versions = ["auths-proof/v1"]
+wire_objects = ["AttestedDecisionReceipt", "AttestedExecutionReceipt", "AuditBundle", "DecisionReceipt", "ExecutionReceipt"]
+fixture_suites = []
+principal_families = ["receipt-signer"]
+signature_families = ["registry-provided"]
+profiles = []
+transports = []
+configuration_inputs = ["decision-digest", "executed-verifier-configuration", "required-verifier-configuration"]
+security_state = ["receipt-attestation-key"]
+
+[packages.auths-receipts.claims]
+receipt-producer-consumer = ["product/receipts/auths-receipts/src/lib.rs#audit_bundle_verifies_links_and_redaction_offline"]
+
+[packages.auths-resolver-did-web]
+kind = "cargo"
+layer = "product"
+path = "product/integrations/auths-resolver-did-web"
+core_apis = ["auths-codec", "auths-did-web", "auths-model"]
+protocol_versions = ["auths-proof/v1"]
+wire_objects = ["DidWebTrustRecord", "EvidenceObject"]
+fixture_suites = []
+principal_families = ["did-web-v1"]
+signature_families = []
+profiles = []
+transports = ["https"]
+configuration_inputs = ["allowed-hosts", "content-type", "response-byte-limit"]
+security_state = ["resolved-trust-record"]
+
+[packages.auths-resolver-did-web.claims]
+principal-evidence-integration = ["product/integrations/auths-resolver-did-web/src/lib.rs#rejects_private_and_documentation_addresses"]
+
+[packages.auths-runtime]
+kind = "cargo"
+layer = "product"
+path = "product/runtime/auths-runtime"
+core_apis = ["auths-codec", "auths-model", "auths-ports", "auths-registries", "auths-verifier"]
+protocol_versions = ["auths-proof/v1"]
+wire_objects = ["ActionSubmission", "PortableVerificationResult", "VerifiedAction", "VerifierContext"]
+fixture_suites = ["core/fixtures/v1", "product/fixtures/v1"]
+principal_families = ["registry-provided"]
+signature_families = ["registry-provided"]
+profiles = ["auths.mcp/1"]
+transports = ["exchange-port"]
+configuration_inputs = ["channel-policy", "executed-verifier-configuration", "registry-manifest", "required-verifier-configuration", "verifier-limits"]
+security_state = ["budget-ledger", "challenge-ledger", "receipt-sink"]
+
+[packages.auths-runtime.claims]
+receipt-producer-consumer = ["demos/testkit/auths-apps-testkit/src/lib.rs#target_flow_is_transport_independent_and_replay_safe"]
+runtime-enforcement-boundary = ["demos/testkit/auths-apps-testkit/src/lib.rs#authenticated_transport_does_not_upgrade_bad_proof"]
+stateful-replay-budget-component = ["demos/testkit/auths-apps-testkit/src/lib.rs#concurrent_duplicate_executes_exactly_once"]
+
+[packages.auths-sdk]
+kind = "cargo"
+layer = "product"
+path = "product/sdk/auths-sdk"
+core_apis = ["auths-author", "auths-codec", "auths-did-keri", "auths-did-key", "auths-model", "auths-ports", "auths-raw-key", "auths-registries", "auths-signature", "auths-testkit", "auths-verifier"]
+protocol_versions = ["auths-proof/v1"]
+wire_objects = ["CanonicalAction", "VerifiedAction", "VerifierContext"]
+fixture_suites = ["core/fixtures/v1", "product/fixtures/v1"]
+principal_families = ["did-keri-v1", "did-key-v1", "raw-key-v1"]
+signature_families = ["ed25519-v1", "p256-sha256-v1"]
+profiles = ["auths.deploy/1", "auths.edge/1", "auths.git/1", "auths.http/1", "auths.mcp/1", "auths.supply-chain/1"]
+transports = []
+configuration_inputs = ["assurance-policy", "composition-requirement", "executed-verifier-configuration", "required-verifier-configuration", "trust-anchors", "verifier-limits"]
+security_state = []
+
+[packages.auths-sdk.claims]
+core-api-consumer = ["demos/testkit/auths-apps-testkit/src/lib.rs#target_flow_is_transport_independent_and_replay_safe"]
+runtime-enforcement-boundary = ["demos/testkit/auths-apps-testkit/src/lib.rs#signed_permission_must_match_tool"]
+
+[packages.auths-stores]
+kind = "cargo"
+layer = "product"
+path = "product/stores/auths-stores"
+core_apis = ["auths-model"]
+protocol_versions = ["auths-proof/v1"]
+wire_objects = ["AttestedDecisionReceipt", "AttestedExecutionReceipt", "BudgetState", "ReplayState"]
+fixture_suites = []
+principal_families = []
+signature_families = []
+profiles = []
+transports = ["filesystem", "memory"]
+configuration_inputs = ["budget-algebra", "capacity", "receipt-policy"]
+security_state = ["budget-ledger", "receipt-spool", "replay-ledger"]
+
+[packages.auths-stores.claims]
+receipt-producer-consumer = ["product/stores/auths-stores/src/lib.rs#local_spool_policy_persists_attested_receipt_on_primary_failure"]
+stateful-replay-budget-component = ["product/stores/auths-stores/src/lib.rs#persistent_ledgers_survive_reopen"]
+
+[packages."@auths-dev/proof"]
+kind = "npm"
+layer = "bindings"
+path = "bindings/typescript"
+core_apis = ["auths-proof-wasm"]
+protocol_versions = ["auths-proof/v1"]
+wire_objects = ["CanonicalAction", "PortableVerificationResult", "ProofBundle", "VerifierContext"]
+fixture_suites = ["core/fixtures/v1"]
+principal_families = ["self-contained-v1"]
+signature_families = ["ed25519-v1", "p256-sha256-v1"]
+profiles = ["core-corpus"]
+transports = []
+configuration_inputs = ["executed-verifier-configuration", "required-verifier-configuration"]
+security_state = []
+
+[packages."@auths-dev/proof".claims]
+core-wire-consumer = ["bindings/typescript/test/api.test.js#portable decoder rejects shape version and trailing data"]
+language-binding = ["bindings/typescript/test/api.test.js#configuration mismatch reports required and executed commitments"]
+
+[packages."auths.dev/independent-verifier"]
+kind = "go"
+layer = "bindings"
+path = "bindings/independent/go"
+core_apis = []
+protocol_versions = ["auths-proof/v1"]
+wire_objects = ["CanonicalAction", "ProofBundle", "VerifierContext"]
+fixture_suites = ["core/fixtures/v1"]
+principal_families = ["did-keri-v1", "did-key-v1", "did-web-v1", "hsm-attested-v1", "raw-key-v1", "spiffe-x509-v1", "webauthn-v1"]
+signature_families = ["ed25519-v1", "p256-sha256-v1"]
+profiles = ["core-corpus"]
+transports = []
+configuration_inputs = ["adapter-context", "registry-manifest", "verifier-configuration"]
+security_state = []
+
+[packages."auths.dev/independent-verifier".claims]
+independent-semantic-implementation = ["bindings/independent/go/auths/api_test.go#TestSharedCorpusRunsInNativeGoTest"]
+language-binding = ["bindings/independent/go/auths/api_test.go#TestVerifyReturnsNativeAuthorizedResult"]

@@ -9,5 +9,8 @@ description = "Readiness, stable metrics, and privacy-preserving diagnostics for
 [dependencies]
 auths-config.workspace = true
 
+[dev-dependencies]
+auths-codec.workspace = true
+
 [lints]
 workspace = true
