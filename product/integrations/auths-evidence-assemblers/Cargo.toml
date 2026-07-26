@@ -1,0 +1,20 @@
+[package]
+name = "auths-evidence-assemblers"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+rust-version = "1.91"
+description = "Effect-boundary assemblers for target Auths principal evidence"
+
+[dependencies]
+auths-codec.workspace = true
+auths-hsm-attested.workspace = true
+auths-model.workspace = true
+auths-spiffe-x509.workspace = true
+auths-webauthn.workspace = true
+
+[dev-dependencies]
+ed25519-dalek.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,23 @@
+[package]
+name = "auths-profile-kit"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+rust-version = "1.91"
+description = "Conformance and fixture kit for Auths V1 application profiles"
+
+[dependencies]
+auths-codec.workspace = true
+auths-model.workspace = true
+auths-profile-api.workspace = true
+hex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+auths-verifier.workspace = true
+
+[lints]
+workspace = true

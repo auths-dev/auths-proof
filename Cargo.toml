@@ -35,6 +35,22 @@ members = [
     "exchange/adapters/auths-proof-exchange-file",
     "exchange/adapters/auths-proof-exchange-https",
     "exchange/testkit/auths-proof-exchange-testkit",
+    "product/sdk/auths-sdk",
+    "product/sdk/auths-profile-kit",
+    "product/integrations/auths-enforcement",
+    "product/integrations/auths-deployment",
+    "product/integrations/auths-evidence-assemblers",
+    "product/integrations/auths-custody",
+    "product/integrations/auths-resolver-did-web",
+    "product/profiles/auths-profile-api",
+    "product/profiles/auths-profile-mcp",
+    "product/profiles/auths-profile-domains",
+    "product/runtime/auths-runtime",
+    "product/receipts/auths-receipts",
+    "product/stores/auths-stores",
+    "product/config/auths-config",
+    "product/cache/auths-cache",
+    "product/operations/auths-operations",
     "xtask",
 ]
 exclude = ["core/fuzz"]
@@ -80,11 +96,31 @@ auths-proof-exchange-unix = { version = "0.1.0", path = "exchange/adapters/auths
 auths-proof-exchange-file = { version = "0.1.0", path = "exchange/adapters/auths-proof-exchange-file" }
 auths-proof-exchange-https = { version = "0.1.0", path = "exchange/adapters/auths-proof-exchange-https" }
 auths-proof-exchange-testkit = { version = "0.1.0", path = "exchange/testkit/auths-proof-exchange-testkit" }
+auths-profile-mcp = { version = "0.1.0", path = "product/profiles/auths-profile-mcp" }
+auths-profile-api = { version = "0.1.0", path = "product/profiles/auths-profile-api" }
+auths-profile-domains = { version = "0.1.0", path = "product/profiles/auths-profile-domains" }
+auths-runtime = { version = "0.1.0", path = "product/runtime/auths-runtime" }
+auths-receipts = { version = "0.1.0", path = "product/receipts/auths-receipts" }
+auths-stores = { version = "0.1.0", path = "product/stores/auths-stores" }
+auths-config = { version = "0.1.0", path = "product/config/auths-config" }
+auths-cache = { version = "0.1.0", path = "product/cache/auths-cache" }
+auths-operations = { version = "0.1.0", path = "product/operations/auths-operations" }
+auths-sdk = { version = "0.1.0", path = "product/sdk/auths-sdk" }
+auths-profile-kit = { version = "0.1.0", path = "product/sdk/auths-profile-kit" }
+auths-enforcement = { version = "0.1.0", path = "product/integrations/auths-enforcement" }
+auths-deployment = { version = "0.1.0", path = "product/integrations/auths-deployment" }
+auths-resolver-did-web = { version = "0.1.0", path = "product/integrations/auths-resolver-did-web" }
+auths-evidence-assemblers = { version = "0.1.0", path = "product/integrations/auths-evidence-assemblers" }
+auths-custody = { version = "0.1.0", path = "product/integrations/auths-custody" }
 async-trait = "0.1.91"
+getrandom = "0.3.4"
 iroh = { version = "1.0.3", default-features = false, features = ["tls-ring"] }
-reqwest = { version = "0.13.4", default-features = false, features = ["rustls"] }
+reqwest = { version = "0.13.4", default-features = false, features = ["blocking", "rustls"] }
+rmcp = { version = "1.8.0", default-features = false, features = ["server"] }
+serde_json_canonicalizer = "0.3.2"
 tempfile = "3.27.0"
 tokio = { version = "1.48.0", features = ["fs", "io-util", "macros", "net", "rt-multi-thread", "sync", "time"] }
+toml = "0.9.8"
 base64ct = { version = "1.8.3", default-features = false, features = ["alloc"] }
 blake3 = { version = "1.8.4", default-features = false, features = ["pure"] }
 bs58 = { version = "0.5.1", default-features = false, features = ["alloc"] }

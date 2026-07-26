@@ -1,0 +1,21 @@
+[package]
+name = "auths-profile-mcp"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+rust-version = "1.91"
+description = "Canonical Auths action profile for exact MCP tool calls"
+
+[dependencies]
+auths-model.workspace = true
+auths-verifier.workspace = true
+auths-profile-api.workspace = true
+hex.workspace = true
+rmcp.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_json_canonicalizer.workspace = true
+sha2.workspace = true
+
+[lints]
+workspace = true

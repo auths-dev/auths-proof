@@ -1,0 +1,15 @@
+[package]
+name = "auths-enforcement"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+rust-version = "1.91"
+description = "Transport-neutral in-process enforcement kit for Auths V1"
+
+[dependencies]
+auths-profile-api.workspace = true
+auths-sdk.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

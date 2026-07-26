@@ -1,0 +1,27 @@
+[package]
+name = "auths-runtime"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+rust-version = "1.91"
+description = "Authorization-before-execution service for Auths-protected MCP tools"
+
+[dependencies]
+auths-profile-mcp.workspace = true
+auths-profile-api.workspace = true
+auths-receipts.workspace = true
+auths-proof-exchange-model.workspace = true
+auths-proof-exchange-port.workspace = true
+auths-model.workspace = true
+auths-operations.workspace = true
+auths-codec.workspace = true
+auths-ports.workspace = true
+auths-registries.workspace = true
+auths-verifier.workspace = true
+async-trait.workspace = true
+getrandom.workspace = true
+sha2.workspace = true
+subtle.workspace = true
+
+[lints]
+workspace = true

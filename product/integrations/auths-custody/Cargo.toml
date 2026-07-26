@@ -1,0 +1,19 @@
+[package]
+name = "auths-custody"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+rust-version = "1.91"
+description = "External WebAuthn, workload, KMS, HSM, and PKCS#11 signing boundary"
+
+[dependencies]
+auths-author.workspace = true
+auths-model.workspace = true
+sha2.workspace = true
+subtle.workspace = true
+
+[dev-dependencies]
+ed25519-dalek.workspace = true
+
+[lints]
+workspace = true

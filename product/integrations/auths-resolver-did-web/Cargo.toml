@@ -1,0 +1,18 @@
+[package]
+name = "auths-resolver-did-web"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+rust-version = "1.91"
+description = "Policy-constrained live did:web evidence acquisition for Auths applications"
+
+[dependencies]
+auths-codec.workspace = true
+auths-did-web.workspace = true
+auths-model.workspace = true
+reqwest.workspace = true
+serde_json.workspace = true
+serde_json_canonicalizer.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,14 @@
+[package]
+name = "auths-profile-api"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+rust-version = "1.91"
+description = "Sealed verified-action profile boundary for Auths applications"
+
+[dependencies]
+auths-model.workspace = true
+auths-verifier.workspace = true
+
+[lints]
+workspace = true
