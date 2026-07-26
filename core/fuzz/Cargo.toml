@@ -2,24 +2,25 @@
 name = "auths-proof-fuzz"
 version = "0.1.0"
 edition = "2021"
+license.workspace = true
 publish = false
 
 [dependencies]
-auths-model = { path = "../crates/auths-model", default-features = false }
-auths-codec = { path = "../crates/auths-codec", default-features = false }
-auths-composition = { path = "../crates/auths-composition", default-features = false }
-auths-ports = { path = "../crates/auths-ports", default-features = false }
-auths-registries = { path = "../crates/auths-registries", default-features = false }
-auths-verifier = { path = "../crates/auths-verifier", default-features = false }
-auths-did-key = { path = "../adapters/auths-did-key", default-features = false }
-auths-did-keri = { path = "../adapters/auths-did-keri", default-features = false }
-auths-did-web = { path = "../adapters/auths-did-web", default-features = false }
-auths-hsm-attested = { path = "../adapters/auths-hsm-attested", default-features = false }
-auths-spiffe-x509 = { path = "../adapters/auths-spiffe-x509", default-features = false }
-auths-multikey = { path = "../crates/auths-multikey", default-features = false }
-auths-raw-key = { path = "../adapters/auths-raw-key", default-features = false }
-auths-signature = { path = "../crates/auths-signature", default-features = false }
-auths-webauthn = { path = "../adapters/auths-webauthn", default-features = false }
+auths-model.workspace = true
+auths-codec.workspace = true
+auths-composition.workspace = true
+auths-ports.workspace = true
+auths-registries.workspace = true
+auths-verifier.workspace = true
+auths-did-key.workspace = true
+auths-did-keri.workspace = true
+auths-did-web.workspace = true
+auths-hsm-attested.workspace = true
+auths-spiffe-x509.workspace = true
+auths-multikey.workspace = true
+auths-raw-key.workspace = true
+auths-signature.workspace = true
+auths-webauthn.workspace = true
 libfuzzer-sys = "0.4"
 
 [[bin]]

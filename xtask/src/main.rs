@@ -230,7 +230,7 @@ fn npm_package_smoke() -> Result<(), String> {
 
 fn core_msrv() -> Result<(), String> {
     let policy = load_architecture_policy()?;
-    let toolchain = env::var("AUTHS_CORE_MSRV_TOOLCHAIN").unwrap_or_else(|_| "1.85.1".to_owned());
+    let toolchain = env::var("AUTHS_CORE_MSRV_TOOLCHAIN").unwrap_or_else(|_| "1.88.0".to_owned());
     let mut command = Command::new("cargo");
     command
         .arg(format!("+{toolchain}"))
