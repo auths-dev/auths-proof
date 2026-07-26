@@ -12,9 +12,25 @@ embed the deployed demo but remains a separate repository.
 
 ## Current Implementation Boundary
 
-The first executable vertical slice now lives in `demos/live-lab`. It is a
-generated static lab, built from repository-owned fixtures and actual Auths
-implementations rather than hand-authored verdict JSON.
+The first public vertical slice now spans:
+
+- `demos/live-lab`: generated browser application and real WASM verifier;
+- `demos/live-service`: bounded native Rust session and execution service; and
+- `demos/testkit/auths-apps-testkit`: shared challenge-bound fixtures and real
+  runtime harness.
+
+It is deployed at:
+
+- browser lab: `https://auths-live-demo.vercel.app`;
+- native API: `https://auths-live-demo.fly.dev`; and
+- Fly regions: London (`lhr`) and Virginia (`iad`), one always-on Machine in
+  each region.
+
+The lab is generated from repository-owned fixtures and actual Auths
+implementations rather than hand-authored verdict JSON. A production browser
+creates a short-lived native session, verifies its session-specific proof in
+WASM, submits only a bounded repository-owned experiment identifier, and
+compares the browser result digest with the native result digest.
 
 This slice proves:
 
@@ -26,8 +42,17 @@ This slice proves:
 - Required and executed verifier configurations are both visible. The valid
   case asserts equality; the drift case asserts inequality and
   `verifier-configuration-mismatch`.
+- A fresh production session carries a cryptographically random challenge and
+  an authenticated owner token bound to region, session, expiry, and release.
 - The real native MCP runtime executes once, persists signed decision and
-  execution receipts, and rejects an identical replay as a consumed challenge.
+  execution receipts in the session runtime, and rejects an identical replay
+  as a consumed challenge without invoking the executor twice.
+- Hostile variants are denied by the portable verifier and never enter the
+  runtime executor boundary.
+- Cross-region execution requests are replayed by Fly Proxy to the
+  authenticated session-owner region.
+- The browser fails closed if schema, release ID, protocol, portable ABI,
+  verifier configuration, WASM digest, or per-result digest disagrees.
 - All experiment inputs are preloaded, so browser verification continues after
   the network disconnects.
 
@@ -41,13 +66,12 @@ It regenerates `target/live-demo/site`, enforces the exact bundle shape, and
 runs byte-for-byte native/WASM parity for all four variants. `cargo xtask ci`,
 `cargo xtask demos`, and `cargo xtask compliance` all include this check.
 
-This slice is not yet the public target described below. It has one demo actor,
-one raw-key root, no stateful budget, no live session API, and no external
-deployment. The native runtime evidence is generated at build time rather than
-served by a network service. The two-actor/two-root ceremony, budget behavior,
-receipt explorer, public service, and multi-region deployment remain subsequent
-phases. The UI must label these boundaries and must not imply they are already
-implemented.
+This first public release intentionally remains narrower than the flagship
+target below. It has one demo actor, one raw-key root, no stateful budget,
+no receipt explorer, no event stream, and no two-actor/two-root approval
+ceremony. The safe executor performs no external action. The build-time native
+scenario remains as an offline fallback and CI oracle, while live execution
+uses per-session challenges and runtime state from the native service.
 
 ## Audience and Story
 
@@ -162,9 +186,9 @@ The default view hides raw CBOR and cryptographic detail.
 
 ## Architecture
 
-The diagram in this section is the target public architecture. The current
-`demos/live-lab` slice contains the browser and a deterministic native scenario
-generator; it does not yet expose the native service over a network boundary.
+The diagram in this section includes the deployed browser/native boundary. The
+approval simulator, budget store, receipt explorer, and event stream remain
+target-state components rather than claims about the first public release.
 
 ```text
 +--------------------------- Browser --------------------------------+
@@ -206,15 +230,17 @@ As verified on 26 July 2026, the authenticated Fly.io account contains:
 | --- | --- | --- |
 | `auths-network` | London (`lhr`) | One started Machine with passing checks |
 | `auths-network-2` | Virginia (`iad`) | One started Machine with passing checks |
+| `auths-live-demo` | London (`lhr`) | One always-on 512 MB Machine, check 1/1 |
+| `auths-live-demo` | Virginia (`iad`) | One always-on 512 MB Machine, check 1/1 |
 
-These deployments establish the two available GEOs but are separate Fly apps.
-They must not become independent authorities over the same replay, budget, or
-execution state. The demo should not reuse either app's production authority
-or implicitly couple the demo lifecycle to the network services.
+The two `auths-network` deployments established the available GEOs but remain
+separate Fly apps. The demo does not reuse either app's production authority or
+couple its lifecycle to those network services. Both demo Machines live in the
+dedicated `auths-live-demo` app and run the same immutable image.
 
 ### Selected topology
 
-Use four deployment environments:
+The target deployment model has four surfaces:
 
 | Surface | Staging | Production |
 | --- | --- | --- |
@@ -224,6 +250,17 @@ Use four deployment environments:
 Each Fly app contains one Machine in `lhr` and one in `iad`. This is preferable
 to maintaining one app per region because Fly Proxy can route a session to its
 owning region or Machine inside one deployment and one configuration boundary.
+
+The first public release deploys the production pair only:
+
+| Surface | Deployed target |
+| --- | --- |
+| Browser UI and WASM | Vercel project `auths-live-demo`, Production alias |
+| Native demo service | Fly app `auths-live-demo`, `lhr` + `iad` |
+
+`auths-live-demo-staging` and a paired Vercel Preview have not been
+provisioned. They remain required before an automated preview-to-production
+promotion pipeline can claim full environment isolation.
 
 ```text
 +------------------------- Vercel --------------------------+
@@ -256,7 +293,7 @@ The initial `POST /api/v1/sessions` is handled in the nearest healthy Fly
 region. The response contains an authenticated opaque session token binding:
 
 - random session ID;
-- owner Fly app, region, and Machine;
+- owner region;
 - release ID;
 - absolute expiry; and
 - token version.
@@ -265,6 +302,14 @@ All later stateful requests are handled by that owner. A request received by a
 different Machine is replayed to the owner with Fly dynamic request routing.
 The application validates the authenticated ownership claim before issuing a
 `fly-replay` response; it never trusts a visitor-supplied region header.
+
+The first release deliberately runs exactly one Machine per region. The token
+does not encode a Fly Machine ID: the dedicated app/secret boundary identifies
+the service, and the authenticated region identifies its sole Machine. Adding
+a second Machine to either region without introducing explicit Machine
+affinity or shared regional state would violate session ownership. Deployment
+checks must therefore continue to assert one healthy Machine in each configured
+region.
 
 The demo keeps proof and request limits below Fly's 1 MB replay ceiling. If a
 future profile legitimately exceeds that ceiling, the client must address the
@@ -289,27 +334,29 @@ consensus-backed global store and is not part of the first public demo.
 
 ### State and TTLs
 
-Sessions have a fixed **15-minute absolute TTL** from creation. Activity does
-not extend it. The remaining lifetimes are:
+First-release state is deliberately bounded and ephemeral:
 
-| State | Lifetime |
+| State or limit | Current value |
 | --- | --- |
-| Approval ceremony | No later than session expiry |
-| Issued execution challenge | Five minutes and never later than session expiry |
-| Event replay buffer | Session lifetime |
-| Signed receipt retrieval | One hour |
-| Rate-limit counters | Fifteen-minute rolling window |
+| Session and challenge | 15-minute absolute TTL; activity does not extend it |
+| Regional session pool | 2,048 sessions |
+| Attempts per session | 16 |
+| Session creations | 120 per regional Machine per rolling minute |
+| Request body | 4 KiB |
+| Receipt lifetime | In-memory session lifetime; no retrieval endpoint yet |
+| Event replay buffer | Not implemented |
+| Stateful budget | Not implemented |
 
-The owner uses a local transactional store. One atomic transaction:
+Each Machine owns an in-memory session map. The production runtime's atomic
+challenge ledger guarantees that the exact challenge can drive the safe
+executor once. The runtime records one signed decision receipt and one signed
+execution receipt; an exact retry is refused as `consumed-challenge` and the
+executor count remains one.
 
-1. claims the challenge through a uniqueness constraint;
-2. reserves the requested budget;
-3. records the sealed verified command;
-4. increments the safe executor counter; and
-5. commits the immutable execution record.
-
-Receipt signing is idempotent over the committed execution record. A retry may
-return the same receipt but must never invoke the executor again.
+Machine restart or replacement intentionally loses its sessions. Those
+sessions fail closed and visitors must create a fresh session. Durable receipt
+retrieval, an explicit budget transaction, and drain-preserving deployment are
+target-state work.
 
 Production Machines remain running in both regions to avoid a cold-start pause
 during the guided tour. Use `auto_stop_machines = "off"` in production.
@@ -320,21 +367,19 @@ GEOs. See [Fly app configuration](https://fly.io/docs/reference/configuration/).
 
 ### Release identity and configuration parity
 
-CI builds one immutable release bundle containing:
+The first public release binds:
 
 ```text
-release_id
-git_commit
-native_image_digest
+release_id = git commit
 wasm_sha256
 protocol_major
+portable_abi
 verifier_configuration_id
-canonical_corpus_digest
 ```
 
-Both Fly regions receive the same image, demo custody material, trust records,
-and verifier configuration. Keys may rotate between releases but not
-independently between regions in one release.
+Fly records the immutable native image reference as deployment metadata. The
+image digest and canonical corpus digest are not yet returned by
+`GET /api/v1/meta`; adding them remains release-hardening work.
 
 `GET /api/v1/meta` returns the public release fields. The frontend embeds its
 expected release ID, WASM digest, protocol major, and verifier configuration
@@ -343,7 +388,120 @@ match the backend.
 
 ### Deployment and promotion
 
-Every candidate follows this path:
+#### Production deployment record
+
+Deployed and verified on 26 July 2026:
+
+| Field | Value |
+| --- | --- |
+| Browser alias | `https://auths-live-demo.vercel.app` |
+| Immutable browser URL | `https://auths-live-demo-3etkd5d8q-bordumbs-projects.vercel.app` |
+| Vercel deployment | `dpl_3XhMh1bfTpakH8ZEFMEU21DdU2zp` |
+| Native API | `https://auths-live-demo.fly.dev` |
+| Release ID | `18ae8fa4737cbc54ce9928ccda723cd3bea45010` |
+| WASM SHA-256 | `2d5b8aa9982f6ee04e107f37727ade56eedd99676c7c1801ed3d9d94f2a2f9c8` |
+| Verifier configuration | `df14e85024bf099cef6396b1a3515209625d73a86ed1da92b118dddcf6a486d5` |
+| Fly release | Version 2, `9zA0gKNwwbBAqT08LlgyADxOB` |
+| Fly image | `registry.fly.io/auths-live-demo:deployment-01KYG1BCY59668ASFKA5YKASX7` |
+| London Machine | `8d96959be23498`, started, check 1/1 |
+| Virginia Machine | `7812615f2201d8`, started, check 1/1 |
+
+Production evidence:
+
+- The complete `cargo xtask ci` gate passed, including workspace tests,
+  clippy/docs, MSRV 1.91, no-std boundaries, corpus and transport conformance,
+  bindings, packaging, fuzz seeds, live-demo parity, and product compliance.
+- `GET /healthz` and `GET /api/v1/meta` succeeded in both `lhr` and `iad`.
+- Both regions returned the exact release, WASM, ABI, protocol, and verifier
+  configuration expected by the Vercel bundle.
+- A session created in `lhr` and submitted with `iad` preferred was routed back
+  to `lhr`, executed once, and produced one decision plus one execution receipt.
+- Its exact replay returned `refused / consumed-challenge`; executor and receipt
+  counts remained one.
+- A fresh `iad` session with a tampered proof was denied before entering the
+  runtime, with zero executor invocations.
+- A real production browser showed `READY / NOT RUN / 0`, then
+  `COMPLETED / READY / 1`, then
+  `COMPLETED / CONSUMED-CHALLENGE / 1`; the replay control became disabled.
+- The hostile browser flow showed `DENIED / NOT ENTERED / 0` and browser/native
+  result-digest parity remained `MATCH`.
+- The exact production origin passed CORS. An untrusted origin received the
+  fixed production allow-origin value rather than its own origin, so browser
+  access fails by origin mismatch.
+- A request body larger than 4 KiB returned HTTP 413.
+- Vercel returned HTTPS preload, CSP, clickjacking, MIME-sniffing, referrer, and
+  permissions headers; the CSP permits network access only to the Fly API.
+
+#### Reproducible production procedure
+
+Run the authoritative repository gates first:
+
+```text
+cargo xtask ci
+AUTHS_LIVE_RELEASE_ID=<40-character-git-commit> cargo xtask live-demo
+```
+
+The Fly token-signing secret is a random 32-byte value and must never be
+printed, committed, or passed as a command-line argument. On first provision,
+stage it through standard input:
+
+```text
+flyctl secrets import -a auths-live-demo --stage
+AUTHS_LIVE_TOKEN_KEY=<64-lowercase-hex-characters>
+<end standard input>
+```
+
+Deploy the native service and assert the two-region shape:
+
+```text
+flyctl deploy . -c demos/live-service/fly.toml -a auths-live-demo --ha=false \
+  --env AUTHS_LIVE_RELEASE_ID=<40-character-git-commit> \
+  --env AUTHS_LIVE_WASM_SHA256=<64-character-wasm-sha256> \
+  --env AUTHS_LIVE_ALLOWED_ORIGIN=https://auths-live-demo.vercel.app
+flyctl scale count 2 -a auths-live-demo -r lhr,iad --max-per-region 1 -y
+flyctl machines list -a auths-live-demo
+```
+
+Deploy the exact generated directory, not a separately rebuilt frontend:
+
+```text
+npx --yes vercel@latest deploy target/live-demo/site \
+  --project auths-live-demo --prod --yes
+```
+
+After deployment, verify both preferred regions, the metadata handshake, a
+fresh valid submission, its exact replay, every hostile variant, the request
+limits, CORS, CSP, and the same transitions in a real browser.
+
+#### Current rollback procedure
+
+The first release updates Machines in place, so active in-memory sessions do
+not survive either deployment or rollback. They fail closed and visitors must
+reset. There is also a short interval where one surface may reject the other
+because release IDs disagree; that is intentional fail-closed behavior.
+
+Rollback the native service to the preceding image and release identity:
+
+```text
+flyctl deploy -a auths-live-demo -c demos/live-service/fly.toml --ha=false \
+  --image registry.fly.io/auths-live-demo:deployment-01KYG0N6YNQ6CQ3TCTCFPP4H5R \
+  --env AUTHS_LIVE_RELEASE_ID=131065f83a951916ec129ccdf3fb43fb7a6047dc \
+  --env AUTHS_LIVE_WASM_SHA256=2d5b8aa9982f6ee04e107f37727ade56eedd99676c7c1801ed3d9d94f2a2f9c8 \
+  --env AUTHS_LIVE_ALLOWED_ORIGIN=https://auths-live-demo.vercel.app
+```
+
+Then restore the paired preceding Vercel deployment:
+
+```text
+npx --yes vercel@latest rollback dpl_3xGts3Xuq9XJo2dzGKLhzJYq43f9 --yes
+```
+
+Run the complete production smoke suite again after rollback. Do not roll back
+only one surface and leave it mismatched.
+
+#### Target promotion path
+
+The mature staging-to-production path is:
 
 1. Run monorepo CI and build native, WASM, frontend, and canonical corpus
    artifacts once.
@@ -378,7 +536,15 @@ available until the session TTL passes:
 - configuration disagreement: disable execution globally until parity is
   restored.
 
+The drain-preserving blue/green behavior in this target path is not implemented
+by the current in-place Fly deployment command.
+
 ## Frontend Components
+
+The first release implements the scenario, mutation controls, proof graph,
+browser/native comparison, runtime timeline, configuration comparison, bounded
+metrics, and developer byte/digest view. The approval ceremony, editable
+action, receipt explorer, and reset control remain target work.
 
 - Scenario selector and reset control.
 - Exact action editor with bounded fields.
@@ -398,12 +564,18 @@ runtime events; no security outcome is inferred from UI state.
 
 ## Backend Components
 
+The first release implements the Session Service and the verifier/replay/safe
+executor/receipt portions of the Enforcement Service. The Approval Simulator,
+incremental Proof Assembler, stateful budget, receipt retrieval, and Event
+Stream are target work.
+
 ### Session Service
 
 - Creates short-lived isolated demo sessions.
 - Issues cryptographically random challenges.
 - Applies the fixed 15-minute absolute session TTL.
-- Authenticates and enforces Fly app, region, Machine, and release ownership.
+- Authenticates and enforces region, session, expiry, token version, and release
+  ownership inside the dedicated Fly app.
 - Applies strict request, proof, and session limits.
 - Resets all state on expiry.
 
@@ -425,8 +597,8 @@ not require visitors to enroll credentials.
 
 ### Enforcement Service
 
-- Uses the production profile, SDK, runtime, exchange, replay, budget, and
-  receipt components.
+- Uses the production profile, SDK, runtime, exchange, replay, and receipt
+  components. The budget component remains target work.
 - Executes only the sealed verified command.
 - Uses an isolated deterministic executor.
 - Emits signed decision and execution receipts.
@@ -439,7 +611,21 @@ not require visitors to enroll credentials.
 
 ## Demo API
 
-All endpoints are versioned and bounded.
+The first public release intentionally exposes only:
+
+```text
+GET  /healthz
+GET  /api/v1/meta
+POST /api/v1/sessions
+POST /api/v1/sessions/{session_id}/execute
+```
+
+`execute` accepts an object containing exactly one bounded `variant` ID:
+`valid`, `tampered-action`, `tampered-proof`, or `wrong-configuration`.
+It does not accept visitor-supplied proof bytes, commands, URLs, targets, or
+executor arguments.
+
+The expanded target API remains:
 
 ```text
 POST /api/v1/sessions
@@ -497,25 +683,41 @@ and are not embedded as unconstrained JSON arrays.
 
 ## Security and Abuse Controls
 
-- Demo keys are isolated, labelled, non-production, and rotated during deploy.
-- No visitor-controlled URL, resolver host, command, shell, or external network
-  target is executed.
-- Action fields use typed allowlists and strict size limits.
-- Sessions, approvals, and receipts expire.
-- Per-IP and per-session rate limits apply.
-- Concurrent requests are bounded.
-- Backend state is namespaced by unpredictable session ID.
-- Session ownership tokens are authenticated, expire absolutely, and cannot
-  select an arbitrary Fly region or Machine.
-- CORS allows only the exact Vercel Preview or Production origins assigned to
-  the corresponding Fly environment.
-- Responses never contain private custody material.
-- Logs use privacy-preserving operational events.
-- The executor performs only sandboxed state transitions.
-- Security headers, CSP, dependency pinning, and supply-chain checks are part
-  of deployment CI.
+Implemented controls:
+
+- Demo custody is isolated and non-production.
+- No visitor-controlled URL, resolver host, command, shell, proof bytes,
+  external target, or executor argument is accepted.
+- Only four typed experiment identifiers are accepted.
+- Requests, sessions, attempts, regional capacity, and creation rate are
+  bounded.
+- Backend state is namespaced by a random 128-bit session ID.
+- Session owner tokens use HMAC-SHA-256, expire absolutely, and bind the
+  session, region, and release before any `Fly-Replay` response is emitted.
+- CORS always names the exact Vercel Production origin; an untrusted origin
+  cannot make it reflect the attacker origin.
+- Responses contain no private custody material, and the bearer token remains
+  only in browser memory.
+- The executor performs only an isolated deterministic state transition.
+- Both surfaces emit no-store and security headers; Vercel enforces a strict
+  CSP.
+- Docker runs the native service as distroless non-root, and CI checks its Fly,
+  Docker, Vercel, release-parity, architecture, dependency, and supply-chain
+  policy.
+
+Still required for the flagship target:
+
+- per-IP distributed rate limiting rather than the current per-Machine
+  creation limiter;
+- production operational event logging and alerting;
+- automated demo-key/token-key rotation;
+- load and fault-injection tests; and
+- separate staging origins and secrets.
 
 ## Observability
+
+The current release exposes Fly health checks plus public region and release
+metadata. It does not yet emit the target operational metrics below.
 
 Track:
 
@@ -551,12 +753,12 @@ demo closed.
 - [x] Exercise the native MCP runtime, real challenge ledger, safe executor,
       replay gate, and signed receipt producer during deterministic generation.
 - [x] Compare browser/native canonical result bytes in CI.
-- [ ] Add a bounded native demo service and session API.
-- [ ] Move challenge issuance and execution from build-time evidence to
+- [x] Add a bounded native demo service and session API.
+- [x] Move challenge issuance and execution from build-time evidence to
       per-session requests.
 - [ ] Add the real budget gate and independently verify receipt signatures in
       the lab.
-- [ ] Fail the interactive service closed on browser/native release or result
+- [x] Fail the interactive service closed on browser/native release or result
       disagreement.
 
 ### Phase 3: Approval Ceremony
@@ -568,35 +770,52 @@ demo closed.
 
 ### Phase 4: Public Hardening
 
-- Add abuse controls, deployment isolation, observability, fault injection,
-  accessibility, mobile layout, and load tests.
-- Create separate staging and production Fly apps, each in `lhr` and `iad`.
-- Add region/Machine-bound session routing and fail-closed owner loss.
-- Add Vercel Preview-to-staging and Production-to-production environment
-  isolation.
-- Add immutable release metadata, two-region smoke tests, draining, promotion,
-  and rollback automation.
-- Publish a stable URL and link/embed it from `auths-proof-site`.
+- [x] Add strict session, attempt, rate, request, CORS, CSP, container, and
+      execution controls.
+- [x] Deploy production Fly Machines in `lhr` and `iad`.
+- [x] Add authenticated region ownership, dynamic owner routing, and
+      fail-closed session loss.
+- [x] Add immutable release metadata and two-region production smoke tests.
+- [x] Publish a stable production URL.
+- [ ] Add distributed rate limiting, observability, fault injection,
+      accessibility audit, and load tests.
+- [ ] Create a separate staging Fly app in `lhr` and `iad`.
+- [ ] Add Vercel Preview-to-staging and Production-to-production environment
+      isolation.
+- [ ] Add drain-preserving blue/green promotion and automated rollback.
+- [ ] Link or embed the stable URL from `auths-proof-site`.
 
 ## Acceptance Criteria
 
-- Every verdict is produced by real Auths code.
-- Browser and native verification return identical canonical result digests.
-- Mutating any signed action field prevents execution.
-- Actor and root diversity experiments behave independently.
-- Replay and concurrent duplicate experiments execute exactly once.
-- Required/local configuration mismatch is visible and actionable.
-- Decision and execution receipts verify independently.
-- Browser verification works after network disconnection.
-- The demo contains no production authority or external execution capability.
-- End-to-end tests run in monorepo CI using built WASM and native artifacts.
-- New sessions can be created in both `lhr` and `iad`.
-- A session remains bound to exactly one Fly owner and cannot execute in the
-  other region.
-- Loss of the owner fails closed and permits only an explicit session reset.
-- Vercel Preview uses only the staging Fly app, and Vercel Production uses only
-  the production Fly app.
-- The UI refuses execution when release, WASM, protocol, or verifier
-  configuration metadata disagree.
-- Old Fly Machines remain available for the full 15-minute drain window during
-  a deployment.
+Current first-release status:
+
+- [x] Every displayed verdict is produced by real Auths code.
+- [x] Browser and native verification return identical canonical result
+      digests.
+- [x] Every shipped signed-action mutation prevents execution.
+- [x] Exact replay executes once and returns `consumed-challenge` without a
+      second executor invocation.
+- [x] Required/local configuration mismatch is visible and actionable.
+- [x] The runtime creates signed decision and execution receipts.
+- [x] Browser verification continues with inputs already loaded when the native
+      service is disconnected.
+- [x] The demo contains no production authority or external execution
+      capability.
+- [x] End-to-end tests run in monorepo CI using built WASM and native artifacts.
+- [x] New sessions can be created in both `lhr` and `iad`.
+- [x] A session remains bound to one owner region and cross-region requests are
+      replayed to it.
+- [x] Loss of in-memory owner state fails closed and permits only a fresh
+      session.
+- [x] The UI refuses execution when release, WASM, protocol, ABI, verifier
+      configuration, or result metadata disagree.
+- [ ] Actor and root diversity experiments behave independently.
+- [ ] The stateful budget experiment enforces blast radius.
+- [ ] Concurrent duplicate API requests are exercised by the public smoke
+      suite and execute exactly once.
+- [ ] Decision and execution receipt signatures are independently verified in
+      the browser.
+- [ ] Vercel Preview uses only the staging Fly app, while Vercel Production
+      uses only the production Fly app.
+- [ ] Old Fly Machines remain available for the full 15-minute drain window
+      during deployment.
