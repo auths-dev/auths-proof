@@ -5,6 +5,7 @@ edition = "2024"
 license.workspace = true
 rust-version = "1.91"
 description = "Target V1 end-to-end fixtures and conformance for Auths MCP"
+publish = false
 
 [dependencies]
 auths-profile-mcp.workspace = true

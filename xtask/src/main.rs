@@ -462,26 +462,54 @@ fn product_fixtures(update: bool) -> Result<(), String> {
 }
 
 fn package_check() -> Result<(), String> {
-    cargo(&[
-        "package",
-        "--workspace",
-        "--exclude",
-        "xtask",
-        "--exclude",
-        "auths-proof-fuzz",
-        "--exclude",
-        "auths-proof-offline-example",
-        "--exclude",
-        "auths-apps-testkit",
-        "--exclude",
-        "auths-lab-matrix",
-        "--exclude",
-        "auths-lab-wasm-bench",
-        "--exclude",
-        "auths-mcp-demo",
-        "--allow-dirty",
-        "--no-verify",
-    ])
+    let metadata = Command::new("cargo")
+        .args(["metadata", "--format-version", "1", "--no-deps", "--locked"])
+        .current_dir(root())
+        .output()
+        .map_err(|error| format!("could not inspect package publication policy: {error}"))?;
+    if !metadata.status.success() {
+        return Err("cargo metadata failed while selecting publishable packages".to_owned());
+    }
+    let metadata: Value = serde_json::from_slice(&metadata.stdout)
+        .map_err(|error| format!("could not parse package publication policy: {error}"))?;
+    let packages = metadata["packages"]
+        .as_array()
+        .ok_or("cargo metadata has no packages")?;
+    let policy = load_architecture_policy()?;
+    let mut private = Vec::new();
+    for package in packages {
+        let name = package["name"]
+            .as_str()
+            .ok_or("workspace package has no name")?;
+        let publishable = package_is_publishable(package);
+        let layer = policy
+            .packages
+            .get(name)
+            .ok_or_else(|| format!("package {name} is not classified"))?;
+        if matches!(layer.as_str(), "demos" | "tooling") && publishable {
+            return Err(format!(
+                "{layer} package {name} must declare publish = false"
+            ));
+        }
+        if !publishable {
+            private.push(name.to_owned());
+        }
+    }
+    private.sort();
+    let mut arguments = vec!["package".to_owned(), "--workspace".to_owned()];
+    for name in private {
+        arguments.push("--exclude".to_owned());
+        arguments.push(name);
+    }
+    arguments.extend(["--allow-dirty".to_owned(), "--no-verify".to_owned()]);
+    let argument_refs = arguments.iter().map(String::as_str).collect::<Vec<_>>();
+    cargo(&argument_refs)
+}
+
+fn package_is_publishable(package: &Value) -> bool {
+    !package["publish"]
+        .as_array()
+        .is_some_and(|registries| registries.is_empty())
 }
 
 fn spec_sync() -> Result<(), String> {
@@ -705,16 +733,7 @@ fn release_check() -> Result<(), String> {
     if !status.success() {
         return Err(format!("documentation build failed with {status}"));
     }
-    cargo(&[
-        "package",
-        "--workspace",
-        "--exclude",
-        "xtask",
-        "--exclude",
-        "auths-proof-offline-example",
-        "--allow-dirty",
-        "--no-verify",
-    ])?;
+    package_check()?;
     release_evidence()?;
     println!("release checks passed");
     Ok(())
@@ -775,10 +794,7 @@ fn release_evidence() -> Result<(), String> {
         package["id"]
             .as_str()
             .is_some_and(|id| workspace_members.contains(id))
-            && !matches!(
-                package["name"].as_str(),
-                Some("xtask" | "auths-proof-offline-example")
-            )
+            && package_is_publishable(package)
     }) {
         let name = package["name"]
             .as_str()

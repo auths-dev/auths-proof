@@ -5,10 +5,10 @@ edition = "2024"
 license.workspace = true
 rust-version = "1.91"
 description = "Bounded factorial experiment and operator-study model for Auths Lab"
+publish = false
 
 [dependencies]
 sha2.workspace = true
 
 [lints]
 workspace = true
-

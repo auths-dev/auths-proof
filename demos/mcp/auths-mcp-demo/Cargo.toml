@@ -5,6 +5,7 @@ edition = "2024"
 license.workspace = true
 rust-version = "1.91"
 description = "Focused target V1 Auths MCP demonstration"
+publish = false
 
 [dependencies]
 auths-apps-testkit.workspace = true
