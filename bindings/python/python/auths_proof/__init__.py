@@ -257,6 +257,8 @@ def _decode_result(
 ]:
     reader = _Reader(data)
     fields = reader.map()
+    if fields != 16:
+        raise ValueError("invalid Auths result shape")
     decision: int | None = None
     stage_number: int | None = None
     code: str | None = None
@@ -264,12 +266,10 @@ def _decode_result(
     required_configuration: bytes | None = None
     local_configuration: bytes | None = None
     abi_version: int | None = None
-    previous_key = -1
-    for _ in range(fields):
+    for expected_key in range(fields):
         key = reader.uint()
-        if key <= previous_key:
-            raise ValueError("result map keys are not canonical")
-        previous_key = key
+        if key != expected_key:
+            raise ValueError("result map keys are not the exact canonical sequence")
         if key == 0:
             decision = reader.uint()
         elif key == 1:
@@ -294,6 +294,8 @@ def _decode_result(
             reader.skip()
     if not reader.complete:
         raise ValueError("trailing CBOR result bytes")
+    if abi_version != 2:
+        raise ValueError("unsupported Auths result ABI version")
     kinds: dict[int, VerdictKind] = {
         0: "authorized",
         1: "denied",
@@ -312,7 +314,6 @@ def _decode_result(
         or code is None
         or metrics is None
         or local_configuration is None
-        or abi_version != 2
     ):
         raise ValueError("incomplete Auths result")
     return (

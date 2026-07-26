@@ -55,6 +55,8 @@ impl ProbeResult {
 pub struct ReadinessReport {
     config_digest_hex: String,
     context_digest_hex: String,
+    required_configuration_hex: String,
+    executed_configuration_hex: String,
     probes: Vec<ProbeResult>,
 }
 
@@ -75,6 +77,18 @@ impl ReadinessReport {
     #[must_use]
     pub fn context_digest_hex(&self) -> &str {
         &self.context_digest_hex
+    }
+
+    /// Returns the verifier configuration demanded by the trusted context.
+    #[must_use]
+    pub fn required_configuration_hex(&self) -> &str {
+        &self.required_configuration_hex
+    }
+
+    /// Returns the verifier configuration installed by this process.
+    #[must_use]
+    pub fn executed_configuration_hex(&self) -> &str {
+        &self.executed_configuration_hex
     }
 
     /// Returns probe results sorted by stable subsystem name.
@@ -131,6 +145,8 @@ pub fn readiness(
     Ok(ReadinessReport {
         config_digest_hex: hex(configuration.config_digest().as_bytes()),
         context_digest_hex: hex(configuration.context_digest().as_bytes()),
+        required_configuration_hex: hex(configuration.required_configuration().as_bytes()),
+        executed_configuration_hex: hex(configuration.executed_configuration().as_bytes()),
         probes: results,
     })
 }
@@ -344,6 +360,18 @@ impl std::error::Error for OperationalError {}
 mod tests {
     use super::*;
 
+    struct Ready;
+
+    impl ReadinessProbe for Ready {
+        fn name(&self) -> &'static str {
+            "registry"
+        }
+
+        fn check(&self) -> Result<(), OperationalError> {
+            Ok(())
+        }
+    }
+
     #[test]
     fn metrics_expose_only_stable_dimensions() {
         let metrics = InMemoryMetrics::default();
@@ -357,5 +385,39 @@ mod tests {
         metrics.record(&event);
         metrics.record(&event);
         assert_eq!(metrics.snapshot()[0].1, (2, 34));
+    }
+
+    #[test]
+    fn readiness_exposes_required_and_executed_configuration_ids() {
+        let context = auths_codec::decode_verifier_context(include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../core/fixtures/v1/valid/raw-key-chain.context.cbor"
+        )))
+        .unwrap();
+        let config = auths_config::AuthsConfig::from_toml(
+            r#"
+protocol = 1
+profiles = [{ id = "auths.mcp", version = 1 }]
+[runtime]
+challenge_ttl_seconds = 30
+max_body_bytes = 1048576
+max_proof_bytes = 16777216
+channel_policy = "none"
+[stores]
+replay_capacity = 4096
+verification_cache_capacity = 1024
+receipt_policy = "fail-closed"
+"#,
+        )
+        .unwrap()
+        .compile()
+        .unwrap();
+        let configuration = context.configuration();
+        let bound = config.bind_context(&context, configuration).unwrap();
+        let report = readiness(&bound, &["registry"], &[&Ready]).unwrap();
+        let expected = hex(configuration.as_bytes());
+        assert!(report.is_ready());
+        assert_eq!(report.required_configuration_hex(), expected);
+        assert_eq!(report.executed_configuration_hex(), expected);
     }
 }

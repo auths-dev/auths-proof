@@ -307,6 +307,9 @@ function decodeResult(bytes: Uint8Array): DecodedResult {
   let abiVersion = -1n;
   for (let index = 0; index < 16; index += 1) {
     const key = Number(reader.uint());
+    if (key !== index) {
+      throw new TypeError("result map keys are not the exact canonical sequence");
+    }
     if (key === 0) decision = Number(reader.uint());
     else if (key === 1) stage = Number(reader.uint());
     else if (key === 2) {
@@ -335,12 +338,14 @@ function decodeResult(bytes: Uint8Array): DecodedResult {
       reader.skip();
     }
   }
+  if (!reader.complete) throw new TypeError("trailing CBOR result bytes");
+  if (abiVersion !== 2n) {
+    throw new TypeError("unsupported Auths result ABI version");
+  }
   if (
-    !reader.complete ||
     !code ||
     metrics.length !== 7 ||
-    localConfiguration === undefined ||
-    abiVersion !== 2n
+    localConfiguration === undefined
   ) {
     throw new TypeError("incomplete Auths result");
   }

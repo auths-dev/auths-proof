@@ -116,6 +116,7 @@ digraph auths_architecture {
   "auths-lab-wasm-bench" -> "auths-verifier" [label="normal"];
   "auths-mcp-demo" -> "auths-apps-testkit" [label="normal"];
   "auths-mcp-demo" -> "auths-proof-exchange-model" [label="normal"];
+  "auths-operations" -> "auths-codec" [label="dev"];
   "auths-operations" -> "auths-config" [label="normal"];
   "auths-ports" -> "auths-model" [label="normal"];
   "auths-profile-api" -> "auths-model" [label="normal"];

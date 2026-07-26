@@ -5,7 +5,7 @@
 use auths_codec::context_digest;
 use auths_model::{
     ChannelBindingId, ContextDigest, Digest, LimitKind, PROTOCOL_V1, ProfileId, ProfileRef,
-    RegistryManifestId, VerifierContext,
+    RegistryManifestId, VerifierConfigurationId, VerifierContext,
 };
 use auths_proof_exchange_model::{ChannelBindingPolicy, MAX_BODY_BYTES, MAX_PROOF_BYTES};
 use serde::{Deserialize, Serialize};
@@ -331,11 +331,12 @@ impl CompiledConfig {
     ///
     /// # Errors
     ///
-    /// Returns a fail-closed diagnostic if profile, channel, or byte-limit
-    /// configuration disagrees with the context.
+    /// Returns a fail-closed diagnostic if profile, channel, byte-limit, or
+    /// required/executed verifier configuration disagrees with the context.
     pub fn bind_context(
         &self,
         context: &VerifierContext,
+        executed_configuration: VerifierConfigurationId,
     ) -> Result<BoundConfiguration, ConfigError> {
         if self
             .profiles
@@ -344,6 +345,7 @@ impl CompiledConfig {
             || context.channel_policy() != &self.signed_channel_binding
             || context.limits().get(LimitKind::CanonicalBodyBytes) > self.max_body_bytes as usize
             || context.limits().get(LimitKind::BundleBytes) > self.max_proof_bytes as usize
+            || context.configuration() != executed_configuration
         {
             return Err(ConfigError::ContextMismatch);
         }
@@ -351,6 +353,8 @@ impl CompiledConfig {
             config_digest: self.digest,
             context_digest: context_digest(context).map_err(|_| ConfigError::ContextMismatch)?,
             registry_manifest: context.accepted_registries().manifest_id(),
+            required_configuration: context.configuration(),
+            executed_configuration,
             profiles: self.profiles.clone(),
         })
     }
@@ -362,6 +366,8 @@ pub struct BoundConfiguration {
     config_digest: Digest,
     context_digest: ContextDigest,
     registry_manifest: RegistryManifestId,
+    required_configuration: VerifierConfigurationId,
+    executed_configuration: VerifierConfigurationId,
     profiles: Vec<ProfileRef>,
 }
 
@@ -382,6 +388,18 @@ impl BoundConfiguration {
     #[must_use]
     pub const fn registry_manifest(&self) -> RegistryManifestId {
         self.registry_manifest
+    }
+
+    /// Returns the verifier configuration required by the trusted context.
+    #[must_use]
+    pub const fn required_configuration(&self) -> VerifierConfigurationId {
+        self.required_configuration
+    }
+
+    /// Returns the verifier configuration actually installed at startup.
+    #[must_use]
+    pub const fn executed_configuration(&self) -> VerifierConfigurationId {
+        self.executed_configuration
     }
 
     /// Returns enabled exact application profiles.
@@ -439,10 +457,7 @@ impl std::error::Error for ConfigError {}
 mod tests {
     use super::*;
 
-    #[test]
-    fn strict_target_configuration_parses() {
-        let config = AuthsConfig::from_toml(
-            r#"
+    const CONFIGURATION: &str = r#"
 protocol = 1
 did_web_allowed_hosts = ["identity.example.com"]
 
@@ -452,22 +467,49 @@ version = 1
 
 [runtime]
 challenge_ttl_seconds = 30
-max_body_bytes = 262144
-max_proof_bytes = 2097152
-channel_policy = "authenticated-peer"
+max_body_bytes = 1048576
+max_proof_bytes = 16777216
+channel_policy = "none"
 
 [stores]
 replay_capacity = 4096
 verification_cache_capacity = 1024
 receipt_policy = "fail-closed"
-"#,
-        )
-        .unwrap();
+"#;
+
+    #[test]
+    fn strict_target_configuration_parses() {
+        let config = AuthsConfig::from_toml(CONFIGURATION).unwrap();
         assert_eq!(config.protocol(), 1);
         assert_eq!(config.profiles().len(), 1);
         let compiled = config.compile().unwrap();
         assert_eq!(compiled.profiles().len(), 1);
         assert_eq!(compiled.signed_channel_binding().as_str(), "none-v1");
+    }
+
+    #[test]
+    fn startup_binding_reports_required_and_executed_configurations() {
+        let context = auths_codec::decode_verifier_context(include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../core/fixtures/v1/valid/raw-key-chain.context.cbor"
+        )))
+        .unwrap();
+        let compiled = AuthsConfig::from_toml(CONFIGURATION)
+            .unwrap()
+            .compile()
+            .unwrap();
+        let required = context.configuration();
+        let bound = compiled.bind_context(&context, required).unwrap();
+        assert_eq!(bound.required_configuration(), required);
+        assert_eq!(bound.executed_configuration(), required);
+        assert_eq!(
+            bound.registry_manifest(),
+            context.accepted_registries().manifest_id()
+        );
+        assert_eq!(
+            compiled.bind_context(&context, VerifierConfigurationId::new([0xa5; 32])),
+            Err(ConfigError::ContextMismatch)
+        );
     }
 
     #[test]
