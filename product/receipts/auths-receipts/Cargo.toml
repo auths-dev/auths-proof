@@ -1,0 +1,16 @@
+[package]
+name = "auths-receipts"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Canonical offline-verifiable Auths decision and execution receipts"
+
+[dependencies]
+auths-model.workspace = true
+auths-ports.workspace = true
+minicbor.workspace = true
+sha2.workspace = true
+
+[lints]
+workspace = true

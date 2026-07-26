@@ -1,0 +1,15 @@
+[package]
+name = "auths-proof-exchange-port"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Semantic proof-exchange port and single-use V1 state machine"
+
+[dependencies]
+auths-proof-exchange-model.workspace = true
+async-trait.workspace = true
+
+[lints]
+workspace = true
+

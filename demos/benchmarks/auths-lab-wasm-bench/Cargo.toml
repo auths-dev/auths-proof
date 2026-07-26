@@ -1,0 +1,23 @@
+[package]
+name = "auths-lab-wasm-bench"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Browser verification benchmark for the target V1 canonical corpus"
+publish = false
+
+[dependencies]
+auths-codec.workspace = true
+auths-ports.workspace = true
+auths-raw-key.workspace = true
+auths-registries.workspace = true
+auths-signature.workspace = true
+auths-testkit.workspace = true
+auths-verifier.workspace = true
+js-sys.workspace = true
+wasm-bindgen-test.workspace = true
+web-sys.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,142 @@
+schema = 1
+
+[layers.core]
+path = "core/"
+allowed_dependencies = ["core"]
+owners = ["@auths-dev/core-maintainers", "@auths-dev/security"]
+
+[layers.exchange]
+path = "exchange/"
+allowed_dependencies = ["core", "exchange"]
+owners = ["@auths-dev/exchange-maintainers", "@auths-dev/security"]
+
+[layers.product]
+path = "product/"
+allowed_dependencies = ["core", "exchange", "product"]
+owners = ["@auths-dev/product-maintainers", "@auths-dev/security"]
+
+[layers.bindings]
+path = "bindings/"
+allowed_dependencies = ["core", "exchange", "product", "bindings"]
+owners = ["@auths-dev/binding-maintainers", "@auths-dev/security"]
+
+[layers.demos]
+path = "demos/"
+allowed_dependencies = ["core", "exchange", "product", "bindings", "demos"]
+owners = ["@auths-dev/product-maintainers"]
+
+[layers.tooling]
+path = "xtask"
+allowed_dependencies = ["core", "exchange", "product", "bindings", "demos", "tooling"]
+owners = ["@auths-dev/architecture", "@auths-dev/security"]
+
+[policy]
+workspace_edition = "2024"
+workspace_resolver = "3"
+workspace_msrv = "1.91"
+development_toolchain = "1.97.1"
+core_forbidden_dependencies = [
+  "actix",
+  "axum",
+  "aws-config",
+  "azure_core",
+  "diesel",
+  "git2",
+  "hyper",
+  "iroh",
+  "keyring",
+  "quinn",
+  "reqwest",
+  "rmcp",
+  "rusqlite",
+  "sea-orm",
+  "sqlx",
+  "tokio",
+  "tonic",
+  "warp",
+]
+core_default_feature_exceptions = ["libfuzzer-sys", "rcgen"]
+approved_build_scripts = []
+approved_native_dependencies = []
+no_std_packages = [
+  "auths-assurance",
+  "auths-author",
+  "auths-authority",
+  "auths-codec",
+  "auths-composition",
+  "auths-did-keri",
+  "auths-did-key",
+  "auths-did-web",
+  "auths-hsm-attested",
+  "auths-model",
+  "auths-multikey",
+  "auths-ports",
+  "auths-proof",
+  "auths-raw-key",
+  "auths-registries",
+  "auths-signature",
+  "auths-spiffe-x509",
+  "auths-verifier",
+  "auths-webauthn",
+]
+
+[packages]
+auths-apps-testkit = "demos"
+auths-assurance = "core"
+auths-author = "core"
+auths-authority = "core"
+auths-cache = "product"
+auths-codec = "core"
+auths-composition = "core"
+auths-config = "product"
+auths-custody = "product"
+auths-deployment = "product"
+auths-did-keri = "core"
+auths-did-key = "core"
+auths-did-web = "core"
+auths-enforcement = "product"
+auths-evidence-assemblers = "product"
+auths-hsm-attested = "core"
+auths-lab-matrix = "demos"
+auths-lab-wasm-bench = "demos"
+auths-mcp-demo = "demos"
+auths-model = "core"
+auths-multikey = "core"
+auths-operations = "product"
+auths-ports = "core"
+auths-profile-api = "product"
+auths-profile-domains = "product"
+auths-profile-kit = "product"
+auths-profile-mcp = "product"
+auths-proof = "core"
+auths-proof-fuzz = "core"
+auths-proof-exchange = "exchange"
+auths-proof-exchange-codec = "exchange"
+auths-proof-exchange-file = "exchange"
+auths-proof-exchange-framing = "exchange"
+auths-proof-exchange-https = "exchange"
+auths-proof-exchange-iroh = "exchange"
+auths-proof-exchange-memory = "exchange"
+auths-proof-exchange-model = "exchange"
+auths-proof-exchange-port = "exchange"
+auths-proof-exchange-tcp = "exchange"
+auths-proof-exchange-testkit = "exchange"
+auths-proof-exchange-unix = "exchange"
+auths-proof-offline-example = "demos"
+auths-proof-python = "bindings"
+auths-proof-wasm = "bindings"
+auths-raw-key = "core"
+auths-receipts = "product"
+auths-registries = "core"
+auths-resolver-did-web = "product"
+auths-runtime = "product"
+auths-sdk = "product"
+auths-signature = "core"
+auths-spiffe-x509 = "core"
+auths-stores = "product"
+auths-testkit = "core"
+auths-verifier = "core"
+auths-webauthn = "core"
+xtask = "tooling"
+
+[exceptions]

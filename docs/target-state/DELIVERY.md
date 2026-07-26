@@ -1,5 +1,8 @@
 # Auths Target-State Delivery Plan
 
+> Historical planning document. It is nonnormative and may describe features
+> absent from the launch contract in `spec/v1/`.
+
 **Status:** Engineering implementation complete; external launch gates pending
 
 **Date:** 25 July 2026

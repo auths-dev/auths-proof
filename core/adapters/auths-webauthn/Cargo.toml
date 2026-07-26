@@ -1,0 +1,31 @@
+[package]
+name = "auths-webauthn"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Pure WebAuthn assertion principal-control method for Auths target V1"
+
+[features]
+default = ["std"]
+std = [
+    "auths-model/std",
+    "auths-ports/std",
+    "base64ct/std",
+    "p256/std",
+    "serde_json/std",
+    "sha2/std",
+]
+
+[dependencies]
+auths-model.workspace = true
+auths-ports.workspace = true
+base64ct.workspace = true
+p256.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+
+[lints]
+workspace = true

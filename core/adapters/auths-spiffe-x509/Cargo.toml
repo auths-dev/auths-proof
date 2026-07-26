@@ -1,0 +1,40 @@
+[package]
+name = "auths-spiffe-x509"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Pure SPIFFE X.509-SVID principal-control method for Auths target V1"
+
+[features]
+default = ["std"]
+std = [
+    "auths-model/std",
+    "auths-ports/std",
+    "base64ct/std",
+    "p256/std",
+    "rustls-pki-types/std",
+    "rustls-webpki/std",
+    "sha2/std",
+]
+
+[dependencies]
+auths-model.workspace = true
+auths-ports.workspace = true
+base64ct.workspace = true
+p256.workspace = true
+rustls-pki-types.workspace = true
+rustls-webpki.workspace = true
+sha2.workspace = true
+x509-parser.workspace = true
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+ring = { workspace = true, features = ["wasm32_unknown_unknown_js"] }
+
+[dev-dependencies]
+rcgen = "=0.13.2"
+
+[lints]
+workspace = true

@@ -1,0 +1,30 @@
+[package]
+name = "auths-raw-key"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Pure raw-key principal-control method for Auths Proof Protocol V1"
+
+[features]
+default = ["std"]
+std = [
+    "auths-model/std",
+    "auths-ports/std",
+    "base64ct/std",
+    "sha2/std",
+]
+
+[dependencies]
+auths-model.workspace = true
+auths-ports.workspace = true
+base64ct.workspace = true
+sha2.workspace = true
+
+[dev-dependencies]
+ed25519-dalek.workspace = true
+
+[lints]
+workspace = true

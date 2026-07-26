@@ -1,0 +1,15 @@
+[package]
+name = "auths-cache"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Context-keyed bounded verification cache for Auths applications"
+
+[dependencies]
+auths-model.workspace = true
+auths-verifier.workspace = true
+sha2.workspace = true
+
+[lints]
+workspace = true

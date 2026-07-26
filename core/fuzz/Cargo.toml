@@ -1,0 +1,74 @@
+[package]
+name = "auths-proof-fuzz"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+auths-model.workspace = true
+auths-codec.workspace = true
+auths-composition.workspace = true
+auths-ports.workspace = true
+auths-registries.workspace = true
+auths-verifier.workspace = true
+auths-did-key.workspace = true
+auths-did-keri.workspace = true
+auths-did-web.workspace = true
+auths-hsm-attested.workspace = true
+auths-spiffe-x509.workspace = true
+auths-multikey.workspace = true
+auths-raw-key.workspace = true
+auths-signature.workspace = true
+auths-webauthn.workspace = true
+libfuzzer-sys = "0.4"
+
+[[bin]]
+name = "target_model_state"
+path = "fuzz_targets/target_model_state.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "target_codec"
+path = "fuzz_targets/target_codec.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "target_principal_parsers"
+path = "fuzz_targets/target_principal_parsers.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "target_portable_codecs"
+path = "fuzz_targets/target_portable_codecs.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "target_composition"
+path = "fuzz_targets/target_composition.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "target_registry_handlers"
+path = "fuzz_targets/target_registry_handlers.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "target_portable_abi"
+path = "fuzz_targets/target_portable_abi.rs"
+test = false
+doc = false
+bench = false

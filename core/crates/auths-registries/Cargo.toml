@@ -1,0 +1,21 @@
+[package]
+name = "auths-registries"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Immutable verifier registries for Auths Proof Protocol V1"
+
+[features]
+default = ["std"]
+std = ["auths-model/std", "auths-ports/std", "sha2/std"]
+
+[dependencies]
+auths-model.workspace = true
+auths-ports.workspace = true
+sha2.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,27 @@
+[package]
+name = "auths-signature"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Closed-profile signature suites for Auths Proof Protocol V1"
+
+[features]
+default = ["std"]
+std = [
+    "auths-model/std",
+    "auths-ports/std",
+    "ed25519-dalek/std",
+    "p256/std",
+]
+
+[dependencies]
+auths-model.workspace = true
+auths-ports.workspace = true
+ed25519-dalek.workspace = true
+p256.workspace = true
+
+[lints]
+workspace = true

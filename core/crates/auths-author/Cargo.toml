@@ -1,0 +1,20 @@
+[package]
+name = "auths-author"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Monotonic proof authoring support for Auths Proof Protocol V1"
+
+[features]
+default = ["std"]
+std = ["auths-codec/std", "auths-model/std"]
+
+[dependencies]
+auths-codec.workspace = true
+auths-model.workspace = true
+
+[lints]
+workspace = true

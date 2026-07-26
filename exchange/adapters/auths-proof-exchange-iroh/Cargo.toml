@@ -1,0 +1,19 @@
+[package]
+name = "auths-proof-exchange-iroh"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Iroh transport adapter for Auths proof exchange"
+
+[dependencies]
+auths-proof-exchange-model.workspace = true
+auths-proof-exchange-codec.workspace = true
+auths-proof-exchange-port.workspace = true
+async-trait.workspace = true
+iroh.workspace = true
+tokio.workspace = true
+
+[lints]
+workspace = true
+

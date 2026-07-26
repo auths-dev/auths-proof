@@ -25,7 +25,7 @@ ambient facts explicitly. It does not resolve identities or evidence.
 | Model | `auths-model` | Validated protocol vocabulary, context, and verdict reasons |
 | Encoding | `auths-codec` | Deterministic CBOR, signing preimages, and typed identifiers |
 | Ports and registries | `auths-ports`, `auths-registries` | Principal, suite, resource, profile, budget, extension, status, assurance, and immutable manifest-bound executable registries |
-| Kernel | `auths-verifier`, `auths-authority`, `auths-composition`, `auths-assurance`, `auths-status` | Sealed verification, attenuation, plans, assurance, freshness, and revocation |
+| Kernel | `auths-verifier`, `auths-authority`, `auths-composition`, `auths-assurance`, `auths-registries` | Sealed verification, attenuation, plans, assurance, and exact configured status handling |
 | Authoring | `auths-author` | Safe authority planning, diffs, warnings, and keyless signing requests |
 | Shared pure primitive | `auths-multikey` | Closed Ed25519/P-256 Multikey parsing |
 | Adapters | `auths-raw-key`, `auths-did-key`, `auths-did-keri`, `auths-did-web`, `auths-spiffe-x509`, `auths-webauthn`, `auths-hsm-attested` | Exact principal-control and evidence verification |

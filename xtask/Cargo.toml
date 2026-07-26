@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
+publish = false
 
 [dependencies]
 auths-codec = { workspace = true, features = ["std"] }
@@ -20,6 +21,11 @@ auths-spiffe-x509 = { workspace = true, features = ["std"] }
 auths-testkit.workspace = true
 auths-verifier = { workspace = true, features = ["std"] }
 auths-webauthn = { workspace = true, features = ["std"] }
+auths-apps-testkit.workspace = true
+auths-lab-matrix.workspace = true
+auths-proof-exchange-testkit.workspace = true
 hex.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
+toml.workspace = true
+tokio.workspace = true

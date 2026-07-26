@@ -1,0 +1,19 @@
+[package]
+name = "auths-stores"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Concrete replay-adjacent budget and canonical receipt stores for Auths applications"
+
+[dependencies]
+auths-model.workspace = true
+auths-proof-exchange-model.workspace = true
+auths-receipts.workspace = true
+auths-runtime.workspace = true
+hex.workspace = true
+minicbor.workspace = true
+tempfile.workspace = true
+
+[lints]
+workspace = true

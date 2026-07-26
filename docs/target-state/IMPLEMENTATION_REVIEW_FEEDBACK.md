@@ -1,5 +1,8 @@
 # Auths-Proof Implementation Review and Build-Out Requirements
 
+> Historical review input. It is nonnormative; current dispositions and
+> residual launch gates are tracked in `docs/CORE_CODEBASE_GAP_ANALYSIS.md`.
+
 Status: implementation feedback for `dev-implementation-delta`  
 Review date: 2026-07-25  
 Audience: implementers and reviewers of the Auths proof kernel

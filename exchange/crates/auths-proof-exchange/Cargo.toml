@@ -1,0 +1,29 @@
+[package]
+name = "auths-proof-exchange"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Supported proof-exchange facade for Auths Proof Protocol V1"
+
+[features]
+default = ["memory"]
+memory = ["dep:auths-proof-exchange-memory"]
+file = ["dep:auths-proof-exchange-file"]
+https = ["dep:auths-proof-exchange-https"]
+iroh = ["dep:auths-proof-exchange-iroh"]
+tcp = ["dep:auths-proof-exchange-tcp"]
+unix = ["dep:auths-proof-exchange-unix"]
+
+[dependencies]
+auths-proof-exchange-file = { workspace = true, optional = true }
+auths-proof-exchange-https = { workspace = true, optional = true }
+auths-proof-exchange-iroh = { workspace = true, optional = true }
+auths-proof-exchange-memory = { workspace = true, optional = true }
+auths-proof-exchange-model.workspace = true
+auths-proof-exchange-port.workspace = true
+auths-proof-exchange-tcp = { workspace = true, optional = true }
+auths-proof-exchange-unix = { workspace = true, optional = true }
+
+[lints]
+workspace = true

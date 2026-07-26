@@ -1,0 +1,45 @@
+[package]
+name = "auths-verifier"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Deterministic offline verifier kernel for Auths Proof Protocol V1"
+
+[features]
+default = ["std"]
+std = [
+    "auths-assurance/std",
+    "auths-authority/std",
+    "auths-codec/std",
+    "auths-composition/std",
+    "auths-model/std",
+    "auths-ports/std",
+    "auths-registries/std",
+]
+
+[dependencies]
+auths-assurance.workspace = true
+auths-authority.workspace = true
+auths-codec.workspace = true
+auths-composition.workspace = true
+auths-model.workspace = true
+auths-ports.workspace = true
+auths-registries.workspace = true
+
+[dev-dependencies]
+auths-did-key = { workspace = true, features = ["std"] }
+auths-did-keri = { workspace = true, features = ["std"] }
+auths-did-web = { workspace = true, features = ["std"] }
+auths-hsm-attested = { workspace = true, features = ["std"] }
+auths-raw-key = { workspace = true, features = ["std"] }
+auths-signature = { workspace = true, features = ["std"] }
+auths-spiffe-x509 = { workspace = true, features = ["std"] }
+auths-testkit.workspace = true
+auths-webauthn = { workspace = true, features = ["std"] }
+ed25519-dalek.workspace = true
+
+[lints]
+workspace = true

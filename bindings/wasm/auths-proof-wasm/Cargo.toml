@@ -1,0 +1,30 @@
+[package]
+name = "auths-proof-wasm"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Prebuildable WebAssembly boundary for Auths Proof Protocol V1"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+auths-codec.workspace = true
+auths-did-keri.workspace = true
+auths-did-key.workspace = true
+auths-model.workspace = true
+auths-ports.workspace = true
+auths-raw-key.workspace = true
+auths-registries.workspace = true
+auths-signature.workspace = true
+auths-verifier.workspace = true
+wasm-bindgen.workspace = true
+
+[dev-dependencies]
+auths-testkit.workspace = true
+
+[lints]
+workspace = true

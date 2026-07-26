@@ -1,0 +1,18 @@
+[package]
+name = "auths-proof-offline-example"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+auths-codec = { workspace = true, features = ["std"] }
+auths-ports.workspace = true
+auths-proof = { workspace = true, features = ["std"] }
+auths-raw-key = { workspace = true, features = ["std"] }
+auths-registries = { workspace = true, features = ["std"] }
+auths-signature = { workspace = true, features = ["std"] }
+
+[lints]
+workspace = true

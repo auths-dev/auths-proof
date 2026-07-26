@@ -2,8 +2,9 @@
 
 ## Project status
 
-`auths-proof` `0.1.x` is pre-audit software. Do not rely on it as the sole
-production authorization control for high-value actions.
+`auths-proof` `0.1.x` is prelaunch, pre-audit software with no production
+users. Do not rely on it as the sole production authorization control for
+high-value actions. No independent security review has been completed.
 
 ## Reporting
 
@@ -41,8 +42,13 @@ Include:
 - `ExpiryOnly` grants cannot be revoked before expiry.
 - The host owns challenge uniqueness and consumption.
 - The host must execute the same body supplied to verification.
-- The host selects trusted adapters, anchors, time, and policy.
-- Milestone 1 has no KERI or grant-status adapter.
+- The host selects and canonically binds trusted adapter configuration,
+  anchors, time, composition, assurance, status, and limits.
+- The host must treat `Indeterminate` as non-authorizing, bound retries, and
+  provide new trusted facts before a retry can change the outcome.
+- Self-contained WASM supports raw key, `did:key`, and `did:keri`; configured
+  DID-web, WebAuthn, HSM, and SPIFFE deployments require their own exact
+  registry construction.
 
 See `docs/threat-model.md` for the full boundary.
 

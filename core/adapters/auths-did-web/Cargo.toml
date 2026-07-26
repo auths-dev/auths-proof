@@ -1,0 +1,33 @@
+[package]
+name = "auths-did-web"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Pure bundled did:web principal-control method for Auths target V1"
+
+[features]
+default = ["std"]
+std = [
+    "auths-model/std",
+    "auths-multikey/std",
+    "auths-ports/std",
+    "serde_json/std",
+    "sha2/std",
+]
+
+[dependencies]
+auths-model.workspace = true
+auths-multikey.workspace = true
+auths-ports.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+
+[dev-dependencies]
+auths-codec = { workspace = true, features = ["std"] }
+ed25519-dalek = { workspace = true, features = ["std"] }
+
+[lints]
+workspace = true
