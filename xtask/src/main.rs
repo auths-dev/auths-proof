@@ -1657,7 +1657,7 @@ fn load_architecture_policy() -> Result<ArchitecturePolicy, String> {
         .get("exceptions")
         .and_then(toml::Value::as_table)
         .ok_or("architecture.toml has no exceptions table")?;
-    for (name, exception) in exceptions {
+    if let Some((name, exception)) = exceptions.iter().next() {
         let table = exception
             .as_table()
             .ok_or_else(|| format!("architecture exception {name} is not a table"))?;

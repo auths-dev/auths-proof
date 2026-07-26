@@ -791,6 +791,12 @@ fn context_with_assurance(
 }
 
 /// Returns the exact executable verifier configuration used by the V1 corpus.
+///
+/// # Panics
+///
+/// Panics if a fixed corpus adapter, signature suite, or canonical registry
+/// cannot initialize. Such a failure means the compiled test corpus and its
+/// audited implementation inventory are internally inconsistent.
 #[must_use]
 pub fn corpus_configuration_id() -> VerifierConfigurationId {
     static CONFIGURATION: std::sync::OnceLock<VerifierConfigurationId> = std::sync::OnceLock::new();

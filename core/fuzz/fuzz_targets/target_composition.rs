@@ -42,8 +42,8 @@ fuzz_target!(|data: &[u8]| {
         .collect();
     let authorized = outcomes.iter().filter(|tag| **tag == 0).count();
     let indeterminate = outcomes.iter().filter(|tag| **tag == 2).count();
-    let denied = outcomes.iter().any(|tag| *tag == 1);
-    let structural = outcomes.iter().any(|tag| *tag == 3);
+    let denied = outcomes.contains(&1);
+    let structural = outcomes.contains(&3);
     let canonical_denial = match (denied, structural) {
         (true, true) => {
             if DenialReason::InvalidSignature.code() < DenialReason::MissingReference.code() {
