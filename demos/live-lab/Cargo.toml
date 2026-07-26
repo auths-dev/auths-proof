@@ -1,0 +1,22 @@
+[package]
+name = "auths-live-lab"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Generated browser lab joining real Auths WASM and native enforcement"
+publish = false
+
+[dependencies]
+auths-apps-testkit.workspace = true
+auths-codec.workspace = true
+auths-model.workspace = true
+auths-proof-exchange-model.workspace = true
+auths-proof-wasm.workspace = true
+hex.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tokio.workspace = true
+
+[lints]
+workspace = true

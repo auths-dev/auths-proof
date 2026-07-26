@@ -1,0 +1,30 @@
+[package]
+name = "auths-live-service"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Bounded native Auths runtime for the public interactive lab"
+publish = false
+
+[dependencies]
+auths-apps-testkit.workspace = true
+auths-live-lab.workspace = true
+auths-proof-exchange-model.workspace = true
+auths-proof-wasm.workspace = true
+axum.workspace = true
+base64ct.workspace = true
+getrandom.workspace = true
+hex.workspace = true
+hmac.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tokio.workspace = true
+tower-http.workspace = true
+
+[dev-dependencies]
+tower.workspace = true
+
+[lints]
+workspace = true

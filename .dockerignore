@@ -1,0 +1,10 @@
+.git
+.github
+target
+**/target
+**/pkg
+**/node_modules
+**/.venv
+**/__pycache__
+docs
+site

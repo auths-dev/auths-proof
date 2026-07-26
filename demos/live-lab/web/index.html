@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Verify a real Auths proof in the browser, execute it once in native Rust, and watch an exact replay fail closed."
+    />
+    <meta name="color-scheme" content="light" />
+    <meta name="auths-api" content="https://auths-live-demo.fly.dev" />
+    <title>Auths Live Lab — Proof, executed</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='4' y='4' width='24' height='24' rx='3' fill='%233157d5'/%3E%3Cpath d='M10 21l6-11 6 11h-3l-1-2h-5l-1 2h-2zm4-5h3l-1.5-3-1.5 3z' fill='white'/%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to the live proof</a>
+
+    <header class="site-header">
+      <nav class="nav-shell" aria-label="Primary navigation">
+        <a
+          class="wordmark"
+          href="https://auths-proof-site.vercel.app"
+          aria-label="Auths home"
+        >
+          auths
+          <span aria-hidden="true">/</span>
+          <small>live lab</small>
+        </a>
+
+        <div class="desktop-nav">
+          <a href="#evidence">How it works</a>
+          <a
+            href="https://auths-proof-docs.vercel.app"
+            rel="noreferrer"
+            target="_blank"
+          >
+            Docs <span class="external-arrow" aria-hidden="true">↗</span>
+          </a>
+          <a
+            href="https://github.com/auths-dev/auths-proof"
+            rel="noreferrer"
+            target="_blank"
+          >
+            GitHub <span class="external-arrow" aria-hidden="true">↗</span>
+          </a>
+        </div>
+
+        <a class="nav-cta" href="#experiment">
+          Run the proof <span aria-hidden="true">→</span>
+        </a>
+
+        <details class="mobile-nav">
+          <summary aria-label="Open navigation">Menu</summary>
+          <div class="mobile-panel">
+            <a href="#evidence">How it works</a>
+            <a href="#experiment">Run the proof</a>
+            <a
+              href="https://auths-proof-docs.vercel.app"
+              rel="noreferrer"
+              target="_blank"
+            >
+              Docs <span aria-hidden="true">↗</span>
+            </a>
+            <a
+              href="https://github.com/auths-dev/auths-proof"
+              rel="noreferrer"
+              target="_blank"
+            >
+              GitHub <span aria-hidden="true">↗</span>
+            </a>
+          </div>
+        </details>
+      </nav>
+    </header>
+
+    <main id="main">
+      <section class="lab-intro">
+        <div class="section-shell intro-grid">
+          <div>
+            <p class="eyebrow">
+              <span class="eyebrow-mark" aria-hidden="true"></span>
+              Proof-carrying authorization, live
+            </p>
+            <h1>Change the evidence. <em>See the decision.</em></h1>
+          </div>
+          <div class="intro-copy">
+            <p>
+              Select what the verifier sees. Auths immediately checks the proof
+              in your browser, then lets you submit those same bytes to native
+              Rust.
+            </p>
+            <ul aria-label="Live lab guarantees">
+              <li>Real WASM verifier</li>
+              <li>Native Rust parity</li>
+              <li>Execute once</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="experiment-section workbench-section" id="experiment">
+        <div class="section-shell">
+          <div class="workbench-frame">
+            <section
+              class="scenario-panel"
+              aria-labelledby="scenario-panel-heading"
+            >
+              <div class="panel-heading">
+                <span class="step-number">01</span>
+                <span class="micro-label">Click one case</span>
+                <span class="auto-verify">
+                  <i aria-hidden="true"></i>
+                  Result updates automatically
+                </span>
+              </div>
+              <h2 id="scenario-panel-heading">
+                Pick one thing to change.
+              </h2>
+              <div
+                id="variants"
+                class="variants"
+                aria-label="Experiment variants"
+              >
+                <button
+                  class="variant active"
+                  data-variant="valid"
+                  type="button"
+                  aria-pressed="true"
+                >
+                  <span>Exact request</span>
+                  <small>Nothing changed after authorization</small>
+                </button>
+                <button
+                  class="variant"
+                  data-variant="tampered-action"
+                  type="button"
+                  aria-pressed="false"
+                >
+                  <span>Request changed</span>
+                  <small>The MCP request bytes changed</small>
+                </button>
+                <button
+                  class="variant"
+                  data-variant="tampered-proof"
+                  type="button"
+                  aria-pressed="false"
+                >
+                  <span>Permission changed</span>
+                  <small>The signed proof no longer matches</small>
+                </button>
+                <button
+                  class="variant"
+                  data-variant="wrong-configuration"
+                  type="button"
+                  aria-pressed="false"
+                >
+                  <span>Verifier policy changed</span>
+                  <small>The required configuration differs</small>
+                </button>
+              </div>
+              <div class="selection-explanation">
+                <span class="micro-label">Selected case</span>
+                <p id="tour-copy">
+                  Exact request selected. Preparing the browser verifier.
+                </p>
+              </div>
+            </section>
+
+            <article
+              class="result-panel"
+              aria-label="Live authorization result"
+            >
+              <header class="result-header">
+                <div>
+                  <span class="micro-label">02 · See the decision</span>
+                  <span class="proof-id">AUTH-V1 / LIVE</span>
+                </div>
+                <span class="verdict-state">
+                  <i aria-hidden="true"></i>
+                  Browser / WASM
+                </span>
+              </header>
+
+              <div class="result-summary" aria-live="polite" aria-atomic="true">
+                <div>
+                  <span class="micro-label">Current verdict</span>
+                  <strong id="verdict" data-kind="indeterminate"
+                    >LOADING</strong
+                  >
+                </div>
+                <p id="verdict-summary">
+                  Loading the verifier and proof evidence.
+                </p>
+              </div>
+
+              <dl class="result-details">
+                <div>
+                  <dt>Stable code</dt>
+                  <dd id="verdict-code">—</dd>
+                </div>
+                <div>
+                  <dt>Decision stage</dt>
+                  <dd id="verdict-stage">—</dd>
+                </div>
+                <div>
+                  <dt>Generated native parity</dt>
+                  <dd id="parity">—</dd>
+                </div>
+              </dl>
+
+              <div class="system-status" aria-label="Runtime status">
+                <div>
+                  <span>Browser verifier</span>
+                  <strong id="app-status">loading</strong>
+                </div>
+                <div>
+                  <span>Native service</span>
+                  <strong id="native-status">connecting</strong>
+                </div>
+                <div>
+                  <span>Region</span>
+                  <strong id="connection-status">—</strong>
+                </div>
+                <div>
+                  <span>Configuration</span>
+                  <strong id="config-status">checking</strong>
+                </div>
+              </div>
+
+              <section class="native-result" aria-labelledby="native-heading">
+                <div class="native-heading">
+                  <div>
+                    <span class="micro-label">03 · Optional native check</span>
+                    <h3 id="native-heading">
+                      Verification can repeat. Execution cannot.
+                    </h3>
+                  </div>
+                  <p id="session-status" class="session-status">
+                    Browser verification runs first. Native Rust becomes
+                    available after it connects.
+                  </p>
+                </div>
+                <div class="runtime-grid">
+                  <article>
+                    <span>First submission</span>
+                    <strong id="runtime-outcome">—</strong>
+                  </article>
+                  <article>
+                    <span>Replay</span>
+                    <strong id="replay-outcome">—</strong>
+                  </article>
+                  <article>
+                    <span>Executions</span>
+                    <strong id="execution-count">—</strong>
+                  </article>
+                  <article>
+                    <span>Receipts</span>
+                    <strong id="receipt-count">—</strong>
+                  </article>
+                </div>
+              </section>
+
+              <button
+                id="native-button"
+                class="primary-button"
+                type="button"
+                aria-describedby="session-status"
+                disabled
+              >
+                Run selected case in native Rust
+              </button>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="evidence-section" id="evidence">
+        <div class="section-shell">
+          <div class="section-kicker">
+            <span>02</span>
+            <span>Why this result</span>
+          </div>
+          <div class="section-heading">
+            <h2>Inspect the exact <em>evidence.</em></h2>
+            <p>
+              The active experiment above changes the real proof, request, or
+              trusted context. These are the exact values Auths evaluates.
+            </p>
+          </div>
+
+          <section class="request-card">
+            <div class="section-label">Action / MCP request</div>
+            <div class="request-main">
+              <div>
+                <span class="verb">MCP</span>
+                <h3>reports / read_report</h3>
+                <code>{ "name": "q3" }</code>
+              </div>
+              <div class="digest-stack">
+                <span>Canonical action <b id="action-digest">—</b></span>
+                <span>Proof bundle <b id="proof-digest">—</b></span>
+              </div>
+            </div>
+          </section>
+
+          <div class="two-column">
+            <section class="panel">
+              <div class="section-label">Policy / Required authorization</div>
+              <ul class="policy-list">
+                <li><span>✓</span> Exact MCP tool and argument body</li>
+                <li><span>✓</span> Exact audience and fresh challenge</li>
+                <li><span>✓</span> Self-certifying principal control</li>
+                <li><span>✓</span> Exact verifier configuration</li>
+              </ul>
+              <div class="config-pair">
+                <div>
+                  <span>Required</span>
+                  <code id="required-config">—</code>
+                </div>
+                <div>
+                  <span>Executed</span>
+                  <code id="executed-config">—</code>
+                </div>
+              </div>
+            </section>
+
+            <section class="panel proof-panel">
+              <div class="section-label">Authority / Proof path</div>
+              <div class="proof-graph" aria-label="Proof graph">
+                <div class="node root">Trust root</div>
+                <div class="edge"></div>
+                <div class="node actor">Demo actor</div>
+                <div class="edge"></div>
+                <div class="node action">Exact action</div>
+              </div>
+              <div class="root-line">
+                Root principal <code id="root-principal">—</code>
+              </div>
+            </section>
+          </div>
+        </div>
+      </section>
+
+      <section class="flow-section">
+        <div class="section-shell">
+          <div class="section-kicker">
+            <span>03</span>
+            <span>What Auths changes</span>
+          </div>
+          <div class="flow-grid">
+            <article>
+              <span>01 / Browser</span>
+              <h3>Verify the exact action.</h3>
+              <p>
+                Proof, request, and trusted context cross the real portable WASM
+                boundary.
+              </p>
+            </article>
+            <article>
+              <span>02 / Native</span>
+              <h3>Require the same decision.</h3>
+              <p>
+                Native Rust must return the identical canonical result before
+                the safe executor runs.
+              </p>
+            </article>
+            <article>
+              <span>03 / Replay</span>
+              <h3>Refuse a second execution.</h3>
+              <p>
+                The consumed challenge can be verified again, but it cannot
+                invoke the executor twice.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="work-section">
+        <div class="section-shell">
+          <div class="section-kicker">
+            <span>04</span>
+            <span>Bounded verification</span>
+          </div>
+          <div class="metrics-section">
+            <div>
+              <h2>Bounded work, visible output.</h2>
+              <p>
+                The verifier reports the bytes, objects, plan shape, and work it
+                consumed. Limits are part of the protocol result.
+              </p>
+            </div>
+            <div id="metrics" class="metrics"></div>
+          </div>
+
+          <section class="developer">
+            <button
+              id="developer-toggle"
+              class="developer-toggle"
+              type="button"
+              aria-expanded="false"
+            >
+              Developer evidence
+              <span>bytes, digests, configuration ↓</span>
+            </button>
+            <div id="developer-panel" hidden>
+              <pre id="developer-bytes"></pre>
+            </div>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="section-shell footer-inner">
+        <p>
+          <strong>auths</strong>
+          <span>Portable proof of permission.</span>
+        </p>
+        <nav aria-label="Lab notes">
+          <span>Every verdict comes from Auths code</span>
+          <span>Demo-only identities</span>
+          <span>No external execution</span>
+        </nav>
+      </div>
+    </footer>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

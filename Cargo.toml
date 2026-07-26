@@ -54,6 +54,8 @@ members = [
     "product/cache/auths-cache",
     "product/operations/auths-operations",
     "demos/testkit/auths-apps-testkit",
+    "demos/live-lab",
+    "demos/live-service",
     "demos/matrix/auths-lab-matrix",
     "demos/benchmarks/auths-lab-wasm-bench",
     "demos/mcp/auths-mcp-demo",
@@ -119,15 +121,20 @@ auths-resolver-did-web = { version = "0.1.0", path = "product/integrations/auths
 auths-evidence-assemblers = { version = "0.1.0", path = "product/integrations/auths-evidence-assemblers" }
 auths-custody = { version = "0.1.0", path = "product/integrations/auths-custody" }
 auths-apps-testkit = { version = "0.1.0", path = "demos/testkit/auths-apps-testkit" }
+auths-live-lab = { version = "0.1.0", path = "demos/live-lab" }
 auths-lab-matrix = { version = "0.1.0", path = "demos/matrix/auths-lab-matrix" }
 async-trait = "0.1.91"
+axum = "0.8.9"
 getrandom = "0.3.4"
+hmac = "0.12.1"
 iroh = { version = "1.0.3", default-features = false, features = ["tls-ring"] }
 reqwest = { version = "0.13.4", default-features = false, features = ["blocking", "rustls"] }
 rmcp = { version = "1.8.0", default-features = false, features = ["server"] }
 serde_json_canonicalizer = "0.3.2"
 tempfile = "3.27.0"
-tokio = { version = "1.48.0", features = ["fs", "io-util", "macros", "net", "rt-multi-thread", "sync", "time"] }
+tokio = { version = "1.48.0", features = ["fs", "io-util", "macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
+tower = { version = "0.5.3", features = ["util"] }
+tower-http = { version = "0.7.0", features = ["cors"] }
 toml = "0.9.8"
 wasm-bindgen-test = "=0.3.68"
 js-sys = "=0.3.95"
