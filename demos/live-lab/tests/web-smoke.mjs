@@ -30,6 +30,9 @@ for (const id of [
   "required-config",
   "executed-config",
   "developer-panel",
+  "native-button",
+  "native-status",
+  "session-status",
 ]) {
   assert.match(html, new RegExp(`id="${id}"`));
 }

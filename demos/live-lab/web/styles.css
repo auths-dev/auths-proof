@@ -393,7 +393,7 @@ code {
 
 .experiment {
   display: grid;
-  grid-template-columns: 1fr 1.4fr auto;
+  grid-template-columns: 1fr 1.4fr minmax(170px, auto);
   gap: 30px;
   align-items: center;
   margin-top: 20px;
@@ -456,19 +456,47 @@ code {
   white-space: nowrap;
 }
 
-.primary-button {
+.primary-button,
+.secondary-button {
   padding: 14px 18px;
-  border: 0;
   border-radius: 3px;
+  cursor: pointer;
+}
+
+.primary-button {
+  border: 0;
   color: #102009;
   font-weight: 700;
   background: var(--green);
-  cursor: pointer;
+}
+
+.primary-button:disabled {
+  color: var(--muted);
+  background: rgba(245, 242, 233, 0.12);
+  cursor: not-allowed;
+}
+
+.secondary-button {
+  border: 1px solid var(--line);
+  color: var(--ink);
+  background: transparent;
+}
+
+.experiment-actions {
+  display: grid;
+  gap: 8px;
 }
 
 .runtime {
   margin-top: 20px;
   padding: 28px;
+}
+
+.session-status {
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
 }
 
 .runtime-grid {
@@ -627,7 +655,8 @@ footer {
     align-items: stretch;
   }
 
-  .primary-button {
+  .primary-button,
+  .secondary-button {
     width: 100%;
   }
 

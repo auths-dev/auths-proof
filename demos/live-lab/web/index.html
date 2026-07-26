@@ -8,6 +8,7 @@
       content="A real browser and native Auths authorization lab."
     />
     <meta name="color-scheme" content="dark" />
+    <meta name="auths-api" content="https://auths-live-demo.fly.dev" />
     <title>Auths Live Lab</title>
     <link
       rel="icon"
@@ -25,7 +26,8 @@
       </a>
       <div class="status-strip" aria-label="Runtime status">
         <span><i></i> WASM <b id="app-status">loading</b></span>
-        <span>Network <b id="connection-status">checking</b></span>
+        <span>Native <b id="native-status">connecting</b></span>
+        <span>Region <b id="connection-status">—</b></span>
         <span>Config <b id="config-status">checking</b></span>
       </div>
     </header>
@@ -112,13 +114,21 @@
           </p>
         </div>
         <div id="variants" class="variants" aria-label="Experiment variants"></div>
-        <button id="verify-button" class="primary-button" type="button">
-          Verify again
-        </button>
+        <div class="experiment-actions">
+          <button id="verify-button" class="secondary-button" type="button">
+            Verify in browser
+          </button>
+          <button id="native-button" class="primary-button" type="button" disabled>
+            Submit to native runtime
+          </button>
+        </div>
       </section>
 
       <section class="runtime">
         <div class="section-label">05 · Native enforcement</div>
+        <p id="session-status" class="session-status">
+          Connecting to a short-lived native session. The browser verifier remains available offline.
+        </p>
         <div class="runtime-grid">
           <article>
             <span class="runtime-index">A</span>

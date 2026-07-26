@@ -19,6 +19,7 @@ digraph auths_architecture {
   "auths-lab-matrix" [group="demos"];
   "auths-lab-wasm-bench" [group="demos"];
   "auths-live-lab" [group="demos"];
+  "auths-live-service" [group="demos"];
   "auths-mcp-demo" [group="demos"];
   "auths-model" [group="core"];
   "auths-multikey" [group="core"];
@@ -122,6 +123,10 @@ digraph auths_architecture {
   "auths-live-lab" -> "auths-model" [label="normal"];
   "auths-live-lab" -> "auths-proof-exchange-model" [label="normal"];
   "auths-live-lab" -> "auths-proof-wasm" [label="normal"];
+  "auths-live-service" -> "auths-apps-testkit" [label="normal"];
+  "auths-live-service" -> "auths-live-lab" [label="normal"];
+  "auths-live-service" -> "auths-proof-exchange-model" [label="normal"];
+  "auths-live-service" -> "auths-proof-wasm" [label="normal"];
   "auths-mcp-demo" -> "auths-apps-testkit" [label="normal"];
   "auths-mcp-demo" -> "auths-proof-exchange-model" [label="normal"];
   "auths-operations" -> "auths-codec" [label="dev"];

@@ -28,8 +28,8 @@ use auths_proof_exchange_iroh::{
 };
 use auths_proof_exchange_memory::channel_pair;
 use auths_proof_exchange_model::{
-    ActionResponse, ActionSubmission, ChallengeNonce, ChannelBindingPolicy, ExchangeOutcome,
-    PeerObservation, RefusalKind, VerdictDecision,
+    ActionChallenge, ActionResponse, ActionSubmission, ChallengeNonce, ChannelBindingPolicy,
+    ExchangeOutcome, PeerObservation, RefusalKind, VerdictDecision,
 };
 use auths_proof_exchange_port::{ClientProofChannel, ProofExchangeService, serve_one};
 use auths_raw_key::{RAW_KEY_MEDIA_TYPE, RAW_KEY_V1, RawKeyDescriptor, RawKeyMethod, RawKeyType};
@@ -103,12 +103,19 @@ impl ReceiptAttestor for DemoReceiptAttestor {
     }
 }
 
-#[derive(Default)]
 struct StaticReportExecutor {
+    expected_challenge: ChallengeNonce,
     executions: AtomicUsize,
 }
 
 impl StaticReportExecutor {
+    fn new(expected_challenge: ChallengeNonce) -> Self {
+        Self {
+            expected_challenge,
+            executions: AtomicUsize::new(0),
+        }
+    }
+
     fn count(&self) -> usize {
         self.executions.load(Ordering::SeqCst)
     }
@@ -123,7 +130,7 @@ impl McpToolExecutor for StaticReportExecutor {
         let command = action.command();
         if command.name() != "read_report"
             || command.arguments().get("name") != Some(&Value::String("q3".into()))
-            || action.lease().challenge() != DEMO_CHALLENGE
+            || action.lease().challenge() != self.expected_challenge
         {
             return Err("verified report command is outside the demo policy".into());
         }
@@ -221,7 +228,20 @@ struct DemoFixture {
 /// Panics if the repository-owned fixture cannot be constructed or encoded.
 #[must_use]
 pub fn demo_fixture_bytes() -> DemoFixtureBytes {
-    let fixture = build_fixture(DEMO_CHALLENGE, None);
+    demo_fixture_bytes_for_challenge(*DEMO_CHALLENGE.as_bytes())
+}
+
+/// Builds canonical demo material bound to a caller-provided challenge.
+///
+/// This is used by the public live service so the browser verifies the exact
+/// short-lived proof that the native runtime will later consume.
+///
+/// # Panics
+///
+/// Panics if the repository-owned fixture cannot be constructed or encoded.
+#[must_use]
+pub fn demo_fixture_bytes_for_challenge(nonce: [u8; 32]) -> DemoFixtureBytes {
+    let fixture = build_fixture(ChallengeNonce::new(nonce), None);
     DemoFixtureBytes {
         body: fixture.body,
         canonical_action: fixture.canonical_action,
@@ -348,6 +368,87 @@ pub struct ReplayDemoResult {
     pub execution_receipts: usize,
 }
 
+/// A single real Auths runtime session used by the interactive live service.
+///
+/// Each instance owns an issued challenge, its signed proof, the atomic
+/// challenge ledger, the safe executor, and receipt storage. Reusing the
+/// instance for a second submission exercises the runtime replay gate.
+pub struct DemoRuntimeSession {
+    service: Arc<McpAuthorizationService>,
+    executor: Arc<StaticReportExecutor>,
+    receipts: Arc<MemoryReceiptSink>,
+    challenge: ActionChallenge,
+    request: ActionSubmission,
+}
+
+/// Result of one submission to a [`DemoRuntimeSession`].
+pub struct DemoRuntimeSubmission {
+    /// The real exchange-layer response returned by the runtime.
+    pub response: ActionResponse,
+    /// Total safe-executor invocations in this session.
+    pub executor_invocations: usize,
+    /// Total persisted signed decision receipts in this session.
+    pub decision_receipts: usize,
+    /// Total persisted signed execution receipts in this session.
+    pub execution_receipts: usize,
+}
+
+impl DemoRuntimeSession {
+    /// Creates a runtime session around a caller-provided cryptographic nonce.
+    ///
+    /// # Panics
+    ///
+    /// Panics if repository-owned fixtures or runtime setup violate the demo
+    /// contract.
+    pub async fn new(nonce: [u8; 32]) -> Self {
+        let expected = ChallengeNonce::new(nonce);
+        let fixture = build_fixture(expected, None);
+        let (service, executor, receipts) = demo_service_with_challenge(
+            fixture.context,
+            ChannelBindingPolicy::None,
+            None,
+            expected,
+        );
+        let challenge = service
+            .issue_challenge(&PeerObservation::Unauthenticated)
+            .await
+            .expect("live demo challenge");
+        assert_eq!(challenge.challenge(), expected);
+        let request =
+            ActionSubmission::new(fixture.body, fixture.proof, &challenge).expect("submission");
+        Self {
+            service,
+            executor,
+            receipts,
+            challenge,
+            request,
+        }
+    }
+
+    /// Submits the exact same proof-carrying action to this session.
+    ///
+    /// The first call executes once. Every later call is rejected by the
+    /// runtime's consumed-challenge gate.
+    pub async fn execute(&self) -> DemoRuntimeSubmission {
+        let response = self
+            .service
+            .handle_action(
+                &PeerObservation::Unauthenticated,
+                &self.challenge,
+                self.request.clone(),
+            )
+            .await;
+        let (decision_receipts, execution_receipts) = self.receipts.counts();
+        self.receipts.assert_canonical();
+        DemoRuntimeSubmission {
+            response,
+            executor_invocations: self.executor.count(),
+            decision_receipts,
+            execution_receipts,
+        }
+    }
+}
+
 /// Runs the deterministic native replay experiment.
 ///
 /// # Panics
@@ -356,31 +457,15 @@ pub struct ReplayDemoResult {
 /// sink violates its deterministic demo contract.
 #[must_use]
 pub async fn run_replay_demo() -> ReplayDemoResult {
-    let fixture = build_fixture(DEMO_CHALLENGE, None);
-    let (service, executor, receipts) =
-        demo_service(fixture.context, ChannelBindingPolicy::None, None);
-    let challenge = service
-        .issue_challenge(&PeerObservation::Unauthenticated)
-        .await
-        .expect("challenge");
-    let request = ActionSubmission::new(fixture.body, fixture.proof, &challenge).unwrap();
-    let first = service
-        .handle_action(
-            &PeerObservation::Unauthenticated,
-            &challenge,
-            request.clone(),
-        )
-        .await;
-    let replay = service
-        .handle_action(&PeerObservation::Unauthenticated, &challenge, request)
-        .await;
-    let receipt_counts = receipts.counts();
+    let session = DemoRuntimeSession::new(*DEMO_CHALLENGE.as_bytes()).await;
+    let first = session.execute().await;
+    let replay = session.execute().await;
     ReplayDemoResult {
-        first,
-        replay,
-        executor_invocations: executor.count(),
-        decision_receipts: receipt_counts.0,
-        execution_receipts: receipt_counts.1,
+        first: first.response,
+        replay: replay.response,
+        executor_invocations: replay.executor_invocations,
+        decision_receipts: replay.decision_receipts,
+        execution_receipts: replay.execution_receipts,
     }
 }
 
@@ -564,9 +649,22 @@ fn demo_service(
     Arc<StaticReportExecutor>,
     Arc<MemoryReceiptSink>,
 ) {
+    demo_service_with_challenge(context, channel_policy, local_endpoint, DEMO_CHALLENGE)
+}
+
+fn demo_service_with_challenge(
+    context: VerifierContext,
+    channel_policy: ChannelBindingPolicy,
+    local_endpoint: Option<[u8; 32]>,
+    challenge: ChallengeNonce,
+) -> (
+    Arc<McpAuthorizationService>,
+    Arc<StaticReportExecutor>,
+    Arc<MemoryReceiptSink>,
+) {
     let kernel =
         AuthsKernel::new(context, demo_principal_methods(), demo_signature_suites()).unwrap();
-    let executor = Arc::new(StaticReportExecutor::default());
+    let executor = Arc::new(StaticReportExecutor::new(challenge));
     let receipts = Arc::new(MemoryReceiptSink::default());
     let service = McpAuthorizationService::new(
         McpServiceConfig::new(
@@ -581,7 +679,7 @@ fn demo_service(
         McpRuntimeDependencies::new(
             McpRequestStateDependencies::new(
                 Arc::new(FixedClock(DEMO_NOW)),
-                Arc::new(FixedChallengeSource(DEMO_CHALLENGE)),
+                Arc::new(FixedChallengeSource(challenge)),
                 Arc::new(InMemoryChallengeLedger::new(64).unwrap()),
                 Arc::new(NoBudgetLedger),
             ),

@@ -12,12 +12,16 @@ const state = {
   scenario: null,
   activeVariant: "valid",
   inputs: new Map(),
+  native: new Map(),
   result: null,
   digest: null,
+  session: null,
+  apiBase: null,
 };
 
 const elements = {
   appStatus: document.querySelector("#app-status"),
+  nativeStatus: document.querySelector("#native-status"),
   configStatus: document.querySelector("#config-status"),
   connectionStatus: document.querySelector("#connection-status"),
   actionDigest: document.querySelector("#action-digest"),
@@ -38,6 +42,8 @@ const elements = {
   developerBytes: document.querySelector("#developer-bytes"),
   tourCopy: document.querySelector("#tour-copy"),
   verifyButton: document.querySelector("#verify-button"),
+  nativeButton: document.querySelector("#native-button"),
+  sessionStatus: document.querySelector("#session-status"),
   developerToggle: document.querySelector("#developer-toggle"),
   developerPanel: document.querySelector("#developer-panel"),
 };
@@ -48,10 +54,24 @@ async function fetchBytes(path) {
   return new Uint8Array(await response.arrayBuffer());
 }
 
+function decodeBase64Url(value) {
+  const normalized = value.replaceAll("-", "+").replaceAll("_", "/");
+  const padded = normalized.padEnd(
+    normalized.length + ((4 - (normalized.length % 4)) % 4),
+    "=",
+  );
+  const decoded = atob(padded);
+  return Uint8Array.from(decoded, (character) => character.charCodeAt(0));
+}
+
 function activeVariant() {
   return state.scenario.variants.find(
     (variant) => variant.id === state.activeVariant,
   );
+}
+
+function activeNative() {
+  return state.native.get(state.activeVariant) ?? activeVariant().native;
 }
 
 async function verify() {
@@ -63,22 +83,36 @@ async function verify() {
   }
   const { proof, action, context } = inputs;
   const result = state.auths.verify(proof, action, context);
-  const digest = await sha256(result.resultCbor);
+  const [digest, actionDigest, proofDigest] = await Promise.all([
+    sha256(result.resultCbor),
+    sha256(action),
+    sha256(proof),
+  ]);
   state.result = result;
   state.digest = digest;
-  renderResult({ proof, action, context, result, digest, variant });
+  elements.actionDigest.textContent = short(actionDigest, 16);
+  elements.proofDigest.textContent = short(proofDigest, 16);
+  renderResult({
+    proof,
+    action,
+    context,
+    result,
+    digest,
+    variant,
+    native: activeNative(),
+  });
   elements.appStatus.textContent = "ready";
 }
 
-function renderResult({ proof, action, context, result, digest, variant }) {
+function renderResult({ proof, action, context, result, digest, variant, native }) {
   elements.verdict.textContent = result.kind.toUpperCase();
   elements.verdict.dataset.kind = result.kind;
   elements.verdictCode.textContent = result.code;
   elements.verdictStage.textContent = result.stage;
   elements.parity.textContent =
-    digest === variant.native.result_sha256 ? "MATCH" : "MISMATCH";
+    digest === native.result_sha256 ? "MATCH" : "MISMATCH";
   elements.parity.dataset.match =
-    digest === variant.native.result_sha256 ? "yes" : "no";
+    digest === native.result_sha256 ? "yes" : "no";
   const required = result.requiredConfiguration
     ? hex(result.requiredConfiguration)
     : undefined;
@@ -99,12 +133,16 @@ function renderResult({ proof, action, context, result, digest, variant }) {
     .join("");
   elements.developerBytes.textContent = JSON.stringify(
     {
+      source: state.session ? "short-lived native session" : "offline release bundle",
+      release_id: state.scenario.release.id,
+      region: state.session?.region,
+      session_expires_at: state.session?.expiresAt,
       variant: variant.id,
       proof_bytes: proof.length,
       action_bytes: action.length,
       context_bytes: context.length,
       browser_result_sha256: digest,
-      native_result_sha256: variant.native.result_sha256,
+      native_result_sha256: native.result_sha256,
       required_configuration: required,
       executed_configuration: executed,
       result_cbor_prefix: hex(result.resultCbor.slice(0, 48)),
@@ -122,11 +160,6 @@ function label(value) {
 
 function renderScenario() {
   const scenario = state.scenario;
-  elements.actionDigest.textContent = short(
-    scenario.action.canonical_sha256,
-    16,
-  );
-  elements.proofDigest.textContent = short(scenario.proof.proof_sha256, 16);
   elements.rootPrincipal.textContent = short(
     scenario.proof.root_principal,
     22,
@@ -163,20 +196,169 @@ function renderScenario() {
         .forEach((candidate) => candidate.classList.remove("active"));
       button.classList.add("active");
       await verify();
+      updateNativeButton();
     });
   });
 }
 
-function updateConnection() {
-  elements.connectionStatus.textContent = navigator.onLine ? "online" : "offline";
-  elements.connectionStatus.dataset.online = navigator.onLine ? "yes" : "no";
+function updateNativeButton() {
+  if (!state.session) {
+    elements.nativeButton.disabled = true;
+    return;
+  }
+  elements.nativeButton.disabled = false;
+  elements.nativeButton.textContent =
+    state.activeVariant === "valid" &&
+    state.session.validSubmissions > 0
+      ? "Submit exact replay"
+      : "Submit to native runtime";
+}
+
+function apiBase() {
+  if (["127.0.0.1", "localhost"].includes(location.hostname)) {
+    return "http://127.0.0.1:8080";
+  }
+  return document
+    .querySelector('meta[name="auths-api"]')
+    .content.replace(/\/$/, "");
+}
+
+function releaseMatches(meta) {
+  const release = state.scenario.release;
+  return (
+    meta.schema === "auths-live-service/v1" &&
+    meta.release_id === release.id &&
+    meta.protocol_major === release.protocol_major &&
+    meta.portable_abi === release.portable_abi &&
+    meta.verifier_configuration === release.verifier_configuration &&
+    meta.wasm_sha256 === release.wasm_sha256
+  );
+}
+
+async function connectNative() {
+  state.apiBase = apiBase();
+  elements.nativeStatus.textContent = "checking release";
+  const metaResponse = await fetch(`${state.apiBase}/api/v1/meta`, {
+    cache: "no-store",
+  });
+  if (!metaResponse.ok) throw new Error("native service metadata unavailable");
+  const meta = await metaResponse.json();
+  if (!releaseMatches(meta)) {
+    throw new Error("native service release does not match this browser bundle");
+  }
+  const response = await fetch(`${state.apiBase}/api/v1/sessions`, {
+    method: "POST",
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error("native service could not create a session");
+  const session = await response.json();
+  if (
+    session.release_id !== state.scenario.release.id ||
+    !Array.isArray(session.variants) ||
+    session.variants.length !== 4
+  ) {
+    throw new Error("native session contract did not match the browser");
+  }
+  state.inputs = new Map(
+    session.variants.map((variant) => [
+      variant.id,
+      {
+        proof: decodeBase64Url(variant.proof),
+        action: decodeBase64Url(variant.action),
+        context: decodeBase64Url(variant.context),
+      },
+    ]),
+  );
+  state.native = new Map(
+    session.variants.map((variant) => [variant.id, variant.native]),
+  );
+  state.session = {
+    id: session.session_id,
+    token: session.token,
+    region: session.region,
+    expiresAt: session.expires_at,
+    validSubmissions: 0,
+  };
+  elements.nativeStatus.textContent = "ready";
+  elements.nativeStatus.dataset.online = "yes";
+  elements.connectionStatus.textContent = session.region;
+  elements.sessionStatus.textContent =
+    `Live session ${short(session.session_id, 10)} is owned by ${session.region}. ` +
+    "Its token stays in browser memory and expires in 15 minutes.";
+  updateNativeButton();
+  await verify();
+}
+
+async function executeNative() {
+  if (!state.session) return;
+  elements.nativeButton.disabled = true;
+  elements.nativeStatus.textContent = "executing";
+  const response = await fetch(
+    `${state.apiBase}/api/v1/sessions/${state.session.id}/execute`,
+    {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${state.session.token}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ variant: state.activeVariant }),
+    },
+  );
+  const body = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(body?.error?.message ?? "native execution failed");
+  }
+  if (
+    body.release_id !== state.scenario.release.id ||
+    body.variant !== state.activeVariant ||
+    body.native.result_sha256 !== state.digest
+  ) {
+    throw new Error("browser/native parity failed closed");
+  }
+  if (state.activeVariant === "valid") {
+    state.session.validSubmissions += 1;
+    const runtime = body.runtime;
+    if (state.session.validSubmissions === 1) {
+      elements.runtimeOutcome.textContent =
+        runtime.response.outcome.toUpperCase();
+      elements.replayOutcome.textContent = "READY";
+    } else {
+      elements.runtimeOutcome.textContent = "COMPLETED";
+      elements.replayOutcome.textContent =
+        runtime.response.kind?.toUpperCase() ?? "UNEXPECTED";
+    }
+    elements.executionCount.textContent = runtime.executor_invocations;
+    elements.receiptCount.textContent =
+      `${runtime.decision_receipts} decision · ` +
+      `${runtime.execution_receipts} execution`;
+    elements.sessionStatus.textContent =
+      runtime.response.outcome === "completed"
+        ? `Native ${body.region}: proof authorized, safe executor ran once. Submit the exact replay now.`
+        : `Native ${body.region}: replay refused by the consumed-challenge ledger; executor remains at one.`;
+  } else {
+    elements.runtimeOutcome.textContent = "DENIED";
+    elements.replayOutcome.textContent = "NOT ENTERED";
+    elements.executionCount.textContent = body.runtime.executor_invocations;
+    elements.receiptCount.textContent = "0 decision · 0 execution";
+    elements.sessionStatus.textContent =
+      `Native ${body.region}: ${state.activeVariant} was denied before the runtime executor boundary.`;
+  }
+  elements.nativeStatus.textContent = "ready";
+  updateNativeButton();
 }
 
 async function boot() {
-  updateConnection();
-  window.addEventListener("online", updateConnection);
-  window.addEventListener("offline", updateConnection);
   elements.verifyButton.addEventListener("click", verify);
+  elements.nativeButton.addEventListener("click", () => {
+    executeNative().catch((error) => {
+      elements.nativeStatus.textContent = "failed closed";
+      elements.nativeStatus.dataset.online = "no";
+      elements.sessionStatus.textContent = error.message;
+      state.session = null;
+      updateNativeButton();
+      console.error(error);
+    });
+  });
   elements.developerToggle.addEventListener("click", () => {
     const hidden = elements.developerPanel.hidden;
     elements.developerPanel.hidden = !hidden;
@@ -207,8 +389,19 @@ async function boot() {
     }),
   );
   state.inputs = new Map(inputs);
+  state.native = new Map(
+    scenario.variants.map((variant) => [variant.id, variant.native]),
+  );
   renderScenario();
   await verify();
+  connectNative().catch((error) => {
+    elements.nativeStatus.textContent = "offline lab";
+    elements.nativeStatus.dataset.online = "no";
+    elements.connectionStatus.textContent = "offline";
+    elements.sessionStatus.textContent =
+      `${error.message}. Browser verification remains fully available.`;
+    console.warn(error.message);
+  });
 }
 
 boot().catch((error) => {

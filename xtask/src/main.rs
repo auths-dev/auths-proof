@@ -2024,6 +2024,7 @@ fn live_demo() -> Result<(), String> {
         "lab-core.js",
         "package.json",
         "styles.css",
+        "vercel.json",
         "vendor/index.js",
         "vendor/wasm/auths_proof_wasm.d.ts",
         "vendor/wasm/auths_proof_wasm.js",
@@ -2100,6 +2101,72 @@ fn live_demo() -> Result<(), String> {
         || scenario["runtime"]["execution_receipts"].as_u64() != Some(1)
     {
         return Err("live demo runtime enforcement evidence drifted".to_owned());
+    }
+    let release_id = scenario["release"]["id"]
+        .as_str()
+        .filter(|value| !value.is_empty())
+        .ok_or("live demo release ID is missing")?;
+    let declared_wasm = scenario["release"]["wasm_sha256"]
+        .as_str()
+        .filter(|value| value.len() == 64)
+        .ok_or("live demo WASM digest is missing or malformed")?;
+    let actual_wasm = sha256_file(&output.join("vendor/wasm/auths_proof_wasm_bg.wasm"))?;
+    if declared_wasm != actual_wasm {
+        return Err(format!(
+            "live demo release {release_id} declares WASM {declared_wasm}, actual={actual_wasm}"
+        ));
+    }
+
+    let vercel: Value = serde_json::from_slice(
+        &fs::read(output.join("vercel.json"))
+            .map_err(|error| format!("could not read generated Vercel config: {error}"))?,
+    )
+    .map_err(|error| format!("invalid generated Vercel config: {error}"))?;
+    let vercel_text = serde_json::to_string(&vercel)
+        .map_err(|error| format!("could not normalize generated Vercel config: {error}"))?;
+    for required in [
+        "https://auths-live-demo.fly.dev",
+        "wasm-unsafe-eval",
+        "frame-ancestors 'none'",
+        "max-age=31536000, immutable",
+    ] {
+        if !vercel_text.contains(required) {
+            return Err(format!(
+                "generated Vercel security/cache policy omits {required}"
+            ));
+        }
+    }
+
+    let fly_source = fs::read_to_string(root().join("demos/live-service/fly.toml"))
+        .map_err(|error| format!("could not read live service Fly config: {error}"))?;
+    let fly: toml::Value = toml::from_str(&fly_source)
+        .map_err(|error| format!("invalid live service Fly config: {error}"))?;
+    if fly.get("app").and_then(toml::Value::as_str) != Some("auths-live-demo")
+        || fly.get("primary_region").and_then(toml::Value::as_str) != Some("lhr")
+        || fly
+            .get("http_service")
+            .and_then(|service| service.get("internal_port"))
+            .and_then(toml::Value::as_integer)
+            != Some(8080)
+        || fly
+            .get("http_service")
+            .and_then(|service| service.get("auto_stop_machines"))
+            .and_then(toml::Value::as_str)
+            != Some("off")
+    {
+        return Err("live service Fly topology or always-on policy drifted".to_owned());
+    }
+    let dockerfile = fs::read_to_string(root().join("demos/live-service/Dockerfile"))
+        .map_err(|error| format!("could not read live service Dockerfile: {error}"))?;
+    for required in [
+        "rust:1.97.1-bookworm",
+        "cargo build --locked --release -p auths-live-service",
+        "distroless/cc-debian12:nonroot",
+        "USER nonroot:nonroot",
+    ] {
+        if !dockerfile.contains(required) {
+            return Err(format!("live service container policy omits {required}"));
+        }
     }
 
     command(
