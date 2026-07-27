@@ -35,6 +35,113 @@ fn main() -> ExitCode {
     }
 }
 
+fn benchmark_input(
+    input: &BenchmarkInput,
+    profile: &BenchmarkProfile,
+    registries: &ImmutableRegistries<'_>,
+) -> Result<BenchmarkResult, String> {
+    let preflight = verify_v1(
+        &input.proof_cbor,
+        &input.canonical_action_cbor,
+        &input.trusted_context_cbor,
+        registries,
+    )
+    .map_err(|error| error.to_string())?;
+    let preflight_decoded =
+        decode_verification_result(&preflight).map_err(|error| error.to_string())?;
+    let expected_decision = format!("{:?}", preflight_decoded.decision()).to_ascii_lowercase();
+    let expected_code = preflight_decoded.code().code().to_owned();
+    if expected_decision != input.scenario.expected.decision
+        || expected_code != input.scenario.expected.code
+    {
+        return Err(format!(
+            "semantic preflight drift for {}",
+            input.scenario.id
+        ));
+    }
+
+    let warmup_started = Instant::now();
+    while warmup_started.elapsed() < Duration::from_millis(profile.warmup_ms) {
+        black_box(
+            verify_v1(
+                black_box(&input.proof_cbor),
+                black_box(&input.canonical_action_cbor),
+                black_box(&input.trusted_context_cbor),
+                black_box(registries),
+            )
+            .map_err(|error| error.to_string())?,
+        );
+    }
+
+    let mut samples = Vec::with_capacity(profile.samples);
+    for _ in 0..profile.samples {
+        let started = Instant::now();
+        for _ in 0..profile.operations_per_sample {
+            black_box(
+                verify_v1(
+                    black_box(&input.proof_cbor),
+                    black_box(&input.canonical_action_cbor),
+                    black_box(&input.trusted_context_cbor),
+                    black_box(registries),
+                )
+                .map_err(|error| error.to_string())?,
+            );
+        }
+        let elapsed = u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX);
+        samples.push(elapsed / u64::try_from(profile.operations_per_sample).unwrap_or(1));
+    }
+    let postflight = verify_v1(
+        &input.proof_cbor,
+        &input.canonical_action_cbor,
+        &input.trusted_context_cbor,
+        registries,
+    )
+    .map_err(|error| error.to_string())?;
+    if postflight != preflight {
+        return Err(format!(
+            "semantic postflight drift for {}",
+            input.scenario.id
+        ));
+    }
+    let resources = preflight_decoded.resources();
+    let result = BenchmarkResult {
+        schema: "auths-proof-benchmark-result/v1".to_owned(),
+        revision: option_env!("AUTHS_BENCH_REVISION")
+            .unwrap_or("unknown")
+            .to_owned(),
+        dirty: option_env!("AUTHS_BENCH_DIRTY").unwrap_or("true") != "false",
+        target: env::consts::ARCH.to_owned(),
+        environment: Environment {
+            os: env::consts::OS.to_owned(),
+            arch: env::consts::ARCH.to_owned(),
+            cpu: "unknown".to_owned(),
+            logical_cores: std::thread::available_parallelism().map_or(0, usize::from),
+            memory_bytes: 0,
+            runtime: "native".to_owned(),
+            runtime_version: env!("CARGO_PKG_VERSION").to_owned(),
+            rustc: option_env!("RUSTC_VERSION").unwrap_or("unknown").to_owned(),
+            power_mode: "unknown".to_owned(),
+            virtualized: "unknown".to_owned(),
+        },
+        scenario: input.scenario.id.clone(),
+        input_sha256: hex_digest(input.input_digest),
+        semantic: SemanticRecord {
+            decision: expected_decision,
+            code: expected_code,
+            result_sha256: hex_digest(Sha256::digest(&preflight).into()),
+            work_units: resources.work_units(),
+            proof_bytes: resources.proof_bytes(),
+            context_bytes: resources.context_bytes(),
+            plan_leaves: resources.plan_leaves(),
+            plan_depth: resources.plan_depth(),
+        },
+        summary: statistics(&samples),
+        samples_ns: samples,
+    };
+    validate_result(input, &result).map_err(|error| error.to_string())?;
+    Ok(result)
+}
+
 fn run() -> Result<(), String> {
     let mut args = env::args().skip(1);
     let input = PathBuf::from(
@@ -73,109 +180,10 @@ fn run() -> Result<(), String> {
     let registries =
         ImmutableRegistries::new(&methods, &suites).map_err(|error| error.to_string())?;
 
-    let mut results = Vec::with_capacity(inputs.len());
-    for input in &inputs {
-        let preflight = verify_v1(
-            &input.proof_cbor,
-            &input.canonical_action_cbor,
-            &input.trusted_context_cbor,
-            &registries,
-        )
-        .map_err(|error| error.to_string())?;
-        let preflight_decoded =
-            decode_verification_result(&preflight).map_err(|error| error.to_string())?;
-        let expected_decision = format!("{:?}", preflight_decoded.decision()).to_ascii_lowercase();
-        let expected_code = preflight_decoded.code().code().to_owned();
-        if expected_decision != input.scenario.expected.decision
-            || expected_code != input.scenario.expected.code
-        {
-            return Err(format!(
-                "semantic preflight drift for {}",
-                input.scenario.id
-            ));
-        }
-
-        let warmup_started = Instant::now();
-        while warmup_started.elapsed() < Duration::from_millis(profile.warmup_ms) {
-            black_box(
-                verify_v1(
-                    black_box(&input.proof_cbor),
-                    black_box(&input.canonical_action_cbor),
-                    black_box(&input.trusted_context_cbor),
-                    black_box(&registries),
-                )
-                .map_err(|error| error.to_string())?,
-            );
-        }
-
-        let mut samples = Vec::with_capacity(profile.samples);
-        for _ in 0..profile.samples {
-            let started = Instant::now();
-            for _ in 0..profile.operations_per_sample {
-                black_box(
-                    verify_v1(
-                        black_box(&input.proof_cbor),
-                        black_box(&input.canonical_action_cbor),
-                        black_box(&input.trusted_context_cbor),
-                        black_box(&registries),
-                    )
-                    .map_err(|error| error.to_string())?,
-                );
-            }
-            let elapsed = u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX);
-            samples.push(elapsed / u64::try_from(profile.operations_per_sample).unwrap_or(1));
-        }
-        let postflight = verify_v1(
-            &input.proof_cbor,
-            &input.canonical_action_cbor,
-            &input.trusted_context_cbor,
-            &registries,
-        )
-        .map_err(|error| error.to_string())?;
-        if postflight != preflight {
-            return Err(format!(
-                "semantic postflight drift for {}",
-                input.scenario.id
-            ));
-        }
-        let resources = preflight_decoded.resources();
-        let result = BenchmarkResult {
-            schema: "auths-proof-benchmark-result/v1".to_owned(),
-            revision: option_env!("AUTHS_BENCH_REVISION")
-                .unwrap_or("unknown")
-                .to_owned(),
-            dirty: option_env!("AUTHS_BENCH_DIRTY").unwrap_or("true") != "false",
-            target: env::consts::ARCH.to_owned(),
-            environment: Environment {
-                os: env::consts::OS.to_owned(),
-                arch: env::consts::ARCH.to_owned(),
-                cpu: "unknown".to_owned(),
-                logical_cores: std::thread::available_parallelism().map_or(0, usize::from),
-                memory_bytes: 0,
-                runtime: "native".to_owned(),
-                runtime_version: env!("CARGO_PKG_VERSION").to_owned(),
-                rustc: option_env!("RUSTC_VERSION").unwrap_or("unknown").to_owned(),
-                power_mode: "unknown".to_owned(),
-                virtualized: "unknown".to_owned(),
-            },
-            scenario: input.scenario.id.clone(),
-            input_sha256: hex_digest(input.input_digest),
-            semantic: SemanticRecord {
-                decision: expected_decision,
-                code: expected_code,
-                result_sha256: hex_digest(Sha256::digest(&preflight).into()),
-                work_units: resources.work_units(),
-                proof_bytes: resources.proof_bytes(),
-                context_bytes: resources.context_bytes(),
-                plan_leaves: resources.plan_leaves(),
-                plan_depth: resources.plan_depth(),
-            },
-            summary: statistics(&samples),
-            samples_ns: samples,
-        };
-        validate_result(input, &result).map_err(|error| error.to_string())?;
-        results.push(result);
-    }
+    let results = inputs
+        .iter()
+        .map(|input| benchmark_input(input, &profile, &registries))
+        .collect::<Result<Vec<_>, _>>()?;
     let artifact = RunArtifact {
         schema: "auths-proof-benchmark-run/v1".to_owned(),
         profile,

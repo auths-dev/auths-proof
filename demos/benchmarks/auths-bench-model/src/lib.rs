@@ -4,6 +4,7 @@
 
 use auths_codec::encode_canonical_action;
 use auths_testkit::{CorpusFixture, Expected};
+use core::fmt::Write as _;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest as _, Sha256};
 
@@ -256,28 +257,32 @@ fn expected(fixture: &CorpusFixture) -> ExpectedResult {
     }
 }
 
-fn make_input(
-    id: &str,
+struct ScenarioDimensions {
     family: ScenarioFamily,
     principal: PrincipalFamily,
     suite: SignatureFamily,
     grant_depth: u16,
     plan: PlanShape,
     limit_position: LimitPosition,
-    fixture: CorpusFixture,
+}
+
+fn make_input(
+    id: &str,
+    dimensions: ScenarioDimensions,
+    fixture: &CorpusFixture,
 ) -> Result<BenchmarkInput, BenchmarkError> {
     let scenario = BenchmarkScenario {
         schema: GENERATOR_VERSION,
         id: id.to_owned(),
-        family,
-        principal,
-        suite,
+        family: dimensions.family,
+        principal: dimensions.principal,
+        suite: dimensions.suite,
         proof_target_bytes: Some(fixture.proof_bytes().len()),
-        grant_depth,
-        plan,
+        grant_depth: dimensions.grant_depth,
+        plan: dimensions.plan,
         evidence_target_bytes: None,
-        limit_position,
-        expected: expected(&fixture),
+        limit_position: dimensions.limit_position,
+        expected: expected(fixture),
         seed: Sha256::digest(id.as_bytes()).into(),
     };
     let canonical_action_cbor = encode_canonical_action(fixture.canonical_action())
@@ -295,118 +300,149 @@ fn make_input(
     Ok(input)
 }
 
+fn baseline_suite() -> Result<Vec<BenchmarkInput>, BenchmarkError> {
+    use auths_testkit as fixtures;
+    Ok(vec![
+        make_input(
+            "baseline/raw-key/ed25519",
+            ScenarioDimensions {
+                family: ScenarioFamily::Baseline,
+                principal: PrincipalFamily::RawKey,
+                suite: SignatureFamily::Ed25519,
+                grant_depth: 1,
+                plan: PlanShape::Single,
+                limit_position: LimitPosition::Nominal,
+            },
+            &fixtures::raw_key_chain(),
+        )?,
+        make_input(
+            "baseline/did-key/ed25519",
+            ScenarioDimensions {
+                family: ScenarioFamily::Baseline,
+                principal: PrincipalFamily::DidKey,
+                suite: SignatureFamily::Ed25519,
+                grant_depth: 1,
+                plan: PlanShape::Single,
+                limit_position: LimitPosition::Nominal,
+            },
+            &fixtures::did_key_root_raw_key_actor(),
+        )?,
+        make_input(
+            "baseline/did-keri/ed25519",
+            ScenarioDimensions {
+                family: ScenarioFamily::Baseline,
+                principal: PrincipalFamily::DidKeri,
+                suite: SignatureFamily::Ed25519,
+                grant_depth: 1,
+                plan: PlanShape::Single,
+                limit_position: LimitPosition::Nominal,
+            },
+            &fixtures::did_keri_root_raw_key_actor(),
+        )?,
+        make_input(
+            "baseline/did-web/ed25519",
+            ScenarioDimensions {
+                family: ScenarioFamily::Baseline,
+                principal: PrincipalFamily::DidWeb,
+                suite: SignatureFamily::Ed25519,
+                grant_depth: 1,
+                plan: PlanShape::Single,
+                limit_position: LimitPosition::Nominal,
+            },
+            &fixtures::did_web_root_raw_key_actor(),
+        )?,
+        make_input(
+            "baseline/webauthn/p256",
+            ScenarioDimensions {
+                family: ScenarioFamily::Baseline,
+                principal: PrincipalFamily::WebAuthn,
+                suite: SignatureFamily::P256Sha256,
+                grant_depth: 1,
+                plan: PlanShape::Single,
+                limit_position: LimitPosition::Nominal,
+            },
+            &fixtures::webauthn_root_raw_key_actor(),
+        )?,
+        make_input(
+            "baseline/hsm-attested/ed25519",
+            ScenarioDimensions {
+                family: ScenarioFamily::Baseline,
+                principal: PrincipalFamily::HsmAttested,
+                suite: SignatureFamily::Ed25519,
+                grant_depth: 1,
+                plan: PlanShape::Single,
+                limit_position: LimitPosition::Nominal,
+            },
+            &fixtures::hsm_root_raw_key_actor(),
+        )?,
+        make_input(
+            "baseline/spiffe-x509/p256",
+            ScenarioDimensions {
+                family: ScenarioFamily::Baseline,
+                principal: PrincipalFamily::SpiffeX509,
+                suite: SignatureFamily::P256Sha256,
+                grant_depth: 1,
+                plan: PlanShape::Single,
+                limit_position: LimitPosition::Nominal,
+            },
+            &fixtures::spiffe_root_raw_key_actor(),
+        )?,
+    ])
+}
+
+fn structural_suite() -> Result<Vec<BenchmarkInput>, BenchmarkError> {
+    use auths_testkit as fixtures;
+    Ok(vec![
+        make_input(
+            "plan/all-of/two",
+            ScenarioDimensions {
+                family: ScenarioFamily::PlanShape,
+                principal: PrincipalFamily::RawKey,
+                suite: SignatureFamily::Ed25519,
+                grant_depth: 1,
+                plan: PlanShape::AllOf { leaves: 2 },
+                limit_position: LimitPosition::Nominal,
+            },
+            &fixtures::all_of(),
+        )?,
+        make_input(
+            "plan/threshold/two-of-three",
+            ScenarioDimensions {
+                family: ScenarioFamily::PlanShape,
+                principal: PrincipalFamily::RawKey,
+                suite: SignatureFamily::Ed25519,
+                grant_depth: 1,
+                plan: PlanShape::Threshold { k: 2, leaves: 3 },
+                limit_position: LimitPosition::Nominal,
+            },
+            &fixtures::threshold(),
+        )?,
+        make_input(
+            "limit/work/above",
+            ScenarioDimensions {
+                family: ScenarioFamily::LimitBoundary,
+                principal: PrincipalFamily::RawKey,
+                suite: SignatureFamily::Ed25519,
+                grant_depth: 1,
+                plan: PlanShape::Single,
+                limit_position: LimitPosition::Above {
+                    kind: "work-units".to_owned(),
+                    delta: 1,
+                },
+            },
+            &fixtures::verification_work_limit_exceeded(),
+        )?,
+    ])
+}
+
 /// Generates the controlled target V1 scenario suite.
 ///
 /// # Errors
 ///
 /// Returns a typed error if a canonical fixture cannot be encoded.
 pub fn generate_suite(_profile: &BenchmarkProfile) -> Result<Vec<BenchmarkInput>, BenchmarkError> {
-    use auths_testkit as fixtures;
-    let mut suite = vec![
-        make_input(
-            "baseline/raw-key/ed25519",
-            ScenarioFamily::Baseline,
-            PrincipalFamily::RawKey,
-            SignatureFamily::Ed25519,
-            1,
-            PlanShape::Single,
-            LimitPosition::Nominal,
-            fixtures::raw_key_chain(),
-        )?,
-        make_input(
-            "baseline/did-key/ed25519",
-            ScenarioFamily::Baseline,
-            PrincipalFamily::DidKey,
-            SignatureFamily::Ed25519,
-            1,
-            PlanShape::Single,
-            LimitPosition::Nominal,
-            fixtures::did_key_root_raw_key_actor(),
-        )?,
-        make_input(
-            "baseline/did-keri/ed25519",
-            ScenarioFamily::Baseline,
-            PrincipalFamily::DidKeri,
-            SignatureFamily::Ed25519,
-            1,
-            PlanShape::Single,
-            LimitPosition::Nominal,
-            fixtures::did_keri_root_raw_key_actor(),
-        )?,
-        make_input(
-            "baseline/did-web/ed25519",
-            ScenarioFamily::Baseline,
-            PrincipalFamily::DidWeb,
-            SignatureFamily::Ed25519,
-            1,
-            PlanShape::Single,
-            LimitPosition::Nominal,
-            fixtures::did_web_root_raw_key_actor(),
-        )?,
-        make_input(
-            "baseline/webauthn/p256",
-            ScenarioFamily::Baseline,
-            PrincipalFamily::WebAuthn,
-            SignatureFamily::P256Sha256,
-            1,
-            PlanShape::Single,
-            LimitPosition::Nominal,
-            fixtures::webauthn_root_raw_key_actor(),
-        )?,
-        make_input(
-            "baseline/hsm-attested/ed25519",
-            ScenarioFamily::Baseline,
-            PrincipalFamily::HsmAttested,
-            SignatureFamily::Ed25519,
-            1,
-            PlanShape::Single,
-            LimitPosition::Nominal,
-            fixtures::hsm_root_raw_key_actor(),
-        )?,
-        make_input(
-            "baseline/spiffe-x509/p256",
-            ScenarioFamily::Baseline,
-            PrincipalFamily::SpiffeX509,
-            SignatureFamily::P256Sha256,
-            1,
-            PlanShape::Single,
-            LimitPosition::Nominal,
-            fixtures::spiffe_root_raw_key_actor(),
-        )?,
-        make_input(
-            "plan/all-of/two",
-            ScenarioFamily::PlanShape,
-            PrincipalFamily::RawKey,
-            SignatureFamily::Ed25519,
-            1,
-            PlanShape::AllOf { leaves: 2 },
-            LimitPosition::Nominal,
-            fixtures::all_of(),
-        )?,
-        make_input(
-            "plan/threshold/two-of-three",
-            ScenarioFamily::PlanShape,
-            PrincipalFamily::RawKey,
-            SignatureFamily::Ed25519,
-            1,
-            PlanShape::Threshold { k: 2, leaves: 3 },
-            LimitPosition::Nominal,
-            fixtures::threshold(),
-        )?,
-        make_input(
-            "limit/work/above",
-            ScenarioFamily::LimitBoundary,
-            PrincipalFamily::RawKey,
-            SignatureFamily::Ed25519,
-            1,
-            PlanShape::Single,
-            LimitPosition::Above {
-                kind: "work-units".to_owned(),
-                delta: 1,
-            },
-            fixtures::verification_work_limit_exceeded(),
-        )?,
-    ];
+    let mut suite = baseline_suite()?;
+    suite.extend(structural_suite()?);
     suite.sort_by(|left, right| left.scenario.id.cmp(&right.scenario.id));
     Ok(suite)
 }
@@ -436,6 +472,10 @@ pub fn compute_input_digest(input: &BenchmarkInput) -> Result<[u8; 32], Benchmar
 
 /// Computes deterministic summary statistics and a conservative median interval.
 #[must_use]
+#[allow(
+    clippy::cast_precision_loss,
+    reason = "nanosecond observations are intentionally summarized as floating-point moments"
+)]
 pub fn statistics(samples: &[u64]) -> Statistics {
     let mut sorted = samples.to_vec();
     sorted.sort_unstable();
@@ -521,6 +561,10 @@ pub fn compare_runs(
             {
                 return Err(BenchmarkError::Incomparable(before.scenario.clone()));
             }
+            #[allow(
+                clippy::cast_precision_loss,
+                reason = "performance ratios intentionally use floating-point division"
+            )]
             let ratio = after.summary.p50_ns as f64 / before.summary.p50_ns.max(1) as f64;
             let separated = after.summary.median_ci95_ns[0] > before.summary.median_ci95_ns[1];
             Ok(Comparison {
@@ -535,7 +579,11 @@ pub fn compare_runs(
 /// Lowercase hexadecimal digest.
 #[must_use]
 pub fn hex_digest(digest: [u8; 32]) -> String {
-    digest.iter().map(|byte| format!("{byte:02x}")).collect()
+    let mut encoded = String::with_capacity(digest.len() * 2);
+    for byte in digest {
+        write!(&mut encoded, "{byte:02x}").expect("writing to a string cannot fail");
+    }
+    encoded
 }
 
 #[cfg(test)]
