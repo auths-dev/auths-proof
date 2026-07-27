@@ -6,6 +6,9 @@
 
 #![forbid(unsafe_code)]
 
+pub mod explanation;
+pub mod render;
+
 use auths_config::BoundConfiguration;
 use std::{
     collections::{BTreeMap, BTreeSet},

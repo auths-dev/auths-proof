@@ -1,0 +1,1 @@
+{"schema":"auths-proof-adapter-conformance/v1","method":"webauthn-v1","relevance":{"principal":true,"verification_method":true,"signature_suite":true,"purpose":true,"signing_preimage":true,"asserted_signing_time":false,"evaluation_time":true}}

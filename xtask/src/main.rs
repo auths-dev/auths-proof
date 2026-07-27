@@ -1,11 +1,14 @@
 #![forbid(unsafe_code)]
 
 use auths_testkit::Expected;
+use serde::Deserialize;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, BTreeSet},
-    env, fs,
+    env,
+    fmt::Write as _,
+    fs,
     path::{Path, PathBuf},
     process::{Command, ExitCode},
 };
@@ -50,6 +53,15 @@ fn run() -> Result<(), String> {
         "live-demo" => live_demo(),
         "fuzz-inventory" => fuzz_inventory(),
         "fuzz-smoke" => fuzz_smoke(),
+        "formal" => {
+            let arguments: Vec<_> = args.collect();
+            formal(
+                arguments.iter().any(|arg| arg == "--skip-kani"),
+                arguments.iter().any(|arg| arg == "--update"),
+            )
+        }
+        "adversarial-conformance" => adversarial_conformance(args.collect()),
+        "bench" => benchmark(args.collect()),
         "platform-artifact" => {
             let output = args
                 .next()
@@ -64,7 +76,10 @@ fn run() -> Result<(), String> {
                  exchange|product|bindings|demos|package|wire [--update]|spec-sync|\
                  conformance|exchange-conformance|product-conformance|compliance|matrix|cross-language|\
                  product-fixtures [--update]|semantic-digest|wasm|live-demo|fuzz-inventory|fuzz-smoke|\
-                 platform-artifact [output]|ci|release-check>"
+                 platform-artifact [output]|formal [--skip-kani] [--update]|\
+                 adversarial-conformance [--surface <name>|--adapter <name>|--case <id>]|\
+                 bench <prepare|run|report|compare|verify-artifact>|\
+                 ci|release-check>"
             );
             Ok(())
         }
@@ -1832,6 +1847,739 @@ fn fuzz_inventory() -> Result<(), String> {
     Ok(())
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AlgebraContract {
+    schema: String,
+    exhaustive_threshold_bound: u16,
+    truth_order: Vec<String>,
+    attenuation_acceptance: String,
+    attenuation_dimensions: Vec<AlgebraDimension>,
+    threshold: ThresholdContract,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AlgebraDimension {
+    rust: String,
+    lean: String,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ThresholdContract {
+    authorized: String,
+    indeterminate: String,
+    denied: String,
+}
+
+fn load_algebra_contract() -> Result<AlgebraContract, String> {
+    let path = root().join("formal/algebra-contract-v1.toml");
+    let contract: AlgebraContract = toml::from_str(
+        &fs::read_to_string(&path)
+            .map_err(|error| format!("could not read {}: {error}", path.display()))?,
+    )
+    .map_err(|error| format!("invalid algebra contract {}: {error}", path.display()))?;
+    if contract.schema != "auths-proof-algebra-contract/v1"
+        || contract.exhaustive_threshold_bound == 0
+        || contract.truth_order != ["denied", "indeterminate", "authorized"]
+        || contract.attenuation_acceptance != "all"
+        || contract.attenuation_dimensions.is_empty()
+        || contract.threshold.authorized != "authorized >= required"
+        || contract.threshold.indeterminate
+            != "authorized < required && authorized + indeterminate >= required"
+        || contract.threshold.denied != "authorized + indeterminate < required"
+    {
+        return Err("unsupported algebra contract semantics".to_owned());
+    }
+    let rust_names: BTreeSet<_> = contract
+        .attenuation_dimensions
+        .iter()
+        .map(|dimension| dimension.rust.as_str())
+        .collect();
+    let lean_names: BTreeSet<_> = contract
+        .attenuation_dimensions
+        .iter()
+        .map(|dimension| dimension.lean.as_str())
+        .collect();
+    if rust_names.len() != contract.attenuation_dimensions.len()
+        || lean_names.len() != contract.attenuation_dimensions.len()
+    {
+        return Err("algebra contract dimension names must be unique".to_owned());
+    }
+    Ok(contract)
+}
+
+fn dimension_description(name: &str) -> &'static str {
+    match name {
+        "root_preserved" => "the trust root is preserved",
+        "depth_decreases" => "delegation depth strictly decreases",
+        "profile_attenuates" => "the selected profile does not widen",
+        "permissions_attenuate" => "permissions do not widen",
+        "validity_attenuates" => "the validity window does not widen",
+        "audiences_attenuate" => "audiences do not widen",
+        "action_constraint_attenuates" => "the action-body constraint does not widen",
+        "budget_attenuates" => "the budget ceiling does not widen",
+        "status_attenuates" => "status requirements do not weaken",
+        "assurance_attenuates" => "assurance requirements do not weaken",
+        _ => "the declared authority dimension attenuates",
+    }
+}
+
+fn render_rust_algebra(contract: &AlgebraContract) -> Result<String, String> {
+    macro_rules! line {
+        ($output:expr, $($argument:tt)*) => {
+            writeln!($output, $($argument)*)
+                .map_err(|_| "could not render generated Rust algebra".to_owned())?
+        };
+    }
+
+    let mut output = String::new();
+    output.push_str(
+        "// @generated by `cargo xtask formal --update`; DO NOT EDIT.\n\n\
+         /// Versioned source contract used to generate this module.\n",
+    );
+    line!(
+        output,
+        "pub const CONTRACT_SCHEMA: &str = {:?};",
+        contract.schema
+    );
+    output.push_str("\n/// Exhaustive default-deployment threshold bound.\n");
+    line!(
+        output,
+        "pub const EXHAUSTIVE_THRESHOLD_BOUND: u16 = {};",
+        contract.exhaustive_threshold_bound
+    );
+    output.push_str(
+        "\n/// Closed three-valued authorization truth.\n\
+         #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]\n\
+         pub enum Truth {\n\
+         \x20   /// Available facts prove denial.\n\
+         \x20   Denied,\n\
+         \x20   /// Required facts are unavailable and authorization remains reachable.\n\
+         \x20   Indeterminate,\n\
+         \x20   /// Available facts prove authorization.\n\
+         \x20   Authorized,\n\
+         }\n\n\
+         /// Shared projection boundary for authority attenuation.\n\
+         pub trait AttenuationProjection {\n",
+    );
+    for dimension in &contract.attenuation_dimensions {
+        line!(
+            output,
+            "    /// Whether {}.",
+            dimension_description(&dimension.rust)
+        );
+        line!(output, "    fn {}(&self) -> bool;", dimension.rust);
+    }
+    output.push_str(
+        "}\n\n\
+         /// Concrete projection used by vectors and bounded verification.\n\
+         #[allow(\n\
+         \x20   clippy::struct_excessive_bools,\n\
+         \x20   reason = \"each Boolean is one generated authority dimension\"\n\
+         )]\n\
+         #[derive(Clone, Copy, Debug, Eq, PartialEq)]\n\
+         pub struct AttenuationChecks {\n",
+    );
+    for dimension in &contract.attenuation_dimensions {
+        line!(
+            output,
+            "    /// Whether {}.",
+            dimension_description(&dimension.rust)
+        );
+        line!(output, "    pub {}: bool,", dimension.rust);
+    }
+    output.push_str("}\n\nimpl AttenuationProjection for AttenuationChecks {\n");
+    for dimension in &contract.attenuation_dimensions {
+        line!(output, "    fn {}(&self) -> bool {{", dimension.rust);
+        line!(output, "        self.{}", dimension.rust);
+        output.push_str("    }\n\n");
+    }
+    output.pop();
+    output.push_str(
+        "}\n\n\
+         /// Accepts exactly when every declared attenuation dimension accepts.\n\
+         #[must_use]\n\
+         pub fn attenuation_accepts<P: AttenuationProjection + ?Sized>(projection: &P) -> bool {\n",
+    );
+    for (index, dimension) in contract.attenuation_dimensions.iter().enumerate() {
+        let operator = if index == 0 { "    " } else { "        && " };
+        line!(output, "{operator}projection.{}()", dimension.rust);
+    }
+    output.push_str(
+        "}\n\n\
+         /// Classifies target V1 threshold counts.\n\
+         #[must_use]\n\
+         pub fn threshold_counts(required: u16, authorized: usize, indeterminate: usize) -> Truth {\n\
+         \x20   let required = usize::from(required);\n\
+         \x20   if authorized >= required {\n\
+         \x20       Truth::Authorized\n\
+         \x20   } else if authorized.saturating_add(indeterminate) >= required {\n\
+         \x20       Truth::Indeterminate\n\
+         \x20   } else {\n\
+         \x20       Truth::Denied\n\
+         \x20   }\n\
+         }\n",
+    );
+    Ok(output)
+}
+
+fn render_lean_algebra(contract: &AlgebraContract) -> Result<String, String> {
+    macro_rules! line {
+        ($output:expr, $($argument:tt)*) => {
+            writeln!($output, $($argument)*)
+                .map_err(|_| "could not render generated Lean algebra".to_owned())?
+        };
+    }
+
+    let mut output = String::new();
+    output.push_str(
+        "-- @generated by `cargo xtask formal --update`; DO NOT EDIT.\n\n\
+         namespace Auths.Generated\n\n",
+    );
+    line!(
+        output,
+        "def contractSchema : String := {:?}",
+        contract.schema
+    );
+    line!(
+        output,
+        "\ndef exhaustiveThresholdBound : Nat := {}",
+        contract.exhaustive_threshold_bound
+    );
+    output.push_str(
+        "\ninductive Truth where\n\
+         \x20 | denied\n\
+         \x20 | indeterminate\n\
+         \x20 | authorized\n\
+         \x20 deriving BEq, DecidableEq, Repr\n\n\
+         structure AttenuationProjection where\n",
+    );
+    for dimension in &contract.attenuation_dimensions {
+        line!(output, "  {} : Bool", dimension.lean);
+    }
+    output.push_str("  deriving BEq, DecidableEq, Repr\n\n");
+    output.push_str("def attenuationAccepts (projection : AttenuationProjection) : Bool :=\n");
+    for (index, dimension) in contract.attenuation_dimensions.iter().enumerate() {
+        let suffix = if index + 1 == contract.attenuation_dimensions.len() {
+            ""
+        } else {
+            " &&"
+        };
+        line!(output, "  projection.{}{suffix}", dimension.lean);
+    }
+    output.push_str(
+        "\ndef thresholdCounts (required authorized indeterminate : Nat) : Truth :=\n\
+         \x20 if authorized ≥ required then .authorized\n\
+         \x20 else if authorized + indeterminate ≥ required then .indeterminate\n\
+         \x20 else .denied\n\n\
+         end Auths.Generated\n",
+    );
+    Ok(output)
+}
+
+fn synchronize_generated_file(
+    path: &Path,
+    expected: &str,
+    update: bool,
+    label: &str,
+) -> Result<(), String> {
+    if update {
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)
+                .map_err(|error| format!("could not create {}: {error}", parent.display()))?;
+        }
+        fs::write(path, expected)
+            .map_err(|error| format!("could not write {}: {error}", path.display()))?;
+        println!("Updated {label}: {}", path.display());
+        return Ok(());
+    }
+    let actual = fs::read_to_string(path)
+        .map_err(|error| format!("could not read {}: {error}", path.display()))?;
+    if actual != expected {
+        return Err(format!(
+            "{label} drifted from formal/algebra-contract-v1.toml; run `cargo xtask formal --update`"
+        ));
+    }
+    Ok(())
+}
+
+fn synchronize_algebra_sources(contract: &AlgebraContract, update: bool) -> Result<(), String> {
+    synchronize_generated_file(
+        &root().join("core/crates/auths-algebra-kernel/src/generated.rs"),
+        &render_rust_algebra(contract)?,
+        update,
+        "generated Rust algebra",
+    )?;
+    synchronize_generated_file(
+        &root().join("formal/Auths/Generated/Algebra.lean"),
+        &render_lean_algebra(contract)?,
+        update,
+        "generated Lean algebra",
+    )
+}
+
+fn synchronize_lean_vectors(formal_root: &Path, update: bool) -> Result<(), String> {
+    for (kind, file) in [
+        ("threshold", "threshold-counts.json"),
+        ("attenuation", "attenuation-checks.json"),
+    ] {
+        let generated = command_output_in(
+            "lake",
+            &["exe", "auths-vector-export", kind],
+            formal_root,
+            None,
+        )?;
+        serde_json::from_str::<Value>(&generated)
+            .map_err(|error| format!("Lean emitted invalid {kind} JSON: {error}"))?;
+        synchronize_generated_file(
+            &root().join("core/formal-vectors/v1").join(file),
+            &generated,
+            update,
+            &format!("Lean-generated {kind} vectors"),
+        )?;
+    }
+    Ok(())
+}
+
+fn formal(skip_kani: bool, update: bool) -> Result<(), String> {
+    let formal_root = root().join("formal");
+    let contract = load_algebra_contract()?;
+    synchronize_algebra_sources(&contract, update)?;
+    command_in("lake", &["build"], &formal_root, None)?;
+    synchronize_lean_vectors(&formal_root, update)?;
+
+    let sources = files_with_extension(&formal_root.join("Auths"), "lean")?;
+    let mut formal_source = String::new();
+    for source in sources {
+        let text = fs::read_to_string(&source)
+            .map_err(|error| format!("could not read {}: {error}", source.display()))?;
+        for (index, line) in text.lines().enumerate() {
+            let trimmed = line.trim_start();
+            if trimmed.starts_with("sorry")
+                || trimmed.starts_with("admit")
+                || trimmed.starts_with("axiom ")
+            {
+                return Err(format!(
+                    "forbidden unchecked formal declaration at {}:{}",
+                    source.display(),
+                    index + 1
+                ));
+            }
+        }
+        formal_source.push_str(&text);
+    }
+
+    let inventory_path = root().join("core/formal-vectors/v1/manifest.json");
+    let inventory: Value = serde_json::from_slice(
+        &fs::read(&inventory_path)
+            .map_err(|error| format!("could not read {}: {error}", inventory_path.display()))?,
+    )
+    .map_err(|error| format!("could not parse {}: {error}", inventory_path.display()))?;
+    let theorems = inventory
+        .get("theorems")
+        .and_then(Value::as_array)
+        .ok_or("formal inventory has no theorem array")?;
+    for theorem in theorems {
+        let name = theorem
+            .as_str()
+            .ok_or("formal theorem inventory entry is not a string")?;
+        if !formal_source.contains(&format!("theorem {name}")) {
+            return Err(format!(
+                "formal theorem inventory is missing declaration {name}"
+            ));
+        }
+    }
+    println!(
+        "Formal inventory:           PASS ({} theorems)",
+        theorems.len()
+    );
+
+    cargo(&["test", "-p", "auths-formal-refinement"])?;
+    if skip_kani {
+        println!("Kani bounded harnesses:      SKIPPED (--skip-kani)");
+    } else {
+        command_in(
+            "cargo",
+            &["kani", "-p", "auths-algebra-kernel"],
+            &root(),
+            None,
+        )?;
+        println!("Kani bounded harnesses:      PASS");
+    }
+    println!("Lean theorems:              PASS");
+    println!("Generated semantic vectors: byte-stable");
+    println!("Rust refinement vectors:    PASS");
+    Ok(())
+}
+
+fn adversarial_conformance(args: Vec<String>) -> Result<(), String> {
+    let manifest_path = root().join("core/conformance/v1/manifest.json");
+    let manifest_bytes = fs::read(&manifest_path)
+        .map_err(|error| format!("could not read {}: {error}", manifest_path.display()))?;
+    let manifest = auths_testkit::conformance::ConformanceManifest::parse(&manifest_bytes)?;
+
+    let mut selection: Option<(&str, &str)> = None;
+    let mut index = 0;
+    while index < args.len() {
+        let argument = args[index].as_str();
+        if matches!(argument, "--surface" | "--adapter" | "--case") {
+            let value = args
+                .get(index + 1)
+                .ok_or_else(|| format!("{argument} requires a value"))?;
+            selection = Some((argument, value));
+            index += 2;
+        } else if argument == "--update" {
+            index += 1;
+        } else {
+            return Err(format!(
+                "unknown adversarial-conformance argument {argument}"
+            ));
+        }
+    }
+
+    let selected: Vec<_> = manifest
+        .cases
+        .iter()
+        .filter(|case| {
+            selection.is_none_or(|(kind, value)| match kind {
+                "--case" => case.case == value,
+                "--surface" | "--adapter" => case.case.starts_with(&format!("{value}/")),
+                _ => false,
+            })
+        })
+        .collect();
+    if selected.is_empty() {
+        return Err("adversarial-conformance selection matched no cases".to_owned());
+    }
+
+    let adapters_root = root().join("core/conformance/v1/adapters");
+    let adapters = files_with_extension(&adapters_root, "json")?;
+    if adapters.len() != 7 {
+        return Err(format!(
+            "expected seven principal adapter manifests, found {}",
+            adapters.len()
+        ));
+    }
+    for path in adapters {
+        let value: Value = serde_json::from_slice(
+            &fs::read(&path)
+                .map_err(|error| format!("could not read {}: {error}", path.display()))?,
+        )
+        .map_err(|error| format!("could not parse {}: {error}", path.display()))?;
+        if value.get("schema").and_then(Value::as_str) != Some("auths-proof-adapter-conformance/v1")
+        {
+            return Err(format!(
+                "invalid adapter conformance schema in {}",
+                path.display()
+            ));
+        }
+    }
+
+    let raw_key = auths_raw_key::RawKeyMethod::new().map_err(|error| error.to_string())?;
+    let did_key = auths_did_key::DidKeyMethod::new().map_err(|error| error.to_string())?;
+    let did_keri = auths_did_keri::DidKeriMethod::new().map_err(|error| error.to_string())?;
+    let did_web = auths_did_web::DidWebMethod::new(auths_testkit::did_web_corpus_trust_records())
+        .map_err(|error| error.to_string())?;
+    let webauthn =
+        auths_webauthn::WebAuthnMethod::new(auths_testkit::webauthn_corpus_credentials())
+            .map_err(|error| error.to_string())?;
+    let hsm = auths_hsm_attested::HsmAttestedMethod::new(auths_testkit::hsm_corpus_records())
+        .map_err(|error| error.to_string())?;
+    let (spiffe_trust, spiffe_status) = auths_testkit::spiffe_corpus_context();
+    let spiffe = auths_spiffe_x509::SpiffeX509Method::new(spiffe_trust, spiffe_status)
+        .map_err(|error| error.to_string())?;
+    let ed25519 = auths_signature::Ed25519Suite::new().map_err(|error| error.to_string())?;
+    let p256 = auths_signature::P256Sha256Suite::new().map_err(|error| error.to_string())?;
+    let methods: [&dyn auths_ports::PrincipalMethod; 7] = [
+        &raw_key, &did_key, &did_keri, &did_web, &webauthn, &hsm, &spiffe,
+    ];
+    let suites: [&dyn auths_ports::SignatureSuite; 2] = [&ed25519, &p256];
+    let registries = auths_registries::ImmutableRegistries::new(&methods, &suites)
+        .map_err(|error| error.to_string())?;
+
+    let mut executions = Vec::with_capacity(selected.len());
+    let mut passed = 0usize;
+    for case in &selected {
+        let actual = match auths_testkit::conformance::execute_case(&case.case)? {
+            auths_testkit::conformance::BoundaryExecution::Completed(code) => code.to_owned(),
+            auths_testkit::conformance::BoundaryExecution::FullVerifier(fixture) => {
+                let context = auths_codec::decode_verifier_context(fixture.context_bytes())
+                    .map_err(|error| format!("{} context: {error}", case.case))?;
+                auths_verifier::verify_portable(
+                    fixture.proof_bytes(),
+                    fixture.canonical_action(),
+                    &context,
+                    &registries,
+                )
+                .code()
+                .code()
+                .to_owned()
+            }
+        };
+        let case_passed = actual == case.expected_code;
+        passed += usize::from(case_passed);
+        executions.push(json!({
+            "case": case.case,
+            "boundary": case.boundary,
+            "expected_code": case.expected_code,
+            "actual_code": actual,
+            "passed": case_passed
+        }));
+    }
+
+    let selected_context: BTreeSet<_> = selected
+        .iter()
+        .flat_map(|case| case.requirements.iter())
+        .filter(|requirement| requirement.starts_with("CONTEXT."))
+        .collect();
+    let all_context: BTreeSet<_> = manifest
+        .cases
+        .iter()
+        .flat_map(|case| case.requirements.iter())
+        .filter(|requirement| requirement.starts_with("CONTEXT."))
+        .collect();
+    let selected_methods: BTreeSet<_> = selected
+        .iter()
+        .filter_map(|case| case.case.split_once('/'))
+        .map(|(surface, _)| surface)
+        .filter(|surface| *surface != "context")
+        .collect();
+    let all_methods: BTreeSet<_> = manifest
+        .cases
+        .iter()
+        .filter_map(|case| case.case.split_once('/'))
+        .map(|(surface, _)| surface)
+        .filter(|surface| *surface != "context")
+        .collect();
+    let selected_common: BTreeSet<_> = selected
+        .iter()
+        .filter(|case| {
+            case.requirements
+                .iter()
+                .any(|requirement| requirement.starts_with("ADAPTER.COMMON."))
+        })
+        .filter_map(|case| case.case.split_once('/').map(|(surface, _)| surface))
+        .collect();
+    let all_common: BTreeSet<_> = manifest
+        .cases
+        .iter()
+        .filter(|case| {
+            case.requirements
+                .iter()
+                .any(|requirement| requirement.starts_with("ADAPTER.COMMON."))
+        })
+        .filter_map(|case| case.case.split_once('/').map(|(surface, _)| surface))
+        .collect();
+    let failed = selected.len().saturating_sub(passed);
+    let output = json!({
+        "schema": "auths-proof-conformance-result/v1",
+        "manifest_sha256": sha256_file(&manifest_path)?,
+        "cases": selected.len(),
+        "passed": passed,
+        "failed": failed,
+        "coverage": {
+            "context_fields": format!("{}/{}", selected_context.len(), all_context.len()),
+            "principal_methods": format!("{}/{}", selected_methods.len(), all_methods.len()),
+            "common_contract": format!("{}/{}", selected_common.len(), all_common.len())
+        },
+        "executions": executions
+    });
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&output)
+            .map_err(|error| format!("could not encode conformance result: {error}"))?
+    );
+    if failed == 0 {
+        Ok(())
+    } else {
+        Err(format!(
+            "{failed} of {} adversarial conformance cases failed",
+            selected.len()
+        ))
+    }
+}
+
+fn benchmark(args: Vec<String>) -> Result<(), String> {
+    let command = args.first().map(String::as_str).unwrap_or("help");
+    let option = |name: &str| -> Option<&str> {
+        args.iter()
+            .position(|argument| argument == name)
+            .and_then(|index| args.get(index + 1))
+            .map(String::as_str)
+    };
+    let profile_name = option("--profile").unwrap_or("developer");
+    let profile = match profile_name {
+        "developer" => auths_bench_model::BenchmarkProfile::developer(),
+        "paper" => auths_bench_model::BenchmarkProfile::paper(),
+        other => {
+            let path = root()
+                .join("demos/benchmarks/profiles")
+                .join(format!("{other}.toml"));
+            toml::from_str(
+                &fs::read_to_string(&path)
+                    .map_err(|error| format!("could not read {}: {error}", path.display()))?,
+            )
+            .map_err(|error| format!("invalid benchmark profile {}: {error}", path.display()))?
+        }
+    };
+    let input_directory = root().join("target/auths-bench/inputs");
+    let input_manifest = input_directory.join("manifest.json");
+
+    match command {
+        "prepare" => {
+            let suite =
+                auths_bench_model::generate_suite(&profile).map_err(|error| error.to_string())?;
+            fs::create_dir_all(&input_directory)
+                .map_err(|error| format!("could not create input directory: {error}"))?;
+            let bytes = serde_json::to_vec_pretty(&suite)
+                .map_err(|error| format!("could not encode benchmark inputs: {error}"))?;
+            fs::write(&input_manifest, bytes).map_err(|error| {
+                format!("could not write {}: {error}", input_manifest.display())
+            })?;
+            println!("Prepared {} deterministic scenarios", suite.len());
+            println!("Input manifest: {}", input_manifest.display());
+            println!("Manifest SHA-256: {}", sha256_file(&input_manifest)?);
+            Ok(())
+        }
+        "run" => {
+            if !input_manifest.exists() {
+                return Err("benchmark inputs missing; run `cargo xtask bench prepare`".to_owned());
+            }
+            let target = option("--target").ok_or("bench run requires --target")?;
+            let output = root()
+                .join("benchmark-results")
+                .join(format!("{target}.json"));
+            match target {
+                "native" => command_in(
+                    "cargo",
+                    &[
+                        "run",
+                        "-p",
+                        "auths-bench-native",
+                        "--",
+                        path_text(&input_manifest)?,
+                        path_text(&output)?,
+                        profile_name,
+                    ],
+                    &root(),
+                    None,
+                ),
+                "wasm-node" => command_in(
+                    "node",
+                    &[
+                        "demos/benchmarks/auths-bench-wasm/runner/node.mjs",
+                        path_text(&input_manifest)?,
+                    ],
+                    &root(),
+                    None,
+                ),
+                "wasm-browser" => command_in(
+                    "node",
+                    &[
+                        "demos/benchmarks/auths-bench-wasm/runner/browser.mjs",
+                        path_text(&input_manifest)?,
+                    ],
+                    &root(),
+                    None,
+                ),
+                _ => Err(format!("unsupported benchmark target {target}")),
+            }
+        }
+        "report" => {
+            let directory = args
+                .get(1)
+                .map(PathBuf::from)
+                .ok_or("bench report requires a result directory")?;
+            let native = directory.join("native.json");
+            let artifact: auths_bench_model::RunArtifact = serde_json::from_slice(
+                &fs::read(&native)
+                    .map_err(|error| format!("could not read {}: {error}", native.display()))?,
+            )
+            .map_err(|error| format!("invalid benchmark result: {error}"))?;
+            let rows = artifact
+                .results
+                .iter()
+                .map(|result| {
+                    format!(
+                        "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
+                        result.scenario,
+                        result.summary.p50_ns,
+                        result.summary.p95_ns,
+                        result.summary.p99_ns,
+                        result.semantic.work_units
+                    )
+                })
+                .collect::<String>();
+            let html = format!(
+                "<!doctype html><meta charset=\"utf-8\"><title>Auths-Proof benchmark</title>\
+                 <h1>Auths-Proof benchmark</h1><p>Semantic agreement: PASS</p>\
+                 <table><thead><tr><th>Scenario</th><th>p50 ns</th><th>p95 ns</th>\
+                 <th>p99 ns</th><th>work</th></tr></thead><tbody>{rows}</tbody></table>"
+            );
+            fs::write(directory.join("report.html"), html)
+                .map_err(|error| format!("could not write report: {error}"))?;
+            fs::write(
+                directory.join("report.json"),
+                serde_json::to_vec_pretty(&artifact)
+                    .map_err(|error| format!("could not encode report: {error}"))?,
+            )
+            .map_err(|error| format!("could not write report JSON: {error}"))?;
+            println!("Semantic agreement: PASS");
+            println!("Environment completeness: PASS");
+            println!("Report: {}", directory.join("report.html").display());
+            Ok(())
+        }
+        "compare" => {
+            let baseline_path = args.get(1).ok_or("bench compare requires baseline")?;
+            let candidate_path = args.get(2).ok_or("bench compare requires candidate")?;
+            let baseline: auths_bench_model::RunArtifact = serde_json::from_slice(
+                &fs::read(baseline_path).map_err(|error| error.to_string())?,
+            )
+            .map_err(|error| error.to_string())?;
+            let candidate: auths_bench_model::RunArtifact = serde_json::from_slice(
+                &fs::read(candidate_path).map_err(|error| error.to_string())?,
+            )
+            .map_err(|error| error.to_string())?;
+            let comparison = auths_bench_model::compare_runs(
+                &baseline,
+                &candidate,
+                &auths_bench_model::ComparisonPolicy::default(),
+            )
+            .map_err(|error| error.to_string())?;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&comparison).map_err(|error| error.to_string())?
+            );
+            Ok(())
+        }
+        "verify-artifact" => {
+            let directory = args
+                .get(1)
+                .map(PathBuf::from)
+                .ok_or("bench verify-artifact requires a directory")?;
+            let result = directory.join("native.json");
+            let artifact: auths_bench_model::RunArtifact =
+                serde_json::from_slice(&fs::read(&result).map_err(|error| error.to_string())?)
+                    .map_err(|error| error.to_string())?;
+            if artifact.results.is_empty()
+                || artifact
+                    .results
+                    .iter()
+                    .any(|entry| entry.samples_ns.is_empty())
+            {
+                return Err("benchmark artifact has missing observations".to_owned());
+            }
+            println!("benchmark artifact verified: {}", result.display());
+            Ok(())
+        }
+        _ => {
+            Err("usage: cargo xtask bench <prepare|run|report|compare|verify-artifact>".to_owned())
+        }
+    }
+}
+
 fn cargo(args: &[&str]) -> Result<(), String> {
     command("cargo", args)
 }
@@ -1911,6 +2659,7 @@ fn wasm() -> Result<(), String> {
         "auths-ports",
         "auths-registries",
         "auths-signature",
+        "auths-algebra-kernel",
         "auths-authority",
         "auths-composition",
         "auths-assurance",

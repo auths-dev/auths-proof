@@ -1,0 +1,4 @@
+name = "release"
+warmup_ms = 1000
+samples = 50
+operations_per_sample = 5

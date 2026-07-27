@@ -13,6 +13,7 @@ default = ["std"]
 std = ["auths-model/std"]
 
 [dependencies]
+auths-algebra-kernel.workspace = true
 auths-model.workspace = true
 
 [dev-dependencies]

@@ -548,6 +548,10 @@ fn rcgen_ed25519_key(key: &Ed25519SigningKey) -> KeyPair {
 }
 
 fn spiffe_material(seed: u8) -> SpiffeMaterial {
+    spiffe_material_with_client_auth(seed, true)
+}
+
+fn spiffe_material_with_client_auth(seed: u8, client_auth: bool) -> SpiffeMaterial {
     let ca_signing_key = Ed25519SigningKey::from_bytes(&[60; 32]);
     let ca_key = rcgen_ed25519_key(&ca_signing_key);
     let mut ca_params = CertificateParams::new(Vec::<String>::new()).expect("CA parameters");
@@ -571,7 +575,9 @@ fn spiffe_material(seed: u8) -> SpiffeMaterial {
         principal.as_str().try_into().expect("SPIFFE URI"),
     )];
     leaf_params.key_usages = vec![KeyUsagePurpose::DigitalSignature];
-    leaf_params.extended_key_usages = vec![ExtendedKeyUsagePurpose::ClientAuth];
+    if client_auth {
+        leaf_params.extended_key_usages = vec![ExtendedKeyUsagePurpose::ClientAuth];
+    }
     leaf_params.not_before = rcgen::date_time_ymd(1970, 1, 1);
     leaf_params.not_after = rcgen::date_time_ymd(2099, 1, 1);
     leaf_params.serial_number = Some(SerialNumber::from(u64::from(seed)));
@@ -4625,3 +4631,5 @@ pub fn mandatory_suite_ids() -> [&'static str; 2] {
 pub fn reviewed_body_digest() -> Digest {
     body_digest(BODY)
 }
+pub mod adversarial;
+pub mod conformance;

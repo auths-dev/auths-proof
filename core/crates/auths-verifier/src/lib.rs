@@ -5,6 +5,9 @@
 
 extern crate alloc;
 
+pub mod causal;
+pub mod trace;
+
 use alloc::{boxed::Box, collections::BTreeSet, vec::Vec};
 use auths_assurance::{evaluate_with_implications, grant_issuer_role};
 use auths_authority::EffectiveAuthority;
@@ -15,7 +18,9 @@ use auths_codec::{
     grant_status_id, grant_status_signing_preimage, plan_id, principal_status_id,
     principal_status_signing_preimage, proof_digest,
 };
-use auths_composition::{BranchOutcome, evaluate as evaluate_plan};
+use auths_composition::{
+    BranchOutcome, EvaluationEvent, evaluate_observed as evaluate_plan_observed,
+};
 use auths_model::{
     ActionId, AssuranceSatisfaction, CanonicalAction, ContextDigest, DenialReason, Digest,
     EvidenceObject, GrantId, GrantStatusId, ParticipantAssurance, ParticipantRole, PlanId,
@@ -27,8 +32,12 @@ use auths_model::{
 use auths_ports::{
     ControlEvidence, ControlPurpose, PrincipalControlError, PrincipalControlInput, ProfileDecision,
     RegistryOperationError, SignatureError, SignatureInput, StatusDecision,
+    diagnostics::DiagnosticMode,
 };
 use auths_registries::ImmutableRegistries;
+use trace::{
+    FactKind, FactOrigin, FactResult, FactValue, TraceCollector, TraceError, VerificationTrace,
+};
 
 /// One stable verifier failure class.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -48,6 +57,33 @@ pub enum VerificationOutcome {
     Denied(DenialReason),
     /// A trustworthy required fact or capability was unavailable.
     Indeterminate(Requirement),
+}
+
+/// Ordinary sealed outcome plus the bounded trace from the same execution.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ExplainedVerification {
+    outcome: VerificationOutcome,
+    trace: VerificationTrace,
+}
+
+impl ExplainedVerification {
+    /// Exact ordinary verifier outcome.
+    #[must_use]
+    pub const fn outcome(&self) -> &VerificationOutcome {
+        &self.outcome
+    }
+
+    /// Bounded deterministic execution trace.
+    #[must_use]
+    pub const fn trace(&self) -> &VerificationTrace {
+        &self.trace
+    }
+
+    /// Consumes the diagnostic wrapper without changing the sealed outcome.
+    #[must_use]
+    pub fn into_outcome(self) -> VerificationOutcome {
+        self.outcome
+    }
 }
 
 impl From<VerificationFailure> for VerificationOutcome {
@@ -96,6 +132,55 @@ struct ActionRecord {
 struct WorkMeter {
     used: u64,
     limit: u64,
+}
+
+struct AuthorityDiagnostics {
+    collect: bool,
+    plan_events: Vec<EvaluationEvent>,
+    authorized_branches: usize,
+    distinct_actors: usize,
+    distinct_roots: usize,
+}
+
+impl AuthorityDiagnostics {
+    const fn discard() -> Self {
+        Self {
+            collect: false,
+            plan_events: Vec::new(),
+            authorized_branches: 0,
+            distinct_actors: 0,
+            distinct_roots: 0,
+        }
+    }
+
+    fn collect() -> Self {
+        Self {
+            collect: true,
+            plan_events: Vec::new(),
+            authorized_branches: 0,
+            distinct_actors: 0,
+            distinct_roots: 0,
+        }
+    }
+
+    fn record_plan_event(&mut self, event: EvaluationEvent) {
+        if self.collect {
+            self.plan_events.push(event);
+        }
+    }
+
+    fn record_composition_counts(
+        &mut self,
+        authorized_branches: usize,
+        distinct_actors: usize,
+        distinct_roots: usize,
+    ) {
+        if self.collect {
+            self.authorized_branches = authorized_branches;
+            self.distinct_actors = distinct_actors;
+            self.distinct_roots = distinct_roots;
+        }
+    }
 }
 
 impl WorkMeter {
@@ -271,14 +356,483 @@ pub fn verify(
     context: &VerifierContext,
     registries: &ImmutableRegistries<'_>,
 ) -> VerificationOutcome {
-    decode_proof(proof_bytes, context)
-        .and_then(|decoded| resolve_proof(decoded, context))
-        .and_then(|resolved| verify_principal_control(resolved, context, registries))
-        .and_then(|controlled| verify_authority(controlled, canonical_action, context, registries))
-        .map(bind_verified_action)
-        .map_or_else(VerificationOutcome::from, |action| {
-            VerificationOutcome::Authorized(Box::new(action))
-        })
+    verify_internal(
+        proof_bytes,
+        canonical_action,
+        context,
+        registries,
+        &mut TraceCollector::discard(),
+    )
+}
+
+/// Runs the exact ordinary verifier path while retaining bounded diagnostic
+/// facts.
+///
+/// # Errors
+///
+/// Returns [`TraceError::CapacityExceeded`] before verification when bounded
+/// diagnostic memory cannot be reserved. The ordinary [`verify`] API remains
+/// available and unaffected.
+pub fn verify_explained(
+    proof_bytes: &[u8],
+    canonical_action: &CanonicalAction,
+    context: &VerifierContext,
+    registries: &ImmutableRegistries<'_>,
+) -> Result<ExplainedVerification, TraceError> {
+    let mut trace = TraceCollector::collect(trace::HARD_MAX_TRACE_EVENTS)?;
+    let outcome = verify_internal(
+        proof_bytes,
+        canonical_action,
+        context,
+        registries,
+        &mut trace,
+    );
+    Ok(ExplainedVerification {
+        outcome,
+        trace: trace.finish(),
+    })
+}
+
+fn failure_code(failure: VerificationFailure) -> VerificationCode {
+    match failure {
+        VerificationFailure::Denied(reason) => VerificationCode::Denied(reason),
+        VerificationFailure::Indeterminate(requirement) => {
+            VerificationCode::Indeterminate(requirement)
+        }
+    }
+}
+
+fn failure_fact_kind(failure: VerificationFailure) -> FactKind {
+    match failure {
+        VerificationFailure::Denied(reason) => match reason {
+            DenialReason::ResourceLimitExceeded => FactKind::WorkReservation,
+            DenialReason::InvalidSignature
+            | DenialReason::PrincipalMethodMismatch
+            | DenialReason::VerificationMethodMismatch
+            | DenialReason::SignatureSuiteMismatch => FactKind::PrincipalControl,
+            DenialReason::UntrustedRoot => FactKind::TrustAnchorAcceptedMethod,
+            DenialReason::BrokenGrantChain => FactKind::GrantLinkage,
+            DenialReason::DelegationExpanded => FactKind::GrantPermissionAttenuation,
+            DenialReason::PermissionNotGranted => FactKind::ActionPermission,
+            DenialReason::ActionConstraintMismatch | DenialReason::ActionBodyMismatch => {
+                FactKind::ActionBodyDigest
+            }
+            DenialReason::BudgetCeilingExceeded => FactKind::ActionBudget,
+            DenialReason::AuthorizationPlanInvalid | DenialReason::PlanActionMismatch => {
+                FactKind::PlanNode
+            }
+            DenialReason::CompositionRequirementNotMet => FactKind::MinimumAuthorizedBranches,
+            DenialReason::AudienceMismatch => FactKind::ActionAudience,
+            DenialReason::ChallengeMismatch => FactKind::ActionChallenge,
+            DenialReason::ActionOutsideValidity => FactKind::ActionValidity,
+            DenialReason::PrincipalRevoked
+            | DenialReason::StatusSequenceRollback
+            | DenialReason::StatusMethodMismatch
+            | DenialReason::StatusIssuerUntrusted => FactKind::PrincipalStatus,
+            DenialReason::GrantRevoked => FactKind::GrantStatus,
+            DenialReason::RegistryManifestMismatch => FactKind::RegistryManifestAccepted,
+            DenialReason::VerifierConfigurationMismatch => FactKind::ContextConfigurationMatches,
+            DenialReason::ResourceNamespaceMismatch => FactKind::ResourceNamespace,
+            DenialReason::CriticalExtensionUnknown => FactKind::CriticalExtension,
+            DenialReason::AttachmentMissing
+            | DenialReason::AttachmentDigestMismatch
+            | DenialReason::AttachmentLengthMismatch
+            | DenialReason::DuplicateAttachment
+            | DenialReason::UnusedCriticalAttachment
+            | DenialReason::OpaqueAttachmentNotAllowed => FactKind::Attachment,
+            DenialReason::LocalPolicyDenied => FactKind::ProfilePolicy,
+            DenialReason::MalformedProof
+            | DenialReason::NonCanonicalProof
+            | DenialReason::DigestMismatch
+            | DenialReason::DuplicateObject
+            | DenialReason::MissingReference
+            | DenialReason::ReferenceCycle
+            | DenialReason::AmbiguousTerminalGrant
+            | DenialReason::UnusedCriticalEvidence => FactKind::PlanNode,
+        },
+        VerificationFailure::Indeterminate(requirement) => match requirement {
+            Requirement::UnsupportedPrincipalMethod
+            | Requirement::UnsupportedSignatureSuite
+            | Requirement::UnsupportedEvidenceType
+            | Requirement::MissingPrincipalEvidence
+            | Requirement::HistoricalStateUnavailable => FactKind::PrincipalControl,
+            Requirement::UnsupportedStatusMethod
+            | Requirement::MissingPrincipalStatus
+            | Requirement::StaleStatus => FactKind::PrincipalStatus,
+            Requirement::MissingGrantStatus => FactKind::GrantStatus,
+            Requirement::UnsupportedProfile => FactKind::TrustAnchorProfile,
+            Requirement::UnsupportedProfilePolicy => FactKind::ProfilePolicy,
+            Requirement::UnsupportedResourceMatcher => FactKind::ResourceNamespace,
+            Requirement::UnsupportedBudgetAlgebra => FactKind::ActionBudget,
+            Requirement::UnsupportedCriticalExtension => FactKind::CriticalExtension,
+            Requirement::UnsupportedAssuranceClaim | Requirement::AssuranceRequirementNotMet => {
+                FactKind::AssuranceRequirement
+            }
+            Requirement::UnsupportedProtocol | Requirement::ExternalFactUnavailable => {
+                FactKind::PlanNode
+            }
+        },
+    }
+}
+
+fn record_configuration_facts(
+    context: &VerifierContext,
+    registries: &ImmutableRegistries<'_>,
+    trace: &mut TraceCollector,
+) -> (Option<u32>, Option<u32>) {
+    let configuration_matches = context.configuration() == registries.configuration_id();
+    let configuration = trace.record(
+        VerificationStage::Resolve,
+        FactKind::ContextConfigurationMatches,
+        FactOrigin::TrustedContext,
+        FactValue::Equal(configuration_matches),
+        if configuration_matches {
+            FactResult::Satisfied
+        } else {
+            FactResult::Contradicted
+        },
+        (!configuration_matches).then_some(VerificationCode::Denied(
+            DenialReason::VerifierConfigurationMismatch,
+        )),
+    );
+    let registry_matches = context.accepted_registries().manifest_id() == registries.manifest_id();
+    let registry = trace.record(
+        VerificationStage::Resolve,
+        FactKind::RegistryManifestAccepted,
+        FactOrigin::ExecutableRegistry,
+        FactValue::Equal(registry_matches),
+        if registry_matches {
+            FactResult::Satisfied
+        } else {
+            FactResult::Contradicted
+        },
+        (!registry_matches).then_some(VerificationCode::Denied(
+            DenialReason::RegistryManifestMismatch,
+        )),
+    );
+    (configuration, registry)
+}
+
+fn record_failure(
+    trace: &mut TraceCollector,
+    stage: VerificationStage,
+    origin: FactOrigin,
+    value: FactValue,
+    failure: VerificationFailure,
+    parents: &[u32],
+) -> Option<u32> {
+    trace.record_with_parents(
+        stage,
+        failure_fact_kind(failure),
+        origin,
+        value,
+        match failure {
+            VerificationFailure::Denied(_) => FactResult::Contradicted,
+            VerificationFailure::Indeterminate(_) => FactResult::Unavailable,
+        },
+        Some(failure_code(failure)),
+        parents,
+    )
+}
+
+#[allow(clippy::too_many_lines)]
+fn verify_internal(
+    proof_bytes: &[u8],
+    canonical_action: &CanonicalAction,
+    context: &VerifierContext,
+    registries: &ImmutableRegistries<'_>,
+    trace: &mut TraceCollector,
+) -> VerificationOutcome {
+    let (configuration_node, registry_node) =
+        record_configuration_facts(context, registries, trace);
+
+    let (decoded, decode_node) = match decode_proof(proof_bytes, context) {
+        Ok(decoded) => {
+            let node = trace.record(
+                VerificationStage::Decode,
+                FactKind::Attachment,
+                FactOrigin::Proof,
+                FactValue::Present(true),
+                FactResult::Satisfied,
+                None,
+            );
+            trace.set_final_node(node);
+            (decoded, node)
+        }
+        Err(failure) => {
+            let node = record_failure(
+                trace,
+                VerificationStage::Decode,
+                FactOrigin::Proof,
+                FactValue::Present(false),
+                failure,
+                &[],
+            );
+            trace.set_final_node(node);
+            return failure.into();
+        }
+    };
+    let (resolved, resolve_node) = match resolve_proof(decoded, context) {
+        Ok(resolved) => {
+            let parents: Vec<_> = decode_node.into_iter().collect();
+            let node = trace.record_with_parents(
+                VerificationStage::Resolve,
+                FactKind::ExpectedPlanMatches,
+                FactOrigin::Derived,
+                FactValue::Equal(true),
+                FactResult::Satisfied,
+                None,
+                &parents,
+            );
+            trace.set_final_node(node);
+            (resolved, node)
+        }
+        Err(failure) => {
+            let parents: Vec<_> = decode_node.into_iter().collect();
+            let node = record_failure(
+                trace,
+                VerificationStage::Resolve,
+                FactOrigin::TrustedContext,
+                FactValue::Equal(false),
+                failure,
+                &parents,
+            );
+            trace.set_final_node(node);
+            return failure.into();
+        }
+    };
+    let (controlled, principal_node) = match verify_principal_control(resolved, context, registries)
+    {
+        Ok(controlled) => {
+            let parents: Vec<_> = [resolve_node, configuration_node, registry_node]
+                .into_iter()
+                .flatten()
+                .collect();
+            let node = trace.record_with_parents(
+                VerificationStage::PrincipalControl,
+                FactKind::PrincipalControl,
+                FactOrigin::ExecutableRegistry,
+                FactValue::Present(true),
+                FactResult::Satisfied,
+                None,
+                &parents,
+            );
+            trace.set_final_node(node);
+            (controlled, node)
+        }
+        Err(failure) => {
+            let parents: Vec<_> = [resolve_node, configuration_node, registry_node]
+                .into_iter()
+                .flatten()
+                .collect();
+            let node = record_failure(
+                trace,
+                VerificationStage::PrincipalControl,
+                FactOrigin::ExecutableRegistry,
+                FactValue::Present(false),
+                failure,
+                &parents,
+            );
+            trace.set_final_node(node);
+            return failure.into();
+        }
+    };
+    let mut meter = WorkMeter::from_used(context.limits().max_work_units(), controlled.work_units);
+    let mut diagnostics = AuthorityDiagnostics::collect();
+    let authority = match verify_authority_measured(
+        controlled,
+        canonical_action,
+        context,
+        registries,
+        &mut meter,
+        &mut diagnostics,
+    ) {
+        Ok(authority) => authority,
+        Err(failure) => {
+            let plan_root = record_plan_events(trace, &diagnostics.plan_events, principal_node);
+            let node = if plan_root.is_some()
+                && matches!(
+                    diagnostics.plan_events.last().map(|event| event.outcome()),
+                    Some(BranchOutcome::Authorized)
+                )
+                && failure
+                    == VerificationFailure::Denied(DenialReason::CompositionRequirementNotMet)
+            {
+                record_composition_decision(
+                    trace,
+                    context.composition(),
+                    &diagnostics,
+                    plan_root,
+                    failure_code(failure),
+                )
+            } else if plan_root.is_some() {
+                plan_root
+            } else {
+                let parents: Vec<_> = principal_node.into_iter().collect();
+                record_failure(
+                    trace,
+                    VerificationStage::Authority,
+                    FactOrigin::Derived,
+                    FactValue::Present(false),
+                    failure,
+                    &parents,
+                )
+            };
+            trace.set_final_node(node);
+            return failure.into();
+        }
+    };
+    let action = bind_verified_action(authority);
+    let plan_root = record_plan_events(trace, &diagnostics.plan_events, principal_node);
+    let final_node = record_composition_decision(
+        trace,
+        context.composition(),
+        &diagnostics,
+        plan_root,
+        VerificationCode::Authorized,
+    );
+    trace.set_final_node(final_node);
+    VerificationOutcome::Authorized(Box::new(action))
+}
+
+fn branch_fact_result(outcome: BranchOutcome) -> FactResult {
+    match outcome {
+        BranchOutcome::Authorized => FactResult::Satisfied,
+        BranchOutcome::Denied(_) | BranchOutcome::StructurallyInvalid(_) => {
+            FactResult::Contradicted
+        }
+        BranchOutcome::Indeterminate(_) => FactResult::Unavailable,
+    }
+}
+
+fn branch_verification_code(outcome: BranchOutcome) -> VerificationCode {
+    match outcome {
+        BranchOutcome::Authorized => VerificationCode::Authorized,
+        BranchOutcome::Denied(reason) | BranchOutcome::StructurallyInvalid(reason) => {
+            VerificationCode::Denied(reason)
+        }
+        BranchOutcome::Indeterminate(requirement) => VerificationCode::Indeterminate(requirement),
+    }
+}
+
+fn record_plan_events(
+    trace: &mut TraceCollector,
+    events: &[EvaluationEvent],
+    principal_node: Option<u32>,
+) -> Option<u32> {
+    let mut stack: Vec<Option<u32>> = Vec::new();
+    for event in events {
+        match *event {
+            EvaluationEvent::Proof { outcome, .. } => {
+                let parents: Vec<_> = principal_node.into_iter().collect();
+                let node = trace.record_with_parents(
+                    VerificationStage::Authority,
+                    FactKind::PlanNode,
+                    FactOrigin::Proof,
+                    FactValue::Present(true),
+                    branch_fact_result(outcome),
+                    Some(branch_verification_code(outcome)),
+                    &parents,
+                );
+                stack.push(node);
+            }
+            EvaluationEvent::Aggregate {
+                child_count,
+                required,
+                authorized,
+                outcome,
+                ..
+            } => {
+                if child_count > stack.len() {
+                    return None;
+                }
+                let children = stack.split_off(stack.len() - child_count);
+                let parents: Vec<_> = children.into_iter().flatten().collect();
+                let node = trace.record_with_parents(
+                    VerificationStage::Authority,
+                    FactKind::PlanNode,
+                    FactOrigin::Derived,
+                    FactValue::Count {
+                        actual: u64::try_from(authorized).unwrap_or(u64::MAX),
+                        required: u64::from(required),
+                    },
+                    branch_fact_result(outcome),
+                    Some(branch_verification_code(outcome)),
+                    &parents,
+                );
+                stack.push(node);
+            }
+        }
+    }
+    if stack.len() == 1 {
+        stack.pop().flatten()
+    } else {
+        None
+    }
+}
+
+fn record_composition_decision(
+    trace: &mut TraceCollector,
+    requirement: auths_model::CompositionRequirement,
+    diagnostics: &AuthorityDiagnostics,
+    plan_root: Option<u32>,
+    code: VerificationCode,
+) -> Option<u32> {
+    let constraints = [
+        (
+            FactKind::MinimumAuthorizedBranches,
+            diagnostics.authorized_branches,
+            requirement.minimum_authorized_branches(),
+        ),
+        (
+            FactKind::MinimumDistinctActors,
+            diagnostics.distinct_actors,
+            requirement.minimum_distinct_actors(),
+        ),
+        (
+            FactKind::MinimumDistinctRoots,
+            diagnostics.distinct_roots,
+            requirement.minimum_distinct_roots(),
+        ),
+    ];
+    let plan_parents: Vec<_> = plan_root.into_iter().collect();
+    let mut parents = plan_parents.clone();
+    for (kind, actual, required) in constraints {
+        let satisfied = actual >= usize::from(required);
+        if let Some(node) = trace.record_with_parents(
+            VerificationStage::Authority,
+            kind,
+            FactOrigin::TrustedContext,
+            FactValue::Count {
+                actual: u64::try_from(actual).unwrap_or(u64::MAX),
+                required: u64::from(required),
+            },
+            if satisfied {
+                FactResult::Satisfied
+            } else {
+                FactResult::Contradicted
+            },
+            (!satisfied).then_some(VerificationCode::Denied(
+                DenialReason::CompositionRequirementNotMet,
+            )),
+            &plan_parents,
+        ) {
+            parents.push(node);
+        }
+    }
+    trace.record_with_parents(
+        VerificationStage::Complete,
+        FactKind::Decision,
+        FactOrigin::Derived,
+        FactValue::Present(code == VerificationCode::Authorized),
+        match code {
+            VerificationCode::Authorized => FactResult::Satisfied,
+            VerificationCode::Denied(_) => FactResult::Contradicted,
+            VerificationCode::Indeterminate(_) => FactResult::Unavailable,
+        },
+        Some(code),
+        &parents,
+    )
 }
 
 /// Executes the complete byte-oriented portable V1 ABI.
@@ -466,12 +1020,14 @@ pub fn verify_portable(
     );
     let mut authority_meter =
         WorkMeter::from_used(context.limits().max_work_units(), controlled.work_units());
+    let mut diagnostics = AuthorityDiagnostics::discard();
     match verify_authority_measured(
         controlled,
         canonical_action,
         context,
         registries,
         &mut authority_meter,
+        &mut diagnostics,
     ) {
         Ok(authority) => {
             let resources = VerificationResources::new(
@@ -891,12 +1447,14 @@ pub fn verify_authority(
     registries: &ImmutableRegistries<'_>,
 ) -> Result<VerifiedAuthority, VerificationFailure> {
     let mut meter = WorkMeter::from_used(context.limits().max_work_units(), controlled.work_units);
+    let mut diagnostics = AuthorityDiagnostics::discard();
     verify_authority_measured(
         controlled,
         canonical_action,
         context,
         registries,
         &mut meter,
+        &mut diagnostics,
     )
 }
 
@@ -906,6 +1464,7 @@ fn verify_authority_measured(
     context: &VerifierContext,
     registries: &ImmutableRegistries<'_>,
     meter: &mut WorkMeter,
+    diagnostics: &mut AuthorityDiagnostics,
 ) -> Result<VerifiedAuthority, VerificationFailure> {
     validate_action_binding(&controlled, canonical_action, context, registries, meter)?;
     let context_digest = context_digest(context).map_err(codec_failure)?;
@@ -915,26 +1474,25 @@ fn verify_authority_measured(
     let mut action_ids = Vec::new();
     let bundle = controlled.resolved.decoded.bundle();
 
-    let outcome =
-        evaluate_plan(
-            bundle.plan(),
-            context.limits(),
-            &mut |reference| match verify_branch(&controlled, reference, context, registries, meter)
-            {
-                Ok((action_id, reports, satisfactions)) => {
-                    authorized_branches.push(reference);
-                    action_ids.push(action_id);
-                    assurance.extend(reports);
-                    assurance_satisfactions.extend(satisfactions);
-                    BranchOutcome::Authorized
-                }
-                Err(VerificationFailure::Denied(reason)) => BranchOutcome::Denied(reason),
-                Err(VerificationFailure::Indeterminate(requirement)) => {
-                    BranchOutcome::Indeterminate(requirement)
-                }
-            },
-        )
-        .map_err(VerificationFailure::Denied)?;
+    let outcome = evaluate_plan_observed(
+        bundle.plan(),
+        context.limits(),
+        &mut |reference| match verify_branch(&controlled, reference, context, registries, meter) {
+            Ok((action_id, reports, satisfactions)) => {
+                authorized_branches.push(reference);
+                action_ids.push(action_id);
+                assurance.extend(reports);
+                assurance_satisfactions.extend(satisfactions);
+                BranchOutcome::Authorized
+            }
+            Err(VerificationFailure::Denied(reason)) => BranchOutcome::Denied(reason),
+            Err(VerificationFailure::Indeterminate(requirement)) => {
+                BranchOutcome::Indeterminate(requirement)
+            }
+        },
+        &mut |event| diagnostics.record_plan_event(event),
+    )
+    .map_err(VerificationFailure::Denied)?;
 
     match outcome {
         BranchOutcome::Authorized => {}
@@ -957,6 +1515,11 @@ fn verify_authority_measured(
         .filter(|report| report.role() == ParticipantRole::Root)
         .map(ParticipantAssurance::principal)
         .collect();
+    diagnostics.record_composition_counts(
+        authorized_branches.len(),
+        distinct_actors.len(),
+        distinct_roots.len(),
+    );
     if authorized_branches.len() < usize::from(composition.minimum_authorized_branches())
         || distinct_actors.len() < usize::from(composition.minimum_distinct_actors())
         || distinct_roots.len() < usize::from(composition.minimum_distinct_roots())
@@ -1189,16 +1752,20 @@ fn verify_signed(
         meter.reserve(method_reservation)?;
         meter.reserve(suite.work_units())?;
         let control = method
-            .verify_control(PrincipalControlInput {
-                principal,
-                verification_method: descriptor.verification_method(),
-                signature_suite: descriptor.suite(),
-                purpose,
-                signing_preimage,
-                asserted_signing_time,
-                evidence: &evidence,
-                evaluation_time: context.evaluation_time(),
-            })
+            .evaluate_control(
+                PrincipalControlInput {
+                    principal,
+                    verification_method: descriptor.verification_method(),
+                    signature_suite: descriptor.suite(),
+                    purpose,
+                    signing_preimage,
+                    asserted_signing_time,
+                    evidence: &evidence,
+                    evaluation_time: context.evaluation_time(),
+                },
+                DiagnosticMode::Discard,
+            )
+            .into_result()
             .map_err(control_failure)?;
         if control.work_units() > method_reservation {
             return Err(VerificationFailure::Denied(
@@ -1950,6 +2517,37 @@ mod tests {
     use auths_signature::{ED25519_V1, Ed25519Suite};
     use ed25519_dalek::{Signer as _, SigningKey};
 
+    #[test]
+    fn explained_and_ordinary_paths_are_identical() {
+        let fixture = target_fixture(false);
+        let method = RawKeyMethod::new().unwrap();
+        let suite = Ed25519Suite::new().unwrap();
+        let methods: [&dyn auths_ports::PrincipalMethod; 1] = [&method];
+        let suites: [&dyn auths_ports::SignatureSuite; 1] = [&suite];
+        let registries = ImmutableRegistries::new(&methods, &suites).unwrap();
+
+        let ordinary = verify(
+            &fixture.bytes,
+            &fixture.canonical,
+            &fixture.context,
+            &registries,
+        );
+        let explained = verify_explained(
+            &fixture.bytes,
+            &fixture.canonical,
+            &fixture.context,
+            &registries,
+        )
+        .unwrap();
+
+        assert_eq!(&ordinary, explained.outcome());
+        assert!(!explained.trace().events().is_empty());
+        assert_eq!(
+            explained.trace().final_node() as usize + 1,
+            explained.trace().events().len()
+        );
+    }
+
     struct Fixture {
         bytes: Vec<u8>,
         canonical: CanonicalAction,
@@ -2331,6 +2929,219 @@ mod tests {
             &context,
             &registries,
         )
+    }
+
+    fn explain_composition_fixture(
+        fixture: &auths_testkit::CorpusFixture,
+        minimum_authorized_branches: u16,
+        minimum_distinct_actors: u16,
+        minimum_distinct_roots: u16,
+    ) -> ExplainedVerification {
+        let raw_key = RawKeyMethod::new().unwrap();
+        let did_key = auths_did_key::DidKeyMethod::new().unwrap();
+        let did_keri = auths_did_keri::DidKeriMethod::new().unwrap();
+        let did_web =
+            auths_did_web::DidWebMethod::new(auths_testkit::did_web_corpus_trust_records())
+                .unwrap();
+        let webauthn =
+            auths_webauthn::WebAuthnMethod::new(auths_testkit::webauthn_corpus_credentials())
+                .unwrap();
+        let hsm = auths_hsm_attested::HsmAttestedMethod::new(auths_testkit::hsm_corpus_records())
+            .unwrap();
+        let (spiffe_trust, spiffe_status) = auths_testkit::spiffe_corpus_context();
+        let spiffe = auths_spiffe_x509::SpiffeX509Method::new(spiffe_trust, spiffe_status).unwrap();
+        let ed25519 = Ed25519Suite::new().unwrap();
+        let p256 = auths_signature::P256Sha256Suite::new().unwrap();
+        let methods: [&dyn auths_ports::PrincipalMethod; 7] = [
+            &raw_key, &did_key, &did_keri, &did_web, &webauthn, &hsm, &spiffe,
+        ];
+        let suites: [&dyn auths_ports::SignatureSuite; 2] = [&ed25519, &p256];
+        let registries = ImmutableRegistries::new(&methods, &suites).unwrap();
+        let context = auths_codec::decode_verifier_context(fixture.context_bytes())
+            .unwrap()
+            .with_configuration(registries.configuration_id())
+            .unwrap();
+        let context = context
+            .with_composition(
+                CompositionRequirement::new(
+                    context.composition().expected_plan(),
+                    minimum_authorized_branches,
+                    minimum_distinct_actors,
+                    minimum_distinct_roots,
+                )
+                .unwrap(),
+            )
+            .unwrap();
+        verify_explained(
+            fixture.proof_bytes(),
+            fixture.canonical_action(),
+            &context,
+            &registries,
+        )
+        .unwrap()
+    }
+
+    fn plan_leaf_contributions(
+        explained: &ExplainedVerification,
+    ) -> Vec<(FactResult, causal::Contribution)> {
+        causal::causal_slice(explained.trace())
+            .into_iter()
+            .filter(|fact| {
+                fact.fact.kind() == FactKind::PlanNode
+                    && matches!(fact.fact.value(), FactValue::Present(true))
+            })
+            .map(|fact| (fact.fact.result(), fact.contribution))
+            .collect()
+    }
+
+    #[test]
+    fn all_of_marks_every_successful_leaf_as_necessary_support() {
+        let explained = explain_composition_fixture(&auths_testkit::all_of(), 1, 1, 1);
+        assert_eq!(
+            plan_leaf_contributions(&explained),
+            vec![
+                (
+                    FactResult::Satisfied,
+                    causal::Contribution::NecessarySupport
+                ),
+                (
+                    FactResult::Satisfied,
+                    causal::Contribution::NecessarySupport
+                ),
+            ]
+        );
+    }
+
+    #[test]
+    fn any_of_distinguishes_sufficient_alternative_from_failed_branch() {
+        let explained =
+            explain_composition_fixture(&auths_testkit::any_of_valid_invalid_signature(), 1, 1, 1);
+        assert_eq!(
+            plan_leaf_contributions(&explained),
+            vec![
+                (
+                    FactResult::Satisfied,
+                    causal::Contribution::SufficientAlternative,
+                ),
+                (
+                    FactResult::Contradicted,
+                    causal::Contribution::Informational
+                ),
+            ]
+        );
+    }
+
+    #[test]
+    fn k_of_n_truth_table_drives_authorized_denied_and_indeterminate_slices() {
+        let authorized =
+            explain_composition_fixture(&auths_testkit::threshold_mixed_success(), 1, 1, 1);
+        assert_eq!(
+            plan_leaf_contributions(&authorized),
+            vec![
+                (
+                    FactResult::Satisfied,
+                    causal::Contribution::SufficientAlternative,
+                ),
+                (
+                    FactResult::Satisfied,
+                    causal::Contribution::SufficientAlternative,
+                ),
+                (
+                    FactResult::Contradicted,
+                    causal::Contribution::Informational
+                ),
+            ]
+        );
+
+        let denied = explain_composition_fixture(&auths_testkit::threshold_mixed_denied(), 1, 1, 1);
+        assert_eq!(
+            plan_leaf_contributions(&denied),
+            vec![
+                (FactResult::Satisfied, causal::Contribution::Informational),
+                (
+                    FactResult::Contradicted,
+                    causal::Contribution::ContributingBlocker,
+                ),
+                (
+                    FactResult::Contradicted,
+                    causal::Contribution::ContributingBlocker,
+                ),
+            ]
+        );
+
+        let indeterminate =
+            explain_composition_fixture(&auths_testkit::threshold_mixed_indeterminate(), 1, 1, 1);
+        assert_eq!(
+            plan_leaf_contributions(&indeterminate),
+            vec![
+                (
+                    FactResult::Satisfied,
+                    causal::Contribution::SufficientAlternative,
+                ),
+                (
+                    FactResult::Contradicted,
+                    causal::Contribution::ContributingBlocker,
+                ),
+                (
+                    FactResult::Unavailable,
+                    causal::Contribution::ContributingBlocker,
+                ),
+            ]
+        );
+    }
+
+    #[test]
+    fn local_composition_floors_are_explicit_context_constraints() {
+        let explained = explain_composition_fixture(
+            &auths_testkit::composition_same_actor_two_branches(),
+            2,
+            2,
+            1,
+        );
+        assert_eq!(
+            explained.outcome(),
+            &VerificationOutcome::Denied(DenialReason::CompositionRequirementNotMet)
+        );
+        let constraints: Vec<_> = causal::causal_slice(explained.trace())
+            .into_iter()
+            .filter(|fact| {
+                matches!(
+                    fact.fact.kind(),
+                    FactKind::MinimumAuthorizedBranches
+                        | FactKind::MinimumDistinctActors
+                        | FactKind::MinimumDistinctRoots
+                )
+            })
+            .collect();
+        assert_eq!(constraints.len(), 3);
+        assert!(
+            constraints
+                .iter()
+                .all(|fact| fact.contribution == causal::Contribution::ContextConstraint)
+        );
+        assert_eq!(
+            constraints
+                .iter()
+                .filter(|fact| fact.fact.result() == FactResult::Contradicted)
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn backward_slice_excludes_recorded_non_ancestors() {
+        let fixture = target_fixture(false);
+        let method = RawKeyMethod::new().unwrap();
+        let suite = Ed25519Suite::new().unwrap();
+        let methods: [&dyn auths_ports::PrincipalMethod; 1] = [&method];
+        let suites: [&dyn auths_ports::SignatureSuite; 1] = [&suite];
+        let registries = ImmutableRegistries::new(&methods, &suites).unwrap();
+        let explained =
+            verify_explained(&[0xff], &fixture.canonical, &fixture.context, &registries).unwrap();
+        let slice = causal::causal_slice(explained.trace());
+        assert_eq!(slice.len(), 1);
+        assert_eq!(slice[0].fact.sequence(), explained.trace().final_node());
+        assert_eq!(slice[0].contribution, causal::Contribution::Decisive);
     }
 
     #[test]

@@ -22,9 +22,11 @@ auths-testkit.workspace = true
 auths-verifier = { workspace = true, features = ["std"] }
 auths-webauthn = { workspace = true, features = ["std"] }
 auths-apps-testkit.workspace = true
+auths-bench-model.workspace = true
 auths-lab-matrix.workspace = true
 auths-proof-exchange-testkit.workspace = true
 hex.workspace = true
+serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 toml.workspace = true

@@ -1,0 +1,132 @@
+{
+  "schema": "auths-proof-adversarial-conformance/v1",
+  "protocol": 1,
+  "cases": [
+    {
+      "case": "context/raw-key-chain/configuration-bitflip/full-verifier",
+      "requirements": ["CONTEXT.CONFIGURATION_ID"],
+      "boundary": "full-verifier",
+      "expected_code": "verifier-configuration-mismatch"
+    },
+    {
+      "case": "context/threshold/composition-zero/context-constructor",
+      "requirements": ["CONTEXT.COMPOSITION"],
+      "boundary": "context-constructor",
+      "expected_code": "invalid-verifier-context"
+    },
+    {
+      "case": "context/raw-key-chain/duplicate-trust-anchor/context-constructor",
+      "requirements": ["CONTEXT.TRUST_ANCHORS"],
+      "boundary": "context-constructor",
+      "expected_code": "invalid-verifier-context"
+    },
+    {
+      "case": "context/raw-key-chain/registry-method-missing/full-verifier",
+      "requirements": ["CONTEXT.ACCEPTED_REGISTRIES", "VERIFIER.MAPPING.MISSING_METHOD"],
+      "boundary": "full-verifier",
+      "expected_code": "unsupported-principal-method"
+    },
+    {
+      "case": "context/raw-key-chain/audience-bitflip/full-verifier",
+      "requirements": ["CONTEXT.AUDIENCE"],
+      "boundary": "full-verifier",
+      "expected_code": "audience-mismatch"
+    },
+    {
+      "case": "context/raw-key-chain/challenge-bitflip/full-verifier",
+      "requirements": ["CONTEXT.CHALLENGE"],
+      "boundary": "full-verifier",
+      "expected_code": "challenge-mismatch"
+    },
+    {
+      "case": "context/raw-key-chain/time-after-validity/full-verifier",
+      "requirements": ["CONTEXT.EVALUATION_TIME"],
+      "boundary": "full-verifier",
+      "expected_code": "action-outside-validity"
+    },
+    {
+      "case": "context/raw-key-chain/unsupported-assurance/full-verifier",
+      "requirements": ["CONTEXT.ASSURANCE_POLICY"],
+      "boundary": "full-verifier",
+      "expected_code": "unsupported-assurance-claim"
+    },
+    {
+      "case": "context/raw-key-chain/principal-status-stale/full-verifier",
+      "requirements": ["CONTEXT.PRINCIPAL_STATUS"],
+      "boundary": "full-verifier",
+      "expected_code": "stale-status"
+    },
+    {
+      "case": "context/raw-key-chain/grant-status-stale/full-verifier",
+      "requirements": ["CONTEXT.GRANT_STATUS"],
+      "boundary": "full-verifier",
+      "expected_code": "stale-status"
+    },
+    {
+      "case": "context/raw-key-chain/resource-matcher-missing/full-verifier",
+      "requirements": ["CONTEXT.RESOURCE_MATCHER"],
+      "boundary": "full-verifier",
+      "expected_code": "unsupported-resource-matcher"
+    },
+    {
+      "case": "context/raw-key-chain/profile-policy-missing/full-verifier",
+      "requirements": ["CONTEXT.PROFILE_POLICY"],
+      "boundary": "full-verifier",
+      "expected_code": "unsupported-profile-policy"
+    },
+    {
+      "case": "context/raw-key-chain/channel-mismatch/full-verifier",
+      "requirements": ["CONTEXT.CHANNEL_POLICY"],
+      "boundary": "full-verifier",
+      "expected_code": "local-policy-denied"
+    },
+    {
+      "case": "context/raw-key-chain/work-limit-minus-one/full-verifier",
+      "requirements": ["CONTEXT.LIMITS"],
+      "boundary": "full-verifier",
+      "expected_code": "resource-limit-exceeded"
+    },
+    {
+      "case": "raw-key/ed25519-valid/signature-suite-substitution/verify-control",
+      "requirements": ["ADAPTER.COMMON.EXACT_DESCRIPTOR", "ADAPTER.RAW_KEY.KEY_LENGTH"],
+      "boundary": "verify-control",
+      "expected_code": "signature-suite-mismatch"
+    },
+    {
+      "case": "did-key/ed25519-valid/multicodec-substitution/verify-control",
+      "requirements": ["ADAPTER.COMMON.EVIDENCE_SET", "ADAPTER.DID_KEY.MULTICODEC"],
+      "boundary": "verify-control",
+      "expected_code": "invalid-evidence"
+    },
+    {
+      "case": "did-keri/rotated-valid/prior-link-bitflip/verify-control",
+      "requirements": ["ADAPTER.COMMON.WORK_BOUND", "ADAPTER.DID_KERI.PRIOR_LINK"],
+      "boundary": "verify-control",
+      "expected_code": "invalid-evidence"
+    },
+    {
+      "case": "did-web/historical-valid/remove-statement-pin/full-verifier",
+      "requirements": ["ADAPTER.DID_WEB.STATEMENT_PIN", "ADAPTER.COMMON.CONFIGURATION", "VERIFIER.MAPPING.HISTORICAL"],
+      "boundary": "full-verifier",
+      "expected_code": "assurance-requirement-not-met"
+    },
+    {
+      "case": "webauthn/p256-user-verified/client-challenge-bitflip/verify-control",
+      "requirements": ["ADAPTER.WEBAUTHN.CHALLENGE", "ADAPTER.COMMON.PROVENANCE"],
+      "boundary": "verify-control",
+      "expected_code": "invalid-evidence"
+    },
+    {
+      "case": "hsm-attested/reviewed-valid/transaction-digest-bitflip/verify-control",
+      "requirements": ["ADAPTER.HSM.TRANSACTION_BINDING", "ADAPTER.COMMON.CONFIGURATION"],
+      "boundary": "verify-control",
+      "expected_code": "invalid-evidence"
+    },
+    {
+      "case": "spiffe-x509/valid/missing-client-auth-eku/verify-control",
+      "requirements": ["ADAPTER.SPIFFE.EKU.CLIENT_AUTH", "ADAPTER.COMMON.EXACT_DESCRIPTOR"],
+      "boundary": "verify-control",
+      "expected_code": "invalid-evidence"
+    }
+  ]
+}

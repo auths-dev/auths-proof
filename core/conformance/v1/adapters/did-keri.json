@@ -1,0 +1,1 @@
+{"schema":"auths-proof-adapter-conformance/v1","method":"did-keri-v1","relevance":{"principal":true,"verification_method":true,"signature_suite":true,"purpose":true,"signing_preimage":false,"asserted_signing_time":true,"evaluation_time":true}}

@@ -1,0 +1,19 @@
+{
+  "schema": "auths-proof-fact-inventory/v1",
+  "privacy": {
+    "forbidden": [
+      "action-body",
+      "certificate-der",
+      "credential-id",
+      "evidence-payload",
+      "hsm-handle",
+      "private-key",
+      "public-key",
+      "signature"
+    ],
+    "values": ["present", "equal", "count", "redacted"]
+  },
+  "origins": ["derived", "executable-registry", "proof", "trusted-context"],
+  "results": ["contradicted", "not-evaluated", "satisfied", "unavailable"],
+  "schema_version": 1
+}

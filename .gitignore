@@ -1,4 +1,5 @@
 /target/
+/formal/.lake/
 /fuzz/target/
 *.profraw
 *.profdata

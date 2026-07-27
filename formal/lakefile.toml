@@ -1,0 +1,10 @@
+name = "auths"
+version = "0.1.0"
+defaultTargets = ["Auths"]
+
+[[lean_lib]]
+name = "Auths"
+
+[[lean_exe]]
+name = "auths-vector-export"
+root = "Auths.VectorExport"

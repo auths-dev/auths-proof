@@ -5,6 +5,8 @@
 
 extern crate alloc;
 
+pub mod diagnostics;
+
 use alloc::vec::Vec;
 use auths_model::{
     AdapterConfigurationId, AdapterId, AssuranceClaim, AssuranceClaimId, AssuranceImplicationId,
@@ -14,6 +16,7 @@ use auths_model::{
     StatusMethodId, StatusPolicy, Timestamp, VerificationMethod,
 };
 use core::fmt;
+use diagnostics::{ControlEvaluation, DiagnosticMode};
 use sha2::{Digest as _, Sha256};
 
 /// Computes an unambiguous domain-separated commitment to ordered immutable
@@ -209,6 +212,22 @@ pub trait PrincipalMethod {
         &self,
         input: PrincipalControlInput<'_>,
     ) -> Result<ControlEvidence, PrincipalControlError>;
+
+    /// Evaluates control and optionally returns bounded, configuration-bound
+    /// diagnostic facts from the same adapter execution.
+    fn evaluate_control(
+        &self,
+        input: PrincipalControlInput<'_>,
+        diagnostics: DiagnosticMode,
+    ) -> ControlEvaluation {
+        let result = self.verify_control(input);
+        ControlEvaluation::from_result(
+            result,
+            diagnostics,
+            self.id().clone(),
+            self.configuration_id(),
+        )
+    }
 }
 
 /// Immutable input to one signature-suite verifier.

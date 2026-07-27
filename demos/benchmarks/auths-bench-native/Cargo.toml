@@ -1,0 +1,31 @@
+[package]
+name = "auths-bench-native"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Native Auths-Proof reproducible benchmark runner"
+publish = false
+
+[dependencies]
+auths-bench-model.workspace = true
+auths-codec = { workspace = true, features = ["std"] }
+auths-did-key = { workspace = true, features = ["std"] }
+auths-did-keri = { workspace = true, features = ["std"] }
+auths-did-web = { workspace = true, features = ["std"] }
+auths-hsm-attested = { workspace = true, features = ["std"] }
+auths-ports = { workspace = true, features = ["std"] }
+auths-raw-key = { workspace = true, features = ["std"] }
+auths-registries = { workspace = true, features = ["std"] }
+auths-signature = { workspace = true, features = ["std"] }
+auths-spiffe-x509 = { workspace = true, features = ["std"] }
+auths-testkit.workspace = true
+auths-verifier = { workspace = true, features = ["std"] }
+auths-webauthn = { workspace = true, features = ["std"] }
+serde_json = { workspace = true, features = ["std"] }
+sha2 = { workspace = true, features = ["std"] }
+
+[lints]
+workspace = true

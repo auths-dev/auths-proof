@@ -10,8 +10,10 @@ members = [
     "core/crates/auths-ports",
     "core/crates/auths-registries",
     "core/crates/auths-signature",
+    "core/crates/auths-algebra-kernel",
     "core/crates/auths-authority",
     "core/crates/auths-composition",
+    "core/crates/auths-formal-refinement",
     "core/crates/auths-assurance",
     "core/crates/auths-verifier",
     "core/crates/auths-author",
@@ -53,11 +55,15 @@ members = [
     "product/config/auths-config",
     "product/cache/auths-cache",
     "product/operations/auths-operations",
+    "product/tools/auths-explain",
     "demos/testkit/auths-apps-testkit",
     "demos/live-lab",
     "demos/live-service",
     "demos/matrix/auths-lab-matrix",
     "demos/benchmarks/auths-lab-wasm-bench",
+    "demos/benchmarks/auths-bench-model",
+    "demos/benchmarks/auths-bench-native",
+    "demos/benchmarks/auths-bench-wasm",
     "demos/mcp/auths-mcp-demo",
     "xtask",
 ]
@@ -76,8 +82,10 @@ auths-codec = { version = "0.1.0", path = "core/crates/auths-codec", default-fea
 auths-ports = { version = "0.1.0", path = "core/crates/auths-ports", default-features = false }
 auths-registries = { version = "0.1.0", path = "core/crates/auths-registries", default-features = false }
 auths-signature = { version = "0.1.0", path = "core/crates/auths-signature", default-features = false }
+auths-algebra-kernel = { version = "0.1.0", path = "core/crates/auths-algebra-kernel", default-features = false }
 auths-authority = { version = "0.1.0", path = "core/crates/auths-authority", default-features = false }
 auths-composition = { version = "0.1.0", path = "core/crates/auths-composition", default-features = false }
+auths-formal-refinement = { version = "0.1.0", path = "core/crates/auths-formal-refinement" }
 auths-assurance = { version = "0.1.0", path = "core/crates/auths-assurance", default-features = false }
 auths-verifier = { version = "0.1.0", path = "core/crates/auths-verifier", default-features = false }
 auths-author = { version = "0.1.0", path = "core/crates/auths-author", default-features = false }
@@ -123,6 +131,7 @@ auths-custody = { version = "0.1.0", path = "product/integrations/auths-custody"
 auths-apps-testkit = { version = "0.1.0", path = "demos/testkit/auths-apps-testkit" }
 auths-live-lab = { version = "0.1.0", path = "demos/live-lab" }
 auths-lab-matrix = { version = "0.1.0", path = "demos/matrix/auths-lab-matrix" }
+auths-bench-model = { version = "0.1.0", path = "demos/benchmarks/auths-bench-model" }
 async-trait = "0.1.91"
 axum = "0.8.9"
 getrandom = "0.3.4"
