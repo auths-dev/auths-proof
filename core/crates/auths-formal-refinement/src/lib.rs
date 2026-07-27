@@ -142,10 +142,10 @@ pub fn shipping_evaluate(case: &FormalCompositionCase) -> (FormalTruth, Vec<Proo
 pub fn exhaustive_cases() -> Vec<FormalCompositionCase> {
     let mut cases = Vec::new();
     for len in 1usize..=4 {
-        let combinations = 3usize.pow(u32::try_from(len).expect("bounded length"));
+        let combinations = 3usize.pow(u32::try_from(len).unwrap_or_default());
         for encoded in 0..combinations {
             let mut value = encoded;
-            let mut leaves = Vec::with_capacity(len as usize);
+            let mut leaves = Vec::with_capacity(len);
             for _ in 0..len {
                 leaves.push(match value % 3 {
                     0 => FormalTruth::Denied,
@@ -169,7 +169,7 @@ pub fn exhaustive_cases() -> Vec<FormalCompositionCase> {
                 let mut case = FormalCompositionCase {
                     id: format!("KOfN/{k}/{len}/{encoded}"),
                     operator: FormalOperator::KOfN,
-                    k: Some(u16::try_from(k).expect("bounded threshold")),
+                    k: Some(u16::try_from(k).unwrap_or_default()),
                     leaves: leaves.clone(),
                     expected: FormalTruth::Denied,
                 };
