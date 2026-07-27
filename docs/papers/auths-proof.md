@@ -1,1333 +1,1236 @@
 ---
-title: "Auths-Proof: Principal-Agnostic Proof-Carrying Authorization Across Identity and Transport Boundaries"
+title: "Auths-Proof: Mechanically Linking Authorization Algebra to Shipping Rust"
 author: "bordumb · bordumbb@gmail.com"
-date: 24 July 2026
+date: 27 July 2026
 abstract: |
-  Authentication answers who controls a credential; authorization answers
-  whether that principal may perform a particular action. Distributed systems
-  routinely collapse these questions: a mutually authenticated channel, valid
-  token, recognized decentralized identifier, or verified signature is treated
-  as authority. The result is protocol-specific policy, confused trust
-  boundaries, and authorization state that cannot travel with an action.
-  We present **Auths-Proof**, a prototype proof-carrying authorization system
-  built around one architectural rule: **Auths owns authority; adapters prove
-  principal control.** A bounded, deterministic verifier evaluates a signed,
-  attenuating grant chain and an action envelope against a verifier-local trust
-  anchor. Principal methods, signature algorithms, transports, and application
-  profiles are independent ports. Adapters may establish control using a raw
-  key, `did:key`, `did:keri`, `did:web`, or a future method, but they return
-  explicit assurance claims rather than silently equating unlike evidence.
-  Iroh, HTTPS, TCP, Unix sockets, files, and in-memory channels may carry the
-  same proof; channel authentication never creates Auths authority. The V1
-  artifact demonstrates Ed25519 and P-256, four principal adapters, native and
-  WebAssembly verification, in-memory and Iroh exchange, and an MCP
-  `tools/call` profile. A mixed-method fixture delegates from a rotated KERI
-  root to a raw P-256 agent and produces the same authorization result across
-  transports. Preliminary measurements on one development machine show
-  sub-millisecond native verification and 1.320 ms mean browser verification
-  for a 1,988-byte proof; these are engineering observations, not production
-  benchmarks. We position the system as a deliberately small authorization
-  kernel, identify what it does not solve, and define falsifiable invariants
-  for future security and interoperability evaluation.
+  Authorization systems are often verified at the wrong boundary. A proof
+  assistant may establish elegant properties of a model while production code
+  independently reimplements the model, leaving semantic correspondence to
+  review and testing. We present the formal core of **Auths-Proof**, a
+  deterministic proof-carrying authorization kernel, and a refinement boundary
+  designed to make that gap explicit and mechanically difficult to cross.
+
+  Auths-Proof models delegation as a product order over ten authority
+  dimensions and composition as a three-valued algebra over authorized,
+  denied, and indeterminate branch outcomes. Lean 4 proves transitivity,
+  antisymmetry, downward-closed action coverage, strict delegation depth,
+  threshold soundness, monotonicity, permutation invariance, termination, and
+  linear structural cost. A versioned declarative contract generates both the
+  shipping `no_std` Rust algebra kernel and the corresponding Lean definitions.
+  Production authority and composition code call that generated Rust kernel.
+  Lean exports all 1,024 Boolean attenuation projections and 2,448 threshold
+  states through the default 16-leaf deployment bound; Rust replays those
+  vectors against both the generated functions and the shipping composition
+  path. Kani additionally checks the two production functions over symbolic
+  bounded inputs.
+
+  This is not a proof of the complete verifier. The Lean theorems are
+  unbounded, but the cross-language threshold enumeration is bounded; the
+  contract generator, Rust compiler, cryptographic and codec layers, and the
+  projection from rich protocol values to ten Boolean predicates remain in the
+  trusted computing base. The result is a precise middle ground between an
+  unlinked formal model and whole-program verification: small enough to audit,
+  executable in production, reproducible by one command, and honest about the
+  obligations that remain.
 ---
 
 # 1. Introduction
 
-The modern identity stack is rich in ways to establish *who* is present.
-OpenID Connect authenticates an end user through an authorization server
-[@openid2023core]. SPIFFE issues short-lived workload identities for mutual
-authentication across heterogeneous infrastructure [@spiffe2026]. DIDs provide
-a common identifier and document model over method-specific resolution
-[@w3c2022did]. Iroh lets software dial an endpoint by a public key rather than
-an IP address [@iroh2026]. HTTP Message Signatures bind selected HTTP semantics
-to a key [@backman2024httpsig].
-
-None of those facts alone answers the application question:
+An authorization verifier answers a deceptively small question:
 
 \begin{thesisbox}
 \centering
-\textbf{Was this exact action authorized by authority I trust, for this
-resource, audience, challenge, and time?}
+\textbf{Does authority trusted by this verifier authorize this exact action
+under this exact context?}
 \end{thesisbox}
 
-That question becomes urgent when actions cross process, service, organization,
-and time boundaries. An AI agent calls a tool. A build worker publishes an
-artifact. A controller changes infrastructure. A device acts intermittently at
-the edge. In each case, the receiver may need to verify authorization without
-calling the issuer, trusting the delivery path, or sharing the sender's identity
-technology.
+The answer is security-critical because identity is not authority. A valid
+signature establishes control of a key. A WebAuthn ceremony establishes
+control of a credential under ceremony conditions. A certificate establishes
+a path to a trust root. None of those facts alone grants permission to deploy
+software, spend a budget, invoke a tool, or mutate a repository. Authentication
+logics and authorization logics have long treated these as different
+judgments [@burrows1990logic; @abadi1993calculus]. Capability and
+trust-management systems likewise make authority and delegation explicit
+[@dennis1966capabilities; @blaze1996trust; @keynote1999].
 
-The underlying ideas have deep roots. Proof-carrying code asks an untrusted
-producer to supply a safety proof that a consumer can check
-[@necula1997pcc]. Proof-carrying authentication applies the same asymmetry to
-distributed authentication and authorization logic [@appel1999pca;
-@bauer2002pcaweb]. SPKI binds authorization directly to keys and reduces
-certificate tuples [@ellison1999spki]. Decentralized trust management separates
-policy, credentials, and the decision of whether credentials satisfy policy
-[@blaze1996trust]. Macaroons provide efficient attenuating bearer credentials
-with contextual caveats [@birgisson2014macaroons].
+Auths-Proof implements this separation as an offline kernel:
 
-Auths-Proof does not claim to originate proof-carrying authorization,
-delegation, capabilities, or decentralized identity. Its systems contribution
-is a stricter composition boundary:
+$$
+\operatorname{verify}(P,A,C)
+\rightarrow
+\operatorname{Authorized}(S)
+\mid \operatorname{Denied}(d)
+\mid \operatorname{Indeterminate}(q).
+$$
 
-> **Bring any cryptographic principal. Auths proves whether its action was
-> authorized.**
+$P$ is a portable proof graph, $A$ is a profile-canonical action, and $C$ is
+verifier-trusted context. The kernel performs no network, clock, filesystem,
+database, or key-custody I/O. Only `Authorized` contains a sealed action value
+eligible for execution. `Denied` records a stable permanent failure.
+`Indeterminate` records a stable missing trustworthy fact. The latter two
+outcomes never permit execution.
 
-The architectural rule is equally compact:
+This paper is about a narrower problem than the full protocol: how do we know
+that the algebra proved in Lean is the algebra executed by shipping Rust?
 
-> **Auths owns authority. Adapters prove principal control.**
+Writing the same function twice does not answer that question. Tests over a few
+examples do not answer it. A shared trait name does not answer it. Even a
+machine-checked proof can create false confidence when its definitions are
+detached from production. Experience from verified compilers and kernels shows
+that useful assurance depends on an explicit refinement chain and an explicit
+trusted computing base [@leroy2009compcert; @klein2009sel4].
 
-This produces four independently replaceable axes, shown in Figure 1. The
-principal method explains how a claimed principal controls verification
-material. The signature algorithm verifies a statement. The transport moves
-opaque proof-bearing actions. The application profile maps domain operations to
-canonical bytes and exact permissions. Only the authority kernel interprets
-grants and returns an Auths verdict.
+Auths-Proof therefore treats linkage as a first-class artifact. A small
+versioned contract generates the finite algebra surface in both languages.
+Lean proves unbounded mathematical properties over those generated
+definitions. Production Rust calls the generated Rust functions. Lean emits
+semantic vectors; Rust consumes them. Kani analyzes the same Rust functions
+with symbolic inputs. Figure 1 summarizes the chain.
 
 \begin{figure}[H]
 \centering
-\begin{tikzpicture}[node distance=7mm and 9mm]
-  \node[axisbox=green, minimum width=30mm] (principal) {
-    \textcolor{green}{\faFingerprint}\quad\textbf{Principal method}\\[-1pt]
-    raw key \;|\; did:key\\
-    did:keri \;|\; did:web
-  };
-  \node[axisbox=purple, minimum width=30mm, below=of principal] (algorithm) {
-    \textcolor{purple}{\faKey}\quad\textbf{Signature}\\[-1pt]
-    Ed25519 \;|\; P-256\\
-    future reviewed suites
-  };
-  \node[kernel, minimum width=47mm, right=18mm of $(principal)!0.5!(algorithm)$] (kernel) {
-    \faLock\quad AUTHORITY KERNEL\\[2pt]
-    \normalfont\footnotesize bounded evidence + attenuation\\
-    exact action binding + local policy
-  };
-  \node[axisbox=amber, minimum width=30mm, right=18mm of kernel] (transport) {
-    \textcolor{amber}{\faNetworkWired}\quad\textbf{Transport}\\[-1pt]
-    memory \;|\; Iroh\\
-    HTTPS \;|\; TCP \;|\; Unix
-  };
-  \node[axisbox=blue, minimum width=30mm, below=of transport] (profile) {
-    \textcolor{blue}{\faCubes}\quad\textbf{Application}\\[-1pt]
-    MCP \;|\; HTTP \;|\; Git\\
-    deploy \;|\; device control
+\resizebox{0.97\linewidth}{!}{%
+\begin{tikzpicture}[node distance=7mm and 10mm]
+  \node[axisbox=purple, minimum width=45mm, minimum height=18mm] (contract) {
+    \textbf{Versioned algebra contract}\\[-1pt]
+    truth order · 10 dimensions · threshold partition
   };
 
-  \draw[flow=green] (principal.east) -- (kernel.west);
-  \draw[flow=purple] (algorithm.east) -- (kernel.west);
-  \draw[flow=amber] (transport.west) -- (kernel.east);
-  \draw[flow=blue] (profile.west) -- (kernel.east);
+  \node[card, minimum width=42mm, below left=11mm and 13mm of contract] (lean) {
+    \textcolor{purple}{\faCheckCircle}\quad\textbf{Generated Lean surface}\\
+    \texttt{Truth} · projection · functions
+  };
+  \node[card, minimum width=42mm, below right=11mm and 13mm of contract] (rust) {
+    \textcolor{blue}{\faCogs}\quad\textbf{Generated Rust kernel}\\
+    \texttt{no\_std} · trait · functions
+  };
 
-  \node[verdict=green, below=12mm of kernel, xshift=-18mm] (yes) {AUTHORIZED};
-  \node[verdict=red, below=12mm of kernel] (no) {DENIED};
-  \node[verdict=amber, below=12mm of kernel, xshift=20mm] (maybe) {INDETERMINATE};
-  \draw[thinflow=muted] (kernel.south) -- ++(0,-4mm) -| (yes.north);
-  \draw[thinflow=muted] (kernel.south) -- (no.north);
-  \draw[thinflow=muted] (kernel.south) -- ++(0,-4mm) -| (maybe.north);
-\end{tikzpicture}
-\caption{\textbf{One authority primitive, four substitution axes.} Identity
-technology, cryptographic suite, network, and application semantics are ports.
-They contribute evidence or context; none may redefine authority. The labels
-name implemented V1 adapters and plausible future adapters, not a claim that
-every listed option ships today.}
+  \node[axisbox=purple, minimum width=42mm, below=9mm of lean] (proofs) {
+    \textbf{Lean theorems}\\
+    unbounded algebraic obligations
+  };
+  \node[axisbox=blue, minimum width=42mm, below=9mm of rust] (shipping) {
+    \textbf{Shipping Rust}\\
+    authority + composition call kernel
+  };
+
+  \node[axisbox=green, minimum width=42mm, below=9mm of proofs] (vectors) {
+    \textbf{Lean vector exporter}\\
+    1,024 attenuation + 2,448 threshold
+  };
+  \node[axisbox=amber, minimum width=42mm, below=9mm of shipping] (kani) {
+    \textbf{Kani harnesses}\\
+    symbolic bounded production checks
+  };
+
+  \node[kernel, minimum width=99mm, below=12mm of $(vectors)!0.5!(kani)$] (gate) {
+    \faLock\quad \texttt{cargo xtask formal}\\[2pt]
+    \normalfont\footnotesize source drift · theorem inventory · vector drift ·
+    Rust replay · Kani
+  };
+
+  \draw[flow=purple] (contract) -- (lean);
+  \draw[flow=blue] (contract) -- (rust);
+  \draw[flow=purple] (lean) -- (proofs);
+  \draw[flow=blue] (rust) -- (shipping);
+  \draw[flow=green] (proofs) -- (vectors);
+  \draw[flow=amber] (shipping) -- (kani);
+  \draw[flow=green] (vectors) -- (gate);
+  \draw[flow=amber] (kani) -- (gate);
+  \draw[thinflow=blue,dashed] (shipping.south) |- (gate.east);
+\end{tikzpicture}}
+\caption{\textbf{The mechanical refinement boundary.} One contract generates
+the definitions used by Lean and production Rust. The proof, exhaustive finite
+replay, and bounded model-checking paths converge in one reproducible gate.}
 \end{figure}
 
 ## 1.1 Contributions
 
-This paper makes five concrete contributions:
+This paper makes five contributions.
 
-1. **A principal-agnostic authority model.** Principal-control adapters return a
-   uniform verified-principal result, while the authority kernel owns grant
-   semantics. A delegation chain may cross principal methods and signature
-   algorithms without translating authority into the identity layer.
-2. **Assurance as typed output.** Successful verification is not a Boolean that
-   erases how control was established. Adapters return explicit assurance
-   claims; local policy chooses which claims are sufficient.
-3. **Transport non-conflation.** An authenticated Iroh or TLS peer is an
-   observation about the channel, never an Auths authorization fact. Final
-   execution requires the conjunction of Auths, channel-binding, and
-   application policy.
-4. **A deterministic, portable verification core.** The kernel has no network,
-   filesystem, process, environment, clock, randomness, private key, database,
-   Git, or async capability. It accepts explicit bytes and context, uses bounded
-   decoding, and targets native and `wasm32-unknown-unknown`.
-5. **An executable V1 artifact.** Separate workspaces implement the authority
-   protocol, proof exchange, and one narrow MCP profile, with conformance
-   fixtures spanning rotated KERI, raw P-256, in-memory exchange, Iroh exchange,
-   and browser verification.
+**A closed authorization algebra.** Delegation is a product order over root,
+depth, profile, permissions, validity, audiences, action constraint, budget,
+status, and assurance. Composition is a three-valued algebra that preserves
+trustworthy uncertainty.
 
-## 1.2 Scope and status
+**An unbounded Lean model.** The Lean development proves the order-theoretic,
+coverage, threshold, determinism, termination, and cost properties needed by
+the V1 algebra. The checked source contains no `sorry`, `admit`, or new axioms.
 
-Auths-Proof is a research prototype and protocol-design artifact, not a
-production security claim. Its current V1 registry is intentionally small:
-Ed25519 and P-256 signatures; raw-key, `did:key`, `did:keri`, and bundled
-`did:web` evidence; in-memory and Iroh exchange; and one MCP `tools/call`
-profile. Architecture-level extensibility means a new adapter can be added
-without changing authority semantics. It does **not** mean arbitrary algorithms,
-DID methods, URLs, or transports are accepted automatically. Unknown identifiers
-fail closed or yield `Indeterminate` according to the specified condition.
+**A generated language boundary.** A declarative TOML contract generates the
+Rust trait and functions and the corresponding Lean structure and functions.
+Changing a dimension is a cross-language schema change rather than two
+independent edits.
 
-# 2. Problem and design goals
+**Production refinement evidence.** Shipping authority and composition code
+execute the generated Rust kernel. Lean-originated vectors cover the entire
+finite Boolean attenuation space and the entire threshold count space through
+the default deployment bound. Kani checks the same functions symbolically.
 
-## 2.1 Authentication is an input, not the decision
+**An explicit assurance ledger.** We distinguish what is proved, what is
+exhaustively checked under a bound, what is tested, and what remains trusted.
+The artifact does not claim whole-verifier formal verification.
 
-Distributed access-control literature has long distinguished a principal making
-a statement from the policy decision to trust that statement
-[@abadi1993calculus]. Yet application stacks often reunite them:
+## 1.2 Scope and terminology
 
-- mTLS authenticates a workload, then a service maps the certificate subject
-  directly to permissions.
-- A DID resolver returns verification material, then method-specific code
-  performs authorization.
-- A transport authenticates a peer key, then the application assumes the peer
-  may call the endpoint.
-- A signed message proves control of a key, then the receiver treats the
-  signature as consent for every covered operation.
+The paper uses *proof* in three different senses:
 
-Each shortcut can work inside one deployment, but it makes the security model
-implicit and difficult to move. It also turns identity migration into policy
-migration. If a root rotates from Ed25519 to P-256, a workload moves from X.509
-to a self-certifying identifier, or an operation moves from HTTPS to Iroh, the
-authority story should not be rewritten.
+- an **authorization proof** is untrusted protocol input;
+- a **Lean proof** is a kernel-checked theorem;
+- a **Kani proof harness** is a bounded symbolic program check.
 
-## 2.2 Design goals
+These are not interchangeable. The formal model excludes parsing,
+cryptography, principal adapters, graph resolution, clocks, status evidence,
+and complete verifier control flow. Those components are relevant to the
+system, but the formal claim in this paper is confined to authority
+attenuation and branch composition.
 
-The design follows seven goals.
+# 2. Authorization semantics
 
-**G1 - Authority stability.** Grant meaning and action authorization remain
-stable when a principal method, algorithm, transport, or application adapter is
-replaced.
+## 2.1 Trusted context and portable evidence
 
-**G2 - Exact binding.** A proof authorizes one canonical action body, exact
-permission, resource, audience, challenge, time, actor, and terminal grant.
+The portable proof carries signed grants, signed actions, evidence objects,
+bindings, and an authorization plan. It does not carry verifier trust. Trust
+anchors, accepted registries, evaluation time, expected challenge and audience,
+status and assurance policy, composition floors, and resource limits enter
+through $C$.
 
-**G3 - Monotonic delegation.** A child grant cannot enlarge permission scope,
-time, or delegation depth. Chain linkage is explicit and signed.
+\begin{figure}[H]
+\centering
+\resizebox{0.93\linewidth}{!}{%
+\begin{tikzpicture}[node distance=7mm and 14mm]
+  \node[card, minimum width=43mm, minimum height=24mm] (portable) {
+    \textcolor{blue}{\faFileSignature}\quad\textbf{Portable proof}\\[2pt]
+    signed grants + actions\\
+    evidence + bindings + plan
+  };
+  \node[card, minimum width=43mm, minimum height=24mm, below=of portable] (action) {
+    \textcolor{amber}{\faFingerprint}\quad\textbf{Canonical action}\\[2pt]
+    profile meaning + exact bytes\\
+    permission + digest + budget
+  };
+  \node[card, minimum width=43mm, minimum height=24mm, below=of action] (context) {
+    \textcolor{purple}{\faLock}\quad\textbf{Trusted context}\\[2pt]
+    roots + time + status + policy\\
+    registries + limits + challenge
+  };
 
-**G4 - Verifier sovereignty.** Trust anchors and assurance requirements are
-local verifier inputs. A proof cannot smuggle in its own root of trust or lower
-the verifier's policy.
+  \node[kernel, minimum width=52mm, minimum height=39mm,
+        right=20mm of action] (kernel) {
+    AUTHS-PROOF CORE\\[5pt]
+    \normalfont\footnotesize
+    resolve · verify control\\
+    attenuate · compose\\
+    seal
+  };
 
-**G5 - Honest uncertainty.** Unsupported or unavailable evidence is not
-authorization. It is distinct from a cryptographically or semantically invalid
-proof.
+  \node[verdict=green, minimum width=39mm, right=17mm of kernel, yshift=14mm] (yes) {
+    AUTHORIZED\\[-1pt]\normalfont\scriptsize sealed action
+  };
+  \node[verdict=red, minimum width=39mm, right=17mm of kernel] (no) {
+    DENIED\\[-1pt]\normalfont\scriptsize stable reason
+  };
+  \node[verdict=amber, minimum width=39mm, right=17mm of kernel, yshift=-14mm] (maybe) {
+    INDETERMINATE\\[-1pt]\normalfont\scriptsize stable requirement
+  };
 
-**G6 - Offline and portable verification.** Once evidence is assembled, the
-kernel can verify without ambient I/O and can compile to browser WebAssembly
-[@haas2017wasm].
+  \draw[flow=blue] (portable.east) -- (kernel.west);
+  \draw[flow=amber] (action.east) -- (kernel.west);
+  \draw[flow=purple] (context.east) -- (kernel.west);
+  \draw[flow=green] (kernel.east) -- (yes.west);
+  \draw[flow=red] (kernel.east) -- (no.west);
+  \draw[flow=amber] (kernel.east) -- (maybe.west);
+\end{tikzpicture}}
+\caption{\textbf{The verifier's narrow waist.} Identity evidence contributes
+facts, but only the local authority computation can produce a sealed action.}
+\end{figure}
 
-**G7 - Small semantic surface.** Auths-Proof does not become an identity wallet,
-network stack, policy language, secrets manager, global ledger, generic RPC
-framework, or application gateway.
+This partition instantiates verifier sovereignty. A proof can demonstrate a
+chain from a root, but it cannot choose the local root. It can carry a status
+statement, but it cannot choose the accepted status method or freshness limit.
+It can request a composition plan, but the verifier can impose additional
+branch, actor, and root diversity floors.
 
-## 2.3 Non-goals
+## 2.2 Three-valued truth
 
-The system does not prove that an authorized principal is benevolent, protect an
-unsafe trust anchor, assign meaning to misleading permission strings, or make
-execution transactional with verification. It does not provide confidentiality,
-principal discovery, private-key custody, global revocation, exactly-once
-delivery, or a universal replay database. These omissions are security
-boundaries, not backlog euphemisms.
-
-# 3. System model
-
-## 3.1 Principals, grants, actions, and context
-
-Let $p$ be an opaque `PrincipalId`. Its syntax does not grant authority.
-A principal adapter $m$ establishes control for a verification method,
-purpose, algorithm, message, signature, and bounded evidence:
+Each proof branch produces one value in
 
 $$
-\operatorname{Control}_{m}(p, v, u, a, x, \sigma, E)
-\rightarrow
+\mathbb{T} = \{\bot,\ ?,\ \top\},
+\qquad
+\bot \preceq ? \preceq \top,
+$$
+
+where $\top$ is authorized, $\bot$ is denied, and $?$ is indeterminate.
+Indeterminate is not an error code disguised as authority. It means that a
+recognized trustworthy fact is absent or unavailable and that authorization
+would still be reachable if that fact were supplied.
+
+For conjunction and disjunction:
+
+$$
+x \wedge y = \min_{\preceq}(x,y),
+\qquad
+x \vee y = \max_{\preceq}(x,y).
+$$
+
+The implementation evaluates all members in canonical order so diagnostic
+selection remains deterministic even when the truth algebra is permutation
+invariant.
+
+For a threshold requiring $k$ successes, let $a$ be the number of authorized
+branches and $u$ the number of indeterminate branches:
+
+$$
+\operatorname{threshold}(k,a,u)=
 \begin{cases}
-\operatorname{Verified}(p, A)\\
-\operatorname{Reject}(r)\\
-\operatorname{Unsupported}(r)
+\top & a \ge k,\\
+? & a < k \land a+u \ge k,\\
+\bot & a+u < k.
 \end{cases}
 $$
 
-where $A$ is a set of assurance claims. The adapter may parse KERI events,
-decode a Multikey, consult a verifier-supplied `did:web` trust record, or verify
-a raw self-certifying key. It cannot create an Auths grant or verdict.
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=0.72cm,y=0.72cm]
+  \draw[->,draw=muted] (0,0) -- (10.8,0)
+    node[note,below=3pt] {authorized count \(a\)};
+  \draw[->,draw=muted] (0,0) -- (0,7.8)
+    node[note,rotate=90,above=4pt] {indeterminate count \(u\)};
 
-A grant $g_i$ contains an issuer, subject, exact permission set, validity
-window, remaining delegation depth, optional audience constraints, and the
-identifier of its parent. Its signature covers the canonical grant statement.
-The root grant is accepted only relative to a verifier-local trust anchor.
+  \fill[redwash] (0,0) -- (6,0) -- (0,6) -- cycle;
+  \fill[amberwash] (0,6) -- (6,0) -- (6,7) -- (0,7) -- cycle;
+  \fill[greenwash] (6,0) rectangle (10,7);
 
-An action envelope binds:
+  \draw[red,line width=1.1pt] (0,6) -- (6,0);
+  \draw[green,line width=1.1pt] (6,0) -- (6,7);
+
+  \node[font=\sffamily\small\bfseries,text=red] at (2.0,1.6) {DENIED};
+  \node[font=\sffamily\small\bfseries,text=amber] at (2.7,5.3) {INDETERMINATE};
+  \node[font=\sffamily\small\bfseries,text=green] at (8.0,3.5) {AUTHORIZED};
+
+  \node[note,anchor=west] at (10.25,6.7) {\(k=6\)};
+  \foreach \x in {0,2,4,6,8,10}
+    \draw[muted] (\x,0.08) -- (\x,-0.08) node[note,below=2pt] {\x};
+  \foreach \y in {0,2,4,6}
+    \draw[muted] (0.08,\y) -- (-0.08,\y) node[note,left=2pt] {\y};
+\end{tikzpicture}
+\caption{\textbf{Threshold partition for \(k=6\).} The three regions are total
+and mutually exclusive. Increasing \(k\) moves the authorization boundary
+rightward and cannot create authority.}
+\end{figure}
+
+Preserving $?$ matters operationally. Collapsing it into $\bot$ loses the
+difference between "the statement is invalid" and "a required status snapshot
+is unavailable." Collapsing it into $\top$ fails open.
+
+## 2.3 Delegation as a product order
+
+An effective authority value is modeled in Lean as:
 
 $$
-H(\text{body}),\; (\text{capability},\text{resource}),\;
-\text{audience},\;\text{challenge},\;\text{time},\;
-\text{actor},\;\operatorname{id}(g_n)
+E =
+(r,s,p,\pi,v,a,c,b,t,h,d),
 $$
 
-The verifier context supplies the body bytes, expected audience, challenge,
-evaluation time, trust anchor, adapter registry, resource limits, and required
-assurance. No ambient clock or network lookup is performed.
+where $r$ is the root, $s$ the current subject, $p$ profile authority,
+$\pi$ permissions, $v$ validity, $a$ audiences, $c$ action constraint,
+$b$ budget, $t$ status, $h$ assurance, and $d$ remaining delegation depth.
+The subject changes when authority is delegated; the other coordinates form
+the attenuation relation.
 
-## 3.2 Proof anatomy
+For child $E'$ and parent $E$:
 
-Figure 2 separates *authority statements* from *principal-control evidence*.
-Evidence is referenced by digest and bounded by type and size. The trust anchor
-is notably absent from the portable bundle.
+$$
+\begin{aligned}
+E' \sqsubseteq E \iff {}&
+r'=r
+\land p'\le p
+\land \pi'\le\pi
+\land v'\le v
+\land a'\le a\\
+&\land c'\le c
+\land b'\le b
+\land t'\le t
+\land h'\le h
+\land d'\le d.
+\end{aligned}
+$$
+
+A valid delegation is stricter:
+
+$$
+\operatorname{delegates}(E,E')
+\iff E'\sqsubseteq E \land d' < d.
+$$
+
+The production protocol has rich domain-specific orders. Permission and
+audience sets use subset. Validity uses interval containment. Action
+constraints order `AnyBody`, allowed digest sets, and exact digests. Bounded
+budgets use their selected algebra. Snapshot policy preserves the method and
+can only reduce accepted age. Assurance policy cannot weaken.
 
 \begin{figure}[H]
 \centering
-\begin{tikzpicture}[node distance=5mm and 8mm]
-  \node[card, minimum width=31mm, minimum height=18mm] (root) {
-    \textcolor{blue}{\faCertificate}\quad\textbf{Grant 0}\\
-    root $\rightarrow$ service\\
-    permission + time + depth
+\resizebox{0.94\linewidth}{!}{%
+\begin{tikzpicture}[node distance=7mm]
+  \node[kernel, minimum width=101mm] (root) {
+    LOCAL ROOT AUTHORITY \quad \(E_0\)
   };
-  \node[card, minimum width=31mm, minimum height=18mm, right=of root] (mid) {
-    \textcolor{blue}{\faCertificate}\quad\textbf{Grant 1}\\
-    service $\rightarrow$ agent\\
-    attenuated authority
+  \node[card, minimum width=101mm, below=of root] (g1) {
+    \textbf{Delegation edge 1}\\
+    \(r_1=r_0\) · \(\pi_1\subseteq\pi_0\) · \(v_1\subseteq v_0\) ·
+    \(a_1\subseteq a_0\) · \(d_1<d_0\)
   };
-  \node[card, minimum width=31mm, minimum height=18mm, right=of mid] (action) {
-    \textcolor{blue}{\faFileSignature}\quad\textbf{Action}\\
-    body digest + context\\
-    terminal signature
+  \node[card, minimum width=101mm, below=of g1] (g2) {
+    \textbf{Delegation edge 2}\\
+    profile · action constraint · budget · status · assurance do not widen
   };
-  \draw[flow=blue] (root) -- node[note,above]{parent id} (mid);
-  \draw[flow=blue] (mid) -- node[note,above]{terminal id} (action);
-
-  \node[axisbox=green, minimum width=31mm, below=11mm of root] (e0) {
-    \textbf{Evidence A}\\
-    KERI event log
+  \node[axisbox=green, minimum width=101mm, below=of g2] (action) {
+    \textbf{Covered canonical action}\\
+    exact permission · valid interval · audience · body digest · requested budget
   };
-  \node[axisbox=green, minimum width=31mm, below=11mm of mid] (e1) {
-    \textbf{Evidence B}\\
-    raw P-256 descriptor
-  };
-  \node[axisbox=purple, minimum width=31mm, below=11mm of action] (sig) {
-    \textbf{Signatures}\\
-    exact alg identifiers
-  };
-  \draw[thinflow=green] (e0) -- node[note,left]{digest ref} (root);
-  \draw[thinflow=green] (e1) -- node[note,left]{digest ref} (mid);
-  \draw[thinflow=purple] (sig) -- (action);
-
-  \node[axisbox=amber, minimum width=105mm, below=12mm of e1] (context) {
-    \textbf{Verifier-local context - never serialized as proof authority}\\[2pt]
-    trust anchor \quad expected audience \quad fresh challenge \quad evaluation time
-    \quad assurance policy \quad budgets
-  };
-  \begin{scope}[on background layer]
-    \node[boundary, fit=(root)(mid)(action)(e0)(e1)(sig), name=bundle,
-      label={[note,anchor=south west]north west:portable proof bundle}] {};
-  \end{scope}
-  \draw[flow=amber] (context.north) -- node[note,right]{explicit input} (bundle.south);
-\end{tikzpicture}
-\caption{\textbf{Proof anatomy.} Signed grants carry authority; evidence lets an
-adapter establish control of each issuer or actor. The verifier supplies the
-trust anchor and expected context. A mixed chain can use KERI at one hop and a
-raw P-256 key at another without changing grant semantics.}
+  \draw[flow=blue] (root) -- node[note,right]{product order} (g1);
+  \draw[flow=blue] (g1) -- node[note,right]{strict depth} (g2);
+  \draw[flow=green] (g2) -- node[note,right]{downward-closed coverage} (action);
+\end{tikzpicture}}
+\caption{\textbf{Authority narrows along a chain.} If the terminal authority
+covers an action, every ancestor also covers it; the converse is intentionally
+false. Strictly decreasing depth bounds chain length.}
 \end{figure}
 
-## 3.3 Exact permissions and attenuation
+# 3. Lean specification
 
-V1 deliberately avoids a general policy language. A permission is the exact
-pair:
+## 3.1 Why Lean
 
-```text
-(capability, resource)
+Lean 4 combines an interactive theorem prover with an executable functional
+language and a small proof-checking kernel [@demoura2021lean4]. The Auths-Proof
+model uses ordinary inductive types, structures, recursive functions, and
+theorems. `omega` discharges Presburger arithmetic obligations; finite truth
+tables are proved by case analysis.
+
+The formal project is intentionally small. It does not model Rust memory,
+cryptographic primitives, CBOR, or dynamic adapter behavior. Instead it defines
+the semantic center that is both security-critical and stable enough to merit
+an unbounded mathematical treatment.
+
+The generated truth type is:
+
+```lean
+inductive Truth where
+  | denied
+  | indeterminate
+  | authorized
+  deriving BEq, DecidableEq, Repr
 ```
 
-There are no wildcards, glob rules, negative grants, inherited roles, or
-application-defined matching functions in the kernel. If $P_i$ is the child
-permission set, $W_i=[nbf_i,exp_i]$ its validity window, and $d_i$ its
-remaining delegation depth, every edge must satisfy:
+The generated attenuation surface is ten named Booleans. The abstract model
+then interprets those names as order relations over natural-number coordinates.
+This separation lets Lean prove order properties while the generated surface
+remains isomorphic to production's finite decision boundary.
+
+## 3.2 Attenuation theorems
+
+The attenuation development proves:
+
+1. reflexivity and transitivity of $\sqsubseteq$;
+2. antisymmetry when subjects agree;
+3. downward-closed action coverage;
+4. root preservation and strict depth for delegation;
+5. transitive non-widening across delegation chains;
+6. coverage of an authorized child action by its parent;
+7. equivalence between the generated Boolean kernel and abstract delegation.
+
+The central refinement theorem is executable documentation:
+
+```lean
+theorem attenuation_kernel_refines
+    (parent child : EffectiveAuthority) :
+    Generated.attenuationAccepts
+        (delegationProjection parent child) = true
+      ↔ delegates parent child := by
+  simp [Generated.attenuationAccepts,
+        delegationProjection, delegates, attenuates]
+  omega
+```
+
+This theorem is stronger than separately proving the conjunction function and
+the abstract order. It states that the generated acceptance result is true
+exactly when the abstract delegation judgment holds.
+
+The theorem `coverage_downward_closed` establishes:
 
 $$
-P_i \subseteq P_{i-1}
-\quad\land\quad
-W_i \subseteq W_{i-1}
-\quad\land\quad
-d_i < d_{i-1}
+E' \sqsubseteq E \land \operatorname{covers}(E',A)
+\Longrightarrow
+\operatorname{covers}(E,A).
 $$
 
-as well as:
+This is the safety direction required for attenuation. Delegating narrower
+authority cannot make the descendant authorize an action that the ancestor
+could not authorize.
+
+## 3.3 Composition theorems
+
+For both `all` and `any`, Lean proves commutativity, associativity, and
+idempotence. It proves that one-of-two is `any`, two-of-two is `all`, and that
+tightening a threshold cannot increase truth:
 
 $$
-\operatorname{issuer}(g_i)=\operatorname{subject}(g_{i-1})
-\quad\land\quad
-\operatorname{parent}(g_i)=\operatorname{id}(g_{i-1})
+\operatorname{thresholdTwo}(2,x,y)
+\preceq
+\operatorname{thresholdTwo}(1,x,y).
 $$
 
-These checks are intentionally uncreative. An application profile may define a
-resource such as `mcp://reports/read_report`; it may not redefine subset,
-validity containment, parent linkage, or the meaning of an Auths verdict.
+The unbounded count classifier has three soundness theorems:
+
+$$
+\begin{aligned}
+\operatorname{threshold}(k,a,u)=\top &\Rightarrow k\le a,\\
+\operatorname{threshold}(k,a,u)=\bot &\Rightarrow a+u<k,\\
+\operatorname{threshold}(k,a,u)=? &\Rightarrow a<k\le a+u.
+\end{aligned}
+$$
+
+Plan traversal is modeled structurally. Lean proves that the defined visit list
+is exactly the leaf list, that every finite plan has a node count, and that the
+declared structural cost equals that count. These are algebra-level results,
+not a cost proof for cryptography or allocation.
+
+Composition floors are ordered componentwise over authorized branches,
+distinct actors, and distinct roots. The model proves that a tighter satisfied
+floor implies every looser floor is also satisfied. Thus raising local
+diversity requirements cannot create authorization.
+
+## 3.4 Proof inventory
+
+Table 1 groups the checked obligations. The formal source currently contains
+32 named theorems; the release manifest inventories 29 public
+algebra/refinement obligations, while three local helper/diversity declarations
+remain outside that release list.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{@{}p{31mm}p{82mm}r@{}}
+\toprule
+\textbf{Family} & \textbf{Representative obligations} & \textbf{Count}\\
+\midrule
+Attenuation &
+reflexive, transitive, antisymmetric, coverage closure, root, depth,
+chain attenuation, generated-kernel refinement & 12\\
+Composition &
+semilattice laws, threshold identities and monotonicity, permutation-stable
+truth and diagnostics, plan traversal, termination, structural cost,
+three threshold soundness directions & 17\\
+Helpers and diversity &
+truth-rank injectivity, canonical-code commutativity, tighter-floor monotonicity
+& 3\\
+\midrule
+\textbf{Lean source total} & & \textbf{32}\\
+\bottomrule
+\end{tabular}
+\caption{\textbf{Lean theorem inventory.} Counts describe named declarations,
+not proof difficulty or whole-system coverage.}
+\end{table}
+
+# 4. From model to shipping code
+
+## 4.1 The correspondence problem
+
+A traditional refinement approach can prove that an implementation simulates
+an abstract specification. CompCert and seL4 demonstrate the strength of such
+end-to-end refinement arguments [@leroy2009compcert; @klein2009sel4].
+Translation validation instead validates the result of a particular
+translation rather than proving a translator correct for all inputs
+[@pnueli1998translation].
+
+Auths-Proof currently occupies a smaller point in this design space. It does
+not extract the full Rust verifier into Lean, and it does not verify the
+contract generator. It generates the small common algebra surface, proves the
+Lean interpretation, executes the generated Rust surface in production, and
+checks finite semantic agreement.
+
+Tools such as Aeneas translate safe Rust into functional models for proof
+assistants [@ho2022aeneas], while Verus verifies rich properties directly over
+Rust-like programs [@lattuada2024verus]. Those approaches are promising future
+routes for reducing the remaining projection and generator trust. The present
+design was chosen because its boundary is smaller than the toolchain required
+to translate the complete verifier.
+
+## 4.2 One declarative contract
+
+The source of the shared surface is
+`formal/algebra-contract-v1.toml`. Its essential shape is:
+
+```toml
+schema = "auths-proof-algebra-contract/v1"
+exhaustive_threshold_bound = 16
+truth_order = ["denied", "indeterminate", "authorized"]
+attenuation_acceptance = "all"
+
+[[attenuation_dimensions]]
+rust = "root_preserved"
+lean = "rootPreserved"
+
+[[attenuation_dimensions]]
+rust = "depth_decreases"
+lean = "depthDecreases"
+
+[threshold]
+authorized = "authorized >= required"
+indeterminate =
+  "authorized < required &&
+   authorized + indeterminate >= required"
+denied = "authorized + indeterminate < required"
+```
+
+The real contract lists all ten dimensions. The generator parses a closed
+typed TOML schema, rejects unknown fields, checks unique names, and accepts only
+the declared V1 truth order and formulas. It then deterministically renders:
+
+- `core/crates/auths-algebra-kernel/src/generated.rs`;
+- `formal/Auths/Generated/Algebra.lean`.
+
+Normal verification compares both files byte-for-byte with fresh renderings.
+Intentional changes require `cargo xtask formal --update`.
 
 \begin{figure}[H]
 \centering
-\begin{tikzpicture}[node distance=8mm]
-  \node[axisbox=blue, minimum width=103mm] (g0) {
-    \textbf{Root grant}\quad
-    \texttt{\{reports/read, reports/write\}}
-    \quad 08:00--18:00 \quad depth 3
+\resizebox{0.96\linewidth}{!}{%
+\begin{tikzpicture}[node distance=8mm and 11mm]
+  \node[axisbox=purple, minimum width=40mm] (source) {
+    \textbf{Contract V1}\\
+    names + formulas + bound
   };
-  \node[axisbox=blue, minimum width=85mm, below=of g0] (g1) {
-    \textbf{Service grant}\quad
-    \texttt{\{reports/read\}}
-    \quad 09:00--17:00 \quad depth 2
+  \node[card, minimum width=43mm, below left=12mm and 12mm of source] (leansurface) {
+    \textbf{Lean structure}\\
+    camelCase fields\\
+    Bool conjunction + Nat threshold
   };
-  \node[axisbox=blue, minimum width=67mm, below=of g1] (g2) {
-    \textbf{Agent grant}\quad
-    \texttt{\{reports/read\}}
-    \quad 10:00--12:00 \quad depth 1
+  \node[card, minimum width=43mm, below right=12mm and 12mm of source] (rustsurface) {
+    \textbf{Rust trait}\\
+    snake\_case methods\\
+    bool conjunction + count threshold
   };
-  \draw[flow=green] (g0) -- node[note,right]{scope only narrows} (g1);
-  \draw[flow=green] (g1) -- node[note,right]{time only narrows} (g2);
+  \node[axisbox=purple, minimum width=43mm, below=of leansurface] (abstract) {
+    \textbf{Abstract Lean order}\\
+    rich coordinates mapped to predicates
+  };
+  \node[axisbox=blue, minimum width=43mm, below=of rustsurface] (domain) {
+    \textbf{Rich Rust projection}\\
+    sets + windows + policies mapped to predicates
+  };
+  \node[kernel, minimum width=97mm, below=12mm of $(abstract)!0.5!(domain)$] (same) {
+    SAME FINITE ACCEPTANCE SURFACE
+  };
 
-  \node[axisbox=red, minimum width=42mm, right=15mm of g1] (bad) {
-    \textbf{Rejected child}\\
-    \texttt{\{reports/delete\}}\\
-    09:00--19:00 \quad depth 3
-  };
-  \draw[flow=red] (g1) -- node[note,above]{broader} (bad);
-  \node[note, text=red, below=2mm of bad] {
-    new permission + later expiry\\
-    + non-decreasing depth
-  };
-\end{tikzpicture}
-\caption{\textbf{Authority forms a narrowing funnel.} Every delegation edge
-must be a subset in permission, contained in time, and strictly lower in depth.
-There is no adapter hook that can broaden this relation.}
+  \draw[flow=purple] (source) -- (leansurface);
+  \draw[flow=blue] (source) -- (rustsurface);
+  \draw[flow=purple] (leansurface) -- (abstract);
+  \draw[flow=blue] (rustsurface) -- (domain);
+  \draw[flow=purple] (abstract) -- (same);
+  \draw[flow=blue] (domain) -- (same);
+\end{tikzpicture}}
+\caption{\textbf{Generated structural correspondence.} The contract prevents
+silent field drift. Semantic correctness of each rich Rust predicate remains a
+separate obligation.}
 \end{figure}
 
-## 3.4 Three-valued verdicts
+## 4.3 Shared traits, correctly understood
 
-The verifier returns:
-
-- `Authorized`: every cryptographic, structural, authority, action-binding, and
-  required-assurance check passed.
-- `Denied`: available evidence establishes that the proof is invalid or the
-  requested action is outside delegated authority.
-- `Indeterminate`: the verifier cannot establish a required fact, for example
-  because an exact adapter is unsupported or required freshness evidence is
-  absent.
-
-Collapsing the last two states is operationally tempting but semantically
-harmful. `Denied` can be a stable policy outcome; `Indeterminate` often means
-the verifier, evidence package, or deployment is insufficient. More
-importantly, neither state may be upgraded by transport or application code.
-
-# 4. Ports, adapters, and security boundaries
-
-## 4.1 Agnostic does not mean permissive
-
-The word *agnostic* is easy to misuse in cryptographic software. Auths-Proof is
-agnostic at a stable port and strict at every concrete registry.
-
-\begin{figure}[H]
-\centering
-\begin{tikzpicture}
-  \matrix (m) [matrix of nodes, nodes in empty cells,
-    row sep=3mm, column sep=3mm,
-    nodes={minimum height=8mm, anchor=center}] {
-    \node[note, text=ink, font=\sffamily\scriptsize\bfseries]{AXIS}; &
-    \node[pill=green]{V1 IMPLEMENTED}; &
-    \node[pill=muted]{FUTURE ADAPTERS}; &
-    \node[pill=red]{NEVER IMPLICIT}; \\
-    \node[axisbox=green, minimum width=26mm]{Principal}; &
-    \node[card, minimum width=36mm]{raw, did:key\\did:keri, did:web}; &
-    \node[card, minimum width=36mm]{SPIFFE/X.509\\WebAuthn, HSM}; &
-    \node[card, minimum width=36mm]{string looks valid\\$\Rightarrow$ control}; \\
-    \node[axisbox=purple, minimum width=26mm]{Signature}; &
-    \node[card, minimum width=36mm]{Ed25519\\P-256/SHA-256}; &
-    \node[card, minimum width=36mm]{reviewed suites\\with exact ids}; &
-    \node[card, minimum width=36mm]{auto-detect\\or downgrade}; \\
-    \node[axisbox=amber, minimum width=26mm]{Transport}; &
-    \node[card, minimum width=36mm]{memory\\Iroh}; &
-    \node[card, minimum width=36mm]{HTTPS, TCP\\Unix socket, file}; &
-    \node[card, minimum width=36mm]{peer auth\\$\Rightarrow$ authority}; \\
-    \node[axisbox=blue, minimum width=26mm]{Application}; &
-    \node[card, minimum width=36mm]{MCP\\tools/call}; &
-    \node[card, minimum width=36mm]{HTTP, Git\\deploy, edge}; &
-    \node[card, minimum width=36mm]{profile may\\change grants}; \\
-  };
-\end{tikzpicture}
-\caption{\textbf{Extensibility is explicit substitution, not algorithmic
-ambiguity.} V1 accepts only registered identifiers and bounded evidence.
-Future support requires a reviewed adapter and conformance fixtures; fallback
-and auto-detection are forbidden.}
-\end{figure}
-
-This distinction matters for the user examples. SHA-256 can safely appear as a
-digest function or self-certifying identifier component, but a bare SHA-256
-digest does not itself prove control unless a registered method defines the
-statement and evidence. SHA-1 must not become security-bearing identity material
-in a new protocol. Similarly, `did:web` and `did:keri` share DID syntax but
-establish control under materially different evidence and freshness models.
-
-## 4.2 Principal-control port
-
-The conceptual Rust boundary is:
+There is no runtime trait object shared between Lean and Rust. Instead, the
+contract generates structurally corresponding interfaces:
 
 ```rust
-pub trait PrincipalControlVerifier {
-    fn verify_control(
-        &self,
-        request: ControlRequest<'_>,
-        evidence: &EvidenceSet<'_>,
-        limits: VerificationLimits,
-    ) -> Result<VerifiedPrincipal, PrincipalControlError>;
-}
-
-pub struct VerifiedPrincipal {
-    principal: PrincipalId,
-    verification_method: VerificationMethodId,
-    assurance: AssuranceClaims,
+pub trait AttenuationProjection {
+    fn root_preserved(&self) -> bool;
+    fn depth_decreases(&self) -> bool;
+    // ... eight more named dimensions
 }
 ```
 
-The authority engine performs exact adapter lookup from signed metadata. It does
-not ask each adapter to “try” the bytes. This prevents parser differentials and
-algorithm confusion from turning fallback order into security policy.
-
-The port also does not expose signing. Verification can be pure and portable;
-private-key custody belongs to platform-specific authoring adapters, HSMs,
-wallets, or agents. This is especially important for WebAssembly: browser
-verification should not drag in OS keychains, network resolvers, or random
-number generators.
-
-## 4.3 Assurance-carrying adapters
-
-A verified signature proves only that some verification material accepted a
-signature. The security significance depends on how that material was bound to
-the principal and what evidence is current.
-
-V1 models claims including:
-
-```text
-SelfCertifyingIdentifier    OfflineVerifiable
-ControllerStateCurrentAt   HistoricalAt
-StatementExistenceProvenAt RotationAware
-RevocationCheckedAt        WitnessThresholdMet
-PkiChainValidated          HardwareAttested
+```lean
+structure AttenuationProjection where
+  rootPreserved : Bool
+  depthDecreases : Bool
+  -- ... eight more named dimensions
 ```
 
-An adapter may return only claims it actually established. A raw key and
-`did:key` can be self-certifying and offline verifiable, but have no native
-rotation or revocation story. A supplied KERI key event log can establish valid
-rotation history, but without evidence that no later event exists it cannot
-claim globally current state. A bundled `did:web` trust record can be verified
-offline, but the verifier must distinguish historical key state from proof that
-the action existed at that historical time.
+This is stronger than manually duplicating traits because one source controls
+the field set, ordering, names, and aggregation semantics. It is weaker than
+proving a compiler from Rust to Lean. The distinction is central to the paper's
+claim.
 
-\begin{figure}[H]
-\centering
-\begin{tikzpicture}[node distance=4mm]
-  \node[axisbox=green, minimum width=33mm] (a1) {
-    \textbf{raw / did:key}\\
-    self-certifying\\
-    offline
-  };
-  \node[axisbox=green, minimum width=33mm, right=of a1] (a2) {
-    \textbf{did:keri bundle}\\
-    rotation-aware\\
-    bounded history
-  };
-  \node[axisbox=green, minimum width=33mm, right=of a2] (a3) {
-    \textbf{did:web record}\\
-    configured source\\
-    historical state
-  };
-  \node[card, minimum width=105mm, below=10mm of a2] (intersection) {
-    \textbf{Chain assurance = intersection of established claims}\\[2pt]
-    a strong root does not erase weak actor evidence
-  };
-  \draw[flow=green] (a1) -- (intersection);
-  \draw[flow=green] (a2) -- (intersection);
-  \draw[flow=green] (a3) -- (intersection);
-  \node[verdict=amber, minimum width=49mm, below=8mm of intersection] (policy) {
-    LOCAL POLICY\\
-    requires RotationAware
-  };
-  \draw[flow=amber] (intersection) -- (policy);
-  \node[verdict=amber, right=8mm of policy] (ind) {INDETERMINATE\\if claim absent};
-  \draw[flow=amber] (policy) -- (ind);
-\end{tikzpicture}
-\caption{\textbf{Adapter success does not erase evidence quality.} Assurance
-flows as typed data into local policy. Requirements apply across the chain, so a
-high-assurance root cannot launder a low-assurance actor.}
-\end{figure}
+Adding an eleventh attenuation dimension causes deliberate breakage:
 
-This mechanism is narrower than a general trust calculus, but it addresses a
-common integration failure: treating every valid signature or DID resolution as
-equivalent confidence.
+1. the generated Rust trait changes;
+2. the generated Lean structure changes;
+3. Rust projection implementations fail to compile until they supply it;
+4. Lean projections fail to elaborate until they supply it;
+5. vector cardinality and exporter logic must change;
+6. the checked-in generated artifacts drift until explicitly regenerated.
 
-## 4.4 Algorithm port
+That failure mode turns semantic expansion into an auditable repository-wide
+event.
 
-Signature algorithms have exact identifiers, key encodings, signature
-encodings, and verification rules. V1 supports:
+## 4.4 Production Rust routing
 
-| Identifier | Public-key encoding | Signature rule |
-|---|---:|---|
-| `ed25519` | 32-byte compressed Edwards point | 64-byte Ed25519 signature |
-| `p256-sha256` | 33-byte compressed SEC1 point | fixed V1 ECDSA encoding and low-S normalization |
+The generated kernel is a separate `no_std`, `unsafe`-free crate. Shipping
+composition no longer owns a handwritten threshold classifier:
 
-The architectural point is not that these algorithms are interchangeable in
-cryptographic strength or operational behavior. It is that authority statements
-do not hard-code either one. A future suite must receive a unique identifier,
-bounded parser, negative vectors, and explicit compatibility rules. Unknown
-suites never fall back to a “close enough” verifier.
-
-## 4.5 Transport port
-
-Transport is a separate protocol layer because networking and authority answer
-different questions:
-
-- Transport: *How did these bytes arrive, and what did the channel observe?*
-- Auths-Proof: *Does this proof authorize this exact action under local trust?*
-
-The proof-exchange protocol therefore carries an opaque action body, opaque
-Auths proof, challenge, peer observation, and response. It must not parse grants,
-manufacture verdicts, or promote a peer key into an Auths principal.
-
-\begin{figure}[H]
-\centering
-\begin{tikzpicture}[node distance=6mm and 9mm]
-  \node[axisbox=amber, minimum width=38mm] (channel) {
-    \faNetworkWired\quad\textbf{Channel}\\
-    Iroh peer / TLS cert /\\
-    Unix credential / none
-  };
-  \node[axisbox=green, minimum width=38mm, below=of channel] (proof) {
-    \faLock\quad\textbf{Auths proof}\\
-    principal control +\\
-    authority chain + action
-  };
-  \node[axisbox=blue, minimum width=38mm, below=of proof] (app) {
-    \faCubes\quad\textbf{Application}\\
-    profile + local risk\\
-    + replay consumption
-  };
-  \node[kernel, minimum width=30mm, right=18mm of proof] (and) {
-    ALL THREE\\
-    MUST PASS
-  };
-  \draw[flow=amber] (channel.east) -- (and.west);
-  \draw[flow=green] (proof.east) -- (and.west);
-  \draw[flow=blue] (app.east) -- (and.west);
-  \node[verdict=green, minimum width=35mm, right=12mm of and] (execute) {
-    EXECUTE\\
-    EXACT ACTION
-  };
-  \draw[flow=green] (and) -- (execute);
-  \draw[flow=red, densely dashed] (channel.north east) to[bend left=28]
-    node[note,above,text=red]{forbidden shortcut} (execute.north);
-  \node[note, text=red, below=4mm of execute] {
-    authenticated peer $\not\Rightarrow$ authorized action
-  };
-\end{tikzpicture}
-\caption{\textbf{Connectivity never creates authority.} An application may
-require channel binding, but execution is a conjunction. An authenticated Iroh
-or TLS peer cannot upgrade `Denied` or `Indeterminate`.}
-\end{figure}
-
-Iroh is a particularly natural adapter because its endpoint identity is a key
-and it handles path discovery, hole punching, relay fallback, and QUIC
-connectivity [@iroh2026]. But making Iroh the protocol would repeat the coupling
-the system is designed to remove. The same semantic exchange can ride HTTPS,
-TCP, a Unix socket, a file, or an in-memory channel. Iroh endpoint keys and
-Auths principals remain separate by default.
-
-## 4.6 Application profile port
-
-An application profile owns the mapping from domain operation to canonical body,
-capability, resource, audience, and challenge handling. The MCP V1 profile maps:
-
-```text
-operation   = tools/call
-capability  = mcp.tools.call
-resource    = mcp://<service>/<tool>
-audience    = mcp://<service>
-body        = RFC 8785 canonical JSON
+```rust
+pub fn evaluate_threshold_counts(
+    k: u16,
+    authorized: usize,
+    indeterminate: usize,
+) -> ThresholdTruth {
+    auths_algebra_kernel::threshold_counts(
+        k, authorized, indeterminate
+    )
+}
 ```
 
-JCS makes the JSON hash stable across producers [@rundgren2020jcs]. The profile
-does not authorize generic MCP, a server, or all tools. A grant for one tool
-cannot authorize another because the exact resource and canonical body are
-signed.
+Shipping authority constructs a `GrantAttenuation` from rich domain checks and
+passes it to `attenuation_accepts`. The generated function accepts exactly the
+conjunction of all trait methods.
 
-# 5. Verification protocol
+Root preservation deserves special attention. In Rust, root is not supplied by
+an untrusted child grant; `EffectiveAuthority::delegate` mutates the existing
+state while retaining its private root field. The production projection
+therefore returns `true` for `root_preserved`. Lean models root explicitly and
+proves that an accepted abstract delegation preserves it. This is a legitimate
+representation difference, but it belongs in the trusted mapping rather than
+being hidden.
 
-## 5.1 Deterministic encoding and domain separation
+# 5. Executable refinement evidence
 
-The portable proof uses a constrained deterministic CBOR profile
-[@bormann2020cbor]. Every signed object has a domain-separated preimage that
-includes protocol family, version, object type, and canonical content. The
-decoder rejects:
+## 5.1 Lean-generated vectors
 
-- duplicate or unknown critical fields;
-- non-canonical integer or collection encodings;
-- oversized byte strings, arrays, maps, evidence sets, or grant chains;
-- unregistered adapter, algorithm, purpose, or media-type identifiers;
-- references to missing evidence or digest mismatches;
-- trailing bytes and ambiguous alternative representations.
+The Lean executable `Auths.VectorExport` is the semantic vector producer. It
+does not call a Rust reference evaluator.
 
-Canonicalization is not cosmetic. If two byte sequences can express the same
-semantic grant, identity and signature verification can disagree about what was
-authorized. V1 computes object identifiers from canonical bytes and signs a
-domain-separated form.
-
-## 5.2 Verification sequence
-
-\begin{figure}[H]
-\centering
-\begin{tikzpicture}[node distance=5.5mm]
-  \node[axisbox=amber, minimum width=94mm] (input) {
-    \textbf{1 · Explicit input}\quad proof bytes + action bytes + local context
-  };
-  \node[card, minimum width=94mm, below=of input] (decode) {
-    \textbf{2 · Strict bounded decode}\quad canonical CBOR, size and count budgets
-  };
-  \node[card, minimum width=94mm, below=of decode] (refs) {
-    \textbf{3 · Resolve internal references}\quad digests, parents, terminal grant
-  };
-  \node[axisbox=green, minimum width=94mm, below=of refs] (control) {
-    \textbf{4 · Establish principal control}\quad exact adapter + exact algorithm
-    $\rightarrow$ assurance
-  };
-  \node[kernel, minimum width=94mm, below=of control] (authority) {
-    \textbf{5 · Evaluate authority}\quad trust anchor + signed chain + attenuation
-  };
-  \node[axisbox=blue, minimum width=94mm, below=of authority] (binding) {
-    \textbf{6 · Verify action binding}\quad body + permission + audience +
-    challenge + time + actor
-  };
-  \node[card, minimum width=94mm, below=of binding] (assurance) {
-    \textbf{7 · Enforce local assurance policy}\quad never silently upgrade
-  };
-  \node[verdict=green, minimum width=28mm, below=8mm of assurance, xshift=-33mm] (v1) {AUTHORIZED};
-  \node[verdict=red, minimum width=24mm, right=7mm of v1] (v2) {DENIED};
-  \node[verdict=amber, minimum width=31mm, right=7mm of v2] (v3) {INDETERMINATE};
-
-  \foreach \a/\b in {input/decode,decode/refs,refs/control,control/authority,authority/binding,binding/assurance}
-    \draw[flow=muted] (\a) -- (\b);
-  \draw[thinflow=muted] (assurance.south) -- ++(0,-3mm) -| (v1.north);
-  \draw[thinflow=muted] (assurance.south) -- ++(0,-3mm) -| (v2.north);
-  \draw[thinflow=muted] (assurance.south) -- ++(0,-3mm) -| (v3.north);
-\end{tikzpicture}
-\caption{\textbf{Fail-closed verification pipeline.} The pure verifier receives
-all ambient facts explicitly. Principal adapters establish control and
-assurance; only the kernel interprets authority.}
-\end{figure}
-
-The ordering is security relevant. Structural rejection occurs before expensive
-cryptography. Evidence references are resolved before adapters execute.
-Authority is checked before action execution but after principal control.
-Application code receives a final typed result and may further restrict it; it
-may never broaden it.
-
-## 5.3 Authorization predicate
-
-For proof $\pi$, body $b$, context $c$, trust anchor $r$, and local
-assurance requirement $Q$:
+For attenuation, it enumerates all assignments in $\{0,1\}^{10}$:
 
 $$
-\begin{split}
-\operatorname{Authorized}(\pi,b,c,r,Q) \iff\;&
-\operatorname{Canonical}(\pi) \land
-\operatorname{Bounded}(\pi) \land\\
-&\operatorname{AnchoredChain}(\pi,r) \land
-\operatorname{ControlValid}(\pi) \land\\
-&\operatorname{Attenuating}(\pi) \land
-\operatorname{ActionBound}(\pi,b,c) \land\\
-&Q \subseteq \operatorname{CommonAssurance}(\pi).
-\end{split}
+2^{10}=1{,}024 \text{ cases}.
 $$
 
-`CommonAssurance` is conservative across required chain participants. The model
-does not let a KERI root's rotation evidence imply that a delegated raw key is
-itself rotation-aware.
+Exactly one vector, the all-true assignment, is accepted because V1 aggregation
+is conjunction.
 
-## 5.4 Security invariants
+For threshold counts, the declared exhaustive bound is $B=16$. The exporter
+enumerates:
 
-\begin{invariantbox}{I1 · Authority isolation}
-Only the authority kernel can construct an Auths verdict. Principal,
-cryptographic, transport, and application adapters return typed observations or
-errors.
-\end{invariantbox}
+$$
+1\le k\le B,\quad 0\le a\le B,\quad 0\le u\le B-a.
+$$
 
-\begin{invariantbox}{I2 · Principal-method substitution}
-If two adapters establish the same principal-control statement and sufficient
-assurance for the same signed bytes, replacing one with the other does not
-change grant attenuation or action-binding semantics.
-\end{invariantbox}
+The case count is:
 
-\begin{invariantbox}{I3 · Transport invariance}
-For identical proof bytes, action bytes, and verifier context, the Auths verdict
-is independent of whether delivery used memory, Iroh, HTTPS, TCP, a Unix socket,
-or a file. A transport may independently reject; it cannot authorize.
-\end{invariantbox}
+$$
+B\sum_{a=0}^{B}(B-a+1)
+=16\cdot153
+=2{,}448.
+$$
 
-\begin{invariantbox}{I4 · No ambient authority}
-Network reachability, an authenticated peer, current process identity, local
-filesystem state, environment variables, and wall-clock reads are not implicit
-inputs to the kernel.
-\end{invariantbox}
-
-\begin{invariantbox}{I5 · Monotonic authority}
-No accepted child grant expands permissions, time, or delegation depth, and no
-action can exceed its terminal grant.
-\end{invariantbox}
-
-These are design and test invariants, not machine-checked theorems. A future
-formalization should encode the grant relation and prove transport
-non-interference over an abstract adapter result. The current artifact uses
-workspace dependency checks, property tests, negative fixtures, and cross-target
-conformance to make violations observable.
-
-# 6. Implementation
-
-## 6.1 Three workspaces, three reasons to change
-
-The prototype is split across separately versioned Rust workspaces:
-
-1. `auths-proof` owns the model, codec, authority kernel, principal adapters,
-   authoring helpers, CLI, WebAssembly bindings, fixtures, and architecture
-   checks.
-2. `auths-proof-exchange` owns transport-neutral challenge/submission/response
-   semantics plus in-memory and Iroh adapters.
-3. `auths-proof-mcp` owns the narrow MCP `tools/call` profile and composes the
-   first two workspaces.
-
-“Separately versioned” means separate repositories or release units with their
-own manifests and compatibility promises, not branches of one repository. This
-keeps the authority protocol usable without networking or MCP, and lets an Iroh
-upgrade avoid forcing a new proof-format release.
+Rust checks every vector against `auths_algebra_kernel::threshold_counts`.
+It also constructs a real 16-leaf `AuthorizationPlan::k_of_n`, feeds the
+declared mix of branch outcomes to shipping `auths_composition::evaluate`, and
+checks that the result and full leaf visitation agree.
 
 \begin{figure}[H]
 \centering
-\begin{tikzpicture}[node distance=7mm]
-  \node[kernel, minimum width=103mm] (core) {
-    auths-proof\\[-1pt]
-    \normalfont\footnotesize model · canonical codec · verifier · principal adapters · WASM
+\begin{tikzpicture}[node distance=7mm and 9mm]
+  \node[axisbox=purple, minimum width=41mm] (lean) {
+    \textbf{Lean evaluation}\\
+    unbounded definitions
   };
-  \node[axisbox=amber, minimum width=103mm, below=of core] (exchange) {
-    \textbf{auths-proof-exchange}\\[-1pt]
-    transport-neutral protocol · challenge lifecycle · memory · Iroh
+  \node[axisbox=green, minimum width=41mm, right=of lean] (json) {
+    \textbf{Canonical JSON vectors}\\
+    schema + bound + expected result
   };
-  \node[axisbox=blue, minimum width=103mm, below=of exchange] (mcp) {
-    \textbf{auths-proof-mcp}\\[-1pt]
-    canonical MCP action · exact permission mapping · execution gate
+  \node[axisbox=blue, minimum width=41mm, right=of json] (kernel) {
+    \textbf{Generated Rust}\\
+    direct function replay
   };
-  \draw[flow=muted] (exchange) -- node[note,right]{depends on model, not verifier authority} (core);
-  \draw[flow=muted] (mcp) -- node[note,right]{composes} (exchange);
-  \draw[flow=muted] (mcp.east) to[out=15,in=-15]
-    node[note,right]{verifies through public API} (core.east);
-
-  \node[pill=green, left=6mm of core]{STABLE AUTHORITY};
-  \node[pill=amber, left=6mm of exchange]{NETWORKING};
-  \node[pill=blue, left=6mm of mcp]{PRODUCT PROFILE};
+  \node[axisbox=blue, minimum width=41mm, below=of kernel] (shipping) {
+    \textbf{Shipping composition}\\
+    real bounded plan replay
+  };
+  \node[kernel, minimum width=91mm, below=of $(lean)!0.5!(json)$] (stable) {
+    BYTE-STABLE CHECKED-IN ARTIFACTS
+  };
+  \draw[flow=purple] (lean) -- (json);
+  \draw[flow=green] (json) -- (kernel);
+  \draw[flow=blue] (kernel) -- (shipping);
+  \draw[flow=purple] (lean) -- (stable);
+  \draw[flow=green] (json) -- (stable);
+  \draw[flow=blue] (shipping) -- (stable);
 \end{tikzpicture}
-\caption{\textbf{Dependency direction follows semantic ownership.} The
-authority kernel does not depend on transport or MCP. Exchange moves opaque
-proofs. MCP narrows domain semantics and executes only after all gates pass.}
+\caption{\textbf{Semantic vector provenance.} Expected values originate in
+Lean. Rust is a consumer, not a co-author of the oracle.}
 \end{figure}
 
-Within the core workspace, crate boundaries follow capability:
+## 5.2 Kani over the shipping kernel
 
-| Layer | Representative crates | Allowed responsibility |
-|---|---|---|
-| Model | `auths-model` | Validated newtypes, grants, actions, verdicts |
-| Wire | `auths-codec` | Deterministic bounded CBOR |
-| Port | `auths-proof-principal` | Principal-control verification contract |
-| Kernel | `auths-verifier` | Authority, attenuation, action binding |
-| Adapters | `auths-raw-key`, `-did-key`, `-did-keri`, `-did-web` | Exact method evidence |
-| Authoring | authoring and CLI crates | Explicit signing workflows, no verifier secrets |
-| Surfaces | CLI, WASM | Presentation and serialization only |
-| Assurance | testkit, `xtask` | Fixtures, dependency rules, conformance |
+Kani lowers Rust MIR into CBMC's bit-precise model-checking pipeline and checks
+assertions over symbolic inputs [@delmas2026kani; @kroening2023cbmc]. Two
+harnesses target the generated production crate.
 
-`xtask` inspects Cargo metadata to prevent the kernel from acquiring forbidden
-dependencies or platform capabilities. CI builds native and
-`wasm32-unknown-unknown`, runs formatting and lints, executes conformance and
-property tests, scans dependency policy, and validates that generated fixtures
-remain canonical.
+The threshold harness selects symbolic `u16` values, assumes the declared
+default bound and a valid positive threshold, calls `threshold_counts`, and
+asserts the three-way partition. Kani also checks arithmetic overflow and
+runtime safety on reachable paths.
 
-## 6.2 KERI as an adapter, not the kernel
+The attenuation harness selects ten symbolic Booleans and asserts:
 
-KERI is useful because key event logs can express inception, rotation,
-pre-rotation commitments, thresholds, and witnessed receipts
-[@smith2019keri]. V1 implements a deliberately bounded subset sufficient for
-offline control verification: inception and rotation validation, sequence and
-digest continuity, signing thresholds, Ed25519 and P-256 keys, and selected
-CESR encodings.
-
-The adapter does not export KERI events into grant semantics. It produces:
-
-```text
-VerifiedPrincipal {
-  principal: did:keri:...,
-  verification_method: ...,
-  assurance: { SelfCertifyingIdentifier,
-               OfflineVerifiable,
-               RotationAware }
-}
+```rust
+attenuation_accepts(&checks)
+    == checks.root_preserved
+    && checks.depth_decreases
+    && checks.profile_attenuates
+    && checks.permissions_attenuate
+    && checks.validity_attenuates
+    && checks.audiences_attenuate
+    && checks.action_constraint_attenuates
+    && checks.budget_attenuates
+    && checks.status_attenuates
+    && checks.assurance_attenuates
 ```
 
-This design also contains KERI's limitations. A supplied event log can prove
-that its included rotation chain is valid. In an offline setting it generally
-cannot prove that no later rotation or revocation exists. Witness or
-transparency evidence would justify stronger claims, much as key-transparency
-systems make directory equivocation detectable [@melara2015coniks] and
-Certificate Transparency makes certificate issuance publicly auditable
-[@laurie2013ct]. Until such evidence is implemented, the adapter does not claim
-global currentness.
+Kani contributes implementation-level evidence: the actual compiled Rust
+functions satisfy these assertions over the bounded harness domain. It does
+not replace the unbounded Lean theorems, and the Lean theorems do not replace
+Kani's check of Rust arithmetic and control flow.
 
-## 6.3 WebAssembly boundary
+## 5.3 One reproducible gate
 
-The browser verifier shares the pure model, codec, adapters, and authority
-kernel with native Rust. Network-backed resolution is not hidden behind
-conditional compilation. For example, `did:web` is split into:
+`cargo xtask formal` performs, in order:
 
-- a pure adapter that verifies a bundled, verifier-approved trust record; and
-- a native resolver outside the kernel that may fetch and prepare that record.
+1. parse and validate the contract;
+2. render both generated modules and reject byte drift;
+3. build the Lean project;
+4. execute the Lean vector exporter and reject vector drift;
+5. scan selected formal source for `sorry`, `admit`, and `axiom`;
+6. verify every release-inventory theorem name is declared;
+7. run Rust refinement tests over all vectors;
+8. run both Kani harnesses.
 
-This avoids a common cross-platform failure: one nominal verifier with
-materially different trust behavior under `cfg(target_arch = "wasm32")`. The
-same bundle and context should produce the same verdict on native and WASM.
-
-## 6.4 MCP over memory and Iroh
-
-The Milestone 4 fixture exercises the composition:
+The update mode is explicit:
 
 ```text
-rotated did:keri root
-    -> delegates reports/read_report
-raw P-256 agent
-    -> signs canonical MCP tools/call
-same 1,988-byte Auths proof
-    -> in-memory exchange
-    -> direct local Iroh exchange
-    -> browser WASM verification
+cargo xtask formal --update
 ```
 
-The exchange protocol begins with a server challenge. The submission binds that
-challenge and canonical body. The application atomically claims the challenge,
-then checks profile, channel policy, Auths verdict, exact permission, and local
-policy before executing. Iroh V1 uses a dedicated ALPN and a full handshake; it
-does not use 0-RTT for authorization-bearing submissions.
+It regenerates both language modules and both vector files. A normal run never
+silently updates proof evidence.
+
+## 5.4 Evaluation results
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{@{}p{43mm}p{30mm}p{43mm}@{}}
+\toprule
+\textbf{Artifact} & \textbf{Observed result} & \textbf{Established scope}\\
+\midrule
+Lean source &
+32 named theorems; 29 release-inventoried &
+unbounded abstract attenuation, composition, traversal, and diversity facts\\
+Attenuation vectors &
+1,024 / 1,024 replayed &
+all Boolean assignments over ten generated predicates\\
+Threshold vectors &
+2,448 / 2,448 replayed &
+all valid count states through the default 16-leaf bound\\
+Shipping plan replay &
+2,448 / 2,448 agreed &
+real `k-of-n` evaluation agrees with the Lean oracle at that bound\\
+Kani &
+2 / 2 harnesses; 0 failures &
+symbolic bounded generated Rust functions and runtime checks\\
+Generated drift &
+no drift &
+checked-in Rust, Lean, and vectors match deterministic generation\\
+\bottomrule
+\end{tabular}
+\caption{\textbf{Formal artifact results at the evaluated revision.} These are
+semantic checks, not performance measurements.}
+\end{table}
+
+# 6. Assurance boundary
+
+## 6.1 What is proved
+
+The Lean kernel checks the following model-level claims:
+
+- attenuation is a partial order modulo subject identity;
+- delegation preserves the root, never widens authority, and strictly reduces
+  depth;
+- terminal action coverage implies ancestor coverage;
+- `all` and `any` have the expected semilattice laws;
+- threshold results imply their defining count inequalities;
+- tightening a two-branch threshold cannot increase truth;
+- truth and canonical diagnostic selection are permutation invariant;
+- finite plans terminate under the structural model and have linear declared
+  node cost;
+- tighter diversity floors cannot create authorization;
+- generated attenuation acceptance is equivalent to abstract delegation.
+
+These proofs quantify over natural numbers and finite inductive plans. They are
+not limited to 16 leaves.
+
+## 6.2 What is exhaustively checked under a bound
+
+The cross-language threshold relation is exhaustive only through 16 leaves,
+which equals `DEFAULT_MAX_PLAN_LEAVES` for target V1. The protocol model also
+contains a separately configurable hard maximum of 128. The artifact does not
+enumerate or model-check every threshold count through 128.
+
+The attenuation projection space is genuinely complete for the generated
+Boolean interface because it has exactly ten inputs. That completeness does not
+prove that each rich Rust predicate computes the intended domain relation.
+
+## 6.3 What remains trusted
 
 \begin{figure}[H]
 \centering
-\begin{tikzpicture}[x=1cm,y=0.76cm]
-  \node[note,text=ink,font=\sffamily\footnotesize\bfseries] at (0,0) (c) {Agent};
-  \node[note,text=ink,font=\sffamily\footnotesize\bfseries] at (6.0,0) (s) {Service};
-  \draw[line, line width=0.8pt] (0,-0.35) -- (0,-6.6);
-  \draw[line, line width=0.8pt] (6,-0.35) -- (6,-6.6);
+\resizebox{0.97\linewidth}{!}{%
+\begin{tikzpicture}[node distance=7mm and 8mm]
+  \node[kernel, minimum width=43mm, minimum height=24mm] (proved) {
+    PROVED IN LEAN\\[2pt]
+    \normalfont\footnotesize abstract algebra\\
+    refinement theorem
+  };
+  \node[axisbox=green, minimum width=43mm, minimum height=24mm,
+        right=of proved] (checked) {
+    \textbf{Mechanically checked}\\
+    generated drift · vectors\\
+    Kani bounded Rust
+  };
+  \node[axisbox=amber, minimum width=43mm, minimum height=24mm,
+        right=of checked] (trusted) {
+    \textbf{Trusted mapping}\\
+    rich predicates · generator\\
+    compiler + tools
+  };
 
-  \draw[flow=amber] (6,-1) -- node[note,above]{fresh challenge + audience} (0,-1);
-  \draw[flow=amber] (0,-2) -- node[note,above]{opaque body + proof + challenge} (6,-2);
-  \node[card, anchor=west, minimum width=35mm] at (6.3,-3.0) (claim) {
-    atomically claim challenge
+  \node[card, minimum width=43mm, below=of proved] (outside) {
+    \textbf{Outside this model}\\
+    codecs · crypto · adapters\\
+    graph + full verifier
   };
-  \draw[thinflow=muted] (6,-2.1) -- (claim.west);
-  \node[card, anchor=west, minimum width=35mm] at (6.3,-4.05) (verify) {
-    canonicalize + verify Auths
+  \node[card, minimum width=43mm, below=of checked] (tests) {
+    \textbf{Covered elsewhere}\\
+    domain tests · corpus\\
+    conformance + fuzzing
   };
-  \draw[thinflow=muted] (claim) -- (verify);
-  \node[card, anchor=west, minimum width=35mm] at (6.3,-5.1) (gate) {
-    channel $\land$ app $\land$ authority
+  \node[card, minimum width=43mm, below=of trusted] (effects) {
+    \textbf{Outer effects}\\
+    replay · budgets · custody\\
+    transport + execution
   };
-  \draw[thinflow=muted] (verify) -- (gate);
-  \draw[flow=green] (6,-6.0) -- node[note,above]{typed response + verdict} (0,-6.0);
 
-  \node[pill=amber] at (3,-2.7) {MEMORY OR IROH};
-  \node[note] at (3,-3.15) {same semantic messages};
-\end{tikzpicture}
-\caption{\textbf{Challenge-bound proof exchange.} Replay consumption is an
-application responsibility adjacent to execution. The transport carries the
-same messages; it does not inspect authority.}
+  \draw[flow=green] (proved) -- (checked);
+  \draw[flow=amber] (checked) -- (trusted);
+  \draw[thinflow=muted,dashed] (outside) -- (tests);
+  \draw[thinflow=muted,dashed] (tests) -- (effects);
+\end{tikzpicture}}
+\caption{\textbf{Claim and trust boundary.} Dark blue is theorem-proved;
+green is mechanically cross-checked; amber remains trusted. The lower row is
+outside the formal model.}
 \end{figure}
-
-# 7. Preliminary evaluation
-
-The evaluation asks four prototype questions:
-
-1. Can one grant chain cross principal methods and algorithms?
-2. Does the same proof produce the same verdict across transport adapters?
-3. Does the verifier run unchanged in a browser?
-4. Is verification latency plausibly small relative to a local network
-   exchange?
-
-The checked-in fixture answers these questions for one narrow scenario. It uses
-a rotated KERI root and raw P-256 agent, succeeds in-memory and over direct local
-Iroh, and verifies in Chrome WebAssembly.
-
-## 7.1 Measurements
-
-Measurements were recorded on an Apple M1 Max development machine with Rust
-1.94. The proof is 1,988 bytes.
-
-| Path | End-to-end | Auths verification | Scope |
-|---|---:|---:|---|
-| In-memory | 543 us | 454 us | challenge, verify, static execution |
-| Iroh direct, local | 30.489 ms | 505 us | connection plus proof exchange |
-| Chrome 150 WASM | n/a | 1.320 ms mean | 100 verification iterations |
-
-\begin{figure}[H]
-\centering
-\begin{tikzpicture}[x=0.032cm,y=0.85cm]
-  \draw[->,draw=muted,line width=0.7pt] (0,0) -- (330,0)
-    node[note,anchor=west]{time (100 us units)};
-  \foreach \x/\lab in {0/0,50/5 ms,100/10 ms,200/20 ms,300/30 ms}
-    \draw[draw=line] (\x,0.08) -- (\x,-0.08) node[note,below]{\lab};
-
-  \fill[green] (0,2.5) rectangle (4.54,3.0);
-  \node[note,text=ink,anchor=east] at (-4,2.75) {native verify};
-  \node[note,text=green,anchor=west] at (7,2.75) {454 us};
-
-  \fill[purple] (0,1.5) rectangle (13.2,2.0);
-  \node[note,text=ink,anchor=east] at (-4,1.75) {browser verify};
-  \node[note,text=purple,anchor=west] at (16,1.75) {1.320 ms};
-
-  \fill[amber] (0,0.5) rectangle (304.89,1.0);
-  \node[note,text=ink,anchor=east] at (-4,0.75) {local Iroh total};
-  \node[note,text=amber,anchor=east] at (301,0.75) {30.489 ms};
-
-  \draw[draw=muted,densely dashed] (4.54,0.3) -- (4.54,3.2);
-  \node[note,anchor=south west] at (4.54,3.2) {verification is a small share of local exchange};
-\end{tikzpicture}
-\caption{\textbf{Illustrative latency, not a benchmark claim.} The horizontal
-scale is linear. Native and browser verification are small relative to
-connection setup in this local Iroh run. No WAN, relay, concurrency, tail
-latency, or adversarial-input result is implied.}
-\end{figure}
-
-These numbers are useful as a feasibility check only. The runs were not a
-controlled benchmark campaign; there are no confidence intervals, multi-host
-trials, cold/warm separation, relay paths, or load tests. A publishable
-performance evaluation must add those controls and include malformed-proof
-costs, worst-case chain and evidence limits, memory usage, and browser/device
-diversity.
-
-## 7.2 Conformance evidence
-
-The stronger current evidence is semantic:
-
-- mixed-method and mixed-algorithm grant fixtures;
-- native and WASM outcome parity;
-- identical application results over in-memory and Iroh transports;
-- negative fixtures for mutation, reordering, wrong audience, wrong challenge,
-  expired time, widened permission, broken parent link, unsupported adapter, and
-  missing assurance;
-- architecture checks that reject forbidden dependency edges;
-- bounded parsers and property tests around canonical round trips.
-
-The next evaluation milestone should publish a versioned conformance corpus that
-independent implementations can consume. Interoperability between two codebases
-is more meaningful than more tests in one repository.
-
-# 8. Security analysis
-
-## 8.1 Threat model
-
-The adversary may control the network, replay or reorder bundles, mutate
-evidence, choose malformed encodings, present unsupported identifiers, mix
-principal methods and algorithms, and supply a valid proof for a different
-action. The adversary may also authenticate successfully at the transport layer.
 
 The trusted computing base includes:
 
-- the verifier binary and selected adapters;
-- cryptographic implementations;
-- the verifier-local trust anchor, context, budgets, and assurance policy;
-- canonical body construction in the application profile;
-- the execution gate and challenge/replay store;
-- any resolver or evidence assembler whose output local policy elects to trust.
+- the Lean kernel and imported tactics;
+- the deterministic contract generator;
+- the Rust compiler and Kani/CBMC toolchain;
+- the mapping from rich Rust values to ten Boolean predicates;
+- the model's adequacy as a specification of intended authorization;
+- everything outside the algebra, including codecs and cryptography.
 
-## 8.2 Attacks addressed
+Rust's type system and `unsafe`-free core reduce memory-safety risk, but Rust
+language safety is not itself a proof of functional authorization correctness.
+RustBelt provides a machine-checked foundation for important Rust safety claims
+and illustrates why language safety and application correctness must remain
+separate statements [@jung2018rustbelt].
 
-**Proof substitution.** The body digest, exact permission/resource, audience,
-challenge, actor, time, and terminal grant prevent moving an action signature to
-a different call or context.
+## 6.4 The projection gap
 
-**Authority escalation.** Subset, time-containment, strict-depth, issuer/subject,
-and parent-ID checks reject broadened or spliced chains.
+The largest remaining semantic gap is not the ten-input conjunction. It is the
+construction of those inputs:
 
-**Algorithm and adapter confusion.** Exact identifiers and no fallback prevent
-malformed evidence from being interpreted by a more permissive adapter.
+```rust
+GrantAttenuation {
+    permissions_attenuate:
+        grant.permissions().is_subset_of(&self.permissions),
+    validity_attenuates:
+        self.validity.contains_window(grant.validity()),
+    action_constraint_attenuates:
+        grant.action_constraint().attenuates(
+            &self.action_constraint
+        ),
+    // profile, audience, budget, status, assurance, depth
+}
+```
 
-**Trust-anchor injection.** The root of trust is local context, not a proof
-field.
+Each method has ordinary Rust tests, but the Lean model abstracts it to an
+ordered natural-number coordinate. A future refinement should either:
 
-**Transport identity confusion.** Peer observations are typed separately and
-cannot produce `Authorized`.
+1. translate this isolated safe-Rust projection into Lean with Aeneas;
+2. model each rich domain type and prove its Rust relation against generated
+   vectors;
+3. use a Rust-native deductive verifier such as Verus for the projection;
+4. combine these approaches for defense in depth.
 
-**Assurance laundering.** Claims are explicit and conservative across the chain.
-Missing required evidence yields `Indeterminate`.
+Whole-verifier translation is not the immediate next step. The highest-value
+work is to close this narrow projection gap first.
 
-**Resource exhaustion.** The wire profile places limits on total bytes, nesting,
-collections, grants, evidence, and adapter work before or during verification.
+# 7. Security consequences
 
-## 8.3 Attacks not addressed
+## 7.1 Delegation escalation
 
-\begin{limitbox}
-\textbf{Authorization is not safe execution.} A compromised authorized key can
-authorize malicious actions. A correct proof can still name a dangerous
-capability. A service can verify one body and execute another. A consumed
-challenge can race with side effects. Auths-Proof narrows and authenticates
-authority; the host must preserve the verify-to-execute binding.
-\end{limitbox}
+The product-order design makes widening explicit. A child must not:
 
-The system also does not stop:
+- change the local root;
+- keep or increase remaining depth;
+- select a broader or different profile;
+- add permissions or audiences;
+- extend validity;
+- broaden action-body discretion;
+- remove or increase a bounded budget;
+- weaken status freshness;
+- weaken assurance.
 
-- compromise of the trust anchor, verifier, adapter, resolver, or application;
-- side channels or implementation bugs in cryptographic libraries;
-- globally stale KERI or `did:web` state without a freshness source;
-- denial of service below configured limits;
-- metadata leakage from proof contents or transport;
-- key exfiltration in authoring systems;
-- semantic collision caused by a poorly designed application profile;
-- cross-service replay when audiences or challenges are misconfigured;
-- rollback to an older protocol version outside negotiated policy.
+The aggregate function cannot accidentally omit a declared dimension because
+the generated trait and generated conjunction share the contract's field list.
+The projection can still miscompute a dimension; that is the residual gap
+described above.
 
-## 8.4 The offline freshness limit
+## 7.2 Fail-closed uncertainty
 
-An offline bundle can prove that included statements and event chains are
-internally valid. It cannot, by itself, prove that no newer revocation or
-rotation exists. This is not unique to KERI: certificate status, transparency
-heads, and directory consistency all require some notion of observed state.
+Three-valued threshold semantics prevent unavailable evidence from being
+treated as success. They also preserve enough information to distinguish a
+permanent denial from a potentially satisfiable missing fact. The threshold
+soundness theorems show:
 
-Auths-Proof responds in two ways:
+- authorization requires at least $k$ established branches;
+- denial means even every indeterminate branch cannot reach $k$;
+- indeterminate means $k$ is not established but remains reachable.
 
-1. assurance claims name what was actually established and at what time; and
-2. local policy chooses whether historical or offline evidence is sufficient.
+No diagnostic ordering can change that truth result. Canonical reason selection
+exists for deterministic reporting, not as an input to authorization.
 
-A future witness, transparency, or status adapter may strengthen assurance, but
-it remains evidence for principal control. It does not become an authority
-engine.
+## 7.3 Bounded work
+
+Strictly decreasing depth gives a simple termination measure for delegation
+chains. Structural plan recursion terminates because plans are finite
+inductive values. Production additionally validates deployment limits before
+evaluation and reserves work before variable-cost adapters and cryptography.
+
+The Lean theorem `evaluation_cost_linear_in_nodes` concerns the declared
+structural cost function. It should not be read as an empirical runtime
+complexity proof for the full verifier. Allocation, hashing, signature
+verification, adapter work, and codec behavior remain outside that theorem.
+
+## 7.4 Change control as a security property
+
+Authorization semantics evolve. The generated boundary is therefore valuable
+even if no current theorem fails. It changes the review shape:
+
+\begin{invariantbox}{SEMANTIC CHANGE RULE}
+A new truth value, threshold rule, or attenuation dimension must appear as one
+contract change whose generated Rust, generated Lean, proofs, vector
+cardinality, production projection, and checked artifacts change together.
+\end{invariantbox}
+
+This is not merely build convenience. It prevents a class of silent
+specification drift in which a production check is added without a formal
+counterpart, or a formal obligation is strengthened without changing shipping
+behavior.
+
+# 8. What the core enables
+
+The verified algebra is deliberately below transport and product policy. That
+placement lets outer packages vary without redefining authority.
+
+\begin{figure}[H]
+\centering
+\resizebox{0.96\linewidth}{!}{%
+\begin{tikzpicture}[node distance=7mm and 10mm]
+  \node[kernel, minimum width=55mm, minimum height=27mm] (core) {
+    FORMAL CORE\\[3pt]
+    \normalfont\footnotesize attenuation + composition\\
+    canonical three-valued result
+  };
+  \node[axisbox=green, minimum width=42mm, above left=12mm and 16mm of core] (principal) {
+    \textbf{Principal evidence}\\
+    keys · DIDs · WebAuthn\\
+    HSM · SPIFFE
+  };
+  \node[axisbox=amber, minimum width=42mm, above right=12mm and 16mm of core] (exchange) {
+    \textbf{Exchange}\\
+    memory · file · HTTPS\\
+    Iroh · TCP · Unix
+  };
+  \node[axisbox=purple, minimum width=42mm, below left=12mm and 16mm of core] (product) {
+    \textbf{Product policy}\\
+    profiles · status · assurance\\
+    replay · budgets · receipts
+  };
+  \node[axisbox=blue, minimum width=42mm, below right=12mm and 16mm of core] (bindings) {
+    \textbf{Bindings and tools}\\
+    WASM · Python · Go · TS\\
+    explanations · benchmarks
+  };
+
+  \draw[flow=green] (principal) -- (core);
+  \draw[flow=amber] (exchange) -- (core);
+  \draw[flow=purple] (core) -- (product);
+  \draw[flow=blue] (core) -- (bindings);
+\end{tikzpicture}}
+\caption{\textbf{The algebra as a narrow semantic center.} Outer components
+supply evidence, carry bytes, enforce state, and expose APIs; they do not
+redefine attenuation or composition.}
+\end{figure}
+
+Seven principal methods can produce typed control evidence for the same
+verifier. Exchange transports carry opaque proof bytes but cannot upgrade an
+invalid proof. Product packages can add atomic replay and budget stores,
+receipts, custody, profiles, and enforcement. Native and WASM boundaries can
+consume the same canonical result. Deployment explanations can report which
+trusted-context facts caused or prevented authorization.
+
+These packages demonstrate architectural leverage, not additional formal
+coverage. A correct algebra cannot compensate for an adapter that overstates
+control, a profile that assigns unsafe meaning, a stale status source, or an
+executor that ignores the sealed action.
 
 # 9. Related work
 
-## 9.1 Proof-carrying systems
+## 9.1 Authorization and attenuation
 
-Proof-carrying code established the producer/consumer asymmetry: an untrusted
-producer supplies evidence, while the consumer runs a small checker against a
-local policy [@necula1997pcc]. Proof-carrying authentication built a general
-higher-order logic in which requests arrive with proofs, and later web work
-demonstrated flexible distributed access control [@appel1999pca;
-@bauer2002pcaweb].
+Capability systems made authority an explicit transferable object
+[@dennis1966capabilities]. SPKI authorization certificates bind permissions to
+keys and support delegation [@ellison1999spki]. SDSI emphasizes linked local
+namespaces [@rivest1996sdsi]. Macaroons support efficient contextual
+attenuation through caveats [@birgisson2014macaroons]. Trust-management
+systems such as PolicyMaker, KeyNote, and RT separate assertions, local policy,
+and compliance checking [@blaze1996trust; @keynote1999; @li2002rt].
 
-Auths-Proof is less expressive and less formally ambitious. It does not ship
-arbitrary logical proofs. Its proof is a closed, signed grant-chain format with
-exact attenuation and action binding. The trade is intentional: limited
-expressiveness, bounded verification, straightforward cross-platform
-implementation, and a smaller semantic attack surface. A formal correspondence
-between its chain predicate and an authorization logic remains future work.
+Auths-Proof shares explicit delegation and local policy but uses a closed
+multidimensional order rather than a general policy language. That restriction
+makes the core algebra finite at its production projection boundary and
+tractable for exhaustive cross-language checking.
 
-## 9.2 Authorization certificates and trust management
+Proof-carrying code shifts the burden of supplying safety evidence to the
+producer [@necula1997pcc]. Proof-carrying authentication applies a related idea
+to distributed authorization judgments [@appel1999pca; @bauer2002pcaweb].
+Auths-Proof authorization proofs are protocol evidence, not Lean proof terms;
+the receiver still executes a fixed verifier.
 
-SPKI is the closest conceptual ancestor: authorization may bind directly to a
-key, delegation is explicit, validity is intersected, and heterogeneous
-certificate forms can reduce to a trusted intermediate representation
-[@ellison1999spki]. PolicyMaker and decentralized trust management similarly
-separate credentials from application policy [@blaze1996trust]. The access
-control calculus formalizes principals speaking for themselves or others
-[@abadi1993calculus].
+## 9.2 Formal refinement
 
-Auths-Proof differs mainly in engineering boundary and artifact target. Its
-principal is opaque above an adapter; adapter output includes typed assurance;
-the action itself carries a body-bound proof; and the same verifier targets
-native and browser environments.
+CompCert proves semantic preservation through a realistic compiler
+[@leroy2009compcert]. seL4 proves refinement from an abstract specification to
+a C implementation [@klein2009sel4]. Translation validation checks a particular
+translation result [@pnueli1998translation]. Auths-Proof's generated boundary
+is closer in spirit to a small translation-validation artifact, but its
+generator is not verified and the rich projection is not yet translated.
 
-Macaroons support efficient decentralized attenuation through chained MACs and
-contextual caveats [@birgisson2014macaroons]. They are compelling within a
-service secret domain. Auths-Proof instead uses asymmetric principal-control
-evidence and signed delegation across independently chosen identity methods,
-at the cost of larger proofs and public-key verification.
+Lean 4 supplies the theorem-proving environment [@demoura2021lean4]. Aeneas
+uses functional translation to make safe Rust amenable to proof assistants
+[@ho2022aeneas]. Verus provides a practical Rust-centered systems-verification
+environment [@lattuada2024verus]. These systems define credible paths toward a
+stronger implementation refinement than the current generated correspondence.
 
-## 9.3 Centralized authorization services
+## 9.3 Model checking and testing
 
-Zanzibar demonstrates a globally consistent, highly available authorization
-service at enormous scale [@pang2019zanzibar]. Its relationship-based model and
-central checks solve a different deployment problem. Auths-Proof moves a
-bounded authorization chain with the action so a verifier can decide locally.
-The models can compose: a Zanzibar-like service could issue or validate a root
-grant, or an Auths application could require an online relationship check in
-addition to the portable proof. The paper does not claim that portable proofs
-replace globally consistent mutable policy.
+Kani and CBMC provide bit-precise bounded model checking over the shipping Rust
+function [@delmas2026kani; @kroening2023cbmc]. This complements, rather than
+duplicates, Lean: Kani sees Rust control flow and machine arithmetic, while Lean
+proves unbounded properties of the mathematical definition.
 
-## 9.4 Identity, transparency, and provenance
+Property-based testing and fuzzing remain valuable at the richer boundaries
+that the Lean model excludes [@claessen2000quickcheck; @miller1990fuzz]. They
+search large input spaces and preserve counterexamples, but passing campaigns
+do not establish universal properties. The artifact therefore labels theorem,
+exhaustive enumeration, bounded model checking, conformance testing, and fuzzing
+separately.
 
-DID Core standardizes identifier syntax and document concepts while leaving
-method behavior to method specifications [@w3c2022did]. KERI uses key-event
-history, pre-rotation, and receipts to support self-certifying identifiers and
-key management [@smith2019keri]. CONIKS and Certificate Transparency show how
-authenticated data structures and public observation can make equivocation
-detectable [@melara2015coniks; @laurie2013ct].
+# 10. Limitations and future work
 
-Auths-Proof consumes such mechanisms as principal-control evidence. It does not
-define a universal DID method or transparency ledger. This separation is the
-point: better identity evidence should improve assurance without rewriting
-authority.
+\begin{limitbox}
+\textbf{This paper does not claim full functional correctness of the verifier.}
+It establishes an unbounded abstract algebra, a generated structural
+correspondence, exhaustive finite agreement for declared domains, and bounded
+checks of two shipping Rust functions.
+\end{limitbox}
 
-in-toto and Sigstore attach verifiable provenance to software supply-chain
-events [@torresarias2019intoto; @newman2022sigstore]. They motivate application
-profiles for build, review, release, and deploy actions. Auths-Proof could bind
-who was allowed to initiate each action, while those systems preserve what
-happened to artifacts and who signed results.
+The most important limitations are:
 
-## 9.5 Workload identity, OIDC, and message signatures
+**Model adequacy.** A correct proof of the wrong model is still wrong. Review of
+the chosen authority dimensions and their order remains essential.
 
-SPIFFE solves workload identity bootstrapping and rotation across heterogeneous
-infrastructure [@spiffe2026]. OIDC provides interoperable user authentication
-and claims [@openid2023core]. Both are plausible future principal-control or
-evidence adapters; neither should be caricatured as “only identity.” Production
-systems build authorization around them. Auths-Proof's claim is narrower:
-authority can be made portable and independently verifiable without requiring
-every principal to use the same identity plane.
+**Rich projection.** Permission sets, intervals, action constraints, budgets,
+status, and assurance are reduced to Booleans by unverified Rust relations.
 
-HTTP Message Signatures define canonical signing of selected HTTP components
-and explicitly leave application requirements to deployments
-[@backman2024httpsig]. An HTTP application profile could reuse that signing
-surface or carry an Auths proof beside it. Auths-Proof is transport-neutral and
-adds signed authority-chain semantics; HTTP Message Signatures are specific to
-HTTP message integrity and authenticity.
+**Generator trust.** The generator is deterministic and drift-checked but not
+proved semantics-preserving.
 
-# 10. Discussion
+**Bound asymmetry.** Lean threshold theorems are unbounded. Rust vector replay
+and the Kani threshold harness stop at 16, not the configurable hard maximum of
+128.
 
-## 10.1 What is actually new?
+**Incomplete release inventory.** Three named Lean helper/diversity theorems
+are not currently listed in the 29-entry release manifest. The source builds
+them, but the inventory checker does not require their names.
 
-No individual ingredient is new: signed credentials, delegation chains,
-attenuation, local trust anchors, deterministic encodings, DIDs, transport
-abstraction, and portable verification all have prior art.
+**Whole-verifier exclusion.** Parsing, graph resolution, signature
+verification, evidence adapters, status, assurance matching, and final sealing
+are tested but not refined to Lean.
 
-The potentially publishable systems idea is their disciplined composition:
+**Toolchain trust.** Lean, Rust, Kani, CBMC, the build environment, and their
+dependencies remain part of the evidence pipeline.
 
-- authority is one small protocol, not a feature of every identity adapter;
-- principal-control mechanisms can differ at every hop in one chain;
-- evidence quality survives verification as typed assurance;
-- transport authentication and Auths authorization are a conjunction, never an
-  implication;
-- application semantics narrow the action surface without entering the kernel;
-- native and browser verifiers share the same pure implementation.
+The next work should proceed in decreasing order of semantic leverage:
 
-The empirical claim must be demonstrated, not asserted. A stronger paper should
-add at least one independently implemented adapter, one independently
-implemented verifier, a formal model of the core invariants, and adversarial
-evaluation of parser and assurance boundaries.
-
-## 10.2 The one primitive
-
-The project began as a broader identity ecosystem. Its durable primitive is not
-“decentralized identity,” “KERI tooling,” “Git signing,” “MCP security,” or
-“key-addressed networking.” Those are integrations.
-
-\begin{thesisbox}
-\centering
-\Large\bfseries
-Every action carries proof that it was authorized.
-\end{thesisbox}
-
-This line is useful because it gives a stopping rule. If a feature does not help
-author, carry, verify, or safely apply that proof, it probably belongs in
-another repository or product.
-
-## 10.3 Where to stop building
-
-Auths-Proof should stop at:
-
-```text
-proof format
-+ authority semantics
-+ principal-control verification port
-+ bounded verifier
-+ explicit context and assurance
-+ conformance corpus
-```
-
-It should not absorb:
-
-- a general network overlay;
-- universal DID resolution;
-- wallets, key backup, or HSM lifecycle;
-- a secrets manager;
-- an enterprise policy authoring suite;
-- a global identity or revocation ledger;
-- a generic MCP gateway;
-- a deployment orchestrator;
-- a relationship database;
-- a universal audit warehouse.
-
-Those are products or adapters built around the primitive. Keeping them outside
-is how the primitive remains credible.
-
-## 10.4 Application opportunities
-
-The architecture is most useful where actions cross trust or connectivity
-boundaries and must remain independently auditable:
-
-- AI agent tool calls and delegated automation;
-- software supply-chain approvals and release promotion;
-- infrastructure change authorization;
-- edge and intermittently connected device commands;
-- cross-organization service actions;
-- Git commit, tag, merge, and deploy authorization;
-- data-access jobs and reproducible research pipelines;
-- human approval delegated to short-lived machine actors.
-
-The wedge is not “replace OIDC, SPIFFE, Vault, Iroh, or KERI.” It is:
-
-> Keep your principal and transport. Add portable, exact, independently
-> verifiable authority to the action.
-
-## 10.5 Research agenda
-
-A credible academic program should test:
-
-1. **Formal soundness.** Model grant attenuation, action binding, assurance, and
-   transport non-interference in a proof assistant or executable specification.
-2. **Independent interoperability.** Publish a language-neutral corpus and build
-   a second verifier in a memory-safe language outside the Rust workspace.
-3. **Adapter equivalence.** Specify when two different principal methods
-   establish an equivalent control statement and when assurance prevents
-   substitution.
-4. **Freshness composition.** Evaluate witness, transparency, OCSP-like, and
-   checkpoint evidence without putting network I/O in the kernel.
-5. **Adversarial performance.** Measure worst-case bounded inputs, malformed
-   encodings, long chains, multi-signature thresholds, WASM memory, concurrent
-   service load, and WAN/relay transport.
-6. **Usability.** Measure time to first authorized action, failure diagnosis,
-   key-rotation recovery, and whether operators correctly distinguish
-   `Denied` from `Indeterminate`.
-7. **Profile safety.** Develop a review method that detects verify/execute
-   mismatch and ambiguous resource naming before a profile ships.
+1. model the rich authority types and close the Rust projection gap;
+2. include every public theorem in a generated release inventory;
+3. translate the isolated safe-Rust algebra/projection with Aeneas or verify it
+   with Verus;
+4. extend symbolic threshold checks to the hard bound or prove a Rust function
+   contract independent of enumeration;
+5. connect canonical codec and graph-state invariants to the formal model;
+6. produce proof-carrying build attestations for generated artifacts.
 
 # 11. Conclusion
 
-Distributed systems have many strong ways to establish identity and secure a
-channel. They have fewer ways to make exact authority portable with an action
-without standardizing every participant on the same identity, algorithm,
-network, and application stack.
+Formalization is valuable only to the extent that its relationship to shipping
+behavior is understood. Auths-Proof does not solve that relationship by
+assertion. It makes the authorization algebra small, generates the finite
+language boundary from one contract, routes production Rust through that
+boundary, proves the abstract properties in Lean, exports expected behavior
+from Lean, replays every declared finite state in Rust, and model-checks the
+same Rust functions with Kani.
 
-Auths-Proof explores a narrow answer: a deterministic proof-carrying
-authorization kernel with strict ports. KERI is one principal adapter. Raw keys,
-`did:key`, and `did:web` are others. Ed25519 and P-256 are V1 signature suites,
-not authority semantics. Iroh and memory are V1 transports, not the protocol.
-MCP is one application profile, not the product boundary.
-
-The invariant that holds the composition together is simple:
+The resulting claim is intentionally precise:
 
 \begin{thesisbox}
 \centering
-\textbf{Auths owns authority. Adapters prove principal control.}\\[4pt]
-\textcolor{blue2}{Every action carries proof that it was authorized.}
+\textbf{Auths-Proof's generated attenuation and threshold kernels agree with
+their Lean definitions over the declared finite boundary, while Lean proves
+the central algebraic properties without that bound.}
 \end{thesisbox}
 
-The prototype shows that this separation is implementable across mixed
-principal methods, cryptographic suites, transports, and native/browser
-verifiers. The remaining work is substantial: formalization, independent
-implementations, hostile-input evaluation, freshness integration, and usable
-authoring. Those are also the tests that can turn an architectural thesis into
-a defensible systems result.
+That claim is narrower than whole-program verification and substantially
+stronger than parallel handwritten models. More importantly, it exposes the
+remaining work: rich-domain projection, generator correctness, codecs,
+cryptography, adapters, and complete verifier control flow. The system can now
+improve along a visible refinement ladder rather than accumulating informal
+confidence around an isolated proof artifact.
 
 # References

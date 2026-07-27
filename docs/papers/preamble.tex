@@ -97,8 +97,9 @@
 \fvset{rulecolor=\color{line}}
 
 \pagestyle{fancy}
+\setlength{\headheight}{19pt}
 \fancyhf{}
-\fancyhead[L]{\footnotesize\sffamily\color{muted} AUTHS-PROOF \enspace / \enspace SYSTEMS DESIGN}
+\fancyhead[L]{\footnotesize\sffamily\color{muted} AUTHS-PROOF \enspace / \enspace FORMAL REFINEMENT}
 \fancyhead[R]{\footnotesize\sffamily\color{muted}\thepage}
 \renewcommand{\headrulewidth}{0.25pt}
 \renewcommand{\headrule}{\hbox to\headwidth{\color{line}\leaders\hrule height \headrulewidth\hfill}}
@@ -263,7 +264,7 @@
   \begin{flushleft}
     \vspace*{-1.2em}
     {\sffamily\scriptsize\bfseries\color{blue}
-      AUTHORIZATION SYSTEMS \enspace / \enspace RESEARCH PROTOTYPE\par}
+      FORMAL METHODS \enspace / \enspace AUTHORIZATION KERNEL\par}
     \vspace{0.65em}
     {\sffamily\fontsize{25}{29}\selectfont\bfseries\color{ink}\@title\par}
     \vspace{0.85em}
@@ -300,5 +301,5 @@
 
 % A compact two-column reference block avoids a nearly empty trailing page and
 % gives the bibliography the visual density expected of a systems paper.
-\BeforeBeginEnvironment{CSLReferences}{\footnotesize\begin{multicols}{2}}
+\BeforeBeginEnvironment{CSLReferences}{\footnotesize\begin{multicols}{2}\raggedcolumns\raggedright}
 \AfterEndEnvironment{CSLReferences}{\end{multicols}}
