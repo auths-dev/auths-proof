@@ -374,11 +374,11 @@ fn failure_fact_kind(failure: VerificationFailure) -> FactKind {
             DenialReason::AudienceMismatch => FactKind::ActionAudience,
             DenialReason::ChallengeMismatch => FactKind::ActionChallenge,
             DenialReason::ActionOutsideValidity => FactKind::ActionValidity,
-            DenialReason::PrincipalRevoked => FactKind::PrincipalStatus,
-            DenialReason::GrantRevoked => FactKind::GrantStatus,
-            DenialReason::StatusSequenceRollback
+            DenialReason::PrincipalRevoked
+            | DenialReason::StatusSequenceRollback
             | DenialReason::StatusMethodMismatch
             | DenialReason::StatusIssuerUntrusted => FactKind::PrincipalStatus,
+            DenialReason::GrantRevoked => FactKind::GrantStatus,
             DenialReason::RegistryManifestMismatch => FactKind::RegistryManifestAccepted,
             DenialReason::VerifierConfigurationMismatch => FactKind::ContextConfigurationMatches,
             DenialReason::ResourceNamespaceMismatch => FactKind::ResourceNamespace,
@@ -424,13 +424,11 @@ fn failure_fact_kind(failure: VerificationFailure) -> FactKind {
     }
 }
 
-fn verify_internal(
-    proof_bytes: &[u8],
-    canonical_action: &CanonicalAction,
+fn record_configuration_facts(
     context: &VerifierContext,
     registries: &ImmutableRegistries<'_>,
     trace: &mut TraceCollector,
-) -> VerificationOutcome {
+) {
     let configuration_matches = context.configuration() == registries.configuration_id();
     trace.record(
         VerificationStage::Resolve,
@@ -461,6 +459,36 @@ fn verify_internal(
             DenialReason::RegistryManifestMismatch,
         )),
     );
+}
+
+fn record_failure(
+    trace: &mut TraceCollector,
+    stage: VerificationStage,
+    origin: FactOrigin,
+    value: FactValue,
+    failure: VerificationFailure,
+) {
+    trace.record(
+        stage,
+        failure_fact_kind(failure),
+        origin,
+        value,
+        match failure {
+            VerificationFailure::Denied(_) => FactResult::Contradicted,
+            VerificationFailure::Indeterminate(_) => FactResult::Unavailable,
+        },
+        Some(failure_code(failure)),
+    );
+}
+
+fn verify_internal(
+    proof_bytes: &[u8],
+    canonical_action: &CanonicalAction,
+    context: &VerifierContext,
+    registries: &ImmutableRegistries<'_>,
+    trace: &mut TraceCollector,
+) -> VerificationOutcome {
+    record_configuration_facts(context, registries, trace);
 
     let decoded = match decode_proof(proof_bytes, context) {
         Ok(decoded) => {
@@ -475,16 +503,12 @@ fn verify_internal(
             decoded
         }
         Err(failure) => {
-            trace.record(
+            record_failure(
+                trace,
                 VerificationStage::Decode,
-                failure_fact_kind(failure),
                 FactOrigin::Proof,
                 FactValue::Present(false),
-                match failure {
-                    VerificationFailure::Denied(_) => FactResult::Contradicted,
-                    VerificationFailure::Indeterminate(_) => FactResult::Unavailable,
-                },
-                Some(failure_code(failure)),
+                failure,
             );
             return failure.into();
         }
@@ -502,13 +526,12 @@ fn verify_internal(
             resolved
         }
         Err(failure) => {
-            trace.record(
+            record_failure(
+                trace,
                 VerificationStage::Resolve,
-                failure_fact_kind(failure),
                 FactOrigin::TrustedContext,
                 FactValue::Equal(false),
-                FactResult::Contradicted,
-                Some(failure_code(failure)),
+                failure,
             );
             return failure.into();
         }
@@ -526,16 +549,12 @@ fn verify_internal(
             controlled
         }
         Err(failure) => {
-            trace.record(
+            record_failure(
+                trace,
                 VerificationStage::PrincipalControl,
-                failure_fact_kind(failure),
                 FactOrigin::ExecutableRegistry,
                 FactValue::Present(false),
-                match failure {
-                    VerificationFailure::Denied(_) => FactResult::Contradicted,
-                    VerificationFailure::Indeterminate(_) => FactResult::Unavailable,
-                },
-                Some(failure_code(failure)),
+                failure,
             );
             return failure.into();
         }
@@ -543,16 +562,12 @@ fn verify_internal(
     let authority = match verify_authority(controlled, canonical_action, context, registries) {
         Ok(authority) => authority,
         Err(failure) => {
-            trace.record(
+            record_failure(
+                trace,
                 VerificationStage::Authority,
-                failure_fact_kind(failure),
                 FactOrigin::Derived,
                 FactValue::Present(false),
-                match failure {
-                    VerificationFailure::Denied(_) => FactResult::Contradicted,
-                    VerificationFailure::Indeterminate(_) => FactResult::Unavailable,
-                },
-                Some(failure_code(failure)),
+                failure,
             );
             return failure.into();
         }

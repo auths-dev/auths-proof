@@ -5,9 +5,10 @@ use auths_model::{CanonicalAction, VerificationCode, VerificationDecision, Verif
 use auths_registries::ImmutableRegistries;
 use auths_verifier::{
     ExplainedVerification, VerificationOutcome,
-    causal::{Contribution, causal_slice},
+    causal::{CausalFact, Contribution, causal_slice},
     trace::{FactKind, FactOrigin, FactResult, FactValue},
 };
+use core::fmt::Write as _;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest as _, Sha256};
 
@@ -80,7 +81,11 @@ impl core::fmt::Display for ExplanationError {
 impl std::error::Error for ExplanationError {}
 
 fn hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+    let mut encoded = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        write!(&mut encoded, "{byte:02x}").expect("writing to a string cannot fail");
+    }
+    encoded
 }
 
 fn decision(verification: &ExplainedVerification) -> (VerificationDecision, VerificationCode) {
@@ -106,6 +111,78 @@ fn fact_value(value: FactValue) -> String {
         FactValue::Equal(value) => format!("equal={value}"),
         FactValue::Count { actual, required } => format!("{actual}>={required}"),
         FactValue::Redacted => "redacted".to_owned(),
+    }
+}
+
+fn explained_fact(causal: &CausalFact) -> ExplainedFact {
+    ExplainedFact {
+        id: causal.fact.sequence(),
+        stage: stage_code(causal.fact.stage()).to_owned(),
+        kind: causal.fact.kind().code().to_owned(),
+        origin: match causal.fact.origin() {
+            FactOrigin::TrustedContext => "trusted-context",
+            FactOrigin::Proof => "proof",
+            FactOrigin::ExecutableRegistry => "executable-registry",
+            FactOrigin::Derived => "derived",
+        }
+        .to_owned(),
+        result: match causal.fact.result() {
+            FactResult::Satisfied => "satisfied",
+            FactResult::Contradicted => "contradicted",
+            FactResult::Unavailable => "unavailable",
+            FactResult::NotEvaluated => "not-evaluated",
+        }
+        .to_owned(),
+        contribution: match causal.contribution {
+            Contribution::Decisive => "decisive",
+            Contribution::NecessarySupport => "necessary-support",
+            Contribution::SufficientAlternative => "sufficient-alternative",
+            Contribution::ContributingBlocker => "contributing-blocker",
+            Contribution::ContextConstraint => "context-constraint",
+            Contribution::Informational => "informational",
+        }
+        .to_owned(),
+        value: fact_value(causal.fact.value()),
+        code: causal.fact.code().map(|value| value.code().to_owned()),
+        parents: causal.fact.parents().to_vec(),
+    }
+}
+
+fn append_context_inventory(facts: &mut Vec<ExplainedFact>) {
+    for kind in [
+        FactKind::ContextConfigurationMatches,
+        FactKind::RegistryManifestAccepted,
+        FactKind::ExpectedPlanMatches,
+        FactKind::TrustAnchorAcceptedMethod,
+        FactKind::TrustAnchorProfile,
+        FactKind::ActionValidity,
+        FactKind::ActionAudience,
+        FactKind::ActionChallenge,
+        FactKind::PrincipalStatus,
+        FactKind::GrantStatus,
+        FactKind::AssuranceRequirement,
+        FactKind::ResourceNamespace,
+        FactKind::ProfilePolicy,
+        FactKind::ChannelBinding,
+        FactKind::MinimumAuthorizedBranches,
+        FactKind::MinimumDistinctActors,
+        FactKind::MinimumDistinctRoots,
+        FactKind::WorkReservation,
+    ] {
+        if facts.iter().any(|fact| fact.kind == kind.code()) {
+            continue;
+        }
+        facts.push(ExplainedFact {
+            id: u32::try_from(facts.len()).unwrap_or(u32::MAX),
+            stage: "complete".to_owned(),
+            kind: kind.code().to_owned(),
+            origin: "trusted-context".to_owned(),
+            result: "not-evaluated".to_owned(),
+            contribution: "informational".to_owned(),
+            value: "redacted".to_owned(),
+            code: None,
+            parents: Vec::new(),
+        });
     }
 }
 
@@ -155,74 +232,10 @@ pub fn explain(
         local_configuration: format!("sha256:{}", hex(registries.configuration_id().as_bytes())),
     };
     let mut facts = causal_slice(verification.trace())
-        .into_iter()
-        .map(|causal| ExplainedFact {
-            id: causal.fact.sequence(),
-            stage: stage_code(causal.fact.stage()).to_owned(),
-            kind: causal.fact.kind().code().to_owned(),
-            origin: match causal.fact.origin() {
-                FactOrigin::TrustedContext => "trusted-context",
-                FactOrigin::Proof => "proof",
-                FactOrigin::ExecutableRegistry => "executable-registry",
-                FactOrigin::Derived => "derived",
-            }
-            .to_owned(),
-            result: match causal.fact.result() {
-                FactResult::Satisfied => "satisfied",
-                FactResult::Contradicted => "contradicted",
-                FactResult::Unavailable => "unavailable",
-                FactResult::NotEvaluated => "not-evaluated",
-            }
-            .to_owned(),
-            contribution: match causal.contribution {
-                Contribution::Decisive => "decisive",
-                Contribution::NecessarySupport => "necessary-support",
-                Contribution::SufficientAlternative => "sufficient-alternative",
-                Contribution::ContributingBlocker => "contributing-blocker",
-                Contribution::ContextConstraint => "context-constraint",
-                Contribution::Informational => "informational",
-            }
-            .to_owned(),
-            value: fact_value(causal.fact.value()),
-            code: causal.fact.code().map(|value| value.code().to_owned()),
-            parents: causal.fact.parents().to_vec(),
-        })
+        .iter()
+        .map(explained_fact)
         .collect::<Vec<_>>();
-    for kind in [
-        FactKind::ContextConfigurationMatches,
-        FactKind::RegistryManifestAccepted,
-        FactKind::ExpectedPlanMatches,
-        FactKind::TrustAnchorAcceptedMethod,
-        FactKind::TrustAnchorProfile,
-        FactKind::ActionValidity,
-        FactKind::ActionAudience,
-        FactKind::ActionChallenge,
-        FactKind::PrincipalStatus,
-        FactKind::GrantStatus,
-        FactKind::AssuranceRequirement,
-        FactKind::ResourceNamespace,
-        FactKind::ProfilePolicy,
-        FactKind::ChannelBinding,
-        FactKind::MinimumAuthorizedBranches,
-        FactKind::MinimumDistinctActors,
-        FactKind::MinimumDistinctRoots,
-        FactKind::WorkReservation,
-    ] {
-        if facts.iter().any(|fact| fact.kind == kind.code()) {
-            continue;
-        }
-        facts.push(ExplainedFact {
-            id: u32::try_from(facts.len()).unwrap_or(u32::MAX),
-            stage: "complete".to_owned(),
-            kind: kind.code().to_owned(),
-            origin: "trusted-context".to_owned(),
-            result: "not-evaluated".to_owned(),
-            contribution: "informational".to_owned(),
-            value: "redacted".to_owned(),
-            code: None,
-            parents: Vec::new(),
-        });
-    }
+    append_context_inventory(&mut facts);
     let remediation = match code {
         VerificationCode::Indeterminate(requirement) => vec![format!(
             "provide the trusted fact required by {} at the same evaluation boundary",

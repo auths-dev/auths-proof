@@ -89,7 +89,6 @@ impl ControlEvaluation {
     }
 
     /// Returns the adapter outcome.
-    #[must_use]
     pub const fn result(&self) -> &Result<ControlEvidence, PrincipalControlError> {
         &self.result
     }
@@ -101,7 +100,10 @@ impl ControlEvaluation {
     }
 
     /// Consumes the evaluation and returns the ordinary adapter result.
-    #[must_use]
+    ///
+    /// # Errors
+    ///
+    /// Returns the principal-control error produced by the adapter.
     pub fn into_result(self) -> Result<ControlEvidence, PrincipalControlError> {
         self.result
     }
