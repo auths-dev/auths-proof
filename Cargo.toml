@@ -54,6 +54,7 @@ members = [
     "product/config/auths-config",
     "product/cache/auths-cache",
     "product/operations/auths-operations",
+    "product/tools/auths-explain",
     "demos/testkit/auths-apps-testkit",
     "demos/matrix/auths-lab-matrix",
     "demos/benchmarks/auths-lab-wasm-bench",

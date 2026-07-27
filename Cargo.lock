@@ -418,6 +418,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "auths-explain"
+version = "0.1.0"
+dependencies = [
+ "auths-codec",
+ "auths-did-keri",
+ "auths-did-key",
+ "auths-did-web",
+ "auths-hsm-attested",
+ "auths-operations",
+ "auths-ports",
+ "auths-raw-key",
+ "auths-registries",
+ "auths-signature",
+ "auths-spiffe-x509",
+ "auths-testkit",
+ "auths-verifier",
+ "auths-webauthn",
+ "serde_json",
+]
+
+[[package]]
 name = "auths-formal-refinement"
 version = "0.1.0"
 dependencies = [
@@ -496,6 +517,12 @@ version = "0.1.0"
 dependencies = [
  "auths-codec",
  "auths-config",
+ "auths-model",
+ "auths-registries",
+ "auths-verifier",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
 ]
 
 [[package]]

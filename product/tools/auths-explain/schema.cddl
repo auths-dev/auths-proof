@@ -1,0 +1,32 @@
+explanation = {
+  schema: "auths-proof-explanation/v1",
+  explanation_id: tstr,
+  decision: "authorized" / "denied" / "indeterminate",
+  code: tstr,
+  stage: tstr,
+  bindings: {
+    proof: tstr,
+    action: tstr,
+    context: tstr,
+    result: tstr,
+    registry_manifest: tstr,
+    required_configuration: tstr,
+    local_configuration: tstr
+  },
+  summary: tstr,
+  facts: [* fact],
+  remediation: [* tstr],
+  disclosure: "summary" / "operator" / "audit"
+}
+
+fact = {
+  id: uint,
+  stage: tstr,
+  kind: tstr,
+  origin: tstr,
+  result: tstr,
+  contribution: tstr,
+  value: tstr,
+  ? code: tstr,
+  parents: [* uint]
+}

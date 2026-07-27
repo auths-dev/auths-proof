@@ -5,6 +5,9 @@
 
 extern crate alloc;
 
+pub mod causal;
+pub mod trace;
+
 use alloc::{boxed::Box, collections::BTreeSet, vec::Vec};
 use auths_assurance::{evaluate_with_implications, grant_issuer_role};
 use auths_authority::EffectiveAuthority;
@@ -27,8 +30,12 @@ use auths_model::{
 use auths_ports::{
     ControlEvidence, ControlPurpose, PrincipalControlError, PrincipalControlInput, ProfileDecision,
     RegistryOperationError, SignatureError, SignatureInput, StatusDecision,
+    diagnostics::DiagnosticMode,
 };
 use auths_registries::ImmutableRegistries;
+use trace::{
+    FactKind, FactOrigin, FactResult, FactValue, TraceCollector, TraceError, VerificationTrace,
+};
 
 /// One stable verifier failure class.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -48,6 +55,33 @@ pub enum VerificationOutcome {
     Denied(DenialReason),
     /// A trustworthy required fact or capability was unavailable.
     Indeterminate(Requirement),
+}
+
+/// Ordinary sealed outcome plus the bounded trace from the same execution.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ExplainedVerification {
+    outcome: VerificationOutcome,
+    trace: VerificationTrace,
+}
+
+impl ExplainedVerification {
+    /// Exact ordinary verifier outcome.
+    #[must_use]
+    pub const fn outcome(&self) -> &VerificationOutcome {
+        &self.outcome
+    }
+
+    /// Bounded deterministic execution trace.
+    #[must_use]
+    pub const fn trace(&self) -> &VerificationTrace {
+        &self.trace
+    }
+
+    /// Consumes the diagnostic wrapper without changing the sealed outcome.
+    #[must_use]
+    pub fn into_outcome(self) -> VerificationOutcome {
+        self.outcome
+    }
 }
 
 impl From<VerificationFailure> for VerificationOutcome {
@@ -271,14 +305,272 @@ pub fn verify(
     context: &VerifierContext,
     registries: &ImmutableRegistries<'_>,
 ) -> VerificationOutcome {
-    decode_proof(proof_bytes, context)
-        .and_then(|decoded| resolve_proof(decoded, context))
-        .and_then(|resolved| verify_principal_control(resolved, context, registries))
-        .and_then(|controlled| verify_authority(controlled, canonical_action, context, registries))
-        .map(bind_verified_action)
-        .map_or_else(VerificationOutcome::from, |action| {
-            VerificationOutcome::Authorized(Box::new(action))
-        })
+    verify_internal(
+        proof_bytes,
+        canonical_action,
+        context,
+        registries,
+        &mut TraceCollector::discard(),
+    )
+}
+
+/// Runs the exact ordinary verifier path while retaining bounded diagnostic
+/// facts.
+///
+/// # Errors
+///
+/// Returns [`TraceError::CapacityExceeded`] before verification when bounded
+/// diagnostic memory cannot be reserved. The ordinary [`verify`] API remains
+/// available and unaffected.
+pub fn verify_explained(
+    proof_bytes: &[u8],
+    canonical_action: &CanonicalAction,
+    context: &VerifierContext,
+    registries: &ImmutableRegistries<'_>,
+) -> Result<ExplainedVerification, TraceError> {
+    let mut trace = TraceCollector::collect(64)?;
+    let outcome = verify_internal(
+        proof_bytes,
+        canonical_action,
+        context,
+        registries,
+        &mut trace,
+    );
+    Ok(ExplainedVerification {
+        outcome,
+        trace: trace.finish(),
+    })
+}
+
+fn failure_code(failure: VerificationFailure) -> VerificationCode {
+    match failure {
+        VerificationFailure::Denied(reason) => VerificationCode::Denied(reason),
+        VerificationFailure::Indeterminate(requirement) => {
+            VerificationCode::Indeterminate(requirement)
+        }
+    }
+}
+
+fn failure_fact_kind(failure: VerificationFailure) -> FactKind {
+    match failure {
+        VerificationFailure::Denied(reason) => match reason {
+            DenialReason::ResourceLimitExceeded => FactKind::WorkReservation,
+            DenialReason::InvalidSignature
+            | DenialReason::PrincipalMethodMismatch
+            | DenialReason::VerificationMethodMismatch
+            | DenialReason::SignatureSuiteMismatch => FactKind::PrincipalControl,
+            DenialReason::UntrustedRoot => FactKind::TrustAnchorAcceptedMethod,
+            DenialReason::BrokenGrantChain => FactKind::GrantLinkage,
+            DenialReason::DelegationExpanded => FactKind::GrantPermissionAttenuation,
+            DenialReason::PermissionNotGranted => FactKind::ActionPermission,
+            DenialReason::ActionConstraintMismatch | DenialReason::ActionBodyMismatch => {
+                FactKind::ActionBodyDigest
+            }
+            DenialReason::BudgetCeilingExceeded => FactKind::ActionBudget,
+            DenialReason::AuthorizationPlanInvalid | DenialReason::PlanActionMismatch => {
+                FactKind::PlanNode
+            }
+            DenialReason::CompositionRequirementNotMet => FactKind::MinimumAuthorizedBranches,
+            DenialReason::AudienceMismatch => FactKind::ActionAudience,
+            DenialReason::ChallengeMismatch => FactKind::ActionChallenge,
+            DenialReason::ActionOutsideValidity => FactKind::ActionValidity,
+            DenialReason::PrincipalRevoked => FactKind::PrincipalStatus,
+            DenialReason::GrantRevoked => FactKind::GrantStatus,
+            DenialReason::StatusSequenceRollback
+            | DenialReason::StatusMethodMismatch
+            | DenialReason::StatusIssuerUntrusted => FactKind::PrincipalStatus,
+            DenialReason::RegistryManifestMismatch => FactKind::RegistryManifestAccepted,
+            DenialReason::VerifierConfigurationMismatch => FactKind::ContextConfigurationMatches,
+            DenialReason::ResourceNamespaceMismatch => FactKind::ResourceNamespace,
+            DenialReason::CriticalExtensionUnknown => FactKind::CriticalExtension,
+            DenialReason::AttachmentMissing
+            | DenialReason::AttachmentDigestMismatch
+            | DenialReason::AttachmentLengthMismatch
+            | DenialReason::DuplicateAttachment
+            | DenialReason::UnusedCriticalAttachment
+            | DenialReason::OpaqueAttachmentNotAllowed => FactKind::Attachment,
+            DenialReason::LocalPolicyDenied => FactKind::ProfilePolicy,
+            DenialReason::MalformedProof
+            | DenialReason::NonCanonicalProof
+            | DenialReason::DigestMismatch
+            | DenialReason::DuplicateObject
+            | DenialReason::MissingReference
+            | DenialReason::ReferenceCycle
+            | DenialReason::AmbiguousTerminalGrant
+            | DenialReason::UnusedCriticalEvidence => FactKind::PlanNode,
+        },
+        VerificationFailure::Indeterminate(requirement) => match requirement {
+            Requirement::UnsupportedPrincipalMethod
+            | Requirement::UnsupportedSignatureSuite
+            | Requirement::UnsupportedEvidenceType
+            | Requirement::MissingPrincipalEvidence
+            | Requirement::HistoricalStateUnavailable => FactKind::PrincipalControl,
+            Requirement::UnsupportedStatusMethod
+            | Requirement::MissingPrincipalStatus
+            | Requirement::StaleStatus => FactKind::PrincipalStatus,
+            Requirement::MissingGrantStatus => FactKind::GrantStatus,
+            Requirement::UnsupportedProfile => FactKind::TrustAnchorProfile,
+            Requirement::UnsupportedProfilePolicy => FactKind::ProfilePolicy,
+            Requirement::UnsupportedResourceMatcher => FactKind::ResourceNamespace,
+            Requirement::UnsupportedBudgetAlgebra => FactKind::ActionBudget,
+            Requirement::UnsupportedCriticalExtension => FactKind::CriticalExtension,
+            Requirement::UnsupportedAssuranceClaim | Requirement::AssuranceRequirementNotMet => {
+                FactKind::AssuranceRequirement
+            }
+            Requirement::UnsupportedProtocol | Requirement::ExternalFactUnavailable => {
+                FactKind::PlanNode
+            }
+        },
+    }
+}
+
+fn verify_internal(
+    proof_bytes: &[u8],
+    canonical_action: &CanonicalAction,
+    context: &VerifierContext,
+    registries: &ImmutableRegistries<'_>,
+    trace: &mut TraceCollector,
+) -> VerificationOutcome {
+    let configuration_matches = context.configuration() == registries.configuration_id();
+    trace.record(
+        VerificationStage::Resolve,
+        FactKind::ContextConfigurationMatches,
+        FactOrigin::TrustedContext,
+        FactValue::Equal(configuration_matches),
+        if configuration_matches {
+            FactResult::Satisfied
+        } else {
+            FactResult::Contradicted
+        },
+        (!configuration_matches).then_some(VerificationCode::Denied(
+            DenialReason::VerifierConfigurationMismatch,
+        )),
+    );
+    let registry_matches = context.accepted_registries().manifest_id() == registries.manifest_id();
+    trace.record(
+        VerificationStage::Resolve,
+        FactKind::RegistryManifestAccepted,
+        FactOrigin::ExecutableRegistry,
+        FactValue::Equal(registry_matches),
+        if registry_matches {
+            FactResult::Satisfied
+        } else {
+            FactResult::Contradicted
+        },
+        (!registry_matches).then_some(VerificationCode::Denied(
+            DenialReason::RegistryManifestMismatch,
+        )),
+    );
+
+    let decoded = match decode_proof(proof_bytes, context) {
+        Ok(decoded) => {
+            trace.record(
+                VerificationStage::Decode,
+                FactKind::Attachment,
+                FactOrigin::Proof,
+                FactValue::Present(true),
+                FactResult::Satisfied,
+                None,
+            );
+            decoded
+        }
+        Err(failure) => {
+            trace.record(
+                VerificationStage::Decode,
+                failure_fact_kind(failure),
+                FactOrigin::Proof,
+                FactValue::Present(false),
+                match failure {
+                    VerificationFailure::Denied(_) => FactResult::Contradicted,
+                    VerificationFailure::Indeterminate(_) => FactResult::Unavailable,
+                },
+                Some(failure_code(failure)),
+            );
+            return failure.into();
+        }
+    };
+    let resolved = match resolve_proof(decoded, context) {
+        Ok(resolved) => {
+            trace.record(
+                VerificationStage::Resolve,
+                FactKind::ExpectedPlanMatches,
+                FactOrigin::Derived,
+                FactValue::Equal(true),
+                FactResult::Satisfied,
+                None,
+            );
+            resolved
+        }
+        Err(failure) => {
+            trace.record(
+                VerificationStage::Resolve,
+                failure_fact_kind(failure),
+                FactOrigin::TrustedContext,
+                FactValue::Equal(false),
+                FactResult::Contradicted,
+                Some(failure_code(failure)),
+            );
+            return failure.into();
+        }
+    };
+    let controlled = match verify_principal_control(resolved, context, registries) {
+        Ok(controlled) => {
+            trace.record(
+                VerificationStage::PrincipalControl,
+                FactKind::PrincipalControl,
+                FactOrigin::ExecutableRegistry,
+                FactValue::Present(true),
+                FactResult::Satisfied,
+                None,
+            );
+            controlled
+        }
+        Err(failure) => {
+            trace.record(
+                VerificationStage::PrincipalControl,
+                failure_fact_kind(failure),
+                FactOrigin::ExecutableRegistry,
+                FactValue::Present(false),
+                match failure {
+                    VerificationFailure::Denied(_) => FactResult::Contradicted,
+                    VerificationFailure::Indeterminate(_) => FactResult::Unavailable,
+                },
+                Some(failure_code(failure)),
+            );
+            return failure.into();
+        }
+    };
+    let authority = match verify_authority(controlled, canonical_action, context, registries) {
+        Ok(authority) => authority,
+        Err(failure) => {
+            trace.record(
+                VerificationStage::Authority,
+                failure_fact_kind(failure),
+                FactOrigin::Derived,
+                FactValue::Present(false),
+                match failure {
+                    VerificationFailure::Denied(_) => FactResult::Contradicted,
+                    VerificationFailure::Indeterminate(_) => FactResult::Unavailable,
+                },
+                Some(failure_code(failure)),
+            );
+            return failure.into();
+        }
+    };
+    let action = bind_verified_action(authority);
+    let requirement = context.composition();
+    trace.record(
+        VerificationStage::Complete,
+        FactKind::MinimumAuthorizedBranches,
+        FactOrigin::TrustedContext,
+        FactValue::Count {
+            actual: u64::try_from(action.authorized_branches().len()).unwrap_or(u64::MAX),
+            required: u64::from(requirement.minimum_authorized_branches()),
+        },
+        FactResult::Satisfied,
+        Some(VerificationCode::Authorized),
+    );
+    VerificationOutcome::Authorized(Box::new(action))
 }
 
 /// Executes the complete byte-oriented portable V1 ABI.
@@ -1189,16 +1481,20 @@ fn verify_signed(
         meter.reserve(method_reservation)?;
         meter.reserve(suite.work_units())?;
         let control = method
-            .verify_control(PrincipalControlInput {
-                principal,
-                verification_method: descriptor.verification_method(),
-                signature_suite: descriptor.suite(),
-                purpose,
-                signing_preimage,
-                asserted_signing_time,
-                evidence: &evidence,
-                evaluation_time: context.evaluation_time(),
-            })
+            .evaluate_control(
+                PrincipalControlInput {
+                    principal,
+                    verification_method: descriptor.verification_method(),
+                    signature_suite: descriptor.suite(),
+                    purpose,
+                    signing_preimage,
+                    asserted_signing_time,
+                    evidence: &evidence,
+                    evaluation_time: context.evaluation_time(),
+                },
+                DiagnosticMode::Discard,
+            )
+            .into_result()
             .map_err(control_failure)?;
         if control.work_units() > method_reservation {
             return Err(VerificationFailure::Denied(
@@ -1949,6 +2245,37 @@ mod tests {
     };
     use auths_signature::{ED25519_V1, Ed25519Suite};
     use ed25519_dalek::{Signer as _, SigningKey};
+
+    #[test]
+    fn explained_and_ordinary_paths_are_identical() {
+        let fixture = target_fixture(false);
+        let method = RawKeyMethod::new().unwrap();
+        let suite = Ed25519Suite::new().unwrap();
+        let methods: [&dyn auths_ports::PrincipalMethod; 1] = [&method];
+        let suites: [&dyn auths_ports::SignatureSuite; 1] = [&suite];
+        let registries = ImmutableRegistries::new(&methods, &suites).unwrap();
+
+        let ordinary = verify(
+            &fixture.bytes,
+            &fixture.canonical,
+            &fixture.context,
+            &registries,
+        );
+        let explained = verify_explained(
+            &fixture.bytes,
+            &fixture.canonical,
+            &fixture.context,
+            &registries,
+        )
+        .unwrap();
+
+        assert_eq!(&ordinary, explained.outcome());
+        assert!(!explained.trace().events().is_empty());
+        assert_eq!(
+            explained.trace().final_node() as usize + 1,
+            explained.trace().events().len()
+        );
+    }
 
     struct Fixture {
         bytes: Vec<u8>,
