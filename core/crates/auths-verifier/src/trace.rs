@@ -48,6 +48,7 @@ pub enum FactKind {
     MinimumDistinctActors,
     MinimumDistinctRoots,
     WorkReservation,
+    Decision,
 }
 
 impl FactKind {
@@ -94,6 +95,7 @@ impl FactKind {
             Self::MinimumDistinctActors => "minimum-distinct-actors",
             Self::MinimumDistinctRoots => "minimum-distinct-roots",
             Self::WorkReservation => "work-reservation",
+            Self::Decision => "decision",
         }
     }
 }
@@ -211,6 +213,7 @@ pub enum TraceError {
 pub(crate) struct TraceCollector {
     collect: bool,
     events: Vec<FactEvaluation>,
+    final_node: Option<u32>,
 }
 
 impl TraceCollector {
@@ -218,6 +221,7 @@ impl TraceCollector {
         Self {
             collect: false,
             events: Vec::new(),
+            final_node: None,
         }
     }
 
@@ -232,6 +236,7 @@ impl TraceCollector {
         Ok(Self {
             collect: true,
             events,
+            final_node: None,
         })
     }
 
@@ -243,12 +248,32 @@ impl TraceCollector {
         value: FactValue,
         result: FactResult,
         code: Option<VerificationCode>,
-    ) {
+    ) -> Option<u32> {
+        self.record_with_parents(stage, kind, origin, value, result, code, &[])
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn record_with_parents(
+        &mut self,
+        stage: VerificationStage,
+        kind: FactKind,
+        origin: FactOrigin,
+        value: FactValue,
+        result: FactResult,
+        code: Option<VerificationCode>,
+        parents: &[u32],
+    ) -> Option<u32> {
         if !self.collect || self.events.len() >= self.events.capacity() {
-            return;
+            return None;
         }
         let sequence = u32::try_from(self.events.len()).unwrap_or(u32::MAX);
-        let parents = sequence.checked_sub(1).into_iter().collect();
+        let mut parents: Vec<_> = parents
+            .iter()
+            .copied()
+            .filter(|parent| *parent < sequence)
+            .collect();
+        parents.sort_unstable();
+        parents.dedup();
         self.events.push(FactEvaluation {
             sequence,
             stage,
@@ -259,11 +284,20 @@ impl TraceCollector {
             code,
             parents,
         });
+        Some(sequence)
+    }
+
+    pub(crate) fn set_final_node(&mut self, node: Option<u32>) {
+        if node.is_some() {
+            self.final_node = node;
+        }
     }
 
     pub(crate) fn finish(self) -> VerificationTrace {
         VerificationTrace {
-            final_node: u32::try_from(self.events.len().saturating_sub(1)).unwrap_or(u32::MAX),
+            final_node: self.final_node.unwrap_or_else(|| {
+                u32::try_from(self.events.len().saturating_sub(1)).unwrap_or(u32::MAX)
+            }),
             events: self.events,
         }
     }
