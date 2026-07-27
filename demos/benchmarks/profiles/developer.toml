@@ -1,0 +1,4 @@
+name = "developer"
+warmup_ms = 50
+samples = 10
+operations_per_sample = 1

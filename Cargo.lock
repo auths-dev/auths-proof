@@ -254,6 +254,51 @@ dependencies = [
 ]
 
 [[package]]
+name = "auths-bench-model"
+version = "0.1.0"
+dependencies = [
+ "auths-codec",
+ "auths-model",
+ "auths-testkit",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+]
+
+[[package]]
+name = "auths-bench-native"
+version = "0.1.0"
+dependencies = [
+ "auths-bench-model",
+ "auths-codec",
+ "auths-did-keri",
+ "auths-did-key",
+ "auths-did-web",
+ "auths-hsm-attested",
+ "auths-ports",
+ "auths-raw-key",
+ "auths-registries",
+ "auths-signature",
+ "auths-spiffe-x509",
+ "auths-testkit",
+ "auths-verifier",
+ "auths-webauthn",
+ "serde_json",
+ "sha2 0.10.9",
+]
+
+[[package]]
+name = "auths-bench-wasm"
+version = "0.1.0"
+dependencies = [
+ "auths-bench-model",
+ "js-sys",
+ "serde_json",
+ "wasm-bindgen",
+ "web-sys",
+]
+
+[[package]]
 name = "auths-cache"
 version = "0.1.0"
 dependencies = [
@@ -5599,6 +5644,7 @@ name = "xtask"
 version = "0.1.0"
 dependencies = [
  "auths-apps-testkit",
+ "auths-bench-model",
  "auths-codec",
  "auths-did-keri",
  "auths-did-key",

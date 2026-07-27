@@ -1,0 +1,9 @@
+{
+  "name": "auths-bench-wasm-runner",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "node": "node node.mjs",
+    "browser": "node browser.mjs"
+  }
+}

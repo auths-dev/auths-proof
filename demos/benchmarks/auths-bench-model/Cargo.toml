@@ -1,0 +1,21 @@
+[package]
+name = "auths-bench-model"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Deterministic scenario and result model for Auths-Proof benchmarks"
+publish = false
+
+[dependencies]
+auths-codec = { workspace = true, features = ["std"] }
+auths-model = { workspace = true, features = ["std"] }
+auths-testkit.workspace = true
+serde = { workspace = true, features = ["std"] }
+serde_json = { workspace = true, features = ["std"] }
+sha2 = { workspace = true, features = ["std"] }
+
+[lints]
+workspace = true

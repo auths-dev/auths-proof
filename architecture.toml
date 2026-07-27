@@ -82,6 +82,9 @@ no_std_packages = [
 
 [packages]
 auths-apps-testkit = "demos"
+auths-bench-model = "demos"
+auths-bench-native = "demos"
+auths-bench-wasm = "demos"
 auths-assurance = "core"
 auths-author = "core"
 auths-authority = "core"

@@ -1,0 +1,4 @@
+name = "paper"
+warmup_ms = 3000
+samples = 100
+operations_per_sample = 10
