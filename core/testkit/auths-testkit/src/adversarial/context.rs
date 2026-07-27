@@ -18,6 +18,11 @@ pub fn assert_canonical_context(bytes: &[u8]) -> Result<(), String> {
 }
 
 /// Produces one deterministic single-bit mutation for every input byte.
+///
+/// # Panics
+///
+/// Panics only if an internally generated mutation identifier or in-bounds
+/// offset violates the mutation constructor's invariant.
 #[must_use]
 pub fn context_bit_mutations(bytes: &[u8]) -> Vec<Vec<u8>> {
     let seed = bytes.to_vec();
