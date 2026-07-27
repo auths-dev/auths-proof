@@ -23,6 +23,37 @@ pub enum BranchOutcome {
     StructurallyInvalid(DenialReason),
 }
 
+/// Diagnostic-free truth classification for a `k-of-n` node.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ThresholdTruth {
+    /// Enough branches established authority.
+    Authorized,
+    /// The threshold remains reachable if unavailable facts are supplied.
+    Indeterminate,
+    /// The threshold is impossible even if every unavailable branch succeeds.
+    Denied,
+}
+
+/// Classifies threshold counts without consulting diagnostics.
+///
+/// This small shipping function is the bounded model-checking boundary for the
+/// `k-of-n` algebra. Validated plans guarantee `k > 0`.
+#[must_use]
+pub fn evaluate_threshold_counts(
+    k: u16,
+    authorized: usize,
+    indeterminate: usize,
+) -> ThresholdTruth {
+    let required = usize::from(k);
+    if authorized >= required {
+        ThresholdTruth::Authorized
+    } else if authorized.saturating_add(indeterminate) >= required {
+        ThresholdTruth::Indeterminate
+    } else {
+        ThresholdTruth::Denied
+    }
+}
+
 /// Evaluates a validated plan in its canonical child order.
 ///
 /// # Errors
@@ -105,18 +136,15 @@ fn evaluate_node(
                     }
                 }
             }
-            let required = usize::from(k);
-            if authorized >= required {
-                BranchOutcome::Authorized
-            } else if authorized + indeterminate >= required {
-                BranchOutcome::Indeterminate(
+            match evaluate_threshold_counts(k, authorized, indeterminate) {
+                ThresholdTruth::Authorized => BranchOutcome::Authorized,
+                ThresholdTruth::Indeterminate => BranchOutcome::Indeterminate(
                     canonical_requirement(&requirements)
                         .unwrap_or(Requirement::ExternalFactUnavailable),
-                )
-            } else {
-                BranchOutcome::Denied(
+                ),
+                ThresholdTruth::Denied => BranchOutcome::Denied(
                     canonical_denial(&denied).unwrap_or(DenialReason::AuthorizationPlanInvalid),
-                )
+                ),
             }
         }
     }

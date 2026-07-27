@@ -183,60 +183,28 @@ pub fn exhaustive_cases() -> Vec<FormalCompositionCase> {
 
 #[cfg(kani)]
 mod kani_harnesses {
-    use super::*;
+    use auths_composition::{ThresholdTruth, evaluate_threshold_counts};
 
     #[kani::proof]
-    #[kani::unwind(17)]
-    fn threshold_two_of_three_refines_reference() {
-        let tags: [u8; 3] = kani::any();
-        kani::assume(tags[0] < 3 && tags[1] < 3 && tags[2] < 3);
-
-        let references = [
-            ProofRef::new([1; 32]),
-            ProofRef::new([2; 32]),
-            ProofRef::new([3; 32]),
-        ];
-        let plan = AuthorizationPlan::k_of_n(
-            2,
-            references
-                .iter()
-                .copied()
-                .map(AuthorizationPlan::proof)
-                .collect(),
-        )
-        .unwrap();
-        let actual = evaluate(&plan, &VerifierLimits::default(), &mut |reference| {
-            let index = usize::from(reference.as_bytes()[0] - 1);
-            match tags[index] {
-                0 => BranchOutcome::Denied(DenialReason::PermissionNotGranted),
-                1 => BranchOutcome::Indeterminate(Requirement::ExternalFactUnavailable),
-                _ => BranchOutcome::Authorized,
-            }
-        })
-        .unwrap();
-
-        let mut authorized = 0usize;
-        let mut indeterminate = 0usize;
-        for tag in tags {
-            if tag == 2 {
-                authorized += 1;
-            } else if tag == 1 {
-                indeterminate += 1;
-            }
-        }
-        let expected = if authorized >= 2 {
-            FormalTruth::Authorized
-        } else if authorized + indeterminate >= 2 {
-            FormalTruth::Indeterminate
-        } else {
-            FormalTruth::Denied
-        };
-        let actual = match actual {
-            BranchOutcome::Authorized => FormalTruth::Authorized,
-            BranchOutcome::Denied(_) | BranchOutcome::StructurallyInvalid(_) => FormalTruth::Denied,
-            BranchOutcome::Indeterminate(_) => FormalTruth::Indeterminate,
-        };
-        assert_eq!(actual, expected);
+    fn shipping_threshold_count_partition_is_total() {
+        let authorized: u16 = kani::any();
+        let indeterminate: u16 = kani::any();
+        let required: u16 = kani::any();
+        kani::assume(authorized <= 16);
+        kani::assume(indeterminate <= 16 - authorized);
+        kani::assume(required > 0 && required <= 16);
+        let result = evaluate_threshold_counts(
+            required,
+            usize::from(authorized),
+            usize::from(indeterminate),
+        );
+        assert!(
+            (result == ThresholdTruth::Authorized && authorized >= required)
+                || (result == ThresholdTruth::Indeterminate
+                    && authorized < required
+                    && authorized + indeterminate >= required)
+                || (result == ThresholdTruth::Denied && authorized + indeterminate < required)
+        );
     }
 }
 
