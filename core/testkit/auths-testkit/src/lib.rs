@@ -4625,3 +4625,5 @@ pub fn mandatory_suite_ids() -> [&'static str; 2] {
 pub fn reviewed_body_digest() -> Digest {
     body_digest(BODY)
 }
+pub mod adversarial;
+pub mod conformance;

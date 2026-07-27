@@ -862,6 +862,8 @@ dependencies = [
  "p256",
  "rcgen",
  "rustls-pki-types",
+ "serde",
+ "serde_json",
  "sha2 0.10.9",
 ]
 

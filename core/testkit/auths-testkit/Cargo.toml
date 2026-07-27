@@ -29,6 +29,8 @@ p256 = { workspace = true, features = ["std"] }
 rcgen = "=0.13.2"
 rustls-pki-types = { workspace = true, features = ["std"] }
 sha2 = { workspace = true, features = ["std"] }
+serde = { workspace = true, features = ["std"] }
+serde_json = { workspace = true, features = ["std"] }
 
 [lints]
 workspace = true

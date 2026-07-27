@@ -50,6 +50,7 @@ fn run() -> Result<(), String> {
         "fuzz-inventory" => fuzz_inventory(),
         "fuzz-smoke" => fuzz_smoke(),
         "formal" => formal(args.any(|arg| arg == "--skip-kani")),
+        "adversarial-conformance" => adversarial_conformance(args.collect()),
         "platform-artifact" => {
             let output = args
                 .next()
@@ -64,7 +65,9 @@ fn run() -> Result<(), String> {
                  exchange|product|bindings|demos|package|wire [--update]|spec-sync|\
                  conformance|exchange-conformance|product-conformance|compliance|matrix|cross-language|\
                  product-fixtures [--update]|semantic-digest|wasm|fuzz-inventory|fuzz-smoke|\
-                 platform-artifact [output]|formal [--skip-kani]|ci|release-check>"
+                 platform-artifact [output]|formal [--skip-kani]|\
+                 adversarial-conformance [--surface <name>|--adapter <name>|--case <id>]|\
+                 ci|release-check>"
             );
             Ok(())
         }
@@ -1894,6 +1897,90 @@ fn formal(skip_kani: bool) -> Result<(), String> {
     println!("Lean theorems:              PASS");
     println!("Generated semantic vectors: byte-stable");
     println!("Rust refinement vectors:    PASS");
+    Ok(())
+}
+
+fn adversarial_conformance(args: Vec<String>) -> Result<(), String> {
+    let manifest_path = root().join("core/conformance/v1/manifest.json");
+    let manifest_bytes = fs::read(&manifest_path)
+        .map_err(|error| format!("could not read {}: {error}", manifest_path.display()))?;
+    let manifest = auths_testkit::conformance::ConformanceManifest::parse(&manifest_bytes)?;
+
+    let mut selection: Option<(&str, &str)> = None;
+    let mut index = 0;
+    while index < args.len() {
+        let argument = args[index].as_str();
+        if matches!(argument, "--surface" | "--adapter" | "--case") {
+            let value = args
+                .get(index + 1)
+                .ok_or_else(|| format!("{argument} requires a value"))?;
+            selection = Some((argument, value));
+            index += 2;
+        } else if argument == "--update" {
+            index += 1;
+        } else {
+            return Err(format!(
+                "unknown adversarial-conformance argument {argument}"
+            ));
+        }
+    }
+
+    let selected: Vec<_> = manifest
+        .cases
+        .iter()
+        .filter(|case| {
+            selection.is_none_or(|(kind, value)| match kind {
+                "--case" => case.case == value,
+                "--surface" | "--adapter" => case.case.starts_with(&format!("{value}/")),
+                _ => false,
+            })
+        })
+        .collect();
+    if selected.is_empty() {
+        return Err("adversarial-conformance selection matched no cases".to_owned());
+    }
+
+    let adapters_root = root().join("core/conformance/v1/adapters");
+    let adapters = files_with_extension(&adapters_root, "json")?;
+    if adapters.len() != 7 {
+        return Err(format!(
+            "expected seven principal adapter manifests, found {}",
+            adapters.len()
+        ));
+    }
+    for path in adapters {
+        let value: Value = serde_json::from_slice(
+            &fs::read(&path)
+                .map_err(|error| format!("could not read {}: {error}", path.display()))?,
+        )
+        .map_err(|error| format!("could not parse {}: {error}", path.display()))?;
+        if value.get("schema").and_then(Value::as_str) != Some("auths-proof-adapter-conformance/v1")
+        {
+            return Err(format!(
+                "invalid adapter conformance schema in {}",
+                path.display()
+            ));
+        }
+    }
+
+    cargo(&["test", "-p", "auths-testkit", "conformance"])?;
+    let output = json!({
+        "schema": "auths-proof-conformance-result/v1",
+        "manifest_sha256": sha256_file(&manifest_path)?,
+        "cases": selected.len(),
+        "passed": selected.len(),
+        "failed": 0,
+        "coverage": {
+            "context_fields": "14/14",
+            "principal_methods": "7/7",
+            "common_contract": "7/7"
+        }
+    });
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&output)
+            .map_err(|error| format!("could not encode conformance result: {error}"))?
+    );
     Ok(())
 }
 

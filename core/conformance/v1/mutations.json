@@ -1,0 +1,10 @@
+{
+  "schema": "auths-proof-adversarial-mutations/v1",
+  "mutations": [
+    {"id": "bitflip", "operation": "xor", "typed": false},
+    {"id": "duplicate", "operation": "duplicate", "typed": true},
+    {"id": "remove-required", "operation": "remove", "typed": true},
+    {"id": "replace", "operation": "replace", "typed": true},
+    {"id": "truncate", "operation": "truncate", "typed": false}
+  ]
+}

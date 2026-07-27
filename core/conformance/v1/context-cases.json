@@ -1,0 +1,19 @@
+{
+  "schema": "auths-proof-context-conformance/v1",
+  "fields": [
+    "configuration-id",
+    "composition",
+    "trust-anchors",
+    "accepted-registries",
+    "audience",
+    "challenge",
+    "evaluation-time",
+    "assurance-policy",
+    "principal-status",
+    "grant-status",
+    "resource-matcher",
+    "profile-policy",
+    "channel-policy",
+    "limits"
+  ]
+}
