@@ -1,0 +1,19 @@
+[package]
+name = "auths-formal-refinement"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Test-only refinement bridge between the Auths Lean model and shipping Rust semantics"
+publish = false
+
+[dependencies]
+auths-composition = { workspace = true, features = ["std"] }
+auths-model = { workspace = true, features = ["std"] }
+serde = { workspace = true, features = ["std"] }
+serde_json = { workspace = true, features = ["std"] }
+
+[lints]
+workspace = true

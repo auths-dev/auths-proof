@@ -1,0 +1,50 @@
+{
+  "action_constraints": [
+    "allowed-body-digests",
+    "any-body",
+    "exact-body-digest"
+  ],
+  "outcomes": [
+    "authorized",
+    "denied",
+    "indeterminate",
+    "structurally-invalid"
+  ],
+  "plan_nodes": [
+    "all-of",
+    "any-of",
+    "k-of-n",
+    "proof"
+  ],
+  "schema": "auths-proof-formal-inventory/v1",
+  "theorems": [
+    "all_associative",
+    "all_commutative",
+    "all_idempotent",
+    "any_associative",
+    "any_commutative",
+    "any_idempotent",
+    "attenuation_antisymm",
+    "attenuation_refl",
+    "attenuation_trans",
+    "authorized_action_covered",
+    "authorized_implies_threshold_met",
+    "canonical_diagnostic_permutation_invariant",
+    "chain_transitive_attenuation",
+    "composition_permutation_invariant",
+    "coverage_downward_closed",
+    "delegate_never_widens",
+    "delegate_preserves_root",
+    "delegate_strict_depth",
+    "delegate_updates_subject",
+    "denied_implies_threshold_impossible",
+    "evaluation_cost_linear_in_nodes",
+    "every_leaf_visited_once",
+    "finite_chain",
+    "indeterminate_implies_threshold_reachable",
+    "threshold_monotone_k",
+    "threshold_n_eq_all",
+    "threshold_one_eq_any",
+    "validated_plan_terminates"
+  ]
+}

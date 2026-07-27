@@ -77,6 +77,11 @@
       "path": "product/integrations/auths-evidence-assemblers"
     },
     {
+      "name": "auths-formal-refinement",
+      "layer": "core",
+      "path": "core/crates/auths-formal-refinement"
+    },
+    {
       "name": "auths-hsm-attested",
       "layer": "core",
       "path": "core/adapters/auths-hsm-attested"
@@ -1263,6 +1268,66 @@
       "default_features": false,
       "features": [
         "alloc"
+      ]
+    },
+    {
+      "source": "auths-formal-refinement",
+      "source_layer": "core",
+      "target": "auths-composition",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "std"
+      ]
+    },
+    {
+      "source": "auths-formal-refinement",
+      "source_layer": "core",
+      "target": "auths-model",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "std"
+      ]
+    },
+    {
+      "source": "auths-formal-refinement",
+      "source_layer": "core",
+      "target": "serde",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "derive",
+        "std"
+      ]
+    },
+    {
+      "source": "auths-formal-refinement",
+      "source_layer": "core",
+      "target": "serde_json",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "preserve_order",
+        "std"
       ]
     },
     {

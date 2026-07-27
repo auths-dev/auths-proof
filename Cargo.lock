@@ -373,6 +373,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "auths-formal-refinement"
+version = "0.1.0"
+dependencies = [
+ "auths-composition",
+ "auths-model",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "auths-hsm-attested"
 version = "0.1.0"
 dependencies = [

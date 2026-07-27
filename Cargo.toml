@@ -12,6 +12,7 @@ members = [
     "core/crates/auths-signature",
     "core/crates/auths-authority",
     "core/crates/auths-composition",
+    "core/crates/auths-formal-refinement",
     "core/crates/auths-assurance",
     "core/crates/auths-verifier",
     "core/crates/auths-author",
@@ -76,6 +77,7 @@ auths-registries = { version = "0.1.0", path = "core/crates/auths-registries", d
 auths-signature = { version = "0.1.0", path = "core/crates/auths-signature", default-features = false }
 auths-authority = { version = "0.1.0", path = "core/crates/auths-authority", default-features = false }
 auths-composition = { version = "0.1.0", path = "core/crates/auths-composition", default-features = false }
+auths-formal-refinement = { version = "0.1.0", path = "core/crates/auths-formal-refinement" }
 auths-assurance = { version = "0.1.0", path = "core/crates/auths-assurance", default-features = false }
 auths-verifier = { version = "0.1.0", path = "core/crates/auths-verifier", default-features = false }
 auths-author = { version = "0.1.0", path = "core/crates/auths-author", default-features = false }

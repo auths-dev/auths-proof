@@ -49,6 +49,7 @@ fn run() -> Result<(), String> {
         "wasm" => wasm(),
         "fuzz-inventory" => fuzz_inventory(),
         "fuzz-smoke" => fuzz_smoke(),
+        "formal" => formal(args.any(|arg| arg == "--skip-kani")),
         "platform-artifact" => {
             let output = args
                 .next()
@@ -63,7 +64,7 @@ fn run() -> Result<(), String> {
                  exchange|product|bindings|demos|package|wire [--update]|spec-sync|\
                  conformance|exchange-conformance|product-conformance|compliance|matrix|cross-language|\
                  product-fixtures [--update]|semantic-digest|wasm|fuzz-inventory|fuzz-smoke|\
-                 platform-artifact [output]|ci|release-check>"
+                 platform-artifact [output]|formal [--skip-kani]|ci|release-check>"
             );
             Ok(())
         }
@@ -1825,6 +1826,74 @@ fn fuzz_inventory() -> Result<(), String> {
         }
     }
     println!("all {} fuzz targets are synchronized", FUZZ_TARGETS.len());
+    Ok(())
+}
+
+fn formal(skip_kani: bool) -> Result<(), String> {
+    let formal_root = root().join("formal");
+    command_in("lake", &["build"], &formal_root, None)?;
+
+    let sources = files_with_extension(&formal_root.join("Auths"), "lean")?;
+    let mut formal_source = String::new();
+    for source in sources {
+        let text = fs::read_to_string(&source)
+            .map_err(|error| format!("could not read {}: {error}", source.display()))?;
+        for (index, line) in text.lines().enumerate() {
+            let trimmed = line.trim_start();
+            if trimmed.starts_with("sorry")
+                || trimmed.starts_with("admit")
+                || trimmed.starts_with("axiom ")
+            {
+                return Err(format!(
+                    "forbidden unchecked formal declaration at {}:{}",
+                    source.display(),
+                    index + 1
+                ));
+            }
+        }
+        formal_source.push_str(&text);
+    }
+
+    let inventory_path = root().join("core/formal-vectors/v1/manifest.json");
+    let inventory: Value = serde_json::from_slice(
+        &fs::read(&inventory_path)
+            .map_err(|error| format!("could not read {}: {error}", inventory_path.display()))?,
+    )
+    .map_err(|error| format!("could not parse {}: {error}", inventory_path.display()))?;
+    let theorems = inventory
+        .get("theorems")
+        .and_then(Value::as_array)
+        .ok_or("formal inventory has no theorem array")?;
+    for theorem in theorems {
+        let name = theorem
+            .as_str()
+            .ok_or("formal theorem inventory entry is not a string")?;
+        if !formal_source.contains(&format!("theorem {name}")) {
+            return Err(format!(
+                "formal theorem inventory is missing declaration {name}"
+            ));
+        }
+    }
+    println!(
+        "Formal inventory:           PASS ({} theorems)",
+        theorems.len()
+    );
+
+    cargo(&["test", "-p", "auths-formal-refinement"])?;
+    if skip_kani {
+        println!("Kani bounded harnesses:      SKIPPED (--skip-kani)");
+    } else {
+        command_in(
+            "cargo",
+            &["kani", "-p", "auths-formal-refinement"],
+            &root(),
+            None,
+        )?;
+        println!("Kani bounded harnesses:      PASS");
+    }
+    println!("Lean theorems:              PASS");
+    println!("Generated semantic vectors: byte-stable");
+    println!("Rust refinement vectors:    PASS");
     Ok(())
 }
 

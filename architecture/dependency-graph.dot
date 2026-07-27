@@ -15,6 +15,7 @@ digraph auths_architecture {
   "auths-did-web" [group="core"];
   "auths-enforcement" [group="product"];
   "auths-evidence-assemblers" [group="product"];
+  "auths-formal-refinement" [group="core"];
   "auths-hsm-attested" [group="core"];
   "auths-lab-matrix" [group="demos"];
   "auths-lab-wasm-bench" [group="demos"];
@@ -105,6 +106,8 @@ digraph auths_architecture {
   "auths-evidence-assemblers" -> "auths-model" [label="normal"];
   "auths-evidence-assemblers" -> "auths-spiffe-x509" [label="normal"];
   "auths-evidence-assemblers" -> "auths-webauthn" [label="normal"];
+  "auths-formal-refinement" -> "auths-composition" [label="normal"];
+  "auths-formal-refinement" -> "auths-model" [label="normal"];
   "auths-hsm-attested" -> "auths-model" [label="normal"];
   "auths-hsm-attested" -> "auths-ports" [label="normal"];
   "auths-lab-wasm-bench" -> "auths-codec" [label="normal"];
