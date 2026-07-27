@@ -127,8 +127,8 @@ core/crates/auths-formal-refinement/
 
 core/formal-vectors/v1/
 ├── manifest.json
-├── attenuation.json
-└── composition.json
+├── attenuation-checks.json
+└── threshold-counts.json
 ```
 
 `auths-formal-refinement` is a non-shipping core test crate. It MAY depend on
@@ -671,3 +671,21 @@ not eliminate incorrect inputs or compromised trusted context.
 The formal model becomes security-sensitive. Changes require review from both a
 protocol maintainer and a proof maintainer. Generated vectors are review aids,
 not a substitute for reviewing changed definitions and theorem statements.
+
+## 12. Implemented refinement boundary
+
+[ADR 0010](../adr/0010-mechanical-rust-lean-refinement-boundary.md) strengthens
+the implementation described here. A versioned algebra contract now generates
+the production Rust kernel and the corresponding Lean definitions. Shipping
+composition and delegation use that generated Rust boundary.
+
+Lean generates 2,448 exhaustive threshold-count cases through the target V1
+default deployment limit and all 1,024 Boolean projections of the ten declared
+attenuation dimensions. The Rust refinement suite consumes those artifacts
+without a handwritten reference evaluator. Kani symbolically verifies the two
+generated production functions at the same bound; the Lean theorems remain
+unbounded.
+
+This establishes alignment for aggregate composition truth and aggregate
+attenuation acceptance. It does not prove the rich Rust projections themselves,
+cryptography, decoding, adapters, or the whole verifier.

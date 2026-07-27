@@ -15,10 +15,7 @@ def any (left right : Truth) : Truth :=
   | .indeterminate, _ | _, .indeterminate => .indeterminate
   | .denied, .denied => .denied
 
-def thresholdCounts (k authorized indeterminate : Nat) : Truth :=
-  if k ≤ authorized then .authorized
-  else if k ≤ authorized + indeterminate then .indeterminate
-  else .denied
+def thresholdCounts := Generated.thresholdCounts
 
 def thresholdTwo : Nat → Truth → Truth → Truth
   | 0, _, _ => .authorized
@@ -94,7 +91,7 @@ theorem evaluation_cost_linear_in_nodes (plan : Plan) : plan.cost = plan.nodes :
 theorem authorized_implies_threshold_met {k authorized indeterminate : Nat}
     (result : thresholdCounts k authorized indeterminate = .authorized) :
     k ≤ authorized := by
-  simp only [thresholdCounts] at result
+  simp only [thresholdCounts, Generated.thresholdCounts] at result
   split at result
   · assumption
   · split at result <;> contradiction
@@ -102,7 +99,7 @@ theorem authorized_implies_threshold_met {k authorized indeterminate : Nat}
 theorem denied_implies_threshold_impossible {k authorized indeterminate : Nat}
     (result : thresholdCounts k authorized indeterminate = .denied) :
     authorized + indeterminate < k := by
-  simp only [thresholdCounts] at result
+  simp only [thresholdCounts, Generated.thresholdCounts] at result
   split at result
   · contradiction
   · split at result
@@ -112,7 +109,7 @@ theorem denied_implies_threshold_impossible {k authorized indeterminate : Nat}
 theorem indeterminate_implies_threshold_reachable {k authorized indeterminate : Nat}
     (result : thresholdCounts k authorized indeterminate = .indeterminate) :
     authorized < k ∧ k ≤ authorized + indeterminate := by
-  simp only [thresholdCounts] at result
+  simp only [thresholdCounts, Generated.thresholdCounts] at result
   split at result
   · contradiction
   · split at result

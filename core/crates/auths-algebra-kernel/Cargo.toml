@@ -1,0 +1,15 @@
+[package]
+name = "auths-algebra-kernel"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Mechanically generated Auths-Proof attenuation and composition algebra"
+
+[features]
+default = []
+
+[lints]
+workspace = true

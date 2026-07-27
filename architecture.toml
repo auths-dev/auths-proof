@@ -59,6 +59,7 @@ core_default_feature_exceptions = ["libfuzzer-sys", "rcgen"]
 approved_build_scripts = []
 approved_native_dependencies = []
 no_std_packages = [
+  "auths-algebra-kernel",
   "auths-assurance",
   "auths-author",
   "auths-authority",
@@ -81,6 +82,7 @@ no_std_packages = [
 ]
 
 [packages]
+auths-algebra-kernel = "core"
 auths-apps-testkit = "demos"
 auths-bench-model = "demos"
 auths-bench-native = "demos"

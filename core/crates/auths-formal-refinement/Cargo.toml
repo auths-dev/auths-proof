@@ -10,6 +10,7 @@ description = "Test-only refinement bridge between the Auths Lean model and ship
 publish = false
 
 [dependencies]
+auths-algebra-kernel.workspace = true
 auths-composition = { workspace = true, features = ["std"] }
 auths-model = { workspace = true, features = ["std"] }
 serde = { workspace = true, features = ["std"] }

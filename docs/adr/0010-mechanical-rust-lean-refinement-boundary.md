@@ -133,6 +133,7 @@ The generated Rust surface is:
 
 ```rust
 pub trait AttenuationProjection {
+    fn root_preserved(&self) -> bool;
     fn depth_decreases(&self) -> bool;
     fn profile_attenuates(&self) -> bool;
     fn permissions_attenuate(&self) -> bool;
@@ -159,6 +160,7 @@ The generated Lean surface mirrors these operations:
 
 ```lean
 structure AttenuationProjection where
+  rootPreserved : Bool
   depthDecreases : Bool
   profileAttenuates : Bool
   permissionsAttenuate : Bool
@@ -185,8 +187,9 @@ The accepted implementation MUST establish:
 3. aggregate attenuation accepts exactly when every declared dimension accepts;
 4. adding an attenuation dimension fails closed until both generated sides and
    the production projection implement it;
-5. every target V1 threshold-count state through the hard leaf limit is emitted
-   by Lean and accepted by the shipping Rust kernel;
+5. every threshold-count state through the declared exhaustive bound, equal to
+   the target V1 default deployment leaf limit, is emitted by Lean and accepted
+   by the shipping Rust kernel;
 6. every Boolean attenuation projection is emitted by Lean and accepted or
    rejected identically by the shipping Rust kernel;
 7. ordinary composition and delegation tests continue to pass through the

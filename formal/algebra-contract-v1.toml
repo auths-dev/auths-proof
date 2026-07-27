@@ -1,0 +1,49 @@
+schema = "auths-proof-algebra-contract/v1"
+exhaustive_threshold_bound = 16
+truth_order = ["denied", "indeterminate", "authorized"]
+attenuation_acceptance = "all"
+
+[[attenuation_dimensions]]
+rust = "root_preserved"
+lean = "rootPreserved"
+
+[[attenuation_dimensions]]
+rust = "depth_decreases"
+lean = "depthDecreases"
+
+[[attenuation_dimensions]]
+rust = "profile_attenuates"
+lean = "profileAttenuates"
+
+[[attenuation_dimensions]]
+rust = "permissions_attenuate"
+lean = "permissionsAttenuate"
+
+[[attenuation_dimensions]]
+rust = "validity_attenuates"
+lean = "validityAttenuates"
+
+[[attenuation_dimensions]]
+rust = "audiences_attenuate"
+lean = "audiencesAttenuate"
+
+[[attenuation_dimensions]]
+rust = "action_constraint_attenuates"
+lean = "actionConstraintAttenuates"
+
+[[attenuation_dimensions]]
+rust = "budget_attenuates"
+lean = "budgetAttenuates"
+
+[[attenuation_dimensions]]
+rust = "status_attenuates"
+lean = "statusAttenuates"
+
+[[attenuation_dimensions]]
+rust = "assurance_attenuates"
+lean = "assuranceAttenuates"
+
+[threshold]
+authorized = "authorized >= required"
+indeterminate = "authorized < required && authorized + indeterminate >= required"
+denied = "authorized + indeterminate < required"

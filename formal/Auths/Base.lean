@@ -1,10 +1,8 @@
+import Auths.Generated.Algebra
+
 namespace Auths
 
-inductive Truth where
-  | denied
-  | indeterminate
-  | authorized
-  deriving BEq, DecidableEq, Repr
+abbrev Truth := Generated.Truth
 
 def Truth.rank : Truth → Nat
   | .denied => 0

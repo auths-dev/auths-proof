@@ -206,6 +206,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1505bd5d3d116872e7271a6d4e16d81d0c8570876c8de68093a09ac269d8aac0"
 
 [[package]]
+name = "auths-algebra-kernel"
+version = "0.1.0"
+
+[[package]]
 name = "auths-apps-testkit"
 version = "0.1.0"
 dependencies = [
@@ -250,6 +254,7 @@ dependencies = [
 name = "auths-authority"
 version = "0.1.0"
 dependencies = [
+ "auths-algebra-kernel",
  "auths-model",
 ]
 
@@ -321,6 +326,7 @@ dependencies = [
 name = "auths-composition"
 version = "0.1.0"
 dependencies = [
+ "auths-algebra-kernel",
  "auths-model",
  "proptest",
 ]
@@ -442,6 +448,7 @@ dependencies = [
 name = "auths-formal-refinement"
 version = "0.1.0"
 dependencies = [
+ "auths-algebra-kernel",
  "auths-composition",
  "auths-model",
  "serde",
@@ -5689,6 +5696,7 @@ dependencies = [
  "auths-verifier",
  "auths-webauthn",
  "hex",
+ "serde",
  "serde_json",
  "sha2 0.10.9",
  "tokio",

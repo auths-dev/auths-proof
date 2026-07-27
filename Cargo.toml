@@ -10,6 +10,7 @@ members = [
     "core/crates/auths-ports",
     "core/crates/auths-registries",
     "core/crates/auths-signature",
+    "core/crates/auths-algebra-kernel",
     "core/crates/auths-authority",
     "core/crates/auths-composition",
     "core/crates/auths-formal-refinement",
@@ -79,6 +80,7 @@ auths-codec = { version = "0.1.0", path = "core/crates/auths-codec", default-fea
 auths-ports = { version = "0.1.0", path = "core/crates/auths-ports", default-features = false }
 auths-registries = { version = "0.1.0", path = "core/crates/auths-registries", default-features = false }
 auths-signature = { version = "0.1.0", path = "core/crates/auths-signature", default-features = false }
+auths-algebra-kernel = { version = "0.1.0", path = "core/crates/auths-algebra-kernel", default-features = false }
 auths-authority = { version = "0.1.0", path = "core/crates/auths-authority", default-features = false }
 auths-composition = { version = "0.1.0", path = "core/crates/auths-composition", default-features = false }
 auths-formal-refinement = { version = "0.1.0", path = "core/crates/auths-formal-refinement" }

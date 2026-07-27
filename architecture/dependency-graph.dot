@@ -1,5 +1,6 @@
 digraph auths_architecture {
   rankdir=LR;
+  "auths-algebra-kernel" [group="core"];
   "auths-apps-testkit" [group="demos"];
   "auths-assurance" [group="core"];
   "auths-author" [group="core"];
@@ -80,6 +81,7 @@ digraph auths_architecture {
   "auths-assurance" -> "auths-model" [label="normal"];
   "auths-author" -> "auths-codec" [label="normal"];
   "auths-author" -> "auths-model" [label="normal"];
+  "auths-authority" -> "auths-algebra-kernel" [label="normal"];
   "auths-authority" -> "auths-model" [label="normal"];
   "auths-bench-model" -> "auths-codec" [label="normal"];
   "auths-bench-model" -> "auths-model" [label="normal"];
@@ -102,6 +104,7 @@ digraph auths_architecture {
   "auths-cache" -> "auths-model" [label="normal"];
   "auths-cache" -> "auths-verifier" [label="normal"];
   "auths-codec" -> "auths-model" [label="normal"];
+  "auths-composition" -> "auths-algebra-kernel" [label="normal"];
   "auths-composition" -> "auths-model" [label="normal"];
   "auths-config" -> "auths-codec" [label="normal"];
   "auths-config" -> "auths-model" [label="normal"];
@@ -142,6 +145,7 @@ digraph auths_architecture {
   "auths-explain" -> "auths-testkit" [label="normal"];
   "auths-explain" -> "auths-verifier" [label="normal"];
   "auths-explain" -> "auths-webauthn" [label="normal"];
+  "auths-formal-refinement" -> "auths-algebra-kernel" [label="normal"];
   "auths-formal-refinement" -> "auths-composition" [label="normal"];
   "auths-formal-refinement" -> "auths-model" [label="normal"];
   "auths-hsm-attested" -> "auths-model" [label="normal"];

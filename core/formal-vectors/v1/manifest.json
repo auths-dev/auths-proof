@@ -1,4 +1,5 @@
 {
+  "algebra_contract": "auths-proof-algebra-contract/v1",
   "action_constraints": [
     "allowed-body-digests",
     "any-body",
@@ -37,6 +38,7 @@
     "delegate_preserves_root",
     "delegate_strict_depth",
     "delegate_updates_subject",
+    "attenuation_kernel_refines",
     "denied_implies_threshold_impossible",
     "evaluation_cost_linear_in_nodes",
     "every_leaf_visited_once",

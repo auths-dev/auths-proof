@@ -12,6 +12,7 @@ def theoremInventory : List String :=
     "coverage_downward_closed",
     "delegate_preserves_root",
     "delegate_updates_subject",
+    "attenuation_kernel_refines",
     "delegate_strict_depth",
     "finite_chain",
     "delegate_never_widens",

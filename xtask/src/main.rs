@@ -1,11 +1,14 @@
 #![forbid(unsafe_code)]
 
 use auths_testkit::Expected;
+use serde::Deserialize;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, BTreeSet},
-    env, fs,
+    env,
+    fmt::Write as _,
+    fs,
     path::{Path, PathBuf},
     process::{Command, ExitCode},
 };
@@ -49,7 +52,13 @@ fn run() -> Result<(), String> {
         "wasm" => wasm(),
         "fuzz-inventory" => fuzz_inventory(),
         "fuzz-smoke" => fuzz_smoke(),
-        "formal" => formal(args.any(|arg| arg == "--skip-kani")),
+        "formal" => {
+            let arguments: Vec<_> = args.collect();
+            formal(
+                arguments.iter().any(|arg| arg == "--skip-kani"),
+                arguments.iter().any(|arg| arg == "--update"),
+            )
+        }
         "adversarial-conformance" => adversarial_conformance(args.collect()),
         "bench" => benchmark(args.collect()),
         "platform-artifact" => {
@@ -66,7 +75,7 @@ fn run() -> Result<(), String> {
                  exchange|product|bindings|demos|package|wire [--update]|spec-sync|\
                  conformance|exchange-conformance|product-conformance|compliance|matrix|cross-language|\
                  product-fixtures [--update]|semantic-digest|wasm|fuzz-inventory|fuzz-smoke|\
-                 platform-artifact [output]|formal [--skip-kani]|\
+                 platform-artifact [output]|formal [--skip-kani] [--update]|\
                  adversarial-conformance [--surface <name>|--adapter <name>|--case <id>]|\
                  bench <prepare|run|report|compare|verify-artifact>|\
                  ci|release-check>"
@@ -1834,9 +1843,308 @@ fn fuzz_inventory() -> Result<(), String> {
     Ok(())
 }
 
-fn formal(skip_kani: bool) -> Result<(), String> {
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AlgebraContract {
+    schema: String,
+    exhaustive_threshold_bound: u16,
+    truth_order: Vec<String>,
+    attenuation_acceptance: String,
+    attenuation_dimensions: Vec<AlgebraDimension>,
+    threshold: ThresholdContract,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AlgebraDimension {
+    rust: String,
+    lean: String,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ThresholdContract {
+    authorized: String,
+    indeterminate: String,
+    denied: String,
+}
+
+fn load_algebra_contract() -> Result<AlgebraContract, String> {
+    let path = root().join("formal/algebra-contract-v1.toml");
+    let contract: AlgebraContract = toml::from_str(
+        &fs::read_to_string(&path)
+            .map_err(|error| format!("could not read {}: {error}", path.display()))?,
+    )
+    .map_err(|error| format!("invalid algebra contract {}: {error}", path.display()))?;
+    if contract.schema != "auths-proof-algebra-contract/v1"
+        || contract.exhaustive_threshold_bound == 0
+        || contract.truth_order != ["denied", "indeterminate", "authorized"]
+        || contract.attenuation_acceptance != "all"
+        || contract.attenuation_dimensions.is_empty()
+        || contract.threshold.authorized != "authorized >= required"
+        || contract.threshold.indeterminate
+            != "authorized < required && authorized + indeterminate >= required"
+        || contract.threshold.denied != "authorized + indeterminate < required"
+    {
+        return Err("unsupported algebra contract semantics".to_owned());
+    }
+    let rust_names: BTreeSet<_> = contract
+        .attenuation_dimensions
+        .iter()
+        .map(|dimension| dimension.rust.as_str())
+        .collect();
+    let lean_names: BTreeSet<_> = contract
+        .attenuation_dimensions
+        .iter()
+        .map(|dimension| dimension.lean.as_str())
+        .collect();
+    if rust_names.len() != contract.attenuation_dimensions.len()
+        || lean_names.len() != contract.attenuation_dimensions.len()
+    {
+        return Err("algebra contract dimension names must be unique".to_owned());
+    }
+    Ok(contract)
+}
+
+fn dimension_description(name: &str) -> &'static str {
+    match name {
+        "root_preserved" => "the trust root is preserved",
+        "depth_decreases" => "delegation depth strictly decreases",
+        "profile_attenuates" => "the selected profile does not widen",
+        "permissions_attenuate" => "permissions do not widen",
+        "validity_attenuates" => "the validity window does not widen",
+        "audiences_attenuate" => "audiences do not widen",
+        "action_constraint_attenuates" => "the action-body constraint does not widen",
+        "budget_attenuates" => "the budget ceiling does not widen",
+        "status_attenuates" => "status requirements do not weaken",
+        "assurance_attenuates" => "assurance requirements do not weaken",
+        _ => "the declared authority dimension attenuates",
+    }
+}
+
+fn render_rust_algebra(contract: &AlgebraContract) -> Result<String, String> {
+    macro_rules! line {
+        ($output:expr, $($argument:tt)*) => {
+            writeln!($output, $($argument)*)
+                .map_err(|_| "could not render generated Rust algebra".to_owned())?
+        };
+    }
+
+    let mut output = String::new();
+    output.push_str(
+        "// @generated by `cargo xtask formal --update`; DO NOT EDIT.\n\n\
+         /// Versioned source contract used to generate this module.\n",
+    );
+    line!(
+        output,
+        "pub const CONTRACT_SCHEMA: &str = {:?};",
+        contract.schema
+    );
+    output.push_str("\n/// Exhaustive default-deployment threshold bound.\n");
+    line!(
+        output,
+        "pub const EXHAUSTIVE_THRESHOLD_BOUND: u16 = {};",
+        contract.exhaustive_threshold_bound
+    );
+    output.push_str(
+        "\n/// Closed three-valued authorization truth.\n\
+         #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]\n\
+         pub enum Truth {\n\
+         \x20   /// Available facts prove denial.\n\
+         \x20   Denied,\n\
+         \x20   /// Required facts are unavailable and authorization remains reachable.\n\
+         \x20   Indeterminate,\n\
+         \x20   /// Available facts prove authorization.\n\
+         \x20   Authorized,\n\
+         }\n\n\
+         /// Shared projection boundary for authority attenuation.\n\
+         pub trait AttenuationProjection {\n",
+    );
+    for dimension in &contract.attenuation_dimensions {
+        line!(
+            output,
+            "    /// Whether {}.",
+            dimension_description(&dimension.rust)
+        );
+        line!(output, "    fn {}(&self) -> bool;", dimension.rust);
+    }
+    output.push_str(
+        "}\n\n\
+         /// Concrete projection used by vectors and bounded verification.\n\
+         #[allow(\n\
+         \x20   clippy::struct_excessive_bools,\n\
+         \x20   reason = \"each Boolean is one generated authority dimension\"\n\
+         )]\n\
+         #[derive(Clone, Copy, Debug, Eq, PartialEq)]\n\
+         pub struct AttenuationChecks {\n",
+    );
+    for dimension in &contract.attenuation_dimensions {
+        line!(
+            output,
+            "    /// Whether {}.",
+            dimension_description(&dimension.rust)
+        );
+        line!(output, "    pub {}: bool,", dimension.rust);
+    }
+    output.push_str("}\n\nimpl AttenuationProjection for AttenuationChecks {\n");
+    for dimension in &contract.attenuation_dimensions {
+        line!(output, "    fn {}(&self) -> bool {{", dimension.rust);
+        line!(output, "        self.{}", dimension.rust);
+        output.push_str("    }\n\n");
+    }
+    output.pop();
+    output.push_str(
+        "}\n\n\
+         /// Accepts exactly when every declared attenuation dimension accepts.\n\
+         #[must_use]\n\
+         pub fn attenuation_accepts<P: AttenuationProjection + ?Sized>(projection: &P) -> bool {\n",
+    );
+    for (index, dimension) in contract.attenuation_dimensions.iter().enumerate() {
+        let operator = if index == 0 { "    " } else { "        && " };
+        line!(output, "{operator}projection.{}()", dimension.rust);
+    }
+    output.push_str(
+        "}\n\n\
+         /// Classifies target V1 threshold counts.\n\
+         #[must_use]\n\
+         pub fn threshold_counts(required: u16, authorized: usize, indeterminate: usize) -> Truth {\n\
+         \x20   let required = usize::from(required);\n\
+         \x20   if authorized >= required {\n\
+         \x20       Truth::Authorized\n\
+         \x20   } else if authorized.saturating_add(indeterminate) >= required {\n\
+         \x20       Truth::Indeterminate\n\
+         \x20   } else {\n\
+         \x20       Truth::Denied\n\
+         \x20   }\n\
+         }\n",
+    );
+    Ok(output)
+}
+
+fn render_lean_algebra(contract: &AlgebraContract) -> Result<String, String> {
+    macro_rules! line {
+        ($output:expr, $($argument:tt)*) => {
+            writeln!($output, $($argument)*)
+                .map_err(|_| "could not render generated Lean algebra".to_owned())?
+        };
+    }
+
+    let mut output = String::new();
+    output.push_str(
+        "-- @generated by `cargo xtask formal --update`; DO NOT EDIT.\n\n\
+         namespace Auths.Generated\n\n",
+    );
+    line!(
+        output,
+        "def contractSchema : String := {:?}",
+        contract.schema
+    );
+    line!(
+        output,
+        "\ndef exhaustiveThresholdBound : Nat := {}",
+        contract.exhaustive_threshold_bound
+    );
+    output.push_str(
+        "\ninductive Truth where\n\
+         \x20 | denied\n\
+         \x20 | indeterminate\n\
+         \x20 | authorized\n\
+         \x20 deriving BEq, DecidableEq, Repr\n\n\
+         structure AttenuationProjection where\n",
+    );
+    for dimension in &contract.attenuation_dimensions {
+        line!(output, "  {} : Bool", dimension.lean);
+    }
+    output.push_str("  deriving BEq, DecidableEq, Repr\n\n");
+    output.push_str("def attenuationAccepts (projection : AttenuationProjection) : Bool :=\n");
+    for (index, dimension) in contract.attenuation_dimensions.iter().enumerate() {
+        let suffix = if index + 1 == contract.attenuation_dimensions.len() {
+            ""
+        } else {
+            " &&"
+        };
+        line!(output, "  projection.{}{suffix}", dimension.lean);
+    }
+    output.push_str(
+        "\ndef thresholdCounts (required authorized indeterminate : Nat) : Truth :=\n\
+         \x20 if authorized ≥ required then .authorized\n\
+         \x20 else if authorized + indeterminate ≥ required then .indeterminate\n\
+         \x20 else .denied\n\n\
+         end Auths.Generated\n",
+    );
+    Ok(output)
+}
+
+fn synchronize_generated_file(
+    path: &Path,
+    expected: &str,
+    update: bool,
+    label: &str,
+) -> Result<(), String> {
+    if update {
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)
+                .map_err(|error| format!("could not create {}: {error}", parent.display()))?;
+        }
+        fs::write(path, expected)
+            .map_err(|error| format!("could not write {}: {error}", path.display()))?;
+        println!("Updated {label}: {}", path.display());
+        return Ok(());
+    }
+    let actual = fs::read_to_string(path)
+        .map_err(|error| format!("could not read {}: {error}", path.display()))?;
+    if actual != expected {
+        return Err(format!(
+            "{label} drifted from formal/algebra-contract-v1.toml; run `cargo xtask formal --update`"
+        ));
+    }
+    Ok(())
+}
+
+fn synchronize_algebra_sources(contract: &AlgebraContract, update: bool) -> Result<(), String> {
+    synchronize_generated_file(
+        &root().join("core/crates/auths-algebra-kernel/src/generated.rs"),
+        &render_rust_algebra(contract)?,
+        update,
+        "generated Rust algebra",
+    )?;
+    synchronize_generated_file(
+        &root().join("formal/Auths/Generated/Algebra.lean"),
+        &render_lean_algebra(contract)?,
+        update,
+        "generated Lean algebra",
+    )
+}
+
+fn synchronize_lean_vectors(formal_root: &Path, update: bool) -> Result<(), String> {
+    for (kind, file) in [
+        ("threshold", "threshold-counts.json"),
+        ("attenuation", "attenuation-checks.json"),
+    ] {
+        let generated = command_output_in(
+            "lake",
+            &["exe", "auths-vector-export", kind],
+            formal_root,
+            None,
+        )?;
+        serde_json::from_str::<Value>(&generated)
+            .map_err(|error| format!("Lean emitted invalid {kind} JSON: {error}"))?;
+        synchronize_generated_file(
+            &root().join("core/formal-vectors/v1").join(file),
+            &generated,
+            update,
+            &format!("Lean-generated {kind} vectors"),
+        )?;
+    }
+    Ok(())
+}
+
+fn formal(skip_kani: bool, update: bool) -> Result<(), String> {
     let formal_root = root().join("formal");
+    let contract = load_algebra_contract()?;
+    synchronize_algebra_sources(&contract, update)?;
     command_in("lake", &["build"], &formal_root, None)?;
+    synchronize_lean_vectors(&formal_root, update)?;
 
     let sources = files_with_extension(&formal_root.join("Auths"), "lean")?;
     let mut formal_source = String::new();
@@ -1890,7 +2198,7 @@ fn formal(skip_kani: bool) -> Result<(), String> {
     } else {
         command_in(
             "cargo",
-            &["kani", "-p", "auths-formal-refinement"],
+            &["kani", "-p", "auths-algebra-kernel"],
             &root(),
             None,
         )?;
@@ -2244,6 +2552,7 @@ fn wasm() -> Result<(), String> {
         "auths-ports",
         "auths-registries",
         "auths-signature",
+        "auths-algebra-kernel",
         "auths-authority",
         "auths-composition",
         "auths-assurance",

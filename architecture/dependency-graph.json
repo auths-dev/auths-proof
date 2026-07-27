@@ -2,6 +2,11 @@
   "schema": 1,
   "packages": [
     {
+      "name": "auths-algebra-kernel",
+      "layer": "core",
+      "path": "core/crates/auths-algebra-kernel"
+    },
+    {
       "name": "auths-apps-testkit",
       "layer": "demos",
       "path": "demos/testkit/auths-apps-testkit"
@@ -607,6 +612,18 @@
     {
       "source": "auths-authority",
       "source_layer": "core",
+      "target": "auths-algebra-kernel",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-authority",
+      "source_layer": "core",
       "target": "auths-model",
       "target_layer": "core",
       "scope": "internal",
@@ -1072,6 +1089,18 @@
       "target": "sha2",
       "target_layer": null,
       "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-composition",
+      "source_layer": "core",
+      "target": "auths-algebra-kernel",
+      "target_layer": "core",
+      "scope": "internal",
       "kind": "normal",
       "target_condition": null,
       "optional": false,
@@ -1873,6 +1902,18 @@
         "preserve_order",
         "std"
       ]
+    },
+    {
+      "source": "auths-formal-refinement",
+      "source_layer": "core",
+      "target": "auths-algebra-kernel",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
     },
     {
       "source": "auths-formal-refinement",
@@ -5832,6 +5873,21 @@
       "optional": false,
       "default_features": true,
       "features": []
+    },
+    {
+      "source": "xtask",
+      "source_layer": "tooling",
+      "target": "serde",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "derive"
+      ]
     },
     {
       "source": "xtask",

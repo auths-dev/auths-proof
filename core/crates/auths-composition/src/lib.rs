@@ -6,6 +6,7 @@
 extern crate alloc;
 
 use alloc::vec::Vec;
+pub use auths_algebra_kernel::Truth as ThresholdTruth;
 use auths_model::{
     AuthorizationPlan, AuthorizationPlanRef, DenialReason, ProofRef, Requirement, VerifierLimits,
 };
@@ -23,35 +24,16 @@ pub enum BranchOutcome {
     StructurallyInvalid(DenialReason),
 }
 
-/// Diagnostic-free truth classification for a `k-of-n` node.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum ThresholdTruth {
-    /// Enough branches established authority.
-    Authorized,
-    /// The threshold remains reachable if unavailable facts are supplied.
-    Indeterminate,
-    /// The threshold is impossible even if every unavailable branch succeeds.
-    Denied,
-}
-
 /// Classifies threshold counts without consulting diagnostics.
 ///
-/// This small shipping function is the bounded model-checking boundary for the
-/// `k-of-n` algebra. Validated plans guarantee `k > 0`.
+/// The implementation is generated from the shared Rust–Lean algebra contract.
 #[must_use]
 pub fn evaluate_threshold_counts(
     k: u16,
     authorized: usize,
     indeterminate: usize,
 ) -> ThresholdTruth {
-    let required = usize::from(k);
-    if authorized >= required {
-        ThresholdTruth::Authorized
-    } else if authorized.saturating_add(indeterminate) >= required {
-        ThresholdTruth::Indeterminate
-    } else {
-        ThresholdTruth::Denied
-    }
+    auths_algebra_kernel::threshold_counts(k, authorized, indeterminate)
 }
 
 /// Evaluates a validated plan in its canonical child order.

@@ -6,6 +6,7 @@
 extern crate alloc;
 
 use alloc::vec::Vec;
+use auths_algebra_kernel::{AttenuationProjection, attenuation_accepts};
 use auths_model::{
     ActionConstraint, ActionEnvelope, AssurancePolicyId, AudienceSet, BudgetCeiling, DenialReason,
     GrantId, GrantStatement, PermissionSet, PrincipalId, ProfileRef, StatusPolicy, TrustAnchor,
@@ -28,6 +29,64 @@ pub struct EffectiveAuthority {
     last_grant: Option<GrantId>,
     assurance_policy: AssurancePolicyId,
     status_policy: StatusPolicy,
+}
+
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "each Boolean implements one generated attenuation dimension"
+)]
+struct GrantAttenuation {
+    depth_decreases: bool,
+    profile_attenuates: bool,
+    permissions_attenuate: bool,
+    validity_attenuates: bool,
+    audiences_attenuate: bool,
+    action_constraint_attenuates: bool,
+    budget_attenuates: bool,
+    status_attenuates: bool,
+    assurance_attenuates: bool,
+}
+
+impl AttenuationProjection for GrantAttenuation {
+    fn root_preserved(&self) -> bool {
+        true
+    }
+
+    fn depth_decreases(&self) -> bool {
+        self.depth_decreases
+    }
+
+    fn profile_attenuates(&self) -> bool {
+        self.profile_attenuates
+    }
+
+    fn permissions_attenuate(&self) -> bool {
+        self.permissions_attenuate
+    }
+
+    fn validity_attenuates(&self) -> bool {
+        self.validity_attenuates
+    }
+
+    fn audiences_attenuate(&self) -> bool {
+        self.audiences_attenuate
+    }
+
+    fn action_constraint_attenuates(&self) -> bool {
+        self.action_constraint_attenuates
+    }
+
+    fn budget_attenuates(&self) -> bool {
+        self.budget_attenuates
+    }
+
+    fn status_attenuates(&self) -> bool {
+        self.status_attenuates
+    }
+
+    fn assurance_attenuates(&self) -> bool {
+        self.assurance_attenuates
+    }
 }
 
 impl EffectiveAuthority {
@@ -65,22 +124,27 @@ impl EffectiveAuthority {
         if grant.issuer() != &self.subject || grant.parent() != self.last_grant {
             return Err(DenialReason::BrokenGrantChain);
         }
-        if self.remaining_depth == 0 || grant.remaining_depth() >= self.remaining_depth {
-            return Err(DenialReason::DelegationExpanded);
-        }
-        if self.profile.as_ref().map_or_else(
-            || !self.allowed_profiles.contains(grant.profile()),
-            |profile| profile != grant.profile(),
-        ) || !grant.permissions().is_subset_of(&self.permissions)
-            || !self.validity.contains_window(grant.validity())
-            || !grant.audiences().is_subset_of(&self.audiences)
-            || !grant
+        let attenuation = GrantAttenuation {
+            depth_decreases: self.remaining_depth > 0
+                && grant.remaining_depth() < self.remaining_depth,
+            profile_attenuates: self.profile.as_ref().map_or_else(
+                || self.allowed_profiles.contains(grant.profile()),
+                |profile| profile == grant.profile(),
+            ),
+            permissions_attenuate: grant.permissions().is_subset_of(&self.permissions),
+            validity_attenuates: self.validity.contains_window(grant.validity()),
+            audiences_attenuate: grant.audiences().is_subset_of(&self.audiences),
+            action_constraint_attenuates: grant
                 .action_constraint()
-                .attenuates(&self.action_constraint)
-            || !budget_attenuates(grant.budget_ceiling(), self.budget_ceiling.as_ref())
-            || !status_attenuates(grant.status_policy(), &self.status_policy)
-            || grant.assurance_floor() != &self.assurance_policy
-        {
+                .attenuates(&self.action_constraint),
+            budget_attenuates: budget_attenuates(
+                grant.budget_ceiling(),
+                self.budget_ceiling.as_ref(),
+            ),
+            status_attenuates: status_attenuates(grant.status_policy(), &self.status_policy),
+            assurance_attenuates: grant.assurance_floor() == &self.assurance_policy,
+        };
+        if !attenuation_accepts(&attenuation) {
             return Err(DenialReason::DelegationExpanded);
         }
         self.subject = grant.subject().clone();
