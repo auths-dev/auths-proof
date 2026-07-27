@@ -122,6 +122,16 @@
       "path": "demos/benchmarks/auths-lab-wasm-bench"
     },
     {
+      "name": "auths-live-lab",
+      "layer": "demos",
+      "path": "demos/live-lab"
+    },
+    {
+      "name": "auths-live-service",
+      "layer": "demos",
+      "path": "demos/live-service"
+    },
+    {
       "name": "auths-mcp-demo",
       "layer": "demos",
       "path": "demos/mcp/auths-mcp-demo"
@@ -357,6 +367,30 @@
     {
       "source": "auths-apps-testkit",
       "source_layer": "demos",
+      "target": "auths-did-keri",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-apps-testkit",
+      "source_layer": "demos",
+      "target": "auths-did-key",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-apps-testkit",
+      "source_layer": "demos",
       "target": "auths-model",
       "target_layer": "core",
       "scope": "internal",
@@ -569,6 +603,7 @@
         "macros",
         "net",
         "rt-multi-thread",
+        "signal",
         "sync",
         "time"
       ]
@@ -2188,6 +2223,327 @@
       ]
     },
     {
+      "source": "auths-live-lab",
+      "source_layer": "demos",
+      "target": "auths-apps-testkit",
+      "target_layer": "demos",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-live-lab",
+      "source_layer": "demos",
+      "target": "auths-codec",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-live-lab",
+      "source_layer": "demos",
+      "target": "auths-model",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-live-lab",
+      "source_layer": "demos",
+      "target": "auths-proof-exchange-model",
+      "target_layer": "exchange",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-live-lab",
+      "source_layer": "demos",
+      "target": "auths-proof-wasm",
+      "target_layer": "bindings",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-live-lab",
+      "source_layer": "demos",
+      "target": "hex",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-live-lab",
+      "source_layer": "demos",
+      "target": "serde_json",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "preserve_order"
+      ]
+    },
+    {
+      "source": "auths-live-lab",
+      "source_layer": "demos",
+      "target": "sha2",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-live-lab",
+      "source_layer": "demos",
+      "target": "tokio",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": [
+        "fs",
+        "io-util",
+        "macros",
+        "net",
+        "rt-multi-thread",
+        "signal",
+        "sync",
+        "time"
+      ]
+    },
+    {
+      "source": "auths-live-service",
+      "source_layer": "demos",
+      "target": "auths-apps-testkit",
+      "target_layer": "demos",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-live-service",
+      "source_layer": "demos",
+      "target": "auths-live-lab",
+      "target_layer": "demos",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-live-service",
+      "source_layer": "demos",
+      "target": "auths-proof-exchange-model",
+      "target_layer": "exchange",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-live-service",
+      "source_layer": "demos",
+      "target": "auths-proof-wasm",
+      "target_layer": "bindings",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-live-service",
+      "source_layer": "demos",
+      "target": "axum",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-live-service",
+      "source_layer": "demos",
+      "target": "base64ct",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc"
+      ]
+    },
+    {
+      "source": "auths-live-service",
+      "source_layer": "demos",
+      "target": "getrandom",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-live-service",
+      "source_layer": "demos",
+      "target": "hex",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-live-service",
+      "source_layer": "demos",
+      "target": "hmac",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-live-service",
+      "source_layer": "demos",
+      "target": "serde",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "derive"
+      ]
+    },
+    {
+      "source": "auths-live-service",
+      "source_layer": "demos",
+      "target": "serde_json",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "preserve_order"
+      ]
+    },
+    {
+      "source": "auths-live-service",
+      "source_layer": "demos",
+      "target": "sha2",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-live-service",
+      "source_layer": "demos",
+      "target": "tokio",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": [
+        "fs",
+        "io-util",
+        "macros",
+        "net",
+        "rt-multi-thread",
+        "signal",
+        "sync",
+        "time"
+      ]
+    },
+    {
+      "source": "auths-live-service",
+      "source_layer": "demos",
+      "target": "tower",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": [
+        "util"
+      ]
+    },
+    {
+      "source": "auths-live-service",
+      "source_layer": "demos",
+      "target": "tower-http",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": [
+        "cors"
+      ]
+    },
+    {
       "source": "auths-mcp-demo",
       "source_layer": "demos",
       "target": "auths-apps-testkit",
@@ -2253,6 +2609,7 @@
         "macros",
         "net",
         "rt-multi-thread",
+        "signal",
         "sync",
         "time"
       ]
@@ -3129,6 +3486,7 @@
         "macros",
         "net",
         "rt-multi-thread",
+        "signal",
         "sync",
         "time"
       ]
@@ -3197,6 +3555,7 @@
         "macros",
         "net",
         "rt-multi-thread",
+        "signal",
         "sync",
         "time"
       ]
@@ -3342,6 +3701,7 @@
         "macros",
         "net",
         "rt-multi-thread",
+        "signal",
         "sync",
         "time"
       ]
@@ -3398,6 +3758,7 @@
         "macros",
         "net",
         "rt-multi-thread",
+        "signal",
         "sync",
         "time"
       ]
@@ -3466,6 +3827,7 @@
         "macros",
         "net",
         "rt-multi-thread",
+        "signal",
         "sync",
         "time"
       ]
@@ -3644,6 +4006,7 @@
         "macros",
         "net",
         "rt-multi-thread",
+        "signal",
         "sync",
         "time"
       ]
@@ -3688,6 +4051,7 @@
         "macros",
         "net",
         "rt-multi-thread",
+        "signal",
         "sync",
         "time"
       ]
@@ -5932,6 +6296,7 @@
         "macros",
         "net",
         "rt-multi-thread",
+        "signal",
         "sync",
         "time"
       ]

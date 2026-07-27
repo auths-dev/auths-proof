@@ -4,7 +4,12 @@
 
 use async_trait::async_trait;
 use auths_author::prepare_action;
-use auths_codec::{action_id, body_digest, encode_bundle, evidence_id, plan_id};
+use auths_codec::{
+    action_id, body_digest, encode_bundle, encode_canonical_action, encode_verifier_context,
+    evidence_id, plan_id,
+};
+use auths_did_keri::DidKeriMethod;
+use auths_did_key::DidKeyMethod;
 use auths_model::{
     AcceptedRegistries, ActionEnvelope, AssuranceClaimId, AssurancePolicy, AssurancePolicyId,
     AssuranceQuantifier, AssuranceRequirement, AudienceSet, AuthorizationPlan, BundleHeader,
@@ -13,8 +18,8 @@ use auths_model::{
     Permission, PermissionSet, PrincipalMethodId, PrincipalStatusSnapshot, ProfilePolicyId,
     ProofBundle, ProofRef, RegistryManifestId, ResourceMatcherId, SignatureBytes,
     SignatureDescriptor, SignatureSuiteId, StatementRef, StatusPolicy, StatusSnapshotId, Timestamp,
-    TrustAnchor, TrustAnchorId, ValidityWindow, VerificationMethod, VerifierContext,
-    VerifierLimits,
+    TrustAnchor, TrustAnchorId, ValidityWindow, VerificationMethod, VerifierConfigurationId,
+    VerifierContext, VerifierLimits,
 };
 use auths_profile_api::ActionProfile;
 use auths_profile_mcp::{McpProfile, McpToolCall};
@@ -23,8 +28,8 @@ use auths_proof_exchange_iroh::{
 };
 use auths_proof_exchange_memory::channel_pair;
 use auths_proof_exchange_model::{
-    ActionResponse, ActionSubmission, ChallengeNonce, ChannelBindingPolicy, ExchangeOutcome,
-    PeerObservation, RefusalKind, VerdictDecision,
+    ActionChallenge, ActionResponse, ActionSubmission, ChallengeNonce, ChannelBindingPolicy,
+    ExchangeOutcome, PeerObservation, RefusalKind, VerdictDecision,
 };
 use auths_proof_exchange_port::{ClientProofChannel, ProofExchangeService, serve_one};
 use auths_raw_key::{RAW_KEY_MEDIA_TYPE, RAW_KEY_V1, RawKeyDescriptor, RawKeyMethod, RawKeyType};
@@ -35,7 +40,7 @@ use auths_runtime::{
     McpRequestStateDependencies, McpRuntimeDependencies, McpServiceConfig, McpToolExecutor,
     NoBudgetLedger, ReceiptAttestationError, ReceiptAttestor, ReceiptSink, ReceiptStoreError,
 };
-use auths_signature::{ED25519_V1, Ed25519Suite};
+use auths_signature::{ED25519_V1, Ed25519Suite, P256Sha256Suite};
 use ed25519_dalek::{Signer as _, SigningKey};
 use iroh::{Endpoint, EndpointAddr, endpoint::presets};
 use serde_json::{Map, Value};
@@ -98,12 +103,19 @@ impl ReceiptAttestor for DemoReceiptAttestor {
     }
 }
 
-#[derive(Default)]
 struct StaticReportExecutor {
+    expected_challenge: ChallengeNonce,
     executions: AtomicUsize,
 }
 
 impl StaticReportExecutor {
+    fn new(expected_challenge: ChallengeNonce) -> Self {
+        Self {
+            expected_challenge,
+            executions: AtomicUsize::new(0),
+        }
+    }
+
     fn count(&self) -> usize {
         self.executions.load(Ordering::SeqCst)
     }
@@ -118,7 +130,7 @@ impl McpToolExecutor for StaticReportExecutor {
         let command = action.command();
         if command.name() != "read_report"
             || command.arguments().get("name") != Some(&Value::String("q3".into()))
-            || action.lease().challenge() != DEMO_CHALLENGE
+            || action.lease().challenge() != self.expected_challenge
         {
             return Err("verified report command is outside the demo policy".into());
         }
@@ -182,28 +194,59 @@ pub struct DemoResult {
     pub proof_bytes: usize,
     pub total_micros: u64,
     pub path: &'static str,
+    pub executor_invocations: usize,
+    pub decision_receipts: usize,
+    pub execution_receipts: usize,
 }
 
+/// Canonical fixture material shared by the native and browser live labs.
 pub struct DemoFixtureBytes {
+    /// Canonical MCP request bytes accepted by the application profile.
     pub body: Vec<u8>,
+    /// Canonical action bytes passed to the portable verifier.
+    pub canonical_action: Vec<u8>,
+    /// Canonical proof bundle.
     pub proof: Vec<u8>,
+    /// Trusted context whose required configuration matches the demo engine.
+    pub context: Vec<u8>,
+    /// Display-safe root principal for the proof graph.
     pub root_principal: String,
 }
 
 struct DemoFixture {
     body: Vec<u8>,
+    canonical_action: Vec<u8>,
     proof: Vec<u8>,
     context: VerifierContext,
     root_principal: String,
 }
 
 /// Builds the exact deterministic body, proof, and root used by the demos.
+///
+/// # Panics
+///
+/// Panics if the repository-owned fixture cannot be constructed or encoded.
 #[must_use]
 pub fn demo_fixture_bytes() -> DemoFixtureBytes {
-    let fixture = build_fixture(DEMO_CHALLENGE, None);
+    demo_fixture_bytes_for_challenge(*DEMO_CHALLENGE.as_bytes())
+}
+
+/// Builds canonical demo material bound to a caller-provided challenge.
+///
+/// This is used by the public live service so the browser verifies the exact
+/// short-lived proof that the native runtime will later consume.
+///
+/// # Panics
+///
+/// Panics if the repository-owned fixture cannot be constructed or encoded.
+#[must_use]
+pub fn demo_fixture_bytes_for_challenge(nonce: [u8; 32]) -> DemoFixtureBytes {
+    let fixture = build_fixture(ChallengeNonce::new(nonce), None);
     DemoFixtureBytes {
         body: fixture.body,
+        canonical_action: fixture.canonical_action,
         proof: fixture.proof,
+        context: encode_verifier_context(&fixture.context).expect("fixed demo context"),
         root_principal: fixture.root_principal,
     }
 }
@@ -216,7 +259,7 @@ pub fn demo_fixture_bytes() -> DemoFixtureBytes {
 /// assertion fails.
 pub async fn run_memory_demo() -> DemoResult {
     let fixture = build_fixture(DEMO_CHALLENGE, None);
-    let (service, _executor, receipts) = demo_service(
+    let (service, executor, receipts) = demo_service(
         fixture.context,
         ChannelBindingPolicy::RequireAuthenticatedPeer,
         None,
@@ -240,13 +283,17 @@ pub async fn run_memory_demo() -> DemoResult {
         ActionSubmission::new(fixture.body, fixture.proof.clone(), &challenge).expect("submission");
     let response = client.submit_action(request).await.expect("response");
     server_task.await.expect("server task");
-    assert_eq!(receipts.counts(), (1, 1));
+    let receipt_counts = receipts.counts();
+    assert_eq!(receipt_counts, (1, 1));
     receipts.assert_canonical();
     DemoResult {
         response,
         proof_bytes: fixture.proof.len(),
         total_micros: micros(started.elapsed()),
         path: "in-memory",
+        executor_invocations: executor.count(),
+        decision_receipts: receipt_counts.0,
+        execution_receipts: receipt_counts.1,
     }
 }
 
@@ -265,7 +312,7 @@ pub async fn run_iroh_demo() -> DemoResult {
     let client_endpoint = Endpoint::bind(presets::N0).await.expect("client endpoint");
     let server_addr = direct_addr(&server_endpoint);
     let fixture = build_fixture(DEMO_CHALLENGE, None);
-    let (service, _executor, receipts) = demo_service(
+    let (service, executor, receipts) = demo_service(
         fixture.context,
         ChannelBindingPolicy::RequireAuthenticatedPeer,
         None,
@@ -293,13 +340,132 @@ pub async fn run_iroh_demo() -> DemoResult {
     server_task.await.expect("server task");
     client_endpoint.close().await;
     server_endpoint.close().await;
-    assert_eq!(receipts.counts(), (1, 1));
+    let receipt_counts = receipts.counts();
+    assert_eq!(receipt_counts, (1, 1));
     receipts.assert_canonical();
     DemoResult {
         response,
         proof_bytes: fixture.proof.len(),
         total_micros: micros(started.elapsed()),
         path: "Iroh direct",
+        executor_invocations: executor.count(),
+        decision_receipts: receipt_counts.0,
+        execution_receipts: receipt_counts.1,
+    }
+}
+
+/// Native replay experiment output for the browser live-lab snapshot.
+pub struct ReplayDemoResult {
+    /// First request, which must execute.
+    pub first: ActionResponse,
+    /// Identical second request, which must be rejected as consumed.
+    pub replay: ActionResponse,
+    /// Total safe-executor invocations across both requests.
+    pub executor_invocations: usize,
+    /// Total persisted decision receipts.
+    pub decision_receipts: usize,
+    /// Total persisted execution receipts.
+    pub execution_receipts: usize,
+}
+
+/// A single real Auths runtime session used by the interactive live service.
+///
+/// Each instance owns an issued challenge, its signed proof, the atomic
+/// challenge ledger, the safe executor, and receipt storage. Reusing the
+/// instance for a second submission exercises the runtime replay gate.
+pub struct DemoRuntimeSession {
+    service: Arc<McpAuthorizationService>,
+    executor: Arc<StaticReportExecutor>,
+    receipts: Arc<MemoryReceiptSink>,
+    challenge: ActionChallenge,
+    request: ActionSubmission,
+}
+
+/// Result of one submission to a [`DemoRuntimeSession`].
+pub struct DemoRuntimeSubmission {
+    /// The real exchange-layer response returned by the runtime.
+    pub response: ActionResponse,
+    /// Total safe-executor invocations in this session.
+    pub executor_invocations: usize,
+    /// Total persisted signed decision receipts in this session.
+    pub decision_receipts: usize,
+    /// Total persisted signed execution receipts in this session.
+    pub execution_receipts: usize,
+}
+
+impl DemoRuntimeSession {
+    /// Creates a runtime session around a caller-provided cryptographic nonce.
+    ///
+    /// # Panics
+    ///
+    /// Panics if repository-owned fixtures or runtime setup violate the demo
+    /// contract.
+    pub async fn new(nonce: [u8; 32]) -> Self {
+        let expected = ChallengeNonce::new(nonce);
+        let fixture = build_fixture(expected, None);
+        let (service, executor, receipts) = demo_service_with_challenge(
+            fixture.context,
+            ChannelBindingPolicy::None,
+            None,
+            expected,
+        );
+        let challenge = service
+            .issue_challenge(&PeerObservation::Unauthenticated)
+            .await
+            .expect("live demo challenge");
+        assert_eq!(challenge.challenge(), expected);
+        let request =
+            ActionSubmission::new(fixture.body, fixture.proof, &challenge).expect("submission");
+        Self {
+            service,
+            executor,
+            receipts,
+            challenge,
+            request,
+        }
+    }
+
+    /// Submits the exact same proof-carrying action to this session.
+    ///
+    /// The first call executes once. Every later call is rejected by the
+    /// runtime's consumed-challenge gate.
+    pub async fn execute(&self) -> DemoRuntimeSubmission {
+        let response = self
+            .service
+            .handle_action(
+                &PeerObservation::Unauthenticated,
+                &self.challenge,
+                self.request.clone(),
+            )
+            .await;
+        let (decision_receipts, execution_receipts) = self.receipts.counts();
+        self.receipts.assert_canonical();
+        DemoRuntimeSubmission {
+            response,
+            executor_invocations: self.executor.count(),
+            decision_receipts,
+            execution_receipts,
+        }
+    }
+}
+
+/// Runs the deterministic native replay experiment.
+///
+/// # Panics
+///
+/// Panics if the repository-owned fixture, runtime, replay gate, or receipt
+/// sink violates its deterministic demo contract.
+#[must_use]
+pub async fn run_replay_demo() -> ReplayDemoResult {
+    let session = DemoRuntimeSession::new(*DEMO_CHALLENGE.as_bytes()).await;
+    let first = session.execute().await;
+    let replay = session.execute().await;
+    ReplayDemoResult {
+        first: first.response,
+        replay: replay.response,
+        executor_invocations: replay.executor_invocations,
+        decision_receipts: replay.decision_receipts,
+        execution_receipts: replay.execution_receipts,
     }
 }
 
@@ -336,34 +502,23 @@ pub async fn assert_iroh_target_conformance() {
 }
 
 async fn replay_is_consumed_before_second_execution() {
-    let fixture = build_fixture(DEMO_CHALLENGE, None);
-    let (service, executor, receipts) =
-        demo_service(fixture.context, ChannelBindingPolicy::None, None);
-    let challenge = service
-        .issue_challenge(&PeerObservation::Unauthenticated)
-        .await
-        .expect("challenge");
-    let request = ActionSubmission::new(fixture.body, fixture.proof, &challenge).unwrap();
-    let first = service
-        .handle_action(
-            &PeerObservation::Unauthenticated,
-            &challenge,
-            request.clone(),
-        )
-        .await;
-    let second = service
-        .handle_action(&PeerObservation::Unauthenticated, &challenge, request)
-        .await;
-    assert!(matches!(first.outcome(), ExchangeOutcome::Completed { .. }));
+    let replay = run_replay_demo().await;
     assert!(matches!(
-        second.outcome(),
+        replay.first.outcome(),
+        ExchangeOutcome::Completed { .. }
+    ));
+    assert!(matches!(
+        replay.replay.outcome(),
         ExchangeOutcome::Refused {
             kind: RefusalKind::ConsumedChallenge,
             ..
         }
     ));
-    assert_eq!(executor.count(), 1);
-    assert_eq!(receipts.counts(), (1, 1));
+    assert_eq!(replay.executor_invocations, 1);
+    assert_eq!(
+        (replay.decision_receipts, replay.execution_receipts),
+        (1, 1)
+    );
 }
 
 async fn concurrent_duplicate_executes_exactly_once() {
@@ -494,13 +649,22 @@ fn demo_service(
     Arc<StaticReportExecutor>,
     Arc<MemoryReceiptSink>,
 ) {
-    let kernel = AuthsKernel::new(
-        context,
-        vec![Box::new(RawKeyMethod::new().unwrap())],
-        vec![Box::new(Ed25519Suite::new().unwrap())],
-    )
-    .unwrap();
-    let executor = Arc::new(StaticReportExecutor::default());
+    demo_service_with_challenge(context, channel_policy, local_endpoint, DEMO_CHALLENGE)
+}
+
+fn demo_service_with_challenge(
+    context: VerifierContext,
+    channel_policy: ChannelBindingPolicy,
+    local_endpoint: Option<[u8; 32]>,
+    challenge: ChallengeNonce,
+) -> (
+    Arc<McpAuthorizationService>,
+    Arc<StaticReportExecutor>,
+    Arc<MemoryReceiptSink>,
+) {
+    let kernel =
+        AuthsKernel::new(context, demo_principal_methods(), demo_signature_suites()).unwrap();
+    let executor = Arc::new(StaticReportExecutor::new(challenge));
     let receipts = Arc::new(MemoryReceiptSink::default());
     let service = McpAuthorizationService::new(
         McpServiceConfig::new(
@@ -515,7 +679,7 @@ fn demo_service(
         McpRuntimeDependencies::new(
             McpRequestStateDependencies::new(
                 Arc::new(FixedClock(DEMO_NOW)),
-                Arc::new(FixedChallengeSource(DEMO_CHALLENGE)),
+                Arc::new(FixedChallengeSource(challenge)),
                 Arc::new(InMemoryChallengeLedger::new(64).unwrap()),
                 Arc::new(NoBudgetLedger),
             ),
@@ -531,6 +695,37 @@ fn demo_service(
     (Arc::new(service), executor, receipts)
 }
 
+fn demo_principal_methods() -> Vec<Box<dyn auths_ports::PrincipalMethod + Send + Sync>> {
+    vec![
+        Box::new(RawKeyMethod::new().unwrap()),
+        Box::new(DidKeyMethod::new().unwrap()),
+        Box::new(DidKeriMethod::new().unwrap()),
+    ]
+}
+
+fn demo_signature_suites() -> Vec<Box<dyn auths_ports::SignatureSuite + Send + Sync>> {
+    vec![
+        Box::new(Ed25519Suite::new().unwrap()),
+        Box::new(P256Sha256Suite::new().unwrap()),
+    ]
+}
+
+fn demo_configuration_id() -> VerifierConfigurationId {
+    let methods = demo_principal_methods();
+    let suites = demo_signature_suites();
+    let method_refs: Vec<&dyn auths_ports::PrincipalMethod> = methods
+        .iter()
+        .map(|method| method.as_ref() as &dyn auths_ports::PrincipalMethod)
+        .collect();
+    let suite_refs: Vec<&dyn auths_ports::SignatureSuite> = suites
+        .iter()
+        .map(|suite| suite.as_ref() as &dyn auths_ports::SignatureSuite)
+        .collect();
+    auths_registries::ImmutableRegistries::new(&method_refs, &suite_refs)
+        .unwrap()
+        .configuration_id()
+}
+
 #[allow(clippy::too_many_lines)]
 fn build_fixture(challenge: ChallengeNonce, signed_permission: Option<Permission>) -> DemoFixture {
     let call = demo_call();
@@ -538,6 +733,7 @@ fn build_fixture(challenge: ChallengeNonce, signed_permission: Option<Permission
     let canonical = McpProfile
         .canonicalize(&body)
         .expect("profile canonicalization");
+    let canonical_action = encode_canonical_action(&canonical).expect("canonical action");
     let permission = signed_permission.unwrap_or_else(|| canonical.permission().clone());
     let signing = SigningKey::from_bytes(&ROOT_SEED);
     let raw = RawKeyDescriptor::new(
@@ -654,15 +850,8 @@ fn build_fixture(challenge: ChallengeNonce, signed_permission: Option<Permission
         vec![ProfilePolicyId::parse("exact-v1").unwrap()],
     )
     .unwrap();
-    let raw_key = RawKeyMethod::new().unwrap();
-    let signature_suite = Ed25519Suite::new().unwrap();
-    let methods: [&dyn auths_ports::PrincipalMethod; 1] = [&raw_key];
-    let suites: [&dyn auths_ports::SignatureSuite; 1] = [&signature_suite];
-    let configuration = auths_registries::ImmutableRegistries::new(&methods, &suites)
-        .unwrap()
-        .configuration_id();
     let context = VerifierContext::new(
-        configuration,
+        demo_configuration_id(),
         CompositionRequirement::exact(plan_id(proof.plan()).unwrap()),
         vec![anchor],
         registries,
@@ -694,6 +883,7 @@ fn build_fixture(challenge: ChallengeNonce, signed_permission: Option<Permission
     .unwrap();
     DemoFixture {
         body,
+        canonical_action,
         proof: encode_bundle(&proof).unwrap(),
         context,
         root_principal: principal.as_str().into(),
