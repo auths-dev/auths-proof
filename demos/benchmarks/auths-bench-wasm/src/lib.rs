@@ -31,3 +31,17 @@ pub fn validate_inputs(bytes: &[u8]) -> Result<usize, String> {
     }
     Ok(inputs.len())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use auths_bench_model::{BenchmarkProfile, generate_suite};
+
+    #[test]
+    fn shared_benchmark_schema_round_trips_at_wasm_boundary() {
+        let inputs = generate_suite(&BenchmarkProfile::developer()).unwrap();
+        let bytes = serde_json::to_vec(&inputs).unwrap();
+        assert_eq!(validate_inputs(&bytes), Ok(inputs.len()));
+        assert!(validate_inputs(b"[]").is_err());
+    }
+}

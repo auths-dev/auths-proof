@@ -1,7 +1,7 @@
 //! Bounded diagnostics emitted from the principal-method execution boundary.
 
 use crate::{ControlEvidence, PrincipalControlError};
-use alloc::vec::Vec;
+use alloc::{vec, vec::Vec};
 use auths_model::{AdapterConfigurationId, PrincipalMethodId};
 
 /// Whether adapter diagnostic facts are retained.

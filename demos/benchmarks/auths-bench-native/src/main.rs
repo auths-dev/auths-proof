@@ -195,3 +195,46 @@ fn run() -> Result<(), String> {
     }
     fs::write(output, bytes).map_err(|error| error.to_string())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use auths_bench_model::generate_suite;
+
+    #[test]
+    fn native_runner_preserves_shared_input_semantics() {
+        let profile = BenchmarkProfile {
+            name: "test".to_owned(),
+            warmup_ms: 0,
+            samples: 1,
+            operations_per_sample: 1,
+        };
+        let input = generate_suite(&profile)
+            .unwrap()
+            .into_iter()
+            .next()
+            .unwrap();
+
+        let raw = RawKeyMethod::new().unwrap();
+        let did_key = DidKeyMethod::new().unwrap();
+        let did_keri = DidKeriMethod::new().unwrap();
+        let did_web = DidWebMethod::new(auths_testkit::did_web_corpus_trust_records()).unwrap();
+        let webauthn = WebAuthnMethod::new(auths_testkit::webauthn_corpus_credentials()).unwrap();
+        let hsm = HsmAttestedMethod::new(auths_testkit::hsm_corpus_records()).unwrap();
+        let (domains, status) = auths_testkit::spiffe_corpus_context();
+        let spiffe = SpiffeX509Method::new(domains, status).unwrap();
+        let ed25519 = Ed25519Suite::new().unwrap();
+        let p256 = P256Sha256Suite::new().unwrap();
+        let methods: [&dyn PrincipalMethod; 7] = [
+            &raw, &did_key, &did_keri, &did_web, &webauthn, &hsm, &spiffe,
+        ];
+        let suites: [&dyn SignatureSuite; 2] = [&ed25519, &p256];
+        let registries = ImmutableRegistries::new(&methods, &suites).unwrap();
+
+        let result = benchmark_input(&input, &profile, &registries).unwrap();
+        assert_eq!(result.scenario, input.scenario.id);
+        assert_eq!(result.input_sha256, hex_digest(input.input_digest));
+        assert_eq!(result.semantic.decision, input.scenario.expected.decision);
+        assert_eq!(result.semantic.code, input.scenario.expected.code);
+    }
+}

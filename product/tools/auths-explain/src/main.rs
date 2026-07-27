@@ -46,9 +46,8 @@ fn value(args: &[String], name: &str) -> Result<String, String> {
         .ok_or_else(|| format!("missing {name}"))
 }
 
-fn arguments() -> Result<Arguments, String> {
-    let args: Vec<_> = env::args().skip(1).collect();
-    let disclosure = match value(&args, "--disclosure")
+fn arguments_from(args: &[String]) -> Result<Arguments, String> {
+    let disclosure = match value(args, "--disclosure")
         .unwrap_or_else(|_| "summary".to_owned())
         .as_str()
     {
@@ -57,19 +56,24 @@ fn arguments() -> Result<Arguments, String> {
         "audit" => DisclosurePolicy::Audit,
         value => return Err(format!("unsupported disclosure {value}")),
     };
-    let output = value(&args, "--output").ok().map(PathBuf::from);
+    let output = value(args, "--output").ok().map(PathBuf::from);
     if disclosure == DisclosurePolicy::Audit && output.is_none() {
         return Err("audit disclosure requires --output".to_owned());
     }
     Ok(Arguments {
-        proof: value(&args, "--proof")?.into(),
-        action: value(&args, "--action")?.into(),
-        context: value(&args, "--context")?.into(),
-        engine_config: value(&args, "--engine-config")?.into(),
+        proof: value(args, "--proof")?.into(),
+        action: value(args, "--action")?.into(),
+        context: value(args, "--context")?.into(),
+        engine_config: value(args, "--engine-config")?.into(),
         disclosure,
-        format: value(&args, "--format").unwrap_or_else(|_| "text".to_owned()),
+        format: value(args, "--format").unwrap_or_else(|_| "text".to_owned()),
         output,
     })
+}
+
+fn arguments() -> Result<Arguments, String> {
+    let args: Vec<_> = env::args().skip(1).collect();
+    arguments_from(&args)
 }
 
 fn run() -> Result<u8, String> {
@@ -135,4 +139,30 @@ fn run() -> Result<u8, String> {
         VerificationOutcome::Denied(_) => 2,
         VerificationOutcome::Indeterminate(_) => 3,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn audit_disclosure_requires_file_output() {
+        let args = [
+            "--proof",
+            "proof.cbor",
+            "--action",
+            "action.cbor",
+            "--context",
+            "context.cbor",
+            "--engine-config",
+            "engine.json",
+            "--disclosure",
+            "audit",
+        ]
+        .map(str::to_owned);
+        assert_eq!(
+            arguments_from(&args).err().as_deref(),
+            Some("audit disclosure requires --output")
+        );
+    }
 }

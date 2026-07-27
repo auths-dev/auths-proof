@@ -23,6 +23,60 @@ security_state = ["budget-ledger", "challenge-ledger", "receipt-sink"]
 demo-conformance-fixture = ["demos/testkit/auths-apps-testkit/src/lib.rs#target_flow_is_transport_independent_and_replay_safe"]
 runtime-enforcement-boundary = ["demos/testkit/auths-apps-testkit/src/lib.rs#concurrent_duplicate_executes_exactly_once"]
 
+[packages.auths-bench-model]
+kind = "cargo"
+layer = "demos"
+path = "demos/benchmarks/auths-bench-model"
+core_apis = ["auths-codec", "auths-model", "auths-testkit"]
+protocol_versions = ["auths-proof/v1"]
+wire_objects = ["CanonicalAction", "ProofBundle", "VerifierContext"]
+fixture_suites = ["core/fixtures/v1"]
+principal_families = ["did-key-v1", "did-keri-v1", "did-web-v1", "hsm-attested-v1", "raw-key-v1", "spiffe-x509-v1", "webauthn-v1"]
+signature_families = ["ed25519-v1", "p256-sha256-v1"]
+profiles = ["target-v1-corpus"]
+transports = []
+configuration_inputs = ["benchmark-profile", "verifier-limits", "work-limit"]
+security_state = []
+
+[packages.auths-bench-model.claims]
+demo-conformance-fixture = ["demos/benchmarks/auths-bench-model/src/lib.rs#generation_is_byte_identical"]
+
+[packages.auths-bench-native]
+kind = "cargo"
+layer = "demos"
+path = "demos/benchmarks/auths-bench-native"
+core_apis = ["auths-codec", "auths-did-keri", "auths-did-key", "auths-did-web", "auths-hsm-attested", "auths-ports", "auths-raw-key", "auths-registries", "auths-signature", "auths-spiffe-x509", "auths-testkit", "auths-verifier", "auths-webauthn"]
+protocol_versions = ["auths-proof/v1"]
+wire_objects = ["CanonicalAction", "PortableVerificationResult", "ProofBundle", "VerifierContext"]
+fixture_suites = ["core/fixtures/v1"]
+principal_families = ["did-key-v1", "did-keri-v1", "did-web-v1", "hsm-attested-v1", "raw-key-v1", "spiffe-x509-v1", "webauthn-v1"]
+signature_families = ["ed25519-v1", "p256-sha256-v1"]
+profiles = ["target-v1-corpus"]
+transports = []
+configuration_inputs = ["benchmark-profile", "registry-manifest", "verifier-configuration"]
+security_state = []
+
+[packages.auths-bench-native.claims]
+demo-conformance-fixture = ["demos/benchmarks/auths-bench-native/src/main.rs#native_runner_preserves_shared_input_semantics"]
+
+[packages.auths-bench-wasm]
+kind = "cargo"
+layer = "demos"
+path = "demos/benchmarks/auths-bench-wasm"
+core_apis = []
+protocol_versions = ["auths-proof/v1"]
+wire_objects = ["CanonicalAction", "ProofBundle", "VerifierContext"]
+fixture_suites = ["core/fixtures/v1"]
+principal_families = ["did-key-v1", "did-keri-v1", "did-web-v1", "hsm-attested-v1", "raw-key-v1", "spiffe-x509-v1", "webauthn-v1"]
+signature_families = ["ed25519-v1", "p256-sha256-v1"]
+profiles = ["target-v1-corpus"]
+transports = ["browser-wasm", "node-wasm"]
+configuration_inputs = ["benchmark-profile"]
+security_state = []
+
+[packages.auths-bench-wasm.claims]
+demo-conformance-fixture = ["demos/benchmarks/auths-bench-wasm/src/lib.rs#shared_benchmark_schema_round_trips_at_wasm_boundary"]
+
 [packages.auths-cache]
 kind = "cargo"
 layer = "product"
@@ -133,6 +187,24 @@ security_state = ["attestation-bytes", "provider-evidence"]
 
 [packages.auths-evidence-assemblers.claims]
 principal-evidence-integration = ["product/integrations/auths-evidence-assemblers/src/lib.rs#hsm_evidence_changes_with_the_auths_transaction"]
+
+[packages.auths-explain]
+kind = "cargo"
+layer = "product"
+path = "product/tools/auths-explain"
+core_apis = ["auths-codec", "auths-did-keri", "auths-did-key", "auths-did-web", "auths-hsm-attested", "auths-ports", "auths-raw-key", "auths-registries", "auths-signature", "auths-spiffe-x509", "auths-testkit", "auths-verifier", "auths-webauthn"]
+protocol_versions = ["auths-proof/v1"]
+wire_objects = ["CanonicalAction", "PortableVerificationResult", "ProofBundle", "VerifierContext"]
+fixture_suites = ["core/fixtures/v1"]
+principal_families = ["did-key-v1", "did-keri-v1", "did-web-v1", "hsm-attested-v1", "raw-key-v1", "spiffe-x509-v1", "webauthn-v1"]
+signature_families = ["ed25519-v1", "p256-sha256-v1"]
+profiles = ["target-v1-corpus"]
+transports = []
+configuration_inputs = ["disclosure-policy", "executed-verifier-configuration", "required-verifier-configuration", "trusted-context"]
+security_state = []
+
+[packages.auths-explain.claims]
+operational-diagnostics = ["product/tools/auths-explain/src/main.rs#audit_disclosure_requires_file_output"]
 
 [packages.auths-lab-matrix]
 kind = "cargo"

@@ -1,6 +1,7 @@
 //! Deterministic causal-slice projection.
 
 use crate::trace::{FactEvaluation, FactResult, VerificationTrace};
+use alloc::vec::Vec;
 
 /// Relationship between one fact and the final result.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
