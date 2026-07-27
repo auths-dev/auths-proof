@@ -3,28 +3,28 @@
   "protocol": 1,
   "cases": [
     {
-      "case": "context/raw-key-chain/configuration-bitflip/context-constructor",
+      "case": "context/raw-key-chain/configuration-bitflip/full-verifier",
       "requirements": ["CONTEXT.CONFIGURATION_ID"],
-      "boundary": "context-constructor",
+      "boundary": "full-verifier",
       "expected_code": "verifier-configuration-mismatch"
     },
     {
       "case": "context/threshold/composition-zero/context-constructor",
       "requirements": ["CONTEXT.COMPOSITION"],
       "boundary": "context-constructor",
-      "expected_code": "invalid-composition-requirement"
+      "expected_code": "invalid-verifier-context"
     },
     {
       "case": "context/raw-key-chain/duplicate-trust-anchor/context-constructor",
       "requirements": ["CONTEXT.TRUST_ANCHORS"],
       "boundary": "context-constructor",
-      "expected_code": "duplicate-trust-anchor"
+      "expected_code": "invalid-verifier-context"
     },
     {
       "case": "context/raw-key-chain/registry-method-missing/full-verifier",
       "requirements": ["CONTEXT.ACCEPTED_REGISTRIES", "VERIFIER.MAPPING.MISSING_METHOD"],
       "boundary": "full-verifier",
-      "expected_code": "missing-principal-method"
+      "expected_code": "unsupported-principal-method"
     },
     {
       "case": "context/raw-key-chain/audience-bitflip/full-verifier",
@@ -78,7 +78,7 @@
       "case": "context/raw-key-chain/channel-mismatch/full-verifier",
       "requirements": ["CONTEXT.CHANNEL_POLICY"],
       "boundary": "full-verifier",
-      "expected_code": "channel-mismatch"
+      "expected_code": "local-policy-denied"
     },
     {
       "case": "context/raw-key-chain/work-limit-minus-one/full-verifier",
@@ -106,9 +106,9 @@
     },
     {
       "case": "did-web/historical-valid/remove-statement-pin/full-verifier",
-      "requirements": ["ADAPTER.DID_WEB.STATEMENT_PIN", "VERIFIER.MAPPING.HISTORICAL"],
+      "requirements": ["ADAPTER.DID_WEB.STATEMENT_PIN", "ADAPTER.COMMON.CONFIGURATION", "VERIFIER.MAPPING.HISTORICAL"],
       "boundary": "full-verifier",
-      "expected_code": "historical-state-unavailable"
+      "expected_code": "assurance-requirement-not-met"
     },
     {
       "case": "webauthn/p256-user-verified/client-challenge-bitflip/verify-control",

@@ -2277,25 +2277,128 @@ fn adversarial_conformance(args: Vec<String>) -> Result<(), String> {
         }
     }
 
-    cargo(&["test", "-p", "auths-testkit", "conformance"])?;
+    let raw_key = auths_raw_key::RawKeyMethod::new().map_err(|error| error.to_string())?;
+    let did_key = auths_did_key::DidKeyMethod::new().map_err(|error| error.to_string())?;
+    let did_keri = auths_did_keri::DidKeriMethod::new().map_err(|error| error.to_string())?;
+    let did_web = auths_did_web::DidWebMethod::new(auths_testkit::did_web_corpus_trust_records())
+        .map_err(|error| error.to_string())?;
+    let webauthn =
+        auths_webauthn::WebAuthnMethod::new(auths_testkit::webauthn_corpus_credentials())
+            .map_err(|error| error.to_string())?;
+    let hsm = auths_hsm_attested::HsmAttestedMethod::new(auths_testkit::hsm_corpus_records())
+        .map_err(|error| error.to_string())?;
+    let (spiffe_trust, spiffe_status) = auths_testkit::spiffe_corpus_context();
+    let spiffe = auths_spiffe_x509::SpiffeX509Method::new(spiffe_trust, spiffe_status)
+        .map_err(|error| error.to_string())?;
+    let ed25519 = auths_signature::Ed25519Suite::new().map_err(|error| error.to_string())?;
+    let p256 = auths_signature::P256Sha256Suite::new().map_err(|error| error.to_string())?;
+    let methods: [&dyn auths_ports::PrincipalMethod; 7] = [
+        &raw_key, &did_key, &did_keri, &did_web, &webauthn, &hsm, &spiffe,
+    ];
+    let suites: [&dyn auths_ports::SignatureSuite; 2] = [&ed25519, &p256];
+    let registries = auths_registries::ImmutableRegistries::new(&methods, &suites)
+        .map_err(|error| error.to_string())?;
+
+    let mut executions = Vec::with_capacity(selected.len());
+    let mut passed = 0usize;
+    for case in &selected {
+        let actual = match auths_testkit::conformance::execute_case(&case.case)? {
+            auths_testkit::conformance::BoundaryExecution::Completed(code) => code.to_owned(),
+            auths_testkit::conformance::BoundaryExecution::FullVerifier(fixture) => {
+                let context = auths_codec::decode_verifier_context(fixture.context_bytes())
+                    .map_err(|error| format!("{} context: {error}", case.case))?;
+                auths_verifier::verify_portable(
+                    fixture.proof_bytes(),
+                    fixture.canonical_action(),
+                    &context,
+                    &registries,
+                )
+                .code()
+                .code()
+                .to_owned()
+            }
+        };
+        let case_passed = actual == case.expected_code;
+        passed += usize::from(case_passed);
+        executions.push(json!({
+            "case": case.case,
+            "boundary": case.boundary,
+            "expected_code": case.expected_code,
+            "actual_code": actual,
+            "passed": case_passed
+        }));
+    }
+
+    let selected_context: BTreeSet<_> = selected
+        .iter()
+        .flat_map(|case| case.requirements.iter())
+        .filter(|requirement| requirement.starts_with("CONTEXT."))
+        .collect();
+    let all_context: BTreeSet<_> = manifest
+        .cases
+        .iter()
+        .flat_map(|case| case.requirements.iter())
+        .filter(|requirement| requirement.starts_with("CONTEXT."))
+        .collect();
+    let selected_methods: BTreeSet<_> = selected
+        .iter()
+        .filter_map(|case| case.case.split_once('/'))
+        .map(|(surface, _)| surface)
+        .filter(|surface| *surface != "context")
+        .collect();
+    let all_methods: BTreeSet<_> = manifest
+        .cases
+        .iter()
+        .filter_map(|case| case.case.split_once('/'))
+        .map(|(surface, _)| surface)
+        .filter(|surface| *surface != "context")
+        .collect();
+    let selected_common: BTreeSet<_> = selected
+        .iter()
+        .filter(|case| {
+            case.requirements
+                .iter()
+                .any(|requirement| requirement.starts_with("ADAPTER.COMMON."))
+        })
+        .filter_map(|case| case.case.split_once('/').map(|(surface, _)| surface))
+        .collect();
+    let all_common: BTreeSet<_> = manifest
+        .cases
+        .iter()
+        .filter(|case| {
+            case.requirements
+                .iter()
+                .any(|requirement| requirement.starts_with("ADAPTER.COMMON."))
+        })
+        .filter_map(|case| case.case.split_once('/').map(|(surface, _)| surface))
+        .collect();
+    let failed = selected.len().saturating_sub(passed);
     let output = json!({
         "schema": "auths-proof-conformance-result/v1",
         "manifest_sha256": sha256_file(&manifest_path)?,
         "cases": selected.len(),
-        "passed": selected.len(),
-        "failed": 0,
+        "passed": passed,
+        "failed": failed,
         "coverage": {
-            "context_fields": "14/14",
-            "principal_methods": "7/7",
-            "common_contract": "7/7"
-        }
+            "context_fields": format!("{}/{}", selected_context.len(), all_context.len()),
+            "principal_methods": format!("{}/{}", selected_methods.len(), all_methods.len()),
+            "common_contract": format!("{}/{}", selected_common.len(), all_common.len())
+        },
+        "executions": executions
     });
     println!(
         "{}",
         serde_json::to_string_pretty(&output)
             .map_err(|error| format!("could not encode conformance result: {error}"))?
     );
-    Ok(())
+    if failed == 0 {
+        Ok(())
+    } else {
+        Err(format!(
+            "{failed} of {} adversarial conformance cases failed",
+            selected.len()
+        ))
+    }
 }
 
 fn benchmark(args: Vec<String>) -> Result<(), String> {
