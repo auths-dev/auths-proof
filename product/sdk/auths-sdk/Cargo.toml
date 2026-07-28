@@ -9,7 +9,7 @@ description = "Idiomatic embedded Auths enforcement SDK"
 [dependencies]
 auths-author.workspace = true
 auths-custody.workspace = true
-auths-did-keri.workspace = true
+auths-did-keri = { workspace = true, features = ["std"] }
 auths-did-key.workspace = true
 auths-model.workspace = true
 auths-ports.workspace = true

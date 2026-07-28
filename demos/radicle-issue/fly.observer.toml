@@ -1,0 +1,33 @@
+app = "auths-radicle-observer"
+primary_region = "cdg"
+kill_signal = "SIGINT"
+kill_timeout = 15
+
+[build]
+dockerfile = "Dockerfile"
+
+[env]
+PORT = "8080"
+AUTHS_RADICLE_ROLE = "observer"
+AUTHS_RADICLE_RAD_BIN = "/usr/local/bin/rad"
+AUTHS_RADICLE_GIT_BIN = "/usr/bin/git"
+AUTHS_RADICLE_HELPER_PATH = "/usr/local/bin:/usr/bin:/bin"
+AUTHS_RADICLE_HOME = "/data/radicle"
+AUTHS_RADICLE_LISTEN = "[::]:8776"
+AUTHS_RADICLE_EXPECTED_VERSION = "rad 1.9.1 (5bd3569e120a6172d9df68e1d1d0eed15e8104b1)"
+
+[[services]]
+protocol = "tcp"
+internal_port = 8776
+processes = ["app"]
+
+[[services.ports]]
+port = 8776
+
+[[mounts]]
+source = "auths_radicle_observer_data"
+destination = "/data"
+
+[[vm]]
+size = "shared-cpu-1x"
+memory = "512mb"

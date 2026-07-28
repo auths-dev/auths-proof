@@ -46,6 +46,7 @@ members = [
     "product/integrations/auths-evidence-assemblers",
     "product/integrations/auths-custody",
     "product/integrations/auths-resolver-did-web",
+    "product/integrations/auths-radicle",
     "product/profiles/auths-profile-api",
     "product/profiles/auths-profile-mcp",
     "product/profiles/auths-profile-domains",
@@ -65,6 +66,7 @@ members = [
     "demos/benchmarks/auths-bench-native",
     "demos/benchmarks/auths-bench-wasm",
     "demos/mcp/auths-mcp-demo",
+    "demos/radicle-issue",
     "xtask",
 ]
 
@@ -128,6 +130,7 @@ auths-deployment = { version = "0.1.0", path = "product/integrations/auths-deplo
 auths-resolver-did-web = { version = "0.1.0", path = "product/integrations/auths-resolver-did-web" }
 auths-evidence-assemblers = { version = "0.1.0", path = "product/integrations/auths-evidence-assemblers" }
 auths-custody = { version = "0.1.0", path = "product/integrations/auths-custody" }
+auths-radicle = { version = "0.1.0", path = "product/integrations/auths-radicle" }
 auths-apps-testkit = { version = "0.1.0", path = "demos/testkit/auths-apps-testkit" }
 auths-live-lab = { version = "0.1.0", path = "demos/live-lab" }
 auths-lab-matrix = { version = "0.1.0", path = "demos/matrix/auths-lab-matrix" }
