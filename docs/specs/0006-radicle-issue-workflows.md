@@ -267,7 +267,7 @@ Authorization
   Replay claim         consumed
 
 Radicle publication
-  Signer               did:rad:...
+  Signer               did:key:...
   Local storage        stored
   Announcement         announced
   Independent peer     replicated
@@ -1346,7 +1346,7 @@ desktop viewport.
 |                                |  |                                      |
 | (•) Exact candidate            |  | Auths decision      AUTHORIZED       |
 | ( ) Candidate byte changed     |  | Stable code         authorized       |
-| ( ) Different RID              |  | Signer              did:rad:...      |
+| ( ) Different RID              |  | Signer              did:key:...      |
 | ( ) Different issue            |  | Local storage       STORED           |
 | ( ) Base moved                 |  | Announcement        ANNOUNCED        |
 | ( ) Forbidden path             |  | Observer            REPLICATED       |
