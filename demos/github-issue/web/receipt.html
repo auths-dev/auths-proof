@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Inspect the signed Auths decision and execution receipts for one GitHub issue workflow."
+    />
+    <meta name="color-scheme" content="light" />
+    <title>Auths × GitHub — Signed workflow receipts</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#receipt-log">Skip to receipts</a>
+
+    <header class="site-header">
+      <nav class="nav-shell" aria-label="Primary navigation">
+        <a class="wordmark" href="/">
+          auths <i aria-hidden="true">/</i> <small>github lab</small>
+        </a>
+        <div class="nav-links">
+          <a href="/">Live demo</a>
+          <a href="https://github.com/auths-dev/auths-proof" target="_blank" rel="noreferrer">
+            Source ↗
+          </a>
+        </div>
+        <a class="nav-cta" href="/">Run another workflow →</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero receipt-hero">
+        <div class="shell hero-grid">
+          <div>
+            <p class="eyebrow"><i aria-hidden="true"></i> Signed workflow receipts</p>
+            <h1>What Auths approved. <em>What actually happened.</em></h1>
+          </div>
+          <div class="hero-copy">
+            <p>
+              This page reads the persistent append-only receipt log. The
+              native service verifies every Ed25519 signature before returning
+              a decision or execution record.
+            </p>
+            <ul>
+              <li>Persistent log</li>
+              <li>Signed envelopes</li>
+              <li>Exact postconditions</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="receipt-section" id="receipt-log">
+        <div class="shell">
+          <div class="connection-strip" aria-live="polite">
+            <span><i id="receipt-dot"></i> Receipt log <b id="receipt-state">loading</b></span>
+            <span>Workflow <b id="workflow-short">—</b></span>
+            <span class="release" id="receipt-total">0 envelopes</span>
+          </div>
+
+          <article class="receipt-page">
+            <header class="receipt-page-header">
+              <div>
+                <span class="micro">Public verification record</span>
+                <h2 id="receipt-title">Loading signed receipts.</h2>
+                <p id="receipt-detail">
+                  Requesting the exact workflow record from the native service.
+                </p>
+              </div>
+              <div class="receipt-verification" id="receipt-verification" data-state="loading">
+                <span>Signature status</span>
+                <strong>CHECKING</strong>
+              </div>
+            </header>
+
+            <dl class="receipt-metadata">
+              <div><dt>Workflow</dt><dd><code id="workflow-id">—</code></dd></div>
+              <div><dt>Receipt schema</dt><dd><code id="receipt-schema">—</code></dd></div>
+              <div><dt>Signer</dt><dd><code id="receipt-signer">—</code></dd></div>
+              <div><dt>Configuration</dt><dd id="configuration-result">—</dd></div>
+            </dl>
+
+            <section class="receipt-cards" id="receipt-cards" aria-live="polite"></section>
+
+            <section class="receipt-error" id="receipt-error" hidden>
+              <span class="micro">Receipt unavailable</span>
+              <h2>The signed workflow record could not be loaded.</h2>
+              <p id="receipt-error-detail">The receipt identifier may be invalid.</p>
+              <a href="/">Return to the live demo →</a>
+            </section>
+
+            <details class="receipt-viewer receipt-raw" id="receipt-raw" hidden>
+              <summary>View complete signed JSON envelopes <span id="raw-count">0</span></summary>
+              <pre id="receipt-json">—</pre>
+            </details>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="shell">
+        <a class="wordmark" href="/">auths <i>/</i> <small>github lab</small></a>
+        <p>Authorization decisions and external effects remain separate, signed records.</p>
+      </div>
+    </footer>
+
+    <script type="module" src="/receipt.js"></script>
+  </body>
+</html>
