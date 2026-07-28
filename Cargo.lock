@@ -518,6 +518,53 @@ dependencies = [
 ]
 
 [[package]]
+name = "auths-kubernetes"
+version = "0.1.0"
+dependencies = [
+ "auths-model",
+ "auths-profile-api",
+ "auths-sdk",
+ "hex",
+ "serde",
+ "serde_json",
+ "serde_json_canonicalizer",
+ "sha2 0.10.9",
+ "subtle",
+ "tempfile",
+ "thiserror 2.0.19",
+]
+
+[[package]]
+name = "auths-kubernetes-demo"
+version = "0.1.0"
+dependencies = [
+ "auths-author",
+ "auths-codec",
+ "auths-kubernetes",
+ "auths-model",
+ "auths-ports",
+ "auths-profile-api",
+ "auths-raw-key",
+ "auths-registries",
+ "auths-runtime",
+ "auths-sdk",
+ "auths-signature",
+ "axum",
+ "dotenvy",
+ "ed25519-dalek 2.2.0",
+ "getrandom 0.3.4",
+ "hex",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.19",
+ "tokio",
+ "tower",
+ "tower-http 0.7.0",
+]
+
+[[package]]
 name = "auths-lab-matrix"
 version = "0.1.0"
 dependencies = [

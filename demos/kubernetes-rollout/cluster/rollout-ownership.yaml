@@ -1,0 +1,14 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: color-service
+  namespace: auths-demo
+  annotations:
+    auths.dev/rollout: bootstrap
+spec:
+  replicas: 2
+  template:
+    spec:
+      containers:
+        - name: color-service
+          image: ghcr.io/auths-dev/auths-kubernetes-color-service@sha256:REPLACE_WITH_IMAGE_A

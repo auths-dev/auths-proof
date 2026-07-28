@@ -1,0 +1,7 @@
+<!doctype html>
+<html lang="en">
+  <head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Auths rollout target</title></head>
+  <body style="margin:0;display:grid;place-items:center;min-height:100vh;background:{{COLOR}};color:white;font:700 3rem system-ui">
+    <main><small style="display:block;font-size:.8rem;letter-spacing:.1em">LIVE KUBERNETES WORKLOAD</small>{{LABEL}}</main>
+  </body>
+</html>

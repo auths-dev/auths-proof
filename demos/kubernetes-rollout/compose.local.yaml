@@ -1,0 +1,50 @@
+name: auths-kubernetes-demo
+
+services:
+  backend:
+    build:
+      context: ../..
+      dockerfile: demos/kubernetes-rollout/Dockerfile
+    environment:
+      PORT: "8080"
+      AUTHS_KUBERNETES_ALLOWED_ORIGIN: "http://localhost:${AUTHS_KUBERNETES_LOCAL_PORT:-4173}"
+      AUTHS_KUBERNETES_API_SERVER: "${AUTHS_KUBERNETES_API_SERVER:-}"
+      AUTHS_KUBERNETES_CA_PEM: "${AUTHS_KUBERNETES_CA_PEM:-}"
+      AUTHS_KUBERNETES_EVIDENCE_TOKEN: "${AUTHS_KUBERNETES_EVIDENCE_TOKEN:-}"
+      AUTHS_KUBERNETES_MUTATION_TOKEN: "${AUTHS_KUBERNETES_MUTATION_TOKEN:-}"
+      AUTHS_KUBERNETES_CLUSTER_AUDIENCE: "${AUTHS_KUBERNETES_CLUSTER_AUDIENCE:-}"
+      AUTHS_KUBERNETES_NAMESPACE: "auths-demo"
+      AUTHS_KUBERNETES_DEPLOYMENT: "color-service"
+      AUTHS_KUBERNETES_CONTAINER: "color-service"
+      AUTHS_KUBERNETES_IMAGE_A: "${AUTHS_KUBERNETES_IMAGE_A:-}"
+      AUTHS_KUBERNETES_IMAGE_B: "${AUTHS_KUBERNETES_IMAGE_B:-}"
+      AUTHS_KUBERNETES_EXECUTOR_AUDIENCE: "http://localhost:${AUTHS_KUBERNETES_LOCAL_PORT:-4173}"
+      AUTHS_KUBERNETES_STATE_DIR: "/data/auths-kubernetes"
+      AUTHS_KUBERNETES_RELEASE: "local-docker"
+    networks:
+      - demo
+      - kind
+    volumes:
+      - auths-kubernetes-state:/data
+    restart: unless-stopped
+
+  web:
+    build:
+      context: web
+      dockerfile: Dockerfile.local
+    depends_on:
+      - backend
+    networks:
+      - demo
+    ports:
+      - "127.0.0.1:${AUTHS_KUBERNETES_LOCAL_PORT:-4173}:8080"
+    restart: unless-stopped
+
+networks:
+  demo:
+  kind:
+    external: true
+    name: kind
+
+volumes:
+  auths-kubernetes-state:

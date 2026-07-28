@@ -1,0 +1,18 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: color-service
+  namespace: auths-demo
+  labels:
+    app.kubernetes.io/name: auths-color-service
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: auths-color-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: auths-color-service
+    spec:
+      containers:
+        - name: color-service

@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="See Auths authorize one exact Kubernetes rollout while the proposing agent has no cluster credential." />
+    <meta name="color-scheme" content="light" />
+    <title>Auths × Kubernetes — One exact rollout</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#workbench">Skip to the demo</a>
+    <header class="site-header">
+      <nav class="nav-shell" aria-label="Primary navigation">
+        <a class="wordmark" href="https://auths-proof-site.vercel.app">auths <i>/</i> <small>kubernetes lab</small></a>
+        <div class="nav-links">
+          <a href="#workbench">Exact rollout</a>
+          <a href="#how">How it works</a>
+          <a href="https://github.com/auths-dev/auths-proof" target="_blank" rel="noreferrer">GitHub ↗</a>
+        </div>
+        <a class="nav-cta" href="#workbench">Run the demo →</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="shell hero-grid">
+          <div>
+            <p class="eyebrow"><i aria-hidden="true"></i> Auths × live Kubernetes</p>
+            <h1>Authorize one image. <em>Reject every other patch.</em></h1>
+          </div>
+          <div class="hero-copy">
+            <p>
+              A synthetic agent proposes a Deployment rollout without receiving
+              a kubeconfig or ServiceAccount token. Auths checks the exact image
+              digest, workload UID, namespace, replicas, cluster evidence, and
+              executor policy before the protected service can call Kubernetes.
+            </p>
+            <ul><li>Real Kubernetes API</li><li>Credential isolated from agent</li><li>Durable one-time claim</li></ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="workbench-section" id="workbench">
+        <div class="shell">
+          <div class="loading-card" id="loading-card" aria-live="polite">
+            <span class="loading-dot" aria-hidden="true"></span>
+            <div><strong>Reading the live Deployment</strong><p>The demo is collecting fresh cluster evidence.</p></div>
+          </div>
+
+          <div class="workbench" id="workbench-grid" hidden>
+            <section class="controls" aria-labelledby="controls-title">
+              <header class="panel-kicker"><span>01</span><strong>Choose what reaches Auths</strong><small>Verdict updates immediately</small></header>
+              <h2 id="controls-title">Change one rollout fact.</h2>
+              <p class="controls-intro">Every case starts from the same signed authorization. Choose one, inspect the result beside it, then submit it to the native executor.</p>
+
+              <div class="workload-card">
+                <span>Live Deployment</span>
+                <div><strong id="deployment-name">loading</strong><small id="cluster-name">cluster</small></div>
+                <dl>
+                  <div><dt>Namespace</dt><dd id="namespace">—</dd></div>
+                  <div><dt>Replicas</dt><dd id="replicas">—</dd></div>
+                  <div><dt>API mode</dt><dd id="cluster-mode">LIVE</dd></div>
+                </dl>
+                <div class="image-change">
+                  <span><small>Current image</small><code id="before-image">—</code></span>
+                  <b aria-hidden="true">→</b>
+                  <span><small>Authorized image</small><code id="after-image">—</code></span>
+                </div>
+              </div>
+
+              <div class="variant-list" id="variant-list" aria-label="Rollout experiments">
+                <button class="variant active" data-variant="exact" type="button" aria-pressed="true"><span><b>Exact rollout</b><small>Image digest, workload identity, replicas, and policy match</small></span><i>01</i></button>
+                <button class="variant" data-variant="image-changed" type="button" aria-pressed="false"><span><b>Image digest changed</b><small>The proposed digest changed after authorization</small></span><i>02</i></button>
+                <button class="variant" data-variant="mutable-tag" type="button" aria-pressed="false"><span><b>Mutable image tag</b><small>A tag replaces the immutable digest</small></span><i>03</i></button>
+                <button class="variant" data-variant="replicas-exceed" type="button" aria-pressed="false"><span><b>Replica limit exceeded</b><small>The patch asks for more replicas than policy permits</small></span><i>04</i></button>
+                <button class="variant" data-variant="forbidden-field" type="button" aria-pressed="false"><span><b>Security field added</b><small>The patch changes a field outside this profile</small></span><i>05</i></button>
+                <button class="variant" data-variant="namespace-changed" type="button" aria-pressed="false"><span><b>Namespace changed</b><small>The target namespace no longer matches</small></span><i>06</i></button>
+                <button class="variant" data-variant="resource-stale" type="button" aria-pressed="false"><span><b>Workload evidence stale</b><small>The Deployment resourceVersion changed</small></span><i>07</i></button>
+                <button class="variant" data-variant="configuration-changed" type="button" aria-pressed="false"><span><b>Executor policy changed</b><small>The loaded replica ceiling differs</small></span><i>08</i></button>
+              </div>
+
+              <div class="agent-boundary"><span>Agent credential check</span><strong>NO KUBECONFIG · NO TOKEN</strong><p>The mutation token exists only inside the protected native executor.</p></div>
+            </section>
+
+            <article class="result" aria-labelledby="result-title">
+              <header class="result-header">
+                <div><span class="micro">02 · Current authorization result</span><strong id="result-title">AUTH-V1 / KUBERNETES</strong></div>
+                <span class="live-state"><i aria-hidden="true"></i><b id="service-state">connecting</b></span>
+              </header>
+              <div class="verdict-block" aria-live="polite" aria-atomic="true">
+                <span class="micro">Verdict for selected case</span>
+                <strong id="verdict" data-kind="authorized">AUTHORIZED</strong>
+                <p id="verdict-detail">The exact Deployment rollout matches the signed authorization.</p>
+              </div>
+              <dl class="facts">
+                <div><dt>Proposed image</dt><dd id="proposed-image">—</dd></div>
+                <div><dt>Result code</dt><dd id="decision-code">authorized</dd></div>
+                <div><dt>Check stopped at</dt><dd id="decision-stage">auths-kernel</dd></div>
+                <div><dt>Kubernetes called</dt><dd id="kubernetes-called">NOT YET</dd></div>
+              </dl>
+              <div class="configuration">
+                <div><span>Required by authorization</span><code id="required-config">—</code></div>
+                <span id="config-link" class="config-link">exact match</span>
+                <div><span>Loaded by executor</span><code id="executed-config">—</code></div>
+              </div>
+
+              <section class="execution">
+                <div class="execution-action">
+                  <span class="micro">03 · Submit to protected executor</span>
+                  <h3 id="execution-title">Apply the exact rollout.</h3>
+                  <p id="execution-copy">The executor will claim this action, request its restricted Kubernetes token, apply the exact patch, and verify convergence.</p>
+                  <button id="execute" type="button">Apply exact rollout</button>
+                  <a id="receipt-link" class="receipt-link" href="#" target="_blank" rel="noreferrer" hidden>Open dedicated receipt page ↗</a>
+                </div>
+                <section class="execution-status" aria-live="polite">
+                  <span class="micro">Execution evidence</span><h3>What actually happened</h3>
+                  <ol id="receipt-timeline">
+                    <li data-stage="authorized"><span>Exact action authorized</span><strong>ready</strong></li>
+                    <li data-stage="claimed"><span>One execution claimed</span><strong>—</strong></li>
+                    <li data-stage="credential"><span>Mutation token requested</span><strong>—</strong></li>
+                    <li data-stage="api"><span>Kubernetes accepted patch</span><strong>—</strong></li>
+                    <li data-stage="persisted"><span>Deployment state verified</span><strong>—</strong></li>
+                    <li data-stage="converged"><span>Rollout became available</span><strong>—</strong></li>
+                  </ol>
+                </section>
+              </section>
+
+              <dl class="rollout-artifact" id="rollout-artifact" hidden>
+                <div><dt>Generation</dt><dd id="generation">—</dd></div>
+                <div><dt>Observed</dt><dd id="observed-generation">—</dd></div>
+                <div><dt>Available replicas</dt><dd id="available-replicas">—</dd></div>
+                <div><dt>API audit ID</dt><dd><code id="audit-id">—</code></dd></div>
+              </dl>
+
+              <details class="receipt-viewer" id="receipt-viewer" hidden>
+                <summary>View the machine-readable receipt <span id="receipt-state">recorded</span></summary>
+                <pre id="receipt-json">Run a case to load its receipt.</pre>
+              </details>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="how" id="how">
+        <div class="shell">
+          <p class="eyebrow"><i aria-hidden="true"></i> The credential boundary</p>
+          <div class="how-grid">
+            <h2>The agent proposes a patch. It cannot access the cluster.</h2>
+            <p>Kubernetes RBAC still protects the API, but Auths prevents its token from becoming the agent’s reusable authority. The native service requests the mutation token only after the exact signed action, fresh cluster evidence, verifier policy, and one-time claim match.</p>
+          </div>
+          <div class="flow" aria-label="Exact rollout flow">
+            <article><span>01</span><strong>Human</strong><p>Authorizes one Deployment image digest and replica count.</p></article><b aria-hidden="true">→</b>
+            <article><span>02</span><strong>Agent</strong><p>Submits the patch and proof without cluster credentials.</p></article><b aria-hidden="true">→</b>
+            <article><span>03</span><strong>Auths</strong><p>Checks exact bytes, workload evidence, and policy.</p></article><b aria-hidden="true">→</b>
+            <article><span>04</span><strong>Kubernetes</strong><p>Receives one claimed patch from the protected executor.</p></article>
+          </div>
+        </div>
+      </section>
+    </main>
+    <footer><div class="shell"><a class="wordmark" href="#">auths <i>/</i> <small>kubernetes lab</small></a><p>Live isolated demo cluster. No production workloads.</p><span id="release">Connecting…</span></div></footer>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
