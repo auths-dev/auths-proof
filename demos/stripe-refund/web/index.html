@@ -159,8 +159,8 @@
                     Stripe key, and submit these exact parameters.
                   </p>
                   <button id="execute" type="button">Create exact $10.00 refund</button>
-                  <a id="receipt-link" class="receipt-link" href="#" target="_blank" hidden>
-                    Inspect machine-readable receipts ↗
+                  <a id="receipt-link" class="receipt-link" href="#" target="_blank" rel="noreferrer" hidden>
+                    Open dedicated receipt page ↗
                   </a>
                 </div>
 
@@ -183,6 +183,11 @@
                 <div><dt>Request ID</dt><dd><code id="request-id">—</code></dd></div>
                 <div><dt>Amount</dt><dd><strong id="executed-amount">—</strong></dd></div>
               </dl>
+
+              <details class="receipt-viewer" id="receipt-viewer" hidden>
+                <summary>View the machine-readable receipt <span id="receipt-state">recorded</span></summary>
+                <pre id="receipt-json">Run a case to load its receipt.</pre>
+              </details>
             </article>
           </div>
         </div>
