@@ -1,0 +1,420 @@
+use std::sync::Arc;
+
+use auths_author::{GrantRequest, plan_child_grant, prepare_action, prepare_grant};
+use auths_codec::{action_id, body_digest, encode_bundle, evidence_id, grant_id, plan_id};
+use auths_model::{
+    AcceptedRegistries, ActionConstraint, ActionEnvelope, AssuranceClaimId, AssurancePolicy,
+    AssurancePolicyId, AssuranceQuantifier, AssuranceRequirement, AudienceSet, AuthorizationPlan,
+    BudgetAlgebraId, BudgetCeiling, BundleHeader, Challenge, ChannelBindingId,
+    CompositionRequirement, ControlBinding, CriticalExtensions, EvidenceId, EvidenceObject,
+    EvidenceTypeId, GrantStatement, GrantStatusSnapshot, MediaType, ParticipantRole, PermissionSet,
+    PrincipalId, PrincipalMethodId, PrincipalStatusSnapshot, ProfilePolicyId, ProofBundle,
+    ProofRef, ResourceId, ResourceMatcherId, SignatureBytes, SignatureDescriptor, SignatureSuiteId,
+    StatementRef, StatusPolicy, StatusSnapshotId, Timestamp, TrustAnchor, TrustAnchorId,
+    ValidityWindow, VerificationMethod, VerifierContext, VerifierLimits,
+};
+use auths_ports::{PrincipalMethod, SignatureSuite};
+use auths_profile_api::ActionProfile as _;
+use auths_raw_key::{RAW_KEY_MEDIA_TYPE, RAW_KEY_V1, RawKeyDescriptor, RawKeyMethod, RawKeyType};
+use auths_runtime::AuthsKernel;
+use auths_sdk::{RequestContext, Verifier};
+use auths_signature::{ED25519_V1, Ed25519Suite};
+use auths_stripe::{ExactRefundActionV1, StripeRefundProfile};
+use ed25519_dalek::{Signer as _, SigningKey};
+
+const HUMAN_SEED: [u8; 32] = [0x81; 32];
+const WORKFLOW_SEED: [u8; 32] = [0x82; 32];
+const AGENT_SEED: [u8; 32] = [0x83; 32];
+const ASSURANCE_POLICY: &str = "raw-key-baseline";
+const RESOURCE_MATCHER: &str = "uri-namespace-v1";
+const PROFILE_POLICY: &str = "exact-v1";
+
+pub struct AuthorizationFixture {
+    pub verifier: Verifier,
+    pub proof: Vec<u8>,
+    pub request: RequestContext,
+    pub human_principal: String,
+    pub workflow_principal: String,
+    pub agent_principal: String,
+}
+
+/// Builds one deterministic Auths delegation for an exact refund action.
+#[must_use]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the fixture mirrors every signed Auths object explicitly"
+)]
+pub fn authorization_fixture(
+    action: &ExactRefundActionV1,
+    now: u64,
+    challenge: [u8; 32],
+) -> AuthorizationFixture {
+    let canonical = StripeRefundProfile
+        .canonicalize(&action.canonical_bytes().unwrap())
+        .unwrap();
+    let human = Identity::new(HUMAN_SEED);
+    let workflow = Identity::new(WORKFLOW_SEED);
+    let agent = Identity::new(AGENT_SEED);
+    let proof_ref = ProofRef::new([0x84; 32]);
+    let plan = AuthorizationPlan::proof(proof_ref);
+    let plan_identifier = plan_id(&plan).unwrap();
+    let validity =
+        ValidityWindow::new(Timestamp::new(now - 60), Timestamp::new(now + 300)).unwrap();
+    let audience = auths_model::Audience::parse(action.executor_audience()).unwrap();
+    let assurance_id = AssurancePolicyId::parse(ASSURANCE_POLICY).unwrap();
+    let permissions = PermissionSet::new(vec![canonical.permission().clone()]).unwrap();
+    let audiences = AudienceSet::new(vec![audience.clone()]).unwrap();
+    let budget = canonical.requested_budget().cloned();
+
+    let root_statement = GrantStatement::new(
+        human.principal.clone(),
+        workflow.principal.clone(),
+        canonical.profile().clone(),
+        permissions.clone(),
+        validity,
+        audiences.clone(),
+        ActionConstraint::AnyBody,
+        budget.clone(),
+        1,
+        None,
+        StatusPolicy::ExpiryOnly,
+        assurance_id.clone(),
+        CriticalExtensions::empty(),
+    );
+    let root_request = prepare_grant(root_statement, human.descriptor()).unwrap();
+    let root_signature = human.sign(root_request.signing_preimage());
+    let root_grant = root_request.complete(root_signature);
+
+    let child_plan = plan_child_grant(
+        root_grant.statement(),
+        GrantRequest::new(
+            agent.principal.clone(),
+            canonical.profile().clone(),
+            permissions,
+            validity,
+            audiences,
+            ActionConstraint::ExactBodyDigest(body_digest(canonical.body())),
+            budget,
+            0,
+            StatusPolicy::ExpiryOnly,
+            assurance_id.clone(),
+            CriticalExtensions::empty(),
+        ),
+    )
+    .unwrap();
+    let child_request = prepare_grant(child_plan.into_statement(), workflow.descriptor()).unwrap();
+    let child_signature = workflow.sign(child_request.signing_preimage());
+    let child_grant = child_request.complete(child_signature);
+    let terminal_grant = grant_id(child_grant.statement()).unwrap();
+
+    let envelope = ActionEnvelope::new(
+        canonical.profile().clone(),
+        canonical.media_type().clone(),
+        body_digest(canonical.body()),
+        canonical.permission().clone(),
+        canonical.requested_budget().cloned(),
+        audience.clone(),
+        Challenge::new(challenge),
+        validity,
+        agent.principal.clone(),
+        Some(terminal_grant),
+        plan_identifier,
+        ChannelBindingId::parse("none-v1").unwrap(),
+        proof_ref,
+        Vec::new(),
+        CriticalExtensions::empty(),
+    );
+    let action_request = prepare_action(envelope, agent.descriptor()).unwrap();
+    let action_signature = agent.sign(action_request.signing_preimage());
+    let signed_action = action_request.complete(action_signature);
+
+    let human_evidence = human.evidence();
+    let workflow_evidence = workflow.evidence();
+    let agent_evidence = agent.evidence();
+    let bindings = vec![
+        ControlBinding::new(
+            StatementRef::Grant(grant_id(root_grant.statement()).unwrap()),
+            vec![human_evidence.id()],
+        )
+        .unwrap(),
+        ControlBinding::new(
+            StatementRef::Grant(terminal_grant),
+            vec![workflow_evidence.id()],
+        )
+        .unwrap(),
+        ControlBinding::new(
+            StatementRef::Action(action_id(signed_action.envelope()).unwrap()),
+            vec![agent_evidence.id()],
+        )
+        .unwrap(),
+    ];
+    let bundle = ProofBundle::new(
+        BundleHeader::v1(),
+        vec![root_grant, child_grant],
+        vec![signed_action],
+        plan,
+        vec![human_evidence, workflow_evidence, agent_evidence],
+        bindings,
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+        Some(canonical.body().to_vec()),
+    )
+    .unwrap();
+    let assurance = AssurancePolicy::new(
+        assurance_id.clone(),
+        vec![
+            AssuranceRequirement::new(
+                ParticipantRole::Root,
+                AssuranceQuantifier::Every,
+                AssuranceClaimId::parse("self-certifying-identifier").unwrap(),
+                None,
+            ),
+            AssuranceRequirement::new(
+                ParticipantRole::Actor,
+                AssuranceQuantifier::Every,
+                AssuranceClaimId::parse("self-certifying-identifier").unwrap(),
+                None,
+            ),
+        ],
+    )
+    .unwrap();
+    let namespace = format!("stripe-test://{}", action.stripe_account_id());
+    let anchor = TrustAnchor::new(
+        TrustAnchorId::parse(human.principal.as_str()).unwrap(),
+        human.principal.clone(),
+        vec![PrincipalMethodId::parse(RAW_KEY_V1).unwrap()],
+        vec![canonical.profile().clone()],
+        PermissionSet::new(vec![canonical.permission().clone()]).unwrap(),
+        vec![ResourceId::parse(&namespace).unwrap()],
+        AudienceSet::new(vec![audience.clone()]).unwrap(),
+        validity,
+        Some(BudgetCeiling::new(
+            BudgetAlgebraId::parse("numeric-ceiling-v1").unwrap(),
+            1,
+        )),
+        2,
+        assurance_id,
+        StatusPolicy::ExpiryOnly,
+    )
+    .unwrap();
+    let configuration = verifier_configuration();
+    let registries = AcceptedRegistries::new(
+        auths_registries::TARGET_V1_REGISTRY_MANIFEST,
+        vec![PrincipalMethodId::parse(RAW_KEY_V1).unwrap()],
+        vec![SignatureSuiteId::parse(ED25519_V1).unwrap()],
+        vec![EvidenceTypeId::parse(RAW_KEY_V1).unwrap()],
+        Vec::new(),
+        Vec::new(),
+        vec![
+            AssuranceClaimId::parse("offline-verifiable").unwrap(),
+            AssuranceClaimId::parse("self-certifying-identifier").unwrap(),
+        ],
+        Vec::new(),
+        vec![ResourceMatcherId::parse(RESOURCE_MATCHER).unwrap()],
+        vec![BudgetAlgebraId::parse("numeric-ceiling-v1").unwrap()],
+        Vec::new(),
+        vec![canonical.profile().clone()],
+        vec![ProfilePolicyId::parse(PROFILE_POLICY).unwrap()],
+    )
+    .unwrap();
+    let context = VerifierContext::new(
+        configuration,
+        CompositionRequirement::exact(plan_identifier),
+        vec![anchor],
+        registries,
+        audience,
+        Challenge::new(challenge),
+        Timestamp::new(now),
+        assurance,
+        PrincipalStatusSnapshot::new(
+            StatusSnapshotId::new([0x85; 32]),
+            Timestamp::new(now - 60),
+            Timestamp::new(now + 300),
+            Vec::new(),
+            Vec::new(),
+        )
+        .unwrap(),
+        GrantStatusSnapshot::new(
+            StatusSnapshotId::new([0x86; 32]),
+            Timestamp::new(now - 60),
+            Timestamp::new(now + 300),
+            Vec::new(),
+            Vec::new(),
+        )
+        .unwrap(),
+        ResourceMatcherId::parse(RESOURCE_MATCHER).unwrap(),
+        ProfilePolicyId::parse(PROFILE_POLICY).unwrap(),
+        ChannelBindingId::parse("none-v1").unwrap(),
+        VerifierLimits::default(),
+    )
+    .unwrap();
+    let methods: Vec<Box<dyn PrincipalMethod + Send + Sync>> =
+        vec![Box::new(RawKeyMethod::new().unwrap())];
+    let suites: Vec<Box<dyn SignatureSuite + Send + Sync>> =
+        vec![Box::new(Ed25519Suite::new().unwrap())];
+    let kernel = AuthsKernel::new(context, methods, suites).unwrap();
+    AuthorizationFixture {
+        verifier: Verifier::new(Arc::new(kernel)),
+        proof: encode_bundle(&bundle).unwrap(),
+        request: RequestContext::new(action.executor_audience(), challenge, now).unwrap(),
+        human_principal: human.principal.to_string(),
+        workflow_principal: workflow.principal.to_string(),
+        agent_principal: agent.principal.to_string(),
+    }
+}
+
+fn verifier_configuration() -> auths_model::VerifierConfigurationId {
+    let method = RawKeyMethod::new().unwrap();
+    let suite = Ed25519Suite::new().unwrap();
+    auths_registries::ImmutableRegistries::new(
+        &[&method as &dyn PrincipalMethod],
+        &[&suite as &dyn SignatureSuite],
+    )
+    .unwrap()
+    .configuration_id()
+}
+
+struct Identity {
+    signing: SigningKey,
+    raw: RawKeyDescriptor,
+    principal: PrincipalId,
+}
+
+impl Identity {
+    fn new(seed: [u8; 32]) -> Self {
+        let signing = SigningKey::from_bytes(&seed);
+        let raw = RawKeyDescriptor::new(
+            RawKeyType::Ed25519,
+            signing.verifying_key().to_bytes().to_vec(),
+        )
+        .unwrap();
+        let principal = raw.principal().unwrap();
+        Self {
+            signing,
+            raw,
+            principal,
+        }
+    }
+
+    fn descriptor(&self) -> SignatureDescriptor {
+        SignatureDescriptor::new(
+            PrincipalMethodId::parse(RAW_KEY_V1).unwrap(),
+            VerificationMethod::parse(self.principal.as_str()).unwrap(),
+            SignatureSuiteId::parse(ED25519_V1).unwrap(),
+        )
+    }
+
+    fn sign(&self, preimage: &[u8]) -> SignatureBytes {
+        SignatureBytes::new(self.signing.sign(preimage).to_bytes().to_vec()).unwrap()
+    }
+
+    fn evidence(&self) -> EvidenceObject {
+        let unaddressed = EvidenceObject::new(
+            EvidenceId::new([0; 32]),
+            EvidenceTypeId::parse(RAW_KEY_V1).unwrap(),
+            MediaType::parse(RAW_KEY_MEDIA_TYPE).unwrap(),
+            self.raw.encode(),
+        )
+        .unwrap();
+        EvidenceObject::new(
+            evidence_id(&unaddressed).unwrap(),
+            unaddressed.evidence_type().clone(),
+            unaddressed.media_type().clone(),
+            unaddressed.bytes().to_vec(),
+        )
+        .unwrap()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use auths_profile_api::ActionProfile as _;
+    use auths_sdk::VerifyResult;
+    use auths_stripe::{
+        ChargeId, Currency, ExactRefundActionInput, ExactRefundActionV1, Money,
+        RefundEvidenceInput, RefundEvidenceV1, StripeAccountId, StripeRefundProfile,
+        StripeVerifierConfiguration, StripeVerifierConfigurationInput,
+    };
+
+    use super::*;
+
+    #[test]
+    fn exact_refund_is_authorized_by_real_auths_kernel() {
+        let now = 1_800_000_000;
+        let account = StripeAccountId::parse("acct_authsdemo01").unwrap();
+        let currency = Currency::parse("usd").unwrap();
+        let configuration = StripeVerifierConfiguration::new(StripeVerifierConfigurationInput {
+            allowed_test_account_ids: vec![account.clone()],
+            allowed_api_versions: vec!["2025-04-30.basil".into()],
+            allowed_currencies: vec![currency.clone()],
+            maximum_refund_minor_by_currency: BTreeMap::from([(currency.clone(), 2_000)]),
+            allowed_reasons: vec!["requested_by_customer".into()],
+            maximum_evidence_age_seconds: 300,
+            maximum_authorization_lifetime_seconds: 300,
+            allow_partial_refunds: true,
+            allow_refund_application_fee: false,
+            allow_reverse_transfer: false,
+            allowed_metadata_keys: vec!["auths_workflow".into()],
+            executor_audience: "https://stripe-executor.auths.dev".into(),
+            receipt_schema_version: "auths.stripe.receipt/1".into(),
+        })
+        .unwrap();
+        let evidence = RefundEvidenceV1::new(RefundEvidenceInput {
+            stripe_account_id: account.clone(),
+            stripe_api_version: "2025-04-30.basil".into(),
+            livemode: false,
+            charge_id: ChargeId::parse("ch_authsdemo00000001").unwrap(),
+            payment_intent_id: None,
+            currency: currency.clone(),
+            charge_amount_minor: 2_000,
+            amount_refunded_minor: 0,
+            paid: true,
+            captured: true,
+            charge_refunded: false,
+            disputed: false,
+            observed_at: now,
+            response_commitment: auths_stripe::canonical::sha256(b"charge"),
+        })
+        .unwrap();
+        let action = ExactRefundActionV1::new(ExactRefundActionInput {
+            workflow_id: "stripe-fixture-workflow".into(),
+            executor_audience: configuration.executor_audience().into(),
+            stripe_account_id: account,
+            stripe_api_version: "2025-04-30.basil".into(),
+            livemode: false,
+            charge_id: evidence.charge_id().clone(),
+            payment_intent_id: None,
+            amount: Money::new(currency, 1_000).unwrap(),
+            reason: Some("requested_by_customer".into()),
+            metadata: BTreeMap::from([("auths_workflow".into(), "stripe-fixture-workflow".into())]),
+            refund_application_fee: false,
+            reverse_transfer: false,
+            expected_charge_amount_minor: 2_000,
+            expected_amount_refunded_minor: 0,
+            expected_refundable_amount_minor: 2_000,
+            evidence_digest: evidence.digest().unwrap(),
+            required_configuration_digest: configuration.digest().unwrap(),
+            observed_at: now,
+            expires_at: now + 300,
+            nonce: auths_stripe::canonical::sha256(b"nonce"),
+        })
+        .unwrap();
+        let fixture = authorization_fixture(&action, now, [0x87; 32]);
+        let canonical = StripeRefundProfile
+            .canonicalize(&action.canonical_bytes().unwrap())
+            .unwrap();
+        let result = fixture
+            .verifier
+            .verify(
+                &fixture.proof,
+                &canonical,
+                &fixture.request,
+                &StripeRefundProfile,
+            )
+            .unwrap();
+        assert!(matches!(result, VerifyResult::Authorized(_)));
+    }
+}
