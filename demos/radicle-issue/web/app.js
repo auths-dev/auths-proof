@@ -78,14 +78,14 @@ function renderDecision() {
   elements.execute.disabled = state.busy || !state.session;
   elements.execute.textContent =
     state.active === "exact" && state.exactExecuted
-      ? "Replay the exact workflow"
+      ? "Submit the same request again"
       : decision.class === "authorized"
-        ? "Execute the authorized patch"
-        : "Submit denied case to native Rust";
+        ? "Publish the authorized patch once"
+        : "Run this denied request";
   elements.executionCopy.textContent =
     decision.class === "authorized"
-      ? "The Auths kernel authorized the human-to-agent delegation. Native execution still needs a one-time claim."
-      : "This case stops at containment. Submit it to confirm the signer and executor remain unreachable.";
+      ? "This request matches the signed authorization. The executor can publish one Radicle patch."
+      : "This request does not match the signed authorization. Run it to confirm that execution stops before the signer is contacted.";
   elements.list.querySelectorAll("[data-variant]").forEach((button) => {
     const active = button.dataset.variant === state.active;
     button.classList.toggle("active", active);
@@ -146,7 +146,7 @@ async function execute() {
   if (state.busy || !state.session) return;
   state.busy = true;
   elements.execute.disabled = true;
-  elements.execute.textContent = "Running native Rust…";
+  elements.execute.textContent = "Running native verifier…";
   try {
     const result = await request(
       `/api/v1/sessions/${state.session.session_id}/execute`,
@@ -159,22 +159,22 @@ async function execute() {
     if (state.active === "exact") state.exactExecuted = true;
     renderExecution(result);
     elements.executionCopy.textContent = result.entered_executor
-      ? "The sealed command crossed the executor boundary exactly once. Try replaying it."
-      : "Native Rust confirmed the signer and executor were never reached.";
+      ? "The executor published one Radicle patch and left the canonical branch unchanged. Submit it again to test replay protection."
+      : "The native service rejected the request before entering the executor or contacting the signer.";
   } catch (error) {
     elements.entered.textContent = error.code === "execution-lease-consumed" ? "BLOCKED" : "ERROR";
     elements.executions.textContent = state.exactExecuted ? "1" : "0";
     elements.executionCopy.textContent =
       error.code === "execution-lease-consumed"
-        ? "Replay blocked: the durable execution lease was already consumed."
+        ? "Replay rejected because this session's one execution was already used."
         : error.message;
   } finally {
     state.busy = false;
     elements.execute.disabled = false;
     elements.execute.textContent =
       state.active === "exact" && state.exactExecuted
-        ? "Replay the exact workflow"
-        : "Run selected case in native Rust";
+        ? "Submit the same request again"
+        : "Run selected request";
   }
 }
 

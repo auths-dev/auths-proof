@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="Watch Auths turn one human authorization into one exact Radicle patch—and stop every nearby action."
+      content="Watch Auths publish one exactly authorized Radicle patch and reject changed requests."
     />
     <meta name="color-scheme" content="light" />
     <title>Auths × Radicle — One issue, one exact patch</title>
@@ -20,13 +20,13 @@
           auths <i aria-hidden="true">/</i> <small>radicle lab</small>
         </a>
         <div class="nav-links">
-          <a href="#why">Why it matters</a>
-          <a href="#receipts">Receipts</a>
+          <a href="#why">Key isolation</a>
+          <a href="#execution-status">Execution status</a>
           <a href="https://github.com/auths-dev/auths-proof" target="_blank" rel="noreferrer">
             GitHub ↗
           </a>
         </div>
-        <a class="nav-cta" href="#workbench">Run the workflow →</a>
+        <a class="nav-cta" href="#workbench">Open the demo →</a>
       </nav>
     </header>
 
@@ -35,18 +35,18 @@
         <div class="shell hero-grid">
           <div>
             <p class="eyebrow"><i aria-hidden="true"></i> Auths × Radicle, live</p>
-            <h1>Let the agent propose. <em>Keep the authority human.</em></h1>
+            <h1>Approve one patch. <em>Reject any changed request.</em></h1>
           </div>
           <div class="hero-copy">
             <p>
-              A human authorizes one issue, one repository state, one bounded
-              change. An agent can produce the patch—but cannot quietly expand
-              what was approved.
+              A human approves one exact patch. Auths checks that the request,
+              repository state, and verifier configuration still match before
+              the Radicle signer can publish it.
             </p>
             <ul>
-              <li>Real Auths proof</li>
-              <li>Real Git inspection</li>
-              <li>Execute once</li>
+              <li>Exact request bytes</li>
+              <li>Signer isolated from agent</li>
+              <li>One permitted publication</li>
             </ul>
           </div>
         </div>
@@ -58,37 +58,37 @@
             <section class="controls" aria-labelledby="controls-title">
               <header class="panel-kicker">
                 <span>01</span>
-                <strong>Change one fact</strong>
-                <small>Decision updates instantly</small>
+                <strong>Choose a test case</strong>
+                <small>Result updates immediately</small>
               </header>
-              <h2 id="controls-title">What should the executor see?</h2>
+              <h2 id="controls-title">Select what reaches the verifier.</h2>
               <p class="controls-intro">
-                These are fixed, repository-owned experiments. No arbitrary
-                repository or Git upload reaches the public service.
+                Every case starts from the same signed approval. The selected
+                case changes one request or repository fact.
               </p>
               <div class="variant-list" id="variant-list">
                 <button class="variant active" data-variant="exact" type="button" aria-pressed="true">
-                  <span><b>Exact workflow</b><small>Nothing changed after approval</small></span>
+                  <span><b>Exact approved request</b><small>The patch, policy, and issue state all match</small></span>
                   <i>01</i>
                 </button>
                 <button class="variant" data-variant="request-changed" type="button" aria-pressed="false">
-                  <span><b>Request changed</b><small>The patch body differs</small></span>
+                  <span><b>Patch body changed</b><small>The request bytes no longer match the approval</small></span>
                   <i>02</i>
                 </button>
                 <button class="variant" data-variant="configuration-drift" type="button" aria-pressed="false">
-                  <span><b>Policy drifted</b><small>The executor loaded another config</small></span>
+                  <span><b>Verifier config changed</b><small>The executor loaded a different configuration</small></span>
                   <i>03</i>
                 </button>
                 <button class="variant" data-variant="issue-closed" type="button" aria-pressed="false">
-                  <span><b>Issue closed</b><small>Radicle state changed before execution</small></span>
+                  <span><b>Issue closed</b><small>The current Radicle issue state no longer permits execution</small></span>
                   <i>04</i>
                 </button>
               </div>
               <div class="grant-note">
-                <span>Human grant</span>
+                <span>Signed authorization</span>
                 <p>
-                  Address issue <code id="issue-short">loading</code> in
-                  <code>demo/runs/</code>, once. Never update canonical.
+                  Publish one patch for issue <code id="issue-short">loading</code>
+                  under <code>demo/runs/</code>. Do not update the canonical branch.
                 </p>
               </div>
             </section>
@@ -96,7 +96,7 @@
             <article class="result" aria-labelledby="result-title">
               <header class="result-header">
                 <div>
-                  <span class="micro">02 · Authorization result</span>
+                  <span class="micro">02 · Authorization check</span>
                   <strong id="result-title">AUTH-V1 / RADICLE</strong>
                 </div>
                 <span class="live-state"><i aria-hidden="true"></i><b id="service-state">connecting</b></span>
@@ -105,49 +105,61 @@
               <div class="verdict-block" aria-live="polite" aria-atomic="true">
                 <span class="micro">Current verdict</span>
                 <strong id="verdict" data-kind="loading">LOADING</strong>
-                <p id="verdict-detail">Building the exact Git and Auths fixture.</p>
+                <p id="verdict-detail">Preparing the demo repository and signed authorization.</p>
               </div>
 
               <dl class="facts">
-                <div><dt>Stable code</dt><dd id="decision-code">—</dd></div>
-                <div><dt>Decision stage</dt><dd id="decision-stage">—</dd></div>
-                <div><dt>Signer reachable</dt><dd id="signer-reached">—</dd></div>
-                <div><dt>Canonical update</dt><dd>NEVER</dd></div>
+                <div><dt>Result code</dt><dd id="decision-code">—</dd></div>
+                <div><dt>Check stopped at</dt><dd id="decision-stage">—</dd></div>
+                <div><dt>Signer contacted</dt><dd id="signer-reached">—</dd></div>
+                <div><dt>Canonical branch</dt><dd>UNCHANGED</dd></div>
               </dl>
 
               <div class="configuration">
                 <div>
-                  <span>Required configuration</span>
+                  <span>Required by authorization</span>
                   <code id="required-config">—</code>
                 </div>
                 <span id="config-link" class="config-link">checking</span>
                 <div>
-                  <span>Executed configuration</span>
+                  <span>Loaded by executor</span>
                   <code id="executed-config">—</code>
                 </div>
               </div>
 
               <section class="execution">
-                <div>
-                  <span class="micro">03 · Native enforcement</span>
-                  <h3>Verification repeats. Execution does not.</h3>
+                <div class="execution-action">
+                  <span class="micro">03 · Run native executor</span>
+                  <h3>Submit the selected case.</h3>
                   <p id="execution-copy">
-                    Run the selected case through native Rust. Only an exact
-                    workflow can cross the sealed executor boundary.
+                    The exact request can publish one Radicle patch. Every
+                    changed case must stop before the signer is contacted.
                   </p>
+                  <button id="execute" type="button" disabled>Connecting to executor</button>
+                  <div class="execution-stats">
+                    <div><span>Executor started</span><strong id="entered">—</strong></div>
+                    <div><span>Patches published</span><strong id="executions">—</strong></div>
+                    <div><span>Steps recorded</span><strong id="receipt-count">—</strong></div>
+                  </div>
+                  <dl class="publication-artifact" id="publication-artifact" hidden>
+                    <div><dt>Radicle patch</dt><dd><code id="patch-id">—</code></dd></div>
+                    <div><dt>Published by</dt><dd><code id="publisher-did">—</code></dd></div>
+                    <div><dt>Observed by</dt><dd><code id="observer-id">—</code></dd></div>
+                    <div><dt>Canonical branch</dt><dd><strong>UNCHANGED</strong></dd></div>
+                  </dl>
                 </div>
-                <button id="execute" type="button" disabled>Connecting to native Rust</button>
-                <div class="execution-stats">
-                  <div><span>Executor entered</span><strong id="entered">—</strong></div>
-                  <div><span>Executions</span><strong id="executions">—</strong></div>
-                  <div><span>Receipts</span><strong id="receipt-count">—</strong></div>
-                </div>
-                <dl class="publication-artifact" id="publication-artifact" hidden>
-                  <div><dt>Real patch</dt><dd><code id="patch-id">—</code></dd></div>
-                  <div><dt>Published by</dt><dd><code id="publisher-did">—</code></dd></div>
-                  <div><dt>Observed by</dt><dd><code id="observer-id">—</code></dd></div>
-                  <div><dt>Canonical branch</dt><dd><strong>UNCHANGED</strong></dd></div>
-                </dl>
+                <section class="claim-status" id="execution-status" aria-live="polite">
+                  <span class="micro">Execution status</span>
+                  <h3>What the native service completed</h3>
+                  <p>Each row reports a separate completed step.</p>
+                  <ol id="receipt-timeline">
+                    <li data-stage="authorized"><span>Request authorized</span><strong>Awaiting run</strong></li>
+                    <li data-stage="claimed"><span>One execution reserved</span><strong>—</strong></li>
+                    <li data-stage="stored"><span>Patch stored locally</span><strong>—</strong></li>
+                    <li data-stage="announced"><span>Patch announced</span><strong>—</strong></li>
+                    <li data-stage="replicated"><span>Observer found patch</span><strong>—</strong></li>
+                  </ol>
+                </section>
               </section>
             </article>
           </div>
@@ -156,7 +168,7 @@
 
       <section class="why" id="why">
         <div class="shell">
-          <p class="eyebrow"><i aria-hidden="true"></i> The missing boundary</p>
+          <p class="eyebrow"><i aria-hidden="true"></i> Why the signer is isolated</p>
           <div class="why-grid">
             <h2>The agent never receives the Radicle signing key.</h2>
             <div>
@@ -168,41 +180,21 @@
               <p>
                 Here, the agent produces evidence. The executor independently
                 inspects Git, synchronizes Radicle, verifies the human’s Auths
-                delegation, claims execution once, and only then reaches the
-                signer.
+                authorization, reserves the one allowed execution, and only
+                then contacts the signer.
               </p>
             </div>
           </div>
 
           <div class="flow" aria-label="Authorization flow">
-            <article><span>01</span><strong>Human</strong><p>Signs the bounded issue-addressing grant.</p></article>
+            <article><span>01</span><strong>Human</strong><p>Approves one patch for one issue.</p></article>
             <b aria-hidden="true">→</b>
-            <article><span>02</span><strong>Agent</strong><p>Returns a candidate bundle, not a credential.</p></article>
+            <article><span>02</span><strong>Agent</strong><p>Submits the patch and proof without receiving the key.</p></article>
             <b aria-hidden="true">→</b>
-            <article><span>03</span><strong>Auths</strong><p>Proves the exact action is contained.</p></article>
+            <article><span>03</span><strong>Auths</strong><p>Checks the patch, repository state, and configuration.</p></article>
             <b aria-hidden="true">→</b>
-            <article><span>04</span><strong>Radicle</strong><p>Stores one patch; canonical remains untouched.</p></article>
+            <article><span>04</span><strong>Radicle</strong><p>Publishes one patch without changing the canonical branch.</p></article>
           </div>
-        </div>
-      </section>
-
-      <section class="receipts-section" id="receipts">
-        <div class="shell receipts-grid">
-          <div>
-            <p class="eyebrow"><i aria-hidden="true"></i> Separate claims</p>
-            <h2>“Authorized” is not the same as “published.”</h2>
-            <p>
-              The demo keeps each statement separate so an interface cannot
-              turn partial progress into a false success.
-            </p>
-          </div>
-          <ol id="receipt-timeline">
-            <li data-stage="authorized"><span>Authorized</span><strong>Awaiting run</strong></li>
-            <li data-stage="claimed"><span>Claimed once</span><strong>—</strong></li>
-            <li data-stage="stored"><span>Stored locally</span><strong>—</strong></li>
-            <li data-stage="announced"><span>Announced</span><strong>—</strong></li>
-            <li data-stage="replicated"><span>Observed elsewhere</span><strong>—</strong></li>
-          </ol>
         </div>
       </section>
     </main>
@@ -210,7 +202,7 @@
     <footer>
       <div class="shell">
         <a class="wordmark" href="#">auths <i>/</i> <small>radicle lab</small></a>
-        <p>Authority before credentials.</p>
+        <p>The agent proposes; the executor verifies and publishes.</p>
         <span id="release">Connecting…</span>
       </div>
     </footer>
