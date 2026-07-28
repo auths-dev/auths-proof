@@ -1,0 +1,34 @@
+[package]
+name = "auths-github-demo"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Interactive end-to-end Auths authorization for GitHub issue workflows"
+publish = false
+
+[dependencies]
+auths-author.workspace = true
+auths-codec.workspace = true
+auths-github.workspace = true
+auths-model.workspace = true
+auths-ports.workspace = true
+auths-profile-api.workspace = true
+auths-raw-key.workspace = true
+auths-registries.workspace = true
+auths-runtime.workspace = true
+auths-sdk.workspace = true
+auths-signature.workspace = true
+axum.workspace = true
+ed25519-dalek.workspace = true
+getrandom.workspace = true
+hex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tempfile.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tower-http.workspace = true
+
+[lints]
+workspace = true

@@ -317,6 +317,53 @@ security_state = ["low-cardinality-metrics"]
 [packages.auths-operations.claims]
 operational-diagnostics = ["product/operations/auths-operations/src/lib.rs#readiness_exposes_required_and_executed_configuration_ids"]
 
+[packages.auths-github]
+kind = "cargo"
+layer = "product"
+path = "product/integrations/auths-github"
+core_apis = ["auths-model"]
+protocol_versions = ["auths-proof/v1"]
+wire_objects = ["CanonicalAction", "VerifiedAction"]
+fixture_suites = []
+principal_families = []
+signature_families = []
+profiles = ["auths.github.issue-address/1"]
+transports = ["git-bundle", "github-rest"]
+configuration_inputs = ["candidate-inspector", "executed-verifier-configuration", "github-adapter", "repository-automation-policy", "required-verifier-configuration"]
+security_state = ["branch-claim", "github-app-credential", "pull-request-claim", "signed-receipt-log", "workflow-store"]
+
+[packages.auths-github.claims]
+core-api-consumer = ["product/integrations/auths-github/src/profile.rs#profile_derives_exact_resource_and_one_effect_budget"]
+profile-contract = ["product/integrations/auths-github/src/profile.rs#every_security_relevant_branch_field_changes_the_action_digest"]
+stateful-replay-budget-component = ["product/integrations/auths-github/src/workflow.rs#concurrent_duplicate_claims_have_one_winner"]
+
+[packages.auths-github-demo]
+kind = "cargo"
+layer = "demos"
+path = "demos/github-issue"
+core_apis = ["auths-author", "auths-codec", "auths-model", "auths-ports", "auths-raw-key", "auths-registries", "auths-signature"]
+protocol_versions = ["auths-proof/v1"]
+wire_objects = ["CanonicalAction", "ProofBundle", "VerifierContext"]
+fixture_suites = ["product/fixtures/v1"]
+principal_families = ["raw-key-v1"]
+signature_families = ["ed25519-v1"]
+profiles = ["auths.github.issue-address/1"]
+transports = ["git-bundle", "https", "github-rest"]
+configuration_inputs = ["executed-verifier-configuration", "github-app-installation", "repository-automation-policy", "required-verifier-configuration"]
+security_state = ["branch-claim", "expiring-session", "pull-request-claim", "receipt-sink", "workflow-store"]
+
+[packages.auths-github-demo.claims]
+demo-conformance-fixture = ["demos/github-issue/src/tests.rs#exact_flow_uses_real_auths_kernel_and_replay_mutates_nothing"]
+runtime-enforcement-boundary = [
+    "demos/github-issue/src/tests.rs#required_and_executed_configuration_mismatch_is_visible_and_never_gets_a_credential",
+    "demos/github-issue/src/tests.rs#every_negative_demo_variant_is_a_native_denial_before_credentials",
+]
+stateful-replay-budget-component = [
+    "demos/github-issue/src/tests.rs#exact_flow_uses_real_auths_kernel_and_replay_mutates_nothing",
+    "demos/github-issue/src/tests.rs#crash_after_branch_publication_reconciles_without_a_second_push",
+    "demos/github-issue/src/tests.rs#crash_after_pr_creation_reconciles_without_a_second_pr",
+]
+
 [packages.auths-radicle]
 kind = "cargo"
 layer = "product"

@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Watch Auths authorize one exact GitHub issue patch, publish one branch, and open one real draft pull request."
+    />
+    <meta name="color-scheme" content="light" />
+    <title>Auths × GitHub — One issue, one exact pull request</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#workbench">Skip to the demo</a>
+
+    <header class="site-header">
+      <nav class="nav-shell" aria-label="Primary navigation">
+        <a class="wordmark" href="https://auths-proof-site.vercel.app">
+          auths <i aria-hidden="true">/</i> <small>github lab</small>
+        </a>
+        <div class="nav-links">
+          <a href="#explanation">How it works</a>
+          <a href="#receipts">Receipts</a>
+          <a href="https://github.com/auths-dev/auths-proof" target="_blank" rel="noreferrer">
+            Source ↗
+          </a>
+        </div>
+        <a class="nav-cta" href="#workbench">Run the workflow →</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="shell hero-grid">
+          <div>
+            <p class="eyebrow"><i aria-hidden="true"></i> Auths × GitHub, live</p>
+            <h1>Approve one patch. <em>Publish only that patch.</em></h1>
+          </div>
+          <div class="hero-copy">
+            <p>
+              The agent creates Git evidence without a GitHub credential. A
+              separate verifier uses a repository-only read token to check the
+              exact issue, base commit, changed paths, and Auths proof before
+              any mutation token can be minted.
+            </p>
+            <ul>
+              <li>No agent credential</li>
+              <li>One derived branch</li>
+              <li>One draft PR</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="workbench-section" id="workbench">
+        <div class="shell">
+          <div class="connection-strip" aria-live="polite">
+            <span><i class="ready"></i> Browser ready</span>
+            <span><i id="native-dot"></i> Native service <b id="native-state">connecting</b></span>
+            <span><i id="github-dot"></i> GitHub <b id="github-state">not checked</b></span>
+            <span class="release" id="release">release —</span>
+          </div>
+
+          <div class="workbench">
+            <section class="controls" aria-labelledby="controls-title">
+              <header class="panel-kicker">
+                <span>01</span>
+                <strong>Choose a test case</strong>
+                <small>Result updates immediately</small>
+              </header>
+
+              <h2 id="controls-title">Change one fact.</h2>
+              <p class="controls-intro">
+                Each case uses a server-owned candidate. Select a case to see
+                the expected decision, then inspect the actual Git bundle.
+              </p>
+
+              <div class="variant-list" id="variant-list">
+                <button class="variant active" data-variant="exact" type="button" aria-pressed="true">
+                  <span><b>Exact permitted candidate</b><small>The issue, base, paths, and candidate all match</small></span>
+                  <i>01</i>
+                </button>
+                <button class="variant" data-variant="prohibited-path" type="button" aria-pressed="false">
+                  <span><b>Prohibited path</b><small>Adds a file under .github/**</small></span>
+                  <i>02</i>
+                </button>
+                <button class="variant" data-variant="candidate-changed" type="button" aria-pressed="false">
+                  <span><b>Declared revision changed</b><small>The submitted SHA no longer matches the Git bundle</small></span>
+                  <i>03</i>
+                </button>
+                <button class="variant" data-variant="repository-changed" type="button" aria-pressed="false">
+                  <span><b>Repository changed</b><small>Fresh evidence identifies another repository</small></span>
+                  <i>04</i>
+                </button>
+                <button class="variant" data-variant="issue-changed" type="button" aria-pressed="false">
+                  <span><b>Issue changed</b><small>Fresh evidence identifies another issue</small></span>
+                  <i>05</i>
+                </button>
+                <button class="variant" data-variant="base-advanced" type="button" aria-pressed="false">
+                  <span><b>Base revision advanced</b><small>Main no longer points to the granted commit</small></span>
+                  <i>06</i>
+                </button>
+                <button class="variant" data-variant="malformed-bundle" type="button" aria-pressed="false">
+                  <span><b>Malformed Git bundle</b><small>A fixed 17-byte invalid bundle reaches inspection</small></span>
+                  <i>07</i>
+                </button>
+              </div>
+
+              <span class="constraints-heading">Signed workflow constraints</span>
+              <dl class="grant-grid">
+                <div><dt>Repository</dt><dd id="repository">auths-dev/auths-github-demo</dd></div>
+                <div><dt>Issue</dt><dd id="issue">—</dd></div>
+                <div><dt>Base</dt><dd id="base">loading</dd></div>
+                <div><dt>Target</dt><dd id="target">executor derived</dd></div>
+                <div><dt>Allowed</dt><dd><code>demo/runs/**</code></dd></div>
+                <div><dt>Denied</dt><dd><code>.github/**</code></dd></div>
+                <div><dt>Budget</dt><dd>1 branch · 1 draft PR</dd></div>
+                <div><dt>Agent token</dt><dd class="safe">NONE</dd></div>
+              </dl>
+            </section>
+
+            <article class="result" aria-labelledby="result-title">
+              <header class="result-header">
+                <div>
+                  <span class="micro">02 · Live authorization result</span>
+                  <strong id="result-title">AUTH-V1 / GITHUB</strong>
+                </div>
+                <span class="live-state" id="live-state"><i aria-hidden="true"></i><b id="service-state">starting</b></span>
+              </header>
+
+              <div class="verdict-row">
+                <div class="verdict-block" aria-live="polite" aria-atomic="true">
+                  <span class="micro">Current verdict</span>
+                  <strong id="verdict" data-kind="loading">CHECKING</strong>
+                  <p id="verdict-detail">
+                    Connecting to the native service. Experiment controls are
+                    available now.
+                  </p>
+                </div>
+                <dl class="facts">
+                  <div><dt>Result code</dt><dd id="decision-code">—</dd></div>
+                  <div><dt>Check stops at</dt><dd id="decision-stage">—</dd></div>
+                  <div><dt>Write token requested</dt><dd id="credential-requested">—</dd></div>
+                  <div><dt>External mutations</dt><dd id="mutation-count">—</dd></div>
+                </dl>
+              </div>
+
+              <div class="configuration">
+                <div>
+                  <span>Required by workflow</span>
+                  <code id="required-config">—</code>
+                </div>
+                <span id="config-link" class="config-link">checking</span>
+                <div>
+                  <span>Loaded by executor</span>
+                  <code id="executed-config">—</code>
+                </div>
+              </div>
+
+              <section class="execution">
+                <div class="execution-action">
+                  <span class="micro">03 · Inspect and execute</span>
+                  <h3 id="action-title">Inspect the exact candidate.</h3>
+                  <p id="action-copy">
+                    The executor will parse a bounded Git bundle without
+                    checking out or running candidate code.
+                  </p>
+                  <div class="action-buttons">
+                    <button id="inspect" type="button">Inspect candidate</button>
+                    <button id="execute" class="secondary" type="button" disabled>
+                      Publish through Auths
+                    </button>
+                  </div>
+                  <button id="replay" class="text-button" type="button" hidden>
+                    Replay the completed action
+                  </button>
+
+                  <dl class="candidate-facts">
+                    <div><dt>Candidate</dt><dd><code id="candidate-sha">not inspected</code></dd></div>
+                    <div><dt>Changed path</dt><dd><code id="changed-path">—</code></dd></div>
+                    <div><dt>Direct agent push</dt><dd id="direct-push">not attempted</dd></div>
+                  </dl>
+                </div>
+
+                <section class="claim-status" aria-live="polite">
+                  <span class="micro">Execution timeline</span>
+                  <h3>Separate checks and effects</h3>
+                  <p>Every row reports one completed boundary.</p>
+                  <ol id="receipt-timeline">
+                    <li data-stage="candidate"><span>Candidate inspected</span><strong>Awaiting inspection</strong></li>
+                    <li data-stage="authorized"><span>Exact action authorized</span><strong>—</strong></li>
+                    <li data-stage="branch"><span>Derived branch published</span><strong>—</strong></li>
+                    <li data-stage="pull-request"><span>Draft pull request opened</span><strong>—</strong></li>
+                    <li data-stage="replay"><span>Replay creates no mutation</span><strong>—</strong></li>
+                  </ol>
+                </section>
+              </section>
+
+              <section class="github-result" id="github-result" hidden>
+                <div>
+                  <span class="micro">Real GitHub result</span>
+                  <h3>One draft pull request is open.</h3>
+                  <p><code id="published-ref">—</code> points to <code id="published-sha">—</code>.</p>
+                </div>
+                <a id="pull-request-link" href="#" target="_blank" rel="noreferrer">
+                  Open the real draft PR ↗
+                </a>
+              </section>
+
+              <details class="receipt-viewer" id="receipts">
+                <summary>View decision and execution receipts <span id="receipt-count">0</span></summary>
+                <pre id="receipt-json">Run the workflow to load receipts.</pre>
+              </details>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="explanation" id="explanation">
+        <div class="shell explanation-grid">
+          <div>
+            <p class="eyebrow"><i aria-hidden="true"></i> Credential boundary</p>
+            <h2>The agent submits evidence. The executor holds the GitHub App key.</h2>
+          </div>
+          <div class="flow">
+            <article><span>01</span><strong>Agent</strong><p>Builds a Git bundle and fails a direct credential-less push.</p></article>
+            <b aria-hidden="true">→</b>
+            <article><span>02</span><strong>Auths</strong><p>Uses a read-only repository token to check exact action bytes against fresh GitHub and Git evidence.</p></article>
+            <b aria-hidden="true">→</b>
+            <article><span>03</span><strong>Executor</strong><p>Claims one effect, then mints a scoped mutation token and publishes exact values.</p></article>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="shell">
+        <a class="wordmark" href="#">auths <i>/</i> <small>github lab</small></a>
+        <p>One issue grant becomes two exact, separately receipted GitHub actions.</p>
+      </div>
+    </footer>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

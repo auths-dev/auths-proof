@@ -1,0 +1,29 @@
+[package]
+name = "auths-github"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Exact Auths authorization and replay-safe execution for GitHub issue workflows"
+
+[dependencies]
+auths-model.workspace = true
+auths-profile-api.workspace = true
+auths-sdk.workspace = true
+base64ct.workspace = true
+hex.workspace = true
+reqwest = { workspace = true, features = ["json"] }
+ring = { workspace = true, features = ["alloc"] }
+serde.workspace = true
+serde_json.workspace = true
+serde_json_canonicalizer.workspace = true
+sha2.workspace = true
+subtle.workspace = true
+tempfile.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+
+[lints]
+workspace = true
