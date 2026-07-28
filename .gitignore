@@ -3,3 +3,6 @@
 /fuzz/target/
 *.profraw
 *.profdata
+.env
+.env.*
+!.env.example

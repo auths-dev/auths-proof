@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="See Auths authorize one exact Stripe test-mode refund while the agent remains credentialless."
+    />
+    <meta name="color-scheme" content="light" />
+    <title>Auths × Stripe — One exact refund</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#workbench">Skip to the demo</a>
+
+    <header class="site-header">
+      <nav class="nav-shell" aria-label="Primary navigation">
+        <a class="wordmark" href="https://auths-proof-site.vercel.app">
+          auths <i aria-hidden="true">/</i> <small>stripe lab</small>
+        </a>
+        <div class="nav-links">
+          <a href="#workbench">Exact refund</a>
+          <a href="#how">How it works</a>
+          <a href="https://github.com/auths-dev/auths-proof" target="_blank" rel="noreferrer">
+            GitHub ↗
+          </a>
+        </div>
+        <a class="nav-cta" href="#workbench">Run the demo →</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="shell hero-grid">
+          <div>
+            <p class="eyebrow"><i aria-hidden="true"></i> Auths × Stripe test mode</p>
+            <h1>Authorize $10.00. <em>Reject $10.01.</em></h1>
+          </div>
+          <div class="hero-copy">
+            <p>
+              A synthetic agent proposes one refund without receiving a Stripe
+              key. Auths checks the exact payment, amount, currency, account,
+              evidence, and executor configuration before the protected
+              service can call Stripe.
+            </p>
+            <ul>
+              <li>Real Stripe test payment</li>
+              <li>Mutation key isolated from the agent</li>
+              <li>One exact refund claim</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="workbench-section" id="workbench">
+        <div class="shell">
+          <div class="loading-card" id="loading-card" aria-live="polite">
+            <span class="loading-dot" aria-hidden="true"></span>
+            <div>
+              <strong>Creating a fresh Stripe test payment</strong>
+              <p>This usually takes a few seconds. No real money is used.</p>
+            </div>
+          </div>
+
+          <div class="workbench" id="workbench-grid" hidden>
+            <section class="controls" aria-labelledby="controls-title">
+              <header class="panel-kicker">
+                <span>01</span>
+                <strong>Choose what reaches Auths</strong>
+                <small>Verdict updates immediately</small>
+              </header>
+              <h2 id="controls-title">Change one refund fact.</h2>
+              <p class="controls-intro">
+                Every case starts from the same signed authorization. Choose a
+                case, inspect the result beside it, then submit it to the native
+                executor.
+              </p>
+
+              <div class="payment-card">
+                <span>Stripe test payment</span>
+                <div>
+                  <strong id="payment-amount">$20.00</strong>
+                  <small id="payment-id">loading</small>
+                </div>
+                <dl>
+                  <div><dt>Already refunded</dt><dd id="already-refunded">$0.00</dd></div>
+                  <div><dt>Available</dt><dd id="refundable">$20.00</dd></div>
+                  <div><dt>Mode</dt><dd>TEST</dd></div>
+                </dl>
+              </div>
+
+              <div class="variant-list" id="variant-list">
+                <button class="variant active" data-variant="exact" type="button" aria-pressed="true">
+                  <span><b>Exact $10.00 refund</b><small>The signed amount and payment both match</small></span>
+                  <i>01</i>
+                </button>
+                <button class="variant" data-variant="amount-changed" type="button" aria-pressed="false">
+                  <span><b>Amount changed to $10.01</b><small>One minor unit exceeds the authorization</small></span>
+                  <i>02</i>
+                </button>
+                <button class="variant" data-variant="charge-changed" type="button" aria-pressed="false">
+                  <span><b>Different payment</b><small>The Charge ID no longer matches the evidence</small></span>
+                  <i>03</i>
+                </button>
+                <button class="variant" data-variant="configuration-changed" type="button" aria-pressed="false">
+                  <span><b>Executor policy changed</b><small>The loaded refund limit differs from the signed policy</small></span>
+                  <i>04</i>
+                </button>
+              </div>
+
+              <div class="agent-boundary">
+                <span>Agent credential check</span>
+                <strong>NO STRIPE KEY</strong>
+                <p>The key exists only inside the protected native executor.</p>
+              </div>
+            </section>
+
+            <article class="result" aria-labelledby="result-title">
+              <header class="result-header">
+                <div>
+                  <span class="micro">02 · Current authorization result</span>
+                  <strong id="result-title">AUTH-V1 / STRIPE</strong>
+                </div>
+                <span class="live-state"><i aria-hidden="true"></i><b id="service-state">ready</b></span>
+              </header>
+
+              <div class="verdict-block" aria-live="polite" aria-atomic="true">
+                <span class="micro">Verdict for selected case</span>
+                <strong id="verdict" data-kind="authorized">AUTHORIZED</strong>
+                <p id="verdict-detail">The exact refund matches the signed authorization.</p>
+              </div>
+
+              <dl class="facts">
+                <div><dt>Refund submitted</dt><dd id="refund-amount">$10.00</dd></div>
+                <div><dt>Result code</dt><dd id="decision-code">authorized</dd></div>
+                <div><dt>Check stopped at</dt><dd id="decision-stage">auths-kernel</dd></div>
+                <div><dt>Stripe contacted</dt><dd id="stripe-contacted">NOT YET</dd></div>
+              </dl>
+
+              <div class="configuration">
+                <div>
+                  <span>Required by authorization</span>
+                  <code id="required-config">—</code>
+                </div>
+                <span id="config-link" class="config-link">exact match</span>
+                <div>
+                  <span>Loaded by executor</span>
+                  <code id="executed-config">—</code>
+                </div>
+              </div>
+
+              <section class="execution">
+                <div class="execution-action">
+                  <span class="micro">03 · Submit to protected executor</span>
+                  <h3 id="execution-title">Create the exact test refund.</h3>
+                  <p id="execution-copy">
+                    The executor will claim this action, request its restricted
+                    Stripe key, and submit these exact parameters.
+                  </p>
+                  <button id="execute" type="button">Create exact $10.00 refund</button>
+                  <a id="receipt-link" class="receipt-link" href="#" target="_blank" hidden>
+                    Inspect machine-readable receipts ↗
+                  </a>
+                </div>
+
+                <section class="execution-status" aria-live="polite">
+                  <span class="micro">Execution evidence</span>
+                  <h3>What actually happened</h3>
+                  <ol id="receipt-timeline">
+                    <li data-stage="authorized"><span>Exact action authorized</span><strong>ready</strong></li>
+                    <li data-stage="claimed"><span>One execution claimed</span><strong>—</strong></li>
+                    <li data-stage="credential"><span>Stripe key requested</span><strong>—</strong></li>
+                    <li data-stage="stripe"><span>Stripe refund created</span><strong>—</strong></li>
+                    <li data-stage="observed"><span>Provider status observed</span><strong>—</strong></li>
+                  </ol>
+                </section>
+              </section>
+
+              <dl class="refund-artifact" id="refund-artifact" hidden>
+                <div><dt>Stripe Refund</dt><dd><code id="refund-id">—</code></dd></div>
+                <div><dt>Status</dt><dd><strong id="refund-status">—</strong></dd></div>
+                <div><dt>Request ID</dt><dd><code id="request-id">—</code></dd></div>
+                <div><dt>Amount</dt><dd><strong id="executed-amount">—</strong></dd></div>
+              </dl>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="how" id="how">
+        <div class="shell">
+          <p class="eyebrow"><i aria-hidden="true"></i> The credential boundary</p>
+          <div class="how-grid">
+            <h2>The agent proposes parameters. It cannot call Stripe.</h2>
+            <p>
+              Stripe’s key still protects the account, but Auths prevents that
+              key from becoming the agent’s reusable authority. The native
+              service receives the key only after the signed action, current
+              payment evidence, verifier configuration, and one-time claim all
+              match.
+            </p>
+          </div>
+          <div class="flow" aria-label="Exact refund flow">
+            <article><span>01</span><strong>Human</strong><p>Authorizes one payment and amount.</p></article>
+            <b aria-hidden="true">→</b>
+            <article><span>02</span><strong>Agent</strong><p>Submits the refund and proof without a key.</p></article>
+            <b aria-hidden="true">→</b>
+            <article><span>03</span><strong>Auths</strong><p>Checks exact bytes, evidence, and policy.</p></article>
+            <b aria-hidden="true">→</b>
+            <article><span>04</span><strong>Stripe</strong><p>Receives one claimed test-mode refund.</p></article>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="shell">
+        <a class="wordmark" href="#">auths <i>/</i> <small>stripe lab</small></a>
+        <p>Real Stripe test objects. No real money.</p>
+        <span id="release">Connecting…</span>
+      </div>
+    </footer>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

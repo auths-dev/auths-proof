@@ -405,6 +405,47 @@ demo-conformance-fixture = ["demos/radicle-issue/src/scenario.rs#human_delegatio
 runtime-enforcement-boundary = ["demos/radicle-issue/src/app.rs#denied_variant_never_enters_executor"]
 stateful-replay-budget-component = ["demos/radicle-issue/src/app.rs#exact_execution_succeeds_once_and_replay_fails_closed"]
 
+[packages.auths-stripe]
+kind = "cargo"
+layer = "product"
+path = "product/integrations/auths-stripe"
+core_apis = ["auths-author", "auths-codec", "auths-model", "auths-ports", "auths-raw-key", "auths-registries", "auths-signature"]
+protocol_versions = ["auths-proof/v1"]
+wire_objects = ["CanonicalAction", "VerifiedAction"]
+fixture_suites = []
+principal_families = []
+signature_families = []
+profiles = ["auths.stripe.exact-refund/1"]
+transports = ["stripe-https"]
+configuration_inputs = ["executed-verifier-configuration", "required-verifier-configuration", "stripe-account", "stripe-api-version"]
+security_state = ["refund-claim", "stripe-receipt-log"]
+
+[packages.auths-stripe.claims]
+core-api-consumer = ["product/integrations/auths-stripe/src/profile.rs#profile_binds_exact_refund_and_one_write_budget"]
+profile-contract = ["product/integrations/auths-stripe/src/decision.rs#exact_refund_is_authorized"]
+runtime-enforcement-boundary = ["product/integrations/auths-stripe/src/service.rs#configuration_mismatch_never_reads_mutation_credential"]
+stateful-replay-budget-component = ["product/integrations/auths-stripe/src/claim.rs#concurrent_claims_execute_once"]
+
+[packages.auths-stripe-demo]
+kind = "cargo"
+layer = "demos"
+path = "demos/stripe-refund"
+core_apis = ["auths-author", "auths-codec", "auths-model", "auths-ports", "auths-raw-key", "auths-registries", "auths-signature"]
+protocol_versions = ["auths-proof/v1"]
+wire_objects = ["CanonicalAction", "ProofBundle", "VerifierContext"]
+fixture_suites = ["core/fixtures/v1"]
+principal_families = ["raw-key-v1"]
+signature_families = ["ed25519-v1"]
+profiles = ["auths.stripe.exact-refund/1"]
+transports = ["https", "stripe-https"]
+configuration_inputs = ["executed-verifier-configuration", "required-verifier-configuration", "stripe-test-mode"]
+security_state = ["expiring-session", "refund-claim", "receipt-sink"]
+
+[packages.auths-stripe-demo.claims]
+demo-conformance-fixture = ["demos/stripe-refund/src/fixture.rs#exact_refund_is_authorized_by_real_auths_kernel"]
+runtime-enforcement-boundary = ["demos/stripe-refund/src/app.rs#denied_variant_never_reaches_stripe"]
+stateful-replay-budget-component = ["demos/stripe-refund/src/app.rs#exact_refund_executes_once_and_replay_fails_closed"]
+
 [packages.auths-profile-api]
 kind = "cargo"
 layer = "product"
