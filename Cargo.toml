@@ -49,6 +49,7 @@ members = [
     "product/integrations/auths-radicle",
     "product/integrations/auths-github",
     "product/integrations/auths-stripe",
+    "product/integrations/auths-kubernetes",
     "product/profiles/auths-profile-api",
     "product/profiles/auths-profile-mcp",
     "product/profiles/auths-profile-domains",
@@ -71,6 +72,7 @@ members = [
     "demos/radicle-issue",
     "demos/github-issue",
     "demos/stripe-refund",
+    "demos/kubernetes-rollout",
     "xtask",
 ]
 
@@ -137,6 +139,7 @@ auths-custody = { version = "0.1.0", path = "product/integrations/auths-custody"
 auths-radicle = { version = "0.1.0", path = "product/integrations/auths-radicle" }
 auths-github = { version = "0.1.0", path = "product/integrations/auths-github" }
 auths-stripe = { version = "0.1.0", path = "product/integrations/auths-stripe" }
+auths-kubernetes = { version = "0.1.0", path = "product/integrations/auths-kubernetes" }
 auths-apps-testkit = { version = "0.1.0", path = "demos/testkit/auths-apps-testkit" }
 auths-live-lab = { version = "0.1.0", path = "demos/live-lab" }
 auths-lab-matrix = { version = "0.1.0", path = "demos/matrix/auths-lab-matrix" }

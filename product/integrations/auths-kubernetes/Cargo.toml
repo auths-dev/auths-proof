@@ -1,0 +1,25 @@
+[package]
+name = "auths-kubernetes"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Exact, replay-safe Auths authorization for Kubernetes workload rollouts"
+repository.workspace = true
+homepage.workspace = true
+
+[dependencies]
+auths-model.workspace = true
+auths-profile-api.workspace = true
+auths-sdk.workspace = true
+hex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_json_canonicalizer.workspace = true
+sha2.workspace = true
+subtle.workspace = true
+tempfile.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,84 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: auths-rollout-inspector
+  namespace: auths-demo
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: auths-rollout-executor
+  namespace: auths-demo
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: auths-rollout-inspector
+  namespace: auths-demo
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    resourceNames: ["color-service"]
+    verbs: ["get", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: auths-rollout-inspector
+  namespace: auths-demo
+subjects:
+  - kind: ServiceAccount
+    name: auths-rollout-inspector
+    namespace: auths-demo
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: auths-rollout-inspector
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: auths-demo-namespace-reader
+rules:
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    resourceNames: ["auths-demo"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: auths-demo-namespace-reader
+subjects:
+  - kind: ServiceAccount
+    name: auths-rollout-inspector
+    namespace: auths-demo
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: auths-demo-namespace-reader
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: auths-rollout-executor
+  namespace: auths-demo
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    resourceNames: ["color-service"]
+    verbs: ["get", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: auths-rollout-executor
+  namespace: auths-demo
+subjects:
+  - kind: ServiceAccount
+    name: auths-rollout-executor
+    namespace: auths-demo
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: auths-rollout-executor

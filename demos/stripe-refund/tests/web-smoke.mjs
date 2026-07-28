@@ -34,3 +34,16 @@ test("copy states test mode and credential isolation concretely", async () => {
   assert.match(html, /No real money/);
   assert.doesNotMatch(html, /Verification repeats/);
 });
+
+test("execution renders inline JSON and links to a designed receipt page", async () => {
+  const index = await readFile(new URL("web/index.html", root), "utf8");
+  const app = await readFile(new URL("web/app.js", root), "utf8");
+  const receiptPage = await readFile(new URL("web/receipt.html", root), "utf8");
+  const receiptScript = await readFile(new URL("web/receipt.js", root), "utf8");
+  const config = JSON.parse(await readFile(new URL("web/vercel.json", root), "utf8"));
+  assert.match(index, /id="receipt-viewer"/);
+  assert.match(app, /JSON\.stringify\(receipt, null, 2\)/);
+  assert.match(receiptPage, /What Auths decided/);
+  assert.match(receiptScript, /\/api\/v1\/receipts\//);
+  assert.ok(config.rewrites.some((rewrite) => rewrite.source === "/receipts/:sessionId"));
+});

@@ -414,6 +414,24 @@ Follow the established GitHub and Radicle demo interaction model:
 - the successful path performs the real sandbox apply, while every denied path proves that no provider mutation occurred; and
 - desktop and mobile layouts keep the control that caused a result adjacent to that result.
 
+### Receipt interface contract
+
+Receipts must be understandable without navigating away from the experiment
+that produced them:
+
+- after every attempted execution, the primary workbench exposes the complete,
+  pretty-printed machine-readable receipt inline beneath the live result;
+- the inline JSON is loaded from the real receipt API and is not reconstructed
+  from frontend state;
+- the workbench’s receipt link opens a dedicated
+  `/receipts/{session-or-workflow-id}` page, not the raw JSON API response;
+- the dedicated page summarizes the decision, stable code, action and evidence
+  commitments, required/executed configuration relationship, credential or
+  provider boundary, and observed effect before offering the complete raw JSON;
+- missing, expired, malformed, or unverifiable receipt identifiers render an
+  explicit fail-closed receipt page; and
+- browser tests cover both the inline viewer and the dedicated receipt route.
+
 Browser-level end-to-end tests must start from the rendered page and exercise readiness, exact apply, at least one material denial, replay, provider read-back, and receipt inspection through the same public API routes used in production. Static DOM assertions and backend-only integration tests are necessary but insufficient.
 
 Completion requires a publicly reachable frontend URL and a publicly reachable native API deployment. Opening `index.html` through `file://`, serving only on localhost, committing Vercel/Fly configuration without deploying it, or deploying a frontend whose API is unavailable does not satisfy this specification. Before handoff, test the public Vercel URL against the public Fly deployment and record the tested URLs and release identifiers.

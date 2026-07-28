@@ -37,6 +37,9 @@ const elements = {
   alreadyRefunded: document.querySelector("#already-refunded"),
   refundable: document.querySelector("#refundable"),
   receiptLink: document.querySelector("#receipt-link"),
+  receiptViewer: document.querySelector("#receipt-viewer"),
+  receiptState: document.querySelector("#receipt-state"),
+  receiptJson: document.querySelector("#receipt-json"),
   release: document.querySelector("#release"),
 };
 
@@ -78,7 +81,8 @@ function renderSession() {
   elements.paymentId.title = payment.charge_id;
   elements.alreadyRefunded.textContent = money(payment.amount_refunded_minor, payment.currency);
   elements.refundable.textContent = money(payment.refundable_amount_minor, payment.currency);
-  elements.receiptLink.href = api(`/api/v1/receipts/${state.session.session_id}`);
+  const receiptQuery = API ? `?api=${encodeURIComponent(API)}` : "";
+  elements.receiptLink.href = `/receipts/${state.session.session_id}${receiptQuery}`;
   elements.release.textContent = `${state.scenario.release} · ${state.scenario.region}`;
   elements.loading.hidden = true;
   elements.workbench.hidden = false;
@@ -122,6 +126,10 @@ function renderDecision() {
   resetTimeline(decision.class);
   elements.artifact.hidden = true;
   elements.receiptLink.hidden = true;
+  elements.receiptViewer.hidden = true;
+  elements.receiptViewer.open = false;
+  elements.receiptState.textContent = "not run";
+  elements.receiptJson.textContent = "Run a case to load its receipt.";
 }
 
 function resetTimeline(kind) {
@@ -159,6 +167,19 @@ function renderExecution(result) {
   elements.receiptLink.hidden = false;
 }
 
+async function loadReceipt() {
+  try {
+    const receipt = await request(`/api/v1/receipts/${state.session.session_id}`);
+    elements.receiptJson.textContent = JSON.stringify(receipt, null, 2);
+    elements.receiptState.textContent = receipt.result?.decision?.class ?? "recorded";
+    elements.receiptViewer.hidden = false;
+  } catch (error) {
+    elements.receiptJson.textContent = `Receipt unavailable: ${error.message}`;
+    elements.receiptState.textContent = "unavailable";
+    elements.receiptViewer.hidden = false;
+  }
+}
+
 async function execute() {
   if (state.busy) return;
   state.busy = true;
@@ -175,6 +196,7 @@ async function execute() {
     );
     if (state.active === "exact" && result.stripe_called) state.exactExecuted = true;
     renderExecution(result);
+    await loadReceipt();
     elements.executionCopy.textContent = result.stripe_called
       ? "Stripe test mode created this exact refund. Submit it again to see the durable replay claim stop execution."
       : "The request stopped before the protected service requested its Stripe key.";

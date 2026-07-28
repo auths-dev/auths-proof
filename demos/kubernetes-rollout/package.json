@@ -1,0 +1,9 @@
+{
+  "name": "auths-kubernetes-demo-web",
+  "private": true,
+  "scripts": {
+    "check": "node --check web/app.js && node --test tests/web-smoke.mjs",
+    "local:up": "./scripts/local-up.sh",
+    "local:down": "./scripts/local-down.sh"
+  }
+}

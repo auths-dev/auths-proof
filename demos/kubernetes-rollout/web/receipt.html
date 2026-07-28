@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Inspect one Auths Kubernetes authorization and execution receipt." />
+    <meta name="color-scheme" content="light" />
+    <title>Auths × Kubernetes — Rollout receipt</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#receipt-log">Skip to receipt</a>
+    <header class="site-header">
+      <nav class="nav-shell" aria-label="Primary navigation">
+        <a class="wordmark" href="/">auths <i>/</i> <small>kubernetes lab</small></a>
+        <div class="nav-links"><a href="/">Live demo</a><a href="https://github.com/auths-dev/auths-proof" target="_blank" rel="noreferrer">Source ↗</a></div>
+        <a class="nav-cta" href="/">Run another rollout →</a>
+      </nav>
+    </header>
+    <main>
+      <section class="hero receipt-hero">
+        <div class="shell hero-grid">
+          <div><p class="eyebrow"><i></i> Rollout receipt</p><h1>What Auths decided. <em>What Kubernetes received.</em></h1></div>
+          <div class="hero-copy"><p>This page explains the authorization result, the credential boundary, and the observed Kubernetes outcome before exposing the complete JSON record.</p><ul><li>Exact action digest</li><li>Verifier configuration</li><li>Observed rollout</li></ul></div>
+        </div>
+      </section>
+      <section class="receipt-section" id="receipt-log">
+        <div class="shell">
+          <article class="receipt-page">
+            <header class="receipt-page-header">
+              <div><span class="micro">Public verification record</span><h2 id="receipt-title">Loading the receipt.</h2><p id="receipt-detail">Requesting the bounded record from the native service.</p></div>
+              <div class="receipt-verification" id="receipt-verification" data-state="loading"><span>Decision</span><strong>CHECKING</strong></div>
+            </header>
+            <dl class="receipt-metadata">
+              <div><dt>Session</dt><dd><code id="session-id">—</code></dd></div>
+              <div><dt>Action</dt><dd><code id="action-digest">—</code></dd></div>
+              <div><dt>Evidence</dt><dd><code id="evidence-digest">—</code></dd></div>
+              <div><dt>Configuration</dt><dd id="configuration-result">—</dd></div>
+            </dl>
+            <section id="receipt-card"></section>
+            <section class="receipt-error" id="receipt-error" hidden><span class="micro">Receipt unavailable</span><h2>The receipt could not be loaded.</h2><p id="receipt-error-detail">The identifier may be invalid or expired.</p><a href="/">Return to the live demo →</a></section>
+            <details class="receipt-viewer receipt-raw" id="receipt-raw" hidden><summary>View complete machine-readable JSON <span>raw</span></summary><pre id="receipt-json">—</pre></details>
+          </article>
+        </div>
+      </section>
+    </main>
+    <footer><div class="shell"><a class="wordmark" href="/">auths <i>/</i> <small>kubernetes lab</small></a><p>Authorization and Kubernetes effects remain separately inspectable.</p></div></footer>
+    <script type="module" src="/receipt.js"></script>
+  </body>
+</html>

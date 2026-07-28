@@ -3,6 +3,10 @@
   "trailingSlash": false,
   "rewrites": [
     {
+      "source": "/receipts/:sessionId",
+      "destination": "/receipt"
+    },
+    {
       "source": "/api/:path*",
       "destination": "https://auths-stripe-demo.fly.dev/api/:path*"
     },

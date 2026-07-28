@@ -1,0 +1,29 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: auths-rollout-inspector-dry-run-only
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ["apps"]
+        apiVersions: ["v1"]
+        operations: ["UPDATE"]
+        resources: ["deployments"]
+        scope: "Namespaced"
+  validations:
+    - expression: "request.userInfo.username != 'system:serviceaccount:auths-demo:auths-rollout-inspector' || request.dryRun == true"
+      message: "the Auths evidence identity may only perform server-side dry-run"
+      reason: Forbidden
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: auths-rollout-inspector-dry-run-only
+spec:
+  policyName: auths-rollout-inspector-dry-run-only
+  validationActions: [Deny]
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: auths-demo
