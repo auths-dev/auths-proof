@@ -37,6 +37,8 @@ digraph auths_architecture {
   "auths-opentofu-demo" [group="demos"];
   "auths-operations" [group="product"];
   "auths-ports" [group="core"];
+  "auths-postgresql" [group="product"];
+  "auths-postgresql-demo" [group="demos"];
   "auths-profile-api" [group="product"];
   "auths-profile-domains" [group="product"];
   "auths-profile-kit" [group="product"];
@@ -226,6 +228,14 @@ digraph auths_architecture {
   "auths-operations" -> "auths-registries" [label="normal"];
   "auths-operations" -> "auths-verifier" [label="normal"];
   "auths-ports" -> "auths-model" [label="normal"];
+  "auths-postgresql" -> "auths-model" [label="normal"];
+  "auths-postgresql" -> "auths-profile-api" [label="normal"];
+  "auths-postgresql" -> "auths-sdk" [label="normal"];
+  "auths-postgresql-demo" -> "auths-apps-testkit" [label="normal"];
+  "auths-postgresql-demo" -> "auths-model" [label="normal"];
+  "auths-postgresql-demo" -> "auths-postgresql" [label="normal"];
+  "auths-postgresql-demo" -> "auths-profile-api" [label="normal"];
+  "auths-postgresql-demo" -> "auths-sdk" [label="normal"];
   "auths-profile-api" -> "auths-model" [label="normal"];
   "auths-profile-api" -> "auths-verifier" [label="normal"];
   "auths-profile-domains" -> "auths-model" [label="normal"];

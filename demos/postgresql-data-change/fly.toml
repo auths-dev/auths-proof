@@ -1,0 +1,37 @@
+app = "auths-postgresql-demo"
+primary_region = "cdg"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  AUTHS_POSTGRESQL_BIND = "0.0.0.0:8080"
+  AUTHS_POSTGRESQL_ALLOWED_ORIGIN = "https://auths-postgresql-demo.vercel.app"
+  AUTHS_POSTGRESQL_MODE = "live"
+  AUTHS_POSTGRESQL_STATE_DIR = "/data/auths-postgresql"
+  AUTHS_POSTGRESQL_SERVER_IDENTITY = "spiffe://auths.demo/postgresql/synthetic"
+  AUTHS_POSTGRESQL_AUDIENCE = "https://auths-postgresql-demo.fly.dev"
+  AUTHS_POSTGRESQL_DEMO_TENANT = "tenant-demo"
+
+[[mounts]]
+  source = "auths_postgresql_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    grace_period = "15s"
+    interval = "15s"
+    method = "GET"
+    timeout = "5s"
+    path = "/readyz"
+
+[[vm]]
+  memory = "512mb"
+  cpu_kind = "shared"
+  cpus = 1

@@ -528,6 +528,47 @@ demo-conformance-fixture = ["demos/opentofu-plan/src/app.rs#exact_denial_replay_
 runtime-enforcement-boundary = ["demos/opentofu-plan/src/app.rs#exact_denial_replay_and_receipts_cross_the_http_boundary"]
 stateful-replay-budget-component = ["demos/opentofu-plan/src/app.rs#exact_denial_replay_and_receipts_cross_the_http_boundary"]
 
+[packages.auths-postgresql]
+kind = "cargo"
+layer = "product"
+path = "product/integrations/auths-postgresql"
+core_apis = ["auths-model"]
+protocol_versions = ["auths-proof/v1"]
+wire_objects = ["CanonicalAction", "VerifiedAction"]
+fixture_suites = []
+principal_families = []
+signature_families = []
+profiles = ["auths.postgresql.bounded-update/1"]
+transports = ["postgresql-tls", "protected-credential-broker"]
+configuration_inputs = ["catalog-evidence", "executed-verifier-configuration", "required-verifier-configuration", "row-preconditions", "typed-assignments"]
+security_state = ["postgresql-execution-ledger", "postgresql-mutation-credential", "bounded-update-claim", "bounded-update-receipt-log"]
+
+[packages.auths-postgresql.claims]
+core-api-consumer = ["product/integrations/auths-postgresql/src/profile.rs#profile_binds_transition_and_one_effect"]
+profile-contract = ["product/integrations/auths-postgresql/src/decision.rs#exact_fixture_authorizes"]
+runtime-enforcement-boundary = ["product/integrations/auths-postgresql/src/decision.rs#maximum_rows_mismatch_denies_before_effects"]
+stateful-replay-budget-component = ["product/integrations/auths-postgresql/src/claim.rs#only_one_claim_wins"]
+
+[packages.auths-postgresql-demo]
+kind = "cargo"
+layer = "demos"
+path = "demos/postgresql-data-change"
+core_apis = ["auths-model"]
+protocol_versions = ["auths-proof/v1"]
+wire_objects = ["CanonicalAction", "ProofBundle", "VerifierContext"]
+fixture_suites = ["core/fixtures/v1"]
+principal_families = ["raw-key-v1"]
+signature_families = ["ed25519-v1"]
+profiles = ["auths.postgresql.bounded-update/1"]
+transports = ["https", "postgresql-tls"]
+configuration_inputs = ["catalog-evidence", "executed-verifier-configuration", "required-verifier-configuration", "row-preconditions"]
+security_state = ["bounded-update-claim", "expiring-session", "postgresql-execution-ledger", "postgresql-mutation-credential", "receipt-sink"]
+
+[packages.auths-postgresql-demo.claims]
+demo-conformance-fixture = ["demos/postgresql-data-change/src/fixture.rs#all_material_denials_are_visible"]
+runtime-enforcement-boundary = ["demos/postgresql-data-change/src/postgres.rs#configuration_mismatch_precedes_claim_credential_and_transaction"]
+stateful-replay-budget-component = ["demos/postgresql-data-change/src/postgres.rs#exact_transition_commits_once_and_replay_never_reissues"]
+
 [packages.auths-profile-api]
 kind = "cargo"
 layer = "product"

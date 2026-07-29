@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Authorize exactly three PostgreSQL row transitions without giving an agent a database credential." />
+    <meta name="color-scheme" content="light" />
+    <title>Auths × PostgreSQL — authorize the transition, not the connection</title>
+    <link rel="stylesheet" href="/styles.css?v=0009" />
+  </head>
+  <body>
+    <a class="skip-link" href="#workbench">Skip to workbench</a>
+    <header class="site-header">
+      <nav class="shell nav" aria-label="Primary navigation">
+        <a class="wordmark" href="/">auths <i>/</i> <small>PostgreSQL lab</small></a>
+        <div class="nav-links"><a href="#workbench">Workbench</a><a href="#boundary">Authority boundary</a><a href="https://github.com/auths-dev/auths-proof" target="_blank" rel="noreferrer">Source ↗</a></div>
+        <a class="button dark" href="#workbench">Inspect the transition →</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="shell hero-grid">
+          <div>
+            <p class="eyebrow"><span></span> Auths × protected PostgreSQL</p>
+            <h1>Authorize the <em>transition.</em><br />Never the connection.</h1>
+          </div>
+          <div class="hero-copy">
+            <p>An agent proposes a typed change. Auths binds one proof to one tenant, three primary keys, committed before values, one allowed column, exact after values, and a catalog configuration.</p>
+            <ul><li>no raw SQL</li><li>claim before credential</li><li>atomic ledger</li></ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="assurance">
+        <div class="shell assurance-grid">
+          <article><b>01</b><span>Isolation</span><strong>SERIALIZABLE</strong></article>
+          <article><b>02</b><span>Authorized rows</span><strong>EXACTLY 3</strong></article>
+          <article><b>03</b><span>Mutation credential</span><strong>NATIVE ONLY</strong></article>
+          <article><b>04</b><span>Replay defense</span><strong>CLAIM + LEDGER</strong></article>
+        </div>
+      </section>
+
+      <section class="lab" id="workbench">
+        <div class="shell">
+          <div class="loading" id="loading" aria-live="polite"><span></span><div><strong>Opening a protected evidence session</strong><p>Checking readiness, catalog facts, row state, and the proof boundary.</p></div></div>
+          <div class="workbench" id="workbench-grid" hidden>
+            <aside class="experiments" aria-labelledby="experiment-title">
+              <header class="panel-head"><b>01</b><span>Choose one adversarial change</span><small>same proof · different fact</small></header>
+              <h2 id="experiment-title">What if one fact moves?</h2>
+              <p class="intro">The predicted profile decision and live native result stay next to the control that caused them.</p>
+              <div class="variant-list" id="variant-list" aria-label="Bounded update experiments">
+                <button class="variant active" data-variant="exact" type="button" aria-pressed="true"><i>01</i><span><b>Exact three-row transition</b><small>Everything matches</small></span></button>
+                <button class="variant" data-variant="extra-row" type="button"><i>02</i><span><b>An extra row appears</b><small>Row set widens</small></span></button>
+                <button class="variant" data-variant="tenant-changed" type="button"><i>03</i><span><b>Tenant changed</b><small>Cross-tenant attempt</small></span></button>
+                <button class="variant" data-variant="before-changed" type="button"><i>04</i><span><b>A before value changed</b><small>Evidence is stale</small></span></button>
+                <button class="variant" data-variant="forbidden-column" type="button"><i>05</i><span><b>Forbidden column added</b><small>Field is not authorized</small></span></button>
+                <button class="variant" data-variant="value-outside-enum" type="button"><i>06</i><span><b>Value outside enum</b><small>Typed domain fails</small></span></button>
+                <button class="variant" data-variant="schema-policy-changed" type="button"><i>07</i><span><b>RLS policy changed</b><small>Catalog evidence differs</small></span></button>
+                <button class="variant" data-variant="configuration-changed" type="button"><i>08</i><span><b>Verifier ceiling changed</b><small>max rows 3 → 4</small></span></button>
+              </div>
+              <aside class="credential-probe" id="credential-probe"><span>Agent credential probe</span><strong>CHECKING BOUNDARY</strong><p>There is no browser route that returns or delegates a connection string.</p></aside>
+            </aside>
+
+            <article class="result">
+              <header class="panel-head result-head"><span>02 · Exact typed intent</span><small class="service"><i></i><b id="service-state">connecting</b></small></header>
+              <section class="intent">
+                <div><span>relation</span><strong>app.demo_accounts</strong></div>
+                <div><span>tenant</span><strong>committed</strong></div>
+                <div><span>assignment</span><code>review_status := reviewed</code></div>
+                <div><span>cardinality</span><strong>= 3</strong></div>
+              </section>
+
+              <section class="rows-section">
+                <div class="section-label"><span>Three resolved rows</span><small>synthetic demo values · receipts retain commitments only</small></div>
+                <div class="row-cards" id="row-cards"><p>Waiting for protected discovery.</p></div>
+              </section>
+
+              <section class="decision" aria-live="polite" aria-atomic="true">
+                <div>
+                  <span>Native profile verdict</span>
+                  <strong id="verdict" data-kind="authorized">AUTHORIZED</strong>
+                  <p id="verdict-detail">Waiting for current protected facts.</p>
+                </div>
+                <dl>
+                  <div><dt>Stable code</dt><dd id="decision-code">—</dd></div>
+                  <div><dt>Stopped at</dt><dd id="decision-stage">—</dd></div>
+                  <div><dt>Credential acquired</dt><dd id="credential-called">NO</dd></div>
+                  <div><dt>Transaction started</dt><dd id="transaction-called">NO</dd></div>
+                </dl>
+              </section>
+
+              <section class="config-parity">
+                <div><span>Required configuration</span><code id="required-config">—</code></div>
+                <b id="config-match">exact match</b>
+                <div><span>Executed configuration</span><code id="executed-config">—</code></div>
+              </section>
+
+              <section class="execution">
+                <div>
+                  <p class="micro">03 · Native execution</p>
+                  <h3 id="execution-title">Commit this transition once.</h3>
+                  <p id="execution-copy">Verify, claim, acquire a short-lived credential, lock exact rows, update, write the ledger, and commit atomically.</p>
+                  <button class="button execute" id="execute" type="button">Execute exact transition</button>
+                  <a class="receipt-link" id="receipt-link" href="#" hidden>Open designed receipt page ↗</a>
+                </div>
+                <ol class="timeline" id="timeline">
+                  <li data-stage="verify"><span>Policy + proof</span><b>ready</b></li>
+                  <li data-stage="claim"><span>Durable claim</span><b>—</b></li>
+                  <li data-stage="credential"><span>Credential boundary</span><b>—</b></li>
+                  <li data-stage="transaction"><span>SERIALIZABLE + ledger</span><b>—</b></li>
+                  <li data-stage="lock"><span>Exact rows locked</span><b>—</b></li>
+                  <li data-stage="commit"><span>Mutation committed</span><b>—</b></li>
+                  <li data-stage="observe"><span>After state observed</span><b>—</b></li>
+                </ol>
+              </section>
+
+              <details class="receipt-viewer" id="receipt-viewer" hidden>
+                <summary>Complete receipt from the native receipt API <span id="receipt-state">recorded</span></summary>
+                <pre id="receipt-json">Run an experiment to load its receipt.</pre>
+              </details>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="boundary" id="boundary">
+        <div class="shell">
+          <p class="eyebrow"><span></span> The effect boundary</p>
+          <div class="boundary-title"><h2>Database access stays behind one verified command.</h2><p>The public API accepts only a scenario identifier. It cannot accept SQL, table names, predicates, functions, session settings, connection strings, or transaction options.</p></div>
+          <div class="flow">
+            <article><b>01</b><strong>Agent</strong><p>Proposes typed rows and exact values.</p></article><i>→</i>
+            <article><b>02</b><strong>Auths</strong><p>Verifies one resource and one effect budget.</p></article><i>→</i>
+            <article><b>03</b><strong>Native executor</strong><p>Claims, then obtains the protected credential.</p></article><i>→</i>
+            <article><b>04</b><strong>PostgreSQL</strong><p>Commits exact rows and ledger together.</p></article>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer><div class="shell"><a class="wordmark" href="/">auths <i>/</i> <small>PostgreSQL lab</small></a><p>Synthetic records only. No credentials or row values in receipts.</p><span id="release">connecting</span></div></footer>
+    <script type="module" src="/app.js?v=0009"></script>
+  </body>
+</html>
