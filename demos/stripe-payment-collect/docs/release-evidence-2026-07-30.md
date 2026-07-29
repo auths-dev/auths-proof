@@ -23,6 +23,35 @@ The Fly remote builder built
 health check, mounted the encrypted persistent volume, and survived explicit
 machine restarts.
 
+## Docker-local live Stripe gate
+
+Docker Desktop was restarted without deleting images, containers, or volumes.
+The current worktree image was then built from
+`demos/stripe-payment-collect/Dockerfile` and run at
+<http://localhost:8080> against the real Stripe test API.
+
+- Image:
+  `sha256:17577910f08fa51370ac9493e94f7e8c002d23abcb30906a448ea62826c1745e`
+- Container:
+  `abdc1721fa307d3d321867ad463411f090fc058b477ae4db69a7bfc0034f0382`
+- Persistent volume: `auths-stripe-payment-collect-0013-state`
+- Observation: `2026-07-29T23:42:38Z`
+- PaymentIntent: `pi_3Tyh6DPbjgb2M2Te2e2V8Nv9`
+- Charge: `ch_3Tyh6DPbjgb2M2Te2T903yvX`
+- Stripe request: `req_OKM5dH38rQeKp2`
+- Provider response commitment:
+  `83028539c22dd37d70fae2bd342fd7f668f707e38d8e8028bab7f3acfe0ef320`
+
+The local browser completed an exact USD 5.00 collection. Direct Stripe
+retrieval reported `livemode=false`, PaymentIntent `succeeded`,
+`capture_method=automatic`, amount received `500`, and the same latest Charge.
+The Charge was `succeeded`, paid, captured for `500`, and referenced the same
+PaymentIntent.
+
+The demo container was then restarted while its persistent volume and the
+browser page were retained. Submitting the same workflow returned `REPLAY`,
+the original receipt, zero credential requests, and zero provider calls.
+
 ## Exact collection and restart replay
 
 The browser created a fresh Stripe test Customer and attached test
@@ -101,11 +130,9 @@ The final public machine receipt was scanned for:
 All three checks were false. Repository frontend/source scans and the
 compliance suite enforce the same exclusions.
 
-## Remaining promotion gate
+## Promotion
 
-Profile 0013 remains `specified`. The public Docker image, live Stripe
-contract, browser, restart, receipt, and secret-scan evidence are complete,
-but the specification separately requires a Docker-local live Stripe run.
-The local Docker daemon did not respond during this evidence run. Do not
-change the registry status to `implemented` until that local gate and the
-authoritative exact-revision CI gate pass.
+The public and Docker-local live Stripe gates, browser and restart checks,
+receipt checks, secret scans, canonical fixtures, and compliance registration
+are complete. Profile 0013 is promoted to `implemented`; the authoritative
+repository gates are required to pass on the exact promotion revision.

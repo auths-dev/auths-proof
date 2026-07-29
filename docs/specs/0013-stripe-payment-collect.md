@@ -1,6 +1,6 @@
 # 0013: Bounded Stripe one-time payment collection
 
-Status: Proposed  
+Status: Implemented
 Exact action profile: `auths.stripe.exact-payment-collect/1`  
 Policy family: `auths.stripe.bounded-merchant-payment-policy/1`  
 Evaluator: `auths.stripe.bounded-merchant-payment-evaluator/1`  

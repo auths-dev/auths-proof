@@ -153,7 +153,7 @@ forbidden_shared_semantics = [
 [[profiles]]
 spec = 13
 spec_path = "docs/specs/0013-stripe-payment-collect.md"
-status = "specified"
+status = "implemented"
 profile = "auths.stripe.exact-payment-collect/1"
 family = "auths.stripe.bounded-merchant-payment-policy/1"
 evaluator = "auths.stripe.bounded-merchant-payment-evaluator/1"
