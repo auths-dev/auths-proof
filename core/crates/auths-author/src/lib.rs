@@ -17,7 +17,7 @@ use auths_model::{
     GrantStatusStatement, ModelError, PermissionSet, PrincipalId, PrincipalStatusId,
     PrincipalStatusStatement, ProfileRef, ProofRef, SignatureBytes, SignatureDescriptor,
     SignatureEnvelope, SignedAction, SignedGrant, SignedGrantStatus, SignedPrincipalStatus,
-    StatusPolicy, ValidityWindow, VerifierLimits,
+    StatusPolicy, ValidityWindow, VerifierLimits, optional_budget_attenuates,
 };
 use core::fmt;
 
@@ -227,13 +227,13 @@ pub fn plan_child_grant(
             AuthorityDimension::ActionConstraint,
         ));
     }
-    if !budget_attenuates(request.budget_ceiling.as_ref(), parent.budget_ceiling()) {
+    if !optional_budget_attenuates(request.budget_ceiling.as_ref(), parent.budget_ceiling()) {
         return Err(PlanningError::Expanded(AuthorityDimension::Budget));
     }
     if parent.remaining_depth() == 0 || request.remaining_depth >= parent.remaining_depth() {
         return Err(PlanningError::Expanded(AuthorityDimension::DelegationDepth));
     }
-    if !status_attenuates(&request.status_policy, parent.status_policy()) {
+    if !request.status_policy.attenuates(parent.status_policy()) {
         return Err(PlanningError::Expanded(AuthorityDimension::Status));
     }
     if request.assurance_floor != *parent.assurance_floor() {
@@ -363,31 +363,6 @@ impl<'a> PlanBuilder<'a> {
     fn validate(&self, plan: AuthorizationPlan) -> Result<AuthorizationPlan, PlanningError> {
         plan.validate(self.limits)?;
         Ok(plan)
-    }
-}
-
-fn budget_attenuates(child: Option<&BudgetCeiling>, parent: Option<&BudgetCeiling>) -> bool {
-    match (child, parent) {
-        (_, None) => true,
-        (Some(child), Some(parent)) => child.attenuates(parent),
-        (None, Some(_)) => false,
-    }
-}
-
-fn status_attenuates(child: &StatusPolicy, parent: &StatusPolicy) -> bool {
-    match (child, parent) {
-        (_, StatusPolicy::ExpiryOnly) => true,
-        (
-            StatusPolicy::SnapshotRequired {
-                method: child_method,
-                max_age: child_age,
-            },
-            StatusPolicy::SnapshotRequired {
-                method: parent_method,
-                max_age: parent_age,
-            },
-        ) => child_method == parent_method && child_age <= parent_age,
-        (StatusPolicy::ExpiryOnly, StatusPolicy::SnapshotRequired { .. }) => false,
     }
 }
 

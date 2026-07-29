@@ -1,5 +1,10 @@
 //! Narrow effect ports for protected Kubernetes rollout execution.
 
+#![allow(
+    clippy::missing_errors_doc,
+    reason = "each effect port returns the closed PortError documented directly below the interfaces"
+)]
+
 use std::sync::Arc;
 
 use auths_model::CanonicalAction;

@@ -1,0 +1,41 @@
+{
+  "aeneas_version": "3a8586f",
+  "charon_version": "0.1.225",
+  "crate": "auths_algebra_kernel",
+  "functions": [
+    {
+      "def_id": 0,
+      "lean_name": "auths_algebra_kernel.generated.attenuation_checks_accept",
+      "lean_file": "qualification/aeneas/generated/algebra/Funs.lean",
+      "rust_name": "auths_algebra_kernel::generated::attenuation_checks_accept",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-algebra-kernel/src/generated.rs",
+        "begin_line": 132,
+        "end_line": 143
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    }
+  ],
+  "types": [
+    {
+      "def_id": 0,
+      "lean_name": "auths_algebra_kernel.generated.AttenuationChecks",
+      "lean_file": "qualification/aeneas/generated/algebra/Types.lean",
+      "rust_name": "auths_algebra_kernel::generated::AttenuationChecks",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-algebra-kernel/src/generated.rs",
+        "begin_line": 50,
+        "end_line": 71
+      }
+    }
+  ],
+  "globals": [],
+  "trait_decls": [],
+  "trait_impls": []
+}

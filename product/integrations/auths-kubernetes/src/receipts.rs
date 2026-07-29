@@ -1,5 +1,10 @@
 //! Portable Kubernetes decision, execution, and observation receipts.
 
+#![allow(
+    clippy::missing_errors_doc,
+    reason = "receipt construction returns only the closed CanonicalError from canonical encoding"
+)]
+
 use serde::{Deserialize, Serialize};
 
 use crate::{

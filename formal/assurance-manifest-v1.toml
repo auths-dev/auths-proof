@@ -1,0 +1,436 @@
+schema = "auths-proof-formal-assurance/v1"
+lean_toolchain = "leanprover/lean4:v4.31.0"
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+allowed_axioms = ["Classical.choice", "Quot.sound", "propext"]
+
+[[claims]]
+claim_id = "AP-FORMAL-BASELINE-001"
+claim_text = "Numeric target-V1 attenuation is reflexive."
+claim_status = "proved"
+lean_declaration = "Auths.attenuation_refl"
+lean_statement_sha256 = "7d70da2188750cee3b19d2661a0dffcbd3f61ca413e53803ad325ccccb713d4c"
+formal_review = "formal-security-baseline-2026-07-29"
+rust_symbols = []
+semantic_source_closure = ["formal/Auths/Base.lean", "formal/Auths/Authority.lean", "formal/Auths/Attenuation.lean", "formal/Auths/Composition.lean", "formal/Auths/Diversity.lean", "formal/Auths/Generated/Algebra.lean", "formal/Auths/Theorems.lean", "formal/algebra-contract-v1.toml"]
+semantic_source_closure_sha256 = "02c284b28cb0b6e080ed7a4d6f479bcc15323a0d25cbd5781a151c23d407893e"
+evidence = [{ kind = "lean-proof", artifact = "formal/Auths/Attenuation.lean" }]
+scope = "The current Nat-coordinate abstraction only; rich shipping predicates remain outside this claim."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = ["propext", "Quot.sound"]
+
+[[claims]]
+claim_id = "AP-FORMAL-BASELINE-002"
+claim_text = "Numeric target-V1 attenuation is transitive."
+claim_status = "proved"
+lean_declaration = "Auths.attenuation_trans"
+lean_statement_sha256 = "c83821c5a40a15e8d08da87057e29e3bd4e0293a89458910d5f8343663e8b56a"
+formal_review = "formal-security-baseline-2026-07-29"
+rust_symbols = []
+semantic_source_closure = ["formal/Auths/Base.lean", "formal/Auths/Authority.lean", "formal/Auths/Attenuation.lean", "formal/Auths/Composition.lean", "formal/Auths/Diversity.lean", "formal/Auths/Generated/Algebra.lean", "formal/Auths/Theorems.lean", "formal/algebra-contract-v1.toml"]
+semantic_source_closure_sha256 = "02c284b28cb0b6e080ed7a4d6f479bcc15323a0d25cbd5781a151c23d407893e"
+evidence = [{ kind = "lean-proof", artifact = "formal/Auths/Attenuation.lean" }]
+scope = "The current Nat-coordinate abstraction only; rich shipping predicates remain outside this claim."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = ["propext", "Classical.choice", "Quot.sound"]
+
+[[claims]]
+claim_id = "AP-FORMAL-BASELINE-003"
+claim_text = "Mutual numeric attenuation plus equal subjects implies equal abstract authorities."
+claim_status = "proved"
+lean_declaration = "Auths.attenuation_antisymm"
+lean_statement_sha256 = "e432304cf65438b2c04b117cc13ce6de82159e45881294cdefef852400426b1d"
+formal_review = "formal-security-baseline-2026-07-29"
+rust_symbols = []
+semantic_source_closure = ["formal/Auths/Base.lean", "formal/Auths/Authority.lean", "formal/Auths/Attenuation.lean", "formal/Auths/Composition.lean", "formal/Auths/Diversity.lean", "formal/Auths/Generated/Algebra.lean", "formal/Auths/Theorems.lean", "formal/algebra-contract-v1.toml"]
+semantic_source_closure_sha256 = "02c284b28cb0b6e080ed7a4d6f479bcc15323a0d25cbd5781a151c23d407893e"
+evidence = [{ kind = "lean-proof", artifact = "formal/Auths/Attenuation.lean" }]
+scope = "The current Nat-coordinate abstraction and its explicit equal-subject premise."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = ["propext", "Classical.choice", "Quot.sound"]
+
+[[claims]]
+claim_id = "AP-FORMAL-BASELINE-004"
+claim_text = "Action coverage is downward closed for the numeric target-V1 attenuation abstraction."
+claim_status = "proved"
+lean_declaration = "Auths.coverage_downward_closed"
+lean_statement_sha256 = "f6e4b30fa64740a8dae491377f7a1b977258b525dd7c498f2702e532f51e3bd4"
+formal_review = "formal-security-baseline-2026-07-29"
+rust_symbols = []
+semantic_source_closure = ["formal/Auths/Base.lean", "formal/Auths/Authority.lean", "formal/Auths/Attenuation.lean", "formal/Auths/Composition.lean", "formal/Auths/Diversity.lean", "formal/Auths/Generated/Algebra.lean", "formal/Auths/Theorems.lean", "formal/algebra-contract-v1.toml"]
+semantic_source_closure_sha256 = "02c284b28cb0b6e080ed7a4d6f479bcc15323a0d25cbd5781a151c23d407893e"
+evidence = [{ kind = "lean-proof", artifact = "formal/Auths/Attenuation.lean" }]
+scope = "The current Nat-coordinate coverage model, not production set, interval, constraint, or budget semantics."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = ["propext", "Classical.choice", "Quot.sound"]
+
+[[claims]]
+claim_id = "AP-FORMAL-BASELINE-005"
+claim_text = "An accepted abstract delegation preserves the root coordinate."
+claim_status = "proved"
+lean_declaration = "Auths.delegate_preserves_root"
+lean_statement_sha256 = "e80ea89f43509061b6d3edcd808f4700084367579b6888387d0adbda1e0f3bd4"
+formal_review = "formal-security-baseline-2026-07-29"
+rust_symbols = []
+semantic_source_closure = ["formal/Auths/Base.lean", "formal/Auths/Authority.lean", "formal/Auths/Attenuation.lean", "formal/Auths/Composition.lean", "formal/Auths/Diversity.lean", "formal/Auths/Generated/Algebra.lean", "formal/Auths/Theorems.lean", "formal/algebra-contract-v1.toml"]
+semantic_source_closure_sha256 = "02c284b28cb0b6e080ed7a4d6f479bcc15323a0d25cbd5781a151c23d407893e"
+evidence = [{ kind = "lean-proof", artifact = "formal/Auths/Attenuation.lean" }]
+scope = "The abstract delegation relation."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = []
+
+[[claims]]
+claim_id = "AP-FORMAL-BASELINE-006"
+claim_text = "The abstract delegateTo helper writes the requested subject."
+claim_status = "proved"
+lean_declaration = "Auths.delegate_updates_subject"
+lean_statement_sha256 = "e58469bd3b0c69a129d1514332097804317b80f2084742ae9dffda48d32a1a17"
+formal_review = "formal-security-baseline-2026-07-29"
+rust_symbols = []
+semantic_source_closure = ["formal/Auths/Base.lean", "formal/Auths/Authority.lean", "formal/Auths/Attenuation.lean", "formal/Auths/Composition.lean", "formal/Auths/Diversity.lean", "formal/Auths/Generated/Algebra.lean", "formal/Auths/Theorems.lean", "formal/algebra-contract-v1.toml"]
+semantic_source_closure_sha256 = "02c284b28cb0b6e080ed7a4d6f479bcc15323a0d25cbd5781a151c23d407893e"
+evidence = [{ kind = "lean-proof", artifact = "formal/Auths/Attenuation.lean" }]
+scope = "A definitional helper fact; this is not a grant-linkage or complete-state transition theorem."
+residual_assumptions = ["Lean's kernel and the pinned toolchain are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = []
+
+[[claims]]
+claim_id = "AP-FORMAL-BASELINE-007"
+claim_text = "The generated ten-Boolean conjunction accepts exactly the abstract numeric delegation checks."
+claim_status = "proved"
+lean_declaration = "Auths.attenuation_kernel_refines"
+lean_statement_sha256 = "bb0cf501e7fc2bf600375c91b6256ae191412372de9d6361862dcc27b22a3581"
+formal_review = "formal-security-baseline-2026-07-29"
+rust_symbols = ["auths_algebra_kernel::attenuation_accepts"]
+semantic_source_closure = ["formal/Auths/Base.lean", "formal/Auths/Authority.lean", "formal/Auths/Attenuation.lean", "formal/Auths/Composition.lean", "formal/Auths/Diversity.lean", "formal/Auths/Generated/Algebra.lean", "formal/Auths/Theorems.lean", "formal/algebra-contract-v1.toml"]
+semantic_source_closure_sha256 = "02c284b28cb0b6e080ed7a4d6f479bcc15323a0d25cbd5781a151c23d407893e"
+evidence = [{ kind = "lean-proof", artifact = "formal/Auths/Attenuation.lean" }, { kind = "generated-contract", artifact = "formal/algebra-contract-v1.toml" }, { kind = "test-corpus", artifact = "core/formal-vectors/v1/attenuation-checks.json" }]
+scope = "Boolean aggregation after rich values have already been projected; it does not prove how shipping Rust derives those Booleans."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, listed foundational axioms, generator correctness, and the Rust vector harness are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = ["propext", "Classical.choice", "Quot.sound"]
+
+[[claims]]
+claim_id = "AP-FORMAL-BASELINE-008"
+claim_text = "An accepted abstract delegation strictly decreases remaining depth."
+claim_status = "proved"
+lean_declaration = "Auths.delegate_strict_depth"
+lean_statement_sha256 = "c9b69eb27af11dc01d1260c965b390f8cc1bfd017529de305468d03348d8072b"
+formal_review = "formal-security-baseline-2026-07-29"
+rust_symbols = []
+semantic_source_closure = ["formal/Auths/Base.lean", "formal/Auths/Authority.lean", "formal/Auths/Attenuation.lean", "formal/Auths/Composition.lean", "formal/Auths/Diversity.lean", "formal/Auths/Generated/Algebra.lean", "formal/Auths/Theorems.lean", "formal/algebra-contract-v1.toml"]
+semantic_source_closure_sha256 = "02c284b28cb0b6e080ed7a4d6f479bcc15323a0d25cbd5781a151c23d407893e"
+evidence = [{ kind = "lean-proof", artifact = "formal/Auths/Attenuation.lean" }]
+scope = "One abstract delegation edge; no finite-chain cardinality theorem is claimed."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = []
+
+[[claims]]
+claim_id = "AP-FORMAL-BASELINE-009"
+claim_text = "An accepted abstract delegation satisfies the numeric attenuation relation."
+claim_status = "proved"
+lean_declaration = "Auths.delegate_never_widens"
+lean_statement_sha256 = "7e26103875642cd24fa44c8057179145857b07b3e53f7e93d9d471e36c2dd8ba"
+formal_review = "formal-security-baseline-2026-07-29"
+rust_symbols = []
+semantic_source_closure = ["formal/Auths/Base.lean", "formal/Auths/Authority.lean", "formal/Auths/Attenuation.lean", "formal/Auths/Composition.lean", "formal/Auths/Diversity.lean", "formal/Auths/Generated/Algebra.lean", "formal/Auths/Theorems.lean", "formal/algebra-contract-v1.toml"]
+semantic_source_closure_sha256 = "02c284b28cb0b6e080ed7a4d6f479bcc15323a0d25cbd5781a151c23d407893e"
+evidence = [{ kind = "lean-proof", artifact = "formal/Auths/Attenuation.lean" }]
+scope = "The current Nat-coordinate abstraction."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = []
+
+[[claims]]
+claim_id = "AP-FORMAL-BASELINE-010"
+claim_text = "Two accepted abstract delegation edges imply transitive numeric attenuation."
+claim_status = "proved"
+lean_declaration = "Auths.chain_transitive_attenuation"
+lean_statement_sha256 = "4f839401d7615328ae23610a404f7f70fa38438e8756c26794f51d7a464cdc1b"
+formal_review = "formal-security-baseline-2026-07-29"
+rust_symbols = []
+semantic_source_closure = ["formal/Auths/Base.lean", "formal/Auths/Authority.lean", "formal/Auths/Attenuation.lean", "formal/Auths/Composition.lean", "formal/Auths/Diversity.lean", "formal/Auths/Generated/Algebra.lean", "formal/Auths/Theorems.lean", "formal/algebra-contract-v1.toml"]
+semantic_source_closure_sha256 = "02c284b28cb0b6e080ed7a4d6f479bcc15323a0d25cbd5781a151c23d407893e"
+evidence = [{ kind = "lean-proof", artifact = "formal/Auths/Attenuation.lean" }]
+scope = "Exactly two edges in the current Nat-coordinate abstraction."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = ["propext", "Classical.choice", "Quot.sound"]
+
+[[claims]]
+claim_id = "AP-FORMAL-BASELINE-011"
+claim_text = "An action covered by an accepted numeric child authority is covered by its numeric parent."
+claim_status = "proved"
+lean_declaration = "Auths.authorized_action_covered"
+lean_statement_sha256 = "4cafba5e09435cf91e093d5850456b06e081d574acf8cef8aee164a9c5c29e3f"
+formal_review = "formal-security-baseline-2026-07-29"
+rust_symbols = []
+semantic_source_closure = ["formal/Auths/Base.lean", "formal/Auths/Authority.lean", "formal/Auths/Attenuation.lean", "formal/Auths/Composition.lean", "formal/Auths/Diversity.lean", "formal/Auths/Generated/Algebra.lean", "formal/Auths/Theorems.lean", "formal/algebra-contract-v1.toml"]
+semantic_source_closure_sha256 = "02c284b28cb0b6e080ed7a4d6f479bcc15323a0d25cbd5781a151c23d407893e"
+evidence = [{ kind = "lean-proof", artifact = "formal/Auths/Attenuation.lean" }]
+scope = "The current Nat-coordinate action and authority abstraction."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = ["propext", "Classical.choice", "Quot.sound"]
+
+[[claims]]
+claim_id = "AP-FORMAL-BASELINE-012"
+claim_text = "Binary all composition is commutative."
+claim_status = "proved"
+lean_declaration = "Auths.all_commutative"
+lean_statement_sha256 = "fd3226a3df5fb4730eeaeb50b3190d9f0ae29aeb961d395825787945fdcdd445"
+formal_review = "formal-security-baseline-2026-07-29"
+rust_symbols = []
+semantic_source_closure = ["formal/Auths/Base.lean", "formal/Auths/Authority.lean", "formal/Auths/Attenuation.lean", "formal/Auths/Composition.lean", "formal/Auths/Diversity.lean", "formal/Auths/Generated/Algebra.lean", "formal/Auths/Theorems.lean", "formal/algebra-contract-v1.toml"]
+semantic_source_closure_sha256 = "02c284b28cb0b6e080ed7a4d6f479bcc15323a0d25cbd5781a151c23d407893e"
+evidence = [{ kind = "lean-proof", artifact = "formal/Auths/Composition.lean" }]
+scope = "The closed three-valued binary all operator."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, and the listed foundational axioms are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = ["propext"]
+
+[[claims]]
+claim_id = "AP-FORMAL-BASELINE-013"
+claim_text = "Binary all composition is associative."
+claim_status = "proved"
+lean_declaration = "Auths.all_associative"
+lean_statement_sha256 = "5749607a3f2752bdd73ae4559af264763d8a36ec3d1258ed4f60b11467d7e12d"
+formal_review = "formal-security-baseline-2026-07-29"
+rust_symbols = []
+semantic_source_closure = ["formal/Auths/Base.lean", "formal/Auths/Authority.lean", "formal/Auths/Attenuation.lean", "formal/Auths/Composition.lean", "formal/Auths/Diversity.lean", "formal/Auths/Generated/Algebra.lean", "formal/Auths/Theorems.lean", "formal/algebra-contract-v1.toml"]
+semantic_source_closure_sha256 = "02c284b28cb0b6e080ed7a4d6f479bcc15323a0d25cbd5781a151c23d407893e"
+evidence = [{ kind = "lean-proof", artifact = "formal/Auths/Composition.lean" }]
+scope = "The closed three-valued binary all operator."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, and the listed foundational axioms are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = ["propext"]
+
+[[claims]]
+claim_id = "AP-FORMAL-BASELINE-014"
+claim_text = "Binary all composition is idempotent."
+claim_status = "proved"
+lean_declaration = "Auths.all_idempotent"
+lean_statement_sha256 = "99993635cb0eadeacab1d64ee7f674245481d4160a770deaed82022c0851a3f6"
+formal_review = "formal-security-baseline-2026-07-29"
+rust_symbols = []
+semantic_source_closure = ["formal/Auths/Base.lean", "formal/Auths/Authority.lean", "formal/Auths/Attenuation.lean", "formal/Auths/Composition.lean", "formal/Auths/Diversity.lean", "formal/Auths/Generated/Algebra.lean", "formal/Auths/Theorems.lean", "formal/algebra-contract-v1.toml"]
+semantic_source_closure_sha256 = "02c284b28cb0b6e080ed7a4d6f479bcc15323a0d25cbd5781a151c23d407893e"
+evidence = [{ kind = "lean-proof", artifact = "formal/Auths/Composition.lean" }]
+scope = "The closed three-valued binary all operator."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, and the listed foundational axioms are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = ["propext"]
+
+[[claims]]
+claim_id = "AP-FORMAL-BASELINE-015"
+claim_text = "Binary any composition is commutative."
+claim_status = "proved"
+lean_declaration = "Auths.any_commutative"
+lean_statement_sha256 = "a2680b963a19fb4f377fefaad4102a4469895954bbea2b7541894902e979115d"
+formal_review = "formal-security-baseline-2026-07-29"
+rust_symbols = []
+semantic_source_closure = ["formal/Auths/Base.lean", "formal/Auths/Authority.lean", "formal/Auths/Attenuation.lean", "formal/Auths/Composition.lean", "formal/Auths/Diversity.lean", "formal/Auths/Generated/Algebra.lean", "formal/Auths/Theorems.lean", "formal/algebra-contract-v1.toml"]
+semantic_source_closure_sha256 = "02c284b28cb0b6e080ed7a4d6f479bcc15323a0d25cbd5781a151c23d407893e"
+evidence = [{ kind = "lean-proof", artifact = "formal/Auths/Composition.lean" }]
+scope = "The closed three-valued binary any operator."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, and the listed foundational axioms are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = ["propext"]
+
+[[claims]]
+claim_id = "AP-FORMAL-BASELINE-016"
+claim_text = "Binary any composition is associative."
+claim_status = "proved"
+lean_declaration = "Auths.any_associative"
+lean_statement_sha256 = "3ceaf22f6776423ee96cbdf5fa9bc5c13fca94bdbb3355b016d6b8e4c275afa8"
+formal_review = "formal-security-baseline-2026-07-29"
+rust_symbols = []
+semantic_source_closure = ["formal/Auths/Base.lean", "formal/Auths/Authority.lean", "formal/Auths/Attenuation.lean", "formal/Auths/Composition.lean", "formal/Auths/Diversity.lean", "formal/Auths/Generated/Algebra.lean", "formal/Auths/Theorems.lean", "formal/algebra-contract-v1.toml"]
+semantic_source_closure_sha256 = "02c284b28cb0b6e080ed7a4d6f479bcc15323a0d25cbd5781a151c23d407893e"
+evidence = [{ kind = "lean-proof", artifact = "formal/Auths/Composition.lean" }]
+scope = "The closed three-valued binary any operator."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, and the listed foundational axioms are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = ["propext"]
+
+[[claims]]
+claim_id = "AP-FORMAL-BASELINE-017"
+claim_text = "Binary any composition is idempotent."
+claim_status = "proved"
+lean_declaration = "Auths.any_idempotent"
+lean_statement_sha256 = "8f1cb9d3d130a67d026a96f278678b9070badc44f40f7c538ee68a3f9af90d82"
+formal_review = "formal-security-baseline-2026-07-29"
+rust_symbols = []
+semantic_source_closure = ["formal/Auths/Base.lean", "formal/Auths/Authority.lean", "formal/Auths/Attenuation.lean", "formal/Auths/Composition.lean", "formal/Auths/Diversity.lean", "formal/Auths/Generated/Algebra.lean", "formal/Auths/Theorems.lean", "formal/algebra-contract-v1.toml"]
+semantic_source_closure_sha256 = "02c284b28cb0b6e080ed7a4d6f479bcc15323a0d25cbd5781a151c23d407893e"
+evidence = [{ kind = "lean-proof", artifact = "formal/Auths/Composition.lean" }]
+scope = "The closed three-valued binary any operator."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, and the listed foundational axioms are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = ["propext"]
+
+[[claims]]
+claim_id = "AP-FORMAL-BASELINE-018"
+claim_text = "A threshold of one over two truth values equals binary any."
+claim_status = "proved"
+lean_declaration = "Auths.threshold_one_eq_any"
+lean_statement_sha256 = "639a98d2dcab0db13ec9b221b75605fa48ec169a263f76feb2034f912d7a69c7"
+formal_review = "formal-security-baseline-2026-07-29"
+rust_symbols = ["auths_algebra_kernel::threshold_counts"]
+semantic_source_closure = ["formal/Auths/Base.lean", "formal/Auths/Authority.lean", "formal/Auths/Attenuation.lean", "formal/Auths/Composition.lean", "formal/Auths/Diversity.lean", "formal/Auths/Generated/Algebra.lean", "formal/Auths/Theorems.lean", "formal/algebra-contract-v1.toml"]
+semantic_source_closure_sha256 = "02c284b28cb0b6e080ed7a4d6f479bcc15323a0d25cbd5781a151c23d407893e"
+evidence = [{ kind = "lean-proof", artifact = "formal/Auths/Composition.lean" }, { kind = "test-corpus", artifact = "core/formal-vectors/v1/threshold-counts.json" }]
+scope = "The generated two-input threshold abstraction."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, generator correctness, and the Rust vector harness are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = ["propext"]
+
+[[claims]]
+claim_id = "AP-FORMAL-BASELINE-019"
+claim_text = "A threshold of two over two truth values equals binary all."
+claim_status = "proved"
+lean_declaration = "Auths.threshold_n_eq_all"
+lean_statement_sha256 = "7bfb0c0d44d1f31949d7039be3c2052cab9112fcb12d2abef005e6c52979b815"
+formal_review = "formal-security-baseline-2026-07-29"
+rust_symbols = ["auths_algebra_kernel::threshold_counts"]
+semantic_source_closure = ["formal/Auths/Base.lean", "formal/Auths/Authority.lean", "formal/Auths/Attenuation.lean", "formal/Auths/Composition.lean", "formal/Auths/Diversity.lean", "formal/Auths/Generated/Algebra.lean", "formal/Auths/Theorems.lean", "formal/algebra-contract-v1.toml"]
+semantic_source_closure_sha256 = "02c284b28cb0b6e080ed7a4d6f479bcc15323a0d25cbd5781a151c23d407893e"
+evidence = [{ kind = "lean-proof", artifact = "formal/Auths/Composition.lean" }, { kind = "test-corpus", artifact = "core/formal-vectors/v1/threshold-counts.json" }]
+scope = "The generated two-input threshold abstraction."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, generator correctness, and the Rust vector harness are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = ["propext"]
+
+[[claims]]
+claim_id = "AP-FORMAL-BASELINE-020"
+claim_text = "Raising the two-input threshold from one to two cannot raise its authorization truth."
+claim_status = "proved"
+lean_declaration = "Auths.threshold_monotone_k"
+lean_statement_sha256 = "34c77c69b14f1b08db8fba8da86a0a9eb65b95147b85d8d3f48811b47cabcb79"
+formal_review = "formal-security-baseline-2026-07-29"
+rust_symbols = ["auths_algebra_kernel::threshold_counts"]
+semantic_source_closure = ["formal/Auths/Base.lean", "formal/Auths/Authority.lean", "formal/Auths/Attenuation.lean", "formal/Auths/Composition.lean", "formal/Auths/Diversity.lean", "formal/Auths/Generated/Algebra.lean", "formal/Auths/Theorems.lean", "formal/algebra-contract-v1.toml"]
+semantic_source_closure_sha256 = "02c284b28cb0b6e080ed7a4d6f479bcc15323a0d25cbd5781a151c23d407893e"
+evidence = [{ kind = "lean-proof", artifact = "formal/Auths/Composition.lean" }, { kind = "test-corpus", artifact = "core/formal-vectors/v1/threshold-counts.json" }]
+scope = "Exactly the two-input threshold helper and the declared three-valued truth order."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, listed foundational axioms, generator correctness, and the Rust vector harness are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = ["propext", "Quot.sound"]
+
+[[claims]]
+claim_id = "AP-FORMAL-BASELINE-021"
+claim_text = "Swapping the two inputs preserves binary all and binary any results."
+claim_status = "proved"
+lean_declaration = "Auths.binary_composition_swap_invariant"
+lean_statement_sha256 = "5a2f18a8b889fca7e2d4f239a97a12490193b19c6d3e8703164e04cc556986c7"
+formal_review = "formal-security-baseline-2026-07-29"
+rust_symbols = []
+semantic_source_closure = ["formal/Auths/Base.lean", "formal/Auths/Authority.lean", "formal/Auths/Attenuation.lean", "formal/Auths/Composition.lean", "formal/Auths/Diversity.lean", "formal/Auths/Generated/Algebra.lean", "formal/Auths/Theorems.lean", "formal/algebra-contract-v1.toml"]
+semantic_source_closure_sha256 = "02c284b28cb0b6e080ed7a4d6f479bcc15323a0d25cbd5781a151c23d407893e"
+evidence = [{ kind = "lean-proof", artifact = "formal/Auths/Composition.lean" }]
+scope = "A two-value swap only; arbitrary authorization-plan permutations are not claimed."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, and the listed foundational axioms are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = ["propext"]
+
+[[claims]]
+claim_id = "AP-FORMAL-BASELINE-022"
+claim_text = "The two-value minimum diagnostic code is invariant under swapping its inputs."
+claim_status = "proved"
+lean_declaration = "Auths.canonical_diagnostic_permutation_invariant"
+lean_statement_sha256 = "0921f0975b40ec72df5ea46b1ca90b3ff7a1b56262d58e6db3ed3a488c94be82"
+formal_review = "formal-security-baseline-2026-07-29"
+rust_symbols = []
+semantic_source_closure = ["formal/Auths/Base.lean", "formal/Auths/Authority.lean", "formal/Auths/Attenuation.lean", "formal/Auths/Composition.lean", "formal/Auths/Diversity.lean", "formal/Auths/Generated/Algebra.lean", "formal/Auths/Theorems.lean", "formal/algebra-contract-v1.toml"]
+semantic_source_closure_sha256 = "02c284b28cb0b6e080ed7a4d6f479bcc15323a0d25cbd5781a151c23d407893e"
+evidence = [{ kind = "lean-proof", artifact = "formal/Auths/Composition.lean" }]
+scope = "The two-value canonicalCode helper; arbitrary plan diagnostic permutations are not claimed."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, and the listed foundational axioms are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = ["propext"]
+
+[[claims]]
+claim_id = "AP-FORMAL-BASELINE-023"
+claim_text = "The current plan visit helper is definitionally the plan leaf enumeration."
+claim_status = "proved"
+lean_declaration = "Auths.plan_visit_is_leaf_enumeration"
+lean_statement_sha256 = "a9d2d3fd6140d7535c9cf3567cf92a5891e8e77fda5924a34a032bb1d9cab0cb"
+formal_review = "formal-security-baseline-2026-07-29"
+rust_symbols = []
+semantic_source_closure = ["formal/Auths/Base.lean", "formal/Auths/Authority.lean", "formal/Auths/Attenuation.lean", "formal/Auths/Composition.lean", "formal/Auths/Diversity.lean", "formal/Auths/Generated/Algebra.lean", "formal/Auths/Theorems.lean", "formal/algebra-contract-v1.toml"]
+semantic_source_closure_sha256 = "02c284b28cb0b6e080ed7a4d6f479bcc15323a0d25cbd5781a151c23d407893e"
+evidence = [{ kind = "lean-proof", artifact = "formal/Auths/Composition.lean" }]
+scope = "A definitional model equality; it does not prove that the shipping evaluator visits leaves once."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, and the listed foundational axioms are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = ["propext", "Quot.sound"]
+
+[[claims]]
+claim_id = "AP-FORMAL-BASELINE-024"
+claim_text = "The current plan cost helper is definitionally the recursive node count."
+claim_status = "proved"
+lean_declaration = "Auths.plan_cost_is_node_count"
+lean_statement_sha256 = "d0e9f71500f5da6108662057f11150fa61188b6b5059562b6db0079bd4e5820e"
+formal_review = "formal-security-baseline-2026-07-29"
+rust_symbols = []
+semantic_source_closure = ["formal/Auths/Base.lean", "formal/Auths/Authority.lean", "formal/Auths/Attenuation.lean", "formal/Auths/Composition.lean", "formal/Auths/Diversity.lean", "formal/Auths/Generated/Algebra.lean", "formal/Auths/Theorems.lean", "formal/algebra-contract-v1.toml"]
+semantic_source_closure_sha256 = "02c284b28cb0b6e080ed7a4d6f479bcc15323a0d25cbd5781a151c23d407893e"
+evidence = [{ kind = "lean-proof", artifact = "formal/Auths/Composition.lean" }]
+scope = "A definitional model equality; no asymptotic or shipping evaluator cost bound is claimed."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, and the listed foundational axioms are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = ["propext", "Quot.sound"]
+
+[[claims]]
+claim_id = "AP-FORMAL-BASELINE-025"
+claim_text = "An authorized generated threshold result implies the authorized count meets the threshold."
+claim_status = "proved"
+lean_declaration = "Auths.authorized_implies_threshold_met"
+lean_statement_sha256 = "aa5f741b00e6669d81b5c84fb654be2c996b933a4b36a829524cbbfbee23db13"
+formal_review = "formal-security-baseline-2026-07-29"
+rust_symbols = ["auths_algebra_kernel::threshold_counts"]
+semantic_source_closure = ["formal/Auths/Base.lean", "formal/Auths/Authority.lean", "formal/Auths/Attenuation.lean", "formal/Auths/Composition.lean", "formal/Auths/Diversity.lean", "formal/Auths/Generated/Algebra.lean", "formal/Auths/Theorems.lean", "formal/algebra-contract-v1.toml"]
+semantic_source_closure_sha256 = "02c284b28cb0b6e080ed7a4d6f479bcc15323a0d25cbd5781a151c23d407893e"
+evidence = [{ kind = "lean-proof", artifact = "formal/Auths/Composition.lean" }, { kind = "test-corpus", artifact = "core/formal-vectors/v1/threshold-counts.json" }]
+scope = "The generated count classifier and its exhaustive target-V1 bounded Rust vectors."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, generator correctness, and the Rust vector harness are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = []
+
+[[claims]]
+claim_id = "AP-FORMAL-BASELINE-026"
+claim_text = "A denied generated threshold result implies authorized plus indeterminate branches cannot meet the threshold."
+claim_status = "proved"
+lean_declaration = "Auths.denied_implies_threshold_impossible"
+lean_statement_sha256 = "45501ea6c2958ac05331a27cbbef0368d85fe9f96498b2bce5ee52869ca09c2e"
+formal_review = "formal-security-baseline-2026-07-29"
+rust_symbols = ["auths_algebra_kernel::threshold_counts"]
+semantic_source_closure = ["formal/Auths/Base.lean", "formal/Auths/Authority.lean", "formal/Auths/Attenuation.lean", "formal/Auths/Composition.lean", "formal/Auths/Diversity.lean", "formal/Auths/Generated/Algebra.lean", "formal/Auths/Theorems.lean", "formal/algebra-contract-v1.toml"]
+semantic_source_closure_sha256 = "02c284b28cb0b6e080ed7a4d6f479bcc15323a0d25cbd5781a151c23d407893e"
+evidence = [{ kind = "lean-proof", artifact = "formal/Auths/Composition.lean" }, { kind = "test-corpus", artifact = "core/formal-vectors/v1/threshold-counts.json" }]
+scope = "The generated count classifier and its exhaustive target-V1 bounded Rust vectors."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, listed foundational axioms, generator correctness, and the Rust vector harness are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = ["propext", "Quot.sound"]
+
+[[claims]]
+claim_id = "AP-FORMAL-BASELINE-027"
+claim_text = "An indeterminate generated threshold result means authorization is not yet met but remains reachable."
+claim_status = "proved"
+lean_declaration = "Auths.indeterminate_implies_threshold_reachable"
+lean_statement_sha256 = "2df28faf54455ab0bc0e68eed428c0d087cff4babdf10af267e5ad6bf7f4561c"
+formal_review = "formal-security-baseline-2026-07-29"
+rust_symbols = ["auths_algebra_kernel::threshold_counts"]
+semantic_source_closure = ["formal/Auths/Base.lean", "formal/Auths/Authority.lean", "formal/Auths/Attenuation.lean", "formal/Auths/Composition.lean", "formal/Auths/Diversity.lean", "formal/Auths/Generated/Algebra.lean", "formal/Auths/Theorems.lean", "formal/algebra-contract-v1.toml"]
+semantic_source_closure_sha256 = "02c284b28cb0b6e080ed7a4d6f479bcc15323a0d25cbd5781a151c23d407893e"
+evidence = [{ kind = "lean-proof", artifact = "formal/Auths/Composition.lean" }, { kind = "test-corpus", artifact = "core/formal-vectors/v1/threshold-counts.json" }]
+scope = "The generated count classifier and its exhaustive target-V1 bounded Rust vectors."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, listed foundational axioms, generator correctness, and the Rust vector harness are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = ["propext", "Classical.choice", "Quot.sound"]

@@ -1,0 +1,599 @@
+{
+  "aeneas_version": "3a8586f",
+  "charon_version": "0.1.225",
+  "crate": "auths_authority",
+  "functions": [
+    {
+      "def_id": 12,
+      "lean_name": "auths_authority.auths_algebra_kernel.generated.attenuation_checks_accept",
+      "lean_file": "qualification/aeneas/generated/authority/FunsExternal_Template.lean",
+      "rust_name": "auths_algebra_kernel::generated::attenuation_checks_accept",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-algebra-kernel/src/generated.rs",
+        "begin_line": 132,
+        "end_line": 132
+      },
+      "is_opaque": true,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 10,
+      "lean_name": "auths_authority.auths_model.principal_id_equal",
+      "lean_file": "qualification/aeneas/generated/authority/FunsExternal_Template.lean",
+      "rust_name": "auths_model::principal_id_equal",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "begin_line": 221,
+        "end_line": 221
+      },
+      "is_opaque": true,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 4,
+      "lean_name": "auths_authority.auths_model.validity_window_contains",
+      "lean_file": "qualification/aeneas/generated/authority/FunsExternal_Template.lean",
+      "rust_name": "auths_model::validity_window_contains",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "begin_line": 445,
+        "end_line": 445
+      },
+      "is_opaque": true,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 18,
+      "lean_name": "auths_authority.auths_model.profile_ref_equal",
+      "lean_file": "qualification/aeneas/generated/authority/FunsExternal_Template.lean",
+      "rust_name": "auths_model::profile_ref_equal",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "begin_line": 488,
+        "end_line": 488
+      },
+      "is_opaque": true,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 17,
+      "lean_name": "auths_authority.auths_model.profile_slice_contains",
+      "lean_file": "qualification/aeneas/generated/authority/FunsExternal_Template.lean",
+      "rust_name": "auths_model::profile_slice_contains",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "begin_line": 495,
+        "end_line": 495
+      },
+      "is_opaque": true,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 9,
+      "lean_name": "auths_authority.auths_model.assurance_policy_id_equal",
+      "lean_file": "qualification/aeneas/generated/authority/FunsExternal_Template.lean",
+      "rust_name": "auths_model::assurance_policy_id_equal",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "begin_line": 509,
+        "end_line": 509
+      },
+      "is_opaque": true,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 11,
+      "lean_name": "auths_authority.auths_model.optional_grant_id_equal",
+      "lean_file": "qualification/aeneas/generated/authority/FunsExternal_Template.lean",
+      "rust_name": "auths_model::optional_grant_id_equal",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "begin_line": 523,
+        "end_line": 523
+      },
+      "is_opaque": true,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 13,
+      "lean_name": "auths_authority.auths_model.permission_set_contains",
+      "lean_file": "qualification/aeneas/generated/authority/FunsExternal_Template.lean",
+      "rust_name": "auths_model::permission_set_contains",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "begin_line": 607,
+        "end_line": 607
+      },
+      "is_opaque": true,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 3,
+      "lean_name": "auths_authority.auths_model.permission_set_is_subset",
+      "lean_file": "qualification/aeneas/generated/authority/FunsExternal_Template.lean",
+      "rust_name": "auths_model::permission_set_is_subset",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "begin_line": 624,
+        "end_line": 624
+      },
+      "is_opaque": true,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 14,
+      "lean_name": "auths_authority.auths_model.audience_set_contains",
+      "lean_file": "qualification/aeneas/generated/authority/FunsExternal_Template.lean",
+      "rust_name": "auths_model::audience_set_contains",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "begin_line": 682,
+        "end_line": 682
+      },
+      "is_opaque": true,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 5,
+      "lean_name": "auths_authority.auths_model.audience_set_is_subset",
+      "lean_file": "qualification/aeneas/generated/authority/FunsExternal_Template.lean",
+      "rust_name": "auths_model::audience_set_is_subset",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "begin_line": 699,
+        "end_line": 699
+      },
+      "is_opaque": true,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 15,
+      "lean_name": "auths_authority.auths_model.action_constraint_allows",
+      "lean_file": "qualification/aeneas/generated/authority/FunsExternal_Template.lean",
+      "rust_name": "auths_model::action_constraint_allows",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "begin_line": 839,
+        "end_line": 839
+      },
+      "is_opaque": true,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 6,
+      "lean_name": "auths_authority.auths_model.action_constraint_attenuates",
+      "lean_file": "qualification/aeneas/generated/authority/FunsExternal_Template.lean",
+      "rust_name": "auths_model::action_constraint_attenuates",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "begin_line": 852,
+        "end_line": 852
+      },
+      "is_opaque": true,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 7,
+      "lean_name": "auths_authority.auths_model.optional_budget_attenuates",
+      "lean_file": "qualification/aeneas/generated/authority/FunsExternal_Template.lean",
+      "rust_name": "auths_model::optional_budget_attenuates",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "begin_line": 917,
+        "end_line": 920
+      },
+      "is_opaque": true,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 16,
+      "lean_name": "auths_authority.auths_model.optional_budget_covers",
+      "lean_file": "qualification/aeneas/generated/authority/FunsExternal_Template.lean",
+      "rust_name": "auths_model::optional_budget_covers",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "begin_line": 930,
+        "end_line": 933
+      },
+      "is_opaque": true,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 8,
+      "lean_name": "auths_authority.auths_model.status_policy_attenuates",
+      "lean_file": "qualification/aeneas/generated/authority/FunsExternal_Template.lean",
+      "rust_name": "auths_model::status_policy_attenuates",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "begin_line": 990,
+        "end_line": 990
+      },
+      "is_opaque": true,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 2,
+      "lean_name": "auths_authority.selected_profile_attenuates",
+      "lean_file": "qualification/aeneas/generated/authority/Funs.lean",
+      "rust_name": "auths_authority::selected_profile_attenuates",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-authority/src/lib.rs",
+        "begin_line": 97,
+        "end_line": 106
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 0,
+      "lean_name": "auths_authority.evaluate_grant_view",
+      "lean_file": "qualification/aeneas/generated/authority/Funs.lean",
+      "rust_name": "auths_authority::evaluate_grant_view",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-authority/src/lib.rs",
+        "begin_line": 127,
+        "end_line": 184
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 1,
+      "lean_name": "auths_authority.evaluate_action_coverage_view",
+      "lean_file": "qualification/aeneas/generated/authority/Funs.lean",
+      "rust_name": "auths_authority::evaluate_action_coverage_view",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-authority/src/lib.rs",
+        "begin_line": 203,
+        "end_line": 235
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    }
+  ],
+  "types": [
+    {
+      "def_id": 13,
+      "lean_name": "auths_authority.auths_model.AssurancePolicyId",
+      "lean_file": "qualification/aeneas/generated/authority/TypesExternal_Template.lean",
+      "rust_name": "auths_model::AssurancePolicyId",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "begin_line": 151,
+        "end_line": 151
+      }
+    },
+    {
+      "def_id": 21,
+      "lean_name": "auths_authority.auths_model.Audience",
+      "lean_file": "qualification/aeneas/generated/authority/TypesExternal_Template.lean",
+      "rust_name": "auths_model::Audience",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "begin_line": 151,
+        "end_line": 151
+      }
+    },
+    {
+      "def_id": 14,
+      "lean_name": "auths_authority.auths_model.PrincipalId",
+      "lean_file": "qualification/aeneas/generated/authority/TypesExternal_Template.lean",
+      "rust_name": "auths_model::PrincipalId",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "begin_line": 182,
+        "end_line": 182
+      }
+    },
+    {
+      "def_id": 22,
+      "lean_name": "auths_authority.auths_model.Digest",
+      "lean_file": "qualification/aeneas/generated/authority/TypesExternal_Template.lean",
+      "rust_name": "auths_model::Digest",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "begin_line": 261,
+        "end_line": 261
+      }
+    },
+    {
+      "def_id": 1,
+      "lean_name": "auths_authority.auths_model.GrantId",
+      "lean_file": "qualification/aeneas/generated/authority/TypesExternal_Template.lean",
+      "rust_name": "auths_model::GrantId",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "begin_line": 280,
+        "end_line": 280
+      }
+    },
+    {
+      "def_id": 8,
+      "lean_name": "auths_authority.auths_model.ValidityWindow",
+      "lean_file": "qualification/aeneas/generated/authority/TypesExternal_Template.lean",
+      "rust_name": "auths_model::ValidityWindow",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "begin_line": 382,
+        "end_line": 382
+      }
+    },
+    {
+      "def_id": 6,
+      "lean_name": "auths_authority.auths_model.ProfileRef",
+      "lean_file": "qualification/aeneas/generated/authority/TypesExternal_Template.lean",
+      "rust_name": "auths_model::ProfileRef",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "begin_line": 455,
+        "end_line": 455
+      }
+    },
+    {
+      "def_id": 20,
+      "lean_name": "auths_authority.auths_model.Permission",
+      "lean_file": "qualification/aeneas/generated/authority/TypesExternal_Template.lean",
+      "rust_name": "auths_model::Permission",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "begin_line": 532,
+        "end_line": 532
+      }
+    },
+    {
+      "def_id": 7,
+      "lean_name": "auths_authority.auths_model.PermissionSet",
+      "lean_file": "qualification/aeneas/generated/authority/TypesExternal_Template.lean",
+      "rust_name": "auths_model::PermissionSet",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "begin_line": 569,
+        "end_line": 569
+      }
+    },
+    {
+      "def_id": 9,
+      "lean_name": "auths_authority.auths_model.AudienceSet",
+      "lean_file": "qualification/aeneas/generated/authority/TypesExternal_Template.lean",
+      "rust_name": "auths_model::AudienceSet",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "begin_line": 641,
+        "end_line": 641
+      }
+    },
+    {
+      "def_id": 10,
+      "lean_name": "auths_authority.auths_model.ActionConstraint",
+      "lean_file": "qualification/aeneas/generated/authority/TypesExternal_Template.lean",
+      "rust_name": "auths_model::ActionConstraint",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "begin_line": 796,
+        "end_line": 796
+      }
+    },
+    {
+      "def_id": 11,
+      "lean_name": "auths_authority.auths_model.BudgetCeiling",
+      "lean_file": "qualification/aeneas/generated/authority/TypesExternal_Template.lean",
+      "rust_name": "auths_model::BudgetCeiling",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "begin_line": 871,
+        "end_line": 871
+      }
+    },
+    {
+      "def_id": 12,
+      "lean_name": "auths_authority.auths_model.StatusPolicy",
+      "lean_file": "qualification/aeneas/generated/authority/TypesExternal_Template.lean",
+      "rust_name": "auths_model::StatusPolicy",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "begin_line": 967,
+        "end_line": 967
+      }
+    },
+    {
+      "def_id": 4,
+      "lean_name": "auths_authority.auths_algebra_kernel.generated.AttenuationChecks",
+      "lean_file": "qualification/aeneas/generated/authority/Types.lean",
+      "rust_name": "auths_algebra_kernel::generated::AttenuationChecks",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-algebra-kernel/src/generated.rs",
+        "begin_line": 50,
+        "end_line": 50
+      }
+    },
+    {
+      "def_id": 2,
+      "lean_name": "auths_authority.auths_model.GrantAuthorityView",
+      "lean_file": "qualification/aeneas/generated/authority/Types.lean",
+      "rust_name": "auths_model::GrantAuthorityView",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "begin_line": 1282,
+        "end_line": 1282
+      }
+    },
+    {
+      "def_id": 18,
+      "lean_name": "auths_authority.auths_model.ActionAuthorityView",
+      "lean_file": "qualification/aeneas/generated/authority/Types.lean",
+      "rust_name": "auths_model::ActionAuthorityView",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "begin_line": 1473,
+        "end_line": 1473
+      }
+    },
+    {
+      "def_id": 16,
+      "lean_name": "auths_authority.auths_model.DenialReason",
+      "lean_file": "qualification/aeneas/generated/authority/Types.lean",
+      "rust_name": "auths_model::DenialReason",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "begin_line": 4296,
+        "end_line": 4296
+      }
+    },
+    {
+      "def_id": 17,
+      "lean_name": "auths_authority.AcceptedTransition",
+      "lean_file": "qualification/aeneas/generated/authority/Types.lean",
+      "rust_name": "auths_authority::AcceptedTransition",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-authority/src/lib.rs",
+        "begin_line": 42,
+        "end_line": 53
+      }
+    },
+    {
+      "def_id": 15,
+      "lean_name": "auths_authority.DelegationOutcome",
+      "lean_file": "qualification/aeneas/generated/authority/Types.lean",
+      "rust_name": "auths_authority::DelegationOutcome",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-authority/src/lib.rs",
+        "begin_line": 58,
+        "end_line": 61
+      }
+    },
+    {
+      "def_id": 3,
+      "lean_name": "auths_authority.DelegationEvaluation",
+      "lean_file": "qualification/aeneas/generated/authority/Types.lean",
+      "rust_name": "auths_authority::DelegationEvaluation",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-authority/src/lib.rs",
+        "begin_line": 66,
+        "end_line": 69
+      }
+    },
+    {
+      "def_id": 19,
+      "lean_name": "auths_authority.CoverageDecision",
+      "lean_file": "qualification/aeneas/generated/authority/Types.lean",
+      "rust_name": "auths_authority::CoverageDecision",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-authority/src/lib.rs",
+        "begin_line": 74,
+        "end_line": 77
+      }
+    },
+    {
+      "def_id": 0,
+      "lean_name": "auths_authority.AuthorityStateView",
+      "lean_file": "qualification/aeneas/generated/authority/Types.lean",
+      "rust_name": "auths_authority::AuthorityStateView",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-authority/src/lib.rs",
+        "begin_line": 82,
+        "end_line": 95
+      }
+    }
+  ],
+  "globals": [],
+  "trait_decls": [],
+  "trait_impls": []
+}

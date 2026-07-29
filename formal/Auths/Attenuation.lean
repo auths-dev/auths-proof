@@ -50,10 +50,6 @@ theorem delegate_strict_depth {parent child : EffectiveAuthority}
     (accepted : delegates parent child) : child.depth < parent.depth :=
   accepted.2
 
-theorem finite_chain {root terminal : EffectiveAuthority}
-    (accepted : delegates root terminal) : terminal.depth < root.depth :=
-  accepted.2
-
 theorem delegate_never_widens {parent child : EffectiveAuthority}
     (accepted : delegates parent child) : attenuates child parent :=
   accepted.1

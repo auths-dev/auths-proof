@@ -6,11 +6,16 @@
 extern crate alloc;
 
 use alloc::vec::Vec;
-use auths_algebra_kernel::{AttenuationProjection, attenuation_accepts};
+use auths_algebra_kernel::{AttenuationChecks, attenuation_checks_accept};
 use auths_model::{
-    ActionConstraint, ActionEnvelope, AssurancePolicyId, AudienceSet, BudgetCeiling, DenialReason,
-    GrantId, GrantStatement, PermissionSet, PrincipalId, ProfileRef, StatusPolicy, TrustAnchor,
-    ValidityWindow,
+    ActionAuthorityView, ActionConstraint, ActionEnvelope, AssurancePolicyId, AudienceSet,
+    BudgetCeiling, DenialReason, GrantAuthorityView, GrantId, GrantStatement, PermissionSet,
+    PrincipalId, ProfileRef, StatusPolicy, TrustAnchor, ValidityWindow, action_authority_view,
+    action_constraint_allows, action_constraint_attenuates, assurance_policy_id_equal,
+    audience_set_contains, audience_set_is_subset, grant_authority_view,
+    optional_budget_attenuates, optional_budget_covers, optional_grant_id_equal,
+    permission_set_contains, permission_set_is_subset, principal_id_equal, profile_ref_equal,
+    profile_slice_contains, status_policy_attenuates, validity_window_contains,
 };
 
 /// Authority accumulated while walking one root-to-terminal grant chain.
@@ -31,61 +36,221 @@ pub struct EffectiveAuthority {
     status_policy: StatusPolicy,
 }
 
-#[allow(
-    clippy::struct_excessive_bools,
-    reason = "each Boolean implements one generated attenuation dimension"
-)]
-struct GrantAttenuation {
-    depth_decreases: bool,
-    profile_attenuates: bool,
-    permissions_attenuate: bool,
-    validity_attenuates: bool,
-    audiences_attenuate: bool,
-    action_constraint_attenuates: bool,
-    budget_attenuates: bool,
-    status_attenuates: bool,
-    assurance_attenuates: bool,
+/// Borrowed descriptor of the unique state changes for an accepted grant.
+#[doc(hidden)]
+#[derive(Clone, Copy, Debug)]
+pub struct AcceptedTransition<'a> {
+    subject: &'a PrincipalId,
+    profile: &'a ProfileRef,
+    permissions: &'a PermissionSet,
+    validity: ValidityWindow,
+    audiences: &'a AudienceSet,
+    action_constraint: &'a ActionConstraint,
+    budget_ceiling: Option<&'a BudgetCeiling>,
+    remaining_depth: u16,
+    grant_id: GrantId,
+    status_policy: &'a StatusPolicy,
 }
 
-impl AttenuationProjection for GrantAttenuation {
-    fn root_preserved(&self) -> bool {
-        true
-    }
+/// Stable delegation decision made by the production authority kernel.
+#[doc(hidden)]
+#[derive(Clone, Copy, Debug)]
+pub enum DelegationOutcome<'a> {
+    Accepted(AcceptedTransition<'a>),
+    Denied(DenialReason),
+}
 
-    fn depth_decreases(&self) -> bool {
-        self.depth_decreases
-    }
+/// Projection and outcome produced together by the production kernel.
+#[doc(hidden)]
+#[derive(Clone, Copy, Debug)]
+pub struct DelegationEvaluation<'a> {
+    pub checks: AttenuationChecks,
+    pub outcome: DelegationOutcome<'a>,
+}
 
-    fn profile_attenuates(&self) -> bool {
-        self.profile_attenuates
-    }
+/// Stable terminal action-coverage decision.
+#[doc(hidden)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CoverageDecision {
+    Authorized,
+    Denied(DenialReason),
+}
 
-    fn permissions_attenuate(&self) -> bool {
-        self.permissions_attenuate
-    }
+/// Lossless borrowed projection of accumulated authority state.
+#[doc(hidden)]
+#[derive(Clone, Copy, Debug)]
+pub struct AuthorityStateView<'a> {
+    pub subject: &'a PrincipalId,
+    pub allowed_profiles: &'a [ProfileRef],
+    pub profile: Option<&'a ProfileRef>,
+    pub permissions: &'a PermissionSet,
+    pub validity: ValidityWindow,
+    pub audiences: &'a AudienceSet,
+    pub action_constraint: &'a ActionConstraint,
+    pub budget_ceiling: Option<&'a BudgetCeiling>,
+    pub remaining_depth: u16,
+    pub last_grant: Option<GrantId>,
+    pub assurance_policy: &'a AssurancePolicyId,
+    pub status_policy: &'a StatusPolicy,
+}
 
-    fn validity_attenuates(&self) -> bool {
-        self.validity_attenuates
+fn selected_profile_attenuates(
+    selected: Option<&ProfileRef>,
+    allowed_profiles: &[ProfileRef],
+    child: &ProfileRef,
+) -> bool {
+    match selected {
+        Some(parent) => profile_ref_equal(parent, child),
+        None => profile_slice_contains(allowed_profiles, child),
     }
+}
 
-    fn audiences_attenuate(&self) -> bool {
-        self.audiences_attenuate
+/// Evaluates linkage, all attenuation dimensions, diagnostic selection, and
+/// the unique accepted state change used by [`EffectiveAuthority::delegate`].
+#[doc(hidden)]
+#[must_use]
+pub fn evaluate_grant<'grant>(
+    parent: &EffectiveAuthority,
+    grant_id: GrantId,
+    grant: &'grant GrantStatement,
+) -> DelegationEvaluation<'grant> {
+    evaluate_grant_view(
+        authority_state_view(parent),
+        grant_id,
+        grant_authority_view(grant),
+    )
+}
+
+/// Pure authority-kernel evaluation over lossless validated-model views.
+#[doc(hidden)]
+#[must_use]
+pub fn evaluate_grant_view<'grant>(
+    parent: AuthorityStateView<'_>,
+    grant_id: GrantId,
+    grant: GrantAuthorityView<'grant>,
+) -> DelegationEvaluation<'grant> {
+    let checks = AttenuationChecks {
+        root_preserved: true,
+        depth_decreases: parent.remaining_depth > 0
+            && grant.remaining_depth < parent.remaining_depth,
+        profile_attenuates: selected_profile_attenuates(
+            parent.profile,
+            parent.allowed_profiles,
+            grant.profile,
+        ),
+        permissions_attenuate: permission_set_is_subset(grant.permissions, parent.permissions),
+        validity_attenuates: validity_window_contains(parent.validity, grant.validity),
+        audiences_attenuate: audience_set_is_subset(grant.audiences, parent.audiences),
+        action_constraint_attenuates: action_constraint_attenuates(
+            grant.action_constraint,
+            parent.action_constraint,
+        ),
+        budget_attenuates: optional_budget_attenuates(grant.budget_ceiling, parent.budget_ceiling),
+        status_attenuates: status_policy_attenuates(grant.status_policy, parent.status_policy),
+        assurance_attenuates: assurance_policy_id_equal(
+            grant.assurance_floor,
+            parent.assurance_policy,
+        ),
+    };
+    if !principal_id_equal(grant.issuer, parent.subject)
+        || !optional_grant_id_equal(grant.parent, parent.last_grant)
+    {
+        return DelegationEvaluation {
+            checks,
+            outcome: DelegationOutcome::Denied(DenialReason::BrokenGrantChain),
+        };
     }
-
-    fn action_constraint_attenuates(&self) -> bool {
-        self.action_constraint_attenuates
+    if !attenuation_checks_accept(&checks) {
+        return DelegationEvaluation {
+            checks,
+            outcome: DelegationOutcome::Denied(DenialReason::DelegationExpanded),
+        };
     }
-
-    fn budget_attenuates(&self) -> bool {
-        self.budget_attenuates
+    DelegationEvaluation {
+        checks,
+        outcome: DelegationOutcome::Accepted(AcceptedTransition {
+            subject: grant.subject,
+            profile: grant.profile,
+            permissions: grant.permissions,
+            validity: grant.validity,
+            audiences: grant.audiences,
+            action_constraint: grant.action_constraint,
+            budget_ceiling: grant.budget_ceiling,
+            remaining_depth: grant.remaining_depth,
+            grant_id,
+            status_policy: grant.status_policy,
+        }),
     }
+}
 
-    fn status_attenuates(&self) -> bool {
-        self.status_attenuates
+/// Evaluates terminal linkage, exact profile, membership, containment, and
+/// first-failure diagnostics used by [`EffectiveAuthority::authorizes`].
+#[doc(hidden)]
+#[must_use]
+pub fn evaluate_action_coverage(
+    authority: &EffectiveAuthority,
+    action: &ActionEnvelope,
+) -> CoverageDecision {
+    evaluate_action_coverage_view(
+        authority_state_view(authority),
+        action_authority_view(action),
+    )
+}
+
+/// Pure terminal-coverage evaluation over lossless validated-model views.
+#[doc(hidden)]
+#[must_use]
+pub fn evaluate_action_coverage_view(
+    authority: AuthorityStateView<'_>,
+    action: ActionAuthorityView<'_>,
+) -> CoverageDecision {
+    if !principal_id_equal(action.actor, authority.subject)
+        || !optional_grant_id_equal(action.terminal_grant, authority.last_grant)
+    {
+        return CoverageDecision::Denied(DenialReason::BrokenGrantChain);
     }
+    if !selected_profile_attenuates(
+        authority.profile,
+        authority.allowed_profiles,
+        action.profile,
+    ) {
+        return CoverageDecision::Denied(DenialReason::BrokenGrantChain);
+    }
+    if !permission_set_contains(authority.permissions, action.permission) {
+        return CoverageDecision::Denied(DenialReason::PermissionNotGranted);
+    }
+    if !validity_window_contains(authority.validity, action.validity) {
+        return CoverageDecision::Denied(DenialReason::ActionOutsideValidity);
+    }
+    if !audience_set_contains(authority.audiences, action.audience) {
+        return CoverageDecision::Denied(DenialReason::AudienceMismatch);
+    }
+    if !action_constraint_allows(authority.action_constraint, action.canonical_body_digest) {
+        return CoverageDecision::Denied(DenialReason::ActionConstraintMismatch);
+    }
+    if !optional_budget_covers(authority.budget_ceiling, action.requested_budget) {
+        return CoverageDecision::Denied(DenialReason::BudgetCeilingExceeded);
+    }
+    CoverageDecision::Authorized
+}
 
-    fn assurance_attenuates(&self) -> bool {
-        self.assurance_attenuates
+/// Projects exactly the accumulated fields consumed by authority decisions.
+#[doc(hidden)]
+#[must_use]
+pub fn authority_state_view(authority: &EffectiveAuthority) -> AuthorityStateView<'_> {
+    AuthorityStateView {
+        subject: &authority.subject,
+        allowed_profiles: &authority.allowed_profiles,
+        profile: authority.profile.as_ref(),
+        permissions: &authority.permissions,
+        validity: authority.validity,
+        audiences: &authority.audiences,
+        action_constraint: &authority.action_constraint,
+        budget_ceiling: authority.budget_ceiling.as_ref(),
+        remaining_depth: authority.remaining_depth,
+        last_grant: authority.last_grant,
+        assurance_policy: &authority.assurance_policy,
+        status_policy: &authority.status_policy,
     }
 }
 
@@ -121,42 +286,20 @@ impl EffectiveAuthority {
         grant_id: GrantId,
         grant: &GrantStatement,
     ) -> Result<(), DenialReason> {
-        if grant.issuer() != &self.subject || grant.parent() != self.last_grant {
-            return Err(DenialReason::BrokenGrantChain);
-        }
-        let attenuation = GrantAttenuation {
-            depth_decreases: self.remaining_depth > 0
-                && grant.remaining_depth() < self.remaining_depth,
-            profile_attenuates: self.profile.as_ref().map_or_else(
-                || self.allowed_profiles.contains(grant.profile()),
-                |profile| profile == grant.profile(),
-            ),
-            permissions_attenuate: grant.permissions().is_subset_of(&self.permissions),
-            validity_attenuates: self.validity.contains_window(grant.validity()),
-            audiences_attenuate: grant.audiences().is_subset_of(&self.audiences),
-            action_constraint_attenuates: grant
-                .action_constraint()
-                .attenuates(&self.action_constraint),
-            budget_attenuates: budget_attenuates(
-                grant.budget_ceiling(),
-                self.budget_ceiling.as_ref(),
-            ),
-            status_attenuates: status_attenuates(grant.status_policy(), &self.status_policy),
-            assurance_attenuates: grant.assurance_floor() == &self.assurance_policy,
+        let transition = match evaluate_grant(self, grant_id, grant).outcome {
+            DelegationOutcome::Accepted(transition) => transition,
+            DelegationOutcome::Denied(reason) => return Err(reason),
         };
-        if !attenuation_accepts(&attenuation) {
-            return Err(DenialReason::DelegationExpanded);
-        }
-        self.subject = grant.subject().clone();
-        self.profile = Some(grant.profile().clone());
-        self.permissions = grant.permissions().clone();
-        self.validity = grant.validity();
-        self.audiences = grant.audiences().clone();
-        self.action_constraint = grant.action_constraint().clone();
-        self.budget_ceiling = grant.budget_ceiling().cloned();
-        self.remaining_depth = grant.remaining_depth();
-        self.last_grant = Some(grant_id);
-        self.status_policy = grant.status_policy().clone();
+        self.subject = transition.subject.clone();
+        self.profile = Some(transition.profile.clone());
+        self.permissions = transition.permissions.clone();
+        self.validity = transition.validity;
+        self.audiences = transition.audiences.clone();
+        self.action_constraint = transition.action_constraint.clone();
+        self.budget_ceiling = transition.budget_ceiling.cloned();
+        self.remaining_depth = transition.remaining_depth;
+        self.last_grant = Some(transition.grant_id);
+        self.status_policy = transition.status_policy.clone();
         Ok(())
     }
 
@@ -166,34 +309,10 @@ impl EffectiveAuthority {
     ///
     /// Returns the first stable authority failure in protocol order.
     pub fn authorizes(&self, action: &ActionEnvelope) -> Result<(), DenialReason> {
-        if action.actor() != &self.subject || action.terminal_grant() != self.last_grant {
-            return Err(DenialReason::BrokenGrantChain);
+        match evaluate_action_coverage(self, action) {
+            CoverageDecision::Authorized => Ok(()),
+            CoverageDecision::Denied(reason) => Err(reason),
         }
-        if self.profile.as_ref().map_or_else(
-            || !self.allowed_profiles.contains(action.profile()),
-            |profile| profile != action.profile(),
-        ) {
-            return Err(DenialReason::BrokenGrantChain);
-        }
-        if !self.permissions.contains(action.permission()) {
-            return Err(DenialReason::PermissionNotGranted);
-        }
-        if !self.validity.contains_window(action.validity()) {
-            return Err(DenialReason::ActionOutsideValidity);
-        }
-        if !self.audiences.contains(action.audience()) {
-            return Err(DenialReason::AudienceMismatch);
-        }
-        if !self
-            .action_constraint
-            .allows(action.canonical_body_digest())
-        {
-            return Err(DenialReason::ActionConstraintMismatch);
-        }
-        if !budget_covers(self.budget_ceiling.as_ref(), action.requested_budget()) {
-            return Err(DenialReason::BudgetCeilingExceeded);
-        }
-        Ok(())
     }
 
     /// Returns the selected local root.
@@ -209,34 +328,144 @@ impl EffectiveAuthority {
     }
 }
 
-fn budget_attenuates(child: Option<&BudgetCeiling>, parent: Option<&BudgetCeiling>) -> bool {
-    match (child, parent) {
-        (_, None) => true,
-        (Some(child), Some(parent)) => child.attenuates(parent),
-        (None, Some(_)) => false,
-    }
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloc::vec;
+    use auths_model::{
+        Audience, CapabilityId, CriticalExtensions, PrincipalMethodId, ProfileId, ResourceId,
+        Timestamp, TrustAnchorId,
+    };
 
-fn budget_covers(ceiling: Option<&BudgetCeiling>, requested: Option<&BudgetCeiling>) -> bool {
-    match (ceiling, requested) {
-        (_, None) | (None, Some(_)) => true,
-        (Some(ceiling), Some(requested)) => ceiling.covers(requested),
+    fn profile(name: &str) -> ProfileRef {
+        ProfileRef::new(ProfileId::parse(name).expect("profile id"), 1).expect("profile")
     }
-}
 
-fn status_attenuates(child: &StatusPolicy, parent: &StatusPolicy) -> bool {
-    match (child, parent) {
-        (_, StatusPolicy::ExpiryOnly) => true,
-        (
-            StatusPolicy::SnapshotRequired {
-                method: child_method,
-                max_age: child_age,
-            },
-            StatusPolicy::SnapshotRequired {
-                method: parent_method,
-                max_age: parent_age,
-            },
-        ) => child_method == parent_method && child_age <= parent_age,
-        (StatusPolicy::ExpiryOnly, StatusPolicy::SnapshotRequired { .. }) => false,
+    fn permissions() -> PermissionSet {
+        PermissionSet::new(vec![auths_model::Permission::new(
+            CapabilityId::parse("deploy").expect("capability"),
+            ResourceId::parse("cluster://production").expect("resource"),
+        )])
+        .expect("permissions")
+    }
+
+    fn audiences() -> AudienceSet {
+        AudienceSet::new(vec![
+            Audience::parse("cluster://production").expect("audience"),
+        ])
+        .expect("audiences")
+    }
+
+    fn anchor() -> TrustAnchor {
+        TrustAnchor::new(
+            TrustAnchorId::parse("root").expect("anchor id"),
+            PrincipalId::parse("did:key:root").expect("root"),
+            vec![PrincipalMethodId::parse("did-key-v1").expect("method")],
+            vec![profile("profile-a"), profile("profile-b")],
+            permissions(),
+            vec![ResourceId::parse("cluster://").expect("namespace")],
+            audiences(),
+            ValidityWindow::new(Timestamp::new(0), Timestamp::new(u64::MAX)).expect("validity"),
+            None,
+            2,
+            AssurancePolicyId::parse("assurance-v1").expect("assurance"),
+            StatusPolicy::ExpiryOnly,
+        )
+        .expect("anchor")
+    }
+
+    fn grant(
+        issuer: &str,
+        subject: &str,
+        selected_profile: &str,
+        remaining_depth: u16,
+        parent: Option<GrantId>,
+    ) -> GrantStatement {
+        GrantStatement::new(
+            PrincipalId::parse(issuer).expect("issuer"),
+            PrincipalId::parse(subject).expect("subject"),
+            profile(selected_profile),
+            permissions(),
+            ValidityWindow::new(Timestamp::new(0), Timestamp::new(u64::MAX)).expect("validity"),
+            audiences(),
+            ActionConstraint::AnyBody,
+            None,
+            remaining_depth,
+            parent,
+            StatusPolicy::ExpiryOnly,
+            AssurancePolicyId::parse("assurance-v1").expect("assurance"),
+            CriticalExtensions::empty(),
+        )
+    }
+
+    #[test]
+    fn first_grant_selects_one_allowed_profile_and_depth_strictly_decreases() {
+        let mut authority = EffectiveAuthority::from_anchor(&anchor());
+        let first_id = GrantId::new([1; 32]);
+        assert_eq!(
+            authority.delegate(
+                first_id,
+                &grant("did:key:root", "did:key:agent", "profile-b", 2, None)
+            ),
+            Err(DenialReason::DelegationExpanded)
+        );
+        authority
+            .delegate(
+                first_id,
+                &grant("did:key:root", "did:key:agent", "profile-b", 1, None),
+            )
+            .expect("allowed profile and strict depth");
+        assert_eq!(authority.subject().as_str(), "did:key:agent");
+
+        assert_eq!(
+            authority.delegate(
+                GrantId::new([2; 32]),
+                &grant(
+                    "did:key:agent",
+                    "did:key:child",
+                    "profile-a",
+                    0,
+                    Some(first_id)
+                )
+            ),
+            Err(DenialReason::DelegationExpanded)
+        );
+        authority
+            .delegate(
+                GrantId::new([3; 32]),
+                &grant(
+                    "did:key:agent",
+                    "did:key:child",
+                    "profile-b",
+                    0,
+                    Some(first_id),
+                ),
+            )
+            .expect("selected profile remains exact");
+    }
+
+    #[test]
+    fn zero_depth_parent_cannot_delegate() {
+        let first_id = GrantId::new([1; 32]);
+        let mut authority = EffectiveAuthority::from_anchor(&anchor());
+        authority
+            .delegate(
+                first_id,
+                &grant("did:key:root", "did:key:agent", "profile-a", 0, None),
+            )
+            .expect("first edge may consume all depth");
+        assert_eq!(
+            authority.delegate(
+                GrantId::new([2; 32]),
+                &grant(
+                    "did:key:agent",
+                    "did:key:child",
+                    "profile-a",
+                    0,
+                    Some(first_id)
+                )
+            ),
+            Err(DenialReason::DelegationExpanded)
+        );
     }
 }

@@ -1,0 +1,58 @@
+{
+  "schema": "auths-proof-translation-source-closure/v1",
+  "digest": "85ab7c78709cb35b1d9d376742303acd55485cd06b97f4771401159406c84573",
+  "files": [
+    {
+      "path": "Cargo.lock",
+      "sha256": "ff3e396fbf3ee5c9763dc008d2f3033a93f3e65ce43f52ba35b3c6f0e8f450fb"
+    },
+    {
+      "path": "Cargo.toml",
+      "sha256": "928411215174a07154d892c5d2470601d59a06b046ca36ff21c90c2659858892"
+    },
+    {
+      "path": "core/crates/auths-algebra-kernel/Cargo.toml",
+      "sha256": "0cb078915287b8c47d20fb97b6fa14135ed1c61c4985c4de2753855563c27bba"
+    },
+    {
+      "path": "core/crates/auths-algebra-kernel/src/generated.rs",
+      "sha256": "cb70f24024bb4b7fbc4b00e259843a120f95ca9249e79354cf7c55ebad70f2f5"
+    },
+    {
+      "path": "core/crates/auths-algebra-kernel/src/lib.rs",
+      "sha256": "04318b5e8cfa489973afc32dc8c53d574d4d0c19d6b5af83071b047e51f9bc71"
+    },
+    {
+      "path": "core/crates/auths-authority/Cargo.toml",
+      "sha256": "4f68212938029f79ebd857b4f3038494eb85d0163d49f07e51376715cf959815"
+    },
+    {
+      "path": "core/crates/auths-authority/src/lib.rs",
+      "sha256": "5890631bb7a35fb4bc7424e6f2cfc312b878d4a24d87e9ff763e79a4d7424618"
+    },
+    {
+      "path": "core/crates/auths-model/Cargo.toml",
+      "sha256": "565c15302b0cc9270db1e28efa3862804846850ba933cc17aea8abcec4a65987"
+    },
+    {
+      "path": "core/crates/auths-model/src/lib.rs",
+      "sha256": "51b45c97a97a997a3a8cf85a131ce1d8b6848e3cf0bf0666bc0d191daf26a671"
+    },
+    {
+      "path": "formal/algebra-contract-v1.toml",
+      "sha256": "af547aeb4372baffe13dd05f2782bc0f9a96de469b352904b57a2534e930a746"
+    },
+    {
+      "path": "formal/qualification/aeneas/qualification.toml",
+      "sha256": "408440cb9c61b37f3c5bf0ddf1a13aac7a4cc4dd9c6f3c10e8d4f0a52413b20d"
+    },
+    {
+      "path": "formal/translation-toolchain.lock",
+      "sha256": "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+    },
+    {
+      "path": "xtask/src/formal_qualification.rs",
+      "sha256": "af948a020cbe1c0ddfda67f46056808219847ddfc9cbdbd17b86b2d95a049ed8"
+    }
+  ]
+}

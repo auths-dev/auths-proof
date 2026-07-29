@@ -1,0 +1,230 @@
+schema = "auths-proof-aeneas-qualification/v1"
+decision = "GO-AENEAS-WITH-PRODUCTION-RESHAPE"
+adr = "docs/adr/0011-rich-authority-rust-lean-link.md"
+source_closure = "formal/qualification/aeneas/source-closure.json"
+production_features = ["default"]
+semantic_cfg = []
+extraction_cfg = []
+shipping_target = "workspace-host"
+extraction_target = "workspace-host"
+translation_warnings = []
+required_compiled_external_axioms = 0
+
+source_files = [
+  "Cargo.toml",
+  "Cargo.lock",
+  "core/crates/auths-model/Cargo.toml",
+  "core/crates/auths-model/src/lib.rs",
+  "core/crates/auths-algebra-kernel/Cargo.toml",
+  "core/crates/auths-algebra-kernel/src/lib.rs",
+  "core/crates/auths-algebra-kernel/src/generated.rs",
+  "core/crates/auths-authority/Cargo.toml",
+  "core/crates/auths-authority/src/lib.rs",
+  "formal/algebra-contract-v1.toml",
+  "formal/qualification/aeneas/qualification.toml",
+  "formal/translation-toolchain.lock",
+  "xtask/src/formal_qualification.rs",
+]
+
+generated_files = [
+  "formal/qualification/aeneas/generated/model/Types.lean",
+  "formal/qualification/aeneas/generated/model/Funs.lean",
+  "formal/qualification/aeneas/generated/model/FunsExternal_Template.lean",
+  "formal/qualification/aeneas/generated/model/FunsExternal.lean",
+  "formal/qualification/aeneas/generated/model/translation.json",
+  "formal/qualification/aeneas/generated/algebra/Types.lean",
+  "formal/qualification/aeneas/generated/algebra/Funs.lean",
+  "formal/qualification/aeneas/generated/algebra/translation.json",
+  "formal/qualification/aeneas/generated/authority/Types.lean",
+  "formal/qualification/aeneas/generated/authority/TypesExternal_Template.lean",
+  "formal/qualification/aeneas/generated/authority/TypesExternal.lean",
+  "formal/qualification/aeneas/generated/authority/Funs.lean",
+  "formal/qualification/aeneas/generated/authority/FunsExternal_Template.lean",
+  "formal/qualification/aeneas/generated/authority/FunsExternal.lean",
+  "formal/qualification/aeneas/generated/authority/translation.json",
+]
+
+case_modules = [
+  "qualification.aeneas.cases.Model",
+  "qualification.aeneas.cases.Algebra",
+  "qualification.aeneas.cases.Authority",
+]
+
+[tools]
+shipping_rust = "1.97.1"
+extraction_rust = "nightly-2026-06-01"
+charon = "0.1.225"
+charon_commit = "527ea8e3b5dcb52edd6aef0f7bc34cc09c11dd59"
+aeneas_commit = "3a8586facab25b31bdb1e1f5f45acd60d1cc5ff0"
+lean_toolchain = "leanprover/lean4:v4.31.0"
+kani = "0.67.0"
+
+[[external_models]]
+id = "aeneas-string-as-bytes"
+kind = "transparent-standard-library-model"
+artifact = "formal/qualification/aeneas/generated/model/FunsExternal.lean"
+rust_symbols = ["alloc::string::{alloc::string::String}::as_bytes"]
+authority_semantics = false
+reviewed = true
+axiom = false
+scope = "Exact UTF-8 bytes for constructor-validated Auths strings; fails outside Aeneas' U32 string carrier bound."
+
+[[external_models]]
+id = "authority-carrier-link"
+kind = "transparent-generated-type-link"
+artifact = "formal/qualification/aeneas/generated/authority/TypesExternal.lean"
+rust_symbols = [
+  "auths_model::AssurancePolicyId",
+  "auths_model::Audience",
+  "auths_model::PrincipalId",
+  "auths_model::Digest",
+  "auths_model::GrantId",
+  "auths_model::ValidityWindow",
+  "auths_model::ProfileRef",
+  "auths_model::Permission",
+  "auths_model::PermissionSet",
+  "auths_model::AudienceSet",
+  "auths_model::ActionConstraint",
+  "auths_model::BudgetCeiling",
+  "auths_model::StatusPolicy",
+]
+authority_semantics = false
+reviewed = true
+axiom = false
+scope = "Imports the separately translated auths-model carriers without redefining them."
+
+[[external_models]]
+id = "authority-leaf-links"
+kind = "transparent-generated-function-link"
+artifact = "formal/qualification/aeneas/generated/authority/FunsExternal.lean"
+rust_symbols = [
+  "auths_model::principal_id_equal",
+  "auths_model::validity_window_contains",
+  "auths_model::profile_ref_equal",
+  "auths_model::profile_slice_contains",
+  "auths_model::assurance_policy_id_equal",
+  "auths_model::optional_grant_id_equal",
+  "auths_model::permission_set_contains",
+  "auths_model::permission_set_is_subset",
+  "auths_model::audience_set_contains",
+  "auths_model::audience_set_is_subset",
+  "auths_model::action_constraint_allows",
+  "auths_model::action_constraint_attenuates",
+  "auths_model::optional_budget_attenuates",
+  "auths_model::optional_budget_covers",
+  "auths_model::status_policy_attenuates",
+]
+authority_semantics = true
+reviewed = true
+axiom = false
+scope = "Imports the separately translated auths-model functions under their exact generated names."
+
+[[external_models]]
+id = "authority-attenuation-conjunction"
+kind = "generated-contract-function-link"
+artifact = "formal/qualification/aeneas/generated/authority/FunsExternal.lean"
+rust_symbols = ["auths_algebra_kernel::generated::attenuation_checks_accept"]
+authority_semantics = true
+reviewed = true
+axiom = false
+scope = "Rendered from formal/algebra-contract-v1.toml and byte-checked by xtask."
+
+[[warning_inventory]]
+id = "aeneas-runtime-slice-get-unchecked"
+artifact = "formal/.lake/packages/aeneas/backends/lean/Aeneas/Std/Slice.lean"
+upstream_lines = [368, 590]
+classification = "Pinned upstream proof-support sorry; not a transitive axiom dependency of audited generated executable definitions."
+
+[[warning_inventory]]
+id = "aeneas-runtime-string-iterator"
+artifact = "formal/.lake/packages/aeneas/backends/lean/Aeneas/Std/StringIter.lean"
+upstream_lines = [12, 18]
+classification = "Pinned upstream iterator proof-support sorry; the qualified source uses String::as_bytes, not StringIter."
+
+[[translations]]
+crate_name = "auths_model"
+translation_json = "formal/qualification/aeneas/generated/model/translation.json"
+local_functions = 47
+external_functions = 1
+opaque_local_functions = 0
+required_symbols = [
+  "auths_model::inclusive_window_contains",
+  "auths_model::validity_window_contains",
+  "auths_model::permission_set_contains",
+  "auths_model::permission_set_is_subset",
+  "auths_model::audience_set_contains",
+  "auths_model::audience_set_is_subset",
+  "auths_model::body_digest_set_contains",
+  "auths_model::body_digest_set_is_subset",
+  "auths_model::action_constraint_allows",
+  "auths_model::action_constraint_attenuates",
+  "auths_model::budget_ceiling_attenuates",
+  "auths_model::optional_budget_attenuates",
+  "auths_model::optional_budget_covers",
+  "auths_model::status_policy_attenuates",
+  "auths_model::assurance_policy_id_equal",
+  "auths_model::principal_id_equal",
+  "auths_model::grant_id_equal",
+  "auths_model::optional_grant_id_equal",
+  "auths_model::profile_slice_contains",
+  "auths_model::profile_ref_equal",
+]
+allowed_external_symbols = [
+  "alloc::string::{alloc::string::String}::as_bytes",
+]
+
+[[translations]]
+crate_name = "auths_algebra_kernel"
+translation_json = "formal/qualification/aeneas/generated/algebra/translation.json"
+local_functions = 1
+external_functions = 0
+opaque_local_functions = 0
+required_symbols = [
+  "auths_algebra_kernel::generated::attenuation_checks_accept",
+]
+allowed_external_symbols = []
+
+[[translations]]
+crate_name = "auths_authority"
+translation_json = "formal/qualification/aeneas/generated/authority/translation.json"
+local_functions = 3
+external_functions = 16
+opaque_local_functions = 0
+required_symbols = [
+  "auths_authority::selected_profile_attenuates",
+  "auths_authority::evaluate_grant_view",
+  "auths_authority::evaluate_action_coverage_view",
+]
+allowed_external_symbols = [
+  "auths_algebra_kernel::generated::attenuation_checks_accept",
+  "auths_model::principal_id_equal",
+  "auths_model::validity_window_contains",
+  "auths_model::profile_ref_equal",
+  "auths_model::profile_slice_contains",
+  "auths_model::assurance_policy_id_equal",
+  "auths_model::optional_grant_id_equal",
+  "auths_model::permission_set_contains",
+  "auths_model::permission_set_is_subset",
+  "auths_model::audience_set_contains",
+  "auths_model::audience_set_is_subset",
+  "auths_model::action_constraint_allows",
+  "auths_model::action_constraint_attenuates",
+  "auths_model::optional_budget_attenuates",
+  "auths_model::optional_budget_covers",
+  "auths_model::status_policy_attenuates",
+]
+
+[[template_axioms]]
+artifact = "formal/qualification/aeneas/generated/model/FunsExternal_Template.lean"
+count = 1
+compiled = false
+
+[[template_axioms]]
+artifact = "formal/qualification/aeneas/generated/authority/TypesExternal_Template.lean"
+count = 13
+compiled = false
+
+[[template_axioms]]
+artifact = "formal/qualification/aeneas/generated/authority/FunsExternal_Template.lean"
+count = 16
+compiled = false

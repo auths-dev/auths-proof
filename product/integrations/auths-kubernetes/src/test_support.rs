@@ -1,5 +1,10 @@
 //! Deterministic profile inputs for tests and higher-layer demos.
 
+#![allow(
+    clippy::missing_panics_doc,
+    reason = "fixed test constants are asserted during fixture construction and cannot contain hostile input"
+)]
+
 use std::collections::BTreeMap;
 
 use crate::{

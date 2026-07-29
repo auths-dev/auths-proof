@@ -5,10 +5,13 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use crate::{ports::*, receipts::KubernetesReceipt};
 use auths_sdk::{RequestContext, Verifier, VerifyResult};
 
-use crate::profile::KubernetesRolloutProfile;
+use crate::{
+    ports::{Clock, PortError, ProofDecision, ProofVerifier, ReceiptSink},
+    profile::KubernetesRolloutProfile,
+    receipts::KubernetesReceipt,
+};
 
 /// Auths SDK adapter fixed to the Kubernetes rollout profile.
 pub struct SdkProofVerifier {

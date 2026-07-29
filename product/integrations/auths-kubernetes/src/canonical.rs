@@ -1,5 +1,10 @@
 //! Canonical JSON and digest helpers for Kubernetes profile objects.
 
+#![allow(
+    clippy::missing_errors_doc,
+    reason = "both helpers return the closed CanonicalError documented in this module"
+)]
+
 use serde::Serialize;
 use sha2::{Digest as _, Sha256};
 
