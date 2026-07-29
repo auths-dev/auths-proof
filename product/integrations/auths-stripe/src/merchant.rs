@@ -1,10 +1,10 @@
 //! Closed Stripe-local bounded merchant-payment family.
 //!
 //! Shared code in this module is limited to the policy vocabulary, protected
-//! evidence, aggregate accounting values, commitments, and the operation-aware
-//! durable ledger. Collection and authorization retain separate exact actions,
-//! profiles, evaluators, verified commands, gateways, services, and decision
-//! receipts.
+//! evidence, aggregate accounting values, commitments, and durable storage
+//! mechanics. Collection and authorization retain separate exact actions,
+//! profiles, evaluators, lifecycle transitions, verified commands, gateways,
+//! services, and receipts.
 
 pub mod authorize;
 mod budget;
@@ -28,11 +28,11 @@ pub use collect::{
     MerchantServiceError, PaymentCollectDecision, PaymentCollectDecisionClass,
     PaymentCollectDecisionCode, PaymentCollectDecisionStage, PaymentCollectEffect,
     PaymentCollectEligibility, PaymentCollectEvaluationContext, PaymentCollectGateway,
-    PaymentCollectProofDecision, PaymentCollectProofVerifier, PaymentCollectService,
-    PaymentCollectServiceDependencies, PaymentCollectWorkflowOutcome,
-    SdkPaymentCollectProofVerifier, StripeExactPaymentCollectInput, StripeExactPaymentCollectV1,
-    StripePaymentCollectCommand, StripePaymentCollectProfile, VerifiedPaymentCollectCommand,
-    evaluate_payment_collect,
+    PaymentCollectProofDecision, PaymentCollectProofVerifier, PaymentCollectReconciliationOutcome,
+    PaymentCollectService, PaymentCollectServiceDependencies, PaymentCollectTransition,
+    PaymentCollectWorkflowOutcome, SdkPaymentCollectProofVerifier, StripeExactPaymentCollectInput,
+    StripeExactPaymentCollectV1, StripePaymentCollectCommand, StripePaymentCollectProfile,
+    VerifiedPaymentCollectCommand, evaluate_payment_collect, transition_payment_collect,
 };
 pub use commitments::{
     fixed_merchant_metadata_commitment, merchant_statement_descriptor_commitment,
@@ -52,8 +52,8 @@ pub use policy::{
 pub use state::{
     InMemoryMerchantPaymentStore, MerchantPaymentStore, MerchantProviderProjection,
     MerchantReservationLease, MerchantReservationRecord, MerchantReservationState,
-    MerchantSemanticEvent, MerchantStateError, PersistentMerchantPaymentStore,
-    ReconciledMerchantOutcome, ReserveMerchantPaymentRequest, ReserveMerchantPaymentResult,
+    MerchantStateError, PersistentMerchantPaymentStore, ReserveMerchantPaymentRequest,
+    ReserveMerchantPaymentResult,
 };
 
 fn valid_nonempty_sorted<T: Ord>(values: &[T]) -> bool {

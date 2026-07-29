@@ -10,7 +10,7 @@ use crate::{
     merchant::{
         MerchantConnectAccount, MerchantPaymentEvidenceV1, StripeExactPaymentCollectV1,
         fixed_merchant_metadata_commitment,
-        state::{MerchantProviderProjection, MerchantReservationRecord, ReconciledMerchantOutcome},
+        state::{MerchantProviderProjection, MerchantReservationRecord, MerchantReservationState},
     },
     ports::{PortError, StripeCredential},
     types::{DigestHex, StripeAccountId},
@@ -241,6 +241,82 @@ pub enum PaymentCollectEffect {
     OutcomeUnknown(Option<MerchantProviderProjection>),
 }
 
+/// Closed events in the automatic-collection lifecycle.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PaymentCollectTransition {
+    /// Exact verified command claims a new reservation.
+    Claim,
+    /// Provider delivery is about to begin.
+    BeginAttempt,
+    /// A bounded provider response is durably accepted.
+    ProviderAccepted,
+    /// Fresh observation proves automatic capture succeeded.
+    CollectionCommitted,
+    /// Definite non-execution returns capacity.
+    DefiniteFailureReleased,
+    /// Provider delivery or state is ambiguous.
+    OutcomeBecameUnknown,
+    /// Retrieval proves collection succeeded.
+    ReconcileCommitted,
+    /// Retrieval proves definite non-execution.
+    ReconcileReleased,
+    /// Retrieval remains ambiguous.
+    ReconcileStillUnknown,
+}
+
+/// Returns the only legal next state for automatic collection.
+///
+/// This profile-owned function deliberately accepts no merchant-operation
+/// selector. Other payment effects must define their own transition function.
+#[must_use]
+pub const fn transition_payment_collect(
+    current: MerchantReservationState,
+    event: PaymentCollectTransition,
+) -> Option<MerchantReservationState> {
+    use MerchantReservationState::{
+        Attempting, Claimed, OutcomeUnknown, ProviderAccepted, Reserved,
+    };
+    use PaymentCollectTransition::{
+        BeginAttempt, Claim, CollectionCommitted, DefiniteFailureReleased, OutcomeBecameUnknown,
+        ProviderAccepted as ProviderAcceptedEvent, ReconcileCommitted, ReconcileReleased,
+        ReconcileStillUnknown,
+    };
+
+    match (current, event) {
+        (Reserved, Claim) => Some(Claimed),
+        (Claimed, BeginAttempt) => Some(Attempting),
+        (Attempting, ProviderAcceptedEvent) => Some(ProviderAccepted),
+        (ProviderAccepted, CollectionCommitted) => Some(MerchantReservationState::Committed),
+        (Reserved | Claimed | Attempting, DefiniteFailureReleased) => {
+            Some(MerchantReservationState::Released)
+        }
+        (Claimed | Attempting | ProviderAccepted, OutcomeBecameUnknown) => Some(OutcomeUnknown),
+        (
+            Reserved | Claimed | Attempting | ProviderAccepted | OutcomeUnknown,
+            ReconcileCommitted,
+        ) => Some(MerchantReservationState::ReconciledCommitted),
+        (
+            Reserved | Claimed | Attempting | ProviderAccepted | OutcomeUnknown,
+            ReconcileReleased,
+        ) => Some(MerchantReservationState::ReconciledReleased),
+        (
+            Reserved | Claimed | Attempting | ProviderAccepted | OutcomeUnknown,
+            ReconcileStillUnknown,
+        ) => Some(OutcomeUnknown),
+        _ => None,
+    }
+}
+
+/// Fresh Stripe facts used to reconcile one automatic collection.
+pub enum PaymentCollectReconciliationOutcome {
+    /// Retrieval proves the automatic collection succeeded.
+    Committed(MerchantProviderProjection),
+    /// Retrieval proves definite non-execution.
+    Released(Option<MerchantProviderProjection>),
+    /// Retrieval cannot yet establish a terminal result.
+    OutcomeUnknown(Option<MerchantProviderProjection>),
+}
+
 /// Only Stripe provider surface reachable by a verified collection command.
 pub trait PaymentCollectGateway: Send + Sync {
     /// Re-reads the critical Customer, `PaymentMethod`, and order facts.
@@ -291,7 +367,7 @@ pub trait PaymentCollectGateway: Send + Sync {
         record: &MerchantReservationRecord,
         credential: &StripeCredential,
         now: u64,
-    ) -> Result<ReconciledMerchantOutcome, PortError>;
+    ) -> Result<PaymentCollectReconciliationOutcome, PortError>;
 }
 
 impl<T: PaymentCollectGateway + ?Sized> PaymentCollectGateway for Arc<T> {
@@ -328,7 +404,7 @@ impl<T: PaymentCollectGateway + ?Sized> PaymentCollectGateway for Arc<T> {
         record: &MerchantReservationRecord,
         credential: &StripeCredential,
         now: u64,
-    ) -> Result<ReconciledMerchantOutcome, PortError> {
+    ) -> Result<PaymentCollectReconciliationOutcome, PortError> {
         (**self).reconcile(record, credential, now)
     }
 }
@@ -337,4 +413,34 @@ impl<T: PaymentCollectGateway + ?Sized> PaymentCollectGateway for Arc<T> {
 #[must_use]
 pub fn connected_account_header(connect: &MerchantConnectAccount) -> Option<&StripeAccountId> {
     connect.connected_account_id()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn collection_transition_is_closed_and_profile_owned() {
+        assert_eq!(
+            transition_payment_collect(
+                MerchantReservationState::Reserved,
+                PaymentCollectTransition::Claim,
+            ),
+            Some(MerchantReservationState::Claimed)
+        );
+        assert_eq!(
+            transition_payment_collect(
+                MerchantReservationState::ProviderAccepted,
+                PaymentCollectTransition::CollectionCommitted,
+            ),
+            Some(MerchantReservationState::Committed)
+        );
+        assert_eq!(
+            transition_payment_collect(
+                MerchantReservationState::Committed,
+                PaymentCollectTransition::ReconcileReleased,
+            ),
+            None
+        );
+    }
 }

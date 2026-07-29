@@ -1,8 +1,8 @@
 //! Stripe-local durable merchant-payment reservation, claim, and replay state.
 //!
 //! This is deliberately not a generic reservation runtime. Its schema and
-//! accounting categories are the Stripe collection and manual-authorization
-//! semantics owned by specifications 0013 and 0014.
+//! accounting keys are reusable Stripe merchant leaves, while automatic
+//! collection lifecycle semantics remain owned by specification 0013.
 
 use std::{
     collections::BTreeMap,
@@ -20,6 +20,10 @@ use crate::{
     merchant::{
         MerchantAggregateSnapshot, MerchantAggregateUsage, MerchantConnectAccount,
         MerchantOperation, MerchantReservationIntent, StripeBoundedMerchantPaymentPolicyV1,
+        collect::{
+            PaymentCollectReconciliationOutcome, PaymentCollectTransition,
+            transition_payment_collect,
+        },
     },
     types::{ChargeId, Currency, CustomerId, DigestHex, PaymentIntentId, StripeAccountId},
 };
@@ -43,116 +47,14 @@ pub enum MerchantReservationState {
     ProviderAccepted,
     /// Automatic collection is durably committed.
     Committed,
-    /// Manual-capture authorization exposure is active.
-    ActiveAuthorization,
     /// Definite non-execution returned capacity.
     Released,
     /// Delivery may have reached Stripe; capacity stays held.
     OutcomeUnknown,
     /// Retrieval proved automatic collection.
     ReconciledCommitted,
-    /// Retrieval proved an active manual authorization.
-    ReconciledActiveAuthorization,
     /// Retrieval proved definite non-execution.
     ReconciledReleased,
-}
-
-/// Closed semantic events accepted by the shared Stripe-local ledger.
-///
-/// Callers cannot name a destination state. The transition kernel derives it
-/// from the record operation, current state, and this event.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum MerchantSemanticEvent {
-    /// Exact verified command claims a new reservation.
-    Claim,
-    /// Provider delivery is about to begin.
-    BeginAttempt,
-    /// A bounded provider response is durably accepted.
-    ProviderAccepted,
-    /// Collection observation proves automatic capture succeeded.
-    CollectionCommitted,
-    /// Authorization observation proves a manual-capture hold is active.
-    AuthorizationActivated,
-    /// Definite non-execution returns capacity.
-    DefiniteFailureReleased,
-    /// Provider delivery or state is ambiguous.
-    OutcomeBecameUnknown,
-    /// Retrieval proves collection succeeded.
-    ReconcileCollectionCommitted,
-    /// Retrieval proves authorization remains active.
-    ReconcileAuthorizationActive,
-    /// Retrieval proves definite non-execution or terminal release.
-    ReconcileReleased,
-    /// Retrieval remains ambiguous.
-    ReconcileStillUnknown,
-}
-
-/// Returns the only legal next state for an operation-aware semantic event.
-#[must_use]
-pub const fn merchant_transition(
-    operation: MerchantOperation,
-    current: MerchantReservationState,
-    event: MerchantSemanticEvent,
-) -> Option<MerchantReservationState> {
-    use MerchantOperation::{Authorize, Cancel, Capture, Collect};
-    use MerchantReservationState::{
-        ActiveAuthorization, Attempting, Claimed, OutcomeUnknown, ProviderAccepted, Reserved,
-    };
-    use MerchantSemanticEvent::{
-        AuthorizationActivated, BeginAttempt, Claim, CollectionCommitted, DefiniteFailureReleased,
-        OutcomeBecameUnknown, ProviderAccepted as ProviderAcceptedEvent,
-        ReconcileAuthorizationActive, ReconcileCollectionCommitted, ReconcileReleased,
-        ReconcileStillUnknown,
-    };
-
-    match (operation, current, event) {
-        (Collect | Authorize | Capture | Cancel, Reserved, Claim) => Some(Claimed),
-        (Collect | Authorize | Capture | Cancel, Claimed, BeginAttempt) => Some(Attempting),
-        (Collect | Authorize | Capture | Cancel, Attempting, ProviderAcceptedEvent) => {
-            Some(ProviderAccepted)
-        }
-        (Collect, ProviderAccepted, CollectionCommitted) => {
-            Some(MerchantReservationState::Committed)
-        }
-        (Authorize, ProviderAccepted, AuthorizationActivated) => Some(ActiveAuthorization),
-        (
-            Collect | Authorize | Capture | Cancel,
-            Reserved | Claimed | Attempting,
-            DefiniteFailureReleased,
-        ) => Some(MerchantReservationState::Released),
-        (
-            Collect | Authorize | Capture | Cancel,
-            Claimed | Attempting | ProviderAccepted,
-            OutcomeBecameUnknown,
-        )
-        | (Authorize, ActiveAuthorization, OutcomeBecameUnknown) => Some(OutcomeUnknown),
-        (
-            Collect,
-            Reserved | Claimed | Attempting | ProviderAccepted | OutcomeUnknown,
-            ReconcileCollectionCommitted,
-        ) => Some(MerchantReservationState::ReconciledCommitted),
-        (
-            Authorize,
-            Reserved | Claimed | Attempting | ProviderAccepted | OutcomeUnknown
-            | ActiveAuthorization,
-            ReconcileAuthorizationActive,
-        ) => Some(MerchantReservationState::ReconciledActiveAuthorization),
-        (
-            Collect | Authorize | Capture | Cancel,
-            Reserved | Claimed | Attempting | ProviderAccepted | OutcomeUnknown,
-            ReconcileReleased,
-        )
-        | (Authorize, ActiveAuthorization, ReconcileReleased) => {
-            Some(MerchantReservationState::ReconciledReleased)
-        }
-        (
-            Collect | Authorize | Capture | Cancel,
-            Reserved | Claimed | Attempting | ProviderAccepted | OutcomeUnknown,
-            ReconcileStillUnknown,
-        )
-        | (Authorize, ActiveAuthorization, ReconcileStillUnknown) => Some(OutcomeUnknown),
-        _ => None,
-    }
 }
 
 impl MerchantReservationState {
@@ -169,13 +71,6 @@ impl MerchantReservationState {
 
     fn holds_unknown(self) -> bool {
         self == Self::OutcomeUnknown
-    }
-
-    fn holds_authorization(self) -> bool {
-        matches!(
-            self,
-            Self::ActiveAuthorization | Self::ReconciledActiveAuthorization
-        )
     }
 }
 
@@ -513,18 +408,6 @@ pub enum ReserveMerchantPaymentResult {
     Unavailable,
 }
 
-/// Reconciliation result established by fresh Stripe observation.
-pub enum ReconciledMerchantOutcome {
-    /// Automatic collection succeeded.
-    Committed(MerchantProviderProjection),
-    /// Manual authorization remains active.
-    ActiveAuthorization(MerchantProviderProjection),
-    /// Stripe proves cancellation, decline, or other definite non-effect.
-    Released(Option<MerchantProviderProjection>),
-    /// Stripe still cannot establish a terminal result.
-    OutcomeUnknown(Option<MerchantProviderProjection>),
-}
-
 /// Stripe-local durable merchant state contract.
 pub trait MerchantPaymentStore: Send + Sync {
     /// Reads aggregate capacity for the exact policy/account/time.
@@ -567,13 +450,6 @@ pub trait MerchantPaymentStore: Send + Sync {
         now: u64,
     ) -> Result<MerchantReservationRecord, MerchantStateError>;
 
-    /// Commits active manual-authorization exposure.
-    fn activate_authorization(
-        &self,
-        lease: &MerchantReservationLease,
-        now: u64,
-    ) -> Result<MerchantReservationRecord, MerchantStateError>;
-
     /// Releases capacity only after definite non-execution.
     fn release(
         &self,
@@ -590,11 +466,11 @@ pub trait MerchantPaymentStore: Send + Sync {
     ) -> Result<MerchantReservationRecord, MerchantStateError>;
 
     /// Applies fresh provider reconciliation without a second create request.
-    fn reconcile(
+    fn reconcile_collection(
         &self,
         workflow_id: &str,
         action_digest: &DigestHex,
-        outcome: ReconciledMerchantOutcome,
+        outcome: PaymentCollectReconciliationOutcome,
         now: u64,
     ) -> Result<MerchantReservationRecord, MerchantStateError>;
 
@@ -652,14 +528,6 @@ impl<T: MerchantPaymentStore + ?Sized> MerchantPaymentStore for Arc<T> {
         (**self).commit_collection(lease, now)
     }
 
-    fn activate_authorization(
-        &self,
-        lease: &MerchantReservationLease,
-        now: u64,
-    ) -> Result<MerchantReservationRecord, MerchantStateError> {
-        (**self).activate_authorization(lease, now)
-    }
-
     fn release(
         &self,
         lease: &MerchantReservationLease,
@@ -677,14 +545,14 @@ impl<T: MerchantPaymentStore + ?Sized> MerchantPaymentStore for Arc<T> {
         (**self).mark_outcome_unknown(lease, provider, now)
     }
 
-    fn reconcile(
+    fn reconcile_collection(
         &self,
         workflow_id: &str,
         action_digest: &DigestHex,
-        outcome: ReconciledMerchantOutcome,
+        outcome: PaymentCollectReconciliationOutcome,
         now: u64,
     ) -> Result<MerchantReservationRecord, MerchantStateError> {
-        (**self).reconcile(workflow_id, action_digest, outcome, now)
+        (**self).reconcile_collection(workflow_id, action_digest, outcome, now)
     }
 
     fn get(
@@ -743,7 +611,7 @@ impl MerchantPaymentStore for InMemoryMerchantPaymentStore {
         now: u64,
     ) -> Result<MerchantReservationRecord, MerchantStateError> {
         self.with_records(|records| {
-            transition_in(records, lease, MerchantSemanticEvent::Claim, None, now)
+            transition_in(records, lease, PaymentCollectTransition::Claim, None, now)
         })
     }
 
@@ -756,7 +624,7 @@ impl MerchantPaymentStore for InMemoryMerchantPaymentStore {
             transition_in(
                 records,
                 lease,
-                MerchantSemanticEvent::BeginAttempt,
+                PaymentCollectTransition::BeginAttempt,
                 None,
                 now,
             )
@@ -773,7 +641,7 @@ impl MerchantPaymentStore for InMemoryMerchantPaymentStore {
             transition_in(
                 records,
                 lease,
-                MerchantSemanticEvent::ProviderAccepted,
+                PaymentCollectTransition::ProviderAccepted,
                 Some(provider),
                 now,
             )
@@ -789,23 +657,7 @@ impl MerchantPaymentStore for InMemoryMerchantPaymentStore {
             transition_in(
                 records,
                 lease,
-                MerchantSemanticEvent::CollectionCommitted,
-                None,
-                now,
-            )
-        })
-    }
-
-    fn activate_authorization(
-        &self,
-        lease: &MerchantReservationLease,
-        now: u64,
-    ) -> Result<MerchantReservationRecord, MerchantStateError> {
-        self.with_records(|records| {
-            transition_in(
-                records,
-                lease,
-                MerchantSemanticEvent::AuthorizationActivated,
+                PaymentCollectTransition::CollectionCommitted,
                 None,
                 now,
             )
@@ -821,7 +673,7 @@ impl MerchantPaymentStore for InMemoryMerchantPaymentStore {
             transition_in(
                 records,
                 lease,
-                MerchantSemanticEvent::DefiniteFailureReleased,
+                PaymentCollectTransition::DefiniteFailureReleased,
                 None,
                 now,
             )
@@ -838,21 +690,23 @@ impl MerchantPaymentStore for InMemoryMerchantPaymentStore {
             transition_in(
                 records,
                 lease,
-                MerchantSemanticEvent::OutcomeBecameUnknown,
+                PaymentCollectTransition::OutcomeBecameUnknown,
                 provider,
                 now,
             )
         })
     }
 
-    fn reconcile(
+    fn reconcile_collection(
         &self,
         workflow_id: &str,
         action_digest: &DigestHex,
-        outcome: ReconciledMerchantOutcome,
+        outcome: PaymentCollectReconciliationOutcome,
         now: u64,
     ) -> Result<MerchantReservationRecord, MerchantStateError> {
-        self.with_records(|records| reconcile_in(records, workflow_id, action_digest, outcome, now))
+        self.with_records(|records| {
+            reconcile_collection_in(records, workflow_id, action_digest, outcome, now)
+        })
     }
 
     fn get(
@@ -946,7 +800,7 @@ impl MerchantPaymentStore for PersistentMerchantPaymentStore {
         now: u64,
     ) -> Result<MerchantReservationRecord, MerchantStateError> {
         self.with_locked_records(|records| {
-            transition_in(records, lease, MerchantSemanticEvent::Claim, None, now)
+            transition_in(records, lease, PaymentCollectTransition::Claim, None, now)
         })
     }
 
@@ -959,7 +813,7 @@ impl MerchantPaymentStore for PersistentMerchantPaymentStore {
             transition_in(
                 records,
                 lease,
-                MerchantSemanticEvent::BeginAttempt,
+                PaymentCollectTransition::BeginAttempt,
                 None,
                 now,
             )
@@ -976,7 +830,7 @@ impl MerchantPaymentStore for PersistentMerchantPaymentStore {
             transition_in(
                 records,
                 lease,
-                MerchantSemanticEvent::ProviderAccepted,
+                PaymentCollectTransition::ProviderAccepted,
                 Some(provider),
                 now,
             )
@@ -992,23 +846,7 @@ impl MerchantPaymentStore for PersistentMerchantPaymentStore {
             transition_in(
                 records,
                 lease,
-                MerchantSemanticEvent::CollectionCommitted,
-                None,
-                now,
-            )
-        })
-    }
-
-    fn activate_authorization(
-        &self,
-        lease: &MerchantReservationLease,
-        now: u64,
-    ) -> Result<MerchantReservationRecord, MerchantStateError> {
-        self.with_locked_records(|records| {
-            transition_in(
-                records,
-                lease,
-                MerchantSemanticEvent::AuthorizationActivated,
+                PaymentCollectTransition::CollectionCommitted,
                 None,
                 now,
             )
@@ -1024,7 +862,7 @@ impl MerchantPaymentStore for PersistentMerchantPaymentStore {
             transition_in(
                 records,
                 lease,
-                MerchantSemanticEvent::DefiniteFailureReleased,
+                PaymentCollectTransition::DefiniteFailureReleased,
                 None,
                 now,
             )
@@ -1041,22 +879,22 @@ impl MerchantPaymentStore for PersistentMerchantPaymentStore {
             transition_in(
                 records,
                 lease,
-                MerchantSemanticEvent::OutcomeBecameUnknown,
+                PaymentCollectTransition::OutcomeBecameUnknown,
                 provider,
                 now,
             )
         })
     }
 
-    fn reconcile(
+    fn reconcile_collection(
         &self,
         workflow_id: &str,
         action_digest: &DigestHex,
-        outcome: ReconciledMerchantOutcome,
+        outcome: PaymentCollectReconciliationOutcome,
         now: u64,
     ) -> Result<MerchantReservationRecord, MerchantStateError> {
         self.with_locked_records(|records| {
-            reconcile_in(records, workflow_id, action_digest, outcome, now)
+            reconcile_collection_in(records, workflow_id, action_digest, outcome, now)
         })
     }
 
@@ -1081,9 +919,10 @@ fn reserve_in(
         }
         return ReserveMerchantPaymentResult::Conflict(existing.clone());
     }
-    if request.intents.is_empty()
+    if request.operation != MerchantOperation::Collect
+        || request.exact_action_profile != crate::merchant::PAYMENT_COLLECT_PROFILE
+        || request.intents.is_empty()
         || request.amount_minor == 0
-        || !profile_matches_operation(request.operation, &request.exact_action_profile)
         || request.intents.iter().any(|intent| {
             intent.operation != request.operation
                 || intent.currency != request.currency
@@ -1105,8 +944,7 @@ fn reserve_in(
                 })
                 && (record.state.holds_reserved()
                     || record.state.holds_committed()
-                    || record.state.holds_unknown()
-                    || record.state.holds_authorization())
+                    || record.state.holds_unknown())
         }) {
             let Some(next) = used.checked_add(record.amount_minor) else {
                 return ReserveMerchantPaymentResult::Unavailable;
@@ -1181,8 +1019,6 @@ fn snapshot_in(
                 &mut usage.committed_minor
             } else if record.state.holds_unknown() {
                 &mut usage.outcome_unknown_minor
-            } else if record.state.holds_authorization() {
-                &mut usage.active_authorization_minor
             } else {
                 continue;
             };
@@ -1198,7 +1034,7 @@ fn snapshot_in(
 fn transition_in(
     records: &mut BTreeMap<String, MerchantReservationRecord>,
     lease: &MerchantReservationLease,
-    event: MerchantSemanticEvent,
+    event: PaymentCollectTransition,
     provider: Option<MerchantProviderProjection>,
     now: u64,
 ) -> Result<MerchantReservationRecord, MerchantStateError> {
@@ -1209,7 +1045,10 @@ fn transition_in(
     {
         return Err(MerchantStateError::InvalidTransition);
     }
-    let next = merchant_transition(record.operation, record.state, event)
+    if record.operation != MerchantOperation::Collect {
+        return Err(MerchantStateError::InvalidTransition);
+    }
+    let next = transition_payment_collect(record.state, event)
         .ok_or(MerchantStateError::InvalidTransition)?;
     if let Some(provider) = provider {
         validate_provider(record, &provider)?;
@@ -1217,9 +1056,7 @@ fn transition_in(
     }
     if matches!(
         event,
-        MerchantSemanticEvent::ProviderAccepted
-            | MerchantSemanticEvent::CollectionCommitted
-            | MerchantSemanticEvent::AuthorizationActivated
+        PaymentCollectTransition::ProviderAccepted | PaymentCollectTransition::CollectionCommitted
     ) && record.provider.is_none()
     {
         return Err(MerchantStateError::InvalidTransition);
@@ -1229,11 +1066,11 @@ fn transition_in(
     Ok(record.clone())
 }
 
-fn reconcile_in(
+fn reconcile_collection_in(
     records: &mut BTreeMap<String, MerchantReservationRecord>,
     workflow_id: &str,
     action_digest: &DigestHex,
-    outcome: ReconciledMerchantOutcome,
+    outcome: PaymentCollectReconciliationOutcome,
     now: u64,
 ) -> Result<MerchantReservationRecord, MerchantStateError> {
     let record = records
@@ -1242,35 +1079,28 @@ fn reconcile_in(
     if &record.action_digest != action_digest {
         return Err(MerchantStateError::InvalidTransition);
     }
+    if record.operation != MerchantOperation::Collect {
+        return Err(MerchantStateError::InvalidTransition);
+    }
     let (event, provider) = match outcome {
-        ReconciledMerchantOutcome::Committed(provider) => {
+        PaymentCollectReconciliationOutcome::Committed(provider) => {
             validate_provider(record, &provider)?;
-            (
-                MerchantSemanticEvent::ReconcileCollectionCommitted,
-                Some(provider),
-            )
+            (PaymentCollectTransition::ReconcileCommitted, Some(provider))
         }
-        ReconciledMerchantOutcome::ActiveAuthorization(provider) => {
-            validate_provider(record, &provider)?;
-            (
-                MerchantSemanticEvent::ReconcileAuthorizationActive,
-                Some(provider),
-            )
-        }
-        ReconciledMerchantOutcome::Released(provider) => {
+        PaymentCollectReconciliationOutcome::Released(provider) => {
             if let Some(provider) = &provider {
                 validate_provider(record, provider)?;
             }
-            (MerchantSemanticEvent::ReconcileReleased, provider)
+            (PaymentCollectTransition::ReconcileReleased, provider)
         }
-        ReconciledMerchantOutcome::OutcomeUnknown(provider) => {
+        PaymentCollectReconciliationOutcome::OutcomeUnknown(provider) => {
             if let Some(provider) = &provider {
                 validate_provider(record, provider)?;
             }
-            (MerchantSemanticEvent::ReconcileStillUnknown, provider)
+            (PaymentCollectTransition::ReconcileStillUnknown, provider)
         }
     };
-    record.state = merchant_transition(record.operation, record.state, event)
+    record.state = transition_payment_collect(record.state, event)
         .ok_or(MerchantStateError::InvalidTransition)?;
     if provider.is_some() {
         record.provider = provider;
@@ -1350,9 +1180,7 @@ fn valid_record(record: &MerchantReservationRecord) -> bool {
     let provider_shape = match record.state {
         MerchantReservationState::ProviderAccepted
         | MerchantReservationState::Committed
-        | MerchantReservationState::ActiveAuthorization
-        | MerchantReservationState::ReconciledCommitted
-        | MerchantReservationState::ReconciledActiveAuthorization => record.provider.is_some(),
+        | MerchantReservationState::ReconciledCommitted => record.provider.is_some(),
         MerchantReservationState::Reserved
         | MerchantReservationState::Claimed
         | MerchantReservationState::Attempting
@@ -1363,7 +1191,8 @@ fn valid_record(record: &MerchantReservationRecord) -> bool {
     };
     record.schema == RESERVATION_SCHEMA
         && identity_matches
-        && profile_matches_operation(record.operation, &record.exact_action_profile)
+        && record.operation == MerchantOperation::Collect
+        && record.exact_action_profile == crate::merchant::PAYMENT_COLLECT_PROFILE
         && provider_shape
         && (8..=96).contains(&record.workflow_id.len())
         && record.amount_minor > 0
@@ -1373,19 +1202,6 @@ fn valid_record(record: &MerchantReservationRecord) -> bool {
                 && intent.currency == record.currency
                 && intent.amount_minor == record.amount_minor
         })
-}
-
-fn profile_matches_operation(operation: MerchantOperation, profile: &str) -> bool {
-    matches!(
-        (operation, profile),
-        (
-            MerchantOperation::Collect,
-            crate::merchant::PAYMENT_COLLECT_PROFILE
-        ) | (
-            MerchantOperation::Authorize,
-            crate::merchant::PAYMENT_AUTHORIZE_PROFILE
-        )
-    )
 }
 
 fn persist_records(
@@ -1441,7 +1257,6 @@ pub enum MerchantStateError {
 #[cfg(test)]
 mod tests {
     use std::{
-        collections::BTreeMap,
         sync::{Arc, Barrier},
         thread,
     };
@@ -1449,12 +1264,9 @@ mod tests {
     use super::*;
     use crate::{
         canonical::sha256,
-        merchant::{
-            MERCHANT_EVALUATOR_ID, MERCHANT_EVALUATOR_VERSION, MerchantAggregateBudget,
-            MerchantBudgetWindow, StripeBoundedMerchantPaymentPolicyInput,
-        },
+        merchant::{MERCHANT_EVALUATOR_ID, MERCHANT_EVALUATOR_VERSION},
         test_support::{NOW, merchant_policy},
-        types::{CustomerId, PaymentMethodId},
+        types::CustomerId,
     };
 
     fn request(
@@ -1505,23 +1317,6 @@ mod tests {
             }],
             idempotency_key_digest: sha256(format!("idempotency-{workflow}").as_bytes()),
             now: NOW,
-        }
-    }
-
-    fn provider(status: &str, amount_capturable_minor: u64) -> MerchantProviderProjection {
-        MerchantProviderProjection {
-            payment_intent_id: PaymentIntentId::parse("pi_authsdemo_state0001").unwrap(),
-            charge_id: Some(ChargeId::parse("ch_authsdemo_state0001").unwrap()),
-            status: status.into(),
-            amount_minor: 1_000,
-            currency: Currency::parse("usd").unwrap(),
-            amount_capturable_minor,
-            amount_received_minor: if status == "succeeded" { 1_000 } else { 0 },
-            capture_before: (status == "requires_capture").then_some(NOW + 3_600),
-            stripe_request_id: Some("req_authsdemo_state0001".into()),
-            response_digest: sha256(format!("provider-{status}").as_bytes()),
-            observed_at: NOW,
-            source: "retrieve".into(),
         }
     }
 
@@ -1608,6 +1403,20 @@ mod tests {
     }
 
     #[test]
+    fn collect_store_rejects_an_authorization_lifecycle_record() {
+        let policy = merchant_policy(MerchantOperation::Authorize, 1_000, 1_000);
+        assert!(matches!(
+            InMemoryMerchantPaymentStore::default().reserve(request(
+                &policy,
+                MerchantOperation::Authorize,
+                "merchant-authorize-state-0001",
+                1_000,
+            )),
+            ReserveMerchantPaymentResult::Unavailable
+        ));
+    }
+
+    #[test]
     fn unknown_capacity_is_held_until_fresh_reconciliation_releases_it() {
         let policy = merchant_policy(MerchantOperation::Collect, 1_000, 1_000);
         let store = InMemoryMerchantPaymentStore::default();
@@ -1632,10 +1441,10 @@ mod tests {
             .unwrap();
         assert_eq!(snapshot.usages[0].outcome_unknown_minor, 1_000);
         let reconciled = store
-            .reconcile(
+            .reconcile_collection(
                 "merchant-unknown-0001",
                 unknown.action_digest(),
-                ReconciledMerchantOutcome::Released(None),
+                PaymentCollectReconciliationOutcome::Released(None),
                 NOW + 1,
             )
             .unwrap();
@@ -1651,167 +1460,5 @@ mod tests {
             )
             .unwrap();
         assert_eq!(snapshot.usages[0].outcome_unknown_minor, 0);
-    }
-
-    #[test]
-    fn collect_cannot_activate_or_reconcile_as_authorization() {
-        let policy = merchant_policy(MerchantOperation::Collect, 1_000, 1_000);
-        let store = InMemoryMerchantPaymentStore::default();
-        let ReserveMerchantPaymentResult::Reserved { lease, .. } = store.reserve(request(
-            &policy,
-            MerchantOperation::Collect,
-            "merchant-collect-state-0001",
-            1_000,
-        )) else {
-            panic!("reservation expected");
-        };
-        store.claim(&lease, NOW).unwrap();
-        store.mark_attempting(&lease, NOW).unwrap();
-        store
-            .record_provider_accepted(&lease, provider("succeeded", 0), NOW)
-            .unwrap();
-        assert_eq!(
-            store.activate_authorization(&lease, NOW),
-            Err(MerchantStateError::InvalidTransition)
-        );
-        let record = store.mark_outcome_unknown(&lease, None, NOW).unwrap();
-        assert_eq!(
-            store.reconcile(
-                record.workflow_id(),
-                record.action_digest(),
-                ReconciledMerchantOutcome::ActiveAuthorization(
-                    provider("requires_capture", 1_000,)
-                ),
-                NOW + 1,
-            ),
-            Err(MerchantStateError::InvalidTransition)
-        );
-    }
-
-    #[test]
-    fn authorize_cannot_commit_or_reconcile_as_collection() {
-        let policy = merchant_policy(MerchantOperation::Authorize, 1_000, 1_000);
-        let store = InMemoryMerchantPaymentStore::default();
-        let ReserveMerchantPaymentResult::Reserved { lease, .. } = store.reserve(request(
-            &policy,
-            MerchantOperation::Authorize,
-            "merchant-authorize-state-0001",
-            1_000,
-        )) else {
-            panic!("reservation expected");
-        };
-        store.claim(&lease, NOW).unwrap();
-        store.mark_attempting(&lease, NOW).unwrap();
-        store
-            .record_provider_accepted(&lease, provider("requires_capture", 1_000), NOW)
-            .unwrap();
-        assert_eq!(
-            store.commit_collection(&lease, NOW),
-            Err(MerchantStateError::InvalidTransition)
-        );
-        let record = store.mark_outcome_unknown(&lease, None, NOW).unwrap();
-        assert_eq!(
-            store.reconcile(
-                record.workflow_id(),
-                record.action_digest(),
-                ReconciledMerchantOutcome::Committed(provider("succeeded", 0)),
-                NOW + 1,
-            ),
-            Err(MerchantStateError::InvalidTransition)
-        );
-    }
-
-    #[test]
-    fn identical_budget_labels_do_not_cross_count_operations() {
-        let currency = Currency::parse("usd").unwrap();
-        let account = StripeAccountId::parse("acct_authsdemo01").unwrap();
-        let customer = CustomerId::parse("cus_authsdemo00000001").unwrap();
-        let payment_method = PaymentMethodId::parse("pm_authsdemo000000001").unwrap();
-        let window = MerchantBudgetWindow::Fixed {
-            starts_at: NOW - 60,
-            ends_at: NOW + 3_600,
-        };
-        let policy =
-            StripeBoundedMerchantPaymentPolicyV1::new(StripeBoundedMerchantPaymentPolicyInput {
-                policy_id: "operation-aware-budgets".into(),
-                valid_from: NOW - 60,
-                expires_at: NOW + 3_600,
-                allowed_operations: vec![MerchantOperation::Collect, MerchantOperation::Authorize],
-                allowed_test_account_ids: vec![account.clone()],
-                allowed_connect_accounts: vec![MerchantConnectAccount::Platform],
-                allowed_customer_ids: vec![customer],
-                allowed_payment_method_ids: vec![payment_method],
-                allowed_payment_method_types: vec!["card".into()],
-                allowed_currencies: vec![currency.clone()],
-                allowed_order_scopes: vec!["order-demo-001".into()],
-                allowed_cancellation_reasons: Vec::new(),
-                per_operation_absolute_minor_by_currency: BTreeMap::from([
-                    (
-                        MerchantOperation::Collect,
-                        BTreeMap::from([(currency.clone(), 1_000)]),
-                    ),
-                    (
-                        MerchantOperation::Authorize,
-                        BTreeMap::from([(currency.clone(), 1_000)]),
-                    ),
-                ]),
-                per_customer_minor_by_currency: BTreeMap::from([(currency.clone(), 1_000)]),
-                per_order_minor_by_currency: BTreeMap::from([(currency.clone(), 1_000)]),
-                aggregate_budgets: vec![
-                    MerchantAggregateBudget::new(
-                        "same-label",
-                        MerchantOperation::Collect,
-                        currency.clone(),
-                        1_000,
-                        window.clone(),
-                        NOW,
-                    )
-                    .unwrap(),
-                    MerchantAggregateBudget::new(
-                        "same-label",
-                        MerchantOperation::Authorize,
-                        currency,
-                        1_000,
-                        window,
-                        NOW,
-                    )
-                    .unwrap(),
-                ],
-                maximum_authorization_age_seconds: 3_600,
-                minimum_capture_window_seconds: 60,
-                maximum_evidence_age_seconds: 60,
-                maximum_action_lifetime_seconds: 300,
-                allowed_api_versions: vec!["2025-04-30.basil".into()],
-            })
-            .unwrap();
-        let store = InMemoryMerchantPaymentStore::default();
-        let ReserveMerchantPaymentResult::Reserved { lease, .. } = store.reserve(request(
-            &policy,
-            MerchantOperation::Collect,
-            "merchant-operation-budget-0001",
-            1_000,
-        )) else {
-            panic!("collection reservation expected");
-        };
-        store.claim(&lease, NOW).unwrap();
-        store.mark_attempting(&lease, NOW).unwrap();
-        store
-            .record_provider_accepted(&lease, provider("succeeded", 0), NOW)
-            .unwrap();
-        store.commit_collection(&lease, NOW).unwrap();
-        let snapshot = store.snapshot(&policy, &account, NOW).unwrap();
-        let collect = snapshot
-            .usages
-            .iter()
-            .find(|usage| usage.operation == MerchantOperation::Collect)
-            .unwrap();
-        let authorize = snapshot
-            .usages
-            .iter()
-            .find(|usage| usage.operation == MerchantOperation::Authorize)
-            .unwrap();
-        assert_eq!(collect.committed_minor, 1_000);
-        assert_eq!(authorize.committed_minor, 0);
-        assert_eq!(authorize.active_authorization_minor, 0);
     }
 }

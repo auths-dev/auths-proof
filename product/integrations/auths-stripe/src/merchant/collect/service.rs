@@ -9,8 +9,9 @@ use super::{
     MerchantCollectionTransitionReceipt, PaymentCollectDecision, PaymentCollectDecisionClass,
     PaymentCollectDecisionCode, PaymentCollectDecisionStage, PaymentCollectEffect,
     PaymentCollectEvaluationContext, PaymentCollectGateway, PaymentCollectProofDecision,
-    PaymentCollectProofVerifier, StripeExactPaymentCollectV1, StripePaymentCollectProfile,
-    VerifiedPaymentCollectCommand, evaluate_payment_collect, merchant_policy_provenance,
+    PaymentCollectProofVerifier, PaymentCollectReconciliationOutcome, StripeExactPaymentCollectV1,
+    StripePaymentCollectProfile, VerifiedPaymentCollectCommand, evaluate_payment_collect,
+    merchant_policy_provenance,
 };
 use crate::{
     canonical::{canonical_digest, sha256},
@@ -20,8 +21,7 @@ use crate::{
         StripeMerchantEvaluatorConfigurationV1,
         state::{
             MerchantPaymentStore, MerchantProviderProjection, MerchantReservationRecord,
-            MerchantReservationState, ReconciledMerchantOutcome, ReserveMerchantPaymentRequest,
-            ReserveMerchantPaymentResult,
+            MerchantReservationState, ReserveMerchantPaymentRequest, ReserveMerchantPaymentResult,
         },
     },
     ports::{Clock, CredentialProvider, PortError, ReceiptSink},
@@ -550,13 +550,13 @@ where
             .dependencies
             .stripe_gateway
             .reconcile(&record, &credential, now)
-            .unwrap_or(ReconciledMerchantOutcome::OutcomeUnknown(None));
+            .unwrap_or(PaymentCollectReconciliationOutcome::OutcomeUnknown(None));
         let outcome = normalize_collection_reconciliation(&record, outcome);
         let provider = reconciled_provider(&outcome).cloned();
         let reconciled = self
             .dependencies
             .store
-            .reconcile(workflow_id, record.action_digest(), outcome, now)
+            .reconcile_collection(workflow_id, record.action_digest(), outcome, now)
             .map_err(|_| MerchantServiceError::State)?;
         if let Some(provider) = provider {
             self.append_observation(
@@ -966,10 +966,10 @@ fn exact_collection_projection(
 
 fn normalize_collection_reconciliation(
     record: &MerchantReservationRecord,
-    outcome: ReconciledMerchantOutcome,
-) -> ReconciledMerchantOutcome {
+    outcome: PaymentCollectReconciliationOutcome,
+) -> PaymentCollectReconciliationOutcome {
     match outcome {
-        ReconciledMerchantOutcome::Committed(provider)
+        PaymentCollectReconciliationOutcome::Committed(provider)
             if provider.status == "succeeded"
                 && provider.amount_minor == record.amount_minor()
                 && provider.amount_received_minor == record.amount_minor()
@@ -977,27 +977,27 @@ fn normalize_collection_reconciliation(
                 && provider.currency == *record.currency()
                 && provider.charge_id.is_some() =>
         {
-            ReconciledMerchantOutcome::Committed(provider)
+            PaymentCollectReconciliationOutcome::Committed(provider)
         }
-        ReconciledMerchantOutcome::Released(provider) => {
-            ReconciledMerchantOutcome::Released(provider)
+        PaymentCollectReconciliationOutcome::Released(provider) => {
+            PaymentCollectReconciliationOutcome::Released(provider)
         }
-        ReconciledMerchantOutcome::OutcomeUnknown(provider) => {
-            ReconciledMerchantOutcome::OutcomeUnknown(provider)
+        PaymentCollectReconciliationOutcome::OutcomeUnknown(provider) => {
+            PaymentCollectReconciliationOutcome::OutcomeUnknown(provider)
         }
-        ReconciledMerchantOutcome::Committed(provider)
-        | ReconciledMerchantOutcome::ActiveAuthorization(provider) => {
-            ReconciledMerchantOutcome::OutcomeUnknown(Some(provider))
+        PaymentCollectReconciliationOutcome::Committed(provider) => {
+            PaymentCollectReconciliationOutcome::OutcomeUnknown(Some(provider))
         }
     }
 }
 
-fn reconciled_provider(outcome: &ReconciledMerchantOutcome) -> Option<&MerchantProviderProjection> {
+fn reconciled_provider(
+    outcome: &PaymentCollectReconciliationOutcome,
+) -> Option<&MerchantProviderProjection> {
     match outcome {
-        ReconciledMerchantOutcome::Committed(provider)
-        | ReconciledMerchantOutcome::ActiveAuthorization(provider) => Some(provider),
-        ReconciledMerchantOutcome::Released(provider)
-        | ReconciledMerchantOutcome::OutcomeUnknown(provider) => provider.as_ref(),
+        PaymentCollectReconciliationOutcome::Committed(provider) => Some(provider),
+        PaymentCollectReconciliationOutcome::Released(provider)
+        | PaymentCollectReconciliationOutcome::OutcomeUnknown(provider) => provider.as_ref(),
     }
 }
 
