@@ -1,0 +1,33 @@
+[package]
+name = "auths-opentofu-demo"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Interactive end-to-end Auths authorization for exact OpenTofu saved-plan application"
+repository.workspace = true
+homepage.workspace = true
+publish = false
+
+[dependencies]
+auths-apps-testkit.workspace = true
+auths-model.workspace = true
+auths-opentofu.workspace = true
+auths-profile-api.workspace = true
+auths-sdk.workspace = true
+axum.workspace = true
+dotenvy.workspace = true
+getrandom.workspace = true
+hex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tempfile.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tower-http.workspace = true
+
+[dev-dependencies]
+tower.workspace = true
+
+[lints]
+workspace = true

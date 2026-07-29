@@ -33,6 +33,8 @@ digraph auths_architecture {
   "auths-mcp-demo" [group="demos"];
   "auths-model" [group="core"];
   "auths-multikey" [group="core"];
+  "auths-opentofu" [group="product"];
+  "auths-opentofu-demo" [group="demos"];
   "auths-operations" [group="product"];
   "auths-ports" [group="core"];
   "auths-profile-api" [group="product"];
@@ -89,6 +91,7 @@ digraph auths_architecture {
   "auths-apps-testkit" -> "auths-receipts" [label="normal"];
   "auths-apps-testkit" -> "auths-registries" [label="normal"];
   "auths-apps-testkit" -> "auths-runtime" [label="normal"];
+  "auths-apps-testkit" -> "auths-sdk" [label="normal"];
   "auths-apps-testkit" -> "auths-signature" [label="normal"];
   "auths-assurance" -> "auths-model" [label="normal"];
   "auths-author" -> "auths-codec" [label="normal"];
@@ -208,6 +211,14 @@ digraph auths_architecture {
   "auths-live-service" -> "auths-proof-wasm" [label="normal"];
   "auths-mcp-demo" -> "auths-apps-testkit" [label="normal"];
   "auths-mcp-demo" -> "auths-proof-exchange-model" [label="normal"];
+  "auths-opentofu" -> "auths-model" [label="normal"];
+  "auths-opentofu" -> "auths-profile-api" [label="normal"];
+  "auths-opentofu" -> "auths-sdk" [label="normal"];
+  "auths-opentofu-demo" -> "auths-apps-testkit" [label="normal"];
+  "auths-opentofu-demo" -> "auths-model" [label="normal"];
+  "auths-opentofu-demo" -> "auths-opentofu" [label="normal"];
+  "auths-opentofu-demo" -> "auths-profile-api" [label="normal"];
+  "auths-opentofu-demo" -> "auths-sdk" [label="normal"];
   "auths-operations" -> "auths-codec" [label="dev"];
   "auths-operations" -> "auths-codec" [label="normal"];
   "auths-operations" -> "auths-config" [label="normal"];

@@ -1,0 +1,7 @@
+{
+  "name": "auths-opentofu-demo-web",
+  "private": true,
+  "scripts": {
+    "check": "node --check web/app.js && node --check web/receipt.js && node --test tests/web-smoke.mjs"
+  }
+}

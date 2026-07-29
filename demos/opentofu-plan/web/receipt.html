@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Inspect one Auths OpenTofu saved-plan authorization and execution receipt." />
+    <title>Auths × OpenTofu — Saved-plan receipt</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#receipt">Skip to the receipt</a>
+    <header class="site-header"><nav class="shell nav"><a class="wordmark" href="/">auths <i>/</i> <small>OpenTofu lab</small></a><div class="nav-links"><a href="/">Live workbench</a><a href="https://github.com/auths-dev/auths-proof" rel="noreferrer" target="_blank">Source ↗</a></div><a class="button quiet" href="/">Run another plan →</a></nav></header>
+    <main>
+      <section class="hero receipt-hero"><div class="shell hero-grid"><div><p class="eyebrow"><span></span> Saved-plan receipt</p><h1>What Auths allowed. <em>What OpenTofu applied.</em></h1></div><div class="hero-copy"><p>The summary separates proof verdict, credential use, state commit, and observed convergence before exposing the complete machine-readable record.</p><ul><li>No plan bytes</li><li>No credentials</li><li>Linked commitments</li></ul></div></div></section>
+      <section class="receipt-section" id="receipt"><div class="shell"><article class="receipt-page">
+        <header class="receipt-page-head"><div><span class="micro">Public verification record</span><h2 id="receipt-title">Loading the native receipt.</h2><p id="receipt-detail">Nothing is marked verified until the API record arrives.</p></div><div class="receipt-badge" id="receipt-badge" data-kind="loading"><span>Decision</span><strong>CHECKING</strong></div></header>
+        <dl class="receipt-metadata"><div><dt>Session</dt><dd><code id="session-id">—</code></dd></div><div><dt>Action</dt><dd><code id="action-digest">—</code></dd></div><div><dt>Evidence</dt><dd><code id="evidence-digest">—</code></dd></div><div><dt>Configuration</dt><dd id="configuration">—</dd></div></dl>
+        <section class="receipt-card" id="receipt-card" hidden><header><b>01</b><div><small>Authorization and effect</small><h3 id="receipt-code">—</h3></div><strong id="receipt-status">—</strong></header><dl><div><dt>Stopped at</dt><dd id="receipt-stage">—</dd></div><div><dt>Credential requested</dt><dd id="receipt-credential">—</dd></div><div><dt>OpenTofu called</dt><dd id="receipt-tofu">—</dd></div><div><dt>Observed effect</dt><dd id="receipt-effect">—</dd></div></dl></section>
+        <section class="receipt-error" id="receipt-error" hidden><span class="micro">Fail-closed receipt page</span><h2>No verifiable receipt is available.</h2><p id="receipt-error-detail">The identifier is missing, malformed, expired, or unknown.</p><a href="/">Return to the workbench →</a></section>
+        <details class="receipt-viewer receipt-raw" id="receipt-raw" hidden><summary>Complete machine-readable JSON <span>native API</span></summary><pre id="receipt-json">—</pre></details>
+      </article></div></section>
+    </main>
+    <footer><div class="shell"><a class="wordmark" href="/">auths <i>/</i> <small>OpenTofu lab</small></a><p>Plan material and credentials remain inside the protected boundary.</p></div></footer>
+    <script type="module" src="/receipt.js"></script>
+  </body>
+</html>

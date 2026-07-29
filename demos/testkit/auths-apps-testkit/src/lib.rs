@@ -13,10 +13,10 @@ use auths_did_key::DidKeyMethod;
 use auths_model::{
     AcceptedRegistries, ActionEnvelope, AssuranceClaimId, AssurancePolicy, AssurancePolicyId,
     AssuranceQuantifier, AssuranceRequirement, AudienceSet, AuthorizationPlan, BundleHeader,
-    Challenge, ChannelBindingId, CompositionRequirement, ControlBinding, CriticalExtensions,
-    EvidenceId, EvidenceObject, EvidenceTypeId, GrantStatusSnapshot, MediaType, ParticipantRole,
-    Permission, PermissionSet, PrincipalMethodId, PrincipalStatusSnapshot, ProfilePolicyId,
-    ProofBundle, ProofRef, RegistryManifestId, ResourceMatcherId, SignatureBytes,
+    CanonicalAction, Challenge, ChannelBindingId, CompositionRequirement, ControlBinding,
+    CriticalExtensions, EvidenceId, EvidenceObject, EvidenceTypeId, GrantStatusSnapshot, MediaType,
+    ParticipantRole, Permission, PermissionSet, PrincipalMethodId, PrincipalStatusSnapshot,
+    ProfilePolicyId, ProofBundle, ProofRef, RegistryManifestId, ResourceMatcherId, SignatureBytes,
     SignatureDescriptor, SignatureSuiteId, StatementRef, StatusPolicy, StatusSnapshotId, Timestamp,
     TrustAnchor, TrustAnchorId, ValidityWindow, VerificationMethod, VerifierConfigurationId,
     VerifierContext, VerifierLimits,
@@ -40,6 +40,7 @@ use auths_runtime::{
     McpRequestStateDependencies, McpRuntimeDependencies, McpServiceConfig, McpToolExecutor,
     NoBudgetLedger, ReceiptAttestationError, ReceiptAttestor, ReceiptSink, ReceiptStoreError,
 };
+use auths_sdk::{RequestContext, Verifier};
 use auths_signature::{ED25519_V1, Ed25519Suite, P256Sha256Suite};
 use ed25519_dalek::{Signer as _, SigningKey};
 use iroh::{Endpoint, EndpointAddr, endpoint::presets};
@@ -724,6 +725,196 @@ fn demo_configuration_id() -> VerifierConfigurationId {
     auths_registries::ImmutableRegistries::new(&method_refs, &suite_refs)
         .unwrap()
         .configuration_id()
+}
+
+/// Real Auths proof material for one exact application-owned canonical action.
+pub struct ExactActionFixture {
+    pub verifier: Verifier,
+    pub proof: Vec<u8>,
+    pub request: RequestContext,
+    pub principal: String,
+}
+
+/// Builds a self-contained raw-key authorization for one exact product action.
+///
+/// This helper keeps vertical demos focused on their product boundary while
+/// still exercising the production Auths authoring, codec, verifier, and SDK.
+///
+/// # Panics
+///
+/// Panics only when repository-owned fixture constants violate the Auths model.
+#[must_use]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the fixture spells out every signed and trusted Auths object"
+)]
+pub fn exact_action_fixture(
+    canonical: &CanonicalAction,
+    audience: &str,
+    now: u64,
+    challenge: [u8; 32],
+) -> ExactActionFixture {
+    let audience = auths_model::Audience::parse(audience).expect("valid demo audience");
+    let signing = SigningKey::from_bytes(&ROOT_SEED);
+    let raw = RawKeyDescriptor::new(
+        RawKeyType::Ed25519,
+        signing.verifying_key().to_bytes().to_vec(),
+    )
+    .expect("fixed raw key");
+    let principal = raw.principal().expect("fixed principal");
+    let descriptor = SignatureDescriptor::new(
+        PrincipalMethodId::parse(RAW_KEY_V1).unwrap(),
+        VerificationMethod::parse(principal.as_str()).unwrap(),
+        SignatureSuiteId::parse(ED25519_V1).unwrap(),
+    );
+    let proof_ref = ProofRef::new([0xa1; 32]);
+    let plan = AuthorizationPlan::proof(proof_ref);
+    let validity =
+        ValidityWindow::new(Timestamp::new(now - 60), Timestamp::new(now + 600)).unwrap();
+    let envelope = ActionEnvelope::new(
+        canonical.profile().clone(),
+        canonical.media_type().clone(),
+        body_digest(canonical.body()),
+        canonical.permission().clone(),
+        canonical.requested_budget().cloned(),
+        audience.clone(),
+        Challenge::new(challenge),
+        validity,
+        principal.clone(),
+        None,
+        plan_id(&plan).unwrap(),
+        ChannelBindingId::parse("none-v1").unwrap(),
+        proof_ref,
+        Vec::new(),
+        CriticalExtensions::empty(),
+    );
+    let signing_request = prepare_action(envelope, descriptor).expect("action signing request");
+    let signature = SignatureBytes::new(
+        signing
+            .sign(signing_request.signing_preimage())
+            .to_bytes()
+            .to_vec(),
+    )
+    .unwrap();
+    let action = signing_request.complete(signature);
+    let unaddressed = EvidenceObject::new(
+        EvidenceId::new([0; 32]),
+        EvidenceTypeId::parse(RAW_KEY_V1).unwrap(),
+        MediaType::parse(RAW_KEY_MEDIA_TYPE).unwrap(),
+        raw.encode(),
+    )
+    .unwrap();
+    let evidence = EvidenceObject::new(
+        evidence_id(&unaddressed).unwrap(),
+        unaddressed.evidence_type().clone(),
+        unaddressed.media_type().clone(),
+        unaddressed.bytes().to_vec(),
+    )
+    .unwrap();
+    let binding = ControlBinding::new(
+        StatementRef::Action(action_id(action.envelope()).unwrap()),
+        vec![evidence.id()],
+    )
+    .unwrap();
+    let proof = ProofBundle::new(
+        BundleHeader::v1(),
+        Vec::new(),
+        vec![action],
+        plan,
+        vec![evidence],
+        vec![binding],
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+        Some(canonical.body().to_vec()),
+    )
+    .unwrap();
+    let assurance_policy = AssurancePolicy::new(
+        AssurancePolicyId::parse("raw-key-baseline").unwrap(),
+        vec![AssuranceRequirement::new(
+            ParticipantRole::Actor,
+            AssuranceQuantifier::Every,
+            AssuranceClaimId::parse("self-certifying-identifier").unwrap(),
+            None,
+        )],
+    )
+    .unwrap();
+    let anchor = TrustAnchor::new(
+        TrustAnchorId::parse(principal.as_str()).unwrap(),
+        principal.clone(),
+        vec![PrincipalMethodId::parse(RAW_KEY_V1).unwrap()],
+        vec![canonical.profile().clone()],
+        PermissionSet::new(vec![canonical.permission().clone()]).unwrap(),
+        vec![canonical.permission().resource().clone()],
+        AudienceSet::new(vec![audience.clone()]).unwrap(),
+        validity,
+        canonical.requested_budget().cloned(),
+        1,
+        assurance_policy.id().clone(),
+        StatusPolicy::ExpiryOnly,
+    )
+    .unwrap();
+    let budget_algebras = canonical
+        .requested_budget()
+        .map(|budget| budget.algebra().clone())
+        .into_iter()
+        .collect();
+    let registries = AcceptedRegistries::new(
+        RegistryManifestId::new([0x33; 32]),
+        vec![PrincipalMethodId::parse(RAW_KEY_V1).unwrap()],
+        vec![SignatureSuiteId::parse(ED25519_V1).unwrap()],
+        vec![EvidenceTypeId::parse(RAW_KEY_V1).unwrap()],
+        Vec::new(),
+        Vec::new(),
+        vec![
+            AssuranceClaimId::parse("offline-verifiable").unwrap(),
+            AssuranceClaimId::parse("self-certifying-identifier").unwrap(),
+        ],
+        Vec::new(),
+        vec![ResourceMatcherId::parse("uri-namespace-v1").unwrap()],
+        budget_algebras,
+        Vec::new(),
+        vec![canonical.profile().clone()],
+        vec![ProfilePolicyId::parse("exact-v1").unwrap()],
+    )
+    .unwrap();
+    let context = VerifierContext::new(
+        demo_configuration_id(),
+        CompositionRequirement::exact(plan_id(proof.plan()).unwrap()),
+        vec![anchor],
+        registries,
+        audience.clone(),
+        Challenge::new(challenge),
+        Timestamp::new(now),
+        assurance_policy,
+        PrincipalStatusSnapshot::new(
+            StatusSnapshotId::new([0x44; 32]),
+            Timestamp::new(now - 300),
+            Timestamp::new(now + 600),
+            Vec::new(),
+            Vec::new(),
+        )
+        .unwrap(),
+        GrantStatusSnapshot::new(
+            StatusSnapshotId::new([0x55; 32]),
+            Timestamp::new(now - 300),
+            Timestamp::new(now + 600),
+            Vec::new(),
+            Vec::new(),
+        )
+        .unwrap(),
+        ResourceMatcherId::parse("uri-namespace-v1").unwrap(),
+        ProfilePolicyId::parse("exact-v1").unwrap(),
+        ChannelBindingId::parse("none-v1").unwrap(),
+        VerifierLimits::default(),
+    )
+    .unwrap();
+    ExactActionFixture {
+        verifier: Verifier::self_contained(context).unwrap(),
+        proof: encode_bundle(&proof).unwrap(),
+        request: RequestContext::new(audience.as_str(), challenge, now).unwrap(),
+        principal: principal.as_str().into(),
+    }
 }
 
 #[allow(clippy::too_many_lines)]
