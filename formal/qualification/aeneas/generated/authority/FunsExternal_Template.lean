@@ -149,3 +149,4 @@ axiom auths_model.optional_budget_covers
 @[rust_fun "auths_model::status_policy_attenuates"]
 axiom auths_model.status_policy_attenuates
   : auths_model.StatusPolicy → auths_model.StatusPolicy → Result Bool
+

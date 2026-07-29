@@ -103,3 +103,4 @@ axiom auths_model.BudgetCeiling : Type
     Visibility: public -/
 @[rust_type "auths_model::StatusPolicy"]
 axiom auths_model.StatusPolicy : Type
+

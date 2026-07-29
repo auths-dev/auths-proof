@@ -664,22 +664,24 @@ fn validate_workflow_gates(root: &Path) -> Result<(), String> {
         (
             "hosted CI",
             ci.as_str(),
-            [
+            &[
                 "leanprover/lean-action@",
                 "kani-verifier --version 0.67.0",
-                "cargo xtask ci",
+                "cargo xtask ci authoritative",
+                "cargo xtask ci formal-translation",
+                "cargo xtask ci compliance",
                 "target/formal/",
-            ],
+            ][..],
         ),
         (
             "release CI",
             release.as_str(),
-            [
+            &[
                 "leanprover/lean-action@",
                 "kani-verifier --version 0.67.0",
                 "cargo xtask release-check",
                 "cargo xtask formal qualify aeneas",
-            ],
+            ][..],
         ),
     ] {
         for needle in needles {

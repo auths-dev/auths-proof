@@ -21,3 +21,4 @@ open auths_model
     Visibility: public -/
 @[rust_fun "alloc::string::{alloc::string::String}::as_bytes"]
 axiom alloc.string.String.as_bytes : String → Result (Slice Std.U8)
+

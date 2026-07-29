@@ -29,7 +29,19 @@ fn run() -> Result<(), String> {
     let mut args = env::args().skip(1);
     let command = args.next().unwrap_or_else(|| "help".into());
     match command.as_str() {
-        "ci" => ci(),
+        "ci" => {
+            let arguments: Vec<_> = args.collect();
+            match arguments.as_slice() {
+                [] => ci(),
+                [phase] if phase == "authoritative" => ci_authoritative(),
+                [phase] if phase == "formal-translation" => ci_formal_translation(),
+                [phase] if phase == "compliance" => ci_compliance(),
+                _ => Err(format!(
+                    "unknown CI phase {}; expected authoritative, formal-translation, or compliance",
+                    arguments.join(" ")
+                )),
+            }
+        }
         "arch" => arch(args.any(|arg| arg == "--update")),
         "fmt" => format_all(),
         "core-boundary" => core_boundary(),
@@ -91,7 +103,7 @@ fn run() -> Result<(), String> {
                  platform-artifact [output]|formal [--skip-kani] [--update]|formal qualify aeneas [--update]|\
                  adversarial-conformance [--surface <name>|--adapter <name>|--case <id>]|\
                  bench <prepare|run|report|compare|verify-artifact>|\
-                 ci|release-check>"
+                 ci [authoritative|formal-translation|compliance]|release-check>"
             );
             Ok(())
         }
@@ -99,9 +111,14 @@ fn run() -> Result<(), String> {
 }
 
 fn ci() -> Result<(), String> {
+    ci_authoritative()?;
+    formal(false, false)?;
+    ci_compliance()
+}
+
+fn ci_authoritative() -> Result<(), String> {
     format_all()?;
     arch(false)?;
-    let compliance_inventory = compliance_inventory()?;
     repository_hygiene()?;
     cargo(&["check", "--workspace", "--all-targets", "--all-features"])?;
     cargo(&["test", "--workspace", "--all-features"])?;
@@ -114,18 +131,21 @@ fn ci() -> Result<(), String> {
         "-D",
         "warnings",
     ])?;
-    formal(false, false)?;
     core_boundary()?;
     workspace_msrv()?;
+    platform_artifact(&root().join("target/release-evidence/platform.json"))?;
+    fuzz_smoke()
+}
+
+fn ci_compliance() -> Result<(), String> {
+    let compliance_inventory = compliance_inventory()?;
     abi()?;
     exchange_conformance()?;
     product_conformance()?;
     product_fixtures(false)?;
     matrix()?;
-    bindings_check()?;
+    bindings_conformance()?;
     package_check()?;
-    platform_artifact(&root().join("target/release-evidence/platform.json"))?;
-    fuzz_smoke()?;
     wasm()?;
     live_demo()?;
     write_compliance_report(&compliance_inventory)
@@ -195,6 +215,10 @@ fn demos_check() -> Result<(), String> {
 
 fn bindings_check() -> Result<(), String> {
     layer_check("bindings")?;
+    bindings_conformance()
+}
+
+fn bindings_conformance() -> Result<(), String> {
     command_in("npm", &["test"], &root().join("bindings/typescript"), None)?;
     npm_package_smoke()?;
     let go_cache = root().join("target/go-build-cache");
@@ -2168,19 +2192,38 @@ fn synchronize_lean_vectors(formal_root: &Path, update: bool) -> Result<(), Stri
 }
 
 fn formal(skip_kani: bool, update: bool) -> Result<(), String> {
+    let (formal_root, attenuation_dimensions) = prepare_formal(!skip_kani, update)?;
+    formal_qualification::validate(&root(), &attenuation_dimensions)?;
+    run_formal_semantic_checks(&formal_root, skip_kani, update)
+}
+
+fn ci_formal_translation() -> Result<(), String> {
+    let (formal_root, attenuation_dimensions) = prepare_formal(true, false)?;
+    formal_qualification::qualify(&root(), &attenuation_dimensions, false)?;
+    run_formal_semantic_checks(&formal_root, false, false)
+}
+
+fn prepare_formal(require_kani: bool, update: bool) -> Result<(PathBuf, Vec<String>), String> {
     let formal_root = root().join("formal");
     let contract = load_algebra_contract()?;
     synchronize_algebra_sources(&contract, update)?;
-    validate_formal_toolchain(&formal_root, !skip_kani)?;
+    validate_formal_toolchain(&formal_root, require_kani)?;
     command_in("lake", &["build"], &formal_root, None)?;
     formal_assurance_audit(&formal_root, update)?;
-    let attenuation_dimensions: Vec<_> = contract
+    let attenuation_dimensions = contract
         .attenuation_dimensions
         .iter()
         .map(|dimension| dimension.rust.clone())
         .collect();
-    formal_qualification::validate(&root(), &attenuation_dimensions)?;
-    synchronize_lean_vectors(&formal_root, update)?;
+    Ok((formal_root, attenuation_dimensions))
+}
+
+fn run_formal_semantic_checks(
+    formal_root: &Path,
+    skip_kani: bool,
+    update: bool,
+) -> Result<(), String> {
+    synchronize_lean_vectors(formal_root, update)?;
 
     cargo(&["test", "-p", "auths-formal-refinement"])?;
     if skip_kani {
@@ -2658,17 +2701,7 @@ fn semantic_source_closure_digest(paths: &[String]) -> Result<String, String> {
 }
 
 fn formal_qualify_aeneas(update: bool) -> Result<(), String> {
-    let formal_root = root().join("formal");
-    let contract = load_algebra_contract()?;
-    synchronize_algebra_sources(&contract, false)?;
-    validate_formal_toolchain(&formal_root, false)?;
-    command_in("lake", &["build"], &formal_root, None)?;
-    formal_assurance_audit(&formal_root, update)?;
-    let attenuation_dimensions: Vec<_> = contract
-        .attenuation_dimensions
-        .iter()
-        .map(|dimension| dimension.rust.clone())
-        .collect();
+    let (_, attenuation_dimensions) = prepare_formal(false, update)?;
     formal_qualification::qualify(&root(), &attenuation_dimensions, update)
 }
 
@@ -4377,11 +4410,14 @@ fn repository_hygiene() -> Result<(), String> {
 }
 
 fn check_workflow_action_pins() -> Result<(), String> {
-    let workflows = root().join(".github/workflows");
-    for path in files_with_extension(&workflows, "yml")?
-        .into_iter()
-        .chain(files_with_extension(&workflows, "yaml")?)
-    {
+    let mut action_sources = Vec::new();
+    for directory in [".github/workflows", ".github/actions"] {
+        let directory = root().join(directory);
+        action_sources.extend(files_with_extension(&directory, "yml")?);
+        action_sources.extend(files_with_extension(&directory, "yaml")?);
+    }
+    action_sources.sort();
+    for path in action_sources {
         let source = fs::read_to_string(&path)
             .map_err(|error| format!("could not read {}: {error}", path.display()))?;
         for (index, line) in source.lines().enumerate() {
