@@ -65,6 +65,16 @@ pub struct StripeHttp {
 impl StripeHttp {
     /// Loads fixed deployment configuration and discovers the account only in
     /// local development. Agent requests never influence these values.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for missing or invalid deployment configuration, an
+    /// unavailable Stripe endpoint, or a malformed account response.
+    ///
+    /// # Panics
+    ///
+    /// Panics only if the repository-owned placeholder account identifier is
+    /// invalid.
     pub fn from_environment(mutation_secret_name: &'static str) -> Result<Self, PortError> {
         let production = env::var("AUTHS_STRIPE_RELEASE").as_deref() == Ok("production");
         let local_secret = SecretBytes::optional("AUTHS_STRIPE_TEST_SECRET_KEY");
@@ -142,6 +152,11 @@ impl StripeHttp {
     }
 
     /// Fixture-only GET before a protected workflow exists.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for an invalid path, transport failure, or malformed
+    /// Stripe response.
     pub fn fixture_get(
         &self,
         path: &str,
@@ -156,6 +171,11 @@ impl StripeHttp {
     }
 
     /// Fixture-only POST before a protected workflow exists.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for an invalid path, transport failure, or malformed
+    /// Stripe response.
     pub fn fixture_post(
         &self,
         path: &str,
@@ -174,6 +194,11 @@ impl StripeHttp {
     }
 
     /// Credential-gated GET reachable only from a verified provider command.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for an invalid path, transport failure, or malformed
+    /// Stripe response.
     pub fn protected_get(
         &self,
         path: &str,
@@ -189,6 +214,11 @@ impl StripeHttp {
     }
 
     /// Credential-gated POST reachable only from a verified provider command.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for an invalid path, transport failure, or malformed
+    /// Stripe response.
     pub fn protected_post(
         &self,
         path: &str,

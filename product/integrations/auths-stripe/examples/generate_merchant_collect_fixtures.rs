@@ -18,6 +18,10 @@ use serde_json::json;
 const NOW: u64 = 1_800_000_000;
 const WORKFLOW: &str = "collect-fixture-workflow";
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "the generator writes the complete canonical profile corpus explicitly"
+)]
 fn main() {
     let output = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/merchant-collect/v1");
     fs::create_dir_all(&output).expect("fixture directory");
@@ -194,9 +198,12 @@ fn main() {
         idempotency_key_digest: auths_stripe::canonical::sha256(b"fixture-idempotency"),
         now: NOW,
     });
-    let (lease, reserved) = match reservation {
-        ReserveMerchantPaymentResult::Reserved { lease, record } => (lease, record),
-        _ => panic!("reservation"),
+    let ReserveMerchantPaymentResult::Reserved {
+        lease,
+        record: reserved,
+    } = reservation
+    else {
+        panic!("reservation");
     };
     let claimed = store.claim(&lease, NOW).expect("claim");
     let attempting = store.mark_attempting(&lease, NOW).expect("attempt");

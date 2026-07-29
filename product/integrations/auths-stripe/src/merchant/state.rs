@@ -78,7 +78,7 @@ impl MerchantReservationState {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct MerchantProviderProjection {
-    /// PaymentIntent created by Stripe.
+    /// `PaymentIntent` created by Stripe.
     pub payment_intent_id: PaymentIntentId,
     /// Latest Charge, when Stripe supplied one.
     pub charge_id: Option<ChargeId>,
@@ -411,6 +411,10 @@ pub enum ReserveMerchantPaymentResult {
 /// Stripe-local durable merchant state contract.
 pub trait MerchantPaymentStore: Send + Sync {
     /// Reads aggregate capacity for the exact policy/account/time.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when durable state is unavailable or corrupt.
     fn snapshot(
         &self,
         policy: &StripeBoundedMerchantPaymentPolicyV1,
@@ -422,6 +426,10 @@ pub trait MerchantPaymentStore: Send + Sync {
     fn reserve(&self, request: ReserveMerchantPaymentRequest) -> ReserveMerchantPaymentResult;
 
     /// Claims a new reservation for one verified command.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when durable state is unavailable or the transition is invalid.
     fn claim(
         &self,
         lease: &MerchantReservationLease,
@@ -429,6 +437,10 @@ pub trait MerchantPaymentStore: Send + Sync {
     ) -> Result<MerchantReservationRecord, MerchantStateError>;
 
     /// Persists provider-attempt intent before credential/provider use.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when durable state is unavailable or the transition is invalid.
     fn mark_attempting(
         &self,
         lease: &MerchantReservationLease,
@@ -436,6 +448,10 @@ pub trait MerchantPaymentStore: Send + Sync {
     ) -> Result<MerchantReservationRecord, MerchantStateError>;
 
     /// Persists a normalized provider response before accounting transition.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when durable state is unavailable or the transition is invalid.
     fn record_provider_accepted(
         &self,
         lease: &MerchantReservationLease,
@@ -444,6 +460,10 @@ pub trait MerchantPaymentStore: Send + Sync {
     ) -> Result<MerchantReservationRecord, MerchantStateError>;
 
     /// Commits automatic collection.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when durable state is unavailable or the transition is invalid.
     fn commit_collection(
         &self,
         lease: &MerchantReservationLease,
@@ -451,6 +471,10 @@ pub trait MerchantPaymentStore: Send + Sync {
     ) -> Result<MerchantReservationRecord, MerchantStateError>;
 
     /// Releases capacity only after definite non-execution.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when durable state is unavailable or the transition is invalid.
     fn release(
         &self,
         lease: &MerchantReservationLease,
@@ -458,6 +482,10 @@ pub trait MerchantPaymentStore: Send + Sync {
     ) -> Result<MerchantReservationRecord, MerchantStateError>;
 
     /// Retains capacity after ambiguous delivery.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when durable state is unavailable or the transition is invalid.
     fn mark_outcome_unknown(
         &self,
         lease: &MerchantReservationLease,
@@ -466,6 +494,10 @@ pub trait MerchantPaymentStore: Send + Sync {
     ) -> Result<MerchantReservationRecord, MerchantStateError>;
 
     /// Applies fresh provider reconciliation without a second create request.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when durable state is unavailable or reconciliation is invalid.
     fn reconcile_collection(
         &self,
         workflow_id: &str,
@@ -475,6 +507,10 @@ pub trait MerchantPaymentStore: Send + Sync {
     ) -> Result<MerchantReservationRecord, MerchantStateError>;
 
     /// Reads one durable workflow.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when durable state is unavailable or corrupt.
     fn get(
         &self,
         workflow_id: &str,

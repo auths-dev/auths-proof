@@ -41,9 +41,7 @@ impl ReceiptJournal {
     /// Returns one exact receipt by canonical digest.
     pub fn get(&self, receipt_id: &DigestHex) -> Result<Option<StripeReceipt>, PortError> {
         Ok(self.read_all()?.into_iter().find(|receipt| {
-            canonical_json(receipt)
-                .map(|bytes| sha256(&bytes) == *receipt_id)
-                .unwrap_or(false)
+            canonical_json(receipt).is_ok_and(|bytes| sha256(&bytes) == *receipt_id)
         }))
     }
 

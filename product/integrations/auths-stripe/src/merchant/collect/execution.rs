@@ -153,13 +153,13 @@ impl PaymentCollectProviderRequest {
         &self.customer_id
     }
 
-    /// Exact attached PaymentMethod.
+    /// Exact attached `PaymentMethod`.
     #[must_use]
     pub fn payment_method_id(&self) -> &str {
         &self.payment_method_id
     }
 
-    /// Fixed V1 PaymentMethod type.
+    /// Fixed V1 `PaymentMethod` type.
     #[must_use]
     pub fn payment_method_type(&self) -> &str {
         &self.payment_method_type
@@ -403,7 +403,11 @@ pub const fn transition_payment_collect(
         (Reserved | Claimed | Attempting, DefiniteFailureReleased) => {
             Some(MerchantReservationState::Released)
         }
-        (Claimed | Attempting | ProviderAccepted, OutcomeBecameUnknown) => Some(OutcomeUnknown),
+        (Claimed | Attempting | ProviderAccepted, OutcomeBecameUnknown)
+        | (
+            Reserved | Claimed | Attempting | ProviderAccepted | OutcomeUnknown,
+            ReconcileStillUnknown,
+        ) => Some(OutcomeUnknown),
         (
             Reserved | Claimed | Attempting | ProviderAccepted | OutcomeUnknown,
             ReconcileCommitted,
@@ -412,10 +416,6 @@ pub const fn transition_payment_collect(
             Reserved | Claimed | Attempting | ProviderAccepted | OutcomeUnknown,
             ReconcileReleased,
         ) => Some(MerchantReservationState::ReconciledReleased),
-        (
-            Reserved | Claimed | Attempting | ProviderAccepted | OutcomeUnknown,
-            ReconcileStillUnknown,
-        ) => Some(OutcomeUnknown),
         _ => None,
     }
 }

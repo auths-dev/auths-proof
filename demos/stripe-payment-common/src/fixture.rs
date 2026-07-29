@@ -48,6 +48,11 @@ pub struct AuthorizationFixture {
 ///
 /// The fixture is generic over canonical Auths mechanics only. It does not
 /// interpret collection or authorization semantics.
+///
+/// # Panics
+///
+/// Panics only if repository-owned static fixture constants violate their
+/// canonical Auths schemas.
 #[must_use]
 #[allow(
     clippy::too_many_lines,

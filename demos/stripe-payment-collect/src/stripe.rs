@@ -39,7 +39,12 @@ pub struct EnvironmentDiagnostics {
 pub trait DemoPaymentCollectEnvironment:
     CredentialProvider + PaymentCollectGateway + Send + Sync
 {
-    /// Creates one Customer and attached test PaymentMethod.
+    /// Creates one Customer and attached test `PaymentMethod`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when test fixture creation or evidence normalization
+    /// fails.
     fn seed_collection(
         &self,
         workflow_id: &str,
@@ -48,6 +53,10 @@ pub trait DemoPaymentCollectEnvironment:
     ) -> Result<CollectionFixture, PortError>;
 
     /// Arms one lost-response experiment after actual Stripe delivery.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the experiment cannot be recorded safely.
     fn arm_ambiguous_once(&self, workflow_id: &str) -> Result<(), PortError>;
 
     /// Configured account.
@@ -74,6 +83,11 @@ pub struct LivePaymentCollectEnvironment {
 impl LivePaymentCollectEnvironment {
     /// Loads the established ignored `.env` secret path and strict deployment
     /// configuration.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when Stripe test-mode configuration is unavailable or
+    /// invalid.
     pub fn from_environment() -> Result<Self, PortError> {
         Ok(Self {
             http: StripeHttp::from_environment("AUTHS_STRIPE_PAYMENT_COLLECT_SECRET_KEY")?,

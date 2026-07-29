@@ -60,6 +60,11 @@ pub struct AppConfig {
 
 impl AppConfig {
     /// Loads strict local/cloud configuration.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when required deployment configuration is absent or
+    /// any configured origin, path, region, or release label is invalid.
     pub fn from_environment() -> Result<Self, StartupError> {
         let origin = env::var("AUTHS_STRIPE_ALLOWED_ORIGIN")
             .map_err(|_| StartupError::Missing("AUTHS_STRIPE_ALLOWED_ORIGIN"))?;
@@ -147,6 +152,11 @@ struct ExecuteRequest {
 }
 
 /// Builds the real Stripe test-mode application.
+///
+/// # Errors
+///
+/// Returns an error when Stripe test-mode or durable-state configuration
+/// cannot be initialized.
 pub fn app(config: AppConfig) -> Result<Router, StartupError> {
     let environment = Arc::new(
         LivePaymentCollectEnvironment::from_environment().map_err(|_| StartupError::Stripe)?,
@@ -155,6 +165,11 @@ pub fn app(config: AppConfig) -> Result<Router, StartupError> {
 }
 
 /// Builds the application with an explicit collection-only environment.
+///
+/// # Errors
+///
+/// Returns an error when the durable merchant store or receipt journal cannot
+/// be initialized.
 pub fn app_with_environment(
     config: AppConfig,
     environment: Arc<dyn DemoPaymentCollectEnvironment>,
@@ -470,9 +485,11 @@ async fn execute(
     })
     .await
     .map_err(|_| ApiError::internal())?
-    .map_err(|_error| {
+    .map_err(|error| {
         #[cfg(test)]
-        eprintln!("collection service failed: {_error:?}");
+        eprintln!("collection service failed: {error:?}");
+        #[cfg(not(test))]
+        let _ = error;
         ApiError::internal()
     })?;
     let after = state.environment.diagnostics();
@@ -789,6 +806,10 @@ fn proof_variant(action: &StripeExactPaymentCollectV1, now: u64) -> Result<Varia
     })
 }
 
+#[allow(
+    clippy::unnecessary_wraps,
+    reason = "the fallible projection signature keeps receipt attachment call sites uniform"
+)]
 fn outcome_projection(
     outcome: PaymentCollectWorkflowOutcome,
     credential_requests: u64,
@@ -1080,6 +1101,10 @@ mod tests {
             }
         }
 
+        #[allow(
+            clippy::unused_self,
+            reason = "the helper belongs to the stateful mock provider"
+        )]
         fn projection(&self, amount_minor: u64, now: u64) -> MerchantProviderProjection {
             MerchantProviderProjection {
                 payment_intent_id: PaymentIntentId::parse("pi_collectmock0000000001").unwrap(),
@@ -1155,6 +1180,10 @@ mod tests {
             &self.account
         }
 
+        #[allow(
+            clippy::unnecessary_literal_bound,
+            reason = "the trait deliberately ties configuration reads to the provider"
+        )]
         fn api_version(&self) -> &str {
             "2025-04-30.basil"
         }
