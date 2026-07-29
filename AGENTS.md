@@ -4,6 +4,17 @@ This file is the canonical instruction set for agents working anywhere in this
 repository. Read it before changing code, manifests, fixtures, generated
 artifacts, CI, or repository structure.
 
+After reading this file, every agent must also read
+`docs/target-state/PROFILE_AND_DOMAIN_ABSTRACTION_BOUNDARY_PLAN.md` before
+planning or changing repository code. It defines the required vertical-first
+process for adding profiles and domains, the evidence gates for extracting
+shared mechanisms, and the boundaries that prevent premature semantic
+coupling. Existing abstractions are not permission to bypass that review.
+
+`AGENTS.md`, `architecture.toml`, `compliance.toml`, workspace metadata, and
+`xtask` remain authoritative if the target-state document ever conflicts with
+executable repository policy.
+
 ## The decision is already made
 
 `auths-proof` is intentionally one monorepo. It consolidates the maintained
