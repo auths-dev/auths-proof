@@ -426,8 +426,10 @@ pub struct RefundEvidenceV1 {
     livemode: bool,
     charge_id: ChargeId,
     payment_intent_id: Option<PaymentIntentId>,
+    connect_account_id: Option<StripeAccountId>,
     currency: Currency,
     charge_amount_minor: u64,
+    captured_amount_minor: u64,
     amount_refunded_minor: u64,
     refundable_amount_minor: u64,
     paid: bool,
@@ -454,10 +456,14 @@ pub struct RefundEvidenceInput {
     pub charge_id: ChargeId,
     /// Related `PaymentIntent`.
     pub payment_intent_id: Option<PaymentIntentId>,
+    /// Explicit Stripe Connect account context, absent for direct/platform use.
+    pub connect_account_id: Option<StripeAccountId>,
     /// Currency.
     pub currency: Currency,
     /// Original amount.
     pub charge_amount_minor: u64,
+    /// Amount captured by Stripe.
+    pub captured_amount_minor: u64,
     /// Already-refunded amount.
     pub amount_refunded_minor: u64,
     /// Paid bit.
@@ -483,12 +489,15 @@ impl RefundEvidenceV1 {
     pub fn new(input: RefundEvidenceInput) -> Result<Self, ValidationError> {
         if !valid_api_version(&input.stripe_api_version)
             || input.charge_amount_minor == 0
+            || input.captured_amount_minor == 0
+            || input.captured_amount_minor > input.charge_amount_minor
             || input.amount_refunded_minor > input.charge_amount_minor
+            || input.amount_refunded_minor > input.captured_amount_minor
         {
             return Err(ValidationError::InvalidEvidence);
         }
         let refundable_amount_minor = input
-            .charge_amount_minor
+            .captured_amount_minor
             .checked_sub(input.amount_refunded_minor)
             .ok_or(ValidationError::InvalidEvidence)?;
         if input.charge_refunded != (refundable_amount_minor == 0) {
@@ -501,8 +510,10 @@ impl RefundEvidenceV1 {
             livemode: input.livemode,
             charge_id: input.charge_id,
             payment_intent_id: input.payment_intent_id,
+            connect_account_id: input.connect_account_id,
             currency: input.currency,
             charge_amount_minor: input.charge_amount_minor,
+            captured_amount_minor: input.captured_amount_minor,
             amount_refunded_minor: input.amount_refunded_minor,
             refundable_amount_minor,
             paid: input.paid,
@@ -553,6 +564,12 @@ impl RefundEvidenceV1 {
         self.payment_intent_id.as_ref()
     }
 
+    /// Explicit connected-account context.
+    #[must_use]
+    pub const fn connect_account_id(&self) -> Option<&StripeAccountId> {
+        self.connect_account_id.as_ref()
+    }
+
     /// Currency.
     #[must_use]
     pub const fn currency(&self) -> &Currency {
@@ -563,6 +580,12 @@ impl RefundEvidenceV1 {
     #[must_use]
     pub const fn charge_amount_minor(&self) -> u64 {
         self.charge_amount_minor
+    }
+
+    /// Captured amount.
+    #[must_use]
+    pub const fn captured_amount_minor(&self) -> u64 {
+        self.captured_amount_minor
     }
 
     /// Already refunded.
@@ -778,7 +801,7 @@ impl ExactRefundActionV1 {
             || self.expected_charge_amount_minor == 0
             || self.expected_amount_refunded_minor > self.expected_charge_amount_minor
             || self.expected_refundable_amount_minor
-                != self.expected_charge_amount_minor - self.expected_amount_refunded_minor
+                > self.expected_charge_amount_minor - self.expected_amount_refunded_minor
             || self.amount.amount_minor() > self.expected_refundable_amount_minor
             || self.refund_application_fee
             || self.reverse_transfer

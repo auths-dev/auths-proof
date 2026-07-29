@@ -2,6 +2,7 @@
   "name": "auths-stripe-demo-web",
   "private": true,
   "scripts": {
-    "check": "node --check web/app.js && node --test tests/web-smoke.mjs"
+    "check": "node --check web/app.js && node --check web/receipt.js && node --test tests/web-smoke.mjs",
+    "test:e2e": "python tests/browser-e2e.py"
   }
 }

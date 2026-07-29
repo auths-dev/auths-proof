@@ -11,6 +11,10 @@ test("workbench exposes adjacent selectable controls and live results", async ()
   assert.match(html, /data-variant="amount-changed"/);
   assert.match(html, /id="verdict"/);
   assert.match(html, /id="execute"/);
+  assert.match(html, /id="delegation-card"/);
+  assert.match(html, /id="budget-available"/);
+  assert.match(html, /id="budget-reserved"/);
+  assert.match(html, /id="budget-spent"/);
   assert.ok(
     html.indexOf('id="variant-list"') < html.indexOf('id="verdict"'),
     "controls should precede the adjacent result in one workbench",
@@ -32,6 +36,9 @@ test("copy states test mode and credential isolation concretely", async () => {
   assert.match(html, /Real Stripe test payment/);
   assert.match(html, /NO STRIPE KEY/);
   assert.match(html, /No real money/);
+  assert.match(html, /immutable configured policy/i);
+  assert.match(html, /not yet a[\s\S]*human-signed standing delegation/i);
+  assert.match(html, /reserve aggregate capacity/i);
   assert.doesNotMatch(html, /Verification repeats/);
 });
 
@@ -43,7 +50,10 @@ test("execution renders inline JSON and links to a designed receipt page", async
   const config = JSON.parse(await readFile(new URL("web/vercel.json", root), "utf8"));
   assert.match(index, /id="receipt-viewer"/);
   assert.match(app, /JSON\.stringify\(receipt, null, 2\)/);
-  assert.match(receiptPage, /What Auths decided/);
+  assert.match(receiptPage, /Configured bounds/);
+  assert.match(receiptPage, /id="policy-digest"/);
+  assert.match(receiptPage, /id="reservation-state"/);
   assert.match(receiptScript, /\/api\/v1\/receipts\//);
+  assert.match(receiptScript, /Policy provenance/);
   assert.ok(config.rewrites.some((rewrite) => rewrite.source === "/receipts/:sessionId"));
 });

@@ -6,5 +6,5 @@ mod app;
 mod fixture;
 mod stripe;
 
-pub use app::{AppConfig, StartupError, app, app_with_environment};
+pub use app::{AppConfig, StartupError, app, app_with_environment, app_with_stores};
 pub use stripe::{DemoStripeEnvironment, LiveStripeEnvironment};

@@ -9,10 +9,15 @@ use std::{
 };
 
 use auths_stripe::{
-    ClaimStore, Currency, DecisionClass, EvaluationContext, ExactRefundActionInput,
-    ExactRefundActionV1, Money, PersistentClaimStore, ReceiptSink, RefundService, SdkProofVerifier,
-    ServiceDependencies, StripeReceipt, StripeVerifierConfiguration,
-    StripeVerifierConfigurationInput, SystemClock, WorkflowOutcome, evaluate,
+    AggregateBudgetSnapshot, AggregateRefundBudget, BoundedDecisionClass, BoundedEvaluationContext,
+    BoundedRefundService, BoundedServiceDependencies, BoundedWorkflowOutcome,
+    CONFIGURED_POLICY_PROVENANCE, ClaimStore, ConnectScope, Currency, ExactRefundActionInput,
+    ExactRefundActionV1, ExecuteBoundedRefundRequest, Money, PersistentClaimStore,
+    PersistentRefundReservationStore, ReceiptSink, ReconciledRefundOutcome, RefundBudgetWindow,
+    RefundDenominator, RefundReservationStore, RelativeRefundLimit, ReservationReceipt,
+    SdkProofVerifier, StripeBoundedEvaluatorConfigurationV1, StripeBoundedRefundPolicyInput,
+    StripeBoundedRefundPolicyV1, StripeReceipt, StripeVerifierConfiguration,
+    StripeVerifierConfigurationInput, SystemClock, evaluate_bounded_refund,
 };
 use axum::{
     Json, Router,
@@ -36,6 +41,9 @@ const SESSION_TTL_SECONDS: u64 = 5 * 60;
 const MAX_SESSIONS: usize = 512;
 const MAX_REQUEST_BYTES: usize = 2 * 1024;
 const REFUND_AMOUNT_MINOR: u64 = 1_000;
+const ABSOLUTE_REFUND_LIMIT_MINOR: u64 = 1_500;
+const RELATIVE_REFUND_LIMIT_BPS: u16 = 5_000;
+const AGGREGATE_REFUND_LIMIT_MINOR: u64 = 2_500;
 
 /// Native demo startup configuration.
 #[derive(Clone)]
@@ -104,6 +112,7 @@ struct AppState {
     config: AppConfig,
     environment: Arc<dyn DemoStripeEnvironment>,
     claim_store: Arc<dyn ClaimStore>,
+    reservation_store: Arc<dyn RefundReservationStore>,
     receipt_sink: Arc<dyn ReceiptSink>,
     sessions: Arc<Mutex<HashMap<String, Session>>>,
 }
@@ -112,7 +121,9 @@ struct Session {
     expires_at: u64,
     action: ExactRefundActionV1,
     evidence: auths_stripe::RefundEvidenceV1,
+    policy: StripeBoundedRefundPolicyV1,
     required_configuration: StripeVerifierConfiguration,
+    required_bounded_configuration: StripeBoundedEvaluatorConfigurationV1,
     proof_verifier: Arc<SdkProofVerifier>,
     proof: Vec<u8>,
     request: auths_sdk::RequestContext,
@@ -150,10 +161,17 @@ pub fn app(config: AppConfig) -> Result<Router, StartupError> {
         JsonlReceiptSink::new(config.state_directory.join("receipts.jsonl"))
             .map_err(|_| StartupError::State)?,
     );
-    Ok(app_with_environment(
+    let reservation_store = Arc::new(
+        PersistentRefundReservationStore::open(
+            config.state_directory.join("bounded-reservations.json"),
+        )
+        .map_err(|_| StartupError::State)?,
+    );
+    Ok(app_with_stores(
         config,
         environment,
         claim_store,
+        reservation_store,
         receipt_sink,
     ))
 }
@@ -165,6 +183,23 @@ pub fn app_with_environment(
     claim_store: Arc<dyn ClaimStore>,
     receipt_sink: Arc<dyn ReceiptSink>,
 ) -> Router {
+    app_with_stores(
+        config,
+        environment,
+        claim_store,
+        Arc::new(auths_stripe::InMemoryRefundReservationStore::default()),
+        receipt_sink,
+    )
+}
+
+/// Builds the API with explicit exact-claim and aggregate-reservation stores.
+pub fn app_with_stores(
+    config: AppConfig,
+    environment: Arc<dyn DemoStripeEnvironment>,
+    claim_store: Arc<dyn ClaimStore>,
+    reservation_store: Arc<dyn RefundReservationStore>,
+    receipt_sink: Arc<dyn ReceiptSink>,
+) -> Router {
     let cors = CorsLayer::new()
         .allow_origin(config.allowed_origin.clone())
         .allow_methods([Method::GET, Method::POST])
@@ -173,6 +208,7 @@ pub fn app_with_environment(
         config,
         environment,
         claim_store,
+        reservation_store,
         receipt_sink,
         sessions: Arc::new(Mutex::new(HashMap::new())),
     };
@@ -183,6 +219,7 @@ pub fn app_with_environment(
         .route("/api/v1/sessions", post(create_session))
         .route("/api/v1/sessions/{session_id}", get(session_status))
         .route("/api/v1/sessions/{session_id}/execute", post(execute))
+        .route("/api/v1/sessions/{session_id}/reconcile", post(reconcile))
         .route("/api/v1/receipts/{session_id}", get(session_receipts))
         .layer(DefaultBodyLimit::max(MAX_REQUEST_BYTES))
         .layer(cors)
@@ -214,6 +251,9 @@ async fn scenario(State(state): State<AppState>) -> Json<Value> {
     Json(json!({
         "schema": API_SCHEMA,
         "profile": "auths.stripe.exact-refund/1",
+        "policy_type": "auths.stripe.bounded-refund-policy/1",
+        "evaluator": "auths.stripe.bounded-refund-evaluator/1",
+        "policy_provenance": CONFIGURED_POLICY_PROVENANCE,
         "region": &*state.config.region,
         "release": &*state.config.release,
         "execution_mode": state.environment.execution_mode(),
@@ -224,6 +264,10 @@ async fn scenario(State(state): State<AppState>) -> Json<Value> {
     }))
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "the endpoint assembles one auditable, side-by-side bounded-refund projection"
+)]
 async fn create_session(State(state): State<AppState>) -> Result<Json<Value>, ApiError> {
     let now = unix_time().map_err(|_| ApiError::internal())?;
     let mut random = [0_u8; 16];
@@ -244,10 +288,19 @@ async fn create_session(State(state): State<AppState>) -> Result<Json<Value>, Ap
                 )
             })?;
     let required_configuration =
-        configuration(&state.environment, REFUND_AMOUNT_MINOR).map_err(|_| ApiError::internal())?;
+        configuration(&state.environment, evidence.refundable_amount_minor())
+            .map_err(|_| ApiError::internal())?;
+    let policy = bounded_policy(&evidence, now).map_err(|_| ApiError::internal())?;
+    let required_bounded_configuration = StripeBoundedEvaluatorConfigurationV1::for_policy(
+        &policy,
+        "auths-stripe-demo-v1",
+        required_configuration.executor_audience(),
+    )
+    .map_err(|_| ApiError::internal())?;
     let action = exact_action(
         &workflow_id,
         &required_configuration,
+        &policy,
         &evidence,
         REFUND_AMOUNT_MINOR,
         &session_id,
@@ -259,7 +312,10 @@ async fn create_session(State(state): State<AppState>) -> Result<Json<Value>, Ap
     let variants = variant_projections(
         &action,
         &evidence,
+        &policy,
         &required_configuration,
+        &required_bounded_configuration,
+        &AggregateBudgetSnapshot::default(),
         now,
         &session_id,
     )
@@ -275,6 +331,18 @@ async fn create_session(State(state): State<AppState>) -> Result<Json<Value>, Ap
         "expires_at": now + SESSION_TTL_SECONDS,
         "execution_mode": state.environment.execution_mode(),
         "profile": "auths.stripe.exact-refund/1",
+        "delegation": {
+            "label": "immutable configured policy",
+            "provenance": CONFIGURED_POLICY_PROVENANCE,
+            "policy": policy,
+            "policy_digest": policy.digest().map_err(|_| ApiError::internal())?,
+            "evaluator_semantic_id": policy.evaluator_semantic_id(),
+            "evaluator_semantic_version": policy.evaluator_semantic_version(),
+            "absolute_limit_minor": policy.absolute_limit_minor(action.amount().currency()),
+            "basis_points": policy.relative_limit().basis_points(),
+            "denominator": policy.relative_limit().denominator(),
+            "rounding": policy.relative_limit().rounding(),
+        },
         "payment": payment_projection(&evidence),
         "refund": {
             "amount_minor": action.amount().amount_minor(),
@@ -283,6 +351,9 @@ async fn create_session(State(state): State<AppState>) -> Result<Json<Value>, Ap
         },
         "required_configuration": required_configuration.digest().map_err(|_| ApiError::internal())?,
         "executed_configuration": required_configuration.digest().map_err(|_| ApiError::internal())?,
+        "required_bounded_configuration": required_bounded_configuration,
+        "executed_bounded_configuration": required_bounded_configuration,
+        "aggregate_budget": aggregate_projection(&AggregateBudgetSnapshot::default(), &policy),
         "principals": {
             "human": principals.human,
             "workflow": principals.workflow,
@@ -305,7 +376,9 @@ async fn create_session(State(state): State<AppState>) -> Result<Json<Value>, Ap
             expires_at: now + SESSION_TTL_SECONDS,
             action,
             evidence,
+            policy,
             required_configuration,
+            required_bounded_configuration,
             proof_verifier: Arc::new(SdkProofVerifier::new(fixture.verifier)),
             proof: fixture.proof,
             request: fixture.request,
@@ -344,21 +417,26 @@ async fn execute(
     };
     let environment = Arc::clone(&state.environment);
     let claim_store = Arc::clone(&state.claim_store);
+    let reservation_store = Arc::clone(&state.reservation_store);
     let receipt_sink = Arc::clone(&state.receipt_sink);
     let result = tokio::task::spawn_blocking(move || {
-        let service = RefundService::new(ServiceDependencies {
+        let service = BoundedRefundService::new(BoundedServiceDependencies {
             proof_verifier: materials.proof_verifier,
             credential_provider: Arc::clone(&environment),
             stripe_gateway: environment,
             claim_store,
+            reservation_store,
             receipt_sink,
             clock: SystemClock,
-            executed_configuration: materials.executed_configuration,
+            executed_exact_configuration: materials.executed_configuration,
+            executed_bounded_configuration: materials.executed_bounded_configuration,
         });
-        service.execute(auths_stripe::ExecuteRefundRequest {
+        service.execute(ExecuteBoundedRefundRequest {
             action: materials.action,
             evidence: materials.evidence,
-            required_configuration: materials.required_configuration,
+            policy: materials.policy,
+            required_exact_configuration: materials.required_configuration,
+            required_bounded_configuration: materials.required_bounded_configuration,
             proof: materials.proof,
             auths_request: materials.request,
         })
@@ -384,11 +462,26 @@ async fn session_status(
             "the Stripe demo session was not found",
         )
     })?;
+    let aggregate = state
+        .reservation_store
+        .snapshot(
+            &session.policy,
+            session.evidence.stripe_account_id(),
+            unix_time().map_err(|_| ApiError::internal())?,
+        )
+        .map_err(|_| ApiError::internal())?;
     Ok(Json(json!({
         "schema": API_SCHEMA,
         "session_id": session_id,
         "expires_at": session.expires_at,
         "payment": payment_projection(&session.evidence),
+        "delegation": {
+            "label": "immutable configured policy",
+            "provenance": CONFIGURED_POLICY_PROVENANCE,
+            "policy": session.policy,
+            "policy_digest": session.policy.digest().map_err(|_| ApiError::internal())?,
+        },
+        "aggregate_budget": aggregate_projection(&aggregate, &session.policy),
         "variants": session.variants,
         "principals": {
             "human": session.principals.human,
@@ -397,6 +490,106 @@ async fn session_status(
         },
         "last_result": session.last_result,
     })))
+}
+
+async fn reconcile(
+    State(state): State<AppState>,
+    AxumPath(session_id): AxumPath<String>,
+) -> Result<Json<Value>, ApiError> {
+    let now = unix_time().map_err(|_| ApiError::internal())?;
+    let action = {
+        let sessions = state.sessions.lock().await;
+        sessions
+            .get(&session_id)
+            .ok_or_else(|| {
+                ApiError::new(
+                    StatusCode::NOT_FOUND,
+                    "session-not-found",
+                    "the Stripe demo session was not found",
+                )
+            })?
+            .action
+            .clone()
+    };
+    let environment = Arc::clone(&state.environment);
+    let action_for_observation = action.clone();
+    let observation = tokio::task::spawn_blocking(move || {
+        environment.reconcile_refund(&action_for_observation, now)
+    })
+    .await
+    .map_err(|_| ApiError::internal())?
+    .map_err(|_| {
+        ApiError::new(
+            StatusCode::BAD_GATEWAY,
+            "bounded-reconciliation-unavailable",
+            "fresh Stripe reconciliation evidence is unavailable",
+        )
+    })?;
+    let outcome = if let Some(result) = observation {
+        let digest =
+            auths_stripe::canonical::canonical_digest(&result).map_err(|_| ApiError::internal())?;
+        ReconciledRefundOutcome::Committed {
+            refund_id: result.refund_id,
+            result_digest: digest,
+        }
+    } else {
+        ReconciledRefundOutcome::Released
+    };
+    let record = state
+        .reservation_store
+        .reconcile(
+            action.workflow_id(),
+            &action.digest().map_err(|_| ApiError::internal())?,
+            outcome,
+            now,
+        )
+        .map_err(|_| {
+            ApiError::new(
+                StatusCode::CONFLICT,
+                "bounded-reconciliation-required",
+                "only an outcome-unknown exact refund can be reconciled",
+            )
+        })?;
+    state
+        .receipt_sink
+        .append(&StripeReceipt::Reservation(Box::new(ReservationReceipt {
+            schema: "auths.stripe.bounded-reservation-receipt/1".into(),
+            decision_receipt_digest: record.decision_receipt_digest().clone(),
+            reservation: record.clone(),
+            credential_requested: false,
+            stripe_called: false,
+            recorded_at: now,
+        })))
+        .map_err(|_| ApiError::internal())?;
+    let response = json!({
+        "schema": API_SCHEMA,
+        "decision": {
+            "class": "authorized",
+            "code": "bounded-reconciled",
+            "detail": "fresh Stripe evidence reconciled the held aggregate capacity",
+            "stage": "reconciliation",
+        },
+        "entered_executor": true,
+        "credential_requested": false,
+        "stripe_called": false,
+        "reservation": {
+            "id": record.reservation_id(),
+            "state": record.state(),
+            "refund_id": record.refund_id(),
+        },
+        "stages": [
+            {"name": "authorized", "status": "previously proven"},
+            {"name": "reserved", "status": "reconciled"},
+            {"name": "credential", "status": "not requested"},
+            {"name": "stripe", "status": "observed only"},
+            {"name": "observed", "status": record.state()}
+        ],
+        "receipt_count": 1,
+    });
+    if let Some(session) = state.sessions.lock().await.get_mut(&session_id) {
+        session.last_result = Some(response.clone());
+    }
+    Ok(Json(response))
 }
 
 async fn session_receipts(
@@ -411,21 +604,42 @@ async fn session_receipts(
             "no receipt view exists for this session",
         )
     })?;
+    let reservation = state
+        .reservation_store
+        .get(session.action.workflow_id())
+        .map_err(|_| ApiError::internal())?;
+    let aggregate = state
+        .reservation_store
+        .snapshot(
+            &session.policy,
+            session.evidence.stripe_account_id(),
+            unix_time().map_err(|_| ApiError::internal())?,
+        )
+        .map_err(|_| ApiError::internal())?;
     Ok(Json(json!({
         "schema": API_SCHEMA,
         "session_id": session_id,
         "result": session.last_result,
         "action_digest": session.action.digest().map_err(|_| ApiError::internal())?,
         "evidence_digest": session.evidence.digest().map_err(|_| ApiError::internal())?,
+        "policy": session.policy,
+        "policy_digest": session.policy.digest().map_err(|_| ApiError::internal())?,
+        "policy_provenance": CONFIGURED_POLICY_PROVENANCE,
+        "evaluator": session.required_bounded_configuration,
         "required_configuration": session.required_configuration,
+        "reservation": reservation,
+        "aggregate_budget": aggregate_projection(&aggregate, &session.policy),
     })))
 }
 
 struct ExecutionMaterials {
     action: ExactRefundActionV1,
     evidence: auths_stripe::RefundEvidenceV1,
+    policy: StripeBoundedRefundPolicyV1,
     required_configuration: StripeVerifierConfiguration,
     executed_configuration: StripeVerifierConfiguration,
+    required_bounded_configuration: StripeBoundedEvaluatorConfigurationV1,
+    executed_bounded_configuration: StripeBoundedEvaluatorConfigurationV1,
     proof_verifier: Arc<SdkProofVerifier>,
     proof: Vec<u8>,
     request: auths_sdk::RequestContext,
@@ -438,13 +652,15 @@ fn execution_materials(
     now: u64,
 ) -> Result<ExecutionMaterials, ApiError> {
     let mut action = session.action.clone();
-    let mut executed_configuration = session.required_configuration.clone();
+    let executed_configuration = session.required_configuration.clone();
+    let mut executed_bounded_configuration = session.required_bounded_configuration.clone();
     match variant {
         "exact" => {}
         "amount-changed" => {
             action = exact_action(
                 action.workflow_id(),
                 &session.required_configuration,
+                &session.policy,
                 &session.evidence,
                 action.amount().amount_minor() + 1,
                 session_id,
@@ -455,6 +671,7 @@ fn execution_materials(
             let mut input = action_input(
                 action.workflow_id(),
                 &session.required_configuration,
+                &session.policy,
                 &session.evidence,
                 action.amount().amount_minor(),
                 session_id,
@@ -465,10 +682,10 @@ fn execution_materials(
             action = ExactRefundActionV1::new(input).map_err(|_| ApiError::internal())?;
         }
         "configuration-changed" => {
-            executed_configuration = configuration_with_limit(
-                session.evidence.stripe_account_id().clone(),
-                session.evidence.stripe_api_version(),
-                REFUND_AMOUNT_MINOR + 1,
+            executed_bounded_configuration = StripeBoundedEvaluatorConfigurationV1::for_policy(
+                &session.policy,
+                "auths-stripe-demo-changed-build",
+                session.required_configuration.executor_audience(),
             )
             .map_err(|_| ApiError::internal())?;
         }
@@ -484,8 +701,11 @@ fn execution_materials(
     Ok(ExecutionMaterials {
         action,
         evidence: session.evidence.clone(),
+        policy: session.policy.clone(),
         required_configuration: session.required_configuration.clone(),
         executed_configuration,
+        required_bounded_configuration: session.required_bounded_configuration.clone(),
+        executed_bounded_configuration,
         proof_verifier: Arc::clone(&session.proof_verifier),
         proof: session.proof.clone(),
         request: session.request.clone(),
@@ -497,50 +717,60 @@ fn execution_materials(
     reason = "the public API projection keeps every security stage explicit and adjacent"
 )]
 fn outcome_projection(
-    outcome: Result<WorkflowOutcome, auths_stripe::ServiceError>,
+    outcome: Result<BoundedWorkflowOutcome, auths_stripe::ServiceError>,
 ) -> Result<Value, ApiError> {
     match outcome {
-        Ok(WorkflowOutcome::Rejected { receipt }) => Ok(json!({
+        Ok(BoundedWorkflowOutcome::Rejected { receipt }) => Ok(json!({
             "schema": API_SCHEMA,
             "entered_executor": false,
             "credential_requested": false,
             "stripe_called": false,
             "decision": {
-                "class": decision_class(receipt.product_decision.class),
-                "code": receipt.product_decision.code,
-                "detail": receipt.product_decision.detail,
-                "stage": if receipt.auths_decision.is_some() { "auths-kernel" } else { "stripe-containment" },
+                "class": bounded_decision_class(receipt.bounded_decision.class),
+                "code": receipt.bounded_decision.code,
+                "detail": receipt.bounded_decision.detail,
+                "stage": receipt.bounded_decision.stage,
                 "auths_code": receipt.auths_code,
             },
-            "required_configuration": receipt.required_configuration.digest().map_err(|_| ApiError::internal())?,
-            "executed_configuration": receipt.executed_configuration.digest().map_err(|_| ApiError::internal())?,
+            "policy_digest": receipt.policy_digest,
+            "policy_provenance": receipt.policy_provenance,
+            "required_configuration": receipt.required_bounded_configuration.digest().map_err(|_| ApiError::internal())?,
+            "executed_configuration": receipt.executed_bounded_configuration.digest().map_err(|_| ApiError::internal())?,
+            "configuration_equal": receipt.bounded_configuration_equal,
+            "limits": receipt.bounded_decision.eligibility,
             "stages": [
-                {"name": "authorized", "status": "stopped"}
+                {"name": "authorized", "status": "stopped"},
+                {"name": "reserved", "status": "not entered"},
+                {"name": "credential", "status": "not requested"},
+                {"name": "stripe", "status": "not called"}
             ],
             "receipt_count": 1,
         })),
-        Ok(WorkflowOutcome::Replay { record }) => Ok(json!({
+        Ok(BoundedWorkflowOutcome::Replay { reservation }) => Ok(json!({
             "schema": API_SCHEMA,
             "entered_executor": false,
             "credential_requested": false,
             "stripe_called": false,
             "decision": {
                 "class": "denied",
-                "code": "already-claimed",
-                "detail": "this exact refund action was already claimed",
-                "stage": "claim",
+                "code": "bounded-replay",
+                "detail": "this exact refund reservation already exists; Stripe was not called again",
+                "stage": "reservation",
             },
-            "claim": {
-                "stage": record.stage(),
-                "refund_id": record.refund_id(),
+            "reservation": {
+                "id": reservation.reservation_id(),
+                "state": reservation.state(),
+                "refund_id": reservation.refund_id(),
             },
             "stages": [
                 {"name": "authorized", "status": "proven"},
-                {"name": "claimed", "status": "replay blocked"}
+                {"name": "reserved", "status": "replay returned"},
+                {"name": "credential", "status": "not requested"},
+                {"name": "stripe", "status": "not called"}
             ],
             "receipt_count": 1,
         })),
-        Ok(WorkflowOutcome::Conflict { record }) => Ok(json!({
+        Ok(BoundedWorkflowOutcome::Conflict { reservation }) => Ok(json!({
             "schema": API_SCHEMA,
             "entered_executor": false,
             "credential_requested": false,
@@ -549,13 +779,58 @@ fn outcome_projection(
                 "class": "denied",
                 "code": "workflow-conflict",
                 "detail": "the workflow is already bound to different action bytes",
-                "stage": "claim",
+                "stage": "reservation",
             },
-            "claim": {"stage": record.stage()},
+            "reservation": {"state": reservation.state()},
             "receipt_count": 1,
         })),
-        Ok(WorkflowOutcome::Executed {
+        Ok(BoundedWorkflowOutcome::CapacityChanged {
             decision,
+            budget_id,
+            available_minor,
+        }) => Ok(json!({
+            "schema": API_SCHEMA,
+            "entered_executor": false,
+            "credential_requested": false,
+            "stripe_called": false,
+            "decision": {
+                "class": "denied",
+                "code": "bounded-aggregate-budget-exceeded",
+                "detail": "aggregate capacity changed before the atomic reservation",
+                "stage": "reservation",
+            },
+            "earlier_eligibility": decision.eligibility,
+            "budget_id": budget_id,
+            "available_minor": available_minor,
+            "receipt_count": 1,
+        })),
+        Ok(BoundedWorkflowOutcome::OutcomeUnknown { reservation }) => Ok(json!({
+            "schema": API_SCHEMA,
+            "entered_executor": true,
+            "credential_requested": true,
+            "stripe_called": true,
+            "decision": {
+                "class": "indeterminate",
+                "code": "bounded-execution-outcome-unknown",
+                "detail": "Stripe may have received the exact request; aggregate capacity remains held",
+                "stage": "stripe-api",
+            },
+            "reservation": {
+                "id": reservation.reservation_id(),
+                "state": reservation.state(),
+            },
+            "stages": [
+                {"name": "authorized", "status": "proven"},
+                {"name": "reserved", "status": "durable"},
+                {"name": "credential", "status": "requested after reservation"},
+                {"name": "stripe", "status": "outcome unknown"},
+                {"name": "observed", "status": "reconciliation required"}
+            ],
+            "receipt_count": 3,
+        })),
+        Ok(BoundedWorkflowOutcome::Executed {
+            decision,
+            reservation,
             execution,
             result,
         }) => Ok(json!({
@@ -565,12 +840,22 @@ fn outcome_projection(
             "stripe_called": true,
             "decision": {
                 "class": "authorized",
-                "code": "authorized",
-                "detail": "Stripe test mode created the exact authorized refund",
+                "code": "bounded-authorized",
+                "detail": "Stripe test mode created the exact refund selected inside the configured policy",
                 "stage": "stripe-api",
             },
-            "required_configuration": decision.required_configuration.digest().map_err(|_| ApiError::internal())?,
-            "executed_configuration": decision.executed_configuration.digest().map_err(|_| ApiError::internal())?,
+            "policy_digest": decision.policy_digest,
+            "policy_provenance": decision.policy_provenance,
+            "required_configuration": decision.required_bounded_configuration.digest().map_err(|_| ApiError::internal())?,
+            "executed_configuration": decision.executed_bounded_configuration.digest().map_err(|_| ApiError::internal())?,
+            "configuration_equal": decision.bounded_configuration_equal,
+            "limits": decision.bounded_decision.eligibility,
+            "reservation": {
+                "id": reservation.reservation_id(),
+                "state": reservation.state(),
+                "amount_minor": reservation.amount_minor(),
+                "intents": reservation.intents(),
+            },
             "refund": {
                 "id": result.refund_id,
                 "charge_id": result.charge_id,
@@ -585,18 +870,13 @@ fn outcome_projection(
             },
             "stages": [
                 {"name": "authorized", "status": "proven"},
-                {"name": "claimed", "status": "durable"},
-                {"name": "credential", "status": "requested after claim"},
+                {"name": "reserved", "status": "durable before credential"},
+                {"name": "credential", "status": "requested after reservation"},
                 {"name": "stripe", "status": "refund created"},
                 {"name": "observed", "status": result.status}
             ],
-            "receipt_count": 2,
+            "receipt_count": 4,
         })),
-        Err(auths_stripe::ServiceError::OutcomeUnknown) => Err(ApiError::new(
-            StatusCode::BAD_GATEWAY,
-            "execution-outcome-unknown",
-            "Stripe may have received the exact request; reconciliation is required",
-        )),
         Err(_) => Err(ApiError::new(
             StatusCode::BAD_GATEWAY,
             "stripe-execution-failed",
@@ -605,16 +885,24 @@ fn outcome_projection(
     }
 }
 
+#[allow(
+    clippy::too_many_arguments,
+    reason = "all exact policy, evidence, and configuration inputs stay explicit in demo projections"
+)]
 fn variant_projections(
     action: &ExactRefundActionV1,
     evidence: &auths_stripe::RefundEvidenceV1,
+    policy: &StripeBoundedRefundPolicyV1,
     configuration: &StripeVerifierConfiguration,
+    bounded_configuration: &StripeBoundedEvaluatorConfigurationV1,
+    aggregate_snapshot: &AggregateBudgetSnapshot,
     now: u64,
     session_id: &str,
 ) -> Result<Vec<Value>, StartupError> {
     let changed_amount = exact_action(
         action.workflow_id(),
         configuration,
+        policy,
         evidence,
         action.amount().amount_minor() + 1,
         session_id,
@@ -623,6 +911,7 @@ fn variant_projections(
     let mut changed_charge_input = action_input(
         action.workflow_id(),
         configuration,
+        policy,
         evidence,
         action.amount().amount_minor(),
         session_id,
@@ -632,15 +921,24 @@ fn variant_projections(
         auths_stripe::ChargeId::parse("ch_changed0000000001").map_err(|_| StartupError::Fixture)?;
     let changed_charge =
         ExactRefundActionV1::new(changed_charge_input).map_err(|_| StartupError::Fixture)?;
-    let changed_configuration = configuration_with_limit(
-        evidence.stripe_account_id().clone(),
-        evidence.stripe_api_version(),
-        REFUND_AMOUNT_MINOR + 1,
-    )?;
+    let changed_configuration = StripeBoundedEvaluatorConfigurationV1::for_policy(
+        policy,
+        "auths-stripe-demo-changed-build",
+        configuration.executor_audience(),
+    )
+    .map_err(|_| StartupError::Fixture)?;
     let variants = [
-        ("exact", action.clone(), configuration.clone()),
-        ("amount-changed", changed_amount, configuration.clone()),
-        ("charge-changed", changed_charge, configuration.clone()),
+        ("exact", action.clone(), bounded_configuration.clone()),
+        (
+            "amount-changed",
+            changed_amount,
+            bounded_configuration.clone(),
+        ),
+        (
+            "charge-changed",
+            changed_charge,
+            bounded_configuration.clone(),
+        ),
         (
             "configuration-changed",
             action.clone(),
@@ -650,31 +948,32 @@ fn variant_projections(
     variants
         .into_iter()
         .map(|(id, candidate, executed)| {
-            let decision = evaluate(&EvaluationContext {
+            let decision = evaluate_bounded_refund(&BoundedEvaluationContext {
+                policy,
                 action: &candidate,
                 evidence,
-                required_configuration: configuration,
-                executed_configuration: &executed,
+                aggregate_snapshot,
+                required_exact_configuration: configuration,
+                executed_exact_configuration: configuration,
+                required_bounded_configuration: bounded_configuration,
+                executed_bounded_configuration: &executed,
                 request_audience: configuration.executor_audience(),
                 now,
             });
             Ok(json!({
                 "id": id,
                 "decision": {
-                    "class": decision_class(decision.class),
+                    "class": bounded_decision_class(decision.class),
                     "code": decision.code,
                     "detail": decision.detail,
-                    "stage": if decision.class == DecisionClass::Authorized {
-                        "auths-kernel"
-                    } else {
-                        "stripe-containment"
-                    },
+                    "stage": decision.stage,
                 },
+                "limits": decision.eligibility,
                 "amount_minor": candidate.amount().amount_minor(),
                 "charge_id": candidate.charge_id(),
-                "required_configuration": configuration.digest().map_err(|_| StartupError::Fixture)?,
+                "required_configuration": bounded_configuration.digest().map_err(|_| StartupError::Fixture)?,
                 "executed_configuration": executed.digest().map_err(|_| StartupError::Fixture)?,
-                "configuration_match": configuration == &executed,
+                "configuration_match": bounded_configuration == &executed,
             }))
         })
         .collect()
@@ -708,9 +1007,68 @@ fn configuration_with_limit(
         allow_partial_refunds: true,
         allow_refund_application_fee: false,
         allow_reverse_transfer: false,
-        allowed_metadata_keys: vec!["auths_action".into(), "auths_workflow".into()],
+        allowed_metadata_keys: vec![
+            "auths_action".into(),
+            "auths_connect_account".into(),
+            "auths_policy".into(),
+            "auths_workflow".into(),
+        ],
         executor_audience: "https://stripe-executor.auths.dev".into(),
         receipt_schema_version: "auths.stripe.receipt/1".into(),
+    })
+    .map_err(|_| StartupError::Fixture)
+}
+
+fn bounded_policy(
+    evidence: &auths_stripe::RefundEvidenceV1,
+    now: u64,
+) -> Result<StripeBoundedRefundPolicyV1, StartupError> {
+    let payment_intent = evidence
+        .payment_intent_id()
+        .cloned()
+        .ok_or(StartupError::Fixture)?;
+    StripeBoundedRefundPolicyV1::new(StripeBoundedRefundPolicyInput {
+        policy_id: "stripe-demo-support-refunds".into(),
+        valid_from: now.saturating_sub(30),
+        expires_at: now + SESSION_TTL_SECONDS,
+        allowed_test_account_ids: vec![evidence.stripe_account_id().clone()],
+        allowed_currencies: vec![evidence.currency().clone()],
+        allowed_reasons: vec!["requested_by_customer".into()],
+        allowed_charge_ids: vec![evidence.charge_id().clone()],
+        allowed_payment_intent_ids: vec![payment_intent],
+        allowed_api_versions: vec![evidence.stripe_api_version().into()],
+        connect_scope: ConnectScope::PlatformOnly,
+        maximum_evidence_age_seconds: SESSION_TTL_SECONDS,
+        per_refund_absolute_minor_by_currency: BTreeMap::from([(
+            evidence.currency().clone(),
+            ABSOLUTE_REFUND_LIMIT_MINOR,
+        )]),
+        relative_limit: RelativeRefundLimit::new(
+            RELATIVE_REFUND_LIMIT_BPS,
+            RefundDenominator::OriginalChargeAmount,
+        )
+        .map_err(|_| StartupError::Fixture)?,
+        aggregate_budgets: vec![
+            AggregateRefundBudget::new(
+                "session-fixed",
+                evidence.currency().clone(),
+                AGGREGATE_REFUND_LIMIT_MINOR,
+                RefundBudgetWindow::Fixed {
+                    starts_at: now.saturating_sub(30),
+                    ends_at: now + SESSION_TTL_SECONDS,
+                },
+            )
+            .map_err(|_| StartupError::Fixture)?,
+            AggregateRefundBudget::new(
+                "rolling-hour",
+                evidence.currency().clone(),
+                AGGREGATE_REFUND_LIMIT_MINOR,
+                RefundBudgetWindow::Rolling {
+                    duration_seconds: 3_600,
+                },
+            )
+            .map_err(|_| StartupError::Fixture)?,
+        ],
     })
     .map_err(|_| StartupError::Fixture)
 }
@@ -718,6 +1076,7 @@ fn configuration_with_limit(
 fn exact_action(
     workflow_id: &str,
     configuration: &StripeVerifierConfiguration,
+    policy: &StripeBoundedRefundPolicyV1,
     evidence: &auths_stripe::RefundEvidenceV1,
     amount_minor: u64,
     session_id: &str,
@@ -725,6 +1084,7 @@ fn exact_action(
     ExactRefundActionV1::new(action_input(
         workflow_id,
         configuration,
+        policy,
         evidence,
         amount_minor,
         session_id,
@@ -734,6 +1094,7 @@ fn exact_action(
 fn action_input(
     workflow_id: &str,
     configuration: &StripeVerifierConfiguration,
+    policy: &StripeBoundedRefundPolicyV1,
     evidence: &auths_stripe::RefundEvidenceV1,
     amount_minor: u64,
     session_id: &str,
@@ -750,6 +1111,19 @@ fn action_input(
         reason: Some("requested_by_customer".into()),
         metadata: BTreeMap::from([
             ("auths_action".into(), "exact-refund".into()),
+            (
+                "auths_connect_account".into(),
+                evidence
+                    .connect_account_id()
+                    .map_or_else(|| "platform".into(), ToString::to_string),
+            ),
+            (
+                "auths_policy".into(),
+                policy
+                    .digest()
+                    .map_err(|_| auths_stripe::types::ValidationError::Canonicalization)?
+                    .to_string(),
+            ),
             ("auths_workflow".into(), workflow_id.into()),
         ]),
         refund_application_fee: false,
@@ -774,6 +1148,7 @@ fn payment_projection(evidence: &auths_stripe::RefundEvidenceV1) -> Value {
         "charge_id": evidence.charge_id(),
         "payment_intent_id": evidence.payment_intent_id(),
         "amount_minor": evidence.charge_amount_minor(),
+        "captured_amount_minor": evidence.captured_amount_minor(),
         "amount_refunded_minor": evidence.amount_refunded_minor(),
         "refundable_amount_minor": evidence.refundable_amount_minor(),
         "currency": evidence.currency(),
@@ -783,11 +1158,42 @@ fn payment_projection(evidence: &auths_stripe::RefundEvidenceV1) -> Value {
     })
 }
 
-const fn decision_class(class: DecisionClass) -> &'static str {
+fn aggregate_projection(
+    snapshot: &AggregateBudgetSnapshot,
+    policy: &StripeBoundedRefundPolicyV1,
+) -> Value {
+    let budgets = policy
+        .aggregate_budgets()
+        .iter()
+        .map(|budget| {
+            let usage = snapshot
+                .usages
+                .iter()
+                .find(|usage| usage.budget_id == budget.budget_id());
+            let committed = usage.map_or(0, |value| value.committed_minor);
+            let reserved = usage.map_or(0, |value| value.reserved_minor);
+            let unknown = usage.map_or(0, |value| value.outcome_unknown_minor);
+            let used = committed.saturating_add(reserved).saturating_add(unknown);
+            json!({
+                "budget_id": budget.budget_id(),
+                "currency": budget.currency(),
+                "limit_minor": budget.limit_minor(),
+                "available_minor": budget.limit_minor().saturating_sub(used),
+                "reserved_minor": reserved,
+                "spent_minor": committed,
+                "outcome_unknown_minor": unknown,
+                "window": usage.map(|value| &value.window),
+            })
+        })
+        .collect::<Vec<_>>();
+    json!({"budgets": budgets})
+}
+
+const fn bounded_decision_class(class: BoundedDecisionClass) -> &'static str {
     match class {
-        DecisionClass::Authorized => "authorized",
-        DecisionClass::Denied => "denied",
-        DecisionClass::Indeterminate => "indeterminate",
+        BoundedDecisionClass::Eligible => "authorized",
+        BoundedDecisionClass::Denied => "denied",
+        BoundedDecisionClass::Indeterminate => "indeterminate",
     }
 }
 
@@ -915,9 +1321,9 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     use auths_stripe::{
-        ChargeId, CredentialProvider, InMemoryClaimStore, PaymentIntentId, PortError,
-        RefundEvidenceInput, RefundEvidenceV1, RefundId, RefundResult, StripeAccountId,
-        StripeCredential, StripeGateway, VerifiedRefundCommand, canonical::sha256,
+        ChargeId, CredentialProvider, InMemoryClaimStore, InMemoryRefundReservationStore,
+        PaymentIntentId, PortError, RefundEvidenceInput, RefundEvidenceV1, RefundId, RefundResult,
+        StripeAccountId, StripeCredential, StripeGateway, VerifiedRefundCommand, canonical::sha256,
     };
     use axum::{
         body::{Body, to_bytes},
@@ -931,14 +1337,27 @@ mod tests {
         account: StripeAccountId,
         calls: AtomicUsize,
         credentials: AtomicUsize,
+        reservation_store: Arc<InMemoryRefundReservationStore>,
+        credential_after_reservation: std::sync::atomic::AtomicBool,
+        outcome_unknown: bool,
     }
 
     impl FakeStripe {
-        fn new() -> Self {
+        fn new(reservation_store: Arc<InMemoryRefundReservationStore>) -> Self {
             Self {
                 account: StripeAccountId::parse("acct_authsdemo01").unwrap(),
                 calls: AtomicUsize::new(0),
                 credentials: AtomicUsize::new(0),
+                reservation_store,
+                credential_after_reservation: std::sync::atomic::AtomicBool::new(false),
+                outcome_unknown: false,
+            }
+        }
+
+        fn outcome_unknown(reservation_store: Arc<InMemoryRefundReservationStore>) -> Self {
+            Self {
+                outcome_unknown: true,
+                ..Self::new(reservation_store)
             }
         }
     }
@@ -951,8 +1370,10 @@ mod tests {
                 livemode: false,
                 charge_id: ChargeId::parse("ch_authsdemo00000001").unwrap(),
                 payment_intent_id: Some(PaymentIntentId::parse("pi_authsdemo00000001").unwrap()),
+                connect_account_id: None,
                 currency: Currency::parse("usd").unwrap(),
                 charge_amount_minor: 2_000,
+                captured_amount_minor: 2_000,
                 amount_refunded_minor: 0,
                 paid: true,
                 captured: true,
@@ -979,11 +1400,34 @@ mod tests {
         fn execution_mode(&self) -> &'static str {
             "stripe-test-double"
         }
+
+        fn reconcile_refund(
+            &self,
+            action: &ExactRefundActionV1,
+            now: u64,
+        ) -> Result<Option<RefundResult>, PortError> {
+            if !self.outcome_unknown {
+                return Ok(None);
+            }
+            Ok(Some(RefundResult {
+                refund_id: RefundId::parse("re_authsdemo00000002").unwrap(),
+                charge_id: action.charge_id().clone(),
+                payment_intent_id: action.payment_intent_id().cloned(),
+                amount: action.amount().clone(),
+                status: "succeeded".into(),
+                stripe_request_id: "req_authsdemo00000002".into(),
+                observed_at: now,
+            }))
+        }
     }
 
     impl CredentialProvider for FakeStripe {
         fn mutation_credential(&self, _: &StripeAccountId) -> Result<StripeCredential, PortError> {
             self.credentials.fetch_add(1, Ordering::SeqCst);
+            self.credential_after_reservation.store(
+                self.reservation_store.active_reservation_count() > 0,
+                Ordering::SeqCst,
+            );
             let test_credential = ["sk", "test", "auths_demo_credential"].join("_");
             StripeCredential::new(test_credential)
         }
@@ -997,6 +1441,9 @@ mod tests {
             now: u64,
         ) -> Result<RefundResult, PortError> {
             self.calls.fetch_add(1, Ordering::SeqCst);
+            if self.outcome_unknown {
+                return Err(PortError::OutcomeUnknown);
+            }
             Ok(RefundResult {
                 refund_id: RefundId::parse("re_authsdemo00000001").unwrap(),
                 charge_id: command.action().charge_id().clone(),
@@ -1038,21 +1485,26 @@ mod tests {
         (value["session_id"].as_str().unwrap().into(), value)
     }
 
-    fn test_app(stripe: Arc<FakeStripe>) -> Router {
+    fn test_app(
+        stripe: Arc<FakeStripe>,
+        reservation_store: Arc<InMemoryRefundReservationStore>,
+    ) -> Router {
         let temporary = tempfile::tempdir().unwrap();
         let path = temporary.keep();
-        app_with_environment(
+        app_with_stores(
             AppConfig::for_test(path),
             stripe,
             Arc::new(InMemoryClaimStore::default()),
+            reservation_store,
             Arc::new(MemoryReceipts::default()),
         )
     }
 
     #[tokio::test]
     async fn denied_variant_never_reaches_stripe() {
-        let stripe = Arc::new(FakeStripe::new());
-        let app = test_app(Arc::clone(&stripe));
+        let reservation_store = Arc::new(InMemoryRefundReservationStore::default());
+        let stripe = Arc::new(FakeStripe::new(Arc::clone(&reservation_store)));
+        let app = test_app(Arc::clone(&stripe), reservation_store);
         let (session_id, _) = create_test_session(&app).await;
         let response = app
             .oneshot(
@@ -1070,10 +1522,11 @@ mod tests {
 
     #[tokio::test]
     async fn exact_refund_executes_once_and_replay_fails_closed() {
-        let stripe = Arc::new(FakeStripe::new());
-        let app = test_app(Arc::clone(&stripe));
+        let reservation_store = Arc::new(InMemoryRefundReservationStore::default());
+        let stripe = Arc::new(FakeStripe::new(Arc::clone(&reservation_store)));
+        let app = test_app(Arc::clone(&stripe), reservation_store);
         let (session_id, _) = create_test_session(&app).await;
-        for expected_code in ["authorized", "already-claimed"] {
+        for expected_code in ["bounded-authorized", "bounded-replay"] {
             let response = app
                 .clone()
                 .oneshot(
@@ -1089,6 +1542,51 @@ mod tests {
             let value: Value = serde_json::from_slice(&body).unwrap();
             assert_eq!(value["decision"]["code"], expected_code);
         }
+        assert_eq!(stripe.credentials.load(Ordering::SeqCst), 1);
+        assert_eq!(stripe.calls.load(Ordering::SeqCst), 1);
+        assert!(
+            stripe.credential_after_reservation.load(Ordering::SeqCst),
+            "credential acquisition must observe a durable aggregate reservation"
+        );
+    }
+
+    #[tokio::test]
+    async fn ambiguous_stripe_response_holds_budget_until_reconciliation() {
+        let reservation_store = Arc::new(InMemoryRefundReservationStore::default());
+        let stripe = Arc::new(FakeStripe::outcome_unknown(Arc::clone(&reservation_store)));
+        let app = test_app(Arc::clone(&stripe), Arc::clone(&reservation_store));
+        let (session_id, _) = create_test_session(&app).await;
+        let response = app
+            .clone()
+            .oneshot(
+                Request::post(format!("/api/v1/sessions/{session_id}/execute"))
+                    .header(CONTENT_TYPE, "application/json")
+                    .body(Body::from(r#"{"variant":"exact"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let body = to_bytes(response.into_body(), 128 * 1024).await.unwrap();
+        let value: Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(
+            value["decision"]["code"],
+            "bounded-execution-outcome-unknown"
+        );
+        assert_eq!(value["reservation"]["state"], "outcome-unknown");
+        assert_eq!(reservation_store.active_reservation_count(), 1);
+
+        let response = app
+            .oneshot(
+                Request::post(format!("/api/v1/sessions/{session_id}/reconcile"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), 128 * 1024).await.unwrap();
+        let value: Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(value["reservation"]["state"], "reconciled-committed");
         assert_eq!(stripe.credentials.load(Ordering::SeqCst), 1);
         assert_eq!(stripe.calls.load(Ordering::SeqCst), 1);
     }

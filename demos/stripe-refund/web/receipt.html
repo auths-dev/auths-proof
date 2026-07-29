@@ -20,8 +20,8 @@
     <main>
       <section class="hero receipt-hero">
         <div class="shell hero-grid">
-          <div><p class="eyebrow"><i></i> Refund receipt</p><h1>What Auths decided. <em>What Stripe received.</em></h1></div>
-          <div class="hero-copy"><p>This page explains the authorization result, the isolated credential boundary, and any observed Stripe test-mode refund before exposing the complete JSON record.</p><ul><li>Exact payment</li><li>Exact amount</li><li>Provider outcome</li></ul></div>
+          <div><p class="eyebrow"><i></i> Bounded refund receipt</p><h1>Configured bounds. <em>Exact Stripe effect.</em></h1></div>
+          <div class="hero-copy"><p>This page places the immutable configured policy, agent-selected exact refund, durable budget reservation, credential boundary, and Stripe test-mode result in one record.</p><ul><li>Policy + evaluator identity</li><li>Exact payment and amount</li><li>Reservation + provider outcome</li></ul></div>
         </div>
       </section>
       <section class="receipt-section" id="receipt-log">
@@ -35,6 +35,9 @@
               <div><dt>Session</dt><dd><code id="session-id">—</code></dd></div>
               <div><dt>Action</dt><dd><code id="action-digest">—</code></dd></div>
               <div><dt>Evidence</dt><dd><code id="evidence-digest">—</code></dd></div>
+              <div><dt>Policy</dt><dd><code id="policy-digest">—</code></dd></div>
+              <div><dt>Provenance</dt><dd id="policy-provenance">—</dd></div>
+              <div><dt>Reservation</dt><dd id="reservation-state">—</dd></div>
               <div><dt>Configuration</dt><dd id="configuration-result">—</dd></div>
             </dl>
             <section id="receipt-card"></section>
