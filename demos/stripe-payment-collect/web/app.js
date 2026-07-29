@@ -134,8 +134,12 @@ async function execute() {
       body: JSON.stringify({ experiment: state.selected }),
     });
     renderResult(result);
-    const status = await request(`/api/v1/sessions/${state.session.session_id}`);
-    renderBudget(status.aggregate_budget);
+    try {
+      const status = await request(`/api/v1/sessions/${state.session.session_id}`);
+      renderBudget(status.aggregate_budget);
+    } catch (error) {
+      if (result.outcome !== "replay") throw error;
+    }
   } catch (error) {
     elements.outcome.textContent = "FAILED CLOSED";
     elements.outcome.dataset.kind = "indeterminate";

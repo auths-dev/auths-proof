@@ -43,6 +43,11 @@ test("designed receipt and separate machine API are wired", async () => {
   assert.match(script, /reconciled_observation/);
 });
 
+test("durable replay remains visible when the in-memory session is gone", async () => {
+  const script = await readFile(new URL("web/app.js", root), "utf8");
+  assert.match(script, /if \(result\.outcome !== "replay"\) throw error;/);
+});
+
 test("frontend sources contain no credential or client-secret values", async () => {
   const files = await readdir(new URL("web/", root));
   for (const name of files) {
