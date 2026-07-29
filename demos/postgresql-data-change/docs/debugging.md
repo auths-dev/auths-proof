@@ -23,3 +23,33 @@ Search logs and receipts for the executor password, connection-string userinfo,
 CA private keys, tenant values, primary keys, and row values. Any occurrence is
 a security incident. The service never formats or logs the protected
 credential.
+
+## Executable local diagnostics
+
+From `demos/postgresql-data-change`, with the two synthetic passwords in the
+environment or an ignored `.env`:
+
+```sh
+docker compose up --build -d
+npm ci
+npx playwright install chromium
+npm run check
+npm run test:live-recovery
+npm run test:live-database
+npm run test:live-contract
+npm run test:e2e
+```
+
+`test:live-recovery` covers receipt failure before credential acquisition,
+pre-transaction failure, rollback after update, ambiguous commit, API
+replacement, fresh ledger/row reconciliation, and replay.
+`test:live-database` checks actual executor privileges, cross-tenant RLS,
+SQL-injection input as a literal tenant value, hostile `search_path` shadowing,
+zero/exact/boundary-plus-one cardinality, a real serializable conflict, lock
+and statement timeouts, schema and trigger drift, atomic ledger rollback, and
+the exact commit. The serialization case holds the target row in a concurrent
+transaction, waits until the Auths transaction is blocked, advances the
+concurrency token, and proves that retrying the same verified action fails
+closed rather than deriving a new action. The live contract covers every
+native denial and concurrent claim race. The browser suite covers row
+read-back, inline JSON, the designed receipt page, and invalid receipt IDs.

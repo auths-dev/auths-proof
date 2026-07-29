@@ -28,13 +28,13 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use tower_http::cors::CorsLayer;
 
 use crate::{
     fixture::{DemoVariant, demo_fixture, demo_fixture_from_product},
-    opentofu::{OpenTofuBackend, committed_variables, configuration_digest},
+    opentofu::{OpenTofuBackend, OpenTofuFault, committed_variables, configuration_digest},
 };
 
 const API_SCHEMA: &str = "auths-opentofu-demo-api/1";
@@ -53,8 +53,10 @@ enum BackendSettings {
         timeout: Duration,
         tool_build: String,
         credential_json: Vec<u8>,
+        session_variable: Option<String>,
+        session_workspace: bool,
+        fault: OpenTofuFault,
         evidence_seed: OpenTofuStateEvidenceV1,
-        variable_commitment: auths_opentofu::DigestHex,
         source_digest: auths_opentofu::DigestHex,
     },
 }
@@ -102,54 +104,7 @@ impl AppConfig {
         if mode != "live" {
             return Err(StartupError::Configuration);
         }
-        let program = absolute_path("AUTHS_OPENTOFU_BINARY")?;
-        let working_directory = absolute_path("AUTHS_OPENTOFU_WORKING_DIRECTORY")?;
-        let workspace = required_env("AUTHS_OPENTOFU_WORKSPACE")?;
-        let backend_identity = required_env("AUTHS_OPENTOFU_BACKEND_IDENTITY")?;
-        let executor_audience = required_env("AUTHS_OPENTOFU_EXECUTOR_AUDIENCE")?;
-        let opentofu_version = required_env("AUTHS_OPENTOFU_VERSION")?;
-        let provider_sources = csv("AUTHS_OPENTOFU_PROVIDER_SOURCES")?;
-        let resource_types = csv("AUTHS_OPENTOFU_RESOURCE_TYPES")?;
-        let configuration =
-            OpenTofuVerifierConfigurationV1::new(OpenTofuVerifierConfigurationInput {
-                allowed_opentofu_versions: vec![opentofu_version],
-                allowed_backend_identities: vec![backend_identity.clone()],
-                allowed_workspaces: vec![workspace.clone()],
-                allowed_provider_sources: provider_sources,
-                allowed_resource_types: resource_types,
-                allowed_actions: vec![ResourceAction::Create, ResourceAction::Update],
-                maximum_resource_changes: parse_env("AUTHS_OPENTOFU_MAX_CHANGES")?,
-                maximum_plan_age_seconds: parse_env("AUTHS_OPENTOFU_MAX_PLAN_AGE_SECONDS")?,
-                maximum_authorization_lifetime_seconds: parse_env(
-                    "AUTHS_OPENTOFU_MAX_AUTHORIZATION_SECONDS",
-                )?,
-                allow_sensitive_outputs: false,
-                allow_destroy: false,
-                allow_replacement: false,
-                receipt_schema_version: "auths.opentofu.decision-receipt/1".into(),
-                executor_audience,
-            })
-            .map_err(|_| StartupError::Configuration)?;
-        let dependency_lock = fs::read(working_directory.join(".terraform.lock.hcl"))
-            .map_err(|_| StartupError::Configuration)?;
-        let module_manifest = required_env("AUTHS_OPENTOFU_MODULE_MANIFEST")?;
-        let credential_json = required_env("AUTHS_OPENTOFU_CREDENTIAL_JSON")?.into_bytes();
-        let variable_commitment =
-            committed_variables(&credential_json).map_err(|_| StartupError::Configuration)?;
-        let source_digest =
-            configuration_digest(&working_directory).map_err(|_| StartupError::Configuration)?;
-        let evidence_seed = OpenTofuStateEvidenceV1 {
-            backend_identity,
-            workspace,
-            state_lineage: "pending-protected-read".into(),
-            state_serial: 0,
-            state_digest: sha256(b"pending-protected-read"),
-            lock_held: false,
-            dependency_lock_digest: sha256(&dependency_lock),
-            module_manifest_digest: sha256(module_manifest.as_bytes()),
-            planner_build_identity: required_env("AUTHS_OPENTOFU_PLANNER_BUILD")?,
-            observed_at: 0,
-        };
+        let (configuration, backend) = live_settings()?;
         Ok(Self {
             bind,
             allowed_origin,
@@ -157,16 +112,7 @@ impl AppConfig {
             release,
             state_directory: state_directory.into(),
             configuration,
-            backend: BackendSettings::Live {
-                program,
-                working_directory,
-                timeout: Duration::from_secs(parse_env("AUTHS_OPENTOFU_TIMEOUT_SECONDS")?),
-                tool_build: required_env("AUTHS_OPENTOFU_TOOL_BUILD")?,
-                credential_json,
-                evidence_seed,
-                variable_commitment,
-                source_digest,
-            },
+            backend,
         })
     }
 
@@ -184,6 +130,99 @@ impl AppConfig {
     }
 }
 
+fn live_settings() -> Result<(OpenTofuVerifierConfigurationV1, BackendSettings), StartupError> {
+    let program = absolute_path("AUTHS_OPENTOFU_BINARY")?;
+    let working_directory = absolute_path("AUTHS_OPENTOFU_WORKING_DIRECTORY")?;
+    let workspace = required_env("AUTHS_OPENTOFU_WORKSPACE")?;
+    let backend_identity = required_env("AUTHS_OPENTOFU_BACKEND_IDENTITY")?;
+    let executor_audience = required_env("AUTHS_OPENTOFU_EXECUTOR_AUDIENCE")?;
+    let opentofu_version = required_env("AUTHS_OPENTOFU_VERSION")?;
+    let provider_sources = csv("AUTHS_OPENTOFU_PROVIDER_SOURCES")?;
+    let resource_types = csv("AUTHS_OPENTOFU_RESOURCE_TYPES")?;
+    let configuration = OpenTofuVerifierConfigurationV1::new(OpenTofuVerifierConfigurationInput {
+        allowed_opentofu_versions: vec![opentofu_version],
+        allowed_backend_identities: vec![backend_identity.clone()],
+        allowed_workspaces: vec![workspace.clone()],
+        allowed_provider_sources: provider_sources,
+        allowed_resource_types: resource_types,
+        allowed_actions: vec![ResourceAction::Create, ResourceAction::Update],
+        maximum_resource_changes: parse_env("AUTHS_OPENTOFU_MAX_CHANGES")?,
+        maximum_plan_age_seconds: parse_env("AUTHS_OPENTOFU_MAX_PLAN_AGE_SECONDS")?,
+        maximum_authorization_lifetime_seconds: parse_env(
+            "AUTHS_OPENTOFU_MAX_AUTHORIZATION_SECONDS",
+        )?,
+        allow_sensitive_outputs: false,
+        allow_destroy: false,
+        allow_replacement: false,
+        receipt_schema_version: "auths.opentofu.decision-receipt/1".into(),
+        executor_audience,
+    })
+    .map_err(|_| StartupError::Configuration)?;
+    let dependency_lock = fs::read(working_directory.join(".terraform.lock.hcl"))
+        .map_err(|_| StartupError::Configuration)?;
+    let module_manifest = required_env("AUTHS_OPENTOFU_MODULE_MANIFEST")?;
+    let credential_json = required_env("AUTHS_OPENTOFU_CREDENTIAL_JSON")?.into_bytes();
+    committed_variables(&credential_json).map_err(|_| StartupError::Configuration)?;
+    let session_variable = env::var("AUTHS_OPENTOFU_SESSION_VARIABLE")
+        .ok()
+        .filter(|value| !value.trim().is_empty());
+    if session_variable.as_deref().is_some_and(|name| {
+        !name.starts_with("TF_VAR_")
+            || !name
+                .bytes()
+                .all(|byte| byte.is_ascii_uppercase() || byte.is_ascii_digit() || byte == b'_')
+    }) {
+        return Err(StartupError::Configuration);
+    }
+    let session_workspace =
+        env::var("AUTHS_OPENTOFU_SESSION_WORKSPACE").map_or(Ok(false), |value| {
+            value
+                .parse::<bool>()
+                .map_err(|_| StartupError::Configuration)
+        })?;
+    let fault = configured_fault()?;
+    let source_digest =
+        configuration_digest(&working_directory).map_err(|_| StartupError::Configuration)?;
+    let evidence_seed = OpenTofuStateEvidenceV1 {
+        backend_identity,
+        workspace,
+        state_lineage: "pending-protected-read".into(),
+        state_serial: 0,
+        state_digest: sha256(b"pending-protected-read"),
+        lock_held: false,
+        dependency_lock_digest: sha256(&dependency_lock),
+        module_manifest_digest: sha256(module_manifest.as_bytes()),
+        planner_build_identity: required_env("AUTHS_OPENTOFU_PLANNER_BUILD")?,
+        observed_at: 0,
+    };
+    let backend = BackendSettings::Live {
+        program,
+        working_directory,
+        timeout: Duration::from_secs(parse_env("AUTHS_OPENTOFU_TIMEOUT_SECONDS")?),
+        tool_build: required_env("AUTHS_OPENTOFU_TOOL_BUILD")?,
+        credential_json,
+        session_variable,
+        session_workspace,
+        fault,
+        evidence_seed,
+        source_digest,
+    };
+    Ok((configuration, backend))
+}
+
+fn configured_fault() -> Result<OpenTofuFault, StartupError> {
+    match env::var("AUTHS_OPENTOFU_FAULT")
+        .unwrap_or_else(|_| "none".into())
+        .as_str()
+    {
+        "none" => Ok(OpenTofuFault::None),
+        "before-apply" => Ok(OpenTofuFault::BeforeApply),
+        "after-apply-unknown" => Ok(OpenTofuFault::AfterApplyUnknown),
+        "after-apply-unreconciled" => Ok(OpenTofuFault::AfterApplyUnreconciled),
+        _ => Err(StartupError::Configuration),
+    }
+}
+
 #[derive(Clone)]
 struct AppState {
     config: AppConfig,
@@ -194,7 +233,10 @@ struct AppState {
 }
 
 struct Session {
+    created_at: u64,
     expires_at: u64,
+    challenge: [u8; 32],
+    product: Fixture,
     variants: Vec<DemoVariant>,
     proof_verifier: Arc<SdkProofVerifier>,
     proof: Vec<u8>,
@@ -202,6 +244,21 @@ struct Session {
     backend: Arc<OpenTofuBackend>,
     artifacts: Arc<dyn PlanArtifactStore>,
     receipts: Arc<MemoryReceiptSink>,
+    last_result: Option<Value>,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PersistedSession {
+    schema: String,
+    session_id: String,
+    created_at: u64,
+    expires_at: u64,
+    challenge: [u8; 32],
+    action: OpenTofuSavedPlanApplyV1,
+    projection: SavedPlanProjectionV1,
+    evidence: OpenTofuStateEvidenceV1,
+    configuration: OpenTofuVerifierConfigurationV1,
     last_result: Option<Value>,
 }
 
@@ -236,6 +293,7 @@ pub fn app(config: AppConfig) -> Result<Router, StartupError> {
         JsonlReceiptSink::new(config.state_directory.join("receipts.jsonl"))
             .map_err(|_| StartupError::State)?,
     );
+    let sessions = restore_sessions(&config, &artifacts)?;
     let cors = CorsLayer::new()
         .allow_origin(config.allowed_origin.clone())
         .allow_methods([Method::GET, Method::POST])
@@ -254,7 +312,7 @@ pub fn app(config: AppConfig) -> Result<Router, StartupError> {
             claims,
             artifacts,
             durable_receipts,
-            sessions: Arc::new(Mutex::new(HashMap::new())),
+            sessions: Arc::new(Mutex::new(sessions)),
         })
         .layer(cors))
 }
@@ -287,11 +345,14 @@ async fn readiness(State(state): State<AppState>) -> Result<Json<Value>, ApiErro
         timeout,
         tool_build,
         credential_json,
+        session_variable: _,
+        session_workspace: _,
+        fault: _,
         evidence_seed,
         source_digest,
-        variable_commitment,
     } = &state.config.backend
     {
+        let variable_commitment = committed_variables(credential_json).map_err(ApiError::port)?;
         let backend = OpenTofuBackend::cli(
             program.clone(),
             working_directory.clone(),
@@ -300,7 +361,7 @@ async fn readiness(State(state): State<AppState>) -> Result<Json<Value>, ApiErro
             evidence_seed.clone(),
             credential_json.clone(),
             source_digest.clone(),
-            variable_commitment.clone(),
+            variable_commitment,
         )
         .map_err(ApiError::port)?;
         tokio::task::spawn_blocking(move || backend.readiness())
@@ -334,10 +395,14 @@ async fn scenarios(State(state): State<AppState>) -> Json<Value> {
         "variants": [
             {"id": "exact", "label": "Exact saved plan"},
             {"id": "swapped-plan", "label": "Saved plan substituted"},
+            {"id": "source-changed", "label": "Source configuration changed"},
             {"id": "workspace-changed", "label": "Workspace changed"},
+            {"id": "backend-changed", "label": "Backend changed"},
             {"id": "stale-state", "label": "State advanced"},
+            {"id": "state-lock-held", "label": "State lock unavailable"},
             {"id": "destroy-added", "label": "Destroy added"},
             {"id": "dependency-changed", "label": "Provider lock changed"},
+            {"id": "expired-plan", "label": "Plan expired"},
             {"id": "configuration-changed", "label": "Verifier policy changed"}
         ]
     }))
@@ -383,16 +448,33 @@ async fn create_session(State(state): State<AppState>) -> Result<Json<Value>, Ap
             timeout,
             tool_build,
             credential_json,
+            session_variable,
+            session_workspace,
+            fault,
             evidence_seed,
-            variable_commitment,
             source_digest,
         } => {
+            let workspace = if *session_workspace {
+                format!("auths-{}", &session_id[..16])
+            } else {
+                evidence_seed.workspace.clone()
+            };
+            let session_configuration =
+                configuration_for_workspace(&state.config.configuration, &workspace)?;
+            let session_evidence = OpenTofuStateEvidenceV1 {
+                workspace,
+                ..evidence_seed.clone()
+            };
+            let credential_json =
+                session_credential_json(credential_json, session_variable.as_deref(), &session_id)?;
+            let variable_commitment =
+                committed_variables(&credential_json).map_err(ApiError::port)?;
             let backend = OpenTofuBackend::cli(
                 program.clone(),
                 working_directory.clone(),
                 *timeout,
                 tool_build.clone(),
-                evidence_seed.clone(),
+                session_evidence,
                 credential_json.clone(),
                 source_digest.clone(),
                 variable_commitment.clone(),
@@ -405,17 +487,30 @@ async fn create_session(State(state): State<AppState>) -> Result<Json<Value>, Ap
             .await
             .map_err(|_| ApiError::internal())?
             .map_err(ApiError::port)?;
-            let projection = SavedPlanProjectionV1::from_show_json(
-                &prepared.show_json,
-                &state.config.configuration,
+            // Protected planning replaced the startup seed with fresh backend
+            // lineage, serial, and digest. The execution adapter must bind to
+            // those exact observations.
+            let backend = OpenTofuBackend::cli(
+                program.clone(),
+                working_directory.clone(),
+                *timeout,
+                tool_build.clone(),
+                prepared.evidence.clone(),
+                credential_json,
+                source_digest.clone(),
+                variable_commitment.clone(),
             )
-            .map_err(|_| ApiError::internal())?;
+            .map_err(ApiError::port)?;
+            backend.set_fault(*fault);
+            let projection =
+                SavedPlanProjectionV1::from_show_json(&prepared.show_json, &session_configuration)
+                    .map_err(|_| ApiError::internal())?;
             let plan_digest = sha256(&prepared.saved_plan_bytes);
             let plan_handle = artifacts
                 .put(SavedPlanArtifact::new(prepared.saved_plan_bytes)?)
                 .map_err(ApiError::port)?;
             let action = OpenTofuSavedPlanApplyV1::new(OpenTofuSavedPlanApplyInput {
-                executor_audience: state.config.configuration.executor_audience().into(),
+                executor_audience: session_configuration.executor_audience().into(),
                 opentofu_version: prepared.opentofu_version,
                 platform: prepared.platform,
                 backend_identity: prepared.evidence.backend_identity.clone(),
@@ -431,7 +526,7 @@ async fn create_session(State(state): State<AppState>) -> Result<Json<Value>, Ap
                 plan_projection_digest: projection.digest().map_err(|_| ApiError::internal())?,
                 plan_handle,
                 permitted_change_summary: summarize(&projection),
-                required_configuration: state.config.configuration.clone(),
+                required_configuration: session_configuration.clone(),
                 planned_at: now,
                 expires_at: now
                     + state
@@ -445,7 +540,7 @@ async fn create_session(State(state): State<AppState>) -> Result<Json<Value>, Ap
                 action,
                 projection,
                 evidence: prepared.evidence,
-                configuration: state.config.configuration.clone(),
+                configuration: session_configuration,
             };
             (demo_fixture_from_product(product, now, challenge), backend)
         }
@@ -457,8 +552,17 @@ async fn create_session(State(state): State<AppState>) -> Result<Json<Value>, Ap
         &demo.variants,
         &demo.product,
     );
+    let product = Fixture {
+        action: demo.product.action.clone(),
+        projection: demo.product.projection.clone(),
+        evidence: demo.product.evidence.clone(),
+        configuration: demo.product.configuration.clone(),
+    };
     let session = Session {
+        created_at: now,
         expires_at: now + SESSION_TTL_SECONDS,
+        challenge,
+        product,
         variants: demo.variants,
         proof_verifier: Arc::new(SdkProofVerifier::new(demo.auths.verifier)),
         proof: demo.auths.proof,
@@ -468,6 +572,7 @@ async fn create_session(State(state): State<AppState>) -> Result<Json<Value>, Ap
         receipts: Arc::new(MemoryReceiptSink::default()),
         last_result: None,
     };
+    persist_session(&state.config, &session_id, &session)?;
     state
         .sessions
         .lock()
@@ -588,13 +693,14 @@ async fn execute(
         "result": result,
         "receipts": receipts.receipts(),
     });
-    state
-        .sessions
-        .lock()
-        .map_err(|_| ApiError::internal())?
-        .get_mut(&session_id)
-        .ok_or_else(ApiError::not_found)?
-        .last_result = Some(receipt_payload);
+    {
+        let mut sessions = state.sessions.lock().map_err(|_| ApiError::internal())?;
+        let session = sessions
+            .get_mut(&session_id)
+            .ok_or_else(ApiError::not_found)?;
+        session.last_result = Some(receipt_payload);
+        persist_session(&state.config, &session_id, session)?;
+    }
     Ok(Json(json!({"schema": API_SCHEMA, "result": result})))
 }
 
@@ -638,7 +744,11 @@ impl PlanArtifactStore for RequestArtifactStore {
 
     fn resolve(&self, handle: &PlanHandle) -> Result<SavedPlanArtifact, PortError> {
         if self.corrupt {
-            return SavedPlanArtifact::new(b"substituted-saved-plan".to_vec());
+            let artifact = self.artifacts.resolve(handle)?;
+            let mut bytes = artifact.bytes().to_vec();
+            let first = bytes.first_mut().ok_or(PortError::ArtifactMismatch)?;
+            *first ^= 0x01;
+            return SavedPlanArtifact::new(bytes);
         }
         self.artifacts.resolve(handle)
     }
@@ -813,6 +923,186 @@ fn parse_env<T: std::str::FromStr>(name: &str) -> Result<T, StartupError> {
     required_env(name)?
         .parse()
         .map_err(|_| StartupError::Configuration)
+}
+
+fn session_credential_json(
+    base: &[u8],
+    session_variable: Option<&str>,
+    session_id: &str,
+) -> Result<Vec<u8>, ApiError> {
+    let mut environment: std::collections::BTreeMap<String, String> =
+        serde_json::from_slice(base).map_err(|_| ApiError::internal())?;
+    if let Some(name) = session_variable {
+        environment.insert(name.to_owned(), format!("session-{session_id}"));
+    }
+    canonical_json(&environment).map_err(|_| ApiError::internal())
+}
+
+fn restore_sessions(
+    config: &AppConfig,
+    artifacts: &Arc<dyn PlanArtifactStore>,
+) -> Result<HashMap<String, Session>, StartupError> {
+    if matches!(config.backend, BackendSettings::Fixture) {
+        return Ok(HashMap::new());
+    }
+    let directory = config.state_directory.join("sessions");
+    fs::create_dir_all(&directory).map_err(|_| StartupError::State)?;
+    let mut paths = fs::read_dir(&directory)
+        .map_err(|_| StartupError::State)?
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .filter(|path| {
+            path.extension()
+                .is_some_and(|extension| extension == "json")
+        })
+        .collect::<Vec<_>>();
+    paths.sort();
+    let mut sessions = HashMap::new();
+    for path in paths {
+        let bytes = fs::read(&path).map_err(|_| StartupError::State)?;
+        let persisted: PersistedSession =
+            serde_json::from_slice(&bytes).map_err(|_| StartupError::State)?;
+        if canonical_json(&persisted).map_err(|_| StartupError::State)? != bytes
+            || !valid_session_id(&persisted.session_id)
+            || path.file_stem().and_then(|value| value.to_str())
+                != Some(persisted.session_id.as_str())
+        {
+            return Err(StartupError::State);
+        }
+        let product = Fixture {
+            action: persisted.action,
+            projection: persisted.projection,
+            evidence: persisted.evidence,
+            configuration: persisted.configuration,
+        };
+        let demo = demo_fixture_from_product(
+            Fixture {
+                action: product.action.clone(),
+                projection: product.projection.clone(),
+                evidence: product.evidence.clone(),
+                configuration: product.configuration.clone(),
+            },
+            persisted.created_at,
+            persisted.challenge,
+        );
+        let backend = restore_backend(config, &persisted.session_id, &product.evidence)?;
+        sessions.insert(
+            persisted.session_id,
+            Session {
+                created_at: persisted.created_at,
+                expires_at: persisted.expires_at,
+                challenge: persisted.challenge,
+                product,
+                variants: demo.variants,
+                proof_verifier: Arc::new(SdkProofVerifier::new(demo.auths.verifier)),
+                proof: demo.auths.proof,
+                auths_request: demo.auths.request,
+                backend: Arc::new(backend),
+                artifacts: Arc::clone(artifacts),
+                receipts: Arc::new(MemoryReceiptSink::default()),
+                last_result: persisted.last_result,
+            },
+        );
+    }
+    Ok(sessions)
+}
+
+fn restore_backend(
+    config: &AppConfig,
+    session_id: &str,
+    evidence: &OpenTofuStateEvidenceV1,
+) -> Result<OpenTofuBackend, StartupError> {
+    let BackendSettings::Live {
+        program,
+        working_directory,
+        timeout,
+        tool_build,
+        credential_json,
+        session_variable,
+        session_workspace: _,
+        fault,
+        source_digest,
+        ..
+    } = &config.backend
+    else {
+        return Err(StartupError::State);
+    };
+    let credential_json =
+        session_credential_json(credential_json, session_variable.as_deref(), session_id)
+            .map_err(|_| StartupError::State)?;
+    let variable_commitment =
+        committed_variables(&credential_json).map_err(|_| StartupError::State)?;
+    let backend = OpenTofuBackend::cli(
+        program.clone(),
+        working_directory.clone(),
+        *timeout,
+        tool_build.clone(),
+        evidence.clone(),
+        credential_json,
+        source_digest.clone(),
+        variable_commitment,
+    )
+    .map_err(|_| StartupError::State)?;
+    backend.set_fault(*fault);
+    Ok(backend)
+}
+
+fn configuration_for_workspace(
+    base: &OpenTofuVerifierConfigurationV1,
+    workspace: &str,
+) -> Result<OpenTofuVerifierConfigurationV1, ApiError> {
+    OpenTofuVerifierConfigurationV1::new(OpenTofuVerifierConfigurationInput {
+        allowed_opentofu_versions: base.allowed_opentofu_versions().to_vec(),
+        allowed_backend_identities: base.allowed_backend_identities().to_vec(),
+        allowed_workspaces: vec![workspace.to_owned()],
+        allowed_provider_sources: base.allowed_provider_sources().to_vec(),
+        allowed_resource_types: base.allowed_resource_types().to_vec(),
+        allowed_actions: base.allowed_actions().to_vec(),
+        maximum_resource_changes: base.maximum_resource_changes(),
+        maximum_plan_age_seconds: base.maximum_plan_age_seconds(),
+        maximum_authorization_lifetime_seconds: base.maximum_authorization_lifetime_seconds(),
+        allow_sensitive_outputs: base.allow_sensitive_outputs(),
+        allow_destroy: false,
+        allow_replacement: false,
+        receipt_schema_version: base.receipt_schema_version().into(),
+        executor_audience: base.executor_audience().into(),
+    })
+    .map_err(|_| ApiError::internal())
+}
+
+fn persist_session(
+    config: &AppConfig,
+    session_id: &str,
+    session: &Session,
+) -> Result<(), ApiError> {
+    if matches!(config.backend, BackendSettings::Fixture) {
+        return Ok(());
+    }
+    let directory = config.state_directory.join("sessions");
+    fs::create_dir_all(&directory).map_err(|_| ApiError::internal())?;
+    let persisted = PersistedSession {
+        schema: "auths-opentofu-demo-session/1".into(),
+        session_id: session_id.into(),
+        created_at: session.created_at,
+        expires_at: session.expires_at,
+        challenge: session.challenge,
+        action: session.product.action.clone(),
+        projection: session.product.projection.clone(),
+        evidence: session.product.evidence.clone(),
+        configuration: session.product.configuration.clone(),
+        last_result: session.last_result.clone(),
+    };
+    let bytes = canonical_json(&persisted).map_err(|_| ApiError::internal())?;
+    let mut temporary =
+        tempfile::NamedTempFile::new_in(&directory).map_err(|_| ApiError::internal())?;
+    temporary
+        .write_all(&bytes)
+        .and_then(|()| temporary.as_file().sync_all())
+        .map_err(|_| ApiError::internal())?;
+    temporary
+        .persist(directory.join(format!("{session_id}.json")))
+        .map_err(|_| ApiError::internal())?;
+    Ok(())
 }
 
 #[derive(Debug, thiserror::Error)]

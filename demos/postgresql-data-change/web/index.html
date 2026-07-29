@@ -55,9 +55,13 @@
                 <button class="variant" data-variant="tenant-changed" type="button"><i>03</i><span><b>Tenant changed</b><small>Cross-tenant attempt</small></span></button>
                 <button class="variant" data-variant="before-changed" type="button"><i>04</i><span><b>A before value changed</b><small>Evidence is stale</small></span></button>
                 <button class="variant" data-variant="forbidden-column" type="button"><i>05</i><span><b>Forbidden column added</b><small>Field is not authorized</small></span></button>
-                <button class="variant" data-variant="value-outside-enum" type="button"><i>06</i><span><b>Value outside enum</b><small>Typed domain fails</small></span></button>
-                <button class="variant" data-variant="schema-policy-changed" type="button"><i>07</i><span><b>RLS policy changed</b><small>Catalog evidence differs</small></span></button>
-                <button class="variant" data-variant="configuration-changed" type="button"><i>08</i><span><b>Verifier ceiling changed</b><small>max rows 3 → 4</small></span></button>
+                <button class="variant" data-variant="changed-parameter" type="button"><i>06</i><span><b>Assignment value changed</b><small>Proof covers different bytes</small></span></button>
+                <button class="variant" data-variant="unauthorized-table" type="button"><i>07</i><span><b>Table changed</b><small>Relation is not authorized</small></span></button>
+                <button class="variant" data-variant="value-outside-enum" type="button"><i>08</i><span><b>Value outside enum</b><small>Typed domain fails</small></span></button>
+                <button class="variant" data-variant="policy-changed" type="button"><i>09</i><span><b>RLS policy changed</b><small>Policy evidence differs</small></span></button>
+                <button class="variant" data-variant="schema-changed" type="button"><i>10</i><span><b>Schema changed</b><small>Relation shape differs</small></span></button>
+                <button class="variant" data-variant="trigger-changed" type="button"><i>11</i><span><b>Trigger inventory changed</b><small>Side effects differ</small></span></button>
+                <button class="variant" data-variant="configuration-changed" type="button"><i>12</i><span><b>Verifier ceiling changed</b><small>max rows 3 → 4</small></span></button>
               </div>
               <aside class="credential-probe" id="credential-probe"><span>Agent credential probe</span><strong>CHECKING BOUNDARY</strong><p>There is no browser route that returns or delegates a connection string.</p></aside>
             </aside>

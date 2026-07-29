@@ -52,11 +52,15 @@
               <div class="variant-list" id="variant-list" aria-label="Saved-plan experiments">
                 <button class="variant active" data-variant="exact" type="button" aria-pressed="true"><span><b>Exact saved plan</b><small>Bytes, state, workspace, dependencies, and policy match</small></span><i>01</i></button>
                 <button class="variant" data-variant="swapped-plan" type="button" aria-pressed="false"><span><b>Plan substituted</b><small>Protected storage resolves different bytes</small></span><i>02</i></button>
-                <button class="variant" data-variant="workspace-changed" type="button" aria-pressed="false"><span><b>Workspace changed</b><small>The executor points at another workspace</small></span><i>03</i></button>
-                <button class="variant" data-variant="stale-state" type="button" aria-pressed="false"><span><b>State advanced</b><small>The state serial changed after planning</small></span><i>04</i></button>
-                <button class="variant" data-variant="destroy-added" type="button" aria-pressed="false"><span><b>Destroy added</b><small>The projection now contains delete</small></span><i>05</i></button>
-                <button class="variant" data-variant="dependency-changed" type="button" aria-pressed="false"><span><b>Provider lock changed</b><small>The dependency commitment differs</small></span><i>06</i></button>
-                <button class="variant" data-variant="configuration-changed" type="button" aria-pressed="false"><span><b>Verifier policy changed</b><small>The executor loads a different work limit</small></span><i>07</i></button>
+                <button class="variant" data-variant="source-changed" type="button" aria-pressed="false"><span><b>Source changed</b><small>The action commits to different source bytes</small></span><i>03</i></button>
+                <button class="variant" data-variant="workspace-changed" type="button" aria-pressed="false"><span><b>Workspace changed</b><small>The executor points at another workspace</small></span><i>04</i></button>
+                <button class="variant" data-variant="backend-changed" type="button" aria-pressed="false"><span><b>Backend changed</b><small>State comes from a different backend</small></span><i>05</i></button>
+                <button class="variant" data-variant="stale-state" type="button" aria-pressed="false"><span><b>State advanced</b><small>The state serial changed after planning</small></span><i>06</i></button>
+                <button class="variant" data-variant="state-lock-held" type="button" aria-pressed="false"><span><b>State lock unavailable</b><small>Fresh state cannot be established</small></span><i>07</i></button>
+                <button class="variant" data-variant="destroy-added" type="button" aria-pressed="false"><span><b>Destroy added</b><small>The projection now contains delete</small></span><i>08</i></button>
+                <button class="variant" data-variant="dependency-changed" type="button" aria-pressed="false"><span><b>Provider lock changed</b><small>The dependency commitment differs</small></span><i>09</i></button>
+                <button class="variant" data-variant="expired-plan" type="button" aria-pressed="false"><span><b>Plan expired</b><small>The freshness window elapsed</small></span><i>10</i></button>
+                <button class="variant" data-variant="configuration-changed" type="button" aria-pressed="false"><span><b>Verifier policy changed</b><small>The executor loads a different work limit</small></span><i>11</i></button>
               </div>
               <aside class="credential-probe" id="credential-probe"><span>Agent credential probe</span><strong>CHECKING BOUNDARY</strong><p>No secret names or values cross this interface.</p></aside>
             </section>

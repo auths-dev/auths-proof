@@ -460,6 +460,69 @@ The agent-facing service and frontend have no database mutation credential. The 
 
 Enforce package boundaries, deterministic fixtures, migration checks, supported PostgreSQL version matrix, offline conformance tests, separate live database tests, WASM/native dependency separation, and workspace Rust policies.
 
+### Completion evidence checklist
+
+The following work is required before this specification may be marked
+implemented. An in-memory transaction fixture may establish pure policy,
+claim, replay, and HTTP contract behavior, but it does not satisfy a
+PostgreSQL, transaction, crash, reconciliation, or public browser gate.
+
+- [x] Commit versioned, byte-stable policy, typed intent, action, evidence,
+  compiled-statement, decision, transaction, observation, denial, and replay
+  fixtures. Programmatically constructed test values alone are not the
+  canonical fixture corpus.
+- [x] Start the documented TLS PostgreSQL deployment from a clean volume, apply
+  migrations through the migration identity, verify the restricted executor
+  role and forced RLS, and record PostgreSQL version and migration digests.
+- [x] Execute the exact authorized three-row transition against PostgreSQL and
+  prove that the row mutation and protected execution-ledger record commit
+  atomically. Read back the rows and ledger through fresh connections.
+- [x] Exercise real-database denials for a changed parameter, broadened row set,
+  unauthorized table or column, stale row evidence, changed tenant, schema,
+  RLS policy or trigger, and required/executed configuration mismatch. Each
+  denial must prove that the mutation credential was not acquired and no
+  transaction or ledger reservation began.
+- [x] Test zero, exact-boundary, and boundary-plus-one affected-row cases, plus
+  checked aggregate-value boundaries when the selected policy uses them.
+- [x] Race concurrent authorization reservations and concurrent database
+  updaters. Exactly one permitted execution may commit and aggregate capacity
+  must be conserved.
+- [x] Test restricted-role enforcement, RLS denial, SQL-injection values,
+  `search_path` attacks, serialization retry, statement timeout, lock timeout,
+  and schema/trigger changes against the live database.
+- [x] Fault-inject receipt persistence failure before credential acquisition,
+  statement failure after transaction start, and every rollback path. Neither
+  the business mutation nor a committed ledger row may remain after a definite
+  failure.
+- [x] Fault-inject connection loss before commit and during an ambiguous commit,
+  terminate and restart the native service, and reconcile through the database
+  ledger using a fresh connection. The recovery path must never blindly
+  resubmit the mutation.
+- [x] Prove replay after ordinary and reconciled commits returns the durable
+  prior result and cannot create a second database effect.
+- [x] Run browser-driven end-to-end tests against the local live service. The
+  browser must exercise readiness, exact commit, material denial, replay,
+  post-commit row read-back, inline receipt JSON, the designed receipt route,
+  and fail-closed invalid receipt identifiers. Reading HTML or JavaScript files
+  and asserting that selectors or request strings exist is not browser-level
+  coverage.
+- [ ] Deploy the TLS database, native live-mode service, and frontend, then
+  repeat the same browser flow through the public frontend and public API. A
+  compose file, `fly.toml`, `vercel.json`, configured hostname, fixture-mode
+  deployment, DNS record, or HTTP 404 is not deployment evidence.
+- [ ] Produce redacted release evidence containing the tested frontend and API
+  URLs, source revision, Fly image reference or equivalent native release,
+  Vercel deployment identifier, PostgreSQL version, migration and schema/policy
+  digests, database region, and test timestamp. Every required release check
+  must be recorded as passed rather than left `not-tested`.
+- [ ] Map live transaction, rollback, concurrency, fault/restart, browser,
+  deployment, canonical fixture, privilege, and secret-scan evidence into
+  `compliance.toml`. A green compliance job is insufficient if it points only
+  to fixture-backed tests.
+- [ ] Pass formatting, architecture, workspace tests, clippy, MSRV, dependency
+  policy, secret scanning, compliance, and the complete authoritative CI suite
+  on the exact revision whose release evidence was recorded.
+
 ## 20. Acceptance criteria
 
 1. The agent proposes a typed mutation without database credentials.
@@ -476,6 +539,10 @@ Enforce package boundaries, deterministic fixtures, migration checks, supported 
 12. Core crates remain independent of PostgreSQL.
 13. The deployed frontend completes exact, denial, replay, row-observation, and receipt flows against the deployed native backend.
 14. Browser-level end-to-end tests fail if frontend/backend wiring, CORS, readiness, interaction, or result rendering breaks.
+15. Canonical policy, intent, action, evidence, statement, and receipt fixtures are committed and byte-stable.
+16. Live rollback, concurrency, timeout, interruption, restart, ambiguous-commit reconciliation, and replay tests pass without duplicate database effects.
+17. Redacted release evidence identifies and proves the exact public frontend, native release, database state transition, and source revision tested.
+18. Complete compliance claims and authoritative CI pass for that revision.
 
 ## 21. Deferred work
 

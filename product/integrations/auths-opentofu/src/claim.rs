@@ -51,6 +51,9 @@ pub struct ClaimLease {
 #[derive(Clone, Debug)]
 pub enum ClaimResult {
     Claimed(ClaimLease),
+    /// A prior apply reached an ambiguous outcome and must be observed, never
+    /// blindly applied again.
+    Resume(ClaimLease),
     Replay(ClaimRecord),
     Conflict(ClaimRecord),
     Unavailable,
@@ -203,7 +206,11 @@ fn claim_in(
     now: u64,
 ) -> ClaimResult {
     if let Some(record) = records.get(action_digest) {
-        return if matches!(
+        return if record.stage == ClaimStage::OutcomeUnknown {
+            ClaimResult::Resume(ClaimLease {
+                action_digest: action_digest.clone(),
+            })
+        } else if matches!(
             record.stage,
             ClaimStage::Converged | ClaimStage::StateCommitted | ClaimStage::PostconditionsObserved
         ) {
@@ -233,9 +240,41 @@ fn record_stage_in(
     let record = records
         .get_mut(&lease.action_digest)
         .ok_or(ClaimError::LeaseMismatch)?;
+    if now < record.updated_at || !transition_allowed(record.stage, stage) {
+        return Err(ClaimError::InvalidTransition);
+    }
     record.stage = stage;
     record.updated_at = now;
     Ok(record.clone())
+}
+
+const fn transition_allowed(current: ClaimStage, next: ClaimStage) -> bool {
+    current as u8 == next as u8
+        || matches!(
+            (current, next),
+            (
+                ClaimStage::Claimed,
+                ClaimStage::ArtifactVerified | ClaimStage::Failed
+            ) | (
+                ClaimStage::ArtifactVerified,
+                ClaimStage::CredentialAcquired | ClaimStage::Failed
+            ) | (
+                ClaimStage::CredentialAcquired,
+                ClaimStage::StateRechecked | ClaimStage::Failed
+            ) | (
+                ClaimStage::StateRechecked,
+                ClaimStage::ApplyStarted | ClaimStage::Failed
+            ) | (
+                ClaimStage::ApplyStarted,
+                ClaimStage::StateCommitted | ClaimStage::OutcomeUnknown | ClaimStage::Failed
+            ) | (
+                ClaimStage::OutcomeUnknown,
+                ClaimStage::StateCommitted | ClaimStage::Failed
+            ) | (
+                ClaimStage::StateCommitted,
+                ClaimStage::PostconditionsObserved
+            ) | (ClaimStage::PostconditionsObserved, ClaimStage::Converged)
+        )
 }
 
 /// Closed claim-state failure.
@@ -247,6 +286,8 @@ pub enum ClaimError {
     Corrupt,
     #[error("claim lease does not match durable state")]
     LeaseMismatch,
+    #[error("claim stage transition is not monotonic")]
+    InvalidTransition,
 }
 
 #[cfg(test)]
@@ -280,5 +321,31 @@ mod tests {
             .filter(|won| *won)
             .count();
         assert_eq!(winners, 1);
+    }
+
+    #[test]
+    fn outcome_unknown_resumes_only_for_reconciliation() {
+        let store = MemoryClaimStore::default();
+        let digest = crate::canonical::sha256(b"ambiguous-plan");
+        let ClaimResult::Claimed(lease) = store.claim(&digest, 100) else {
+            panic!("first claim must win")
+        };
+        for (stage, now) in [
+            (ClaimStage::ArtifactVerified, 101),
+            (ClaimStage::CredentialAcquired, 102),
+            (ClaimStage::StateRechecked, 103),
+            (ClaimStage::ApplyStarted, 104),
+        ] {
+            store.record_stage(&lease, stage, now).unwrap();
+        }
+        store
+            .record_stage(&lease, ClaimStage::OutcomeUnknown, 105)
+            .unwrap();
+        assert!(matches!(store.claim(&digest, 106), ClaimResult::Resume(_)));
+        assert_eq!(
+            store.record_stage(&lease, ClaimStage::ArtifactVerified, 107),
+            Err(ClaimError::InvalidTransition)
+        );
+        assert!(matches!(store.claim(&digest, 108), ClaimResult::Resume(_)));
     }
 }

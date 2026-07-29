@@ -13,8 +13,10 @@ use std::{
 
 use auths_postgresql::{
     BoundedUpdateService, ClaimStore, ExecuteBoundedUpdateRequest, FixedClock, MemoryClaimStore,
-    MemoryReceiptSink, PersistentClaimStore, PortError, PostgresBoundedUpdateV1, PostgresReceipt,
-    ReceiptSink, SdkProofVerifier, ServiceDependencies, WorkflowOutcome, canonical::canonical_json,
+    MemoryReceiptSink, PersistentClaimStore, PortError, PostgresBoundedUpdateV1,
+    PostgresEvidenceV1, PostgresReceipt, PostgresVerifierConfigurationV1, ReceiptSink,
+    SdkProofVerifier, ServiceDependencies, WorkflowOutcome, canonical::canonical_json,
+    test_support::Fixture,
 };
 use axum::{
     Json, Router,
@@ -23,13 +25,13 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use tower_http::cors::CorsLayer;
 
 use crate::{
     fixture::{DemoVariant, demo_fixture_from_product, fixture_at, fixture_from_evidence},
-    postgres::PostgresBackend,
+    postgres::{PostgresBackend, PostgresFault},
 };
 
 const API_SCHEMA: &str = "auths-postgresql-demo-api/1";
@@ -41,6 +43,12 @@ enum BackendSettings {
     Live(Arc<PostgresBackend>),
 }
 
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum ReceiptFault {
+    None,
+    BeforeCredential,
+}
+
 /// Explicit deployment configuration.
 #[derive(Clone)]
 pub struct AppConfig {
@@ -50,6 +58,7 @@ pub struct AppConfig {
     release: String,
     state_directory: Arc<Path>,
     backend: BackendSettings,
+    receipt_fault: ReceiptFault,
 }
 
 impl AppConfig {
@@ -68,19 +77,42 @@ impl AppConfig {
         let state_directory = PathBuf::from(
             env::var("AUTHS_POSTGRESQL_STATE_DIR").unwrap_or_else(|_| ".state/postgresql".into()),
         );
+        let receipt_fault = match env::var("AUTHS_POSTGRESQL_RECEIPT_FAULT")
+            .unwrap_or_else(|_| "none".into())
+            .as_str()
+        {
+            "none" => ReceiptFault::None,
+            "before-credential" => ReceiptFault::BeforeCredential,
+            _ => return Err(StartupError::Configuration),
+        };
         let mode = env::var("AUTHS_POSTGRESQL_MODE").unwrap_or_else(|_| "fixture".into());
         let backend = match mode.as_str() {
             "fixture" => BackendSettings::Fixture,
-            "live" => BackendSettings::Live(Arc::new(
-                PostgresBackend::live(
+            "live" => {
+                let backend = PostgresBackend::live(
                     required_env("AUTHS_POSTGRESQL_CONNECTION_STRING")?,
                     optional_ca_pem()?,
                     required_env("AUTHS_POSTGRESQL_SERVER_IDENTITY")?,
                     required_env("AUTHS_POSTGRESQL_AUDIENCE")?,
                     required_env("AUTHS_POSTGRESQL_DEMO_TENANT")?,
                 )
-                .map_err(|_| StartupError::Configuration)?,
-            )),
+                .map_err(|_| StartupError::Configuration)?;
+                let fault = match env::var("AUTHS_POSTGRESQL_FAULT")
+                    .unwrap_or_else(|_| "none".into())
+                    .as_str()
+                {
+                    "none" => PostgresFault::None,
+                    "before-transaction" => PostgresFault::BeforeTransaction,
+                    "after-update-rollback" => PostgresFault::AfterUpdateRollback,
+                    "before-commit-unknown" => PostgresFault::BeforeCommitUnknown,
+                    "after-commit-unknown" => PostgresFault::AfterCommitUnknown,
+                    "after-commit-unreconciled" => PostgresFault::AfterCommitUnreconciled,
+                    "statement-timeout" => PostgresFault::StatementTimeout,
+                    _ => return Err(StartupError::Configuration),
+                };
+                backend.set_fault(fault);
+                BackendSettings::Live(Arc::new(backend))
+            }
             _ => return Err(StartupError::Configuration),
         };
         Ok(Self {
@@ -90,6 +122,7 @@ impl AppConfig {
             release,
             state_directory: state_directory.into(),
             backend,
+            receipt_fault,
         })
     }
 
@@ -102,6 +135,7 @@ impl AppConfig {
             release: "test".into(),
             state_directory: state_directory.into(),
             backend: BackendSettings::Fixture,
+            receipt_fault: ReceiptFault::None,
         }
     }
 }
@@ -115,13 +149,32 @@ struct AppState {
 }
 
 struct Session {
+    created_at: u64,
     expires_at: u64,
+    challenge: [u8; 32],
+    product: Fixture,
     variants: Vec<DemoVariant>,
     proof_verifier: Arc<SdkProofVerifier>,
     proof: Vec<u8>,
     auths_request: auths_sdk::RequestContext,
     backend: Arc<PostgresBackend>,
     receipts: Arc<MemoryReceiptSink>,
+    initial_rows: Value,
+    last_result: Option<Value>,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PersistedSession {
+    schema: String,
+    session_id: String,
+    created_at: u64,
+    expires_at: u64,
+    challenge: [u8; 32],
+    action: PostgresBoundedUpdateV1,
+    intent: auths_postgresql::PostgresBoundedUpdateIntentV1,
+    evidence: PostgresEvidenceV1,
+    configuration: PostgresVerifierConfigurationV1,
     initial_rows: Value,
     last_result: Option<Value>,
 }
@@ -147,6 +200,7 @@ pub fn app(config: AppConfig) -> Result<Router, StartupError> {
         JsonlReceiptSink::new(config.state_directory.join("receipts.jsonl"))
             .map_err(|_| StartupError::State)?,
     );
+    let sessions = restore_sessions(&config)?;
     let cors = CorsLayer::new()
         .allow_origin(config.allowed_origin.clone())
         .allow_methods([Method::GET, Method::POST])
@@ -164,7 +218,7 @@ pub fn app(config: AppConfig) -> Result<Router, StartupError> {
             config,
             claims,
             durable_receipts,
-            sessions: Arc::new(Mutex::new(HashMap::new())),
+            sessions: Arc::new(Mutex::new(sessions)),
         })
         .layer(cors))
 }
@@ -225,8 +279,12 @@ async fn scenarios(State(state): State<AppState>) -> Json<Value> {
             {"id": "tenant-changed", "label": "Tenant changed"},
             {"id": "before-changed", "label": "A before value changed"},
             {"id": "forbidden-column", "label": "Forbidden column added"},
+            {"id": "changed-parameter", "label": "Assignment value changed"},
+            {"id": "unauthorized-table", "label": "Table changed"},
             {"id": "value-outside-enum", "label": "Value outside enum"},
-            {"id": "schema-policy-changed", "label": "RLS policy changed"},
+            {"id": "policy-changed", "label": "RLS policy changed"},
+            {"id": "schema-changed", "label": "Schema changed"},
+            {"id": "trigger-changed", "label": "Trigger inventory changed"},
             {"id": "configuration-changed", "label": "Verifier ceiling changed"}
         ]
     }))
@@ -296,8 +354,17 @@ async fn create_session(State(state): State<AppState>) -> Result<Json<Value>, Ap
         "receipt_url": format!("/api/v1/receipts/{session_id}"),
         "receipt_page": format!("/receipts/{session_id}"),
     });
+    let product = Fixture {
+        action: demo.product.action.clone(),
+        intent: demo.product.intent.clone(),
+        evidence: demo.product.evidence.clone(),
+        configuration: demo.product.configuration.clone(),
+    };
     let session = Session {
+        created_at: now,
         expires_at: now + SESSION_TTL_SECONDS,
+        challenge,
+        product,
         variants: demo.variants,
         proof_verifier: Arc::new(SdkProofVerifier::new(demo.auths.verifier)),
         proof: demo.auths.proof,
@@ -307,6 +374,7 @@ async fn create_session(State(state): State<AppState>) -> Result<Json<Value>, Ap
         initial_rows: rows,
         last_result: None,
     };
+    persist_session(&state.config, &session_id, &session)?;
     state
         .sessions
         .lock()
@@ -348,6 +416,7 @@ async fn execute(
     let sink = TeeReceiptSink {
         session: Arc::clone(&receipts),
         durable: Arc::clone(&state.durable_receipts),
+        fault: state.config.receipt_fault,
     };
     let service = BoundedUpdateService::new(ServiceDependencies {
         proof_verifier: verifier,
@@ -434,8 +503,8 @@ async fn execute(
             "stage": "observation",
             "claim_state": "observed",
             "database_effect": "exact-three-row-update-committed",
-            "credential_acquired": true,
-            "transaction_started": true,
+            "credential_acquired": backend.credential_calls() > credential_calls_before,
+            "transaction_started": backend.transaction_calls() > transaction_calls_before,
             "rows_before": initial_rows,
             "rows_after": rows_after,
             "decision_receipt": decision,
@@ -461,13 +530,14 @@ async fn execute(
             "receipt_page": format!("/receipts/{session_id}"),
         }),
     };
-    state
-        .sessions
-        .lock()
-        .map_err(|_| ApiError::internal())?
-        .get_mut(&session_id)
-        .ok_or_else(ApiError::not_found)?
-        .last_result = Some(receipt_result(&result));
+    {
+        let mut sessions = state.sessions.lock().map_err(|_| ApiError::internal())?;
+        let session = sessions
+            .get_mut(&session_id)
+            .ok_or_else(ApiError::not_found)?;
+        session.last_result = Some(receipt_result(&result));
+        persist_session(&state.config, &session_id, session)?;
+    }
     Ok(Json(result))
 }
 
@@ -521,6 +591,7 @@ async fn receipt(
 fn service_error_code(error: &auths_postgresql::ServiceError) -> &'static str {
     match error {
         auths_postgresql::ServiceError::OutcomeUnknown => "execution-outcome-unknown",
+        auths_postgresql::ServiceError::NotCommitted => "not-committed",
         auths_postgresql::ServiceError::Port(PortError::CredentialUnavailable) => {
             "credential-unavailable"
         }
@@ -592,15 +663,130 @@ fn random_challenge() -> Result<[u8; 32], ApiError> {
     Ok(bytes)
 }
 
+fn restore_sessions(config: &AppConfig) -> Result<HashMap<String, Session>, StartupError> {
+    if matches!(config.backend, BackendSettings::Fixture) {
+        return Ok(HashMap::new());
+    }
+    let directory = config.state_directory.join("sessions");
+    fs::create_dir_all(&directory).map_err(|_| StartupError::State)?;
+    let mut paths = fs::read_dir(&directory)
+        .map_err(|_| StartupError::State)?
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .filter(|path| {
+            path.extension()
+                .is_some_and(|extension| extension == "json")
+        })
+        .collect::<Vec<_>>();
+    paths.sort();
+    let BackendSettings::Live(backend) = &config.backend else {
+        return Err(StartupError::State);
+    };
+    let mut sessions = HashMap::new();
+    for path in paths {
+        let bytes = fs::read(&path).map_err(|_| StartupError::State)?;
+        let persisted: PersistedSession =
+            serde_json::from_slice(&bytes).map_err(|_| StartupError::State)?;
+        if canonical_json(&persisted).map_err(|_| StartupError::State)? != bytes
+            || !valid_session_id(&persisted.session_id)
+            || path.file_stem().and_then(|value| value.to_str())
+                != Some(persisted.session_id.as_str())
+        {
+            return Err(StartupError::State);
+        }
+        let product = Fixture {
+            action: persisted.action,
+            intent: persisted.intent,
+            evidence: persisted.evidence,
+            configuration: persisted.configuration,
+        };
+        let demo = demo_fixture_from_product(
+            Fixture {
+                action: product.action.clone(),
+                intent: product.intent.clone(),
+                evidence: product.evidence.clone(),
+                configuration: product.configuration.clone(),
+            },
+            persisted.created_at,
+            persisted.challenge,
+        );
+        sessions.insert(
+            persisted.session_id,
+            Session {
+                created_at: persisted.created_at,
+                expires_at: persisted.expires_at,
+                challenge: persisted.challenge,
+                product,
+                variants: demo.variants,
+                proof_verifier: Arc::new(SdkProofVerifier::new(demo.auths.verifier)),
+                proof: demo.auths.proof,
+                auths_request: demo.auths.request,
+                backend: Arc::clone(backend),
+                receipts: Arc::new(MemoryReceiptSink::default()),
+                initial_rows: persisted.initial_rows,
+                last_result: persisted.last_result,
+            },
+        );
+    }
+    Ok(sessions)
+}
+
+fn persist_session(
+    config: &AppConfig,
+    session_id: &str,
+    session: &Session,
+) -> Result<(), ApiError> {
+    if matches!(config.backend, BackendSettings::Fixture) {
+        return Ok(());
+    }
+    let directory = config.state_directory.join("sessions");
+    fs::create_dir_all(&directory).map_err(|_| ApiError::internal())?;
+    let persisted = PersistedSession {
+        schema: "auths-postgresql-demo-session/1".into(),
+        session_id: session_id.into(),
+        created_at: session.created_at,
+        expires_at: session.expires_at,
+        challenge: session.challenge,
+        action: session.product.action.clone(),
+        intent: session.product.intent.clone(),
+        evidence: session.product.evidence.clone(),
+        configuration: session.product.configuration.clone(),
+        initial_rows: session.initial_rows.clone(),
+        last_result: session.last_result.clone(),
+    };
+    let bytes = canonical_json(&persisted).map_err(|_| ApiError::internal())?;
+    let mut temporary =
+        tempfile::NamedTempFile::new_in(&directory).map_err(|_| ApiError::internal())?;
+    temporary
+        .write_all(&bytes)
+        .and_then(|()| temporary.as_file().sync_all())
+        .map_err(|_| ApiError::internal())?;
+    temporary
+        .persist(directory.join(format!("{session_id}.json")))
+        .map_err(|_| ApiError::internal())?;
+    Ok(())
+}
+
+fn valid_session_id(value: &str) -> bool {
+    value.len() == 32
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+}
+
 struct TeeReceiptSink {
     session: Arc<MemoryReceiptSink>,
     durable: Arc<dyn ReceiptSink>,
+    fault: ReceiptFault,
 }
 
 impl ReceiptSink for TeeReceiptSink {
     fn append(&self, receipt: &PostgresReceipt) -> Result<(), PortError> {
-        self.session.append(receipt)?;
-        self.durable.append(receipt)
+        if self.fault == ReceiptFault::BeforeCredential {
+            return Err(PortError::Persistence);
+        }
+        self.durable.append(receipt)?;
+        self.session.append(receipt)
     }
 }
 

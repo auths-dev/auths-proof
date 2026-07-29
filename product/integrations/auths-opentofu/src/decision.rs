@@ -5,6 +5,7 @@ use subtle::ConstantTimeEq as _;
 
 use crate::{
     action::{OpenTofuSavedPlanApplyV1, PermittedChangeSummaryV1},
+    errors::ValidationError,
     plan_projection::SavedPlanProjectionV1,
     types::{DigestHex, OpenTofuStateEvidenceV1, OpenTofuVerifierConfigurationV1, ResourceAction},
 };
@@ -121,10 +122,6 @@ pub fn evaluate(context: &EvaluationContext<'_>) -> Decision {
 
 fn check_configuration(context: &EvaluationContext<'_>) -> Result<(), Decision> {
     if context.action.validate().is_err()
-        || context
-            .projection
-            .validate(context.executed_configuration)
-            .is_err()
         || context.evidence.validate().is_err()
         || context.required_configuration.validate().is_err()
         || context.executed_configuration.validate().is_err()
@@ -134,6 +131,32 @@ fn check_configuration(context: &EvaluationContext<'_>) -> Result<(), Decision> 
             "decode",
             "the action, plan projection, evidence, or configuration is invalid",
         ));
+    }
+    if let Err(error) = context.projection.validate(context.executed_configuration) {
+        return Err(match error {
+            ValidationError::DestroyDenied => Decision::denied(
+                DecisionCode::DestroyDenied,
+                "plan-projection",
+                "the saved plan contains a destructive change",
+            ),
+            ValidationError::ReplacementDenied => Decision::denied(
+                DecisionCode::ReplacementDenied,
+                "plan-projection",
+                "the saved plan contains a replacement change",
+            ),
+            ValidationError::ChangeOutsideProfile | ValidationError::LimitExceeded => {
+                Decision::denied(
+                    DecisionCode::ChangeOutsideProfile,
+                    "plan-projection",
+                    "the saved plan exceeds the configured change policy",
+                )
+            }
+            _ => Decision::denied(
+                DecisionCode::UnsupportedProfile,
+                "decode",
+                "the plan projection is malformed or unsupported",
+            ),
+        });
     }
     let Ok(required) = context.required_configuration.digest() else {
         return Err(Decision::denied(
@@ -374,5 +397,23 @@ mod tests {
         });
         assert_eq!(decision.code, DecisionCode::EvidenceStale);
         assert_eq!(decision.stage, "state-lock");
+    }
+
+    #[test]
+    fn destructive_projection_has_a_specific_stable_denial() {
+        let fixture = fixture();
+        let mut projection = fixture.projection.clone();
+        projection.resource_changes[0].actions = vec![ResourceAction::Delete];
+        let decision = evaluate(&EvaluationContext {
+            action: &fixture.action,
+            projection: &projection,
+            evidence: &fixture.evidence,
+            required_configuration: &fixture.configuration,
+            executed_configuration: &fixture.configuration,
+            request_audience: fixture.configuration.executor_audience(),
+            now: NOW,
+        });
+        assert_eq!(decision.code, DecisionCode::DestroyDenied);
+        assert_eq!(decision.stage, "plan-projection");
     }
 }

@@ -147,9 +147,7 @@ fn reject_forbidden_hcl(contents: &str) -> Result<(), ValidationError> {
     for character in contents.chars() {
         match character {
             '{' | '[' | '(' => {
-                depth = depth
-                    .checked_add(1)
-                    .ok_or(ValidationError::LimitExceeded)?;
+                depth = depth.checked_add(1).ok_or(ValidationError::LimitExceeded)?;
                 if depth > HARD_MAX_EXPRESSION_DEPTH {
                     return Err(ValidationError::LimitExceeded);
                 }

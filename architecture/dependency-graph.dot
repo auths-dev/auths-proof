@@ -452,7 +452,9 @@ digraph auths_architecture {
   "xtask" -> "auths-hsm-attested" [label="normal"];
   "xtask" -> "auths-lab-matrix" [label="normal"];
   "xtask" -> "auths-model" [label="normal"];
+  "xtask" -> "auths-opentofu" [label="normal"];
   "xtask" -> "auths-ports" [label="normal"];
+  "xtask" -> "auths-postgresql" [label="normal"];
   "xtask" -> "auths-proof-exchange-testkit" [label="normal"];
   "xtask" -> "auths-raw-key" [label="normal"];
   "xtask" -> "auths-registries" [label="normal"];

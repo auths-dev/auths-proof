@@ -1,8 +1,27 @@
 # Deployment and sandbox runbook
 
-## Protected module preparation
+## Verified local and default Fly sandbox
 
-The production image pins OpenTofu 1.12.5 and verifies the Linux AMD64 archive
+The default image and Compose deployment use OpenTofu 1.12.5 with
+`hashicorp/local` 2.9.0. This is a real provider and backend execution, not
+fixture mode. Each session creates one protected file and one isolated
+workspace on the persistent volume.
+
+```sh
+cd demos/opentofu-plan
+docker compose up --build -d
+open http://localhost:4174
+```
+
+Run `npm run test:live-contract`, `npm run test:live-recovery`, and
+`npm run test:e2e` before deployment. The default `fly.toml` uses the same
+local-provider sandbox on an encrypted Fly volume. Create the
+`auths_opentofu_data` volume before the first deploy. Both provider objects and
+non-default workspace state must remain below `/data`.
+
+## Optional Cloudflare sandbox preparation
+
+The image pins OpenTofu 1.12.5 and verifies the Linux AMD64 archive
 against the committed SHA-256 checksum. Copy `sandbox/cloudflare/main.tf` into
 the protected working directory, then initialize the exact provider lock:
 
@@ -17,7 +36,9 @@ or provision it on the mounted volume before application startup. Startup
 fails when this file, the module manifest, the absolute OpenTofu path, or any
 allowlist is missing.
 
-The Cloudflare token must be restricted to DNS write and read access for one
+Build with `OPENTOFU_SANDBOX=cloudflare` only when deliberately selecting this
+external-provider variant. The Cloudflare token must be restricted to DNS
+write and read access for one
 dedicated test zone. Seed `cloudflare_dns_record.authorized_demo` with a value
 other than `TF_VAR_AUTHS_RECORD_VALUE`; import it into the `auths-demo`
 workspace. The exact success case then performs a real update and observes the
@@ -27,10 +48,11 @@ old authorized action.
 
 ## Secrets
 
-Set `AUTHS_OPENTOFU_CREDENTIAL_JSON` through the Fly secret store. It contains
-the scoped provider token and the three `TF_VAR_*` values shown in
-`.env.example`. Do not put it in `fly.toml`, logs, frontend variables, image
-layers, or plan receipts.
+Set `AUTHS_OPENTOFU_CREDENTIAL_JSON` through the Fly secret store when it
+contains any provider credential. The default local-provider deployment needs
+only its closed `TF_VAR_*` input map. A Cloudflare deployment additionally
+contains the scoped provider token. Do not put provider secrets in `fly.toml`,
+logs, frontend variables, image layers, or plan receipts.
 
 Create an encrypted persistent volume mounted at `/data`. Restrict
 `/data/auths-opentofu` and `/workspace/opentofu` to UID 10001. Retain saved

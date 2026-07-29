@@ -13,6 +13,12 @@ async function load() {
     const receipt = await response.json();
     const result = receipt.last_result;
     if (!result || !Array.isArray(receipt.receipts)) return fail();
+    document.querySelector("#receipt-title").textContent =
+      result.state === "reconciled"
+        ? "Reconciled transition evidence"
+        : result.state === "committed"
+          ? "Committed transition evidence"
+          : `${result.state} transition evidence`;
     document.querySelector("#receipt-verdict").textContent = result.state.toUpperCase();
     document.querySelector("#receipt-badge").dataset.kind = result.state;
     document.querySelector("#receipt-code").textContent = result.stable_code;

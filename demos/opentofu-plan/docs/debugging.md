@@ -20,3 +20,29 @@
 Receipt and log inspection must search for provider token material, raw saved
 plan bytes, backend configuration, and `TF_VAR_*` values. Any match is a
 security incident, not a debugging convenience.
+
+## Executable local diagnostics
+
+From `demos/opentofu-plan`:
+
+```sh
+docker compose up --build -d
+npm ci
+npx playwright install chromium
+npm run check
+npm run test:live-contract
+npm run test:live-recovery
+npm run test:e2e
+```
+
+The live contract covers every repository-owned denial and a concurrent claim
+race. The recovery contract injects `before-apply` and
+`after-apply-unreconciled`, recreates the API with the same volume, and proves
+fresh state/provider reconciliation without a second apply. The browser test
+uses `http://localhost:4174`, including inline JSON and the designed receipt
+route.
+
+If restart reconciliation reports `execution-outcome-unknown`, verify that
+`sandbox/local/main.tf` still configures both `path` and `workspace_dir` below
+`/data/auths-opentofu`. Keeping only the default state path durable silently
+loses non-default workspace state when the container is replaced.

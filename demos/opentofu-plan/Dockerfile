@@ -7,7 +7,8 @@ RUN cargo build --locked --release -p auths-opentofu-demo
 FROM debian:bookworm-slim AS opentofu
 ARG TOFU_VERSION=1.12.5
 ARG TOFU_ZIP_SHA256=dade9650e6b74fc7a8b986bd8717497d32f9e09cf82e479afef4977fa3085536
-COPY demos/opentofu-plan/sandbox/cloudflare/main.tf /opt/auths/opentofu/main.tf
+ARG OPENTOFU_SANDBOX=local
+COPY demos/opentofu-plan/sandbox/${OPENTOFU_SANDBOX}/main.tf /opt/auths/opentofu/main.tf
 RUN apt-get update \
     && apt-get install --yes --no-install-recommends ca-certificates curl unzip \
     && curl --proto '=https' --tlsv1.2 --fail --silent --show-error --location \

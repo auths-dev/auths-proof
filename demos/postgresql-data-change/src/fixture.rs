@@ -239,6 +239,32 @@ fn variants(fixture: &Fixture, now: u64) -> Vec<DemoVariant> {
         fixture.configuration.clone(),
         now,
     );
+    let changed_parameter_action = mutate_action(&fixture.action, |value| {
+        value["intent"]["assignments"][0]["value"]["value"]["value"] = Value::from("pending");
+    });
+    let changed_parameter = variant(
+        "changed-parameter",
+        "Assignment value changed",
+        "The typed assignment is valid, but it is not the exact action covered by the proof.",
+        changed_parameter_action,
+        fixture.evidence.clone(),
+        fixture.configuration.clone(),
+        fixture.configuration.clone(),
+        now,
+    );
+    let unauthorized_table_action = mutate_action(&fixture.action, |value| {
+        value["intent"]["table_name"] = Value::from("audit_events");
+    });
+    let unauthorized_table = variant(
+        "unauthorized-table",
+        "Table changed",
+        "The action names a relation absent from the immutable policy.",
+        unauthorized_table_action,
+        fixture.evidence.clone(),
+        fixture.configuration.clone(),
+        fixture.configuration.clone(),
+        now,
+    );
     let outside_action = mutate_action(&fixture.action, |value| {
         value["intent"]["assignments"][0]["value"]["value"]["value"] = Value::from("escalated");
     });
@@ -255,11 +281,35 @@ fn variants(fixture: &Fixture, now: u64) -> Vec<DemoVariant> {
     let mut policy_evidence = fixture.evidence.clone();
     policy_evidence.policy_fingerprint = sha256(b"changed-policy");
     let policy = variant(
-        "schema-policy-changed",
+        "policy-changed",
         "RLS policy changed",
         "The protected policy fingerprint differs from authorization.",
         fixture.action.clone(),
         policy_evidence,
+        fixture.configuration.clone(),
+        fixture.configuration.clone(),
+        now,
+    );
+    let mut schema_evidence = fixture.evidence.clone();
+    schema_evidence.schema_fingerprint = sha256(b"changed-schema");
+    let schema = variant(
+        "schema-changed",
+        "Schema changed",
+        "The protected relation shape differs from the reviewed schema.",
+        fixture.action.clone(),
+        schema_evidence,
+        fixture.configuration.clone(),
+        fixture.configuration.clone(),
+        now,
+    );
+    let mut trigger_evidence = fixture.evidence.clone();
+    trigger_evidence.trigger_fingerprint = sha256(b"changed-trigger");
+    let trigger = variant(
+        "trigger-changed",
+        "Trigger inventory changed",
+        "The database can now produce side effects absent from the reviewed action.",
+        fixture.action.clone(),
+        trigger_evidence,
         fixture.configuration.clone(),
         fixture.configuration.clone(),
         now,
@@ -280,8 +330,12 @@ fn variants(fixture: &Fixture, now: u64) -> Vec<DemoVariant> {
         tenant,
         before,
         forbidden,
+        changed_parameter,
+        unauthorized_table,
         outside,
         policy,
+        schema,
+        trigger,
         configuration,
     ]
 }
@@ -355,8 +409,12 @@ mod tests {
         assert!(codes.contains(&"tenant-mismatch"));
         assert!(codes.contains(&"before-state-mismatch"));
         assert!(codes.contains(&"column-not-authorized"));
+        assert!(codes.contains(&"after-state-mismatch"));
+        assert!(codes.contains(&"relation-mismatch"));
         assert!(codes.contains(&"value-constraint-failed"));
         assert!(codes.contains(&"policy-fingerprint-mismatch"));
+        assert!(codes.contains(&"schema-fingerprint-mismatch"));
+        assert!(codes.contains(&"trigger-fingerprint-mismatch"));
         assert!(codes.contains(&"verifier-configuration-mismatch"));
     }
 }

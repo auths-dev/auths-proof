@@ -34,14 +34,15 @@ Create an untracked `.env` next to `compose.yaml` with strong, unique
 ```sh
 docker compose \
   --file demos/postgresql-data-change/compose.yaml \
-  up --build
+  up --build -d
 ```
 
 The certificate helper creates a short-lived local CA and a server certificate
 with `postgres` and `localhost` SANs. The API receives the CA certificate
 read-only, not the private CA key. PostgreSQL requires TLS and SCRAM. The
-frontend can be served on port 3000 with the API query parameter
-`?api=http://localhost:8080`.
+Compose serves the complete browser-to-native-to-database demo at
+`http://localhost:4175`. Port 8080 exposes the API directly only for
+diagnostics.
 
 Reset only through the migration identity:
 
@@ -50,9 +51,11 @@ psql "$MIGRATION_DATABASE_URL" \
   --file demos/postgresql-data-change/database/reset.sql
 ```
 
-Reset is idempotent, restores exactly the three repository-owned records, and
-clears the synthetic execution ledger. It is intentionally absent from the
-public API.
+Reset is idempotent: it removes noncanonical synthetic rows, restores exactly
+the three repository-owned records, and clears the synthetic execution ledger.
+It is intentionally absent from the public API. Compose mounts it read-only at
+`/demo/reset.sql` in the database container so CI and operators exercise the
+same artifact.
 
 ## Fly and Vercel
 

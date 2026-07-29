@@ -31,7 +31,8 @@ The service path is deliberately linear:
 1. Canonically compare required and executed verifier configuration.
 2. Check lifetime, audience, database, relation, schema, RLS policy, trigger
    inventory, executor role, tenant, row set, before state, assignment domain,
-   cardinality, and generated-statement commitment.
+   cardinality, recomputed after-state commitment, and generated-statement
+   commitment.
 3. Verify the real Auths proof against the exact canonical action.
 4. Atomically claim the action digest in durable external state.
 5. Acquire the mutation credential from the protected broker.
@@ -45,6 +46,13 @@ The service path is deliberately linear:
 11. Run only the trusted parameterized `UPDATE`, validate `RETURNING`, finalize
     the ledger, and commit.
 12. On an ambiguous commit, use a fresh connection to inspect the ledger.
+
+The first durable decision receipt is appended before claim creation and
+credential acquisition. If persistence fails, execution stops with no claim,
+credential, transaction, mutation, or ledger reservation. A committed or
+ambiguous transaction is accepted only after a fresh connection reads both the
+ledger and the exact tenant/primary-key rows and validates assigned values and
+versions.
 
 A configuration denial occurs before proof, claim, credential, or database
 ports. A proof denial occurs before claim. The transaction and ledger roll back

@@ -7,8 +7,8 @@ use std::{
     path::{Path, PathBuf},
     process::{Command, Stdio},
     sync::{
-        Arc, Mutex,
-        atomic::{AtomicUsize, Ordering},
+        Arc, Mutex, OnceLock,
+        atomic::{AtomicU8, AtomicUsize, Ordering},
     },
     thread,
     time::{Duration, Instant},
@@ -23,6 +23,44 @@ use auths_opentofu::{
 use tempfile::NamedTempFile;
 
 const MAX_PROCESS_OUTPUT: usize = 16 * 1024 * 1024;
+
+fn cli_working_directory_lock() -> &'static Mutex<()> {
+    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    LOCK.get_or_init(|| Mutex::new(()))
+}
+
+/// Startup-controlled fault points used by the live recovery suite.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum OpenTofuFault {
+    #[default]
+    None,
+    BeforeApply,
+    AfterApplyUnknown,
+    AfterApplyUnreconciled,
+    ReconcileUnavailable,
+}
+
+impl OpenTofuFault {
+    const fn code(self) -> u8 {
+        match self {
+            Self::None => 0,
+            Self::BeforeApply => 1,
+            Self::AfterApplyUnknown => 2,
+            Self::AfterApplyUnreconciled => 3,
+            Self::ReconcileUnavailable => 4,
+        }
+    }
+
+    const fn from_code(code: u8) -> Self {
+        match code {
+            1 => Self::BeforeApply,
+            2 => Self::AfterApplyUnknown,
+            3 => Self::AfterApplyUnreconciled,
+            4 => Self::ReconcileUnavailable,
+            _ => Self::None,
+        }
+    }
+}
 
 struct SecretBytes(Vec<u8>);
 
@@ -55,6 +93,7 @@ pub struct OpenTofuBackend {
     credential: Arc<SecretBytes>,
     credential_calls: Arc<AtomicUsize>,
     apply_calls: Arc<AtomicUsize>,
+    fault: Arc<AtomicU8>,
 }
 
 /// Protected planning output used to construct the exact action.
@@ -79,6 +118,7 @@ impl OpenTofuBackend {
             )),
             credential_calls: Arc::new(AtomicUsize::new(0)),
             apply_calls: Arc::new(AtomicUsize::new(0)),
+            fault: Arc::new(AtomicU8::new(OpenTofuFault::None.code())),
         }
     }
 
@@ -121,6 +161,7 @@ impl OpenTofuBackend {
             credential: Arc::new(SecretBytes(credential_json)),
             credential_calls: Arc::new(AtomicUsize::new(0)),
             apply_calls: Arc::new(AtomicUsize::new(0)),
+            fault: Arc::new(AtomicU8::new(OpenTofuFault::None.code())),
         })
     }
 
@@ -177,82 +218,34 @@ impl OpenTofuBackend {
         {
             return Err(PortError::InvalidConfiguration);
         }
+        let _guard = cli_working_directory_lock()
+            .lock()
+            .map_err(|_| PortError::Execution)?;
         let credential = OpenTofuCredential::new(self.credential.0.clone())?;
         let environment = validate_environment(credential.expose())?;
-        for arguments in [
-            vec!["init", "-input=false", "-lockfile=readonly"],
-            vec!["workspace", "select", planning.workspace.as_str()],
-        ] {
-            let output = run(
-                program,
-                working_directory,
-                &arguments,
-                &environment,
-                *timeout,
-            )?;
-            if !output.status_success {
-                return Err(PortError::Execution);
-            }
-        }
-        let plan_path = working_directory.join(format!(".auths-plan-{now}.tfplan"));
-        let plan_path_string = plan_path
-            .to_str()
-            .ok_or(PortError::InvalidConfiguration)?
-            .to_owned();
-        let plan_output = run(
+        activate_workspace(
             program,
             working_directory,
-            &[
-                "plan",
-                "-input=false",
-                "-lock=true",
-                "-refresh=true",
-                "-out",
-                &plan_path_string,
-            ],
             &environment,
             *timeout,
+            &planning.workspace,
+            true,
         )?;
-        if !plan_output.status_success {
-            return Err(PortError::Execution);
-        }
-        let show = run(
+        let mut evidence = pull_or_initialize_state(
             program,
             working_directory,
-            &["show", "-json", &plan_path_string],
+            &credential,
             &environment,
             *timeout,
+            planning,
         )?;
-        if !show.status_success {
-            return Err(PortError::Execution);
-        }
-        let saved_plan_bytes = fs::read(&plan_path).map_err(|_| PortError::ArtifactUnavailable)?;
-        fs::remove_file(&plan_path).map_err(|_| PortError::ArtifactUnavailable)?;
-        let version = run(
-            program,
-            working_directory,
-            &["version", "-json"],
-            &BTreeMap::new(),
-            *timeout,
-        )?;
-        let version_json: serde_json::Value =
-            serde_json::from_slice(&version.stdout).map_err(|_| PortError::EvidenceUnavailable)?;
-        let opentofu_version = version_json
-            .get("opentofu_version")
-            .or_else(|| version_json.get("terraform_version"))
-            .and_then(serde_json::Value::as_str)
-            .ok_or(PortError::EvidenceUnavailable)?
-            .to_owned();
-        let platform = version_json
-            .get("platform")
-            .and_then(serde_json::Value::as_str)
-            .unwrap_or("unknown")
-            .to_owned();
-        let mut evidence = state_pull(program, working_directory, &credential, *timeout, planning)?;
         evidence.observed_at = now;
+        let (saved_plan_bytes, show_json) =
+            create_saved_plan(program, working_directory, &environment, *timeout, now)?;
+        let (opentofu_version, platform) = opentofu_identity(program, working_directory, *timeout)?;
         Ok(LivePreparedPlan {
             saved_plan_bytes,
-            show_json: show.stdout,
+            show_json,
             evidence,
             opentofu_version,
             platform,
@@ -268,6 +261,226 @@ impl OpenTofuBackend {
     pub fn apply_calls(&self) -> usize {
         self.apply_calls.load(Ordering::SeqCst)
     }
+
+    pub fn set_fault(&self, fault: OpenTofuFault) {
+        self.fault.store(fault.code(), Ordering::SeqCst);
+    }
+
+    fn apply_cli_saved_plan(
+        &self,
+        command: &VerifiedSavedPlanCommand,
+        artifact: &SavedPlanArtifact,
+        credential: &OpenTofuCredential,
+        now: u64,
+        fault: OpenTofuFault,
+    ) -> Result<OpenTofuApplyResult, PortError> {
+        let BackendMode::Cli {
+            program,
+            working_directory,
+            timeout,
+            tool_build,
+            planning,
+            configuration_bundle_digest,
+            variable_commitment,
+        } = self.mode.as_ref()
+        else {
+            return Err(PortError::InvalidConfiguration);
+        };
+        let _guard = cli_working_directory_lock()
+            .lock()
+            .map_err(|_| PortError::Execution)?;
+        if command.action().configuration_bundle_digest() != configuration_bundle_digest
+            || command.action().variable_commitment() != variable_commitment
+            || configuration_digest(working_directory)? != *configuration_bundle_digest
+            || committed_variables(credential.expose())? != *variable_commitment
+        {
+            return Err(PortError::ArtifactMismatch);
+        }
+        let environment = validate_environment(credential.expose())?;
+        activate_workspace(
+            program,
+            working_directory,
+            &environment,
+            *timeout,
+            &planning.workspace,
+            false,
+        )?;
+        let mut plan =
+            NamedTempFile::new_in(working_directory).map_err(|_| PortError::Execution)?;
+        plan.write_all(artifact.bytes())
+            .and_then(|()| plan.as_file().sync_all())
+            .map_err(|_| PortError::Execution)?;
+        let plan_path = plan
+            .path()
+            .to_str()
+            .ok_or(PortError::InvalidConfiguration)?;
+        let output = run(
+            program,
+            working_directory,
+            &["apply", "-input=false", "-auto-approve", plan_path],
+            &environment,
+            *timeout,
+        )?;
+        if !output.status_success {
+            // A provider may have committed an effect before OpenTofu exits
+            // unsuccessfully. Reconciliation must establish the outcome.
+            return Err(PortError::OutcomeUnknown);
+        }
+        if matches!(
+            fault,
+            OpenTofuFault::AfterApplyUnknown | OpenTofuFault::AfterApplyUnreconciled
+        ) {
+            if fault == OpenTofuFault::AfterApplyUnreconciled {
+                self.fault
+                    .store(OpenTofuFault::ReconcileUnavailable.code(), Ordering::SeqCst);
+            }
+            return Err(PortError::OutcomeUnknown);
+        }
+        let current = state_pull(program, working_directory, credential, *timeout, planning)?;
+        if current.state_serial <= planning.state_serial {
+            return Err(PortError::OutcomeUnknown);
+        }
+        let provider_object_commitment =
+            provider_observation(program, working_directory, credential, *timeout)?;
+        Ok(OpenTofuApplyResult {
+            state_lineage: current.state_lineage,
+            prior_state_serial: planning.state_serial,
+            resulting_state_serial: current.state_serial,
+            resulting_state_digest: current.state_digest,
+            provider_object_commitment,
+            tool_build: tool_build.clone(),
+            execution_log_digest: sha256(&[output.stdout, output.stderr].concat()),
+            started_at: now,
+            finished_at: now.saturating_add(1),
+            state_committed: true,
+            postconditions_observed: true,
+            converged: true,
+        })
+    }
+}
+
+fn pull_or_initialize_state(
+    program: &Path,
+    working_directory: &Path,
+    credential: &OpenTofuCredential,
+    environment: &BTreeMap<String, String>,
+    timeout: Duration,
+    planning: &OpenTofuStateEvidenceV1,
+) -> Result<OpenTofuStateEvidenceV1, PortError> {
+    match state_pull(program, working_directory, credential, timeout, planning) {
+        Ok(evidence) => Ok(evidence),
+        Err(PortError::EvidenceUnavailable) => {
+            // A brand-new local backend has no serializable state yet. A
+            // refresh-only apply initializes backend metadata without changing
+            // the configured provider resource.
+            let initialized_state = run(
+                program,
+                working_directory,
+                &["apply", "-refresh-only", "-input=false", "-auto-approve"],
+                environment,
+                timeout,
+            )?;
+            if !initialized_state.status_success {
+                return Err(PortError::EvidenceUnavailable);
+            }
+            state_pull(program, working_directory, credential, timeout, planning)
+        }
+        Err(error) => Err(error),
+    }
+}
+
+fn create_saved_plan(
+    program: &Path,
+    working_directory: &Path,
+    environment: &BTreeMap<String, String>,
+    timeout: Duration,
+    now: u64,
+) -> Result<(Vec<u8>, Vec<u8>), PortError> {
+    let plan_path = working_directory.join(format!(".auths-plan-{now}.tfplan"));
+    let plan_path_string = plan_path
+        .to_str()
+        .ok_or(PortError::InvalidConfiguration)?
+        .to_owned();
+    let plan_output = run(
+        program,
+        working_directory,
+        &[
+            "plan",
+            "-input=false",
+            "-lock=true",
+            "-refresh=true",
+            "-out",
+            &plan_path_string,
+        ],
+        environment,
+        timeout,
+    )?;
+    if !plan_output.status_success {
+        return Err(PortError::Execution);
+    }
+    let show = run(
+        program,
+        working_directory,
+        &["show", "-json", &plan_path_string],
+        environment,
+        timeout,
+    )?;
+    if !show.status_success {
+        return Err(PortError::Execution);
+    }
+    let bytes = fs::read(&plan_path).map_err(|_| PortError::ArtifactUnavailable)?;
+    fs::remove_file(plan_path).map_err(|_| PortError::ArtifactUnavailable)?;
+    Ok((bytes, show.stdout))
+}
+
+fn opentofu_identity(
+    program: &Path,
+    working_directory: &Path,
+    timeout: Duration,
+) -> Result<(String, String), PortError> {
+    let version = run(
+        program,
+        working_directory,
+        &["version", "-json"],
+        &BTreeMap::new(),
+        timeout,
+    )?;
+    let version_json: serde_json::Value =
+        serde_json::from_slice(&version.stdout).map_err(|_| PortError::EvidenceUnavailable)?;
+    let opentofu_version = version_json
+        .get("opentofu_version")
+        .or_else(|| version_json.get("terraform_version"))
+        .and_then(serde_json::Value::as_str)
+        .ok_or(PortError::EvidenceUnavailable)?
+        .to_owned();
+    let platform = version_json
+        .get("platform")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("unknown")
+        .to_owned();
+    Ok((opentofu_version, platform))
+}
+
+fn apply_fixture_saved_plan(
+    planning: &OpenTofuStateEvidenceV1,
+    current_serial: &Mutex<u64>,
+    command: &VerifiedSavedPlanCommand,
+    artifact: &SavedPlanArtifact,
+    now: u64,
+) -> Result<OpenTofuApplyResult, PortError> {
+    let mut serial = current_serial.lock().map_err(|_| PortError::Execution)?;
+    if *serial != command.action().state_serial()
+        || sha256(artifact.bytes()) != *command.action().opaque_plan_digest()
+    {
+        return Err(PortError::Execution);
+    }
+    *serial = serial.saturating_add(1);
+    Ok(OpenTofuApplyResult::synthetic(
+        planning.state_lineage.clone(),
+        planning.state_serial,
+        *serial,
+        now,
+    ))
 }
 
 impl CredentialProvider for OpenTofuBackend {
@@ -309,7 +522,21 @@ impl OpenTofuGateway for OpenTofuBackend {
                 timeout,
                 planning,
                 ..
-            } => state_pull(program, working_directory, credential, *timeout, planning),
+            } => {
+                let _guard = cli_working_directory_lock()
+                    .lock()
+                    .map_err(|_| PortError::EvidenceUnavailable)?;
+                let environment = validate_environment(credential.expose())?;
+                activate_workspace(
+                    program,
+                    working_directory,
+                    &environment,
+                    *timeout,
+                    &planning.workspace,
+                    false,
+                )?;
+                state_pull(program, working_directory, credential, *timeout, planning)
+            }
         }
     }
 
@@ -321,80 +548,20 @@ impl OpenTofuGateway for OpenTofuBackend {
         now: u64,
     ) -> Result<OpenTofuApplyResult, PortError> {
         self.apply_calls.fetch_add(1, Ordering::SeqCst);
+        let fault = OpenTofuFault::from_code(
+            self.fault
+                .swap(OpenTofuFault::None.code(), Ordering::SeqCst),
+        );
+        if fault == OpenTofuFault::BeforeApply {
+            return Err(PortError::Execution);
+        }
         match self.mode.as_ref() {
             BackendMode::Fixture {
                 planning,
                 current_serial,
-            } => {
-                let mut serial = current_serial.lock().map_err(|_| PortError::Execution)?;
-                if *serial != command.action().state_serial()
-                    || sha256(artifact.bytes()) != *command.action().opaque_plan_digest()
-                {
-                    return Err(PortError::Execution);
-                }
-                *serial = serial.saturating_add(1);
-                Ok(OpenTofuApplyResult::synthetic(
-                    planning.state_lineage.clone(),
-                    planning.state_serial,
-                    *serial,
-                    now,
-                ))
-            }
-            BackendMode::Cli {
-                program,
-                working_directory,
-                timeout,
-                tool_build,
-                planning,
-                configuration_bundle_digest,
-                variable_commitment,
-            } => {
-                if command.action().configuration_bundle_digest() != configuration_bundle_digest
-                    || command.action().variable_commitment() != variable_commitment
-                    || configuration_digest(working_directory)? != *configuration_bundle_digest
-                    || committed_variables(credential.expose())? != *variable_commitment
-                {
-                    return Err(PortError::ArtifactMismatch);
-                }
-                let mut plan =
-                    NamedTempFile::new_in(working_directory).map_err(|_| PortError::Execution)?;
-                plan.write_all(artifact.bytes())
-                    .and_then(|()| plan.as_file().sync_all())
-                    .map_err(|_| PortError::Execution)?;
-                let environment = validate_environment(credential.expose())?;
-                let plan_path = plan
-                    .path()
-                    .to_str()
-                    .ok_or(PortError::InvalidConfiguration)?;
-                let output = run(
-                    program,
-                    working_directory,
-                    &["apply", "-input=false", "-auto-approve", plan_path],
-                    &environment,
-                    *timeout,
-                )?;
-                if !output.status_success {
-                    return Err(PortError::Execution);
-                }
-                let current =
-                    state_pull(program, working_directory, credential, *timeout, planning)?;
-                if current.state_serial <= planning.state_serial {
-                    return Err(PortError::OutcomeUnknown);
-                }
-                Ok(OpenTofuApplyResult {
-                    state_lineage: current.state_lineage,
-                    prior_state_serial: planning.state_serial,
-                    resulting_state_serial: current.state_serial,
-                    resulting_state_digest: current.state_digest,
-                    provider_object_commitment: sha256(&output.stdout),
-                    tool_build: tool_build.clone(),
-                    execution_log_digest: sha256(&[output.stdout, output.stderr].concat()),
-                    started_at: now,
-                    finished_at: now.saturating_add(1),
-                    state_committed: true,
-                    postconditions_observed: true,
-                    converged: true,
-                })
+            } => apply_fixture_saved_plan(planning, current_serial, command, artifact, now),
+            BackendMode::Cli { .. } => {
+                self.apply_cli_saved_plan(command, artifact, credential, now, fault)
             }
         }
     }
@@ -405,16 +572,122 @@ impl OpenTofuGateway for OpenTofuBackend {
         credential: &OpenTofuCredential,
         now: u64,
     ) -> Result<OpenTofuApplyResult, PortError> {
-        let current = self.recheck_state(command, credential)?;
-        if current.state_serial <= command.action().state_serial() {
+        if OpenTofuFault::from_code(
+            self.fault
+                .swap(OpenTofuFault::None.code(), Ordering::SeqCst),
+        ) == OpenTofuFault::ReconcileUnavailable
+        {
             return Err(PortError::OutcomeUnknown);
         }
-        Ok(OpenTofuApplyResult::synthetic(
-            current.state_lineage,
-            command.action().state_serial(),
-            current.state_serial,
-            now,
-        ))
+        match self.mode.as_ref() {
+            BackendMode::Fixture {
+                planning,
+                current_serial,
+            } => {
+                let serial = *current_serial
+                    .lock()
+                    .map_err(|_| PortError::OutcomeUnknown)?;
+                if serial <= command.action().state_serial() {
+                    return Err(PortError::OutcomeUnknown);
+                }
+                Ok(OpenTofuApplyResult::synthetic(
+                    planning.state_lineage.clone(),
+                    command.action().state_serial(),
+                    serial,
+                    now,
+                ))
+            }
+            BackendMode::Cli {
+                program,
+                working_directory,
+                timeout,
+                tool_build,
+                planning,
+                ..
+            } => {
+                let _guard = cli_working_directory_lock()
+                    .lock()
+                    .map_err(|_| PortError::OutcomeUnknown)?;
+                let environment = validate_environment(credential.expose())?;
+                activate_workspace(
+                    program,
+                    working_directory,
+                    &environment,
+                    *timeout,
+                    &planning.workspace,
+                    false,
+                )?;
+                let current =
+                    state_pull(program, working_directory, credential, *timeout, planning)?;
+                if current.state_serial <= command.action().state_serial() {
+                    return Err(PortError::OutcomeUnknown);
+                }
+                Ok(OpenTofuApplyResult {
+                    state_lineage: current.state_lineage,
+                    prior_state_serial: command.action().state_serial(),
+                    resulting_state_serial: current.state_serial,
+                    resulting_state_digest: current.state_digest,
+                    provider_object_commitment: provider_observation(
+                        program,
+                        working_directory,
+                        credential,
+                        *timeout,
+                    )?,
+                    tool_build: tool_build.clone(),
+                    execution_log_digest: sha256(b"reconciled-from-fresh-state"),
+                    started_at: now,
+                    finished_at: now,
+                    state_committed: true,
+                    postconditions_observed: true,
+                    converged: true,
+                })
+            }
+        }
+    }
+}
+
+fn activate_workspace(
+    program: &Path,
+    working_directory: &Path,
+    environment: &BTreeMap<String, String>,
+    timeout: Duration,
+    workspace: &str,
+    create_if_missing: bool,
+) -> Result<(), PortError> {
+    let initialized = run(
+        program,
+        working_directory,
+        &["init", "-input=false", "-lockfile=readonly"],
+        environment,
+        timeout,
+    )?;
+    if !initialized.status_success {
+        return Err(PortError::EvidenceUnavailable);
+    }
+    let selected = run(
+        program,
+        working_directory,
+        &["workspace", "select", workspace],
+        environment,
+        timeout,
+    )?;
+    if selected.status_success {
+        return Ok(());
+    }
+    if !create_if_missing {
+        return Err(PortError::EvidenceUnavailable);
+    }
+    let created = run(
+        program,
+        working_directory,
+        &["workspace", "new", workspace],
+        environment,
+        timeout,
+    )?;
+    if created.status_success {
+        Ok(())
+    } else {
+        Err(PortError::Execution)
     }
 }
 
@@ -425,8 +698,8 @@ struct ProcessOutput {
 }
 
 fn run(
-    program: &PathBuf,
-    working_directory: &PathBuf,
+    program: &Path,
+    working_directory: &Path,
     arguments: &[&str],
     environment: &BTreeMap<String, String>,
     timeout: Duration,
@@ -484,8 +757,8 @@ fn read_bounded(mut reader: impl Read) -> Result<Vec<u8>, PortError> {
 }
 
 fn state_pull(
-    program: &PathBuf,
-    working_directory: &PathBuf,
+    program: &Path,
+    working_directory: &Path,
     credential: &OpenTofuCredential,
     timeout: Duration,
     planning: &OpenTofuStateEvidenceV1,
@@ -518,6 +791,29 @@ fn state_pull(
         state_digest: sha256(&canonical),
         ..planning.clone()
     })
+}
+
+fn provider_observation(
+    program: &Path,
+    working_directory: &Path,
+    credential: &OpenTofuCredential,
+    timeout: Duration,
+) -> Result<DigestHex, PortError> {
+    let environment = validate_environment(credential.expose())?;
+    let output = run(
+        program,
+        working_directory,
+        &["output", "-json"],
+        &environment,
+        timeout,
+    )?;
+    if !output.status_success {
+        return Err(PortError::OutcomeUnknown);
+    }
+    let value: serde_json::Value =
+        serde_json::from_slice(&output.stdout).map_err(|_| PortError::OutcomeUnknown)?;
+    let canonical = canonical_json(&value).map_err(|_| PortError::OutcomeUnknown)?;
+    Ok(sha256(&canonical))
 }
 
 fn validate_environment(bytes: &[u8]) -> Result<BTreeMap<String, String>, PortError> {

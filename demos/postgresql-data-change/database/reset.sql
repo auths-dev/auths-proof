@@ -1,7 +1,13 @@
 \set ON_ERROR_STOP on
 
 BEGIN;
-SET LOCAL ROLE auths_owner;
+
+DELETE FROM app.demo_accounts
+WHERE account_id NOT IN (
+    '00000000-0000-0000-0000-000000000001'::uuid,
+    '00000000-0000-0000-0000-000000000002'::uuid,
+    '00000000-0000-0000-0000-000000000003'::uuid
+);
 
 UPDATE app.demo_accounts
 SET review_status = 'pending',

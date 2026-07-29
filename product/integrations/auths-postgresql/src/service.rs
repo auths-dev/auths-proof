@@ -121,59 +121,59 @@ where
         self.append(&PostgresReceipt::Decision(Box::new(decision.clone())))?;
 
         let action_digest = request.action.digest()?;
-        let lease = match self.dependencies.claim_store.claim(&action_digest, now) {
-            ClaimResult::Claimed(lease) => lease,
+        let (lease, resume) = match self.dependencies.claim_store.claim(&action_digest, now) {
+            ClaimResult::Claimed(lease) => (lease, false),
+            ClaimResult::Resume(lease) => (lease, true),
             ClaimResult::Replay(record) => return Ok(WorkflowOutcome::Replay { record }),
             ClaimResult::Conflict(record) => return Ok(WorkflowOutcome::Conflict { record }),
             ClaimResult::Unavailable => return Err(ServiceError::ClaimState),
         };
-        self.record(&lease, ClaimStage::Claimed, now)?;
+        if !resume {
+            self.record(&lease, ClaimStage::Claimed, now)?;
+        }
 
         let credential = self
             .dependencies
             .credential_provider
             .mutation_credential(&request.action)?;
-        self.record(&lease, ClaimStage::CredentialAcquired, now)?;
+        if !resume {
+            self.record(&lease, ClaimStage::CredentialAcquired, now)?;
+        }
         let compiled = compile_statement(
             &request.action.intent,
             &self.dependencies.executed_configuration,
         )?;
         let command =
             VerifiedBoundedUpdateCommand::new(authorized, request.evidence, compiled, lease);
-        self.record(command.lease(), ClaimStage::TransactionStarted, now)?;
-        let result = match self
-            .dependencies
-            .transaction_gateway
-            .execute(&command, &credential, now)
-            .await
-        {
-            Ok(result) => result,
-            Err(PortError::OutcomeUnknown) => {
-                self.record(command.lease(), ClaimStage::OutcomeUnknown, now)?;
-                match self
-                    .dependencies
-                    .transaction_gateway
-                    .reconcile(&action_digest, &credential)
-                    .await?
-                {
-                    Reconciliation::Committed(mut result) => {
-                        result.reconciled = true;
-                        self.record(command.lease(), ClaimStage::Reconciled, now)?;
-                        result
-                    }
-                    Reconciliation::NotCommitted => return Err(ServiceError::NotCommitted),
-                    Reconciliation::Unavailable => return Err(ServiceError::OutcomeUnknown),
+        let result = if resume {
+            self.reconcile_outcome(&command, &credential, now).await?
+        } else {
+            self.record(command.lease(), ClaimStage::TransactionStarted, now)?;
+            match self
+                .dependencies
+                .transaction_gateway
+                .execute(&command, &credential, now)
+                .await
+            {
+                Ok(result) => result,
+                Err(PortError::OutcomeUnknown) => {
+                    self.record(command.lease(), ClaimStage::OutcomeUnknown, now)?;
+                    self.reconcile_outcome(&command, &credential, now).await?
                 }
-            }
-            Err(error) => {
-                self.record(command.lease(), ClaimStage::Failed, now)?;
-                return Err(ServiceError::Port(error));
+                Err(error) => {
+                    self.record(command.lease(), ClaimStage::Failed, now)?;
+                    return Err(ServiceError::Port(error));
+                }
             }
         };
         validate_result(command.action(), &result)?;
         self.record(
             command.lease(),
-            ClaimStage::MutationCommitted,
+            if result.reconciled {
+                ClaimStage::Reconciled
+            } else {
+                ClaimStage::MutationCommitted
+            },
             result.committed_at,
         )?;
         self.record(command.lease(), ClaimStage::Observed, result.committed_at)?;
@@ -197,6 +197,30 @@ where
     fn append(&self, receipt: &PostgresReceipt) -> Result<(), ServiceError> {
         self.dependencies.receipt_sink.append(receipt)?;
         Ok(())
+    }
+
+    async fn reconcile_outcome(
+        &self,
+        command: &VerifiedBoundedUpdateCommand,
+        credential: &crate::ports::PostgresCredential,
+        now: u64,
+    ) -> Result<TransactionResult, ServiceError> {
+        match self
+            .dependencies
+            .transaction_gateway
+            .reconcile(command, credential)
+            .await?
+        {
+            Reconciliation::Committed(mut result) => {
+                result.reconciled = true;
+                Ok(result)
+            }
+            Reconciliation::NotCommitted => {
+                self.record(command.lease(), ClaimStage::Failed, now)?;
+                Err(ServiceError::NotCommitted)
+            }
+            Reconciliation::Unavailable => Err(ServiceError::OutcomeUnknown),
+        }
     }
 
     fn record(

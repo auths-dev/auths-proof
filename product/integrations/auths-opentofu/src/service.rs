@@ -131,13 +131,16 @@ where
         };
         self.append(&OpenTofuReceipt::Decision(Box::new(decision.clone())))?;
         let action_digest = request.action.digest()?;
-        let lease = match self.dependencies.claim_store.claim(&action_digest, now) {
-            ClaimResult::Claimed(lease) => lease,
+        let (lease, resume) = match self.dependencies.claim_store.claim(&action_digest, now) {
+            ClaimResult::Claimed(lease) => (lease, false),
+            ClaimResult::Resume(lease) => (lease, true),
             ClaimResult::Replay(record) => return Ok(WorkflowOutcome::Replay { record }),
             ClaimResult::Conflict(record) => return Ok(WorkflowOutcome::Conflict { record }),
             ClaimResult::Unavailable => return Err(ServiceError::ClaimState),
         };
-        self.record(&lease, ClaimStage::Claimed, now)?;
+        if !resume {
+            self.record(&lease, ClaimStage::Claimed, now)?;
+        }
 
         let artifact = self
             .dependencies
@@ -147,43 +150,55 @@ where
             &sha256(artifact.bytes()),
             request.action.opaque_plan_digest(),
         ) {
-            self.record(&lease, ClaimStage::Failed, now)?;
+            if !resume {
+                self.record(&lease, ClaimStage::Failed, now)?;
+            }
             return Err(ServiceError::Port(PortError::ArtifactMismatch));
         }
-        self.record(&lease, ClaimStage::ArtifactVerified, now)?;
+        if !resume {
+            self.record(&lease, ClaimStage::ArtifactVerified, now)?;
+        }
 
         let credential = self
             .dependencies
             .credential_provider
             .mutation_credential(&request.action)?;
-        self.record(&lease, ClaimStage::CredentialAcquired, now)?;
+        if !resume {
+            self.record(&lease, ClaimStage::CredentialAcquired, now)?;
+        }
         let command =
             VerifiedSavedPlanCommand::new(authorized, request.projection, request.evidence, lease);
-        let current = self
-            .dependencies
-            .opentofu_gateway
-            .recheck_state(&command, &credential)?;
-        validate_state_recheck(command.action(), command.planning_evidence(), &current)?;
-        self.record(command.lease(), ClaimStage::StateRechecked, now)?;
-        self.record(command.lease(), ClaimStage::ApplyStarted, now)?;
-
-        let result = match self.dependencies.opentofu_gateway.apply_saved_plan(
-            &command,
-            &artifact,
-            &credential,
-            now,
-        ) {
-            Ok(result) => result,
-            Err(PortError::OutcomeUnknown) => {
-                self.record(command.lease(), ClaimStage::OutcomeUnknown, now)?;
-                self.dependencies
-                    .opentofu_gateway
-                    .reconcile(&command, &credential, now)
-                    .map_err(|_| ServiceError::OutcomeUnknown)?
-            }
-            Err(error) => {
-                self.record(command.lease(), ClaimStage::Failed, now)?;
-                return Err(ServiceError::Port(error));
+        let result = if resume {
+            self.dependencies
+                .opentofu_gateway
+                .reconcile(&command, &credential, now)
+                .map_err(|_| ServiceError::OutcomeUnknown)?
+        } else {
+            let current = self
+                .dependencies
+                .opentofu_gateway
+                .recheck_state(&command, &credential)?;
+            validate_state_recheck(command.action(), command.planning_evidence(), &current)?;
+            self.record(command.lease(), ClaimStage::StateRechecked, now)?;
+            self.record(command.lease(), ClaimStage::ApplyStarted, now)?;
+            match self.dependencies.opentofu_gateway.apply_saved_plan(
+                &command,
+                &artifact,
+                &credential,
+                now,
+            ) {
+                Ok(result) => result,
+                Err(PortError::OutcomeUnknown) => {
+                    self.record(command.lease(), ClaimStage::OutcomeUnknown, now)?;
+                    self.dependencies
+                        .opentofu_gateway
+                        .reconcile(&command, &credential, now)
+                        .map_err(|_| ServiceError::OutcomeUnknown)?
+                }
+                Err(error) => {
+                    self.record(command.lease(), ClaimStage::Failed, now)?;
+                    return Err(ServiceError::Port(error));
+                }
             }
         };
         validate_apply_result(command.action(), &result)?;

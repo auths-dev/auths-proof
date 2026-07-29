@@ -40,9 +40,20 @@ The linear service path is:
    argument vector, scrubbed environment, bounded output, and timeout.
 9. Read state back, classify convergence, and append linked receipts.
 
+The local backend stores every non-default workspace below the durable
+`/data/auths-opentofu/workspaces` directory. OpenTofu initialization metadata
+inside the container is disposable: before planning, state recheck, apply, or
+reconciliation, the adapter re-initializes the backend and selects the
+action-bound workspace. A process-wide lock prevents session adapters from
+racing through OpenTofu's mutable working-directory metadata.
+
 Every denial before step 4 leaves no claim. Every stop before step 6 proves the
 credential provider was not called. An ambiguous process outcome invokes
 read-only reconciliation and never blindly resubmits the plan.
+
+The recovery contract recreates the API container while preserving only the
+mounted data volume. A claim in `outcome-unknown` may resume only through
+reconciliation. A failed or converged claim cannot execute again.
 
 ## Artifact and secret boundaries
 

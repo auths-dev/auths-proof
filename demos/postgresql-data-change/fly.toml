@@ -12,6 +12,8 @@ primary_region = "cdg"
   AUTHS_POSTGRESQL_SERVER_IDENTITY = "spiffe://auths.demo/postgresql/synthetic"
   AUTHS_POSTGRESQL_AUDIENCE = "https://auths-postgresql-demo.fly.dev"
   AUTHS_POSTGRESQL_DEMO_TENANT = "tenant-demo"
+  AUTHS_POSTGRESQL_FAULT = "none"
+  AUTHS_POSTGRESQL_RECEIPT_FAULT = "none"
 
 [[mounts]]
   source = "auths_postgresql_data"

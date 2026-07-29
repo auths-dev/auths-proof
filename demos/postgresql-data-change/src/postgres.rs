@@ -5,7 +5,7 @@ use std::{
     str::FromStr as _,
     sync::{
         Arc, Mutex,
-        atomic::{AtomicUsize, Ordering},
+        atomic::{AtomicU8, AtomicUsize, Ordering},
     },
 };
 
@@ -25,6 +25,48 @@ use tokio_postgres::{
 use tokio_postgres_rustls::MakeRustlsConnect;
 
 const MAX_SERIALIZATION_RETRIES: usize = 3;
+
+/// Startup-controlled fault points used by the live recovery suite.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum PostgresFault {
+    #[default]
+    None,
+    BeforeTransaction,
+    AfterUpdateRollback,
+    BeforeCommitUnknown,
+    AfterCommitUnknown,
+    AfterCommitUnreconciled,
+    ReconcileUnavailable,
+    StatementTimeout,
+}
+
+impl PostgresFault {
+    const fn code(self) -> u8 {
+        match self {
+            Self::None => 0,
+            Self::BeforeTransaction => 1,
+            Self::AfterUpdateRollback => 2,
+            Self::BeforeCommitUnknown => 3,
+            Self::AfterCommitUnknown => 4,
+            Self::AfterCommitUnreconciled => 5,
+            Self::ReconcileUnavailable => 6,
+            Self::StatementTimeout => 7,
+        }
+    }
+
+    const fn from_code(code: u8) -> Self {
+        match code {
+            1 => Self::BeforeTransaction,
+            2 => Self::AfterUpdateRollback,
+            3 => Self::BeforeCommitUnknown,
+            4 => Self::AfterCommitUnknown,
+            5 => Self::AfterCommitUnreconciled,
+            6 => Self::ReconcileUnavailable,
+            7 => Self::StatementTimeout,
+            _ => Self::None,
+        }
+    }
+}
 
 struct SecretBytes(Vec<u8>);
 
@@ -66,6 +108,7 @@ pub struct PostgresBackend {
     credential: Arc<SecretBytes>,
     credential_calls: Arc<AtomicUsize>,
     transaction_calls: Arc<AtomicUsize>,
+    fault: Arc<AtomicU8>,
 }
 
 impl PostgresBackend {
@@ -83,6 +126,7 @@ impl PostgresBackend {
             )),
             credential_calls: Arc::new(AtomicUsize::new(0)),
             transaction_calls: Arc::new(AtomicUsize::new(0)),
+            fault: Arc::new(AtomicU8::new(PostgresFault::None.code())),
         }
     }
 
@@ -121,6 +165,7 @@ impl PostgresBackend {
             credential: Arc::new(SecretBytes(secret)),
             credential_calls: Arc::new(AtomicUsize::new(0)),
             transaction_calls: Arc::new(AtomicUsize::new(0)),
+            fault: Arc::new(AtomicU8::new(PostgresFault::None.code())),
         })
     }
 
@@ -140,6 +185,10 @@ impl PostgresBackend {
     #[must_use]
     pub fn transaction_calls(&self) -> usize {
         self.transaction_calls.load(Ordering::SeqCst)
+    }
+
+    pub fn set_fault(&self, fault: PostgresFault) {
+        self.fault.store(fault.code(), Ordering::SeqCst);
     }
 
     pub async fn readiness(&self) -> Result<(), PortError> {
@@ -217,23 +266,22 @@ impl TransactionGateway for PostgresBackend {
         now: u64,
     ) -> Result<TransactionResult, PortError> {
         self.transaction_calls.fetch_add(1, Ordering::SeqCst);
+        let fault = PostgresFault::from_code(
+            self.fault
+                .swap(PostgresFault::None.code(), Ordering::SeqCst),
+        );
+        if fault == PostgresFault::BeforeTransaction {
+            return Err(PortError::DatabaseExecution);
+        }
         match &self.mode {
             BackendMode::Fixture { state } => execute_fixture(state, command, now),
             BackendMode::Live { .. } => {
                 for attempt in 0..MAX_SERIALIZATION_RETRIES {
-                    match execute_live(command, credential, now).await {
+                    match execute_live(command, credential, now, fault, &self.fault).await {
                         Err(PortError::TransactionConflict)
                             if attempt + 1 < MAX_SERIALIZATION_RETRIES =>
                         {
-                            match reconcile_live(
-                                &command
-                                    .action()
-                                    .digest()
-                                    .map_err(|_| PortError::DatabaseExecution)?,
-                                credential,
-                            )
-                            .await?
-                            {
+                            match reconcile_live(command, credential).await? {
                                 Reconciliation::Committed(result) => return Ok(result),
                                 Reconciliation::NotCommitted => {}
                                 Reconciliation::Unavailable => {
@@ -251,18 +299,31 @@ impl TransactionGateway for PostgresBackend {
 
     async fn reconcile(
         &self,
-        action_digest: &DigestHex,
+        command: &VerifiedBoundedUpdateCommand,
         credential: &PostgresCredential,
     ) -> Result<Reconciliation, PortError> {
+        if PostgresFault::from_code(
+            self.fault
+                .swap(PostgresFault::None.code(), Ordering::SeqCst),
+        ) == PostgresFault::ReconcileUnavailable
+        {
+            return Ok(Reconciliation::Unavailable);
+        }
         match &self.mode {
-            BackendMode::Fixture { state } => Ok(state
-                .lock()
-                .map_err(|_| PortError::Persistence)?
-                .ledger
-                .get(action_digest)
-                .cloned()
-                .map_or(Reconciliation::NotCommitted, Reconciliation::Committed)),
-            BackendMode::Live { .. } => reconcile_live(action_digest, credential).await,
+            BackendMode::Fixture { state } => {
+                let action_digest = command
+                    .action()
+                    .digest()
+                    .map_err(|_| PortError::DatabaseExecution)?;
+                Ok(state
+                    .lock()
+                    .map_err(|_| PortError::Persistence)?
+                    .ledger
+                    .get(&action_digest)
+                    .cloned()
+                    .map_or(Reconciliation::NotCommitted, Reconciliation::Committed))
+            }
+            BackendMode::Live { .. } => reconcile_live(command, credential).await,
         }
     }
 }
@@ -372,6 +433,8 @@ async fn execute_live(
     command: &VerifiedBoundedUpdateCommand,
     credential: &PostgresCredential,
     now: u64,
+    fault: PostgresFault,
+    fault_state: &AtomicU8,
 ) -> Result<TransactionResult, PortError> {
     let action = command.action();
     let action_digest = action.digest().map_err(|_| PortError::DatabaseExecution)?;
@@ -384,6 +447,13 @@ async fn execute_live(
         .await
         .map_err(map_transaction_error)?;
     set_session(&transaction, command).await?;
+    if fault == PostgresFault::StatementTimeout {
+        transaction
+            .query_one("SELECT pg_sleep(10)", &[])
+            .await
+            .map_err(map_transaction_error)?;
+        return Err(PortError::DatabaseExecution);
+    }
     recheck_catalog(&transaction, command).await?;
     reserve_ledger(&transaction, command, &action_digest, now).await?;
 
@@ -412,6 +482,9 @@ async fn execute_live(
         .await
         .map_err(map_transaction_error)?;
     validate_updated_rows(command, &updated)?;
+    if fault == PostgresFault::AfterUpdateRollback {
+        return Err(PortError::DatabaseExecution);
+    }
     let committed_at = now.saturating_add(1);
     let ledger_commitment = canonical_digest(&(
         action_digest.clone(),
@@ -434,17 +507,35 @@ async fn execute_live(
         .await
         .map_err(map_transaction_error)?
         .get(0);
+    if fault == PostgresFault::BeforeCommitUnknown {
+        drop(transaction);
+        return Err(PortError::OutcomeUnknown);
+    }
     match transaction.commit().await {
-        Ok(()) => Ok(TransactionResult {
-            affected_rows: action.intent.expected_row_count,
-            after_state_digest: action.after_state_digest.clone(),
-            ledger_commitment,
-            readback_commitment: action.after_state_digest.clone(),
-            server_version,
-            transaction_started_at: now,
-            committed_at,
-            reconciled: false,
-        }),
+        Ok(())
+            if matches!(
+                fault,
+                PostgresFault::AfterCommitUnknown | PostgresFault::AfterCommitUnreconciled
+            ) =>
+        {
+            if fault == PostgresFault::AfterCommitUnreconciled {
+                fault_state.store(PostgresFault::ReconcileUnavailable.code(), Ordering::SeqCst);
+            }
+            Err(PortError::OutcomeUnknown)
+        }
+        Ok(()) => {
+            let readback_commitment = readback_live(command, credential).await?;
+            Ok(TransactionResult {
+                affected_rows: action.intent.expected_row_count,
+                after_state_digest: action.after_state_digest.clone(),
+                ledger_commitment,
+                readback_commitment,
+                server_version,
+                transaction_started_at: now,
+                committed_at,
+                reconciled: false,
+            })
+        }
         Err(error) if is_serialization(&error) => Err(PortError::TransactionConflict),
         Err(_) => Err(PortError::OutcomeUnknown),
     }
@@ -725,12 +816,16 @@ fn compare_row_value(row: &Row, expected: &NamedValueV1) -> Result<(), PortError
 }
 
 async fn reconcile_live(
-    action_digest: &DigestHex,
+    command: &VerifiedBoundedUpdateCommand,
     credential: &PostgresCredential,
 ) -> Result<Reconciliation, PortError> {
     let Ok(client) = connect(credential).await else {
         return Ok(Reconciliation::Unavailable);
     };
+    let action_digest = command
+        .action()
+        .digest()
+        .map_err(|_| PortError::DatabaseExecution)?;
     let row = client
         .query_opt(
             "SELECT affected_rows, after_state_digest, result_commitment,
@@ -751,18 +846,60 @@ async fn reconcile_live(
     let commitment: String = row.get(2);
     let started: i64 = row.get(3);
     let committed: i64 = row.get(4);
+    let Ok(readback_commitment) = readback_with_client(&client, command).await else {
+        return Ok(Reconciliation::Unavailable);
+    };
     Ok(Reconciliation::Committed(TransactionResult {
         affected_rows: u32::try_from(affected).map_err(|_| PortError::DatabaseExecution)?,
         after_state_digest: DigestHex::parse(after).map_err(|_| PortError::DatabaseExecution)?,
         ledger_commitment: DigestHex::parse(commitment)
             .map_err(|_| PortError::DatabaseExecution)?,
-        readback_commitment: DigestHex::parse(row.get::<_, String>(1))
-            .map_err(|_| PortError::DatabaseExecution)?,
+        readback_commitment,
         server_version: row.get(5),
         transaction_started_at: u64::try_from(started).map_err(|_| PortError::DatabaseExecution)?,
         committed_at: u64::try_from(committed).map_err(|_| PortError::DatabaseExecution)?,
         reconciled: true,
     }))
+}
+
+async fn readback_live(
+    command: &VerifiedBoundedUpdateCommand,
+    credential: &PostgresCredential,
+) -> Result<DigestHex, PortError> {
+    let client = connect(credential).await?;
+    readback_with_client(&client, command).await
+}
+
+async fn readback_with_client(
+    client: &Client,
+    command: &VerifiedBoundedUpdateCommand,
+) -> Result<DigestHex, PortError> {
+    let tenant = command
+        .action()
+        .intent
+        .tenant_value
+        .protocol_text()
+        .ok_or(PortError::InvalidConfiguration)?;
+    client
+        .query_one(
+            "SELECT set_config('app.tenant_id', $1::text, false)",
+            &[&tenant],
+        )
+        .await
+        .map_err(|_| PortError::DatabaseExecution)?;
+    let values = command
+        .compiled()
+        .readback_parameters
+        .iter()
+        .map(|binding| binding.value.protocol_text())
+        .collect::<Vec<_>>();
+    let refs = parameter_refs(&values);
+    let rows = client
+        .query(&command.compiled().readback_sql, &refs)
+        .await
+        .map_err(|_| PortError::DatabaseExecution)?;
+    validate_updated_rows(command, &rows)?;
+    Ok(command.action().after_state_digest.clone())
 }
 
 #[derive(Serialize)]

@@ -9061,6 +9061,18 @@
     {
       "source": "xtask",
       "source_layer": "tooling",
+      "target": "auths-opentofu",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "xtask",
+      "source_layer": "tooling",
       "target": "auths-ports",
       "target_layer": "core",
       "scope": "internal",
@@ -9071,6 +9083,18 @@
       "features": [
         "std"
       ]
+    },
+    {
+      "source": "xtask",
+      "source_layer": "tooling",
+      "target": "auths-postgresql",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
     },
     {
       "source": "xtask",

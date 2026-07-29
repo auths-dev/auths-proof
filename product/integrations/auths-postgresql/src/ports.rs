@@ -94,7 +94,7 @@ pub trait TransactionGateway: Send + Sync {
 
     async fn reconcile(
         &self,
-        action_digest: &DigestHex,
+        command: &VerifiedBoundedUpdateCommand,
         credential: &PostgresCredential,
     ) -> Result<Reconciliation, PortError>;
 }
@@ -165,10 +165,10 @@ impl<T: TransactionGateway + ?Sized> TransactionGateway for Arc<T> {
 
     async fn reconcile(
         &self,
-        action_digest: &DigestHex,
+        command: &VerifiedBoundedUpdateCommand,
         credential: &PostgresCredential,
     ) -> Result<Reconciliation, PortError> {
-        (**self).reconcile(action_digest, credential).await
+        (**self).reconcile(command, credential).await
     }
 }
 

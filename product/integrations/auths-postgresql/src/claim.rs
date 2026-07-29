@@ -53,6 +53,9 @@ pub struct ClaimLease {
 #[derive(Clone, Debug)]
 pub enum ClaimResult {
     Claimed(ClaimLease),
+    /// A prior commit had an ambiguous transport outcome and may only be
+    /// reconciled through the execution ledger.
+    Resume(ClaimLease),
     Replay(ClaimRecord),
     Conflict(ClaimRecord),
     Unavailable,
@@ -205,7 +208,12 @@ fn claim_in(
     now: u64,
 ) -> ClaimResult {
     if let Some(record) = records.get(action_digest) {
-        return if matches!(
+        return if record.stage == ClaimStage::OutcomeUnknown {
+            ClaimResult::Resume(ClaimLease {
+                action_digest: action_digest.clone(),
+                claim_id: record.claim_id.clone(),
+            })
+        } else if matches!(
             record.stage,
             ClaimStage::MutationCommitted | ClaimStage::Observed | ClaimStage::Reconciled
         ) {
@@ -243,9 +251,44 @@ fn record_stage_in(
     if record.claim_id != lease.claim_id {
         return Err(ClaimError::LeaseMismatch);
     }
+    if now < record.updated_at || !transition_allowed(record.stage, stage) {
+        return Err(ClaimError::InvalidTransition);
+    }
     record.stage = stage;
     record.updated_at = now;
     Ok(record.clone())
+}
+
+const fn transition_allowed(current: ClaimStage, next: ClaimStage) -> bool {
+    current as u8 == next as u8
+        || matches!(
+            (current, next),
+            (
+                ClaimStage::Claimed,
+                ClaimStage::CredentialAcquired | ClaimStage::Failed
+            ) | (
+                ClaimStage::CredentialAcquired,
+                ClaimStage::TransactionStarted | ClaimStage::Failed
+            ) | (
+                ClaimStage::TransactionStarted,
+                ClaimStage::LedgerReserved
+                    | ClaimStage::MutationCommitted
+                    | ClaimStage::OutcomeUnknown
+                    | ClaimStage::Failed
+            ) | (
+                ClaimStage::LedgerReserved,
+                ClaimStage::RowsLocked | ClaimStage::Failed
+            ) | (
+                ClaimStage::RowsLocked,
+                ClaimStage::MutationCommitted | ClaimStage::OutcomeUnknown | ClaimStage::Failed
+            ) | (
+                ClaimStage::OutcomeUnknown,
+                ClaimStage::Reconciled | ClaimStage::Failed
+            ) | (
+                ClaimStage::MutationCommitted | ClaimStage::Reconciled,
+                ClaimStage::Observed
+            )
+        )
 }
 
 /// Closed claim persistence failure.
@@ -257,6 +300,8 @@ pub enum ClaimError {
     Corrupt,
     #[error("claim lease mismatch")]
     LeaseMismatch,
+    #[error("claim stage transition is not monotonic")]
+    InvalidTransition,
 }
 
 #[cfg(test)]
@@ -280,8 +325,42 @@ mod tests {
             panic!("first claimant must win")
         };
         store
-            .record_stage(&lease, ClaimStage::MutationCommitted, 2)
+            .record_stage(&lease, ClaimStage::CredentialAcquired, 2)
             .unwrap();
-        assert!(matches!(store.claim(&digest, 3), ClaimResult::Replay(_)));
+        store
+            .record_stage(&lease, ClaimStage::TransactionStarted, 3)
+            .unwrap();
+        store
+            .record_stage(&lease, ClaimStage::MutationCommitted, 4)
+            .unwrap();
+        assert!(matches!(store.claim(&digest, 5), ClaimResult::Replay(_)));
+    }
+
+    #[test]
+    fn outcome_unknown_resumes_with_the_original_claim_id() {
+        let store = MemoryClaimStore::default();
+        let digest = sha256(b"ambiguous-action");
+        let ClaimResult::Claimed(lease) = store.claim(&digest, 1) else {
+            panic!("first claim must win")
+        };
+        let claim_id = lease.claim_id.clone();
+        store
+            .record_stage(&lease, ClaimStage::CredentialAcquired, 2)
+            .unwrap();
+        store
+            .record_stage(&lease, ClaimStage::TransactionStarted, 3)
+            .unwrap();
+        store
+            .record_stage(&lease, ClaimStage::OutcomeUnknown, 4)
+            .unwrap();
+        let ClaimResult::Resume(resumed) = store.claim(&digest, 5) else {
+            panic!("ambiguous claim must resume")
+        };
+        assert_eq!(resumed.claim_id, claim_id);
+        assert_eq!(
+            store.record_stage(&resumed, ClaimStage::CredentialAcquired, 6),
+            Err(ClaimError::InvalidTransition)
+        );
+        assert!(matches!(store.claim(&digest, 7), ClaimResult::Resume(_)));
     }
 }

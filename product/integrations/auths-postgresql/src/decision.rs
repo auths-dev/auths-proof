@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use subtle::ConstantTimeEq as _;
 
 use crate::{
-    action::PostgresBoundedUpdateV1,
+    action::{PostgresBoundedUpdateV1, after_state_digest},
     canonical::canonical_digest,
     compiler::compile_statement,
     evidence::PostgresEvidenceV1,
@@ -234,6 +234,12 @@ pub fn evaluate(context: &EvaluationContext<'_>) -> Decision {
             return Decision::deny(StableCode::ValueConstraintFailed, "assignment-value");
         }
     }
+    let Ok(derived_after_state) = after_state_digest(evidence, &intent.assignments) else {
+        return Decision::deny(StableCode::MalformedMutation, "after-state");
+    };
+    if !digest_eq(&derived_after_state, &action.after_state_digest) {
+        return Decision::deny(StableCode::AfterStateMismatch, "after-state");
+    }
     let Ok(compiled) = compile_statement(intent, executed) else {
         return Decision::deny(StableCode::MalformedMutation, "statement-template");
     };
@@ -291,6 +297,20 @@ mod tests {
         fixture.evidence.rows[0].before_values[0].value =
             crate::value::TypedValueV1::text("tampered").unwrap();
         assert_eq!(evaluate(&fixture.context()).code, "before-state-mismatch");
+    }
+
+    #[test]
+    fn changed_assignment_cannot_reuse_an_old_after_state_commitment() {
+        let mut fixture = fixture();
+        fixture.action.intent.assignments[0].value = crate::TypedValueV1::enum_text(
+            crate::PgIdentifier::parse("review_status").expect("valid fixture identifier"),
+            "pending",
+        )
+        .expect("valid fixture enum value");
+        let decision = evaluate(&fixture.context());
+        assert_eq!(decision.class, DecisionClass::Denied);
+        assert_eq!(decision.code, "after-state-mismatch");
+        assert_eq!(decision.stage, "after-state");
     }
 
     #[test]

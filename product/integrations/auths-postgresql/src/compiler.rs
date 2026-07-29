@@ -32,7 +32,9 @@ pub struct CompiledBoundedUpdate {
     pub lock_timeout_ms: u32,
     pub lock_sql: String,
     pub update_sql: String,
+    pub readback_sql: String,
     pub parameters: Vec<ParameterBindingV1>,
+    pub readback_parameters: Vec<ParameterBindingV1>,
     pub returning_columns: Vec<PgIdentifier>,
     pub template_digest: DigestHex,
 }
@@ -83,8 +85,15 @@ pub fn compile_statement(
         intent.table_name.quoted()
     );
     let mut parameters = Vec::new();
+    let mut readback_parameters = Vec::new();
     let tenant_position = 1_u32;
     parameters.push(ParameterBindingV1 {
+        position: tenant_position,
+        role: "tenant".into(),
+        column: intent.tenant_column.clone(),
+        value: intent.tenant_value.clone(),
+    });
+    readback_parameters.push(ParameterBindingV1 {
         position: tenant_position,
         role: "tenant".into(),
         column: intent.tenant_column.clone(),
@@ -96,8 +105,10 @@ pub fn compile_statement(
     );
 
     let mut row_predicates = Vec::with_capacity(intent.rows.len());
+    let mut readback_row_predicates = Vec::with_capacity(intent.rows.len());
     for (row_index, row) in intent.rows.iter().enumerate() {
         let mut terms = Vec::with_capacity(row.primary_key.len() + 1);
+        let mut readback_terms = Vec::with_capacity(row.primary_key.len());
         for named in &row.primary_key {
             let position =
                 u32::try_from(parameters.len() + 1).map_err(|_| ValidationError::LimitExceeded)?;
@@ -109,6 +120,18 @@ pub fn compile_statement(
             });
             terms.push(format!(
                 "{}::text = ${position}::text",
+                named.column.quoted()
+            ));
+            let readback_position = u32::try_from(readback_parameters.len() + 1)
+                .map_err(|_| ValidationError::LimitExceeded)?;
+            readback_parameters.push(ParameterBindingV1 {
+                position: readback_position,
+                role: format!("row-{row_index}-primary-key"),
+                column: named.column.clone(),
+                value: named.value.clone(),
+            });
+            readback_terms.push(format!(
+                "{}::text = ${readback_position}::text",
                 named.column.quoted()
             ));
         }
@@ -125,8 +148,13 @@ pub fn compile_statement(
             relation.row_version_column.quoted()
         ));
         row_predicates.push(format!("({})", terms.join(" AND ")));
+        readback_row_predicates.push(format!("({})", readback_terms.join(" AND ")));
     }
     let exact_predicate = format!("{tenant_predicate} AND ({})", row_predicates.join(" OR "));
+    let readback_predicate = format!(
+        "{tenant_predicate} AND ({})",
+        readback_row_predicates.join(" OR ")
+    );
 
     let mut assignments = Vec::with_capacity(intent.assignments.len());
     for assignment in &intent.assignments {
@@ -209,8 +237,10 @@ pub fn compile_statement(
         "UPDATE {qualified} SET {} WHERE {exact_predicate} RETURNING {returning_sql}",
         assignments.join(", ")
     );
+    let readback_sql =
+        format!("SELECT {returning_sql} FROM {qualified} WHERE {readback_predicate}");
     let template_material = format!(
-        "{TEMPLATE_VERSION}\nSERIALIZABLE\n{lock_sql}\n{update_sql}\nstatement_timeout={}\nlock_timeout={}",
+        "{TEMPLATE_VERSION}\nSERIALIZABLE\n{lock_sql}\n{update_sql}\n{readback_sql}\nstatement_timeout={}\nlock_timeout={}",
         configuration.statement_timeout_ms(),
         configuration.lock_timeout_ms()
     );
@@ -220,7 +250,9 @@ pub fn compile_statement(
         lock_timeout_ms: configuration.lock_timeout_ms(),
         lock_sql,
         update_sql,
+        readback_sql,
         parameters,
+        readback_parameters,
         returning_columns: returning,
         template_digest: sha256(template_material.as_bytes()),
     })
@@ -254,7 +286,20 @@ mod tests {
                 .update_sql
                 .starts_with("UPDATE \"app\".\"demo_accounts\"")
         );
+        assert!(
+            compiled
+                .readback_sql
+                .starts_with("SELECT \"account_id\"::text")
+        );
+        assert!(
+            compiled
+                .readback_sql
+                .contains("FROM \"app\".\"demo_accounts\"")
+        );
+        assert!(!compiled.readback_sql.contains("row_version\" = CAST"));
         assert!(!compiled.update_sql.contains("pending"));
         assert!(!compiled.update_sql.contains("reviewed"));
+        assert!(!compiled.readback_sql.contains("pending"));
+        assert!(!compiled.readback_sql.contains("reviewed"));
     }
 }

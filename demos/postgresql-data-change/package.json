@@ -2,6 +2,13 @@
   "name": "auths-postgresql-demo-web",
   "private": true,
   "scripts": {
-    "check": "node --check web/app.js && node --check web/receipt.js && node --test tests/web-smoke.mjs"
+    "check": "node --check web/app.js && node --check web/receipt.js && node --check tests/live-e2e.mjs && node --check tests/live-contract.mjs && node --check tests/live-recovery.mjs && node --check tests/live-database.mjs && node --test tests/web-smoke.mjs",
+    "test:e2e": "node tests/live-e2e.mjs",
+    "test:live-contract": "node tests/live-contract.mjs",
+    "test:live-recovery": "node tests/live-recovery.mjs",
+    "test:live-database": "node tests/live-database.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.62.0"
   }
 }

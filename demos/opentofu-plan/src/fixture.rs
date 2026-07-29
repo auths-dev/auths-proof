@@ -2,12 +2,13 @@
 
 use auths_apps_testkit::{ExactActionFixture, exact_action_fixture};
 use auths_opentofu::{
-    Decision, DigestHex, EvaluationContext, OpenTofuSavedPlanApplyV1, OpenTofuStateEvidenceV1,
-    OpenTofuVerifierConfigurationV1, ResourceAction, SavedPlanProjectionV1,
+    Decision, DecisionClass, DecisionCode, DigestHex, EvaluationContext, OpenTofuSavedPlanApplyV1,
+    OpenTofuStateEvidenceV1, OpenTofuVerifierConfigurationInput, OpenTofuVerifierConfigurationV1,
+    ResourceAction, SavedPlanProjectionV1,
     canonical::{canonical_json, sha256},
     evaluate,
     profile::OpenTofuSavedPlanProfile,
-    test_support::{Fixture, configuration_with_maximum_resource_changes, fixture},
+    test_support::{Fixture, fixture},
 };
 use auths_profile_api::ActionProfile as _;
 use serde::Serialize;
@@ -72,6 +73,13 @@ fn fixture_at(now: u64) -> Fixture {
 }
 
 fn variants(fixture: &Fixture, now: u64) -> Vec<DemoVariant> {
+    let mut variants = identity_variants(fixture, now);
+    variants.extend(policy_variants(fixture, now));
+    variants.extend(freshness_variants(fixture, now));
+    variants
+}
+
+fn identity_variants(fixture: &Fixture, now: u64) -> Vec<DemoVariant> {
     let exact = variant(
         "exact",
         "Exact saved plan",
@@ -108,6 +116,20 @@ fn variants(fixture: &Fixture, now: u64) -> Vec<DemoVariant> {
         fixture.configuration.clone(),
         now,
     );
+    let changed_backend = variant(
+        "backend-changed",
+        "Backend changed",
+        "The executor is connected to a backend other than the one committed by the plan.",
+        fixture.action.clone(),
+        fixture.projection.clone(),
+        OpenTofuStateEvidenceV1 {
+            backend_identity: "local-volume://different-backend".into(),
+            ..fixture.evidence.clone()
+        },
+        fixture.configuration.clone(),
+        fixture.configuration.clone(),
+        now,
+    );
     let stale_state = variant(
         "stale-state",
         "State advanced",
@@ -123,6 +145,16 @@ fn variants(fixture: &Fixture, now: u64) -> Vec<DemoVariant> {
         fixture.configuration.clone(),
         now,
     );
+    vec![
+        exact,
+        swapped_plan,
+        changed_workspace,
+        changed_backend,
+        stale_state,
+    ]
+}
+
+fn policy_variants(fixture: &Fixture, now: u64) -> Vec<DemoVariant> {
     let mut delete_projection = fixture.projection.clone();
     delete_projection.resource_changes[0].actions = vec![ResourceAction::Delete];
     let delete = variant(
@@ -150,7 +182,85 @@ fn variants(fixture: &Fixture, now: u64) -> Vec<DemoVariant> {
         fixture.configuration.clone(),
         now,
     );
-    let changed_configuration = configuration_with_maximum_resource_changes(5);
+    let state_lock = variant(
+        "state-lock-held",
+        "State lock unavailable",
+        "Another operation holds the backend state lock, so freshness cannot be established.",
+        fixture.action.clone(),
+        fixture.projection.clone(),
+        OpenTofuStateEvidenceV1 {
+            lock_held: true,
+            ..fixture.evidence.clone()
+        },
+        fixture.configuration.clone(),
+        fixture.configuration.clone(),
+        now,
+    );
+    let changed_source_action = mutate_action(&fixture.action, |value| {
+        value["configuration_bundle_digest"] = Value::from(sha256(b"changed-source").to_string());
+    });
+    let mut changed_source = variant(
+        "source-changed",
+        "Source configuration changed",
+        "The proposed action commits to source bytes other than those covered by the Auths proof.",
+        changed_source_action,
+        fixture.projection.clone(),
+        fixture.evidence.clone(),
+        fixture.configuration.clone(),
+        fixture.configuration.clone(),
+        now,
+    );
+    changed_source.decision = Decision {
+        class: DecisionClass::Denied,
+        code: DecisionCode::AuthsProofDenied,
+        stage: "auths-kernel".into(),
+        detail: "the exact Auths proof does not cover the changed source commitment".into(),
+    };
+    vec![delete, dependency, state_lock, changed_source]
+}
+
+fn freshness_variants(fixture: &Fixture, now: u64) -> Vec<DemoVariant> {
+    let expired_action = mutate_action(&fixture.action, |value| {
+        value["planned_at"] = Value::from(now.saturating_sub(400));
+        value["expires_at"] = Value::from(now.saturating_sub(100));
+    });
+    let expired = variant(
+        "expired-plan",
+        "Plan expired",
+        "The saved plan and its state observation are older than the configured freshness window.",
+        expired_action,
+        fixture.projection.clone(),
+        OpenTofuStateEvidenceV1 {
+            observed_at: now.saturating_sub(400),
+            ..fixture.evidence.clone()
+        },
+        fixture.configuration.clone(),
+        fixture.configuration.clone(),
+        now,
+    );
+    let changed_configuration =
+        OpenTofuVerifierConfigurationV1::new(OpenTofuVerifierConfigurationInput {
+            allowed_opentofu_versions: fixture.configuration.allowed_opentofu_versions().to_vec(),
+            allowed_backend_identities: fixture.configuration.allowed_backend_identities().to_vec(),
+            allowed_workspaces: fixture.configuration.allowed_workspaces().to_vec(),
+            allowed_provider_sources: fixture.configuration.allowed_provider_sources().to_vec(),
+            allowed_resource_types: fixture.configuration.allowed_resource_types().to_vec(),
+            allowed_actions: fixture.configuration.allowed_actions().to_vec(),
+            maximum_resource_changes: fixture
+                .configuration
+                .maximum_resource_changes()
+                .saturating_add(1),
+            maximum_plan_age_seconds: fixture.configuration.maximum_plan_age_seconds(),
+            maximum_authorization_lifetime_seconds: fixture
+                .configuration
+                .maximum_authorization_lifetime_seconds(),
+            allow_sensitive_outputs: fixture.configuration.allow_sensitive_outputs(),
+            allow_destroy: false,
+            allow_replacement: false,
+            receipt_schema_version: fixture.configuration.receipt_schema_version().into(),
+            executor_audience: fixture.configuration.executor_audience().into(),
+        })
+        .unwrap();
     let configuration = variant(
         "configuration-changed",
         "Verifier policy changed",
@@ -162,15 +272,7 @@ fn variants(fixture: &Fixture, now: u64) -> Vec<DemoVariant> {
         changed_configuration,
         now,
     );
-    vec![
-        exact,
-        swapped_plan,
-        changed_workspace,
-        stale_state,
-        delete,
-        dependency,
-        configuration,
-    ]
+    vec![expired, configuration]
 }
 
 #[allow(

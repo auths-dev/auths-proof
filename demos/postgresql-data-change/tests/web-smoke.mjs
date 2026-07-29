@@ -6,7 +6,20 @@ const root = new URL("../", import.meta.url);
 
 test("all bounded-update experiments and the live result share one workbench", async () => {
   const html = await readFile(new URL("web/index.html", root), "utf8");
-  for (const variant of ["exact", "extra-row", "tenant-changed", "before-changed", "forbidden-column", "value-outside-enum", "schema-policy-changed", "configuration-changed"]) {
+  for (const variant of [
+    "exact",
+    "extra-row",
+    "tenant-changed",
+    "before-changed",
+    "forbidden-column",
+    "changed-parameter",
+    "unauthorized-table",
+    "value-outside-enum",
+    "policy-changed",
+    "schema-changed",
+    "trigger-changed",
+    "configuration-changed",
+  ]) {
     assert.match(html, new RegExp(`data-variant="${variant}"`));
   }
   assert.ok(html.indexOf('id="variant-list"') < html.indexOf('id="verdict"'));

@@ -46,7 +46,7 @@ ALTER TABLE app.demo_accounts FORCE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS auths_tenant_isolation ON app.demo_accounts;
 CREATE POLICY auths_tenant_isolation ON app.demo_accounts
-    AS RESTRICTIVE
+    AS PERMISSIVE
     FOR ALL
     TO auths_executor
     USING (tenant_id = current_setting('app.tenant_id', true))
