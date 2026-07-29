@@ -38,6 +38,11 @@ pub struct AuthorizationFixture {
 }
 
 /// Builds one deterministic Auths delegation for an exact Deployment rollout.
+///
+/// # Panics
+///
+/// Panics only if repository-owned fixture constants violate their Auths or
+/// Kubernetes schemas.
 #[must_use]
 #[allow(
     clippy::too_many_lines,

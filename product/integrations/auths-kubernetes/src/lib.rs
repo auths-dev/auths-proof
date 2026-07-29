@@ -2,7 +2,7 @@
 //!
 //! Kubernetes vocabulary, evidence, containment, claims, execution ports, and
 //! receipts remain in this product package. The proposing agent never receives
-//! a kubeconfig, ServiceAccount token, or reusable cluster credential.
+//! a kubeconfig, `ServiceAccount` token, or reusable cluster credential.
 
 #![forbid(unsafe_code)]
 

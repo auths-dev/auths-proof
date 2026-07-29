@@ -127,6 +127,21 @@ pub fn attenuation_accepts<P: AttenuationProjection + ?Sized>(projection: &P) ->
         && projection.assurance_attenuates()
 }
 
+/// Concrete form of the generated conjunction for mechanical translation.
+#[must_use]
+pub fn attenuation_checks_accept(checks: &AttenuationChecks) -> bool {
+    checks.root_preserved
+        && checks.depth_decreases
+        && checks.profile_attenuates
+        && checks.permissions_attenuate
+        && checks.validity_attenuates
+        && checks.audiences_attenuate
+        && checks.action_constraint_attenuates
+        && checks.budget_attenuates
+        && checks.status_attenuates
+        && checks.assurance_attenuates
+}
+
 /// Classifies target V1 threshold counts.
 #[must_use]
 pub fn threshold_counts(required: u16, authorized: usize, indeterminate: usize) -> Truth {

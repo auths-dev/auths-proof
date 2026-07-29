@@ -96,6 +96,7 @@ digraph auths_architecture {
   "auths-apps-testkit" -> "auths-sdk" [label="normal"];
   "auths-apps-testkit" -> "auths-signature" [label="normal"];
   "auths-assurance" -> "auths-model" [label="normal"];
+  "auths-author" -> "auths-authority" [label="normal"];
   "auths-author" -> "auths-codec" [label="normal"];
   "auths-author" -> "auths-model" [label="normal"];
   "auths-authority" -> "auths-algebra-kernel" [label="normal"];
@@ -163,6 +164,7 @@ digraph auths_architecture {
   "auths-explain" -> "auths-verifier" [label="normal"];
   "auths-explain" -> "auths-webauthn" [label="normal"];
   "auths-formal-refinement" -> "auths-algebra-kernel" [label="normal"];
+  "auths-formal-refinement" -> "auths-authority" [label="normal"];
   "auths-formal-refinement" -> "auths-composition" [label="normal"];
   "auths-formal-refinement" -> "auths-model" [label="normal"];
   "auths-github" -> "auths-model" [label="normal"];

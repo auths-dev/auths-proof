@@ -41,22 +41,41 @@ pub enum KubernetesBackend {
 }
 
 impl KubernetesBackend {
+    /// Builds a live, credential-separated Kubernetes backend.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BackendError`] when endpoints, certificates, or credentials
+    /// are invalid.
     pub fn live(config: LiveKubernetesConfig) -> Result<Self, BackendError> {
         Ok(Self::Live(Arc::new(LiveKubernetes::new(config)?)))
     }
 
     #[cfg(test)]
+    #[must_use]
     pub fn fixture() -> Self {
         Self::Fixture(Arc::new(FixtureKubernetes::default()))
     }
 
+    /// Acquires and canonicalizes fresh evidence for one workflow.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BackendError`] when evidence acquisition, validation, or
+    /// canonicalization fails.
     pub fn prepare(&self, now: u64, workflow_id: &str) -> Result<PreparedRollout, BackendError> {
         match self {
             Self::Live(live) => live.prepare(now, workflow_id),
-            Self::Fixture(fixture) => fixture.prepare(now, workflow_id),
+            Self::Fixture(_) => FixtureKubernetes::prepare(now, workflow_id),
         }
     }
 
+    /// Checks whether the configured Kubernetes backend can serve requests.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BackendError`] when the live API cannot be reached or does
+    /// not satisfy the configured identity expectations.
     pub fn readiness(&self) -> Result<(), BackendError> {
         match self {
             Self::Live(live) => live.readiness(),
@@ -674,7 +693,7 @@ impl Default for FixtureKubernetes {
 }
 
 impl FixtureKubernetes {
-    fn prepare(&self, now: u64, workflow_id: &str) -> Result<PreparedRollout, BackendError> {
+    fn prepare(now: u64, workflow_id: &str) -> Result<PreparedRollout, BackendError> {
         let mut fixture = auths_kubernetes::test_support::fixture();
         fixture.evidence.observed_at = now;
         let evidence_digest = fixture

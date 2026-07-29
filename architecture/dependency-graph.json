@@ -695,6 +695,18 @@
     {
       "source": "auths-author",
       "source_layer": "core",
+      "target": "auths-authority",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-author",
+      "source_layer": "core",
       "target": "auths-codec",
       "target_layer": "core",
       "scope": "internal",
@@ -2021,6 +2033,20 @@
       "optional": false,
       "default_features": false,
       "features": []
+    },
+    {
+      "source": "auths-formal-refinement",
+      "source_layer": "core",
+      "target": "auths-authority",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "std"
+      ]
     },
     {
       "source": "auths-formal-refinement",

@@ -57,6 +57,13 @@ pub enum ClaimResult {
 /// Durable claim store boundary.
 pub trait ClaimStore: Send + Sync {
     fn claim(&self, workflow_id: &str, action_digest: &DigestHex, now: u64) -> ClaimResult;
+
+    /// Advances a lease held by the unique winning claimant.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ClaimError`] when durable state is unavailable, the lease no
+    /// longer matches, or the requested transition would move backward.
     fn record_stage(
         &self,
         lease: &ClaimLease,
@@ -309,12 +316,11 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("claims.json");
         let digest = sha256(b"action");
-        let lease = match PersistentClaimStore::open(&path)
+        let ClaimResult::Claimed(lease) = PersistentClaimStore::open(&path)
             .unwrap()
             .claim("workflow", &digest, 10)
-        {
-            ClaimResult::Claimed(lease) => lease,
-            _ => panic!("first claimant must win"),
+        else {
+            panic!("first claimant must win");
         };
         let store = PersistentClaimStore::open(&path).unwrap();
         assert!(matches!(

@@ -27,9 +27,10 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@4fd1da8b0805d2d2e936788875a7d65dbd677dc2 # nightly
+      - uses: ./.github/actions/setup-rust-cache
         with:
           toolchain: nightly-2026-07-20
+          compiler-cache: "false"
       - run: cargo install cargo-fuzz --version 0.13.1 --locked
       - run: cargo xtask fuzz-inventory
       - run: cargo fuzz run ${{ matrix.target }} --manifest-path core/fuzz/Cargo.toml -- -max_total_time=300 -artifact_prefix=artifacts/${{ matrix.target }}/

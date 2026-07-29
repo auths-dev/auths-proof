@@ -8,12 +8,14 @@ mod generated;
 
 pub use generated::{
     AttenuationChecks, AttenuationProjection, CONTRACT_SCHEMA, EXHAUSTIVE_THRESHOLD_BOUND, Truth,
-    attenuation_accepts, threshold_counts,
+    attenuation_accepts, attenuation_checks_accept, threshold_counts,
 };
 
 #[cfg(kani)]
 mod kani_harnesses {
-    use super::{AttenuationChecks, Truth, attenuation_accepts, threshold_counts};
+    use super::{
+        AttenuationChecks, Truth, attenuation_accepts, attenuation_checks_accept, threshold_counts,
+    };
 
     #[kani::proof]
     fn threshold_partition_matches_contract() {
@@ -62,6 +64,10 @@ mod kani_harnesses {
             && checks.budget_attenuates
             && checks.status_attenuates
             && checks.assurance_attenuates;
-        assert!(attenuation_accepts(&checks) == expected);
+        let generic = attenuation_accepts(&checks);
+        let concrete = attenuation_checks_accept(&checks);
+        assert!(generic == expected);
+        assert!(concrete == expected);
+        assert!(generic == concrete);
     }
 }

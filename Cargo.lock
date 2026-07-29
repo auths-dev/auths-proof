@@ -249,6 +249,7 @@ dependencies = [
 name = "auths-author"
 version = "0.1.0"
 dependencies = [
+ "auths-authority",
  "auths-codec",
  "auths-model",
 ]
@@ -452,6 +453,7 @@ name = "auths-formal-refinement"
 version = "0.1.0"
 dependencies = [
  "auths-algebra-kernel",
+ "auths-authority",
  "auths-composition",
  "auths-model",
  "serde",

@@ -303,13 +303,18 @@ impl GitHubAppCredentialProvider {
     /// This credential cannot publish refs or open pull requests. It exists so
     /// evidence acquisition does not depend on GitHub's shared-IP anonymous
     /// rate limit.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CredentialError`] when credential signing, GitHub issuance,
+    /// response validation, or bounded secret construction fails.
     pub fn evidence_credential(
         &self,
         repository: &RepositoryResource,
     ) -> Result<ScopedCredential, CredentialError> {
         self.mint_installation_credential(
             repository,
-            json!({
+            &json!({
                 "contents": "read",
                 "issues": "read",
                 "metadata": "read",
@@ -321,7 +326,7 @@ impl GitHubAppCredentialProvider {
     fn mint_installation_credential(
         &self,
         repository: &RepositoryResource,
-        permissions: serde_json::Value,
+        permissions: &serde_json::Value,
     ) -> Result<ScopedCredential, CredentialError> {
         let jwt = self.jwt()?;
         let response = self
@@ -369,7 +374,7 @@ impl CredentialProvider for GitHubAppCredentialProvider {
                 "pull_requests": "write",
             }),
         };
-        self.mint_installation_credential(repository, permissions)
+        self.mint_installation_credential(repository, &permissions)
     }
 }
 

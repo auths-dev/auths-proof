@@ -50,6 +50,11 @@ pub struct AppConfig {
 
 impl AppConfig {
     /// Loads fail-closed production configuration.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StartupError`] when required environment values are absent
+    /// or invalid, or the live Kubernetes client cannot be constructed.
     pub fn from_env() -> Result<Self, StartupError> {
         let allowed_origin = env::var("AUTHS_KUBERNETES_ALLOWED_ORIGIN")
             .map_err(|_| StartupError::Configuration)?
@@ -135,6 +140,11 @@ struct ExecuteRequest {
 }
 
 /// Builds the native production API.
+///
+/// # Errors
+///
+/// Returns [`StartupError`] when durable state or receipt storage cannot be
+/// initialized.
 pub fn app(config: AppConfig) -> Result<Router, StartupError> {
     fs::create_dir_all(config.state_directory.as_ref()).map_err(|_| StartupError::State)?;
     let receipt_sink = Arc::new(
@@ -391,7 +401,7 @@ async fn receipts(
 
 enum ExecutionMaterials {
     ProfileDenied { code: String, detail: String },
-    Service(ServiceMaterials),
+    Service(Box<ServiceMaterials>),
 }
 
 struct ServiceMaterials {
@@ -450,7 +460,7 @@ fn execution_materials(session: &Session, variant: &str) -> Result<ExecutionMate
             ));
         }
     }
-    Ok(ExecutionMaterials::Service(ServiceMaterials {
+    Ok(ExecutionMaterials::Service(Box::new(ServiceMaterials {
         action,
         evidence: session.evidence.clone(),
         required_configuration: session.required_configuration.clone(),
@@ -458,7 +468,7 @@ fn execution_materials(session: &Session, variant: &str) -> Result<ExecutionMate
         proof_verifier: Arc::clone(&session.proof_verifier),
         proof: session.proof.clone(),
         request: session.request.clone(),
-    }))
+    })))
 }
 
 fn variant_projections(prepared: &PreparedRollout, now: u64) -> Result<Vec<Value>, ApiError> {
@@ -569,6 +579,7 @@ fn predicted_profile_denial(
     })
 }
 
+#[derive(Clone, Copy)]
 enum ActionMutation<'a> {
     ImageChanged,
     MutableTag,

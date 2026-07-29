@@ -2,6 +2,7 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![forbid(unsafe_code)]
+#![allow(unexpected_cfgs)]
 
 extern crate alloc;
 
@@ -10,7 +11,7 @@ use alloc::{
     string::{String, ToString},
     vec::Vec,
 };
-use core::{fmt, num::NonZeroU64};
+use core::{cmp::Ordering, fmt};
 use subtle::ConstantTimeEq;
 
 pub const PROTOCOL_V1: u16 = 1;
@@ -107,6 +108,33 @@ fn parse_bounded(value: &str, maximum: usize, error: ModelError) -> Result<Strin
     Ok(value.to_string())
 }
 
+fn byte_slices_equal(left: &[u8], right: &[u8]) -> bool {
+    left == right
+}
+
+fn compare_byte_slices(left: &[u8], right: &[u8]) -> Ordering {
+    let common_length = if left.len() < right.len() {
+        left.len()
+    } else {
+        right.len()
+    };
+    let mut index = 0;
+    while index < common_length {
+        if left[index] < right[index] {
+            return Ordering::Less;
+        }
+        if left[index] > right[index] {
+            return Ordering::Greater;
+        }
+        index += 1;
+    }
+    match (left.len() < right.len(), left.len() > right.len()) {
+        (true, _) => Ordering::Less,
+        (false, true) => Ordering::Greater,
+        (false, false) => Ordering::Equal,
+    }
+}
+
 macro_rules! bounded_string {
     ($name:ident, $maximum:expr, $error:expr) => {
         #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -175,6 +203,13 @@ impl PrincipalId {
     pub fn as_str(&self) -> &str {
         &self.0
     }
+}
+
+/// Exact canonical principal equality used by production and extraction.
+#[doc(hidden)]
+#[must_use]
+pub fn principal_id_equal(left: &PrincipalId, right: &PrincipalId) -> bool {
+    byte_slices_equal(left.0.as_bytes(), right.0.as_bytes())
 }
 
 impl fmt::Display for PrincipalId {
@@ -373,8 +408,37 @@ impl ValidityWindow {
 
     #[must_use]
     pub const fn contains_window(self, child: Self) -> bool {
-        child.not_before.0 >= self.not_before.0 && child.expires_at.0 <= self.expires_at.0
+        inclusive_window_contains(
+            self.not_before.0,
+            self.expires_at.0,
+            child.not_before.0,
+            child.expires_at.0,
+        )
     }
+}
+
+/// Pure inclusive-window predicate used by production and formal extraction.
+#[doc(hidden)]
+#[must_use]
+pub const fn inclusive_window_contains(
+    parent_start: u64,
+    parent_end: u64,
+    child_start: u64,
+    child_end: u64,
+) -> bool {
+    child_start >= parent_start && child_end <= parent_end
+}
+
+/// Pure inclusive-window relation over validated model values.
+#[doc(hidden)]
+#[must_use]
+pub const fn validity_window_contains(parent: ValidityWindow, child: ValidityWindow) -> bool {
+    inclusive_window_contains(
+        parent.not_before.0,
+        parent.expires_at.0,
+        child.not_before.0,
+        child.expires_at.0,
+    )
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -408,6 +472,52 @@ impl ProfileRef {
     }
 }
 
+/// Exact profile identifier and version equality used by production.
+#[doc(hidden)]
+#[must_use]
+pub fn profile_ref_equal(left: &ProfileRef, right: &ProfileRef) -> bool {
+    left.version == right.version && byte_slices_equal(left.id.0.as_bytes(), right.id.0.as_bytes())
+}
+
+/// Membership in a validated root profile list.
+#[doc(hidden)]
+#[must_use]
+pub fn profile_slice_contains(profiles: &[ProfileRef], profile: &ProfileRef) -> bool {
+    let mut index = 0;
+    while index < profiles.len() {
+        if profile_ref_equal(&profiles[index], profile) {
+            return true;
+        }
+        index += 1;
+    }
+    false
+}
+
+/// Exact assurance-policy identifier equality used by production.
+#[doc(hidden)]
+#[must_use]
+pub fn assurance_policy_id_equal(left: &AssurancePolicyId, right: &AssurancePolicyId) -> bool {
+    byte_slices_equal(left.0.as_bytes(), right.0.as_bytes())
+}
+
+/// Exact grant identifier equality used by production.
+#[doc(hidden)]
+#[must_use]
+pub fn grant_id_equal(left: GrantId, right: GrantId) -> bool {
+    byte_slices_equal(left.as_bytes(), right.as_bytes())
+}
+
+/// Exact optional grant identifier equality used by chain linkage.
+#[doc(hidden)]
+#[must_use]
+pub fn optional_grant_id_equal(left: Option<GrantId>, right: Option<GrantId>) -> bool {
+    match (left, right) {
+        (None, None) => true,
+        (Some(left), Some(right)) => grant_id_equal(left, right),
+        _ => false,
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Permission {
     capability: CapabilityId,
@@ -434,6 +544,22 @@ impl Permission {
     }
 }
 
+fn compare_permissions(left: &Permission, right: &Permission) -> Ordering {
+    let capability_order =
+        compare_byte_slices(left.capability.0.as_bytes(), right.capability.0.as_bytes());
+    match capability_order {
+        Ordering::Less => return Ordering::Less,
+        Ordering::Greater => return Ordering::Greater,
+        Ordering::Equal => {}
+    }
+    compare_byte_slices(left.resource.0.as_bytes(), right.resource.0.as_bytes())
+}
+
+fn permissions_equal(left: &Permission, right: &Permission) -> bool {
+    byte_slices_equal(left.capability.0.as_bytes(), right.capability.0.as_bytes())
+        && byte_slices_equal(left.resource.0.as_bytes(), right.resource.0.as_bytes())
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PermissionSet(Vec<Permission>);
 
@@ -448,8 +574,9 @@ impl PermissionSet {
         if permissions.is_empty() || permissions.len() > HARD_MAX_PERMISSIONS {
             return Err(ModelError::InvalidPermissionSet);
         }
-        permissions.sort();
-        permissions.dedup();
+        permissions.sort_by(compare_permissions);
+        permissions
+            .dedup_by(|left, right| matches!(compare_permissions(left, right), Ordering::Equal));
         Ok(Self(permissions))
     }
 
@@ -460,17 +587,53 @@ impl PermissionSet {
 
     #[must_use]
     pub fn contains(&self, permission: &Permission) -> bool {
-        self.0.binary_search(permission).is_ok()
+        permission_set_contains(self, permission)
     }
 
     #[must_use]
     pub fn is_subset_of(&self, parent: &Self) -> bool {
-        self.0.iter().all(|permission| parent.contains(permission))
+        permission_set_is_subset(self, parent)
     }
+}
+
+/// Pure canonical permission membership used by production and extraction.
+#[doc(hidden)]
+#[must_use]
+pub fn permission_set_contains(set: &PermissionSet, permission: &Permission) -> bool {
+    let mut index = 0;
+    while index < set.0.len() {
+        if permissions_equal(&set.0[index], permission) {
+            return true;
+        }
+        index += 1;
+    }
+    false
+}
+
+/// Pure canonical permission subset used by production and extraction.
+#[doc(hidden)]
+#[must_use]
+pub fn permission_set_is_subset(child: &PermissionSet, parent: &PermissionSet) -> bool {
+    let mut child_index = 0;
+    while child_index < child.0.len() {
+        if !permission_set_contains(parent, &child.0[child_index]) {
+            return false;
+        }
+        child_index += 1;
+    }
+    true
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AudienceSet(Vec<Audience>);
+
+fn compare_audiences(left: &Audience, right: &Audience) -> Ordering {
+    compare_byte_slices(left.0.as_bytes(), right.0.as_bytes())
+}
+
+fn audiences_equal(left: &Audience, right: &Audience) -> bool {
+    byte_slices_equal(left.0.as_bytes(), right.0.as_bytes())
+}
 
 impl AudienceSet {
     /// Constructs a sorted, duplicate-free, non-empty audience set.
@@ -483,8 +646,8 @@ impl AudienceSet {
         if audiences.is_empty() || audiences.len() > HARD_MAX_AUDIENCES {
             return Err(ModelError::InvalidAudienceSet);
         }
-        audiences.sort();
-        audiences.dedup();
+        audiences.sort_by(compare_audiences);
+        audiences.dedup_by(|left, right| matches!(compare_audiences(left, right), Ordering::Equal));
         Ok(Self(audiences))
     }
 
@@ -495,18 +658,54 @@ impl AudienceSet {
 
     #[must_use]
     pub fn contains(&self, audience: &Audience) -> bool {
-        self.0.binary_search(audience).is_ok()
+        audience_set_contains(self, audience)
     }
 
     #[must_use]
     pub fn is_subset_of(&self, parent: &Self) -> bool {
-        self.0.iter().all(|audience| parent.contains(audience))
+        audience_set_is_subset(self, parent)
     }
+}
+
+/// Pure canonical audience membership used by production and extraction.
+#[doc(hidden)]
+#[must_use]
+pub fn audience_set_contains(set: &AudienceSet, audience: &Audience) -> bool {
+    let mut index = 0;
+    while index < set.0.len() {
+        if audiences_equal(&set.0[index], audience) {
+            return true;
+        }
+        index += 1;
+    }
+    false
+}
+
+/// Pure canonical audience subset used by production and extraction.
+#[doc(hidden)]
+#[must_use]
+pub fn audience_set_is_subset(child: &AudienceSet, parent: &AudienceSet) -> bool {
+    let mut child_index = 0;
+    while child_index < child.0.len() {
+        if !audience_set_contains(parent, &child.0[child_index]) {
+            return false;
+        }
+        child_index += 1;
+    }
+    true
 }
 
 /// Canonically ordered, non-empty set of action body digests.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct BodyDigestSet(Vec<Digest>);
+
+fn compare_digests(left: &Digest, right: &Digest) -> Ordering {
+    compare_byte_slices(left.0.as_slice(), right.0.as_slice())
+}
+
+fn digests_equal(left: &Digest, right: &Digest) -> bool {
+    byte_slices_equal(left.0.as_slice(), right.0.as_slice())
+}
 
 impl BodyDigestSet {
     /// Constructs a bounded body-digest set.
@@ -519,8 +718,8 @@ impl BodyDigestSet {
         if digests.is_empty() || digests.len() > HARD_MAX_BODY_DIGESTS {
             return Err(ModelError::InvalidActionConstraint);
         }
-        digests.sort();
-        digests.dedup();
+        digests.sort_by(compare_digests);
+        digests.dedup_by(|left, right| matches!(compare_digests(left, right), Ordering::Equal));
         Ok(Self(digests))
     }
 
@@ -533,14 +732,42 @@ impl BodyDigestSet {
     /// Reports whether the set contains `digest`.
     #[must_use]
     pub fn contains(&self, digest: &Digest) -> bool {
-        self.0.binary_search(digest).is_ok()
+        body_digest_set_contains(self, digest)
     }
 
     /// Reports whether this set is a subset of `parent`.
     #[must_use]
     pub fn is_subset_of(&self, parent: &Self) -> bool {
-        self.0.iter().all(|digest| parent.contains(digest))
+        body_digest_set_is_subset(self, parent)
     }
+}
+
+/// Pure canonical body-digest membership used by production and extraction.
+#[doc(hidden)]
+#[must_use]
+pub fn body_digest_set_contains(set: &BodyDigestSet, digest: &Digest) -> bool {
+    let mut index = 0;
+    while index < set.0.len() {
+        if digests_equal(&set.0[index], digest) {
+            return true;
+        }
+        index += 1;
+    }
+    false
+}
+
+/// Pure canonical body-digest subset used by production and extraction.
+#[doc(hidden)]
+#[must_use]
+pub fn body_digest_set_is_subset(child: &BodyDigestSet, parent: &BodyDigestSet) -> bool {
+    let mut child_index = 0;
+    while child_index < child.0.len() {
+        if !body_digest_set_contains(parent, &child.0[child_index]) {
+            return false;
+        }
+        child_index += 1;
+    }
+    true
 }
 
 /// Closed V1 action-body attenuation algebra.
@@ -567,26 +794,12 @@ impl ActionConstraint {
 
     #[must_use]
     pub fn allows(&self, digest: Digest) -> bool {
-        match self {
-            Self::AnyBody => true,
-            Self::ExactBodyDigest(expected) => expected == &digest,
-            Self::AllowedBodyDigests(allowed) => allowed.contains(&digest),
-        }
+        action_constraint_allows(self, digest)
     }
 
     #[must_use]
     pub fn attenuates(&self, parent: &Self) -> bool {
-        match (self, parent) {
-            (_, Self::AnyBody) => true,
-            (Self::ExactBodyDigest(child), Self::ExactBodyDigest(parent)) => child == parent,
-            (Self::ExactBodyDigest(child), Self::AllowedBodyDigests(parent)) => {
-                parent.contains(child)
-            }
-            (Self::AllowedBodyDigests(child), Self::AllowedBodyDigests(parent)) => {
-                child.is_subset_of(parent)
-            }
-            _ => false,
-        }
+        action_constraint_attenuates(self, parent)
     }
 
     #[must_use]
@@ -596,6 +809,38 @@ impl ActionConstraint {
         } else {
             None
         }
+    }
+}
+
+/// Pure target-V1 body-constraint coverage used by production and extraction.
+#[doc(hidden)]
+#[must_use]
+pub fn action_constraint_allows(constraint: &ActionConstraint, digest: Digest) -> bool {
+    match constraint {
+        ActionConstraint::AnyBody => true,
+        ActionConstraint::ExactBodyDigest(expected) => digests_equal(expected, &digest),
+        ActionConstraint::AllowedBodyDigests(allowed) => body_digest_set_contains(allowed, &digest),
+    }
+}
+
+/// Pure target-V1 body-constraint attenuation used by production and extraction.
+#[doc(hidden)]
+#[must_use]
+pub fn action_constraint_attenuates(child: &ActionConstraint, parent: &ActionConstraint) -> bool {
+    match (child, parent) {
+        (_, ActionConstraint::AnyBody) => true,
+        (ActionConstraint::ExactBodyDigest(child), ActionConstraint::ExactBodyDigest(parent)) => {
+            digests_equal(child, parent)
+        }
+        (
+            ActionConstraint::ExactBodyDigest(child),
+            ActionConstraint::AllowedBodyDigests(parent),
+        ) => body_digest_set_contains(parent, child),
+        (
+            ActionConstraint::AllowedBodyDigests(child),
+            ActionConstraint::AllowedBodyDigests(parent),
+        ) => body_digest_set_is_subset(child, parent),
+        _ => false,
     }
 }
 
@@ -623,7 +868,7 @@ impl BudgetCeiling {
 
     #[must_use]
     pub fn attenuates(&self, parent: &Self) -> bool {
-        self.algebra == parent.algebra && self.value <= parent.value
+        budget_ceiling_attenuates(self, parent)
     }
 
     /// Reports whether this ceiling covers an action's requested budget.
@@ -633,9 +878,45 @@ impl BudgetCeiling {
     }
 }
 
+/// Pure target-V1 numeric ceiling relation used by production and extraction.
+#[doc(hidden)]
+#[must_use]
+pub fn budget_ceiling_attenuates(child: &BudgetCeiling, parent: &BudgetCeiling) -> bool {
+    byte_slices_equal(child.algebra.0.as_bytes(), parent.algebra.0.as_bytes())
+        && child.value <= parent.value
+}
+
+/// Applies target-V1 attenuation to optional immutable budget ceilings.
+///
+/// `None` is the unbounded top scope. A bounded parent therefore requires a
+/// bounded child using the same algebra and a non-increasing value.
+#[must_use]
+pub fn optional_budget_attenuates(
+    child: Option<&BudgetCeiling>,
+    parent: Option<&BudgetCeiling>,
+) -> bool {
+    match (child, parent) {
+        (_, None) => true,
+        (Some(child), Some(parent)) => child.attenuates(parent),
+        (None, Some(_)) => false,
+    }
+}
+
+/// Applies target-V1 terminal coverage to an optional requested budget.
+#[must_use]
+pub fn optional_budget_covers(
+    ceiling: Option<&BudgetCeiling>,
+    requested: Option<&BudgetCeiling>,
+) -> bool {
+    match (ceiling, requested) {
+        (_, None) | (None, Some(_)) => true,
+        (Some(ceiling), Some(requested)) => ceiling.covers(requested),
+    }
+}
+
 /// Non-zero maximum age for a required status observation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
-pub struct FreshnessLimit(NonZeroU64);
+pub struct FreshnessLimit(u64);
 
 impl FreshnessLimit {
     /// Constructs a non-zero freshness limit in seconds.
@@ -644,16 +925,17 @@ impl FreshnessLimit {
     ///
     /// Returns [`ModelError::InvalidStatus`] when `seconds` is zero.
     pub const fn new(seconds: u64) -> Result<Self, ModelError> {
-        match NonZeroU64::new(seconds) {
-            Some(value) => Ok(Self(value)),
-            None => Err(ModelError::InvalidStatus),
+        if seconds == 0 {
+            Err(ModelError::InvalidStatus)
+        } else {
+            Ok(Self(seconds))
         }
     }
 
     /// Returns the freshness window in seconds.
     #[must_use]
     pub const fn get(self) -> u64 {
-        self.0.get()
+        self.0
     }
 }
 
@@ -669,6 +951,37 @@ pub enum StatusPolicy {
         /// Maximum accepted observation age.
         max_age: FreshnessLimit,
     },
+}
+
+impl StatusPolicy {
+    /// Reports whether this status requirement is no weaker than `parent`.
+    #[must_use]
+    pub fn attenuates(&self, parent: &Self) -> bool {
+        status_policy_attenuates(self, parent)
+    }
+}
+
+/// Pure target-V1 status relation used by production and formal extraction.
+#[doc(hidden)]
+#[must_use]
+pub fn status_policy_attenuates(child: &StatusPolicy, parent: &StatusPolicy) -> bool {
+    match (child, parent) {
+        (_, StatusPolicy::ExpiryOnly) => true,
+        (
+            StatusPolicy::SnapshotRequired {
+                method: child_method,
+                max_age: child_age,
+            },
+            StatusPolicy::SnapshotRequired {
+                method: parent_method,
+                max_age: parent_age,
+            },
+        ) => {
+            byte_slices_equal(child_method.0.as_bytes(), parent_method.0.as_bytes())
+                && child_age.0 <= parent_age.0
+        }
+        (StatusPolicy::ExpiryOnly, StatusPolicy::SnapshotRequired { .. }) => false,
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
@@ -936,6 +1249,81 @@ impl GrantStatement {
     }
 }
 
+/// Lossless borrowed projection of grant fields consumed by core authority.
+///
+/// This type contains no normalization or derived decisions. It exists so the
+/// production authority evaluator and its mechanical translation share one
+/// small, explicit semantic input boundary.
+#[doc(hidden)]
+#[derive(Clone, Copy, Debug)]
+pub struct GrantAuthorityView<'a> {
+    pub issuer: &'a PrincipalId,
+    pub subject: &'a PrincipalId,
+    pub profile: &'a ProfileRef,
+    pub permissions: &'a PermissionSet,
+    pub validity: ValidityWindow,
+    pub audiences: &'a AudienceSet,
+    pub action_constraint: &'a ActionConstraint,
+    pub budget_ceiling: Option<&'a BudgetCeiling>,
+    pub remaining_depth: u16,
+    pub parent: Option<GrantId>,
+    pub status_policy: &'a StatusPolicy,
+    pub assurance_floor: &'a AssurancePolicyId,
+}
+
+/// Lossless borrowed projection of the ordered scope fields used by both
+/// delegation and pre-signing authoring checks.
+#[doc(hidden)]
+#[derive(Clone, Copy, Debug)]
+pub struct ScopeAuthorityView<'a> {
+    pub profile: &'a ProfileRef,
+    pub permissions: &'a PermissionSet,
+    pub validity: ValidityWindow,
+    pub audiences: &'a AudienceSet,
+    pub action_constraint: &'a ActionConstraint,
+    pub budget_ceiling: Option<&'a BudgetCeiling>,
+    pub remaining_depth: u16,
+    pub status_policy: &'a StatusPolicy,
+    pub assurance_floor: &'a AssurancePolicyId,
+}
+
+/// Projects the ordered scope fields from a complete grant view.
+#[doc(hidden)]
+#[must_use]
+pub const fn scope_authority_view(grant: GrantAuthorityView<'_>) -> ScopeAuthorityView<'_> {
+    ScopeAuthorityView {
+        profile: grant.profile,
+        permissions: grant.permissions,
+        validity: grant.validity,
+        audiences: grant.audiences,
+        action_constraint: grant.action_constraint,
+        budget_ceiling: grant.budget_ceiling,
+        remaining_depth: grant.remaining_depth,
+        status_policy: grant.status_policy,
+        assurance_floor: grant.assurance_floor,
+    }
+}
+
+/// Projects exactly the grant fields consumed by core authority.
+#[doc(hidden)]
+#[must_use]
+pub const fn grant_authority_view(grant: &GrantStatement) -> GrantAuthorityView<'_> {
+    GrantAuthorityView {
+        issuer: &grant.issuer,
+        subject: &grant.subject,
+        profile: &grant.profile,
+        permissions: &grant.permissions,
+        validity: grant.validity,
+        audiences: &grant.audiences,
+        action_constraint: &grant.action_constraint,
+        budget_ceiling: grant.budget_ceiling.as_ref(),
+        remaining_depth: grant.remaining_depth,
+        parent: grant.parent,
+        status_policy: &grant.status_policy,
+        assurance_floor: &grant.assurance_floor,
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SignedGrant {
     statement: GrantStatement,
@@ -1086,6 +1474,36 @@ impl ActionEnvelope {
     #[must_use]
     pub const fn extensions(&self) -> &CriticalExtensions {
         &self.extensions
+    }
+}
+
+/// Lossless borrowed projection of action fields consumed by core authority.
+#[doc(hidden)]
+#[derive(Clone, Copy, Debug)]
+pub struct ActionAuthorityView<'a> {
+    pub profile: &'a ProfileRef,
+    pub canonical_body_digest: Digest,
+    pub permission: &'a Permission,
+    pub requested_budget: Option<&'a BudgetCeiling>,
+    pub audience: &'a Audience,
+    pub validity: ValidityWindow,
+    pub actor: &'a PrincipalId,
+    pub terminal_grant: Option<GrantId>,
+}
+
+/// Projects exactly the action-envelope fields consumed by core authority.
+#[doc(hidden)]
+#[must_use]
+pub const fn action_authority_view(action: &ActionEnvelope) -> ActionAuthorityView<'_> {
+    ActionAuthorityView {
+        profile: &action.profile,
+        canonical_body_digest: action.canonical_body_digest,
+        permission: &action.permission,
+        requested_budget: action.requested_budget.as_ref(),
+        audience: &action.audience,
+        validity: action.validity,
+        actor: &action.actor,
+        terminal_grant: action.terminal_grant,
     }
 }
 
@@ -4186,6 +4604,62 @@ impl fmt::Display for ModelError {
 #[cfg(feature = "std")]
 impl std::error::Error for ModelError {}
 
+#[cfg(kani)]
+mod kani_harnesses {
+    use super::{ValidityWindow, inclusive_window_contains, validity_window_contains};
+
+    #[kani::proof]
+    fn inclusive_window_relation_is_exact_at_fixed_width() {
+        let parent_start: u64 = kani::any();
+        let parent_end: u64 = kani::any();
+        let child_start: u64 = kani::any();
+        let child_end: u64 = kani::any();
+
+        let actual = inclusive_window_contains(parent_start, parent_end, child_start, child_end);
+        let specified = child_start >= parent_start && child_end <= parent_end;
+        assert!(actual == specified);
+
+        let parent = ValidityWindow {
+            not_before: super::Timestamp(parent_start),
+            expires_at: super::Timestamp(parent_end),
+        };
+        let child = ValidityWindow {
+            not_before: super::Timestamp(child_start),
+            expires_at: super::Timestamp(child_end),
+        };
+        assert!(validity_window_contains(parent, child) == specified);
+    }
+
+    #[kani::proof]
+    fn inclusive_window_containment_is_transitive() {
+        let outer_start: u64 = kani::any();
+        let outer_end: u64 = kani::any();
+        let middle_start: u64 = kani::any();
+        let middle_end: u64 = kani::any();
+        let inner_start: u64 = kani::any();
+        let inner_end: u64 = kani::any();
+
+        kani::assume(inclusive_window_contains(
+            outer_start,
+            outer_end,
+            middle_start,
+            middle_end,
+        ));
+        kani::assume(inclusive_window_contains(
+            middle_start,
+            middle_end,
+            inner_start,
+            inner_end,
+        ));
+        assert!(inclusive_window_contains(
+            outer_start,
+            outer_end,
+            inner_start,
+            inner_end,
+        ));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -4193,6 +4667,31 @@ mod tests {
 
     fn digest(byte: u8) -> Digest {
         Digest::new([byte; 32])
+    }
+
+    fn permission(index: usize) -> Permission {
+        Permission::new(
+            CapabilityId::parse(&format!("capability-{index}")).expect("valid capability"),
+            ResourceId::parse(&format!("resource://{index}")).expect("valid resource"),
+        )
+    }
+
+    fn audience(index: usize) -> Audience {
+        Audience::parse(&format!("audience://{index}")).expect("valid audience")
+    }
+
+    fn numeric_budget(value: u64) -> BudgetCeiling {
+        BudgetCeiling::new(
+            BudgetAlgebraId::parse("numeric-ceiling-v1").expect("valid algebra"),
+            value,
+        )
+    }
+
+    fn snapshot(method: &str, max_age: u64) -> StatusPolicy {
+        StatusPolicy::SnapshotRequired {
+            method: StatusMethodId::parse(method).expect("valid method"),
+            max_age: FreshnessLimit::new(max_age).expect("positive age"),
+        }
     }
 
     #[test]
@@ -4223,6 +4722,117 @@ mod tests {
     }
 
     #[test]
+    fn canonical_set_constructors_enforce_zero_and_hard_limits() {
+        assert_eq!(
+            PermissionSet::new(Vec::new()),
+            Err(ModelError::InvalidPermissionSet)
+        );
+        assert!(PermissionSet::new((0..HARD_MAX_PERMISSIONS).map(permission).collect()).is_ok());
+        assert_eq!(
+            PermissionSet::new((0..=HARD_MAX_PERMISSIONS).map(permission).collect()),
+            Err(ModelError::InvalidPermissionSet)
+        );
+
+        assert_eq!(
+            AudienceSet::new(Vec::new()),
+            Err(ModelError::InvalidAudienceSet)
+        );
+        assert!(AudienceSet::new((0..HARD_MAX_AUDIENCES).map(audience).collect()).is_ok());
+        assert_eq!(
+            AudienceSet::new((0..=HARD_MAX_AUDIENCES).map(audience).collect()),
+            Err(ModelError::InvalidAudienceSet)
+        );
+
+        assert_eq!(
+            BodyDigestSet::new(Vec::new()),
+            Err(ModelError::InvalidActionConstraint)
+        );
+        let maximum_digests: Vec<_> = (0..HARD_MAX_BODY_DIGESTS)
+            .map(|index| {
+                let mut bytes = [0_u8; 32];
+                bytes[..core::mem::size_of::<usize>()].copy_from_slice(&index.to_be_bytes());
+                Digest::new(bytes)
+            })
+            .collect();
+        assert!(BodyDigestSet::new(maximum_digests.clone()).is_ok());
+        let mut over_limit = maximum_digests;
+        over_limit.push(Digest::new([0xff; 32]));
+        assert_eq!(
+            BodyDigestSet::new(over_limit),
+            Err(ModelError::InvalidActionConstraint)
+        );
+    }
+
+    #[test]
+    fn fixed_width_and_optional_boundaries_are_exact() {
+        let full =
+            ValidityWindow::new(Timestamp::new(0), Timestamp::new(u64::MAX)).expect("full window");
+        let last = ValidityWindow::new(Timestamp::new(u64::MAX), Timestamp::new(u64::MAX))
+            .expect("last instant");
+        assert!(full.contains_window(last));
+        assert!(full.contains(Timestamp::new(0)));
+        assert!(full.contains(Timestamp::new(u64::MAX)));
+
+        let maximum = numeric_budget(u64::MAX);
+        let zero = numeric_budget(0);
+        assert!(zero.attenuates(&maximum));
+        assert!(optional_budget_attenuates(Some(&maximum), None));
+        assert!(!optional_budget_attenuates(None, Some(&maximum)));
+        assert!(optional_budget_covers(None, Some(&maximum)));
+        assert!(optional_budget_covers(Some(&zero), None));
+    }
+
+    #[test]
+    fn action_constraint_constructor_matrix_is_a_partial_order() {
+        let any = ActionConstraint::AnyBody;
+        let parent =
+            ActionConstraint::allowed_body_digests(vec![digest(1), digest(2)]).expect("parent");
+        let child = ActionConstraint::allowed_body_digests(vec![digest(1)]).expect("child");
+        let exact = ActionConstraint::ExactBodyDigest(digest(1));
+        let constraints = [&any, &parent, &child, &exact];
+
+        for constraint in constraints {
+            assert!(constraint.attenuates(constraint));
+        }
+        assert!(exact.attenuates(&child));
+        assert!(child.attenuates(&parent));
+        assert!(parent.attenuates(&any));
+        assert!(exact.attenuates(&parent));
+        assert!(exact.attenuates(&any));
+        assert!(!child.attenuates(&exact));
+        assert!(!any.attenuates(&parent));
+    }
+
+    #[test]
+    fn optional_budget_and_status_constructor_matrices_are_partial_orders() {
+        let high = numeric_budget(u64::MAX);
+        let middle = numeric_budget(10);
+        let low = numeric_budget(0);
+        let budgets = [None, Some(&high), Some(&middle), Some(&low)];
+        for budget in budgets {
+            assert!(optional_budget_attenuates(budget, budget));
+        }
+        assert!(optional_budget_attenuates(Some(&low), Some(&middle)));
+        assert!(optional_budget_attenuates(Some(&middle), Some(&high)));
+        assert!(optional_budget_attenuates(Some(&low), Some(&high)));
+
+        let expiry = StatusPolicy::ExpiryOnly;
+        let relaxed = snapshot("status-v1", u64::MAX);
+        let middle = snapshot("status-v1", 10);
+        let strict = snapshot("status-v1", 1);
+        let policies = [&expiry, &relaxed, &middle, &strict];
+        for policy in policies {
+            assert!(policy.attenuates(policy));
+        }
+        assert!(strict.attenuates(&middle));
+        assert!(middle.attenuates(&relaxed));
+        assert!(strict.attenuates(&relaxed));
+        assert!(relaxed.attenuates(&expiry));
+        assert!(!expiry.attenuates(&relaxed));
+        assert!(!strict.attenuates(&snapshot("other-status-v1", 10)));
+    }
+
+    #[test]
     fn principal_scheme_is_canonical() {
         assert!(PrincipalId::parse("did:key:z6Mk").is_ok());
         assert_eq!(
@@ -4238,20 +4848,133 @@ mod tests {
     proptest! {
         #[test]
         fn validity_containment_is_transitive(
-            parent_start in 0_u64..1_000_000,
-            left in 0_u64..10_000,
-            right in 0_u64..10_000,
+            mut points in prop::collection::vec(any::<u64>(), 6..=6),
         ) {
-            let parent_end = parent_start.saturating_add(left).saturating_add(right);
+            points.sort_unstable();
             let parent = ValidityWindow::new(
-                Timestamp::new(parent_start),
-                Timestamp::new(parent_end),
+                Timestamp::new(points[0]),
+                Timestamp::new(points[5]),
             ).expect("generated parent is ordered");
+            let middle = ValidityWindow::new(
+                Timestamp::new(points[1]),
+                Timestamp::new(points[4]),
+            ).expect("generated middle is ordered");
             let child = ValidityWindow::new(
-                Timestamp::new(parent_start.saturating_add(left)),
-                Timestamp::new(parent_end),
+                Timestamp::new(points[2]),
+                Timestamp::new(points[3]),
             ).expect("generated child is ordered");
+            prop_assert!(parent.contains_window(middle));
+            prop_assert!(middle.contains_window(child));
             prop_assert!(parent.contains_window(child));
+            prop_assert!(parent.contains_window(parent));
+        }
+
+        #[test]
+        fn permission_subset_is_reflexive_transitive_and_antisymmetric(
+            bytes in prop::collection::vec(any::<u8>(), 1..=128),
+        ) {
+            let grand = PermissionSet::new(
+                bytes.iter().map(|byte| permission(usize::from(*byte))).collect()
+            ).expect("non-empty bounded permission set");
+            let middle_len = grand.as_slice().len().div_ceil(2);
+            let middle = PermissionSet::new(grand.as_slice()[..middle_len].to_vec())
+                .expect("non-empty middle set");
+            let child = PermissionSet::new(vec![middle.as_slice()[0].clone()])
+                .expect("singleton child");
+            prop_assert!(grand.is_subset_of(&grand));
+            prop_assert!(middle.is_subset_of(&grand));
+            prop_assert!(child.is_subset_of(&middle));
+            prop_assert!(child.is_subset_of(&grand));
+
+            let reordered = PermissionSet::new(
+                grand.as_slice().iter().rev().cloned().collect()
+            ).expect("canonical reordered set");
+            prop_assert!(grand.is_subset_of(&reordered));
+            prop_assert!(reordered.is_subset_of(&grand));
+            prop_assert_eq!(grand, reordered);
+        }
+
+        #[test]
+        fn audience_subset_is_reflexive_transitive_and_antisymmetric(
+            bytes in prop::collection::vec(any::<u8>(), 1..=128),
+        ) {
+            let grand = AudienceSet::new(
+                bytes.iter().map(|byte| audience(usize::from(*byte))).collect()
+            ).expect("non-empty bounded audience set");
+            let middle_len = grand.as_slice().len().div_ceil(2);
+            let middle = AudienceSet::new(grand.as_slice()[..middle_len].to_vec())
+                .expect("non-empty middle set");
+            let child = AudienceSet::new(vec![middle.as_slice()[0].clone()])
+                .expect("singleton child");
+            prop_assert!(grand.is_subset_of(&grand));
+            prop_assert!(middle.is_subset_of(&grand));
+            prop_assert!(child.is_subset_of(&middle));
+            prop_assert!(child.is_subset_of(&grand));
+
+            let reordered = AudienceSet::new(
+                grand.as_slice().iter().rev().cloned().collect()
+            ).expect("canonical reordered set");
+            prop_assert!(grand.is_subset_of(&reordered));
+            prop_assert!(reordered.is_subset_of(&grand));
+            prop_assert_eq!(grand, reordered);
+        }
+
+        #[test]
+        fn body_digest_subset_is_reflexive_transitive_and_antisymmetric(
+            bytes in prop::collection::vec(any::<u8>(), 1..=128),
+        ) {
+            let grand = BodyDigestSet::new(bytes.iter().map(|byte| digest(*byte)).collect())
+                .expect("non-empty bounded digest set");
+            let middle_len = grand.as_slice().len().div_ceil(2);
+            let middle = BodyDigestSet::new(grand.as_slice()[..middle_len].to_vec())
+                .expect("non-empty middle set");
+            let child = BodyDigestSet::new(vec![middle.as_slice()[0]])
+                .expect("singleton child");
+            prop_assert!(grand.is_subset_of(&grand));
+            prop_assert!(middle.is_subset_of(&grand));
+            prop_assert!(child.is_subset_of(&middle));
+            prop_assert!(child.is_subset_of(&grand));
+
+            let reordered = BodyDigestSet::new(
+                grand.as_slice().iter().rev().copied().collect()
+            ).expect("canonical reordered set");
+            prop_assert!(grand.is_subset_of(&reordered));
+            prop_assert!(reordered.is_subset_of(&grand));
+            prop_assert_eq!(grand, reordered);
+        }
+
+        #[test]
+        fn numeric_budget_is_reflexive_transitive_and_antisymmetric(
+            mut values in prop::collection::vec(any::<u64>(), 3..=3),
+        ) {
+            values.sort_unstable();
+            let child = numeric_budget(values[0]);
+            let middle = numeric_budget(values[1]);
+            let parent = numeric_budget(values[2]);
+            prop_assert!(child.attenuates(&child));
+            prop_assert!(child.attenuates(&middle));
+            prop_assert!(middle.attenuates(&parent));
+            prop_assert!(child.attenuates(&parent));
+            if child.attenuates(&middle) && middle.attenuates(&child) {
+                prop_assert_eq!(child, middle);
+            }
+        }
+
+        #[test]
+        fn status_policy_is_reflexive_transitive_and_antisymmetric(
+            mut ages in prop::collection::vec(1_u64..=u64::MAX, 3..=3),
+        ) {
+            ages.sort_unstable();
+            let child = snapshot("status-v1", ages[0]);
+            let middle = snapshot("status-v1", ages[1]);
+            let parent = snapshot("status-v1", ages[2]);
+            prop_assert!(child.attenuates(&child));
+            prop_assert!(child.attenuates(&middle));
+            prop_assert!(middle.attenuates(&parent));
+            prop_assert!(child.attenuates(&parent));
+            if child.attenuates(&middle) && middle.attenuates(&child) {
+                prop_assert_eq!(child, middle);
+            }
         }
 
         #[test]
