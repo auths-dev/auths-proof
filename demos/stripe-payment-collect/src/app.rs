@@ -10,8 +10,9 @@ use auths_profile_api::ActionProfile as _;
 use auths_stripe::{
     Currency, DigestHex, ExecutePaymentCollectRequest, MERCHANT_POLICY_PROVENANCE,
     MerchantAggregateBudget, MerchantBudgetWindow, MerchantConnectAccount, MerchantOperation,
-    MerchantPaymentStore, PaymentCollectService, PaymentCollectServiceDependencies,
-    PaymentCollectWorkflowOutcome, PersistentMerchantPaymentStore, SdkPaymentCollectProofVerifier,
+    MerchantPaymentStore, MerchantReservationState, PaymentCollectService,
+    PaymentCollectServiceDependencies, PaymentCollectWorkflowOutcome,
+    PersistentMerchantPaymentStore, SdkPaymentCollectProofVerifier,
     StripeBoundedMerchantPaymentPolicyInput, StripeBoundedMerchantPaymentPolicyV1,
     StripeExactPaymentCollectInput, StripeExactPaymentCollectV1,
     StripeMerchantEvaluatorConfigurationV1, StripePaymentCollectProfile, SystemClock,
@@ -415,6 +416,17 @@ async fn execute(
     Json(request): Json<ExecuteRequest>,
 ) -> Result<Json<Value>, ApiError> {
     let now = unix_time().map_err(|_| ApiError::internal())?;
+    if request.experiment == "replay" {
+        let session_is_available = state
+            .sessions
+            .lock()
+            .await
+            .get(&session_id)
+            .is_some_and(|session| session.expires_at > now);
+        if !session_is_available {
+            return durable_replay(&state, &session_id);
+        }
+    }
     let materials = {
         let sessions = state.sessions.lock().await;
         let session = sessions
@@ -475,6 +487,27 @@ async fn execute(
     if let Some(session) = state.sessions.lock().await.get_mut(&session_id) {
         session.last_result = Some(response.clone());
     }
+    Ok(Json(response))
+}
+
+fn durable_replay(state: &AppState, session_id: &str) -> Result<Json<Value>, ApiError> {
+    if session_id.len() != 32 || !session_id.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err(ApiError::session_missing());
+    }
+    let workflow_id = format!("collect-{session_id}");
+    let record = state
+        .store
+        .get(&workflow_id)
+        .map_err(|_| ApiError::internal())?
+        .ok_or_else(ApiError::session_missing)?;
+    if !matches!(
+        record.state(),
+        MerchantReservationState::Committed | MerchantReservationState::ReconciledCommitted
+    ) {
+        return Err(ApiError::session_missing());
+    }
+    let mut response = outcome_projection(PaymentCollectWorkflowOutcome::Replay { record }, 0, 0)?;
+    attach_latest_receipt(&state.receipts, &workflow_id, &mut response)?;
     Ok(Json(response))
 }
 
@@ -1346,6 +1379,34 @@ mod tests {
         assert!(!encoded.contains("\"client_secret\":"));
         assert_eq!(replay["boundary"]["client_secret_exposed"], false);
         assert!(!encoded.contains(&["sk", "test"].join("_")));
+    }
+
+    #[tokio::test]
+    async fn durable_replay_survives_application_restart_without_provider_io() {
+        let temp = tempfile::tempdir().unwrap();
+        let environment = Arc::new(MockEnvironment::new());
+        let config = AppConfig::for_test(temp.path().to_path_buf());
+        let first_router = app_with_environment(config.clone(), environment.clone()).unwrap();
+        let fresh = session(&first_router).await;
+        let session_id = fresh["session_id"].as_str().unwrap().to_owned();
+        let collected = execute_experiment(&first_router, &fresh, "success").await;
+        assert_eq!(collected["outcome"], "collected");
+        drop(first_router);
+
+        let restarted_router = app_with_environment(config, environment.clone()).unwrap();
+        let (status, replay) = json_request(
+            &restarted_router,
+            "POST",
+            &format!("/api/v1/sessions/{session_id}/execute"),
+            Some(json!({"experiment": "replay"})),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(replay["outcome"], "replay");
+        assert_eq!(replay["record"]["state"], "committed");
+        assert_eq!(replay["boundary"]["credential_requests"], 0);
+        assert_eq!(replay["boundary"]["provider_calls"], 0);
+        assert_eq!(environment.create_calls.load(Ordering::Relaxed), 1);
     }
 
     #[tokio::test]
