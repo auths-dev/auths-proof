@@ -11,19 +11,31 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 150
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+      - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # master
+        with:
+          toolchain: 1.91.0
+      - uses: ./.github/actions/setup-rust-cache
         with:
           toolchain: 1.97.1
           components: rustfmt, clippy
           targets: wasm32-unknown-unknown
-      - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # master
+          compiler-cache: "false"
+      - uses: leanprover/lean-action@38fbc41a8c28c4cbaec22d7f7de508ec2e7c0dd9 # v1.5.0
         with:
-          toolchain: 1.91.0
+          auto-config: false
+          build: false
+          test: false
+          lint: false
+          mk_all-check: false
+          check-reservoir-eligibility: false
+          leanchecker: false
+          nanoda: false
+          lake-package-directory: formal
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22.23.1
@@ -42,11 +54,29 @@ jobs:
         run: |
           cargo install wasm-bindgen-cli --version 0.2.118 --locked
           cargo install wasm-pack --version 0.15.0 --locked
+          cargo install kani-verifier --version 0.67.0 --locked
+          cargo kani setup
           python -m pip install maturin==1.9.6
           npm ci --prefix bindings/typescript
+      - name: Install pinned Nix
+        uses: cachix/install-nix-action@ab739621df7a23f52766f9ccc97f38da6b7af14f # v31.10.5
+        with:
+          extra_nix_config: |
+            extra-substituters = https://hacl.cachix.org
+            extra-trusted-public-keys = hacl.cachix.org-1:FzsZ2xsByOwKwIWNPII7yMOelJNDZ12mDAj3d1eGX0c=
+      - name: Build pinned Aeneas and Charon
+        run: >-
+          nix build
+          github:AeneasVerif/aeneas/3a8586facab25b31bdb1e1f5f45acd60d1cc5ff0#aeneas
+          --out-link target/formal-tools
       - name: Run release checks and generate evidence
         id: release_check
         run: cargo xtask release-check
+      - name: Reproduce exact production translation twice
+        env:
+          AUTHS_AENEAS_BIN: ${{ github.workspace }}/target/formal-tools/bin/aeneas
+          AUTHS_CHARON_BIN: ${{ github.workspace }}/target/formal-tools/bin/charon
+        run: cargo xtask formal qualify aeneas
       - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2
       - name: Preserve release archives and evidence
         if: ${{ always() && steps.release_check.outcome == 'success' }}
@@ -56,6 +86,7 @@ jobs:
           path: |
             target/package/*.crate
             target/release-evidence/
+            target/formal/
           if-no-files-found: error
           retention-days: 90
           compression-level: 9

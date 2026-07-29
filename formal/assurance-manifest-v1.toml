@@ -1,0 +1,2876 @@
+schema = "auths-proof-formal-assurance/v1"
+lean_toolchain = "leanprover/lean4:v4.31.0"
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+allowed_axioms = [
+    "Classical.choice",
+    "Quot.sound",
+    "propext",
+]
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-001"
+claim_text = "Lean proves the rich authority property: finiteSet subset refl."
+claim_status = "proved"
+lean_declaration = "Auths.Rich.finiteSet_subset_refl"
+lean_statement_sha256 = "cac9d4b80390ce990484b56aee1f0d20fcb8d1b2b2b8f07ef1fa819caca6982c"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-002"
+claim_text = "Lean proves the rich authority property: finiteSet subset trans."
+claim_status = "proved"
+lean_declaration = "Auths.Rich.finiteSet_subset_trans"
+lean_statement_sha256 = "620ac85f39efb4108727cc41c2b3b7663eea53ffde7ef5d782ee2e5897e161da"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-003"
+claim_text = "Lean proves the rich authority property: finiteSet subset antisymm."
+claim_status = "proved"
+lean_declaration = "Auths.Rich.finiteSet_subset_antisymm"
+lean_statement_sha256 = "04c8f87dfb0552e7abf656cf19ca4e29a5a81369e1178eb7d9aa634966a115be"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-004"
+claim_text = "Lean proves the rich authority property: finiteSet membership monotone."
+claim_status = "proved"
+lean_declaration = "Auths.Rich.finiteSet_membership_monotone"
+lean_statement_sha256 = "526bdf55ccea3aa1a07aef06197ef303b18a5c083994c97056422713106028a2"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-005"
+claim_text = "Lean proves the rich authority property: window contained refl."
+claim_status = "proved"
+lean_declaration = "Auths.Rich.window_contained_refl"
+lean_statement_sha256 = "52b61c239b76a3ec75ebc375c19ba060e170f9c88ab845652188da7e1f32c715"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = ["propext"]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-006"
+claim_text = "Lean proves the rich authority property: window contained trans."
+claim_status = "proved"
+lean_declaration = "Auths.Rich.window_contained_trans"
+lean_statement_sha256 = "ed63f2b8060617d8e042f212bea8d9df13b58494cd94ef01081d7c849e19de7b"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Classical.choice",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-007"
+claim_text = "Lean proves the rich authority property: window contained antisymm."
+claim_status = "proved"
+lean_declaration = "Auths.Rich.window_contained_antisymm"
+lean_statement_sha256 = "a263d89be575fd98940d6a3324ec862360cfe26b2024dd38a13b828b763aa74a"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Classical.choice",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-008"
+claim_text = "Lean proves the rich authority property: window coverage monotone."
+claim_status = "proved"
+lean_declaration = "Auths.Rich.window_coverage_monotone"
+lean_statement_sha256 = "e8d8a9503bde767273a9b55883a18365323b88ae798ebd4de744ffd822ee9dd7"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Classical.choice",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-009"
+claim_text = "Lean proves the rich authority property: action constraint refl."
+claim_status = "proved"
+lean_declaration = "Auths.Rich.action_constraint_refl"
+lean_statement_sha256 = "6b41a97add7b56d69dde91e7008ca41e34f568ca4081d8b81ca5b728342e5c1d"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-010"
+claim_text = "Lean proves the rich authority property: action constraint trans."
+claim_status = "proved"
+lean_declaration = "Auths.Rich.action_constraint_trans"
+lean_statement_sha256 = "1510dabf7d9cf6d4c1bdb99de295ced7f32f3c44678519aef38aa3fb58dcdee0"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-011"
+claim_text = "Lean proves the rich authority property: action constraint antisymm."
+claim_status = "proved"
+lean_declaration = "Auths.Rich.action_constraint_antisymm"
+lean_statement_sha256 = "1a55d3278db8c4d0821d41a8d9a367e4c492f5b35be243e535671b890e07122b"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-012"
+claim_text = "Lean proves the rich authority property: action constraint allows monotone."
+claim_status = "proved"
+lean_declaration = "Auths.Rich.action_constraint_allows_monotone"
+lean_statement_sha256 = "49927a15dec0e627c64244b981bd81ca171589f5ada904616bcec9811746efe2"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-013"
+claim_text = "Lean proves the rich authority property: budget refl."
+claim_status = "proved"
+lean_declaration = "Auths.Rich.budget_refl"
+lean_statement_sha256 = "54ffb1f592e48a7292cb925afd2f0e1c4c2412a46b7b5d8aeec7113fe58fc09a"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = ["propext"]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-014"
+claim_text = "Lean proves the rich authority property: budget trans."
+claim_status = "proved"
+lean_declaration = "Auths.Rich.budget_trans"
+lean_statement_sha256 = "313fe44a88fa3efd9bc1800bf0e6169039c5bcec051b847ea86c71d27318e0ae"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = []
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-015"
+claim_text = "Lean proves the rich authority property: budget antisymm."
+claim_status = "proved"
+lean_declaration = "Auths.Rich.budget_antisymm"
+lean_statement_sha256 = "569b03bd90e823b38193e8a9681faf27341786455644132e4861c779c8c3395b"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = ["propext"]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-016"
+claim_text = "Lean proves the rich authority property: budget coverage monotone."
+claim_status = "proved"
+lean_declaration = "Auths.Rich.budget_coverage_monotone"
+lean_statement_sha256 = "594cf3b8740d3b68643756cf665f0be72b2b5b010227f5efc0407ce78fc91520"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = []
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-017"
+claim_text = "Lean proves the rich authority property: status refl."
+claim_status = "proved"
+lean_declaration = "Auths.Rich.status_refl"
+lean_statement_sha256 = "7d5310e68d00575620e99f894080ddc254f48770537a07e1a7e4acdae0090d63"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = ["propext"]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-018"
+claim_text = "Lean proves the rich authority property: status trans."
+claim_status = "proved"
+lean_declaration = "Auths.Rich.status_trans"
+lean_statement_sha256 = "7e9d6580025807c2b2c984e8b167029b84ac610f9dcd280179e4c176872a04a1"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = []
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-019"
+claim_text = "Lean proves the rich authority property: status antisymm."
+claim_status = "proved"
+lean_declaration = "Auths.Rich.status_antisymm"
+lean_statement_sha256 = "a3badc32c1fcd22da760494c3c6eb256e637312f34fa7691591e7283f504867e"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-020"
+claim_text = "Lean proves the rich authority property: status satisfaction monotone."
+claim_status = "proved"
+lean_declaration = "Auths.Rich.status_satisfaction_monotone"
+lean_statement_sha256 = "7f5f3cfc2e90f4a2bdf90499b6b596a0711d27f3668d3d99bcf8c5a0a146e022"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = []
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-021"
+claim_text = "Lean proves the rich authority property: profile refl."
+claim_status = "proved"
+lean_declaration = "Auths.Rich.profile_refl"
+lean_statement_sha256 = "c256b640094e0458a6cb336c78c358b8f35906d7838c86142f649c4d7c3cf9ea"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-022"
+claim_text = "Lean proves the rich authority property: profile trans."
+claim_status = "proved"
+lean_declaration = "Auths.Rich.profile_trans"
+lean_statement_sha256 = "bc702fae63c302ea1b30323b66eaa633f2c489dd14a84bda0802852888da4e5d"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-023"
+claim_text = "Lean proves the rich authority property: profile antisymm."
+claim_status = "proved"
+lean_declaration = "Auths.Rich.profile_antisymm"
+lean_statement_sha256 = "306251093aa948294a625b5fd0e2707c52d9d391f172185ca36949ee0bd022ba"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-024"
+claim_text = "Lean proves the rich authority property: profile coverage monotone."
+claim_status = "proved"
+lean_declaration = "Auths.Rich.profile_coverage_monotone"
+lean_statement_sha256 = "fa6e1ec9008031df18e845bb6457030c5169bff159a30e5a30e4be9d7b445c16"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-025"
+claim_text = "Lean proves the rich authority property: structural scope le refl."
+claim_status = "proved"
+lean_declaration = "Auths.Rich.structural_scope_le_refl"
+lean_statement_sha256 = "e61ced1d2049cd8c84935cdde0858c82d8feb3b040f90d03ced37a27f740d874"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-026"
+claim_text = "Lean proves the rich authority property: structural scope le trans."
+claim_status = "proved"
+lean_declaration = "Auths.Rich.structural_scope_le_trans"
+lean_statement_sha256 = "35da0ff881c83e4a3077b07e6f8adb8930d92a72b1327b9781d6a0054b63886e"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Classical.choice",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-027"
+claim_text = "Lean proves the rich authority property: scope le canonical antisymmetry."
+claim_status = "proved"
+lean_declaration = "Auths.Rich.scope_le_canonical_antisymmetry"
+lean_statement_sha256 = "0455362b16e809490874d6e193321918177df133866f59b2bbd406d1f666c8d3"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Classical.choice",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-028"
+claim_text = "Lean proves the rich authority property: action coverage downward closed."
+claim_status = "proved"
+lean_declaration = "Auths.Rich.action_coverage_downward_closed"
+lean_statement_sha256 = "966cd95b7984d06ef0db93a5319c757c2510dc98965e6fe5234774804877a941"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Classical.choice",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-029"
+claim_text = "Lean proves the rich authority property: evidence requirements downward closed."
+claim_status = "proved"
+lean_declaration = "Auths.Rich.evidence_requirements_downward_closed"
+lean_statement_sha256 = "2beb990df92aeb12bc99e21b5d4547630d571c3467658116dcba648bae91589b"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-030"
+claim_text = "Lean proves the rich authority property: complete admission downward closed."
+claim_status = "proved"
+lean_declaration = "Auths.Rich.complete_admission_downward_closed"
+lean_statement_sha256 = "6a8eb24b2e620903dc1682cb63c6dd3922b425e560441ca3db16127a8dab285b"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Classical.choice",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-031"
+claim_text = "Lean proves the rich authority property: semantic attenuation preorder refl."
+claim_status = "proved"
+lean_declaration = "Auths.Rich.semantic_attenuation_preorder_refl"
+lean_statement_sha256 = "8c15f5f719bec44ca71e44f53ccc6c900cf26c67f9f8b9e3f8ef7cb8e52618f6"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-032"
+claim_text = "Lean proves the rich authority property: semantic attenuation preorder trans."
+claim_status = "proved"
+lean_declaration = "Auths.Rich.semantic_attenuation_preorder_trans"
+lean_statement_sha256 = "eadb4979eaede05d4d8262f1d47d02f0d63c5a1e76bd296e22dceb46e789d79d"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-033"
+claim_text = "Lean proves the rich authority property: structural scope le implies semantic attenuation."
+claim_status = "proved"
+lean_declaration = "Auths.Rich.structural_scope_le_implies_semantic_attenuation"
+lean_statement_sha256 = "763897035b5b8b85931035453db38a19135cd78f9e8071be632e99774849650c"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Classical.choice",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-034"
+claim_text = "Lean proves the rich authority property: scope semantic equivalence."
+claim_status = "proved"
+lean_declaration = "Auths.Rich.scope_semantic_equivalence"
+lean_statement_sha256 = "f1ffad1790150c98ed431798970479dc669fe52189b171385ea33ab1650f872e"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-035"
+claim_text = "Lean proves the rich authority property: structural scope le decides declared v1 relation."
+claim_status = "proved"
+lean_declaration = "Auths.Rich.structural_scope_le_decides_declared_v1_relation"
+lean_statement_sha256 = "b0370bdf959189b5146c84c956e48eba5b9ab855985c8b3724ec82bb1c684f3e"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Classical.choice",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-036"
+claim_text = "Lean proves the rich authority property: delegate implies scope le."
+claim_status = "proved"
+lean_declaration = "Auths.Rich.delegate_implies_scope_le"
+lean_statement_sha256 = "de367444bfa8ef53140e157da7429ec957d0a7f6ccc17f80255ef3a93e3fe104"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-037"
+claim_text = "Lean proves the rich authority property: delegate preserves root."
+claim_status = "proved"
+lean_declaration = "Auths.Rich.delegate_preserves_root"
+lean_statement_sha256 = "60648d6a9993223e4261470f7d55b13fb2cc0407d28277d7b74abfcf8c468c06"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-038"
+claim_text = "Lean proves the rich authority property: delegate updates subject and parent."
+claim_status = "proved"
+lean_declaration = "Auths.Rich.delegate_updates_subject_and_parent"
+lean_statement_sha256 = "0db5c5d208556a219fb461f7bc0909873bad9277dad0de06413ca8b01aec8e16"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-039"
+claim_text = "Lean proves the rich authority property: delegate strict depth."
+claim_status = "proved"
+lean_declaration = "Auths.Rich.delegate_strict_depth"
+lean_statement_sha256 = "ded87036b3807b9f99d31cd220f2fa61a0b84d74d76bea27f7b2419ea6ba777a"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-040"
+claim_text = "Lean proves the rich authority property: delegate never widens."
+claim_status = "proved"
+lean_declaration = "Auths.Rich.delegate_never_widens"
+lean_statement_sha256 = "de367444bfa8ef53140e157da7429ec957d0a7f6ccc17f80255ef3a93e3fe104"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-041"
+claim_text = "Lean proves the rich authority property: remaining depth well founded."
+claim_status = "proved"
+lean_declaration = "Auths.Rich.remaining_depth_well_founded"
+lean_statement_sha256 = "dcf9ed58cbeb7f0b6d9c7fa332d1b3f696f0114cee5ab770d2ad31b27d8698eb"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-042"
+claim_text = "Lean proves the rich authority property: finite delegation chain."
+claim_status = "proved"
+lean_declaration = "Auths.Rich.finite_delegation_chain"
+lean_statement_sha256 = "be71ae8cda95eacce7a2b8249bc41432bd1927b5739bcc7e44cd69227fe2bd5f"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-043"
+claim_text = "Lean proves the rich authority property: chain transitive attenuation."
+claim_status = "proved"
+lean_declaration = "Auths.Rich.chain_transitive_attenuation"
+lean_statement_sha256 = "4b27f3c343e686e05192449049a211a9c1b680ebdc8192d50672e90fc79a0c00"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Classical.choice",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-044"
+claim_text = "Lean proves the rich authority property: authorized action covered."
+claim_status = "proved"
+lean_declaration = "Auths.Rich.authorized_action_covered"
+lean_statement_sha256 = "c39a96f75c9dc2d3d536b9749bbd7b27a5f54acda84f831b8eb05ea0187fa641"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Classical.choice",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-045"
+claim_text = "Lean proves the rich authority property: rich projection accepts iff scope depth checks."
+claim_status = "proved"
+lean_declaration = "Auths.Rich.rich_projection_accepts_iff_scope_depth_checks"
+lean_statement_sha256 = "c0d2f92e3212b8abf6f85ca9d15272169e44c1c5df58964254e51e54c619a729"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-046"
+claim_text = "Lean proves the rich authority property: apply grant success iff linked and projection."
+claim_status = "proved"
+lean_declaration = "Auths.Rich.apply_grant_success_iff_linked_and_projection"
+lean_statement_sha256 = "9c17c930b5cfce57ccda484c98a7a54dd1c8ab4124dc46eba1ba315566538e2f"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-047"
+claim_text = "Lean proves the rich authority property: apply grant success iff delegates."
+claim_status = "proved"
+lean_declaration = "Auths.Rich.apply_grant_success_iff_delegates"
+lean_statement_sha256 = "776ca2044cca309f3dd815c4ada85d6ebbfd3aed142e71e76de00d4b1a344bb8"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-048"
+claim_text = "Lean proves the rich authority property: apply grant success unique."
+claim_status = "proved"
+lean_declaration = "Auths.Rich.apply_grant_success_unique"
+lean_statement_sha256 = "d93df7b633eb7224af71b294f781d7f9bd5e21b6321f88325bf2d116cbcc97f8"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-049"
+claim_text = "Lean proves the rich authority property: authority delegate diagnostic sound complete."
+claim_status = "proved"
+lean_declaration = "Auths.Rich.authority_delegate_diagnostic_sound_complete"
+lean_statement_sha256 = "1ddc7be4ce1e4b31ebafbb6184a273dde09cb366054712f003d43ab6f3b0c1a6"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Classical.choice",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-050"
+claim_text = "Lean proves the rich authority property: authority delegate first failure."
+claim_status = "proved"
+lean_declaration = "Auths.Rich.authority_delegate_first_failure"
+lean_statement_sha256 = "1ff9079797c906e667ee6e2a83e62c2f6890b454fbd01a300e91368781b59794"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-051"
+claim_text = "Lean proves the rich authority property: author planning diagnostic sound complete."
+claim_status = "proved"
+lean_declaration = "Auths.Rich.author_planning_diagnostic_sound_complete"
+lean_statement_sha256 = "818f74284046e1a4e389b3388f8626218630bd2ab9271bcdacf1454c24562b28"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Classical.choice",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-052"
+claim_text = "Lean proves the rich authority property: coverage decision ok iff covers."
+claim_status = "proved"
+lean_declaration = "Auths.Rich.coverage_decision_ok_iff_covers"
+lean_statement_sha256 = "8ccb1400406fde542fab87855806759b0e8ee0eb0382e85630a1295f460836b8"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-053"
+claim_text = "Lean proves the rich authority property: coverage diagnostic sound complete."
+claim_status = "proved"
+lean_declaration = "Auths.Rich.coverage_diagnostic_sound_complete"
+lean_statement_sha256 = "9687e4cb8fa0171e91273652857969ee041c87d3f36e1092ea4a5c31da50849a"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-054"
+claim_text = "The mechanically translated production author-scope evaluator returns exactly the rich target-V1 decision and first failing authority dimension."
+claim_status = "proved"
+lean_declaration = "Auths.Refinement.translated_rust_refines_rich_spec"
+lean_statement_sha256 = "02391404f631207388637d5162c0f4a9bf17050a7e7a5ae18cb658079f7e5192"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = [
+    "auths_authority::evaluate_author_scope_view",
+    "auths_model::profile_ref_equal",
+    "auths_model::permission_set_is_subset",
+    "auths_model::validity_window_contains",
+    "auths_model::audience_set_is_subset",
+    "auths_model::action_constraint_attenuates",
+    "auths_model::optional_budget_attenuates",
+    "auths_model::status_policy_attenuates",
+    "auths_model::assurance_policy_id_equal",
+]
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "The exact Aeneas translation of the production pre-signing scope evaluator over validated, bounded Rust model views, including ordered diagnostics."
+residual_assumptions = [
+    "Lean's kernel, the pinned Rust/Lean/Aeneas/Charon toolchain, the reviewed Aeneas external models, the listed foundational axioms, and the theorem's representation-validity premises are trusted.",
+    "Canonical byte decoding into validated model values is a separate tested trust boundary and is not claimed by this theorem.",
+]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Classical.choice",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Refinement/Production.lean"
+
+[[claims.evidence]]
+kind = "mechanical-translation"
+artifact = "formal/qualification/aeneas/generated/authority/Funs.lean"
+
+[[claims.evidence]]
+kind = "source-closure"
+artifact = "formal/qualification/aeneas/source-closure.json"
+
+[[claims.evidence]]
+kind = "lean-generated-vectors"
+artifact = "core/formal-vectors/v1/rich-authority.json"
+
+[[claims.evidence]]
+kind = "mutation-matrix"
+artifact = "formal/refinement-mutations-v1.json"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-055"
+claim_text = "The mechanically translated production terminal-coverage evaluator returns exactly the ordered rich target-V1 decision, including linkage, set membership, interval containment, action constraints, and requested-budget coverage."
+claim_status = "proved"
+lean_declaration = "Auths.Refinement.translated_coverage_refines_rich_spec"
+lean_statement_sha256 = "634baf398f6c0e43bb6550386d45e21e0d18acb8e16feefa6d077dd4340ee211"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = [
+    "auths_authority::evaluate_action_coverage_view",
+    "auths_authority::selected_profile_attenuates",
+    "auths_model::principal_id_equal",
+    "auths_model::optional_grant_id_equal",
+    "auths_model::permission_set_contains",
+    "auths_model::validity_window_contains",
+    "auths_model::audience_set_contains",
+    "auths_model::action_constraint_allows",
+    "auths_model::optional_budget_covers",
+]
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Validated target-V1 authority and action views through the production terminal-coverage decision, including its first-failure diagnostic order."
+residual_assumptions = ["The theorem assumes validated Rust representation invariants for bounded strings, well-formed inclusive windows, canonical bounded sets, non-zero freshness limits, and selected-profile membership. Codec validation and cryptography remain outside this claim."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Classical.choice",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Refinement/Production.lean"
+
+[[claims.evidence]]
+kind = "translated-rust"
+artifact = "formal/qualification/aeneas/generated/authority/Funs.lean"
+
+[[claims.evidence]]
+kind = "lean-generated-vectors"
+artifact = "core/formal-vectors/v1/rich-authority.json"
+
+[[claims.evidence]]
+kind = "mutation-matrix"
+artifact = "formal/refinement-mutations-v1.json"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-056"
+claim_text = "The mechanically translated production delegation evaluator returns exactly the rich target-V1 linkage and attenuation decision, including the unique accepted transition fields."
+claim_status = "proved"
+lean_declaration = "Auths.Refinement.translated_delegation_refines_rich_spec"
+lean_statement_sha256 = "daaf9c3215698330a002b0e27ce1df9a9c39a0ff475dbd4681938143c273d1d3"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = [
+    "auths_authority::evaluate_grant_view",
+    "auths_authority::selected_profile_attenuates",
+    "auths_model::principal_id_equal",
+    "auths_model::optional_grant_id_equal",
+    "auths_model::permission_set_is_subset",
+    "auths_model::validity_window_contains",
+    "auths_model::audience_set_is_subset",
+    "auths_model::action_constraint_attenuates",
+    "auths_model::optional_budget_attenuates",
+    "auths_model::status_policy_attenuates",
+    "auths_model::assurance_policy_id_equal",
+    "auths_algebra_kernel::generated::attenuation_checks_accept",
+]
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Validated target-V1 parent-authority and grant views through the production delegation outcome and accepted transition."
+residual_assumptions = ["The theorem assumes validated Rust representation invariants for bounded strings, well-formed inclusive windows, canonical bounded sets, non-zero freshness limits, and selected-profile membership. Root preservation and assurance retention occur in the caller around the proved returned transition; codec validation and cryptography remain outside this claim."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Classical.choice",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Refinement/Production.lean"
+
+[[claims.evidence]]
+kind = "translated-rust"
+artifact = "formal/qualification/aeneas/generated/authority/Funs.lean"
+
+[[claims.evidence]]
+kind = "lean-generated-vectors"
+artifact = "core/formal-vectors/v1/rich-authority.json"
+
+[[claims.evidence]]
+kind = "mutation-matrix"
+artifact = "formal/refinement-mutations-v1.json"
+
+[[claims]]
+claim_id = "AP-FORMAL-BASELINE-012"
+claim_text = "Binary all composition is commutative."
+claim_status = "proved"
+lean_declaration = "Auths.all_commutative"
+lean_statement_sha256 = "fd3226a3df5fb4730eeaeb50b3190d9f0ae29aeb961d395825787945fdcdd445"
+formal_review = "formal-security-baseline-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "The closed three-valued binary all operator."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, and the listed foundational axioms are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = ["propext"]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Composition.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-BASELINE-013"
+claim_text = "Binary all composition is associative."
+claim_status = "proved"
+lean_declaration = "Auths.all_associative"
+lean_statement_sha256 = "5749607a3f2752bdd73ae4559af264763d8a36ec3d1258ed4f60b11467d7e12d"
+formal_review = "formal-security-baseline-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "The closed three-valued binary all operator."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, and the listed foundational axioms are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = ["propext"]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Composition.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-BASELINE-014"
+claim_text = "Binary all composition is idempotent."
+claim_status = "proved"
+lean_declaration = "Auths.all_idempotent"
+lean_statement_sha256 = "99993635cb0eadeacab1d64ee7f674245481d4160a770deaed82022c0851a3f6"
+formal_review = "formal-security-baseline-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "The closed three-valued binary all operator."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, and the listed foundational axioms are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = ["propext"]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Composition.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-BASELINE-015"
+claim_text = "Binary any composition is commutative."
+claim_status = "proved"
+lean_declaration = "Auths.any_commutative"
+lean_statement_sha256 = "a2680b963a19fb4f377fefaad4102a4469895954bbea2b7541894902e979115d"
+formal_review = "formal-security-baseline-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "The closed three-valued binary any operator."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, and the listed foundational axioms are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = ["propext"]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Composition.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-BASELINE-016"
+claim_text = "Binary any composition is associative."
+claim_status = "proved"
+lean_declaration = "Auths.any_associative"
+lean_statement_sha256 = "3ceaf22f6776423ee96cbdf5fa9bc5c13fca94bdbb3355b016d6b8e4c275afa8"
+formal_review = "formal-security-baseline-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "The closed three-valued binary any operator."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, and the listed foundational axioms are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = ["propext"]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Composition.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-BASELINE-017"
+claim_text = "Binary any composition is idempotent."
+claim_status = "proved"
+lean_declaration = "Auths.any_idempotent"
+lean_statement_sha256 = "8f1cb9d3d130a67d026a96f278678b9070badc44f40f7c538ee68a3f9af90d82"
+formal_review = "formal-security-baseline-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "The closed three-valued binary any operator."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, and the listed foundational axioms are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = ["propext"]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Composition.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-BASELINE-018"
+claim_text = "A threshold of one over two truth values equals binary any."
+claim_status = "proved"
+lean_declaration = "Auths.threshold_one_eq_any"
+lean_statement_sha256 = "639a98d2dcab0db13ec9b221b75605fa48ec169a263f76feb2034f912d7a69c7"
+formal_review = "formal-security-baseline-2026-07-29"
+rust_symbols = ["auths_algebra_kernel::threshold_counts"]
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "The generated two-input threshold abstraction."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, generator correctness, and the Rust vector harness are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = ["propext"]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Composition.lean"
+
+[[claims.evidence]]
+kind = "test-corpus"
+artifact = "core/formal-vectors/v1/threshold-counts.json"
+
+[[claims]]
+claim_id = "AP-FORMAL-BASELINE-019"
+claim_text = "A threshold of two over two truth values equals binary all."
+claim_status = "proved"
+lean_declaration = "Auths.threshold_n_eq_all"
+lean_statement_sha256 = "7bfb0c0d44d1f31949d7039be3c2052cab9112fcb12d2abef005e6c52979b815"
+formal_review = "formal-security-baseline-2026-07-29"
+rust_symbols = ["auths_algebra_kernel::threshold_counts"]
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "The generated two-input threshold abstraction."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, generator correctness, and the Rust vector harness are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = ["propext"]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Composition.lean"
+
+[[claims.evidence]]
+kind = "test-corpus"
+artifact = "core/formal-vectors/v1/threshold-counts.json"
+
+[[claims]]
+claim_id = "AP-FORMAL-BASELINE-020"
+claim_text = "Raising the two-input threshold from one to two cannot raise its authorization truth."
+claim_status = "proved"
+lean_declaration = "Auths.threshold_monotone_k"
+lean_statement_sha256 = "34c77c69b14f1b08db8fba8da86a0a9eb65b95147b85d8d3f48811b47cabcb79"
+formal_review = "formal-security-baseline-2026-07-29"
+rust_symbols = ["auths_algebra_kernel::threshold_counts"]
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "Exactly the two-input threshold helper and the declared three-valued truth order."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, listed foundational axioms, generator correctness, and the Rust vector harness are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Composition.lean"
+
+[[claims.evidence]]
+kind = "test-corpus"
+artifact = "core/formal-vectors/v1/threshold-counts.json"
+
+[[claims]]
+claim_id = "AP-FORMAL-BASELINE-021"
+claim_text = "Swapping the two inputs preserves binary all and binary any results."
+claim_status = "proved"
+lean_declaration = "Auths.binary_composition_swap_invariant"
+lean_statement_sha256 = "5a2f18a8b889fca7e2d4f239a97a12490193b19c6d3e8703164e04cc556986c7"
+formal_review = "formal-security-baseline-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "A two-value swap only; arbitrary authorization-plan permutations are not claimed."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, and the listed foundational axioms are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = ["propext"]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Composition.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-BASELINE-022"
+claim_text = "The two-value minimum diagnostic code is invariant under swapping its inputs."
+claim_status = "proved"
+lean_declaration = "Auths.canonical_diagnostic_permutation_invariant"
+lean_statement_sha256 = "c0eae1c5c0004d836da0c28c5d5395ecb7e534d05e9816a573d27b7c0f912806"
+formal_review = "formal-security-baseline-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "The two-value canonicalCode helper; arbitrary plan diagnostic permutations are not claimed."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, and the listed foundational axioms are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = ["propext"]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Composition.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-BASELINE-023"
+claim_text = "The current plan visit helper is definitionally the plan leaf enumeration."
+claim_status = "proved"
+lean_declaration = "Auths.plan_visit_is_leaf_enumeration"
+lean_statement_sha256 = "a9d2d3fd6140d7535c9cf3567cf92a5891e8e77fda5924a34a032bb1d9cab0cb"
+formal_review = "formal-security-baseline-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "A definitional model equality; it does not prove that the shipping evaluator visits leaves once."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, and the listed foundational axioms are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Composition.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-BASELINE-024"
+claim_text = "The current plan cost helper is definitionally the recursive node count."
+claim_status = "proved"
+lean_declaration = "Auths.plan_cost_is_node_count"
+lean_statement_sha256 = "d0e9f71500f5da6108662057f11150fa61188b6b5059562b6db0079bd4e5820e"
+formal_review = "formal-security-baseline-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "A definitional model equality; no asymptotic or shipping evaluator cost bound is claimed."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, and the listed foundational axioms are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Composition.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-BASELINE-025"
+claim_text = "An authorized generated threshold result implies the authorized count meets the threshold."
+claim_status = "proved"
+lean_declaration = "Auths.authorized_implies_threshold_met"
+lean_statement_sha256 = "367522026ebf77cc4e8ee694920ff72384ab58cb573bb7cefb8406117955d2d1"
+formal_review = "formal-security-baseline-2026-07-29"
+rust_symbols = ["auths_algebra_kernel::threshold_counts"]
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "The generated count classifier and its exhaustive target-V1 bounded Rust vectors."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, generator correctness, and the Rust vector harness are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = []
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Composition.lean"
+
+[[claims.evidence]]
+kind = "test-corpus"
+artifact = "core/formal-vectors/v1/threshold-counts.json"
+
+[[claims]]
+claim_id = "AP-FORMAL-BASELINE-026"
+claim_text = "A denied generated threshold result implies authorized plus indeterminate branches cannot meet the threshold."
+claim_status = "proved"
+lean_declaration = "Auths.denied_implies_threshold_impossible"
+lean_statement_sha256 = "50005cbb684ef7566e1b6f71fc766e9960de178f0a86f03e37f4eb63cf7e46d5"
+formal_review = "formal-security-baseline-2026-07-29"
+rust_symbols = ["auths_algebra_kernel::threshold_counts"]
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "The generated count classifier and its exhaustive target-V1 bounded Rust vectors."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, listed foundational axioms, generator correctness, and the Rust vector harness are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Composition.lean"
+
+[[claims.evidence]]
+kind = "test-corpus"
+artifact = "core/formal-vectors/v1/threshold-counts.json"
+
+[[claims]]
+claim_id = "AP-FORMAL-BASELINE-027"
+claim_text = "An indeterminate generated threshold result means authorization is not yet met but remains reachable."
+claim_status = "proved"
+lean_declaration = "Auths.indeterminate_implies_threshold_reachable"
+lean_statement_sha256 = "dd970bbab7dd61f7b1274f9e829358d9627b3c822d4119628191018722f31039"
+formal_review = "formal-security-baseline-2026-07-29"
+rust_symbols = ["auths_algebra_kernel::threshold_counts"]
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "e259dba62b79078ea5a27428497048f8f6380e9eea6273360c43b6cd15eb40f5"
+scope = "The generated count classifier and its exhaustive target-V1 bounded Rust vectors."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, listed foundational axioms, generator correctness, and the Rust vector harness are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Classical.choice",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Composition.lean"
+
+[[claims.evidence]]
+kind = "test-corpus"
+artifact = "core/formal-vectors/v1/threshold-counts.json"

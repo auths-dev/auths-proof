@@ -10,9 +10,10 @@ description = "Monotonic proof authoring support for Auths Proof Protocol V1"
 
 [features]
 default = ["std"]
-std = ["auths-codec/std", "auths-model/std"]
+std = ["auths-authority/std", "auths-codec/std", "auths-model/std"]
 
 [dependencies]
+auths-authority.workspace = true
 auths-codec.workspace = true
 auths-model.workspace = true
 

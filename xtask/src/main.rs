@@ -1,7 +1,9 @@
 #![forbid(unsafe_code)]
 
+mod formal_qualification;
+
 use auths_testkit::Expected;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{
@@ -27,7 +29,19 @@ fn run() -> Result<(), String> {
     let mut args = env::args().skip(1);
     let command = args.next().unwrap_or_else(|| "help".into());
     match command.as_str() {
-        "ci" => ci(),
+        "ci" => {
+            let arguments: Vec<_> = args.collect();
+            match arguments.as_slice() {
+                [] => ci(),
+                [phase] if phase == "authoritative" => ci_authoritative(),
+                [phase] if phase == "formal-translation" => ci_formal_translation(),
+                [phase] if phase == "compliance" => ci_compliance(),
+                _ => Err(format!(
+                    "unknown CI phase {}; expected authoritative, formal-translation, or compliance",
+                    arguments.join(" ")
+                )),
+            }
+        }
         "arch" => arch(args.any(|arg| arg == "--update")),
         "fmt" => format_all(),
         "core-boundary" => core_boundary(),
@@ -55,10 +69,20 @@ fn run() -> Result<(), String> {
         "fuzz-smoke" => fuzz_smoke(),
         "formal" => {
             let arguments: Vec<_> = args.collect();
-            formal(
-                arguments.iter().any(|arg| arg == "--skip-kani"),
-                arguments.iter().any(|arg| arg == "--update"),
-            )
+            match arguments.as_slice() {
+                [qualify, tool] if qualify == "qualify" && tool == "aeneas" => {
+                    formal_qualify_aeneas(false)
+                }
+                [qualify, tool, update]
+                    if qualify == "qualify" && tool == "aeneas" && update == "--update" =>
+                {
+                    formal_qualify_aeneas(true)
+                }
+                _ => formal(
+                    arguments.iter().any(|arg| arg == "--skip-kani"),
+                    arguments.iter().any(|arg| arg == "--update"),
+                ),
+            }
         }
         "adversarial-conformance" => adversarial_conformance(args.collect()),
         "bench" => benchmark(args.collect()),
@@ -76,10 +100,10 @@ fn run() -> Result<(), String> {
                  exchange|product|bindings|demos|package|wire [--update]|spec-sync|\
                  conformance|exchange-conformance|product-conformance|compliance|matrix|cross-language|\
                  product-fixtures [--update]|semantic-digest|wasm|live-demo|fuzz-inventory|fuzz-smoke|\
-                 platform-artifact [output]|formal [--skip-kani] [--update]|\
+                 platform-artifact [output]|formal [--skip-kani] [--update]|formal qualify aeneas [--update]|\
                  adversarial-conformance [--surface <name>|--adapter <name>|--case <id>]|\
                  bench <prepare|run|report|compare|verify-artifact>|\
-                 ci|release-check>"
+                 ci [authoritative|formal-translation|compliance]|release-check>"
             );
             Ok(())
         }
@@ -87,9 +111,14 @@ fn run() -> Result<(), String> {
 }
 
 fn ci() -> Result<(), String> {
+    ci_authoritative()?;
+    formal(false, false)?;
+    ci_compliance()
+}
+
+fn ci_authoritative() -> Result<(), String> {
     format_all()?;
     arch(false)?;
-    let compliance_inventory = compliance_inventory()?;
     repository_hygiene()?;
     cargo(&["check", "--workspace", "--all-targets", "--all-features"])?;
     cargo(&["test", "--workspace", "--all-features"])?;
@@ -104,15 +133,19 @@ fn ci() -> Result<(), String> {
     ])?;
     core_boundary()?;
     workspace_msrv()?;
+    platform_artifact(&root().join("target/release-evidence/platform.json"))?;
+    fuzz_smoke()
+}
+
+fn ci_compliance() -> Result<(), String> {
+    let compliance_inventory = compliance_inventory()?;
     abi()?;
     exchange_conformance()?;
     product_conformance()?;
     product_fixtures(false)?;
     matrix()?;
-    bindings_check()?;
+    bindings_conformance()?;
     package_check()?;
-    platform_artifact(&root().join("target/release-evidence/platform.json"))?;
-    fuzz_smoke()?;
     wasm()?;
     live_demo()?;
     write_compliance_report(&compliance_inventory)
@@ -182,6 +215,10 @@ fn demos_check() -> Result<(), String> {
 
 fn bindings_check() -> Result<(), String> {
     layer_check("bindings")?;
+    bindings_conformance()
+}
+
+fn bindings_conformance() -> Result<(), String> {
     command_in("npm", &["test"], &root().join("bindings/typescript"), None)?;
     npm_package_smoke()?;
     let go_cache = root().join("target/go-build-cache");
@@ -2009,6 +2046,16 @@ fn render_rust_algebra(contract: &AlgebraContract) -> Result<String, String> {
     }
     output.push_str(
         "}\n\n\
+         /// Concrete form of the generated conjunction for mechanical translation.\n\
+         #[must_use]\n\
+         pub fn attenuation_checks_accept(checks: &AttenuationChecks) -> bool {\n",
+    );
+    for (index, dimension) in contract.attenuation_dimensions.iter().enumerate() {
+        let operator = if index == 0 { "    " } else { "        && " };
+        line!(output, "{operator}checks.{}", dimension.rust);
+    }
+    output.push_str(
+        "}\n\n\
          /// Classifies target V1 threshold counts.\n\
          #[must_use]\n\
          pub fn threshold_counts(required: u16, authorized: usize, indeterminate: usize) -> Truth {\n\
@@ -2124,6 +2171,7 @@ fn synchronize_lean_vectors(formal_root: &Path, update: bool) -> Result<(), Stri
     for (kind, file) in [
         ("threshold", "threshold-counts.json"),
         ("attenuation", "attenuation-checks.json"),
+        ("rich-authority", "rich-authority.json"),
     ] {
         let generated = command_output_in(
             "lake",
@@ -2144,57 +2192,38 @@ fn synchronize_lean_vectors(formal_root: &Path, update: bool) -> Result<(), Stri
 }
 
 fn formal(skip_kani: bool, update: bool) -> Result<(), String> {
+    let (formal_root, attenuation_dimensions) = prepare_formal(!skip_kani, update)?;
+    formal_qualification::validate(&root(), &attenuation_dimensions)?;
+    run_formal_semantic_checks(&formal_root, skip_kani, update)
+}
+
+fn ci_formal_translation() -> Result<(), String> {
+    let (formal_root, attenuation_dimensions) = prepare_formal(true, false)?;
+    formal_qualification::qualify(&root(), &attenuation_dimensions, false)?;
+    run_formal_semantic_checks(&formal_root, false, false)
+}
+
+fn prepare_formal(require_kani: bool, update: bool) -> Result<(PathBuf, Vec<String>), String> {
     let formal_root = root().join("formal");
     let contract = load_algebra_contract()?;
     synchronize_algebra_sources(&contract, update)?;
+    validate_formal_toolchain(&formal_root, require_kani)?;
     command_in("lake", &["build"], &formal_root, None)?;
-    synchronize_lean_vectors(&formal_root, update)?;
+    formal_assurance_audit(&formal_root, update)?;
+    let attenuation_dimensions = contract
+        .attenuation_dimensions
+        .iter()
+        .map(|dimension| dimension.rust.clone())
+        .collect();
+    Ok((formal_root, attenuation_dimensions))
+}
 
-    let sources = files_with_extension(&formal_root.join("Auths"), "lean")?;
-    let mut formal_source = String::new();
-    for source in sources {
-        let text = fs::read_to_string(&source)
-            .map_err(|error| format!("could not read {}: {error}", source.display()))?;
-        for (index, line) in text.lines().enumerate() {
-            let trimmed = line.trim_start();
-            if trimmed.starts_with("sorry")
-                || trimmed.starts_with("admit")
-                || trimmed.starts_with("axiom ")
-            {
-                return Err(format!(
-                    "forbidden unchecked formal declaration at {}:{}",
-                    source.display(),
-                    index + 1
-                ));
-            }
-        }
-        formal_source.push_str(&text);
-    }
-
-    let inventory_path = root().join("core/formal-vectors/v1/manifest.json");
-    let inventory: Value = serde_json::from_slice(
-        &fs::read(&inventory_path)
-            .map_err(|error| format!("could not read {}: {error}", inventory_path.display()))?,
-    )
-    .map_err(|error| format!("could not parse {}: {error}", inventory_path.display()))?;
-    let theorems = inventory
-        .get("theorems")
-        .and_then(Value::as_array)
-        .ok_or("formal inventory has no theorem array")?;
-    for theorem in theorems {
-        let name = theorem
-            .as_str()
-            .ok_or("formal theorem inventory entry is not a string")?;
-        if !formal_source.contains(&format!("theorem {name}")) {
-            return Err(format!(
-                "formal theorem inventory is missing declaration {name}"
-            ));
-        }
-    }
-    println!(
-        "Formal inventory:           PASS ({} theorems)",
-        theorems.len()
-    );
+fn run_formal_semantic_checks(
+    formal_root: &Path,
+    skip_kani: bool,
+    update: bool,
+) -> Result<(), String> {
+    synchronize_lean_vectors(formal_root, update)?;
 
     cargo(&["test", "-p", "auths-formal-refinement"])?;
     if skip_kani {
@@ -2206,12 +2235,474 @@ fn formal(skip_kani: bool, update: bool) -> Result<(), String> {
             &root(),
             None,
         )?;
+        command_in("cargo", &["kani", "-p", "auths-model"], &root(), None)?;
         println!("Kani bounded harnesses:      PASS");
     }
     println!("Lean theorems:              PASS");
     println!("Generated semantic vectors: byte-stable");
     println!("Rust refinement vectors:    PASS");
     Ok(())
+}
+
+fn validate_formal_toolchain(formal_root: &Path, require_kani: bool) -> Result<(), String> {
+    let path = formal_root.join("translation-toolchain.lock");
+    let source = fs::read_to_string(&path)
+        .map_err(|error| format!("could not read {}: {error}", path.display()))?;
+    let lock: toml::Value = toml::from_str(&source)
+        .map_err(|error| format!("invalid formal toolchain lock {}: {error}", path.display()))?;
+    if lock.get("schema").and_then(toml::Value::as_str) != Some("auths-proof-formal-toolchain/v1") {
+        return Err("unsupported formal toolchain lock schema".to_owned());
+    }
+    let required = |table: &str, field: &str| -> Result<&str, String> {
+        lock.get(table)
+            .and_then(toml::Value::as_table)
+            .and_then(|value| value.get(field))
+            .and_then(toml::Value::as_str)
+            .ok_or_else(|| format!("formal toolchain lock omits {table}.{field}"))
+    };
+
+    let rust = command_output_in("rustc", &["--version"], &root(), None)?;
+    let shipping_rust = required("rust", "shipping")?;
+    if !rust.contains(&format!("rustc {shipping_rust} ")) {
+        return Err(format!(
+            "formal shipping Rust drift: lock requires {shipping_rust}, command reported {}",
+            rust.trim()
+        ));
+    }
+    let lean = command_output_in("lean", &["--version"], formal_root, None)?;
+    let lean_commit = required("lean", "commit")?;
+    if !lean.contains(lean_commit) {
+        return Err(format!(
+            "formal Lean drift: lock requires commit {lean_commit}, command reported {}",
+            lean.trim()
+        ));
+    }
+    let lean_toolchain_path = formal_root.join("lean-toolchain");
+    let lean_toolchain = fs::read_to_string(&lean_toolchain_path)
+        .map_err(|error| format!("could not read {}: {error}", lean_toolchain_path.display()))?;
+    if lean_toolchain.trim() != required("lean", "toolchain")? {
+        return Err("formal Lean toolchain file and lock differ".to_owned());
+    }
+    if require_kani {
+        let kani = command_output_in("kani", &["--version"], &root(), None)?;
+        let kani_version = required("kani", "version")?;
+        if kani.trim() != format!("kani {kani_version}") {
+            return Err(format!(
+                "formal Kani drift: lock requires {kani_version}, command reported {}",
+                kani.trim()
+            ));
+        }
+    }
+    println!("Formal toolchain lock:       PASS");
+    Ok(())
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct FormalAssuranceManifest {
+    schema: String,
+    lean_toolchain: String,
+    toolchain_lock_sha256: String,
+    allowed_axioms: Vec<String>,
+    claims: Vec<FormalAssuranceClaim>,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct FormalAssuranceClaim {
+    claim_id: String,
+    claim_text: String,
+    claim_status: String,
+    lean_declaration: String,
+    lean_statement_sha256: String,
+    formal_review: String,
+    rust_symbols: Vec<String>,
+    semantic_source_closure: Vec<String>,
+    semantic_source_closure_sha256: String,
+    evidence: Vec<FormalEvidence>,
+    scope: String,
+    residual_assumptions: Vec<String>,
+    toolchain_lock_sha256: String,
+    axioms: Vec<String>,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct FormalEvidence {
+    kind: String,
+    artifact: String,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct LeanAssuranceAudit {
+    schema: String,
+    declarations: Vec<LeanAssuranceDeclaration>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct LeanAssuranceDeclaration {
+    name: String,
+    kind: String,
+    statement: String,
+    axioms: Vec<String>,
+}
+
+fn formal_assurance_audit(formal_root: &Path, update: bool) -> Result<(), String> {
+    let manifest_path = formal_root.join("assurance-manifest-v1.toml");
+    let mut manifest: FormalAssuranceManifest = toml::from_str(
+        &fs::read_to_string(&manifest_path)
+            .map_err(|error| format!("could not read {}: {error}", manifest_path.display()))?,
+    )
+    .map_err(|error| {
+        format!(
+            "invalid assurance manifest {}: {error}",
+            manifest_path.display()
+        )
+    })?;
+    if manifest.schema != "auths-proof-formal-assurance/v1" {
+        return Err(format!(
+            "unsupported formal assurance schema {}",
+            manifest.schema
+        ));
+    }
+
+    let lean_toolchain_path = formal_root.join("lean-toolchain");
+    let lean_toolchain = fs::read_to_string(&lean_toolchain_path)
+        .map_err(|error| format!("could not read {}: {error}", lean_toolchain_path.display()))?;
+    if lean_toolchain.trim() != manifest.lean_toolchain {
+        return Err("formal assurance manifest Lean toolchain drifted".to_owned());
+    }
+
+    let toolchain_lock_path = formal_root.join("translation-toolchain.lock");
+    let toolchain_lock_digest = sha256_file(&toolchain_lock_path)?;
+    if manifest.toolchain_lock_sha256 != toolchain_lock_digest {
+        return Err(format!(
+            "formal toolchain lock drifted: expected {}, found {toolchain_lock_digest}",
+            manifest.toolchain_lock_sha256
+        ));
+    }
+
+    let audit_output = command_output_in(
+        "lake",
+        &["env", "lean", "Auths/AssuranceAudit.lean"],
+        formal_root,
+        None,
+    )?;
+    let audit: LeanAssuranceAudit = serde_json::from_str(audit_output.trim())
+        .map_err(|error| format!("compiled Lean assurance audit emitted invalid JSON: {error}"))?;
+    if audit.schema != "auths-proof-lean-assurance-audit/v1" {
+        return Err(format!(
+            "unsupported compiled Lean assurance audit schema {}",
+            audit.schema
+        ));
+    }
+
+    if update {
+        synchronize_formal_assurance_manifest(
+            formal_root,
+            &manifest_path,
+            &mut manifest,
+            &audit,
+            &toolchain_lock_digest,
+        )?;
+    }
+
+    let allowed_axioms: BTreeSet<_> = manifest.allowed_axioms.iter().cloned().collect();
+    if allowed_axioms.len() != manifest.allowed_axioms.len() || allowed_axioms.contains("sorryAx") {
+        return Err("formal assurance axiom allowlist is duplicate or permits sorryAx".to_owned());
+    }
+
+    let mut compiled = BTreeMap::new();
+    for declaration in audit.declarations {
+        let name = declaration.name.clone();
+        if compiled.insert(name.clone(), declaration).is_some() {
+            return Err(format!(
+                "compiled Lean assurance audit repeated declaration {name}"
+            ));
+        }
+    }
+    let mut reviewed = BTreeSet::new();
+    let mut claim_ids = BTreeSet::new();
+    for claim in &manifest.claims {
+        if !claim_ids.insert(claim.claim_id.clone()) {
+            return Err(format!(
+                "formal assurance manifest repeated claim id {}",
+                claim.claim_id
+            ));
+        }
+        if !reviewed.insert(claim.lean_declaration.clone()) {
+            return Err(format!(
+                "formal assurance manifest repeated declaration {}",
+                claim.lean_declaration
+            ));
+        }
+        for (field, value) in [
+            ("claim_id", claim.claim_id.as_str()),
+            ("claim_text", claim.claim_text.as_str()),
+            ("formal_review", claim.formal_review.as_str()),
+            ("scope", claim.scope.as_str()),
+        ] {
+            if value.trim().is_empty() {
+                return Err(format!(
+                    "formal claim {} has empty {field}",
+                    claim.lean_declaration
+                ));
+            }
+        }
+        if !matches!(
+            claim.claim_status.as_str(),
+            "proved" | "qualified" | "assumed"
+        ) {
+            return Err(format!(
+                "formal claim {} has unsupported status {}",
+                claim.lean_declaration, claim.claim_status
+            ));
+        }
+        if claim.toolchain_lock_sha256 != toolchain_lock_digest {
+            return Err(format!(
+                "formal claim {} has stale toolchain lock digest",
+                claim.lean_declaration
+            ));
+        }
+        if claim.semantic_source_closure.is_empty()
+            || claim.evidence.is_empty()
+            || claim.residual_assumptions.is_empty()
+        {
+            return Err(format!(
+                "formal claim {} must declare source closure, evidence, and residual assumptions",
+                claim.lean_declaration
+            ));
+        }
+        let closure_digest = semantic_source_closure_digest(&claim.semantic_source_closure)?;
+        if closure_digest != claim.semantic_source_closure_sha256 {
+            return Err(format!(
+                "formal claim {} semantic source closure drifted: expected {}, found {closure_digest}",
+                claim.lean_declaration, claim.semantic_source_closure_sha256
+            ));
+        }
+        for symbol in &claim.rust_symbols {
+            if symbol.trim().is_empty() {
+                return Err(format!(
+                    "formal claim {} contains an empty Rust symbol",
+                    claim.lean_declaration
+                ));
+            }
+        }
+        for item in &claim.evidence {
+            if item.kind.trim().is_empty() || item.artifact.trim().is_empty() {
+                return Err(format!(
+                    "formal claim {} contains incomplete evidence",
+                    claim.lean_declaration
+                ));
+            }
+            let artifact = root().join(&item.artifact);
+            if !artifact.exists() {
+                return Err(format!(
+                    "formal claim {} evidence artifact does not exist: {}",
+                    claim.lean_declaration,
+                    artifact.display()
+                ));
+            }
+        }
+
+        let declaration = compiled.get(&claim.lean_declaration).ok_or_else(|| {
+            format!(
+                "reviewed Lean declaration {} is absent from the compiled environment",
+                claim.lean_declaration
+            )
+        })?;
+        if declaration.kind != "theorem" {
+            return Err(format!(
+                "reviewed declaration {} is {}, not theorem",
+                claim.lean_declaration, declaration.kind
+            ));
+        }
+        let statement_digest = hex::encode(Sha256::digest(declaration.statement.as_bytes()));
+        if statement_digest != claim.lean_statement_sha256 {
+            return Err(format!(
+                "Lean statement drift for {}: expected {}, found {statement_digest}",
+                claim.lean_declaration, claim.lean_statement_sha256
+            ));
+        }
+        let actual_axioms: BTreeSet<_> = declaration.axioms.iter().cloned().collect();
+        let reviewed_axioms: BTreeSet<_> = claim.axioms.iter().cloned().collect();
+        if actual_axioms != reviewed_axioms {
+            return Err(format!(
+                "Lean axiom drift for {}: reviewed={reviewed_axioms:?}, compiled={actual_axioms:?}",
+                claim.lean_declaration
+            ));
+        }
+        if let Some(unapproved) = actual_axioms.difference(&allowed_axioms).next() {
+            return Err(format!(
+                "Lean declaration {} transitively depends on unapproved axiom {unapproved}",
+                claim.lean_declaration
+            ));
+        }
+    }
+
+    let compiled_names: BTreeSet<_> = compiled.keys().cloned().collect();
+    if reviewed != compiled_names {
+        return Err(format!(
+            "compiled and reviewed Lean claim inventories differ: reviewed={reviewed:?}, compiled={compiled_names:?}"
+        ));
+    }
+    let evidence_directory = root().join("target/formal");
+    fs::create_dir_all(&evidence_directory).map_err(|error| {
+        format!(
+            "could not create formal evidence directory {}: {error}",
+            evidence_directory.display()
+        )
+    })?;
+    let mut evidence = serde_json::to_vec_pretty(
+        &serde_json::from_str::<Value>(audit_output.trim())
+            .map_err(|error| format!("could not normalize Lean assurance evidence: {error}"))?,
+    )
+    .map_err(|error| format!("could not encode Lean assurance evidence: {error}"))?;
+    evidence.push(b'\n');
+    fs::write(
+        evidence_directory.join("lean-assurance-audit.json"),
+        evidence,
+    )
+    .map_err(|error| format!("could not write Lean assurance evidence: {error}"))?;
+    println!(
+        "Formal assurance audit:     PASS ({} compiled statements; transitive axioms reviewed)",
+        reviewed.len()
+    );
+    Ok(())
+}
+
+fn synchronize_formal_assurance_manifest(
+    formal_root: &Path,
+    manifest_path: &Path,
+    manifest: &mut FormalAssuranceManifest,
+    audit: &LeanAssuranceAudit,
+    toolchain_lock_digest: &str,
+) -> Result<(), String> {
+    let source_closure = vec![
+        "formal/Auths/Base.lean".to_owned(),
+        "formal/Auths/Authority.lean".to_owned(),
+        "formal/Auths/Attenuation.lean".to_owned(),
+        "formal/Auths/Rich/Types.lean".to_owned(),
+        "formal/Auths/Rich/Semantics.lean".to_owned(),
+        "formal/Auths/Rich/Theorems.lean".to_owned(),
+        "formal/Auths/Refinement/Production.lean".to_owned(),
+        "formal/Auths/Composition.lean".to_owned(),
+        "formal/Auths/Diversity.lean".to_owned(),
+        "formal/Auths/Generated/Algebra.lean".to_owned(),
+        "formal/Auths/Theorems.lean".to_owned(),
+        "formal/qualification/aeneas/generated/authority/Funs.lean".to_owned(),
+        "formal/qualification/aeneas/generated/authority/Types.lean".to_owned(),
+        "formal/qualification/aeneas/generated/model/Funs.lean".to_owned(),
+        "formal/qualification/aeneas/generated/model/Types.lean".to_owned(),
+        "formal/algebra-contract-v1.toml".to_owned(),
+    ];
+    let source_closure_digest = semantic_source_closure_digest(&source_closure)?;
+    let mut rich_index = manifest
+        .claims
+        .iter()
+        .filter_map(|claim| claim.claim_id.strip_prefix("AP-FORMAL-RICH-"))
+        .filter_map(|suffix| suffix.parse::<usize>().ok())
+        .max()
+        .unwrap_or(0);
+    let mut existing: BTreeMap<_, _> = std::mem::take(&mut manifest.claims)
+        .into_iter()
+        .map(|claim| (claim.lean_declaration.clone(), claim))
+        .collect();
+    let mut claims = Vec::with_capacity(audit.declarations.len());
+    for declaration in &audit.declarations {
+        let statement_digest = hex::encode(Sha256::digest(declaration.statement.as_bytes()));
+        let mut claim = if let Some(claim) = existing.remove(&declaration.name) {
+            claim
+        } else {
+            rich_index += 1;
+            let short_name = declaration
+                .name
+                .rsplit('.')
+                .next()
+                .unwrap_or(&declaration.name);
+            let phrase = short_name.replace('_', " ");
+            FormalAssuranceClaim {
+                claim_id: format!("AP-FORMAL-RICH-{rich_index:03}"),
+                claim_text: format!("Lean proves the rich authority property: {phrase}."),
+                claim_status: "proved".to_owned(),
+                lean_declaration: declaration.name.clone(),
+                lean_statement_sha256: String::new(),
+                formal_review: "rich-authority-refinement-2026-07-29".to_owned(),
+                rust_symbols: Vec::new(),
+                semantic_source_closure: Vec::new(),
+                semantic_source_closure_sha256: String::new(),
+                evidence: vec![FormalEvidence {
+                    kind: "lean-proof".to_owned(),
+                    artifact: "formal/Auths/Rich/Theorems.lean".to_owned(),
+                }],
+                scope: "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets.".to_owned(),
+                residual_assumptions: vec![
+                    "Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted.".to_owned(),
+                ],
+                toolchain_lock_sha256: String::new(),
+                axioms: Vec::new(),
+            }
+        };
+        claim.lean_statement_sha256 = statement_digest;
+        claim.semantic_source_closure.clone_from(&source_closure);
+        claim
+            .semantic_source_closure_sha256
+            .clone_from(&source_closure_digest);
+        claim.toolchain_lock_sha256 = toolchain_lock_digest.to_owned();
+        claim.axioms.clone_from(&declaration.axioms);
+        claims.push(claim);
+    }
+    if !existing.is_empty() {
+        println!(
+            "Formal assurance update:    removed {} declarations absent from compiled inventory",
+            existing.len()
+        );
+    }
+    manifest.claims = claims;
+    let rendered = toml::to_string_pretty(manifest)
+        .map_err(|error| format!("could not render formal assurance manifest: {error}"))?;
+    fs::write(manifest_path, format!("{rendered}\n"))
+        .map_err(|error| format!("could not write {}: {error}", manifest_path.display()))?;
+    println!(
+        "Formal assurance update:    {} compiled claims synchronized",
+        manifest.claims.len()
+    );
+    let _ = formal_root;
+    Ok(())
+}
+
+fn semantic_source_closure_digest(paths: &[String]) -> Result<String, String> {
+    let mut ordered = paths.to_vec();
+    ordered.sort();
+    ordered.dedup();
+    if ordered.len() != paths.len() {
+        return Err("semantic source closure paths must be unique".to_owned());
+    }
+    let mut digest = Sha256::new();
+    for relative in ordered {
+        let path = root().join(&relative);
+        if !path.is_file() {
+            return Err(format!(
+                "semantic source closure entry is not a file: {}",
+                path.display()
+            ));
+        }
+        digest.update(relative.as_bytes());
+        digest.update([0]);
+        digest.update(
+            fs::read(&path)
+                .map_err(|error| format!("could not read {}: {error}", path.display()))?,
+        );
+        digest.update([0xff]);
+    }
+    Ok(hex::encode(digest.finalize()))
+}
+
+fn formal_qualify_aeneas(update: bool) -> Result<(), String> {
+    let (_, attenuation_dimensions) = prepare_formal(false, update)?;
+    formal_qualification::qualify(&root(), &attenuation_dimensions, update)
 }
 
 fn adversarial_conformance(args: Vec<String>) -> Result<(), String> {
@@ -3919,11 +4410,14 @@ fn repository_hygiene() -> Result<(), String> {
 }
 
 fn check_workflow_action_pins() -> Result<(), String> {
-    let workflows = root().join(".github/workflows");
-    for path in files_with_extension(&workflows, "yml")?
-        .into_iter()
-        .chain(files_with_extension(&workflows, "yaml")?)
-    {
+    let mut action_sources = Vec::new();
+    for directory in [".github/workflows", ".github/actions"] {
+        let directory = root().join(directory);
+        action_sources.extend(files_with_extension(&directory, "yml")?);
+        action_sources.extend(files_with_extension(&directory, "yaml")?);
+    }
+    action_sources.sort();
+    for path in action_sources {
         let source = fs::read_to_string(&path)
             .map_err(|error| format!("could not read {}: {error}", path.display()))?;
         for (index, line) in source.lines().enumerate() {
@@ -3970,7 +4464,14 @@ fn repository_files(directory: &Path) -> Result<Vec<PathBuf>, String> {
                 let name = path.file_name().and_then(|value| value.to_str());
                 if matches!(
                     name,
-                    Some(".git" | ".pytest_cache" | "__pycache__" | "node_modules" | "target")
+                    Some(
+                        ".git"
+                            | ".lake"
+                            | ".pytest_cache"
+                            | "__pycache__"
+                            | "node_modules"
+                            | "target"
+                    )
                 ) {
                     continue;
                 }

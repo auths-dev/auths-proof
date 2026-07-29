@@ -1,0 +1,53 @@
+name: Setup pinned Rust with bounded caches
+description: Install Rust, cache Cargo downloads and tools, and optionally enable shared sccache.
+
+inputs:
+  toolchain:
+    description: Exact Rust toolchain version.
+    required: true
+  components:
+    description: Comma-separated Rust components.
+    required: false
+    default: ""
+  targets:
+    description: Comma-separated Rust targets.
+    required: false
+    default: ""
+  compiler-cache:
+    description: Enable the shared sccache compiler cache.
+    required: false
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+      with:
+        toolchain: ${{ inputs.toolchain }}
+        components: ${{ inputs.components }}
+        targets: ${{ inputs.targets }}
+
+    - name: Install shared compiler cache
+      if: inputs.compiler-cache == 'true'
+      uses: mozilla-actions/sccache-action@fd02668681acd5f960e1372061bee5e3e987195c # v0.0.11
+
+    - name: Configure shared compiler cache
+      if: inputs.compiler-cache == 'true'
+      shell: bash
+      run: |
+        set -euo pipefail
+        {
+          echo "RUSTC_WRAPPER=sccache"
+          echo "SCCACHE_GHA_ENABLED=true"
+          echo "CARGO_INCREMENTAL=0"
+          echo "CARGO_PROFILE_DEV_DEBUG=0"
+          echo "CARGO_PROFILE_TEST_DEBUG=0"
+        } >> "$GITHUB_ENV"
+
+    - name: Restore Cargo downloads and installed tools
+      uses: Swatinem/rust-cache@23869a5bd66c73db3c0ac40331f3206eb23791dc # v2.9.1
+      with:
+        prefix-key: v1-auths-proof-rust
+        cache-targets: "false"
+        cache-bin: "true"
+        cache-on-failure: "false"

@@ -1,5 +1,10 @@
 //! Closed Kubernetes rollout action, evidence, configuration, and result types.
 
+#![allow(
+    clippy::missing_errors_doc,
+    reason = "schema constructors and validators return the closed ValidationError or CanonicalError documented in this module"
+)]
+
 use std::{collections::BTreeMap, fmt, str::FromStr};
 
 use serde::{Deserialize, Deserializer, Serialize};

@@ -61,6 +61,12 @@ where
     }
 
     /// Executes one exact rollout. No credential is requested before claim.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ServiceError`] when a required trusted dependency fails,
+    /// canonical inputs cannot be reproduced, or execution cannot be safely
+    /// classified.
     #[allow(
         clippy::too_many_lines,
         reason = "security-relevant ordering remains intentionally linear"

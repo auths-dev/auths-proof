@@ -51,7 +51,7 @@ theorem threshold_monotone_k (left right : Truth) :
   cases left <;> cases right <;>
     simp [Truth.le, Truth.rank, thresholdTwo, all, any]
 
-theorem composition_permutation_invariant (left right : Truth) :
+theorem binary_composition_swap_invariant (left right : Truth) :
     all left right = all right left ∧ any left right = any right left :=
   ⟨all_commutative left right, any_commutative left right⟩
 
@@ -80,13 +80,10 @@ def Plan.nodes : Plan → Nat
 
 def Plan.cost (plan : Plan) : Nat := plan.nodes
 
-theorem every_leaf_visited_once (plan : Plan) : plan.visit = plan.leaves := by
+theorem plan_visit_is_leaf_enumeration (plan : Plan) : plan.visit = plan.leaves := by
   rfl
 
-theorem validated_plan_terminates (plan : Plan) : ∃ count, plan.nodes = count :=
-  ⟨plan.nodes, rfl⟩
-
-theorem evaluation_cost_linear_in_nodes (plan : Plan) : plan.cost = plan.nodes := rfl
+theorem plan_cost_is_node_count (plan : Plan) : plan.cost = plan.nodes := rfl
 
 theorem authorized_implies_threshold_met {k authorized indeterminate : Nat}
     (result : thresholdCounts k authorized indeterminate = .authorized) :

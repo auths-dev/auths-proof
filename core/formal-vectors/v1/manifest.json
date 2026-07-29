@@ -32,7 +32,7 @@
     "authorized_implies_threshold_met",
     "canonical_diagnostic_permutation_invariant",
     "chain_transitive_attenuation",
-    "composition_permutation_invariant",
+    "binary_composition_swap_invariant",
     "coverage_downward_closed",
     "delegate_never_widens",
     "delegate_preserves_root",
@@ -40,13 +40,11 @@
     "delegate_updates_subject",
     "attenuation_kernel_refines",
     "denied_implies_threshold_impossible",
-    "evaluation_cost_linear_in_nodes",
-    "every_leaf_visited_once",
-    "finite_chain",
+    "plan_cost_is_node_count",
+    "plan_visit_is_leaf_enumeration",
     "indeterminate_implies_threshold_reachable",
     "threshold_monotone_k",
     "threshold_n_eq_all",
-    "threshold_one_eq_any",
-    "validated_plan_terminates"
+    "threshold_one_eq_any"
   ]
 }

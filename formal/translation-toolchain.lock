@@ -1,0 +1,31 @@
+schema = "auths-proof-formal-toolchain/v1"
+
+[rust]
+shipping = "1.97.1"
+msrv = "1.91.0"
+edition = "2024"
+
+[lean]
+toolchain = "leanprover/lean4:v4.31.0"
+commit = "68218e876d2a38b1985b8590fff244a83c321783"
+lake = "5.0.0-src+68218e8"
+
+[kani]
+version = "0.67.0"
+
+[aeneas]
+repository = "https://github.com/AeneasVerif/aeneas"
+commit = "3a8586facab25b31bdb1e1f5f45acd60d1cc5ff0"
+declared_lean_toolchain = "leanprover/lean4:v4.31.0"
+
+[charon]
+repository = "https://github.com/AeneasVerif/charon"
+commit = "527ea8e3b5dcb52edd6aef0f7bc34cc09c11dd59"
+toolchain = "nightly-2026-06-01"
+version = "0.1.225"
+
+[qualification]
+command = "cargo xtask formal qualify aeneas"
+production_features = ["default"]
+semantic_cfg = []
+extraction_cfg = []

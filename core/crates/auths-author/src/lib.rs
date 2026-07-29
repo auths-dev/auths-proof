@@ -6,6 +6,7 @@
 extern crate alloc;
 
 use alloc::vec::Vec;
+use auths_authority::{AuthorScopeDecision, evaluate_author_scope_view};
 use auths_codec::{
     CodecError, action_id, action_signing_preimage, grant_id, grant_signing_preimage,
     grant_status_id, grant_status_signing_preimage, principal_status_id,
@@ -15,11 +16,14 @@ use auths_model::{
     ActionConstraint, ActionEnvelope, ActionId, AssurancePolicyId, AudienceSet, AuthorizationPlan,
     BudgetCeiling, CriticalExtensions, GrantId, GrantStatement, GrantStatusId,
     GrantStatusStatement, ModelError, PermissionSet, PrincipalId, PrincipalStatusId,
-    PrincipalStatusStatement, ProfileRef, ProofRef, SignatureBytes, SignatureDescriptor,
-    SignatureEnvelope, SignedAction, SignedGrant, SignedGrantStatus, SignedPrincipalStatus,
-    StatusPolicy, ValidityWindow, VerifierLimits,
+    PrincipalStatusStatement, ProfileRef, ProofRef, ScopeAuthorityView, SignatureBytes,
+    SignatureDescriptor, SignatureEnvelope, SignedAction, SignedGrant, SignedGrantStatus,
+    SignedPrincipalStatus, StatusPolicy, ValidityWindow, VerifierLimits, grant_authority_view,
+    scope_authority_view,
 };
 use core::fmt;
+
+pub use auths_authority::AuthorityDimension;
 
 /// Requested child authority before issuer/linkage fields are derived.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -68,29 +72,6 @@ impl GrantRequest {
             extensions,
         }
     }
-}
-
-/// Authority dimension that an unsafe grant request attempted to widen.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum AuthorityDimension {
-    /// Application profile differs from the parent.
-    Profile,
-    /// Requested permissions are not a subset.
-    Permissions,
-    /// Requested validity extends outside the parent window.
-    Validity,
-    /// Requested audiences are not a subset.
-    Audiences,
-    /// Action-body authority is wider.
-    ActionConstraint,
-    /// Stateful budget ceiling is wider.
-    Budget,
-    /// Delegation depth did not strictly decrease.
-    DelegationDepth,
-    /// Status/freshness policy is weaker.
-    Status,
-    /// Assurance policy is different.
-    Assurance,
 }
 
 /// Non-fatal authoring warning shown before custody is invoked.
@@ -207,37 +188,22 @@ pub fn plan_child_grant(
     parent: &GrantStatement,
     request: GrantRequest,
 ) -> Result<GrantPlan, PlanningError> {
-    if request.profile != *parent.profile() {
-        return Err(PlanningError::Expanded(AuthorityDimension::Profile));
-    }
-    if !request.permissions.is_subset_of(parent.permissions()) {
-        return Err(PlanningError::Expanded(AuthorityDimension::Permissions));
-    }
-    if !parent.validity().contains_window(request.validity) {
-        return Err(PlanningError::Expanded(AuthorityDimension::Validity));
-    }
-    if !request.audiences.is_subset_of(parent.audiences()) {
-        return Err(PlanningError::Expanded(AuthorityDimension::Audiences));
-    }
-    if !request
-        .action_constraint
-        .attenuates(parent.action_constraint())
+    let parent_scope = scope_authority_view(grant_authority_view(parent));
+    let child_scope = ScopeAuthorityView {
+        profile: &request.profile,
+        permissions: &request.permissions,
+        validity: request.validity,
+        audiences: &request.audiences,
+        action_constraint: &request.action_constraint,
+        budget_ceiling: request.budget_ceiling.as_ref(),
+        remaining_depth: request.remaining_depth,
+        status_policy: &request.status_policy,
+        assurance_floor: &request.assurance_floor,
+    };
+    if let AuthorScopeDecision::Denied(dimension) =
+        evaluate_author_scope_view(parent_scope, child_scope)
     {
-        return Err(PlanningError::Expanded(
-            AuthorityDimension::ActionConstraint,
-        ));
-    }
-    if !budget_attenuates(request.budget_ceiling.as_ref(), parent.budget_ceiling()) {
-        return Err(PlanningError::Expanded(AuthorityDimension::Budget));
-    }
-    if parent.remaining_depth() == 0 || request.remaining_depth >= parent.remaining_depth() {
-        return Err(PlanningError::Expanded(AuthorityDimension::DelegationDepth));
-    }
-    if !status_attenuates(&request.status_policy, parent.status_policy()) {
-        return Err(PlanningError::Expanded(AuthorityDimension::Status));
-    }
-    if request.assurance_floor != *parent.assurance_floor() {
-        return Err(PlanningError::Expanded(AuthorityDimension::Assurance));
+        return Err(PlanningError::Expanded(dimension));
     }
 
     let diff = AuthorityDiff {
@@ -363,31 +329,6 @@ impl<'a> PlanBuilder<'a> {
     fn validate(&self, plan: AuthorizationPlan) -> Result<AuthorizationPlan, PlanningError> {
         plan.validate(self.limits)?;
         Ok(plan)
-    }
-}
-
-fn budget_attenuates(child: Option<&BudgetCeiling>, parent: Option<&BudgetCeiling>) -> bool {
-    match (child, parent) {
-        (_, None) => true,
-        (Some(child), Some(parent)) => child.attenuates(parent),
-        (None, Some(_)) => false,
-    }
-}
-
-fn status_attenuates(child: &StatusPolicy, parent: &StatusPolicy) -> bool {
-    match (child, parent) {
-        (_, StatusPolicy::ExpiryOnly) => true,
-        (
-            StatusPolicy::SnapshotRequired {
-                method: child_method,
-                max_age: child_age,
-            },
-            StatusPolicy::SnapshotRequired {
-                method: parent_method,
-                max_age: parent_age,
-            },
-        ) => child_method == parent_method && child_age <= parent_age,
-        (StatusPolicy::ExpiryOnly, StatusPolicy::SnapshotRequired { .. }) => false,
     }
 }
 
