@@ -210,3 +210,212 @@ pub fn bounded_action(
     })
     .unwrap()
 }
+
+pub fn merchant_policy(
+    operation: crate::merchant::MerchantOperation,
+    operation_limit: u64,
+    aggregate_limit: u64,
+) -> crate::merchant::StripeBoundedMerchantPaymentPolicyV1 {
+    use crate::merchant::{
+        MerchantAggregateBudget, MerchantBudgetWindow, MerchantConnectAccount,
+        StripeBoundedMerchantPaymentPolicyInput, StripeBoundedMerchantPaymentPolicyV1,
+    };
+    use crate::types::{CustomerId, PaymentMethodId};
+
+    let currency = Currency::parse("usd").unwrap();
+    StripeBoundedMerchantPaymentPolicyV1::new(StripeBoundedMerchantPaymentPolicyInput {
+        policy_id: "merchant-payments-v1".into(),
+        valid_from: NOW - 60,
+        expires_at: NOW + 3_600,
+        allowed_operations: vec![operation],
+        allowed_test_account_ids: vec![StripeAccountId::parse("acct_authsdemo01").unwrap()],
+        allowed_connect_accounts: vec![MerchantConnectAccount::Platform],
+        allowed_customer_ids: vec![CustomerId::parse("cus_authsdemo00000001").unwrap()],
+        allowed_payment_method_ids: vec![PaymentMethodId::parse("pm_authsdemo000000001").unwrap()],
+        allowed_payment_method_types: vec!["card".into()],
+        allowed_currencies: vec![currency.clone()],
+        allowed_order_scopes: vec!["order-demo-001".into()],
+        allowed_cancellation_reasons: Vec::new(),
+        per_operation_absolute_minor_by_currency: BTreeMap::from([(
+            operation,
+            BTreeMap::from([(currency.clone(), operation_limit)]),
+        )]),
+        per_customer_minor_by_currency: BTreeMap::from([(currency.clone(), operation_limit)]),
+        per_order_minor_by_currency: BTreeMap::from([(currency.clone(), operation_limit)]),
+        aggregate_budgets: vec![
+            MerchantAggregateBudget::new(
+                "merchant-daily",
+                operation,
+                currency,
+                aggregate_limit,
+                MerchantBudgetWindow::Fixed {
+                    starts_at: NOW - 3_600,
+                    ends_at: NOW + 3_600,
+                },
+                NOW,
+            )
+            .unwrap(),
+        ],
+        maximum_authorization_age_seconds: if matches!(
+            operation,
+            crate::merchant::MerchantOperation::Authorize
+                | crate::merchant::MerchantOperation::Capture
+        ) {
+            7 * 24 * 60 * 60
+        } else {
+            0
+        },
+        minimum_capture_window_seconds: if matches!(
+            operation,
+            crate::merchant::MerchantOperation::Authorize
+                | crate::merchant::MerchantOperation::Capture
+        ) {
+            60
+        } else {
+            0
+        },
+        maximum_evidence_age_seconds: 60,
+        maximum_action_lifetime_seconds: 300,
+        allowed_api_versions: vec!["2025-04-30.basil".into()],
+    })
+    .unwrap()
+}
+
+pub fn merchant_configuration(
+    policy: &crate::merchant::StripeBoundedMerchantPaymentPolicyV1,
+) -> crate::merchant::StripeMerchantEvaluatorConfigurationV1 {
+    crate::merchant::StripeMerchantEvaluatorConfigurationV1::for_collect_policy(
+        policy,
+        "auths-stripe-merchant-test-build",
+        StripeAccountId::parse("acct_authsdemo01").unwrap(),
+        crate::merchant::MerchantConnectAccount::Platform,
+        "2025-04-30.basil",
+        "https://stripe-collect.auths.dev",
+    )
+    .unwrap()
+}
+
+pub fn merchant_authorize_configuration(
+    policy: &crate::merchant::StripeBoundedMerchantPaymentPolicyV1,
+) -> crate::merchant::StripeMerchantEvaluatorConfigurationV1 {
+    crate::merchant::StripeMerchantEvaluatorConfigurationV1::for_authorize_policy(
+        policy,
+        "auths-stripe-merchant-test-build",
+        StripeAccountId::parse("acct_authsdemo01").unwrap(),
+        crate::merchant::MerchantConnectAccount::Platform,
+        "2025-04-30.basil",
+        "https://stripe-authorize.auths.dev",
+    )
+    .unwrap()
+}
+
+pub fn merchant_evidence() -> crate::merchant::MerchantPaymentEvidenceV1 {
+    use crate::{
+        merchant::{
+            MerchantConnectAccount, MerchantPaymentEvidenceInput, MerchantPaymentEvidenceV1,
+        },
+        types::{CustomerId, PaymentMethodId},
+    };
+    let customer = CustomerId::parse("cus_authsdemo00000001").unwrap();
+    MerchantPaymentEvidenceV1::new(MerchantPaymentEvidenceInput {
+        stripe_account_id: StripeAccountId::parse("acct_authsdemo01").unwrap(),
+        connect_account: MerchantConnectAccount::Platform,
+        customer_id: customer.clone(),
+        payment_method_id: PaymentMethodId::parse("pm_authsdemo000000001").unwrap(),
+        payment_method_type: "card".into(),
+        attached_customer_id: customer,
+        livemode: false,
+        stripe_api_version: "2025-04-30.basil".into(),
+        order_scope: "order-demo-001".into(),
+        consent_order_commitment: sha256(b"merchant consent order"),
+        supports_manual_capture: true,
+        prior_payments: Vec::new(),
+        observed_at: NOW - 5,
+        source: "stripe-api-and-order-store".into(),
+        response_commitment: sha256(b"sanitized merchant evidence"),
+    })
+    .unwrap()
+}
+
+pub fn merchant_collect_action(
+    workflow_id: &str,
+    policy: &crate::merchant::StripeBoundedMerchantPaymentPolicyV1,
+    configuration: &crate::merchant::StripeMerchantEvaluatorConfigurationV1,
+    amount_minor: u64,
+) -> crate::merchant::StripeExactPaymentCollectV1 {
+    use crate::{
+        merchant::{
+            MerchantConnectAccount, StripeExactPaymentCollectInput, StripeExactPaymentCollectV1,
+            fixed_merchant_metadata_commitment, merchant_statement_descriptor_commitment,
+        },
+        types::{CustomerId, PaymentMethodId},
+    };
+    let policy_digest = policy.digest().unwrap();
+    StripeExactPaymentCollectV1::new(StripeExactPaymentCollectInput {
+        stripe_account_id: StripeAccountId::parse("acct_authsdemo01").unwrap(),
+        connect_account: MerchantConnectAccount::Platform,
+        customer_id: CustomerId::parse("cus_authsdemo00000001").unwrap(),
+        payment_method_id: PaymentMethodId::parse("pm_authsdemo000000001").unwrap(),
+        payment_method_type: "card".into(),
+        order_scope: "order-demo-001".into(),
+        amount_minor,
+        currency: Currency::parse("usd").unwrap(),
+        statement_descriptor_commitment: merchant_statement_descriptor_commitment(),
+        fixed_metadata_commitment: fixed_merchant_metadata_commitment(
+            workflow_id,
+            crate::merchant::PAYMENT_COLLECT_PROFILE,
+            "order-demo-001",
+            &policy_digest,
+        )
+        .unwrap(),
+        stripe_api_version: "2025-04-30.basil".into(),
+        required_policy_digest: policy_digest,
+        required_configuration_digest: configuration.digest().unwrap(),
+        executor_audience: configuration.executor_audience().into(),
+        expires_at: NOW + 120,
+        nonce: sha256(workflow_id.as_bytes()),
+    })
+    .unwrap()
+}
+
+pub fn merchant_authorize_action(
+    workflow_id: &str,
+    policy: &crate::merchant::StripeBoundedMerchantPaymentPolicyV1,
+    configuration: &crate::merchant::StripeMerchantEvaluatorConfigurationV1,
+    amount_minor: u64,
+) -> crate::merchant::StripeExactPaymentAuthorizeV1 {
+    use crate::{
+        merchant::{
+            MerchantConnectAccount, StripeExactPaymentAuthorizeInput,
+            StripeExactPaymentAuthorizeV1, fixed_merchant_metadata_commitment,
+            merchant_statement_descriptor_commitment,
+        },
+        types::{CustomerId, PaymentMethodId},
+    };
+    let policy_digest = policy.digest().unwrap();
+    StripeExactPaymentAuthorizeV1::new(StripeExactPaymentAuthorizeInput {
+        stripe_account_id: StripeAccountId::parse("acct_authsdemo01").unwrap(),
+        connect_account: MerchantConnectAccount::Platform,
+        customer_id: CustomerId::parse("cus_authsdemo00000001").unwrap(),
+        payment_method_id: PaymentMethodId::parse("pm_authsdemo000000001").unwrap(),
+        payment_method_type: "card".into(),
+        order_scope: "order-demo-001".into(),
+        authorized_amount_minor: amount_minor,
+        currency: Currency::parse("usd").unwrap(),
+        statement_descriptor_commitment: merchant_statement_descriptor_commitment(),
+        fixed_metadata_commitment: fixed_merchant_metadata_commitment(
+            workflow_id,
+            crate::merchant::PAYMENT_AUTHORIZE_PROFILE,
+            "order-demo-001",
+            &policy_digest,
+        )
+        .unwrap(),
+        stripe_api_version: "2025-04-30.basil".into(),
+        required_policy_digest: policy_digest,
+        required_configuration_digest: configuration.digest().unwrap(),
+        executor_audience: configuration.executor_audience().into(),
+        expires_at: NOW + 120,
+        nonce: sha256(workflow_id.as_bytes()),
+    })
+    .unwrap()
+}

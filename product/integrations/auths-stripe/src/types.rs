@@ -92,6 +92,14 @@ fn valid_charge(value: &str) -> bool {
     valid_prefixed(value, "ch_", 96)
 }
 
+fn valid_customer(value: &str) -> bool {
+    valid_prefixed(value, "cus_", 96)
+}
+
+fn valid_payment_method(value: &str) -> bool {
+    valid_prefixed(value, "pm_", 96)
+}
+
 fn valid_payment_intent(value: &str) -> bool {
     valid_prefixed(value, "pi_", 96)
 }
@@ -113,6 +121,8 @@ fn valid_currency(value: &str) -> bool {
 
 validated_string!(StripeAccountId, StripeAccountId, valid_account);
 validated_string!(ChargeId, ChargeId, valid_charge);
+validated_string!(CustomerId, CustomerId, valid_customer);
+validated_string!(PaymentMethodId, PaymentMethodId, valid_payment_method);
 validated_string!(PaymentIntentId, PaymentIntentId, valid_payment_intent);
 validated_string!(RefundId, RefundId, valid_refund);
 validated_string!(DigestHex, DigestHex, valid_digest);
@@ -135,6 +145,12 @@ pub enum TypeError {
     /// Invalid Charge.
     #[error("invalid Stripe Charge identifier")]
     ChargeId,
+    /// Invalid Customer.
+    #[error("invalid Stripe Customer identifier")]
+    CustomerId,
+    /// Invalid `PaymentMethod`.
+    #[error("invalid Stripe PaymentMethod identifier")]
+    PaymentMethodId,
     /// Invalid `PaymentIntent`.
     #[error("invalid Stripe PaymentIntent identifier")]
     PaymentIntentId,

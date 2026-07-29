@@ -569,3 +569,38 @@ Stripe-specific concepts that must not leak into a shared abstraction include
 minor currency units, basis points over payment evidence, Charge and
 PaymentIntent relationships, Connect context, Stripe API versions, refund
 reasons, Stripe idempotency, and Refund object reconciliation.
+
+## 24. Stripe and payments profile family
+
+This refund profile is one member of the intended Stripe/payment architecture.
+Completing it does not imply that agents can collect payments, place or capture
+holds, make purchases, move marketplace funds, create payouts, establish future
+payment mandates, or manage subscriptions.
+
+The planned exact-action profiles are:
+
+| Spec | Exact action | Bounded policy family | Financial meaning |
+| --- | --- | --- | --- |
+| 0012 | `auths.stripe.exact-refund/1` | bounded refund | return previously collected funds |
+| 0013 | `auths.stripe.exact-payment-collect/1` | bounded merchant payment | immediately collect one customer payment |
+| 0014 | `auths.stripe.exact-payment-authorize/1` | bounded merchant payment | place a manual-capture hold |
+| 0015 | `auths.stripe.exact-payment-capture/1` | bounded merchant payment | settle an existing exact hold |
+| 0016 | `auths.stripe.exact-payment-cancel/1` | bounded merchant payment | cancel a PaymentIntent and release a hold where applicable |
+| 0017 | `auths.stripe.exact-purchase-authorization/1` | bounded purchase | approve or decline one incoming Stripe Issuing purchase |
+| 0018 | `auths.stripe.exact-connect-transfer/1` | bounded Connect transfer | move platform funds to a connected account |
+| 0019 | `auths.stripe.exact-payout/1` | bounded payout | move Stripe balance to an external destination |
+| 0020 | `auths.stripe.exact-payment-mandate/1` | bounded payment mandate | establish future charging capability with separate consent |
+| 0021 | `auths.stripe.exact-subscription-create/1` | bounded subscription | create a finite recurring obligation |
+| 0022 | `auths.stripe.exact-subscription-modify/1` | bounded subscription | change an existing recurring obligation |
+| 0023 | `auths.stripe.exact-subscription-cancel/1` | bounded subscription | terminate or schedule termination of that obligation |
+
+Profiles are separated when provider preconditions, financial direction,
+irreversibility, durable reservation, credential scope, reconciliation, or
+human/legal meaning differs. They are not separated merely because Stripe
+uses another endpoint. A shared bounded policy family may govern related exact
+profiles, but it does not merge their verified command types, provider effects,
+or receipt semantics.
+
+Every profile is an independent implementation and release gate. No profile
+may be marked implemented from another profile's fixture, frontend, provider
+effect, deployment, or receipt evidence.

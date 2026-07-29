@@ -1,7 +1,11 @@
-//! Canonical linked receipts for exact Stripe refunds.
+//! Canonical linked receipts for separate exact Stripe profiles.
 
 use serde::{Deserialize, Serialize};
 
+use crate::merchant::collect::{
+    MerchantCollectionDecisionReceipt, MerchantCollectionObservationReceipt,
+    MerchantCollectionTransitionReceipt,
+};
 use crate::{
     bounded::{
         AggregateBudgetSnapshot, BoundedRefundDecision, CONFIGURED_POLICY_PROVENANCE,
@@ -255,6 +259,12 @@ pub struct ObservationReceipt {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", content = "receipt", rename_all = "kebab-case")]
 pub enum StripeReceipt {
+    /// Exact proof and bounded collection decision.
+    MerchantCollectionDecision(Box<MerchantCollectionDecisionReceipt>),
+    /// Merchant reservation/claim/provider transition.
+    MerchantCollectionTransition(Box<MerchantCollectionTransitionReceipt>),
+    /// Fresh merchant provider observation.
+    MerchantCollectionObservation(Box<MerchantCollectionObservationReceipt>),
     /// Immutable configured-policy eligibility.
     BoundedDecision(Box<BoundedDecisionReceipt>),
     /// Durable aggregate reservation transition.

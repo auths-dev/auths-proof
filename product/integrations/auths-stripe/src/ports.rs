@@ -1,4 +1,4 @@
-//! Narrow effect ports for exact Stripe refund execution.
+//! Narrow shared mechanism ports for exact Stripe execution.
 
 use auths_model::CanonicalAction;
 use auths_sdk::{Authorized, RequestContext};
