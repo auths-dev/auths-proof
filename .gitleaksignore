@@ -9,3 +9,5 @@ c06f0c07c5a34f985ff78f7b777425a811ea33f0:compliance.toml:generic-api-key:199
 a8c446fc4756b07e22a9b9f88adfecb73546d806:compliance.toml:generic-api-key:458
 99672a974401933b8a547e841113b804082066e3:adapters/auths-did-key/src/lib.rs:generic-api-key:253
 ac9f830dde718845f010e95f329e4d63c7f57037:adapters/auths-proof-did-key/src/lib.rs:generic-api-key:307
+# Public canonical Stripe fixture digests and workflow identifiers.
+1c1ab69068daa2339e192932e6bc206ef71e2cbf:product/integrations/auths-stripe/fixtures/v1/exact-action.json:generic-api-key:1

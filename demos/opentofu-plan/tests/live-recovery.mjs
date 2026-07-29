@@ -49,16 +49,20 @@ async function request(pathname, body, expectedStatus = 200) {
 
 function providerObjects(sessionId) {
   const filename = `session-${sessionId}.json`;
+  const providerRoot = "/data/auths-opentofu";
+  const expectedPath = `${providerRoot}/objects/${filename}`;
   return compose([
     "exec",
     "-T",
     "api",
     "find",
-    "/data/auths-opentofu/objects",
+    providerRoot,
     "-maxdepth",
-    "1",
-    "-name",
-    filename,
+    "2",
+    "-path",
+    expectedPath,
+    "-type",
+    "f",
     "-print",
   ]).trim();
 }

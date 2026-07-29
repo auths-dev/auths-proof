@@ -4510,7 +4510,7 @@ fn repository_hygiene() -> Result<(), String> {
     let mut locks = Vec::new();
     let mut nested_workspaces = Vec::new();
     let mut sibling_references = Vec::new();
-    let mut corpus_manifests = Vec::new();
+    let mut canonical_corpus_manifests = Vec::new();
     for path in repository_files(&repository)? {
         let relative = path
             .strip_prefix(&repository)
@@ -4523,7 +4523,17 @@ fn repository_hygiene() -> Result<(), String> {
                 .components()
                 .any(|component| component.as_os_str() == "fixtures")
         {
-            corpus_manifests.push(relative.to_path_buf());
+            let manifest: Value = serde_json::from_slice(
+                &fs::read(&path)
+                    .map_err(|error| format!("could not read {}: {error}", path.display()))?,
+            )
+            .map_err(|error| format!("invalid fixture manifest {}: {error}", path.display()))?;
+            if manifest["protocol"] == "Auths Proof Protocol V1"
+                && manifest["protocol_major"] == 1
+                && manifest["fixture_set"] == "target-v1"
+            {
+                canonical_corpus_manifests.push(relative.to_path_buf());
+            }
         }
         if relative.file_name().and_then(|name| name.to_str()) == Some("Cargo.toml")
             && relative != Path::new("Cargo.toml")
@@ -4565,9 +4575,10 @@ fn repository_hygiene() -> Result<(), String> {
             "nested Cargo workspaces are forbidden: {nested_workspaces:?}"
         ));
     }
-    if corpus_manifests != [PathBuf::from("core/fixtures/v1/manifest.json")] {
+    if canonical_corpus_manifests != [PathBuf::from("core/fixtures/v1/manifest.json")] {
         return Err(format!(
-            "canonical fixture manifest must have one core owner, found {corpus_manifests:?}"
+            "canonical fixture manifest must have one core owner, found \
+             {canonical_corpus_manifests:?}"
         ));
     }
     if !sibling_references.is_empty() {
