@@ -1187,6 +1187,37 @@ mod tests {
         ) -> Result<PaymentCollectEffect, PortError> {
             self.provider_calls.fetch_add(1, Ordering::Relaxed);
             self.create_calls.fetch_add(1, Ordering::Relaxed);
+            let request = command.provider_request();
+            assert_eq!(
+                (
+                    request.amount_minor(),
+                    request.currency(),
+                    request.customer_id(),
+                    request.payment_method_id(),
+                    request.payment_method_type(),
+                    request.confirmation_method(),
+                    request.capture_method(),
+                    request.statement_descriptor_suffix(),
+                    request.profile(),
+                    request.order_scope(),
+                    request.policy_digest(),
+                    request.workflow_id(),
+                ),
+                (
+                    command.action().amount_minor(),
+                    command.action().currency().as_str(),
+                    command.action().customer_id().as_str(),
+                    command.action().payment_method_id().as_str(),
+                    "card",
+                    "manual",
+                    "automatic",
+                    "AUTHS DEMO",
+                    auths_stripe::PAYMENT_COLLECT_PROFILE,
+                    command.action().order_scope(),
+                    command.policy_digest().as_str(),
+                    command.workflow_id(),
+                )
+            );
             let provider = self.projection(command.action().amount_minor(), now);
             match self.effect_mode.swap(0, Ordering::Relaxed) {
                 1 => {
@@ -1315,6 +1346,20 @@ mod tests {
         assert!(!encoded.contains("\"client_secret\":"));
         assert_eq!(replay["boundary"]["client_secret_exposed"], false);
         assert!(!encoded.contains(&["sk", "test"].join("_")));
+    }
+
+    #[tokio::test]
+    async fn verified_command_derives_the_exact_provider_request() {
+        let temp = tempfile::tempdir().unwrap();
+        let environment = Arc::new(MockEnvironment::new());
+        let router = app_with_environment(
+            AppConfig::for_test(temp.path().to_path_buf()),
+            environment.clone(),
+        )
+        .unwrap();
+        let result = execute_experiment(&router, &session(&router).await, "success").await;
+        assert_eq!(result["outcome"], "collected");
+        assert_eq!(environment.create_calls.load(Ordering::Relaxed), 1);
     }
 
     #[tokio::test]

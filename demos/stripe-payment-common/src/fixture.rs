@@ -339,3 +339,42 @@ impl Identity {
         .expect("addressed evidence")
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use auths_model::{
+        BudgetAlgebraId, BudgetCeiling, CanonicalAction, CapabilityId, Permission, ProfileId,
+        ProfileRef,
+    };
+
+    #[test]
+    fn authorization_fixture_uses_the_real_auths_kernel() {
+        let canonical = CanonicalAction::new(
+            ProfileRef::new(ProfileId::parse("auths.stripe.fixture-test").unwrap(), 1).unwrap(),
+            MediaType::parse("application/vnd.auths.stripe.fixture-test+json;version=1").unwrap(),
+            br#"{"amount_minor":1}"#.to_vec(),
+            Permission::new(
+                CapabilityId::parse("stripe.fixture/test").unwrap(),
+                ResourceId::parse("stripe-test://acct_fixture/orders/order-1").unwrap(),
+            ),
+            Some(BudgetCeiling::new(
+                BudgetAlgebraId::parse("numeric-ceiling-v1").unwrap(),
+                1,
+            )),
+        )
+        .unwrap();
+        let fixture = authorization_fixture(
+            &canonical,
+            "https://stripe-fixture.auths.dev",
+            "stripe-test://acct_fixture/",
+            1_800_000_000,
+            [0x41; 32],
+        );
+        assert!(!fixture.proof.is_empty());
+        assert_eq!(
+            fixture.request.audience().as_str(),
+            "https://stripe-fixture.auths.dev"
+        );
+    }
+}

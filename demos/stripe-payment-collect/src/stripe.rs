@@ -291,42 +291,40 @@ impl PaymentCollectGateway for LivePaymentCollectEnvironment {
         now: u64,
     ) -> Result<PaymentCollectEffect, PortError> {
         let action = command.action();
+        let request = command.provider_request();
         let parameters = vec![
-            ("amount".into(), action.amount_minor().to_string()),
-            ("currency".into(), action.currency().to_string()),
-            ("customer".into(), action.customer_id().to_string()),
-            (
-                "payment_method".into(),
-                action.payment_method_id().to_string(),
-            ),
+            ("amount".into(), request.amount_minor().to_string()),
+            ("currency".into(), request.currency().into()),
+            ("customer".into(), request.customer_id().into()),
+            ("payment_method".into(), request.payment_method_id().into()),
             (
                 "payment_method_types[]".into(),
-                action.payment_method_type().into(),
+                request.payment_method_type().into(),
             ),
             ("confirm".into(), "true".into()),
             (
                 "confirmation_method".into(),
-                action.confirmation_method().into(),
+                request.confirmation_method().into(),
             ),
-            ("capture_method".into(), action.capture_method().into()),
+            ("capture_method".into(), request.capture_method().into()),
             ("off_session".into(), "false".into()),
             ("error_on_requires_action".into(), "true".into()),
             (
                 "statement_descriptor_suffix".into(),
-                command.statement_descriptor().into(),
+                request.statement_descriptor_suffix().into(),
             ),
-            ("metadata[auths_profile]".into(), action.profile().into()),
+            ("metadata[auths_profile]".into(), request.profile().into()),
             (
                 "metadata[auths_order_scope]".into(),
-                action.order_scope().into(),
+                request.order_scope().into(),
             ),
             (
                 "metadata[auths_policy]".into(),
-                command.policy_digest().to_string(),
+                request.policy_digest().into(),
             ),
             (
                 "metadata[auths_workflow]".into(),
-                command.workflow_id().into(),
+                request.workflow_id().into(),
             ),
             ("expand[]".into(), "latest_charge".into()),
         ];

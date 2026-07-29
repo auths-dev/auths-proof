@@ -114,6 +114,100 @@ pub struct VerifiedPaymentCollectCommand {
     idempotency_key: String,
 }
 
+/// Closed create-and-confirm request derived from a verified collection command.
+///
+/// The adapter can read these fixed fields but cannot add an endpoint,
+/// arbitrary metadata, capture mode, redirect, or unrestricted parameter.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PaymentCollectProviderRequest {
+    amount_minor: u64,
+    currency: String,
+    customer_id: String,
+    payment_method_id: String,
+    payment_method_type: String,
+    confirmation_method: String,
+    capture_method: String,
+    statement_descriptor_suffix: String,
+    profile: String,
+    order_scope: String,
+    policy_digest: String,
+    workflow_id: String,
+}
+
+impl PaymentCollectProviderRequest {
+    /// Exact amount in minor units.
+    #[must_use]
+    pub const fn amount_minor(&self) -> u64 {
+        self.amount_minor
+    }
+
+    /// Exact lower-case currency.
+    #[must_use]
+    pub fn currency(&self) -> &str {
+        &self.currency
+    }
+
+    /// Exact Stripe Customer.
+    #[must_use]
+    pub fn customer_id(&self) -> &str {
+        &self.customer_id
+    }
+
+    /// Exact attached PaymentMethod.
+    #[must_use]
+    pub fn payment_method_id(&self) -> &str {
+        &self.payment_method_id
+    }
+
+    /// Fixed V1 PaymentMethod type.
+    #[must_use]
+    pub fn payment_method_type(&self) -> &str {
+        &self.payment_method_type
+    }
+
+    /// Fixed server-side confirmation method.
+    #[must_use]
+    pub fn confirmation_method(&self) -> &str {
+        &self.confirmation_method
+    }
+
+    /// Fixed automatic capture method.
+    #[must_use]
+    pub fn capture_method(&self) -> &str {
+        &self.capture_method
+    }
+
+    /// Fixed protected statement suffix.
+    #[must_use]
+    pub fn statement_descriptor_suffix(&self) -> &str {
+        &self.statement_descriptor_suffix
+    }
+
+    /// Exact collection profile metadata.
+    #[must_use]
+    pub fn profile(&self) -> &str {
+        &self.profile
+    }
+
+    /// Exact protected order metadata.
+    #[must_use]
+    pub fn order_scope(&self) -> &str {
+        &self.order_scope
+    }
+
+    /// Immutable policy metadata commitment.
+    #[must_use]
+    pub fn policy_digest(&self) -> &str {
+        &self.policy_digest
+    }
+
+    /// Durable workflow metadata.
+    #[must_use]
+    pub fn workflow_id(&self) -> &str {
+        &self.workflow_id
+    }
+}
+
 impl VerifiedPaymentCollectCommand {
     #[allow(
         clippy::too_many_arguments,
@@ -216,6 +310,25 @@ impl VerifiedPaymentCollectCommand {
             &self.policy_digest,
         )
         .map_err(|_| PortError::Malformed)
+    }
+
+    /// Derives the only provider request shape accepted by this profile.
+    #[must_use]
+    pub fn provider_request(&self) -> PaymentCollectProviderRequest {
+        PaymentCollectProviderRequest {
+            amount_minor: self.action().amount_minor(),
+            currency: self.action().currency().to_string(),
+            customer_id: self.action().customer_id().to_string(),
+            payment_method_id: self.action().payment_method_id().to_string(),
+            payment_method_type: self.action().payment_method_type().into(),
+            confirmation_method: self.action().confirmation_method().into(),
+            capture_method: self.action().capture_method().into(),
+            statement_descriptor_suffix: self.statement_descriptor().into(),
+            profile: self.action().profile().into(),
+            order_scope: self.action().order_scope().into(),
+            policy_digest: self.policy_digest.to_string(),
+            workflow_id: self.workflow_id.clone(),
+        }
     }
 }
 

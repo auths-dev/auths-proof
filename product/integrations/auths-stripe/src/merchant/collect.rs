@@ -15,9 +15,9 @@ pub use evaluator::{
 };
 pub use execution::{
     PaymentCollectEffect, PaymentCollectGateway, PaymentCollectProofDecision,
-    PaymentCollectProofVerifier, PaymentCollectReconciliationOutcome, PaymentCollectTransition,
-    SdkPaymentCollectProofVerifier, VerifiedPaymentCollectCommand, connected_account_header,
-    transition_payment_collect,
+    PaymentCollectProofVerifier, PaymentCollectProviderRequest,
+    PaymentCollectReconciliationOutcome, PaymentCollectTransition, SdkPaymentCollectProofVerifier,
+    VerifiedPaymentCollectCommand, connected_account_header, transition_payment_collect,
 };
 pub use profile::{StripePaymentCollectCommand, StripePaymentCollectProfile};
 pub use receipts::{

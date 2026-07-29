@@ -28,11 +28,12 @@ pub use collect::{
     MerchantServiceError, PaymentCollectDecision, PaymentCollectDecisionClass,
     PaymentCollectDecisionCode, PaymentCollectDecisionStage, PaymentCollectEffect,
     PaymentCollectEligibility, PaymentCollectEvaluationContext, PaymentCollectGateway,
-    PaymentCollectProofDecision, PaymentCollectProofVerifier, PaymentCollectReconciliationOutcome,
-    PaymentCollectService, PaymentCollectServiceDependencies, PaymentCollectTransition,
-    PaymentCollectWorkflowOutcome, SdkPaymentCollectProofVerifier, StripeExactPaymentCollectInput,
-    StripeExactPaymentCollectV1, StripePaymentCollectCommand, StripePaymentCollectProfile,
-    VerifiedPaymentCollectCommand, evaluate_payment_collect, transition_payment_collect,
+    PaymentCollectProofDecision, PaymentCollectProofVerifier, PaymentCollectProviderRequest,
+    PaymentCollectReconciliationOutcome, PaymentCollectService, PaymentCollectServiceDependencies,
+    PaymentCollectTransition, PaymentCollectWorkflowOutcome, SdkPaymentCollectProofVerifier,
+    StripeExactPaymentCollectInput, StripeExactPaymentCollectV1, StripePaymentCollectCommand,
+    StripePaymentCollectProfile, VerifiedPaymentCollectCommand, evaluate_payment_collect,
+    transition_payment_collect,
 };
 pub use commitments::{
     fixed_merchant_metadata_commitment, merchant_statement_descriptor_commitment,
