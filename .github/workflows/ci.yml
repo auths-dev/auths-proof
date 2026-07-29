@@ -17,10 +17,35 @@ jobs:
   authoritative:
     runs-on: ubuntu-latest
     timeout-minutes: 120
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_PROFILE_DEV_DEBUG: "0"
+      CARGO_PROFILE_TEST_DEBUG: "0"
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
+      - name: Reclaim disk for authoritative CI
+        shell: bash
+        run: |
+          set -euo pipefail
+          df -h /
+          sudo rm -rf \
+            /opt/ghc \
+            /opt/hostedtoolcache/CodeQL \
+            /usr/local/.ghcup \
+            /usr/local/lib/android \
+            /usr/share/dotnet
+          sudo docker system prune --all --force
+          sudo apt-get clean
+
+          available_kib="$(df --output=avail / | tail -n 1 | tr -d ' ')"
+          minimum_kib="$((30 * 1024 * 1024))"
+          df -h /
+          if (( available_kib < minimum_kib )); then
+            echo "::error::Authoritative CI requires at least 30 GiB free before toolchain installation; runner has $((available_kib / 1024 / 1024)) GiB"
+            exit 1
+          fi
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
         with:
           toolchain: 1.91.0
@@ -72,7 +97,23 @@ jobs:
           wasm-bindgen --version
           wasm-pack --version
           kani --version
-      - run: cargo xtask ci
+      - name: Verify workspace build capacity
+        shell: bash
+        run: |
+          set -euo pipefail
+          available_kib="$(df --output=avail / | tail -n 1 | tr -d ' ')"
+          minimum_kib="$((20 * 1024 * 1024))"
+          df -h /
+          if (( available_kib < minimum_kib )); then
+            echo "::error::Authoritative CI requires at least 20 GiB free after toolchain installation; runner has $((available_kib / 1024 / 1024)) GiB"
+            exit 1
+          fi
+      - name: Run authoritative repository CI
+        shell: bash
+        run: |
+          set -euo pipefail
+          trap 'df -h /; du -sh target 2>/dev/null || true' EXIT
+          cargo xtask ci
       - name: Preserve formal assurance evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
