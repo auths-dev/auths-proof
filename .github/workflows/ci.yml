@@ -89,6 +89,43 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
+      - name: Reclaim disk for the pinned formal toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          df -h /
+          sudo rm -rf \
+            /opt/ghc \
+            /opt/hostedtoolcache/CodeQL \
+            /usr/local/.ghcup \
+            /usr/local/lib/android \
+            /usr/share/dotnet
+          sudo docker system prune --all --force
+          sudo apt-get clean
+
+          available_kib="$(df --output=avail / | tail -n 1 | tr -d ' ')"
+          minimum_kib="$((25 * 1024 * 1024))"
+          df -h /
+          if (( available_kib < minimum_kib )); then
+            echo "::error::Formal translation requires at least 25 GiB free; runner has $((available_kib / 1024 / 1024)) GiB"
+            exit 1
+          fi
+      - name: Install pinned Nix
+        uses: cachix/install-nix-action@ab739621df7a23f52766f9ccc97f38da6b7af14f # v31.10.5
+        with:
+          extra_nix_config: |
+            extra-substituters = https://hacl.cachix.org
+            extra-trusted-public-keys = hacl.cachix.org-1:FzsZ2xsByOwKwIWNPII7yMOelJNDZ12mDAj3d1eGX0c=
+      - name: Build pinned Aeneas and Charon
+        run: >-
+          nix build
+          --print-build-logs
+          --max-jobs 2
+          --cores 2
+          github:AeneasVerif/aeneas/3a8586facab25b31bdb1e1f5f45acd60d1cc5ff0#aeneas
+          --out-link target/formal-tools
+      - name: Report remaining runner capacity
+        run: df -h / /nix/store
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
         with:
           toolchain: 1.97.1
@@ -103,13 +140,6 @@ jobs:
           leanchecker: false
           nanoda: false
           lake-package-directory: formal
-      - name: Install pinned Nix
-        uses: cachix/install-nix-action@ab739621df7a23f52766f9ccc97f38da6b7af14f # v31.10.5
-      - name: Build pinned Aeneas and Charon
-        run: >-
-          nix build
-          github:AeneasVerif/aeneas/3a8586facab25b31bdb1e1f5f45acd60d1cc5ff0#aeneas
-          --out-link target/formal-tools
       - name: Reproduce exact production translation twice
         env:
           AUTHS_AENEAS_BIN: ${{ github.workspace }}/target/formal-tools/bin/aeneas
