@@ -144,7 +144,7 @@ classification = "Pinned upstream iterator proof-support sorry; the qualified so
 [[translations]]
 crate_name = "auths_model"
 translation_json = "formal/qualification/aeneas/generated/model/translation.json"
-local_functions = 47
+local_functions = 42
 external_functions = 1
 opaque_local_functions = 0
 required_symbols = [
@@ -187,11 +187,12 @@ allowed_external_symbols = []
 [[translations]]
 crate_name = "auths_authority"
 translation_json = "formal/qualification/aeneas/generated/authority/translation.json"
-local_functions = 3
+local_functions = 4
 external_functions = 16
 opaque_local_functions = 0
 required_symbols = [
   "auths_authority::selected_profile_attenuates",
+  "auths_authority::evaluate_author_scope_view",
   "auths_authority::evaluate_grant_view",
   "auths_authority::evaluate_action_coverage_view",
 ]

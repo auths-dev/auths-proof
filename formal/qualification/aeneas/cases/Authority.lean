@@ -11,7 +11,10 @@ open auths_authority
 
 #check evaluate_grant_view
 #check evaluate_action_coverage_view
+#check evaluate_author_scope_view
 #check DelegationOutcome.Accepted
 #check DelegationOutcome.Denied
 #check CoverageDecision.Authorized
 #check CoverageDecision.Denied
+#check AuthorScopeDecision.Accepted
+#check AuthorScopeDecision.Denied

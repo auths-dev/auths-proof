@@ -19,102 +19,23 @@ noncomputable section
 
 namespace auths_model
 
-/-- [auths_model::byte_slices_equal]: loop body 0:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 116:4-123:1 -/
-@[rust_loop_body]
-def byte_slices_equal_loop.body
-  (left : Slice Std.U8) (right : Slice Std.U8) (index : Std.Usize) :
-  Result (ControlFlow Std.Usize Bool)
-  := do
-  let i := Slice.len left
-  if index < i
-  then
-    let i1 ← Slice.index_usize left index
-    let i2 ← Slice.index_usize right index
-    if i1 != i2
-    then ok (done false)
-    else let index1 ← index + 1#usize
-         ok (cont index1)
-  else ok (done true)
-
-/-- [auths_model::byte_slices_equal]: loop 0:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 116:4-123:1 -/
-@[rust_loop]
-def byte_slices_equal_loop
-  (left : Slice Std.U8) (right : Slice Std.U8) (index : Std.Usize) :
-  Result Bool
-  := do
-  loop
-    (fun index1 => byte_slices_equal_loop.body left right index1)
-    index
+/-- Trait implementation: [core::slice::cmp::{impl core::cmp::PartialEq<[U]> for [T]}]
+    Source: '/rustc/library/core/src/slice/cmp.rs', lines 14:0-16:28
+    Name pattern: [core::cmp::PartialEq<[@T], [@U]>] -/
+@[reducible, rust_trait_impl "core::cmp::PartialEq<[@T], [@U]>"]
+def Slice.Insts.CoreCmpPartialEqSlice {T : Type} {U : Type} (cmpPartialEqInst :
+  core.cmp.PartialEq T U) : core.cmp.PartialEq (Slice T) (Slice U) := {
+  eq := core.slice.cmp.PartialEqSlice.eq cmpPartialEqInst
+}
 
 /-- [auths_model::byte_slices_equal]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 111:0-123:1 -/
+    Source: 'core/crates/auths-model/src/lib.rs', lines 111:0-113:1 -/
 def byte_slices_equal
   (left : Slice Std.U8) (right : Slice Std.U8) : Result Bool := do
-  let i := Slice.len left
-  let i1 := Slice.len right
-  if i != i1
-  then ok false
-  else byte_slices_equal_loop left right 0#usize
-
-/-- [auths_model::compare_byte_slices]: loop body 0:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1:0-146:1 -/
-@[rust_loop_body]
-def compare_byte_slices_loop.body
-  (left : Slice Std.U8) (right : Slice Std.U8) (common_length : Std.Usize)
-  (index : Std.Usize) :
-  Result (ControlFlow Std.Usize Ordering)
-  := do
-  if index < common_length
-  then
-    let i ← Slice.index_usize left index
-    let i1 ← Slice.index_usize right index
-    if i < i1
-    then ok (done Ordering.lt)
-    else
-      if i > i1
-      then ok (done Ordering.gt)
-      else let index1 ← index + 1#usize
-           ok (cont index1)
-  else
-    let i := Slice.len left
-    let i1 := Slice.len right
-    let i2 := Slice.len left
-    let i3 := Slice.len right
-    if i < i1
-    then ok (done Ordering.lt)
-    else if i2 > i3
-         then ok (done Ordering.gt)
-         else ok (done Ordering.eq)
-
-/-- [auths_model::compare_byte_slices]: loop 0:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1:0-146:1 -/
-@[rust_loop]
-def compare_byte_slices_loop
-  (left : Slice Std.U8) (right : Slice Std.U8) (common_length : Std.Usize)
-  (index : Std.Usize) :
-  Result Ordering
-  := do
-  loop
-    (fun index1 => compare_byte_slices_loop.body left right common_length
-      index1)
-    index
-
-/-- [auths_model::compare_byte_slices]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 125:0-146:1 -/
-def compare_byte_slices
-  (left : Slice Std.U8) (right : Slice Std.U8) : Result Ordering := do
-  let i := Slice.len left
-  let i1 := Slice.len right
-  let common_length ←
-    if i < i1
-    then ok (Slice.len left)
-    else ok (Slice.len right)
-  compare_byte_slices_loop left right common_length 0#usize
+  core.slice.cmp.PartialEqSlice.eq core.cmp.PartialEqU8 left right
 
 /-- [auths_model::principal_id_equal]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 221:0-223:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 211:0-213:1
     Visibility: public -/
 def principal_id_equal
   (left : PrincipalId) (right : PrincipalId) : Result Bool := do
@@ -123,19 +44,19 @@ def principal_id_equal
   byte_slices_equal s s1
 
 /-- [auths_model::{auths_model::Digest}::as_bytes]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 272:4-274:5
+    Source: 'core/crates/auths-model/src/lib.rs', lines 262:4-264:5
     Visibility: public -/
 def Digest.as_bytes (self : Digest) : Result (Array Std.U8 32#usize) := do
   ok self
 
 /-- [auths_model::{auths_model::GrantId}::as_bytes]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 299:12-301:13
+    Source: 'core/crates/auths-model/src/lib.rs', lines 289:12-291:13
     Visibility: public -/
 def GrantId.as_bytes (self : GrantId) : Result (Array Std.U8 32#usize) := do
   Digest.as_bytes self
 
 /-- [auths_model::inclusive_window_contains]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 433:0-440:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 423:0-430:1
     Visibility: public -/
 def inclusive_window_contains
   (parent_start : Std.U64) (parent_end : Std.U64) (child_start : Std.U64)
@@ -147,7 +68,7 @@ def inclusive_window_contains
   else ok false
 
 /-- [auths_model::validity_window_contains]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 445:0-452:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 435:0-442:1
     Visibility: public -/
 def validity_window_contains
   (parent : ValidityWindow) (child : ValidityWindow) : Result Bool := do
@@ -158,7 +79,7 @@ def validity_window_contains
   inclusive_window_contains i i1 i2 i3
 
 /-- [auths_model::profile_ref_equal]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 488:0-490:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 478:0-480:1
     Visibility: public -/
 def profile_ref_equal
   (left : ProfileRef) (right : ProfileRef) : Result Bool := do
@@ -172,7 +93,7 @@ def profile_ref_equal
   else ok false
 
 /-- [auths_model::profile_slice_contains]: loop body 0:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 497:4-504:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 487:4-494:1
     Visibility: public -/
 @[rust_loop_body]
 def profile_slice_contains_loop.body
@@ -191,7 +112,7 @@ def profile_slice_contains_loop.body
   else ok (done false)
 
 /-- [auths_model::profile_slice_contains]: loop 0:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 497:4-504:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 487:4-494:1
     Visibility: public -/
 @[rust_loop]
 def profile_slice_contains_loop
@@ -203,7 +124,7 @@ def profile_slice_contains_loop
     index
 
 /-- [auths_model::profile_slice_contains]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 495:0-504:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 485:0-494:1
     Visibility: public -/
 @[reducible]
 def profile_slice_contains
@@ -211,7 +132,7 @@ def profile_slice_contains
   profile_slice_contains_loop profiles profile 0#usize
 
 /-- [auths_model::assurance_policy_id_equal]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 509:0-511:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 499:0-501:1
     Visibility: public -/
 def assurance_policy_id_equal
   (left : AssurancePolicyId) (right : AssurancePolicyId) : Result Bool := do
@@ -220,7 +141,7 @@ def assurance_policy_id_equal
   byte_slices_equal s s1
 
 /-- [auths_model::grant_id_equal]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 516:0-518:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 506:0-508:1
     Visibility: public -/
 def grant_id_equal (left : GrantId) (right : GrantId) : Result Bool := do
   let a ← GrantId.as_bytes left
@@ -230,7 +151,7 @@ def grant_id_equal (left : GrantId) (right : GrantId) : Result Bool := do
   byte_slices_equal s s1
 
 /-- [auths_model::optional_grant_id_equal]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 523:0-529:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 513:0-519:1
     Visibility: public -/
 def optional_grant_id_equal
   (left : Option GrantId) (right : Option GrantId) : Result Bool := do
@@ -243,379 +164,306 @@ def optional_grant_id_equal
     | none => ok false
     | some right1 => grant_id_equal left1 right1
 
-/-- [auths_model::compare_permissions]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 557:0-566:1 -/
-def compare_permissions
-  (left : Permission) (right : Permission) : Result Ordering := do
+/-- [auths_model::permissions_equal]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 558:0-561:1 -/
+def permissions_equal
+  (left : Permission) (right : Permission) : Result Bool := do
   let s := left.capability
   let s1 ← alloc.string.String.as_bytes s
   let s2 := right.capability
   let s3 ← alloc.string.String.as_bytes s2
-  let capability_order ← compare_byte_slices s1 s3
-  match capability_order with
-  | Ordering.lt => ok Ordering.lt
-  | Ordering.eq =>
+  let b ← byte_slices_equal s1 s3
+  if b
+  then
     let s4 := left.resource
     let s5 ← alloc.string.String.as_bytes s4
     let s6 := right.resource
     let s7 ← alloc.string.String.as_bytes s6
-    compare_byte_slices s5 s7
-  | Ordering.gt => ok Ordering.gt
+    byte_slices_equal s5 s7
+  else ok false
 
 /-- [auths_model::permission_set_contains]: loop body 0:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 610:4-619:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 604:4-611:1
     Visibility: public -/
 @[rust_loop_body]
 def permission_set_contains_loop.body
-  (v : alloc.vec.Vec Permission) (permission : Permission) (left : Std.Usize)
-  (right : Std.Usize) :
-  Result (ControlFlow (Std.Usize × Std.Usize) Bool)
+  (permission : Permission) (set : PermissionSet) (index : Std.Usize) :
+  Result (ControlFlow (PermissionSet × Std.Usize) Bool)
   := do
-  if left < right
+  let i := alloc.vec.Vec.len set
+  if index < i
   then
-    let i ← right - left
-    let i1 ← i / 2#usize
-    let middle ← left + i1
     let p ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Permission) v
-        middle
-    let o ← compare_permissions p permission
-    match o with
-    | Ordering.lt => let left1 ← middle + 1#usize
-                     ok (cont (left1, right))
-    | Ordering.eq => ok (done true)
-    | Ordering.gt => ok (cont (left, middle))
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Permission)
+        set index
+    let b ← permissions_equal p permission
+    if b
+    then ok (done true)
+    else let index1 ← index + 1#usize
+         ok (cont (set, index1))
   else ok (done false)
 
 /-- [auths_model::permission_set_contains]: loop 0:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 610:4-619:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 604:4-611:1
     Visibility: public -/
 @[rust_loop]
 def permission_set_contains_loop
-  (v : alloc.vec.Vec Permission) (permission : Permission) (left : Std.Usize)
-  (right : Std.Usize) :
+  (set : PermissionSet) (permission : Permission) (index : Std.Usize) :
   Result Bool
   := do
   loop
-    (fun (left1, right1) => permission_set_contains_loop.body v permission
-      left1 right1)
-    (left, right)
+    (fun (set1, index1) => permission_set_contains_loop.body permission set1
+      index1)
+    (set, index)
 
 /-- [auths_model::permission_set_contains]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 607:0-619:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 602:0-611:1
     Visibility: public -/
+@[reducible]
 def permission_set_contains
   (set : PermissionSet) (permission : Permission) : Result Bool := do
-  let right := alloc.vec.Vec.len set
-  permission_set_contains_loop set permission 0#usize right
+  permission_set_contains_loop set permission 0#usize
 
 /-- [auths_model::permission_set_is_subset]: loop body 0:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1:0-638:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 618:4-625:1
     Visibility: public -/
 @[rust_loop_body]
 def permission_set_is_subset_loop.body
-  (child : PermissionSet) (parent : PermissionSet) (child_index : Std.Usize)
-  (parent_index : Std.Usize) :
-  Result (ControlFlow (PermissionSet × PermissionSet × Std.Usize ×
-    Std.Usize) Bool)
+  (parent : PermissionSet) (child : PermissionSet) (child_index : Std.Usize) :
+  Result (ControlFlow (PermissionSet × Std.Usize) Bool)
   := do
   let i := alloc.vec.Vec.len child
   if child_index < i
   then
-    let i1 := alloc.vec.Vec.len parent
-    if parent_index < i1
+    let p ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Permission)
+        child child_index
+    let b ← permission_set_contains parent p
+    if b
     then
-      let p ←
-        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Permission)
-          child child_index
-      let p1 ←
-        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Permission)
-          parent parent_index
-      let o ← compare_permissions p p1
-      match o with
-      | Ordering.lt => ok (done false)
-      | Ordering.eq =>
-        let child_index1 ← child_index + 1#usize
-        let parent_index1 ← parent_index + 1#usize
-        ok (cont (child, parent, child_index1, parent_index1))
-      | Ordering.gt =>
-        let parent_index1 ← parent_index + 1#usize
-        ok (cont (child, parent, child_index, parent_index1))
-    else let i2 := alloc.vec.Vec.len child
-         ok (done (child_index = i2))
-  else let i1 := alloc.vec.Vec.len child
-       ok (done (child_index = i1))
+      let child_index1 ← child_index + 1#usize
+      ok (cont (child, child_index1))
+    else ok (done false)
+  else ok (done true)
 
 /-- [auths_model::permission_set_is_subset]: loop 0:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1:0-638:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 618:4-625:1
     Visibility: public -/
 @[rust_loop]
 def permission_set_is_subset_loop
-  (child : PermissionSet) (parent : PermissionSet) (child_index : Std.Usize)
-  (parent_index : Std.Usize) :
+  (child : PermissionSet) (parent : PermissionSet) (child_index : Std.Usize) :
   Result Bool
   := do
   loop
-    (fun (child1, parent1, child_index1, parent_index1) =>
-      permission_set_is_subset_loop.body child1 parent1 child_index1
-      parent_index1)
-    (child, parent, child_index, parent_index)
+    (fun (child1, child_index1) => permission_set_is_subset_loop.body parent
+      child1 child_index1)
+    (child, child_index)
 
 /-- [auths_model::permission_set_is_subset]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 624:0-638:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 616:0-625:1
     Visibility: public -/
 @[reducible]
 def permission_set_is_subset
   (child : PermissionSet) (parent : PermissionSet) : Result Bool := do
-  permission_set_is_subset_loop child parent 0#usize 0#usize
+  permission_set_is_subset_loop child parent 0#usize
 
-/-- [auths_model::compare_audiences]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 643:0-645:1 -/
-def compare_audiences
-  (left : Audience) (right : Audience) : Result Ordering := do
+/-- [auths_model::audiences_equal]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 634:0-636:1 -/
+def audiences_equal (left : Audience) (right : Audience) : Result Bool := do
   let s ← alloc.string.String.as_bytes left
   let s1 ← alloc.string.String.as_bytes right
-  compare_byte_slices s s1
+  byte_slices_equal s s1
 
 /-- [auths_model::audience_set_contains]: loop body 0:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 685:4-694:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 675:4-682:1
     Visibility: public -/
 @[rust_loop_body]
 def audience_set_contains_loop.body
-  (v : alloc.vec.Vec Audience) (audience : Audience) (left : Std.Usize)
-  (right : Std.Usize) :
-  Result (ControlFlow (Std.Usize × Std.Usize) Bool)
+  (audience : Audience) (set : AudienceSet) (index : Std.Usize) :
+  Result (ControlFlow (AudienceSet × Std.Usize) Bool)
   := do
-  if left < right
+  let i := alloc.vec.Vec.len set
+  if index < i
   then
-    let i ← right - left
-    let i1 ← i / 2#usize
-    let middle ← left + i1
     let a ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Audience) v
-        middle
-    let o ← compare_audiences a audience
-    match o with
-    | Ordering.lt => let left1 ← middle + 1#usize
-                     ok (cont (left1, right))
-    | Ordering.eq => ok (done true)
-    | Ordering.gt => ok (cont (left, middle))
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Audience) set
+        index
+    let b ← audiences_equal a audience
+    if b
+    then ok (done true)
+    else let index1 ← index + 1#usize
+         ok (cont (set, index1))
   else ok (done false)
 
 /-- [auths_model::audience_set_contains]: loop 0:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 685:4-694:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 675:4-682:1
     Visibility: public -/
 @[rust_loop]
 def audience_set_contains_loop
-  (v : alloc.vec.Vec Audience) (audience : Audience) (left : Std.Usize)
-  (right : Std.Usize) :
+  (set : AudienceSet) (audience : Audience) (index : Std.Usize) :
   Result Bool
   := do
   loop
-    (fun (left1, right1) => audience_set_contains_loop.body v audience left1
-      right1)
-    (left, right)
+    (fun (set1, index1) => audience_set_contains_loop.body audience set1
+      index1)
+    (set, index)
 
 /-- [auths_model::audience_set_contains]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 682:0-694:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 673:0-682:1
     Visibility: public -/
+@[reducible]
 def audience_set_contains
   (set : AudienceSet) (audience : Audience) : Result Bool := do
-  let right := alloc.vec.Vec.len set
-  audience_set_contains_loop set audience 0#usize right
+  audience_set_contains_loop set audience 0#usize
 
 /-- [auths_model::audience_set_is_subset]: loop body 0:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1:0-713:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 689:4-696:1
     Visibility: public -/
 @[rust_loop_body]
 def audience_set_is_subset_loop.body
-  (child : AudienceSet) (parent : AudienceSet) (child_index : Std.Usize)
-  (parent_index : Std.Usize) :
-  Result (ControlFlow (AudienceSet × AudienceSet × Std.Usize × Std.Usize)
-    Bool)
+  (parent : AudienceSet) (child : AudienceSet) (child_index : Std.Usize) :
+  Result (ControlFlow (AudienceSet × Std.Usize) Bool)
   := do
   let i := alloc.vec.Vec.len child
   if child_index < i
   then
-    let i1 := alloc.vec.Vec.len parent
-    if parent_index < i1
+    let a ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Audience)
+        child child_index
+    let b ← audience_set_contains parent a
+    if b
     then
-      let a ←
-        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Audience)
-          child child_index
-      let a1 ←
-        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Audience)
-          parent parent_index
-      let o ← compare_audiences a a1
-      match o with
-      | Ordering.lt => ok (done false)
-      | Ordering.eq =>
-        let child_index1 ← child_index + 1#usize
-        let parent_index1 ← parent_index + 1#usize
-        ok (cont (child, parent, child_index1, parent_index1))
-      | Ordering.gt =>
-        let parent_index1 ← parent_index + 1#usize
-        ok (cont (child, parent, child_index, parent_index1))
-    else let i2 := alloc.vec.Vec.len child
-         ok (done (child_index = i2))
-  else let i1 := alloc.vec.Vec.len child
-       ok (done (child_index = i1))
+      let child_index1 ← child_index + 1#usize
+      ok (cont (child, child_index1))
+    else ok (done false)
+  else ok (done true)
 
 /-- [auths_model::audience_set_is_subset]: loop 0:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1:0-713:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 689:4-696:1
     Visibility: public -/
 @[rust_loop]
 def audience_set_is_subset_loop
-  (child : AudienceSet) (parent : AudienceSet) (child_index : Std.Usize)
-  (parent_index : Std.Usize) :
+  (child : AudienceSet) (parent : AudienceSet) (child_index : Std.Usize) :
   Result Bool
   := do
   loop
-    (fun (child1, parent1, child_index1, parent_index1) =>
-      audience_set_is_subset_loop.body child1 parent1 child_index1
-      parent_index1)
-    (child, parent, child_index, parent_index)
+    (fun (child1, child_index1) => audience_set_is_subset_loop.body parent
+      child1 child_index1)
+    (child, child_index)
 
 /-- [auths_model::audience_set_is_subset]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 699:0-713:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 687:0-696:1
     Visibility: public -/
 @[reducible]
 def audience_set_is_subset
   (child : AudienceSet) (parent : AudienceSet) : Result Bool := do
-  audience_set_is_subset_loop child parent 0#usize 0#usize
+  audience_set_is_subset_loop child parent 0#usize
 
-/-- [auths_model::compare_digests]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 719:0-721:1 -/
-def compare_digests (left : Digest) (right : Digest) : Result Ordering := do
+/-- [auths_model::digests_equal]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 706:0-708:1 -/
+def digests_equal (left : Digest) (right : Digest) : Result Bool := do
   let s ← core.array.Array.as_slice left
   let s1 ← core.array.Array.as_slice right
-  compare_byte_slices s s1
+  byte_slices_equal s s1
 
 /-- [auths_model::body_digest_set_contains]: loop body 0:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 764:4-773:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 750:4-757:1
     Visibility: public -/
 @[rust_loop_body]
 def body_digest_set_contains_loop.body
-  (v : alloc.vec.Vec Digest) (digest : Digest) (left : Std.Usize)
-  (right : Std.Usize) :
-  Result (ControlFlow (Std.Usize × Std.Usize) Bool)
+  (digest : Digest) (set : BodyDigestSet) (index : Std.Usize) :
+  Result (ControlFlow (BodyDigestSet × Std.Usize) Bool)
   := do
-  if left < right
+  let i := alloc.vec.Vec.len set
+  if index < i
   then
-    let i ← right - left
-    let i1 ← i / 2#usize
-    let middle ← left + i1
     let d ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Digest) v
-        middle
-    let o ← compare_digests d digest
-    match o with
-    | Ordering.lt => let left1 ← middle + 1#usize
-                     ok (cont (left1, right))
-    | Ordering.eq => ok (done true)
-    | Ordering.gt => ok (cont (left, middle))
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Digest) set
+        index
+    let b ← digests_equal d digest
+    if b
+    then ok (done true)
+    else let index1 ← index + 1#usize
+         ok (cont (set, index1))
   else ok (done false)
 
 /-- [auths_model::body_digest_set_contains]: loop 0:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 764:4-773:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 750:4-757:1
     Visibility: public -/
 @[rust_loop]
 def body_digest_set_contains_loop
-  (v : alloc.vec.Vec Digest) (digest : Digest) (left : Std.Usize)
-  (right : Std.Usize) :
+  (set : BodyDigestSet) (digest : Digest) (index : Std.Usize) :
   Result Bool
   := do
   loop
-    (fun (left1, right1) => body_digest_set_contains_loop.body v digest left1
-      right1)
-    (left, right)
+    (fun (set1, index1) => body_digest_set_contains_loop.body digest set1
+      index1)
+    (set, index)
 
 /-- [auths_model::body_digest_set_contains]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 761:0-773:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 748:0-757:1
     Visibility: public -/
+@[reducible]
 def body_digest_set_contains
   (set : BodyDigestSet) (digest : Digest) : Result Bool := do
-  let right := alloc.vec.Vec.len set
-  body_digest_set_contains_loop set digest 0#usize right
+  body_digest_set_contains_loop set digest 0#usize
 
 /-- [auths_model::body_digest_set_is_subset]: loop body 0:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1:0-792:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 764:4-771:1
     Visibility: public -/
 @[rust_loop_body]
 def body_digest_set_is_subset_loop.body
-  (child : BodyDigestSet) (parent : BodyDigestSet) (child_index : Std.Usize)
-  (parent_index : Std.Usize) :
-  Result (ControlFlow (BodyDigestSet × BodyDigestSet × Std.Usize ×
-    Std.Usize) Bool)
+  (parent : BodyDigestSet) (child : BodyDigestSet) (child_index : Std.Usize) :
+  Result (ControlFlow (BodyDigestSet × Std.Usize) Bool)
   := do
   let i := alloc.vec.Vec.len child
   if child_index < i
   then
-    let i1 := alloc.vec.Vec.len parent
-    if parent_index < i1
+    let d ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Digest) child
+        child_index
+    let b ← body_digest_set_contains parent d
+    if b
     then
-      let d ←
-        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Digest)
-          child child_index
-      let d1 ←
-        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Digest)
-          parent parent_index
-      let o ← compare_digests d d1
-      match o with
-      | Ordering.lt => ok (done false)
-      | Ordering.eq =>
-        let child_index1 ← child_index + 1#usize
-        let parent_index1 ← parent_index + 1#usize
-        ok (cont (child, parent, child_index1, parent_index1))
-      | Ordering.gt =>
-        let parent_index1 ← parent_index + 1#usize
-        ok (cont (child, parent, child_index, parent_index1))
-    else let i2 := alloc.vec.Vec.len child
-         ok (done (child_index = i2))
-  else let i1 := alloc.vec.Vec.len child
-       ok (done (child_index = i1))
+      let child_index1 ← child_index + 1#usize
+      ok (cont (child, child_index1))
+    else ok (done false)
+  else ok (done true)
 
 /-- [auths_model::body_digest_set_is_subset]: loop 0:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1:0-792:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 764:4-771:1
     Visibility: public -/
 @[rust_loop]
 def body_digest_set_is_subset_loop
-  (child : BodyDigestSet) (parent : BodyDigestSet) (child_index : Std.Usize)
-  (parent_index : Std.Usize) :
+  (child : BodyDigestSet) (parent : BodyDigestSet) (child_index : Std.Usize) :
   Result Bool
   := do
   loop
-    (fun (child1, parent1, child_index1, parent_index1) =>
-      body_digest_set_is_subset_loop.body child1 parent1 child_index1
-      parent_index1)
-    (child, parent, child_index, parent_index)
+    (fun (child1, child_index1) => body_digest_set_is_subset_loop.body parent
+      child1 child_index1)
+    (child, child_index)
 
 /-- [auths_model::body_digest_set_is_subset]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 778:0-792:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 762:0-771:1
     Visibility: public -/
 @[reducible]
 def body_digest_set_is_subset
   (child : BodyDigestSet) (parent : BodyDigestSet) : Result Bool := do
-  body_digest_set_is_subset_loop child parent 0#usize 0#usize
+  body_digest_set_is_subset_loop child parent 0#usize
 
 /-- [auths_model::action_constraint_allows]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 839:0-847:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 818:0-824:1
     Visibility: public -/
 def action_constraint_allows
   (constraint : ActionConstraint) (digest : Digest) : Result Bool := do
   match constraint with
   | ActionConstraint.AnyBody => ok true
-  | ActionConstraint.ExactBodyDigest expected =>
-    let o ← compare_digests expected digest
-    match o with
-    | Ordering.lt => ok false
-    | Ordering.eq => ok true
-    | Ordering.gt => ok false
+  | ActionConstraint.ExactBodyDigest expected => digests_equal expected digest
   | ActionConstraint.AllowedBodyDigests allowed =>
     body_digest_set_contains allowed digest
 
 /-- [auths_model::action_constraint_attenuates]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 852:0-868:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 829:0-845:1
     Visibility: public -/
 def action_constraint_attenuates
   (child : ActionConstraint) (parent : ActionConstraint) : Result Bool := do
@@ -624,12 +472,7 @@ def action_constraint_attenuates
   | ActionConstraint.ExactBodyDigest parent1 =>
     match child with
     | ActionConstraint.AnyBody => ok false
-    | ActionConstraint.ExactBodyDigest child1 =>
-      let o ← compare_digests child1 parent1
-      match o with
-      | Ordering.lt => ok false
-      | Ordering.eq => ok true
-      | Ordering.gt => ok false
+    | ActionConstraint.ExactBodyDigest child1 => digests_equal child1 parent1
     | ActionConstraint.AllowedBodyDigests _ => ok false
   | ActionConstraint.AllowedBodyDigests parent1 =>
     match child with
@@ -640,7 +483,7 @@ def action_constraint_attenuates
       body_digest_set_is_subset child1 parent1
 
 /-- [auths_model::budget_ceiling_attenuates]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 907:0-910:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 884:0-887:1
     Visibility: public -/
 def budget_ceiling_attenuates
   (child : BudgetCeiling) (parent : BudgetCeiling) : Result Bool := do
@@ -654,21 +497,21 @@ def budget_ceiling_attenuates
   else ok false
 
 /-- [auths_model::{auths_model::BudgetCeiling}::attenuates]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 893:4-895:5
+    Source: 'core/crates/auths-model/src/lib.rs', lines 870:4-872:5
     Visibility: public -/
 def BudgetCeiling.attenuates
   (self : BudgetCeiling) (parent : BudgetCeiling) : Result Bool := do
   budget_ceiling_attenuates self parent
 
 /-- [auths_model::{auths_model::BudgetCeiling}::covers]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 899:4-901:5
+    Source: 'core/crates/auths-model/src/lib.rs', lines 876:4-878:5
     Visibility: public -/
 def BudgetCeiling.covers
   (self : BudgetCeiling) (requested : BudgetCeiling) : Result Bool := do
   BudgetCeiling.attenuates requested self
 
 /-- [auths_model::optional_budget_attenuates]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 917:0-926:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 894:0-903:1
     Visibility: public -/
 def optional_budget_attenuates
   (child : Option BudgetCeiling) (parent : Option BudgetCeiling) :
@@ -682,7 +525,7 @@ def optional_budget_attenuates
     | some child1 => BudgetCeiling.attenuates child1 parent1
 
 /-- [auths_model::optional_budget_covers]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 930:0-938:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 907:0-915:1
     Visibility: public -/
 def optional_budget_covers
   (ceiling : Option BudgetCeiling) (requested : Option BudgetCeiling) :
@@ -696,7 +539,7 @@ def optional_budget_covers
     | some ceiling1 => BudgetCeiling.covers ceiling1 requested1
 
 /-- [auths_model::status_policy_attenuates]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 990:0-1008:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 967:0-985:1
     Visibility: public -/
 def status_policy_attenuates
   (child : StatusPolicy) (parent : StatusPolicy) : Result Bool := do

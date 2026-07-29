@@ -15,112 +15,112 @@ set_option maxRecDepth 2048
 namespace auths_model
 
 /-- [auths_model::Audience]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 151:8-151:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 141:8-141:33
     Visibility: public -/
 @[reducible]
 def Audience := String
 
 /-- [auths_model::BudgetAlgebraId]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 151:8-151:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 141:8-141:33
     Visibility: public -/
 @[reducible]
 def BudgetAlgebraId := String
 
 /-- [auths_model::StatusMethodId]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 151:8-151:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 141:8-141:33
     Visibility: public -/
 @[reducible]
 def StatusMethodId := String
 
 /-- [auths_model::AssurancePolicyId]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 151:8-151:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 141:8-141:33
     Visibility: public -/
 @[reducible]
 def AssurancePolicyId := String
 
 /-- [auths_model::ProfileId]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 151:8-151:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 141:8-141:33
     Visibility: public -/
 @[reducible]
 def ProfileId := String
 
 /-- [auths_model::CapabilityId]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 151:8-151:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 141:8-141:33
     Visibility: public -/
 @[reducible]
 def CapabilityId := String
 
 /-- [auths_model::ResourceId]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 151:8-151:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 141:8-141:33
     Visibility: public -/
 @[reducible]
 def ResourceId := String
 
 /-- [auths_model::PrincipalId]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 182:0-182:31
+    Source: 'core/crates/auths-model/src/lib.rs', lines 172:0-172:31
     Visibility: public -/
 @[reducible]
 def PrincipalId := String
 
 /-- [auths_model::Digest]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 261:0-261:28
+    Source: 'core/crates/auths-model/src/lib.rs', lines 251:0-251:28
     Visibility: public -/
 @[reducible]
 def Digest := Array Std.U8 32#usize
 
 /-- [auths_model::GrantId]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 280:8-280:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 270:8-270:33
     Visibility: public -/
 @[reducible]
 def GrantId := Digest
 
 /-- [auths_model::Timestamp]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 367:0-367:26
+    Source: 'core/crates/auths-model/src/lib.rs', lines 357:0-357:26
     Visibility: public -/
 @[reducible]
 def Timestamp := Std.U64
 
 /-- [auths_model::ValidityWindow]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 382:0-385:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 372:0-375:1
     Visibility: public -/
 structure ValidityWindow where
   not_before : Timestamp
   expires_at : Timestamp
 
 /-- [auths_model::ProfileRef]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 455:0-458:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 445:0-448:1
     Visibility: public -/
 structure ProfileRef where
   id : ProfileId
   version : Std.U16
 
 /-- [auths_model::Permission]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 532:0-535:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 522:0-525:1
     Visibility: public -/
 structure Permission where
   capability : CapabilityId
   resource : ResourceId
 
 /-- [auths_model::PermissionSet]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 569:0-569:42
+    Source: 'core/crates/auths-model/src/lib.rs', lines 564:0-564:42
     Visibility: public -/
 @[reducible]
 def PermissionSet := alloc.vec.Vec Permission
 
 /-- [auths_model::AudienceSet]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 641:0-641:38
+    Source: 'core/crates/auths-model/src/lib.rs', lines 628:0-628:38
     Visibility: public -/
 @[reducible]
 def AudienceSet := alloc.vec.Vec Audience
 
 /-- [auths_model::BodyDigestSet]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 717:0-717:38
+    Source: 'core/crates/auths-model/src/lib.rs', lines 700:0-700:38
     Visibility: public -/
 @[reducible]
 def BodyDigestSet := alloc.vec.Vec Digest
 
 /-- [auths_model::ActionConstraint]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 796:0-803:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 775:0-782:1
     Visibility: public -/
 @[discriminant isize]
 inductive ActionConstraint where
@@ -129,20 +129,20 @@ inductive ActionConstraint where
 | AllowedBodyDigests : BodyDigestSet → ActionConstraint
 
 /-- [auths_model::BudgetCeiling]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 871:0-874:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 848:0-851:1
     Visibility: public -/
 structure BudgetCeiling where
   algebra : BudgetAlgebraId
   value : Std.U64
 
 /-- [auths_model::FreshnessLimit]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 942:0-942:31
+    Source: 'core/crates/auths-model/src/lib.rs', lines 919:0-919:31
     Visibility: public -/
 @[reducible]
 def FreshnessLimit := Std.U64
 
 /-- [auths_model::StatusPolicy]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 967:0-977:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 944:0-954:1
     Visibility: public -/
 @[discriminant isize]
 inductive StatusPolicy where

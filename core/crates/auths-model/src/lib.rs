@@ -109,17 +109,7 @@ fn parse_bounded(value: &str, maximum: usize, error: ModelError) -> Result<Strin
 }
 
 fn byte_slices_equal(left: &[u8], right: &[u8]) -> bool {
-    if left.len() != right.len() {
-        return false;
-    }
-    let mut index = 0;
-    while index < left.len() {
-        if left[index] != right[index] {
-            return false;
-        }
-        index += 1;
-    }
-    true
+    left == right
 }
 
 fn compare_byte_slices(left: &[u8], right: &[u8]) -> Ordering {
@@ -565,6 +555,11 @@ fn compare_permissions(left: &Permission, right: &Permission) -> Ordering {
     compare_byte_slices(left.resource.0.as_bytes(), right.resource.0.as_bytes())
 }
 
+fn permissions_equal(left: &Permission, right: &Permission) -> bool {
+    byte_slices_equal(left.capability.0.as_bytes(), right.capability.0.as_bytes())
+        && byte_slices_equal(left.resource.0.as_bytes(), right.resource.0.as_bytes())
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PermissionSet(Vec<Permission>);
 
@@ -605,15 +600,12 @@ impl PermissionSet {
 #[doc(hidden)]
 #[must_use]
 pub fn permission_set_contains(set: &PermissionSet, permission: &Permission) -> bool {
-    let mut left = 0;
-    let mut right = set.0.len();
-    while left < right {
-        let middle = left + (right - left) / 2;
-        match compare_permissions(&set.0[middle], permission) {
-            Ordering::Less => left = middle + 1,
-            Ordering::Greater => right = middle,
-            Ordering::Equal => return true,
+    let mut index = 0;
+    while index < set.0.len() {
+        if permissions_equal(&set.0[index], permission) {
+            return true;
         }
+        index += 1;
     }
     false
 }
@@ -623,18 +615,13 @@ pub fn permission_set_contains(set: &PermissionSet, permission: &Permission) -> 
 #[must_use]
 pub fn permission_set_is_subset(child: &PermissionSet, parent: &PermissionSet) -> bool {
     let mut child_index = 0;
-    let mut parent_index = 0;
-    while child_index < child.0.len() && parent_index < parent.0.len() {
-        match compare_permissions(&child.0[child_index], &parent.0[parent_index]) {
-            Ordering::Less => return false,
-            Ordering::Greater => parent_index += 1,
-            Ordering::Equal => {
-                child_index += 1;
-                parent_index += 1;
-            }
+    while child_index < child.0.len() {
+        if !permission_set_contains(parent, &child.0[child_index]) {
+            return false;
         }
+        child_index += 1;
     }
-    child_index == child.0.len()
+    true
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -642,6 +629,10 @@ pub struct AudienceSet(Vec<Audience>);
 
 fn compare_audiences(left: &Audience, right: &Audience) -> Ordering {
     compare_byte_slices(left.0.as_bytes(), right.0.as_bytes())
+}
+
+fn audiences_equal(left: &Audience, right: &Audience) -> bool {
+    byte_slices_equal(left.0.as_bytes(), right.0.as_bytes())
 }
 
 impl AudienceSet {
@@ -680,15 +671,12 @@ impl AudienceSet {
 #[doc(hidden)]
 #[must_use]
 pub fn audience_set_contains(set: &AudienceSet, audience: &Audience) -> bool {
-    let mut left = 0;
-    let mut right = set.0.len();
-    while left < right {
-        let middle = left + (right - left) / 2;
-        match compare_audiences(&set.0[middle], audience) {
-            Ordering::Less => left = middle + 1,
-            Ordering::Greater => right = middle,
-            Ordering::Equal => return true,
+    let mut index = 0;
+    while index < set.0.len() {
+        if audiences_equal(&set.0[index], audience) {
+            return true;
         }
+        index += 1;
     }
     false
 }
@@ -698,18 +686,13 @@ pub fn audience_set_contains(set: &AudienceSet, audience: &Audience) -> bool {
 #[must_use]
 pub fn audience_set_is_subset(child: &AudienceSet, parent: &AudienceSet) -> bool {
     let mut child_index = 0;
-    let mut parent_index = 0;
-    while child_index < child.0.len() && parent_index < parent.0.len() {
-        match compare_audiences(&child.0[child_index], &parent.0[parent_index]) {
-            Ordering::Less => return false,
-            Ordering::Greater => parent_index += 1,
-            Ordering::Equal => {
-                child_index += 1;
-                parent_index += 1;
-            }
+    while child_index < child.0.len() {
+        if !audience_set_contains(parent, &child.0[child_index]) {
+            return false;
         }
+        child_index += 1;
     }
-    child_index == child.0.len()
+    true
 }
 
 /// Canonically ordered, non-empty set of action body digests.
@@ -718,6 +701,10 @@ pub struct BodyDigestSet(Vec<Digest>);
 
 fn compare_digests(left: &Digest, right: &Digest) -> Ordering {
     compare_byte_slices(left.0.as_slice(), right.0.as_slice())
+}
+
+fn digests_equal(left: &Digest, right: &Digest) -> bool {
+    byte_slices_equal(left.0.as_slice(), right.0.as_slice())
 }
 
 impl BodyDigestSet {
@@ -759,15 +746,12 @@ impl BodyDigestSet {
 #[doc(hidden)]
 #[must_use]
 pub fn body_digest_set_contains(set: &BodyDigestSet, digest: &Digest) -> bool {
-    let mut left = 0;
-    let mut right = set.0.len();
-    while left < right {
-        let middle = left + (right - left) / 2;
-        match compare_digests(&set.0[middle], digest) {
-            Ordering::Less => left = middle + 1,
-            Ordering::Greater => right = middle,
-            Ordering::Equal => return true,
+    let mut index = 0;
+    while index < set.0.len() {
+        if digests_equal(&set.0[index], digest) {
+            return true;
         }
+        index += 1;
     }
     false
 }
@@ -777,18 +761,13 @@ pub fn body_digest_set_contains(set: &BodyDigestSet, digest: &Digest) -> bool {
 #[must_use]
 pub fn body_digest_set_is_subset(child: &BodyDigestSet, parent: &BodyDigestSet) -> bool {
     let mut child_index = 0;
-    let mut parent_index = 0;
-    while child_index < child.0.len() && parent_index < parent.0.len() {
-        match compare_digests(&child.0[child_index], &parent.0[parent_index]) {
-            Ordering::Less => return false,
-            Ordering::Greater => parent_index += 1,
-            Ordering::Equal => {
-                child_index += 1;
-                parent_index += 1;
-            }
+    while child_index < child.0.len() {
+        if !body_digest_set_contains(parent, &child.0[child_index]) {
+            return false;
         }
+        child_index += 1;
     }
-    child_index == child.0.len()
+    true
 }
 
 /// Closed V1 action-body attenuation algebra.
@@ -839,9 +818,7 @@ impl ActionConstraint {
 pub fn action_constraint_allows(constraint: &ActionConstraint, digest: Digest) -> bool {
     match constraint {
         ActionConstraint::AnyBody => true,
-        ActionConstraint::ExactBodyDigest(expected) => {
-            matches!(compare_digests(expected, &digest), Ordering::Equal)
-        }
+        ActionConstraint::ExactBodyDigest(expected) => digests_equal(expected, &digest),
         ActionConstraint::AllowedBodyDigests(allowed) => body_digest_set_contains(allowed, &digest),
     }
 }
@@ -853,7 +830,7 @@ pub fn action_constraint_attenuates(child: &ActionConstraint, parent: &ActionCon
     match (child, parent) {
         (_, ActionConstraint::AnyBody) => true,
         (ActionConstraint::ExactBodyDigest(child), ActionConstraint::ExactBodyDigest(parent)) => {
-            matches!(compare_digests(child, parent), Ordering::Equal)
+            digests_equal(child, parent)
         }
         (
             ActionConstraint::ExactBodyDigest(child),
@@ -1292,6 +1269,39 @@ pub struct GrantAuthorityView<'a> {
     pub parent: Option<GrantId>,
     pub status_policy: &'a StatusPolicy,
     pub assurance_floor: &'a AssurancePolicyId,
+}
+
+/// Lossless borrowed projection of the ordered scope fields used by both
+/// delegation and pre-signing authoring checks.
+#[doc(hidden)]
+#[derive(Clone, Copy, Debug)]
+pub struct ScopeAuthorityView<'a> {
+    pub profile: &'a ProfileRef,
+    pub permissions: &'a PermissionSet,
+    pub validity: ValidityWindow,
+    pub audiences: &'a AudienceSet,
+    pub action_constraint: &'a ActionConstraint,
+    pub budget_ceiling: Option<&'a BudgetCeiling>,
+    pub remaining_depth: u16,
+    pub status_policy: &'a StatusPolicy,
+    pub assurance_floor: &'a AssurancePolicyId,
+}
+
+/// Projects the ordered scope fields from a complete grant view.
+#[doc(hidden)]
+#[must_use]
+pub const fn scope_authority_view(grant: GrantAuthorityView<'_>) -> ScopeAuthorityView<'_> {
+    ScopeAuthorityView {
+        profile: grant.profile,
+        permissions: grant.permissions,
+        validity: grant.validity,
+        audiences: grant.audiences,
+        action_constraint: grant.action_constraint,
+        budget_ceiling: grant.budget_ceiling,
+        remaining_depth: grant.remaining_depth,
+        status_policy: grant.status_policy,
+        assurance_floor: grant.assurance_floor,
+    }
 }
 
 /// Projects exactly the grant fields consumed by core authority.

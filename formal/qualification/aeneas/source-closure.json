@@ -1,10 +1,10 @@
 {
   "schema": "auths-proof-translation-source-closure/v1",
-  "digest": "85ab7c78709cb35b1d9d376742303acd55485cd06b97f4771401159406c84573",
+  "digest": "fd8c205b5fdf6b866bc339ebd9b3015c09f0010975fe3a72ec79652f0d295dcf",
   "files": [
     {
       "path": "Cargo.lock",
-      "sha256": "ff3e396fbf3ee5c9763dc008d2f3033a93f3e65ce43f52ba35b3c6f0e8f450fb"
+      "sha256": "aaf09f67fe798df00273dce75fecf669832353ceda65f0edfd5f0f9a2de60b53"
     },
     {
       "path": "Cargo.toml",
@@ -28,7 +28,7 @@
     },
     {
       "path": "core/crates/auths-authority/src/lib.rs",
-      "sha256": "5890631bb7a35fb4bc7424e6f2cfc312b878d4a24d87e9ff763e79a4d7424618"
+      "sha256": "2fff4d6aec519544336868a6c005aa44624de8cfe90fa0d435a17aaf1ab6955e"
     },
     {
       "path": "core/crates/auths-model/Cargo.toml",
@@ -36,7 +36,7 @@
     },
     {
       "path": "core/crates/auths-model/src/lib.rs",
-      "sha256": "51b45c97a97a997a3a8cf85a131ce1d8b6848e3cf0bf0666bc0d191daf26a671"
+      "sha256": "b1985f4d7ba0c1f41a66481a7de3d33f56348da6c299ae79909de1234fe567da"
     },
     {
       "path": "formal/algebra-contract-v1.toml",
@@ -44,7 +44,7 @@
     },
     {
       "path": "formal/qualification/aeneas/qualification.toml",
-      "sha256": "408440cb9c61b37f3c5bf0ddf1a13aac7a4cc4dd9c6f3c10e8d4f0a52413b20d"
+      "sha256": "7c88e89e82adf22edbc0b9814d2ec18f1a2ce34bee11343d248ed5e59c159884"
     },
     {
       "path": "formal/translation-toolchain.lock",
@@ -52,7 +52,7 @@
     },
     {
       "path": "xtask/src/formal_qualification.rs",
-      "sha256": "af948a020cbe1c0ddfda67f46056808219847ddfc9cbdbd17b86b2d95a049ed8"
+      "sha256": "0a0de83b8ad935be4d7bae17b1a74919826ed2c06ea0eaa8887939ab99d484bb"
     }
   ]
 }

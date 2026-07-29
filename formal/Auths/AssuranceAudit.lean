@@ -15,24 +15,28 @@ private def declarationKind : ConstantInfo → String
   | .ctorInfo _ => "constructor"
   | .recInfo _ => "recursor"
 
-private def declarationName (shortName : String) : Name :=
-  Name.str `Auths shortName
+private def auditDeclaration
+    (environment : Environment) (declarations : Array Json)
+    (declarationName : Name) :
+    CommandElabM (Array Json) :=
+  match environment.find? declarationName with
+  | none =>
+      throwError
+        "assurance inventory names missing declaration '{declarationName}'"
+  | some info =>
+      (liftTermElabM <| Meta.ppExpr info.type) >>= fun statementFormat =>
+      collectAxioms declarationName >>= fun axioms =>
+      pure <| declarations.push <| Json.mkObj [
+        ("name", declarationName.toString),
+        ("kind", declarationKind info),
+        ("statement", statementFormat.pretty 120),
+        ("axioms", Json.arr <| axioms.qsort Name.lt |>.map (toJson ·.toString))
+      ]
 
-run_cmd do
-  let environment ← getEnv
-  let mut declarations : Array Json := #[]
-  for shortName in Auths.theoremInventory do
-    let name := declarationName shortName
-    let some info := environment.find? name
-      | throwError "assurance inventory names missing declaration '{name}'"
-    let statementFormat ← liftTermElabM <| Meta.ppExpr info.type
-    let axioms ← collectAxioms name
-    declarations := declarations.push <| Json.mkObj [
-      ("name", name.toString),
-      ("kind", declarationKind info),
-      ("statement", statementFormat.pretty 120),
-      ("axioms", Json.arr <| axioms.qsort Name.lt |>.map (toJson ·.toString))
-    ]
+run_cmd
+  getEnv >>= fun environment =>
+  Auths.theoremInventory.foldlM (init := #[])
+    (auditDeclaration environment) >>= fun declarations =>
   IO.println <| (Json.mkObj [
     ("schema", "auths-proof-lean-assurance-audit/v1"),
     ("declarations", Json.arr declarations)

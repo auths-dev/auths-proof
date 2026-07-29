@@ -20,7 +20,7 @@ noncomputable section
 namespace auths_authority
 
 /-- [auths_authority::selected_profile_attenuates]:
-    Source: 'core/crates/auths-authority/src/lib.rs', lines 97:0-106:1 -/
+    Source: 'core/crates/auths-authority/src/lib.rs', lines 119:0-128:1 -/
 def selected_profile_attenuates
   (selected : Option auths_model.ProfileRef)
   (allowed_profiles : Slice auths_model.ProfileRef)
@@ -31,8 +31,74 @@ def selected_profile_attenuates
   | none => auths_model.profile_slice_contains allowed_profiles child
   | some parent => auths_model.profile_ref_equal parent child
 
+/-- [auths_authority::evaluate_author_scope_view]:
+    Source: 'core/crates/auths-authority/src/lib.rs', lines 134:0-166:1
+    Visibility: public -/
+def evaluate_author_scope_view
+  (parent : auths_model.ScopeAuthorityView)
+  (child : auths_model.ScopeAuthorityView) :
+  Result AuthorScopeDecision
+  := do
+  let b ← auths_model.profile_ref_equal child.profile parent.profile
+  if b
+  then
+    let b1 ←
+      auths_model.permission_set_is_subset child.permissions parent.permissions
+    if b1
+    then
+      let b2 ←
+        auths_model.validity_window_contains parent.validity child.validity
+      if b2
+      then
+        let b3 ←
+          auths_model.audience_set_is_subset child.audiences parent.audiences
+        if b3
+        then
+          let b4 ←
+            auths_model.action_constraint_attenuates child.action_constraint
+              parent.action_constraint
+          if b4
+          then
+            let b5 ←
+              auths_model.optional_budget_attenuates child.budget_ceiling
+                parent.budget_ceiling
+            if b5
+            then
+              if parent.remaining_depth = 0#u16
+              then
+                ok (AuthorScopeDecision.Denied
+                  AuthorityDimension.DelegationDepth)
+              else
+                if child.remaining_depth >= parent.remaining_depth
+                then
+                  ok (AuthorScopeDecision.Denied
+                    AuthorityDimension.DelegationDepth)
+                else
+                  let b6 ←
+                    auths_model.status_policy_attenuates child.status_policy
+                      parent.status_policy
+                  if b6
+                  then
+                    let b7 ←
+                      auths_model.assurance_policy_id_equal
+                        child.assurance_floor parent.assurance_floor
+                    if b7
+                    then ok AuthorScopeDecision.Accepted
+                    else
+                      ok (AuthorScopeDecision.Denied
+                        AuthorityDimension.Assurance)
+                  else
+                    ok (AuthorScopeDecision.Denied AuthorityDimension.Status)
+            else ok (AuthorScopeDecision.Denied AuthorityDimension.Budget)
+          else
+            ok (AuthorScopeDecision.Denied AuthorityDimension.ActionConstraint)
+        else ok (AuthorScopeDecision.Denied AuthorityDimension.Audiences)
+      else ok (AuthorScopeDecision.Denied AuthorityDimension.Validity)
+    else ok (AuthorScopeDecision.Denied AuthorityDimension.Permissions)
+  else ok (AuthorScopeDecision.Denied AuthorityDimension.Profile)
+
 /-- [auths_authority::evaluate_grant_view]:
-    Source: 'core/crates/auths-authority/src/lib.rs', lines 127:0-184:1
+    Source: 'core/crates/auths-authority/src/lib.rs', lines 187:0-244:1
     Visibility: public -/
 def evaluate_grant_view
   (parent : AuthorityStateView) (grant_id : auths_model.GrantId)
@@ -178,7 +244,7 @@ def evaluate_grant_view
       }
 
 /-- [auths_authority::evaluate_action_coverage_view]:
-    Source: 'core/crates/auths-authority/src/lib.rs', lines 203:0-235:1
+    Source: 'core/crates/auths-authority/src/lib.rs', lines 263:0-295:1
     Visibility: public -/
 def evaluate_action_coverage_view
   (authority : AuthorityStateView) (action : auths_model.ActionAuthorityView) :

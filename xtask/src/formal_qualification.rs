@@ -861,12 +861,14 @@ fn reproduce(
         "--include",
         "auths_model::ActionAuthorityView",
         "--include",
+        "auths_model::ScopeAuthorityView",
+        "--include",
         "auths_model::DenialReason",
     ];
     run_checked(
         charon,
         &charon_arguments(
-            "auths_authority::evaluate_grant_view,auths_authority::evaluate_action_coverage_view",
+            "auths_authority::evaluate_grant_view,auths_authority::evaluate_action_coverage_view,auths_authority::evaluate_author_scope_view",
             &stable_llbc.join("auths_authority.llbc"),
             "core/crates/auths-authority/Cargo.toml",
             &authority_options,

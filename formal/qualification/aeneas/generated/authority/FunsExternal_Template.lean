@@ -24,7 +24,7 @@ axiom auths_algebra_kernel.generated.attenuation_checks_accept
   : auths_algebra_kernel.generated.AttenuationChecks → Result Bool
 
 /-- [auths_model::principal_id_equal]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 221:0-221:74
+    Source: 'core/crates/auths-model/src/lib.rs', lines 211:0-211:74
     Name pattern: [auths_model::principal_id_equal]
     Visibility: public -/
 @[rust_fun "auths_model::principal_id_equal"]
@@ -32,7 +32,7 @@ axiom auths_model.principal_id_equal
   : auths_model.PrincipalId → auths_model.PrincipalId → Result Bool
 
 /-- [auths_model::validity_window_contains]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 445:0-445:92
+    Source: 'core/crates/auths-model/src/lib.rs', lines 435:0-435:92
     Name pattern: [auths_model::validity_window_contains]
     Visibility: public -/
 @[rust_fun "auths_model::validity_window_contains"]
@@ -40,7 +40,7 @@ axiom auths_model.validity_window_contains
   : auths_model.ValidityWindow → auths_model.ValidityWindow → Result Bool
 
 /-- [auths_model::profile_ref_equal]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 488:0-488:71
+    Source: 'core/crates/auths-model/src/lib.rs', lines 478:0-478:71
     Name pattern: [auths_model::profile_ref_equal]
     Visibility: public -/
 @[rust_fun "auths_model::profile_ref_equal"]
@@ -48,7 +48,7 @@ axiom auths_model.profile_ref_equal
   : auths_model.ProfileRef → auths_model.ProfileRef → Result Bool
 
 /-- [auths_model::profile_slice_contains]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 495:0-495:84
+    Source: 'core/crates/auths-model/src/lib.rs', lines 485:0-485:84
     Name pattern: [auths_model::profile_slice_contains]
     Visibility: public -/
 @[rust_fun "auths_model::profile_slice_contains"]
@@ -56,7 +56,7 @@ axiom auths_model.profile_slice_contains
   : Slice auths_model.ProfileRef → auths_model.ProfileRef → Result Bool
 
 /-- [auths_model::assurance_policy_id_equal]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 509:0-509:93
+    Source: 'core/crates/auths-model/src/lib.rs', lines 499:0-499:93
     Name pattern: [auths_model::assurance_policy_id_equal]
     Visibility: public -/
 @[rust_fun "auths_model::assurance_policy_id_equal"]
@@ -66,7 +66,7 @@ axiom auths_model.assurance_policy_id_equal
     Bool
 
 /-- [auths_model::optional_grant_id_equal]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 523:0-523:85
+    Source: 'core/crates/auths-model/src/lib.rs', lines 513:0-513:85
     Name pattern: [auths_model::optional_grant_id_equal]
     Visibility: public -/
 @[rust_fun "auths_model::optional_grant_id_equal"]
@@ -74,7 +74,7 @@ axiom auths_model.optional_grant_id_equal
   : Option auths_model.GrantId → Option auths_model.GrantId → Result Bool
 
 /-- [auths_model::permission_set_contains]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 607:0-607:84
+    Source: 'core/crates/auths-model/src/lib.rs', lines 602:0-602:84
     Name pattern: [auths_model::permission_set_contains]
     Visibility: public -/
 @[rust_fun "auths_model::permission_set_contains"]
@@ -82,7 +82,7 @@ axiom auths_model.permission_set_contains
   : auths_model.PermissionSet → auths_model.Permission → Result Bool
 
 /-- [auths_model::permission_set_is_subset]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 624:0-624:86
+    Source: 'core/crates/auths-model/src/lib.rs', lines 616:0-616:86
     Name pattern: [auths_model::permission_set_is_subset]
     Visibility: public -/
 @[rust_fun "auths_model::permission_set_is_subset"]
@@ -90,7 +90,7 @@ axiom auths_model.permission_set_is_subset
   : auths_model.PermissionSet → auths_model.PermissionSet → Result Bool
 
 /-- [auths_model::audience_set_contains]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 682:0-682:76
+    Source: 'core/crates/auths-model/src/lib.rs', lines 673:0-673:76
     Name pattern: [auths_model::audience_set_contains]
     Visibility: public -/
 @[rust_fun "auths_model::audience_set_contains"]
@@ -98,7 +98,7 @@ axiom auths_model.audience_set_contains
   : auths_model.AudienceSet → auths_model.Audience → Result Bool
 
 /-- [auths_model::audience_set_is_subset]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 699:0-699:80
+    Source: 'core/crates/auths-model/src/lib.rs', lines 687:0-687:80
     Name pattern: [auths_model::audience_set_is_subset]
     Visibility: public -/
 @[rust_fun "auths_model::audience_set_is_subset"]
@@ -106,7 +106,7 @@ axiom auths_model.audience_set_is_subset
   : auths_model.AudienceSet → auths_model.AudienceSet → Result Bool
 
 /-- [auths_model::action_constraint_allows]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 839:0-839:86
+    Source: 'core/crates/auths-model/src/lib.rs', lines 818:0-818:86
     Name pattern: [auths_model::action_constraint_allows]
     Visibility: public -/
 @[rust_fun "auths_model::action_constraint_allows"]
@@ -114,7 +114,7 @@ axiom auths_model.action_constraint_allows
   : auths_model.ActionConstraint → auths_model.Digest → Result Bool
 
 /-- [auths_model::action_constraint_attenuates]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 852:0-852:96
+    Source: 'core/crates/auths-model/src/lib.rs', lines 829:0-829:96
     Name pattern: [auths_model::action_constraint_attenuates]
     Visibility: public -/
 @[rust_fun "auths_model::action_constraint_attenuates"]
@@ -123,7 +123,7 @@ axiom auths_model.action_constraint_attenuates
   auths_model.ActionConstraint → auths_model.ActionConstraint → Result Bool
 
 /-- [auths_model::optional_budget_attenuates]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 917:0-920:9
+    Source: 'core/crates/auths-model/src/lib.rs', lines 894:0-897:9
     Name pattern: [auths_model::optional_budget_attenuates]
     Visibility: public -/
 @[rust_fun "auths_model::optional_budget_attenuates"]
@@ -133,7 +133,7 @@ axiom auths_model.optional_budget_attenuates
     Result Bool
 
 /-- [auths_model::optional_budget_covers]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 930:0-933:9
+    Source: 'core/crates/auths-model/src/lib.rs', lines 907:0-910:9
     Name pattern: [auths_model::optional_budget_covers]
     Visibility: public -/
 @[rust_fun "auths_model::optional_budget_covers"]
@@ -143,7 +143,7 @@ axiom auths_model.optional_budget_covers
     Result Bool
 
 /-- [auths_model::status_policy_attenuates]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 990:0-990:84
+    Source: 'core/crates/auths-model/src/lib.rs', lines 967:0-967:84
     Name pattern: [auths_model::status_policy_attenuates]
     Visibility: public -/
 @[rust_fun "auths_model::status_policy_attenuates"]

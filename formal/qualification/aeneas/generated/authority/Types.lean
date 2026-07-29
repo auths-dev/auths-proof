@@ -33,7 +33,7 @@ structure auths_algebra_kernel.generated.AttenuationChecks where
   assurance_attenuates : Bool
 
 /-- [auths_model::GrantAuthorityView]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1282:0-1282:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1259:0-1259:33
     Name pattern: [auths_model::GrantAuthorityView]
     Visibility: public -/
 @[rust_type "auths_model::GrantAuthorityView"]
@@ -51,8 +51,24 @@ structure auths_model.GrantAuthorityView where
   status_policy : auths_model.StatusPolicy
   assurance_floor : auths_model.AssurancePolicyId
 
+/-- [auths_model::ScopeAuthorityView]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1278:0-1278:33
+    Name pattern: [auths_model::ScopeAuthorityView]
+    Visibility: public -/
+@[rust_type "auths_model::ScopeAuthorityView"]
+structure auths_model.ScopeAuthorityView where
+  profile : auths_model.ProfileRef
+  permissions : auths_model.PermissionSet
+  validity : auths_model.ValidityWindow
+  audiences : auths_model.AudienceSet
+  action_constraint : auths_model.ActionConstraint
+  budget_ceiling : Option auths_model.BudgetCeiling
+  remaining_depth : Std.U16
+  status_policy : auths_model.StatusPolicy
+  assurance_floor : auths_model.AssurancePolicyId
+
 /-- [auths_model::ActionAuthorityView]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1473:0-1473:34
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1483:0-1483:34
     Name pattern: [auths_model::ActionAuthorityView]
     Visibility: public -/
 @[rust_type "auths_model::ActionAuthorityView"]
@@ -67,7 +83,7 @@ structure auths_model.ActionAuthorityView where
   terminal_grant : Option auths_model.GrantId
 
 /-- [auths_model::DenialReason]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 4296:0-4296:21
+    Source: 'core/crates/auths-model/src/lib.rs', lines 4306:0-4306:21
     Name pattern: [auths_model::DenialReason]
     Visibility: public -/
 @[discriminant isize, rust_type "auths_model::DenialReason"]
@@ -153,8 +169,31 @@ inductive CoverageDecision where
 | Authorized : CoverageDecision
 | Denied : auths_model.DenialReason → CoverageDecision
 
+/-- [auths_authority::AuthorityDimension]
+    Source: 'core/crates/auths-authority/src/lib.rs', lines 81:0-91:1
+    Visibility: public -/
+@[discriminant isize]
+inductive AuthorityDimension where
+| Profile : AuthorityDimension
+| Permissions : AuthorityDimension
+| Validity : AuthorityDimension
+| Audiences : AuthorityDimension
+| ActionConstraint : AuthorityDimension
+| Budget : AuthorityDimension
+| DelegationDepth : AuthorityDimension
+| Status : AuthorityDimension
+| Assurance : AuthorityDimension
+
+/-- [auths_authority::AuthorScopeDecision]
+    Source: 'core/crates/auths-authority/src/lib.rs', lines 96:0-99:1
+    Visibility: public -/
+@[discriminant isize]
+inductive AuthorScopeDecision where
+| Accepted : AuthorScopeDecision
+| Denied : AuthorityDimension → AuthorScopeDecision
+
 /-- [auths_authority::AuthorityStateView]
-    Source: 'core/crates/auths-authority/src/lib.rs', lines 82:0-95:1
+    Source: 'core/crates/auths-authority/src/lib.rs', lines 104:0-117:1
     Visibility: public -/
 structure AuthorityStateView where
   subject : auths_model.PrincipalId

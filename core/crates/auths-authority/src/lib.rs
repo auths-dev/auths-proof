@@ -10,9 +10,9 @@ use auths_algebra_kernel::{AttenuationChecks, attenuation_checks_accept};
 use auths_model::{
     ActionAuthorityView, ActionConstraint, ActionEnvelope, AssurancePolicyId, AudienceSet,
     BudgetCeiling, DenialReason, GrantAuthorityView, GrantId, GrantStatement, PermissionSet,
-    PrincipalId, ProfileRef, StatusPolicy, TrustAnchor, ValidityWindow, action_authority_view,
-    action_constraint_allows, action_constraint_attenuates, assurance_policy_id_equal,
-    audience_set_contains, audience_set_is_subset, grant_authority_view,
+    PrincipalId, ProfileRef, ScopeAuthorityView, StatusPolicy, TrustAnchor, ValidityWindow,
+    action_authority_view, action_constraint_allows, action_constraint_attenuates,
+    assurance_policy_id_equal, audience_set_contains, audience_set_is_subset, grant_authority_view,
     optional_budget_attenuates, optional_budget_covers, optional_grant_id_equal,
     permission_set_contains, permission_set_is_subset, principal_id_equal, profile_ref_equal,
     profile_slice_contains, status_policy_attenuates, validity_window_contains,
@@ -76,6 +76,28 @@ pub enum CoverageDecision {
     Denied(DenialReason),
 }
 
+/// Ordered authority dimension used by pre-signing authoring diagnostics.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum AuthorityDimension {
+    Profile,
+    Permissions,
+    Validity,
+    Audiences,
+    ActionConstraint,
+    Budget,
+    DelegationDepth,
+    Status,
+    Assurance,
+}
+
+/// Stable pre-signing scope decision made by the production authority kernel.
+#[doc(hidden)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum AuthorScopeDecision {
+    Accepted,
+    Denied(AuthorityDimension),
+}
+
 /// Lossless borrowed projection of accumulated authority state.
 #[doc(hidden)]
 #[derive(Clone, Copy, Debug)]
@@ -103,6 +125,44 @@ fn selected_profile_attenuates(
         Some(parent) => profile_ref_equal(parent, child),
         None => profile_slice_contains(allowed_profiles, child),
     }
+}
+
+/// Evaluates the exact ordered scope and first-failure contract used before a
+/// child grant can be signed.
+#[doc(hidden)]
+#[must_use]
+pub fn evaluate_author_scope_view(
+    parent: ScopeAuthorityView<'_>,
+    child: ScopeAuthorityView<'_>,
+) -> AuthorScopeDecision {
+    if !profile_ref_equal(child.profile, parent.profile) {
+        return AuthorScopeDecision::Denied(AuthorityDimension::Profile);
+    }
+    if !permission_set_is_subset(child.permissions, parent.permissions) {
+        return AuthorScopeDecision::Denied(AuthorityDimension::Permissions);
+    }
+    if !validity_window_contains(parent.validity, child.validity) {
+        return AuthorScopeDecision::Denied(AuthorityDimension::Validity);
+    }
+    if !audience_set_is_subset(child.audiences, parent.audiences) {
+        return AuthorScopeDecision::Denied(AuthorityDimension::Audiences);
+    }
+    if !action_constraint_attenuates(child.action_constraint, parent.action_constraint) {
+        return AuthorScopeDecision::Denied(AuthorityDimension::ActionConstraint);
+    }
+    if !optional_budget_attenuates(child.budget_ceiling, parent.budget_ceiling) {
+        return AuthorScopeDecision::Denied(AuthorityDimension::Budget);
+    }
+    if parent.remaining_depth == 0 || child.remaining_depth >= parent.remaining_depth {
+        return AuthorScopeDecision::Denied(AuthorityDimension::DelegationDepth);
+    }
+    if !status_policy_attenuates(child.status_policy, parent.status_policy) {
+        return AuthorScopeDecision::Denied(AuthorityDimension::Status);
+    }
+    if !assurance_policy_id_equal(child.assurance_floor, parent.assurance_floor) {
+        return AuthorScopeDecision::Denied(AuthorityDimension::Assurance);
+    }
+    AuthorScopeDecision::Accepted
 }
 
 /// Evaluates linkage, all attenuation dimensions, diagnostic selection, and

@@ -3,7 +3,7 @@
 mod formal_qualification;
 
 use auths_testkit::Expected;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{
@@ -2147,6 +2147,7 @@ fn synchronize_lean_vectors(formal_root: &Path, update: bool) -> Result<(), Stri
     for (kind, file) in [
         ("threshold", "threshold-counts.json"),
         ("attenuation", "attenuation-checks.json"),
+        ("rich-authority", "rich-authority.json"),
     ] {
         let generated = command_output_in(
             "lake",
@@ -2172,7 +2173,7 @@ fn formal(skip_kani: bool, update: bool) -> Result<(), String> {
     synchronize_algebra_sources(&contract, update)?;
     validate_formal_toolchain(&formal_root, !skip_kani)?;
     command_in("lake", &["build"], &formal_root, None)?;
-    formal_assurance_audit(&formal_root)?;
+    formal_assurance_audit(&formal_root, update)?;
     let attenuation_dimensions: Vec<_> = contract
         .attenuation_dimensions
         .iter()
@@ -2253,7 +2254,7 @@ fn validate_formal_toolchain(formal_root: &Path, require_kani: bool) -> Result<(
     Ok(())
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct FormalAssuranceManifest {
     schema: String,
@@ -2263,7 +2264,7 @@ struct FormalAssuranceManifest {
     claims: Vec<FormalAssuranceClaim>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct FormalAssuranceClaim {
     claim_id: String,
@@ -2282,7 +2283,7 @@ struct FormalAssuranceClaim {
     axioms: Vec<String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct FormalEvidence {
     kind: String,
@@ -2305,9 +2306,9 @@ struct LeanAssuranceDeclaration {
     axioms: Vec<String>,
 }
 
-fn formal_assurance_audit(formal_root: &Path) -> Result<(), String> {
+fn formal_assurance_audit(formal_root: &Path, update: bool) -> Result<(), String> {
     let manifest_path = formal_root.join("assurance-manifest-v1.toml");
-    let manifest: FormalAssuranceManifest = toml::from_str(
+    let mut manifest: FormalAssuranceManifest = toml::from_str(
         &fs::read_to_string(&manifest_path)
             .map_err(|error| format!("could not read {}: {error}", manifest_path.display()))?,
     )
@@ -2355,6 +2356,16 @@ fn formal_assurance_audit(formal_root: &Path) -> Result<(), String> {
         ));
     }
 
+    if update {
+        synchronize_formal_assurance_manifest(
+            formal_root,
+            &manifest_path,
+            &mut manifest,
+            &audit,
+            &toolchain_lock_digest,
+        )?;
+    }
+
     let allowed_axioms: BTreeSet<_> = manifest.allowed_axioms.iter().cloned().collect();
     if allowed_axioms.len() != manifest.allowed_axioms.len() || allowed_axioms.contains("sorryAx") {
         return Err("formal assurance axiom allowlist is duplicate or permits sorryAx".to_owned());
@@ -2370,7 +2381,14 @@ fn formal_assurance_audit(formal_root: &Path) -> Result<(), String> {
         }
     }
     let mut reviewed = BTreeSet::new();
+    let mut claim_ids = BTreeSet::new();
     for claim in &manifest.claims {
+        if !claim_ids.insert(claim.claim_id.clone()) {
+            return Err(format!(
+                "formal assurance manifest repeated claim id {}",
+                claim.claim_id
+            ));
+        }
         if !reviewed.insert(claim.lean_declaration.clone()) {
             return Err(format!(
                 "formal assurance manifest repeated declaration {}",
@@ -2512,6 +2530,106 @@ fn formal_assurance_audit(formal_root: &Path) -> Result<(), String> {
     Ok(())
 }
 
+fn synchronize_formal_assurance_manifest(
+    formal_root: &Path,
+    manifest_path: &Path,
+    manifest: &mut FormalAssuranceManifest,
+    audit: &LeanAssuranceAudit,
+    toolchain_lock_digest: &str,
+) -> Result<(), String> {
+    let source_closure = vec![
+        "formal/Auths/Base.lean".to_owned(),
+        "formal/Auths/Authority.lean".to_owned(),
+        "formal/Auths/Attenuation.lean".to_owned(),
+        "formal/Auths/Rich/Types.lean".to_owned(),
+        "formal/Auths/Rich/Semantics.lean".to_owned(),
+        "formal/Auths/Rich/Theorems.lean".to_owned(),
+        "formal/Auths/Refinement/Production.lean".to_owned(),
+        "formal/Auths/Composition.lean".to_owned(),
+        "formal/Auths/Diversity.lean".to_owned(),
+        "formal/Auths/Generated/Algebra.lean".to_owned(),
+        "formal/Auths/Theorems.lean".to_owned(),
+        "formal/qualification/aeneas/generated/authority/Funs.lean".to_owned(),
+        "formal/qualification/aeneas/generated/authority/Types.lean".to_owned(),
+        "formal/qualification/aeneas/generated/model/Funs.lean".to_owned(),
+        "formal/qualification/aeneas/generated/model/Types.lean".to_owned(),
+        "formal/algebra-contract-v1.toml".to_owned(),
+    ];
+    let source_closure_digest = semantic_source_closure_digest(&source_closure)?;
+    let mut rich_index = manifest
+        .claims
+        .iter()
+        .filter_map(|claim| claim.claim_id.strip_prefix("AP-FORMAL-RICH-"))
+        .filter_map(|suffix| suffix.parse::<usize>().ok())
+        .max()
+        .unwrap_or(0);
+    let mut existing: BTreeMap<_, _> = std::mem::take(&mut manifest.claims)
+        .into_iter()
+        .map(|claim| (claim.lean_declaration.clone(), claim))
+        .collect();
+    let mut claims = Vec::with_capacity(audit.declarations.len());
+    for declaration in &audit.declarations {
+        let statement_digest = hex::encode(Sha256::digest(declaration.statement.as_bytes()));
+        let mut claim = if let Some(claim) = existing.remove(&declaration.name) {
+            claim
+        } else {
+            rich_index += 1;
+            let short_name = declaration
+                .name
+                .rsplit('.')
+                .next()
+                .unwrap_or(&declaration.name);
+            let phrase = short_name.replace('_', " ");
+            FormalAssuranceClaim {
+                claim_id: format!("AP-FORMAL-RICH-{rich_index:03}"),
+                claim_text: format!("Lean proves the rich authority property: {phrase}."),
+                claim_status: "proved".to_owned(),
+                lean_declaration: declaration.name.clone(),
+                lean_statement_sha256: String::new(),
+                formal_review: "rich-authority-refinement-2026-07-29".to_owned(),
+                rust_symbols: Vec::new(),
+                semantic_source_closure: Vec::new(),
+                semantic_source_closure_sha256: String::new(),
+                evidence: vec![FormalEvidence {
+                    kind: "lean-proof".to_owned(),
+                    artifact: "formal/Auths/Rich/Theorems.lean".to_owned(),
+                }],
+                scope: "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets.".to_owned(),
+                residual_assumptions: vec![
+                    "Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted.".to_owned(),
+                ],
+                toolchain_lock_sha256: String::new(),
+                axioms: Vec::new(),
+            }
+        };
+        claim.lean_statement_sha256 = statement_digest;
+        claim.semantic_source_closure.clone_from(&source_closure);
+        claim
+            .semantic_source_closure_sha256
+            .clone_from(&source_closure_digest);
+        claim.toolchain_lock_sha256 = toolchain_lock_digest.to_owned();
+        claim.axioms.clone_from(&declaration.axioms);
+        claims.push(claim);
+    }
+    if !existing.is_empty() {
+        println!(
+            "Formal assurance update:    removed {} declarations absent from compiled inventory",
+            existing.len()
+        );
+    }
+    manifest.claims = claims;
+    let rendered = toml::to_string_pretty(manifest)
+        .map_err(|error| format!("could not render formal assurance manifest: {error}"))?;
+    fs::write(manifest_path, format!("{rendered}\n"))
+        .map_err(|error| format!("could not write {}: {error}", manifest_path.display()))?;
+    println!(
+        "Formal assurance update:    {} compiled claims synchronized",
+        manifest.claims.len()
+    );
+    let _ = formal_root;
+    Ok(())
+}
+
 fn semantic_source_closure_digest(paths: &[String]) -> Result<String, String> {
     let mut ordered = paths.to_vec();
     ordered.sort();
@@ -2545,7 +2663,7 @@ fn formal_qualify_aeneas(update: bool) -> Result<(), String> {
     synchronize_algebra_sources(&contract, false)?;
     validate_formal_toolchain(&formal_root, false)?;
     command_in("lake", &["build"], &formal_root, None)?;
-    formal_assurance_audit(&formal_root)?;
+    formal_assurance_audit(&formal_root, update)?;
     let attenuation_dimensions: Vec<_> = contract
         .attenuation_dimensions
         .iter()

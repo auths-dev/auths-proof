@@ -11,6 +11,7 @@ publish = false
 
 [dependencies]
 auths-algebra-kernel.workspace = true
+auths-authority = { workspace = true, features = ["std"] }
 auths-composition = { workspace = true, features = ["std"] }
 auths-model = { workspace = true, features = ["std"] }
 serde = { workspace = true, features = ["std"] }

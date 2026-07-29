@@ -1,0 +1,110 @@
+{
+  "schema": "auths-proof-semantic-mutations/v1",
+  "cases": [
+    {
+      "id": "validity-start-direction",
+      "operator": "Reverse the inclusive lower-bound comparison.",
+      "witness": "A child beginning after its parent must remain contained."
+    },
+    {
+      "id": "validity-end-direction",
+      "operator": "Reverse the inclusive upper-bound comparison.",
+      "witness": "A child ending before its parent must remain contained."
+    },
+    {
+      "id": "permission-subset-direction",
+      "operator": "Reverse child and parent in permission subset evaluation.",
+      "witness": "A singleton child is permitted by a strict two-element parent."
+    },
+    {
+      "id": "audience-subset-direction",
+      "operator": "Reverse child and parent in audience subset evaluation.",
+      "witness": "A singleton child is permitted by a strict two-element parent."
+    },
+    {
+      "id": "permission-membership-decision",
+      "operator": "Negate permission membership.",
+      "witness": "A permission present in the authority set must be found."
+    },
+    {
+      "id": "audience-membership-decision",
+      "operator": "Negate audience membership.",
+      "witness": "An audience present in the authority set must be found."
+    },
+    {
+      "id": "body-digest-membership-decision",
+      "operator": "Negate body-digest membership.",
+      "witness": "A digest present in an allowed-body set must be found."
+    },
+    {
+      "id": "body-digest-subset-direction",
+      "operator": "Reverse child and parent in body-digest subset evaluation.",
+      "witness": "A singleton digest set attenuates a strict two-element parent."
+    },
+    {
+      "id": "action-exact-equality",
+      "operator": "Accept a different digest for an exact-body constraint.",
+      "witness": "Distinct 32-byte body digests must not compare equal."
+    },
+    {
+      "id": "action-constructor-fallback",
+      "operator": "Accept an allowed-body set beneath an exact-body parent.",
+      "witness": "A set constraint cannot attenuate an exact constraint."
+    },
+    {
+      "id": "budget-value-direction",
+      "operator": "Reverse the numeric budget ceiling comparison.",
+      "witness": "A lower child ceiling attenuates a higher parent ceiling."
+    },
+    {
+      "id": "budget-algebra-equality",
+      "operator": "Ignore the budget algebra identifier.",
+      "witness": "Equal numeric values from different algebras are incomparable."
+    },
+    {
+      "id": "optional-budget-bounded-parent",
+      "operator": "Allow an unbounded child beneath a bounded parent.",
+      "witness": "None is top and cannot attenuate Some."
+    },
+    {
+      "id": "optional-budget-no-request",
+      "operator": "Treat a missing action budget request as an unbounded child authority.",
+      "witness": "No requested spend is covered by every authority ceiling."
+    },
+    {
+      "id": "status-age-direction",
+      "operator": "Reverse the maximum status age comparison.",
+      "witness": "A fresher child requirement attenuates a less-fresh parent."
+    },
+    {
+      "id": "status-method-equality",
+      "operator": "Ignore the status method identifier.",
+      "witness": "Snapshot policies from different methods are incomparable."
+    },
+    {
+      "id": "profile-version-equality",
+      "operator": "Ignore the profile version.",
+      "witness": "The same profile identifier at two versions is not exact."
+    },
+    {
+      "id": "assurance-equality",
+      "operator": "Treat distinct assurance policy identifiers as equal.",
+      "witness": "Assurance attenuation requires exact policy identity."
+    },
+    {
+      "id": "delegation-depth-strictness",
+      "operator": "Accept equal parent and child delegation depth.",
+      "witness": "Every accepted child must strictly reduce remaining depth."
+    },
+    {
+      "id": "principal-linkage-equality",
+      "operator": "Treat distinct principals using the same DID method as equal.",
+      "witness": "Grant issuer linkage requires the complete principal identifier."
+    },
+    {
+      "id": "grant-linkage-equality",
+      "operator": "Treat any two present grant identifiers as equal.",
+      "witness": "Parent linkage requires the exact 32-byte grant identifier."
+    }
+  ]
+}
