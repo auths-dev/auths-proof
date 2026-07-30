@@ -483,6 +483,25 @@ security_state = ["expiring-session", "merchant-operation-budget", "merchant-pay
 runtime-enforcement-boundary = ["demos/stripe-payment-collect/src/app.rs#denial_and_mismatch_stop_before_credentials_and_provider_io"]
 stateful-replay-budget-component = ["demos/stripe-payment-collect/src/app.rs#ambiguous_delivery_retains_capacity_and_reconciles_without_create", "demos/stripe-payment-collect/src/app.rs#exact_collection_replay_never_creates_a_second_payment"]
 
+[packages.auths-stripe-payment-authorize-demo]
+kind = "cargo"
+layer = "demos"
+path = "demos/stripe-payment-authorize"
+core_apis = []
+protocol_versions = ["auths-proof/v1"]
+wire_objects = ["CanonicalAction", "ProofBundle", "VerifierContext"]
+fixture_suites = ["product/integrations/auths-stripe/fixtures/merchant-authorize/v1"]
+principal_families = ["raw-key-v1"]
+signature_families = ["ed25519-v1"]
+profiles = ["auths.stripe.exact-payment-authorize/1"]
+transports = ["https", "stripe-https"]
+configuration_inputs = ["executed-merchant-evaluator-configuration", "immutable-configured-policy", "required-merchant-evaluator-configuration", "stripe-test-mode"]
+security_state = ["authorization-exposure-budget", "expiring-session", "merchant-authorization-claim", "merchant-authorization-reservation", "receipt-sink"]
+
+[packages.auths-stripe-payment-authorize-demo.claims]
+runtime-enforcement-boundary = ["demos/stripe-payment-authorize/src/app.rs#denial_and_mismatch_stop_before_credentials_and_provider_io"]
+stateful-replay-budget-component = ["demos/stripe-payment-authorize/src/app.rs#ambiguous_delivery_retains_capacity_and_reconciles_without_create", "demos/stripe-payment-authorize/src/app.rs#exact_authorization_replay_never_creates_a_second_payment"]
+
 [packages.auths-kubernetes]
 kind = "cargo"
 layer = "product"
