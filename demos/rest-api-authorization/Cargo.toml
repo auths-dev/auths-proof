@@ -1,0 +1,47 @@
+[package]
+name = "auths-records-demo"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Interactive HTTPS and Iroh demo for transport-neutral Auths records authorization"
+repository.workspace = true
+homepage.workspace = true
+publish = false
+
+[dependencies]
+async-trait.workspace = true
+auths-author.workspace = true
+auths-codec.workspace = true
+auths-model.workspace = true
+auths-ports.workspace = true
+auths-profile-api.workspace = true
+auths-raw-key.workspace = true
+auths-records-api.workspace = true
+auths-registries.workspace = true
+auths-runtime.workspace = true
+auths-sdk.workspace = true
+auths-signature.workspace = true
+auths-proof-exchange-iroh.workspace = true
+auths-proof-exchange-model.workspace = true
+auths-proof-exchange-port.workspace = true
+axum.workspace = true
+clap.workspace = true
+dotenvy.workspace = true
+ed25519-dalek = { workspace = true, features = ["rand_core"] }
+getrandom.workspace = true
+hex.workspace = true
+iroh.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tempfile.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tower-http.workspace = true
+
+[dev-dependencies]
+tower.workspace = true
+
+[lints]
+workspace = true
