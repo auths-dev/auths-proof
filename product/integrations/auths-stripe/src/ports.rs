@@ -2,19 +2,58 @@
 
 use auths_model::CanonicalAction;
 use auths_sdk::{Authorized, RequestContext};
-use std::sync::Arc;
+use std::{marker::PhantomData, sync::Arc};
 
 use crate::{
     executor::VerifiedRefundCommand,
     profile::StripeRefundCommand,
-    receipts::StripeReceipt,
     types::{RefundResult, StripeAccountId},
 };
 
-/// Secret mutation credential. It cannot be logged or serialized.
-pub struct StripeCredential(Vec<u8>);
+/// Type marker for the exact-refund credential scope.
+pub enum RefundCredentialScope {}
 
-impl StripeCredential {
+/// Type marker for the exact automatic-collection credential scope.
+pub enum PaymentCollectCredentialScope {}
+
+/// Type marker for the exact manual-authorization credential scope.
+pub enum PaymentAuthorizeCredentialScope {}
+
+/// Secret Stripe credential bound to one compile-time effect scope.
+///
+/// A credential with one scope cannot be passed to a provider gateway for
+/// another scope. It cannot be logged or serialized.
+pub struct StripeCredential<S = RefundCredentialScope> {
+    value: Vec<u8>,
+    scope: PhantomData<fn() -> S>,
+}
+
+/// Exact-refund credential.
+pub type StripeRefundCredential = StripeCredential<RefundCredentialScope>;
+
+/// Exact automatic-collection credential.
+///
+/// An authorization-scoped credential cannot cross this boundary:
+///
+/// ```compile_fail
+/// use auths_stripe::{
+///     PaymentAuthorizeCredential, PaymentCollectGateway, VerifiedPaymentCollectCommand,
+/// };
+///
+/// fn wrong_scope(
+///     gateway: &dyn PaymentCollectGateway,
+///     command: &VerifiedPaymentCollectCommand,
+///     credential: &PaymentAuthorizeCredential,
+/// ) {
+///     let _ = gateway.collect(command, credential, 0);
+/// }
+/// ```
+pub type PaymentCollectCredential = StripeCredential<PaymentCollectCredentialScope>;
+
+/// Exact manual-authorization credential.
+pub type PaymentAuthorizeCredential = StripeCredential<PaymentAuthorizeCredentialScope>;
+
+impl<S> StripeCredential<S> {
     /// Wraps a non-empty Stripe test-mode secret.
     ///
     /// # Errors
@@ -28,19 +67,22 @@ impl StripeCredential {
         {
             return Err(PortError::InvalidConfiguration);
         }
-        Ok(Self(value))
+        Ok(Self {
+            value,
+            scope: PhantomData,
+        })
     }
 
     /// Exposes the credential only to the protected provider adapter.
     #[must_use]
     pub fn expose(&self) -> &[u8] {
-        &self.0
+        &self.value
     }
 }
 
-impl Drop for StripeCredential {
+impl<S> Drop for StripeCredential<S> {
     fn drop(&mut self) {
-        self.0.fill(0);
+        self.value.fill(0);
     }
 }
 
@@ -75,15 +117,14 @@ pub trait ProofVerifier: Send + Sync {
     ) -> Result<ProofDecision, PortError>;
 }
 
-/// Protected mutation-credential broker.
-pub trait CredentialProvider: Send + Sync {
-    /// Returns a restricted Stripe test key only after the caller owns a claim.
+/// Protected credential broker fixed to one compile-time effect scope.
+pub trait CredentialProvider<S = RefundCredentialScope>: Send + Sync {
+    /// Returns a scope-bound Stripe test key only after the caller owns a claim.
     ///
     /// # Errors
     ///
     /// Returns a closed configuration or availability failure.
-    fn mutation_credential(&self, account: &StripeAccountId)
-    -> Result<StripeCredential, PortError>;
+    fn credential(&self, account: &StripeAccountId) -> Result<StripeCredential<S>, PortError>;
 }
 
 /// Only Stripe refund write boundary.
@@ -97,19 +138,19 @@ pub trait StripeGateway: Send + Sync {
     fn create_refund(
         &self,
         command: &VerifiedRefundCommand,
-        credential: &StripeCredential,
+        credential: &StripeRefundCredential,
         now: u64,
     ) -> Result<RefundResult, PortError>;
 }
 
-/// Append-only receipt boundary.
-pub trait ReceiptSink: Send + Sync {
+/// Append-only receipt boundary typed to one closed receipt family.
+pub trait ReceiptSink<R>: Send + Sync {
     /// Durably appends one canonical receipt.
     ///
     /// # Errors
     ///
     /// Returns a closed persistence failure.
-    fn append(&self, receipt: &StripeReceipt) -> Result<(), PortError>;
+    fn append(&self, receipt: &R) -> Result<(), PortError>;
 }
 
 /// Trusted time boundary.
@@ -133,12 +174,12 @@ impl<T: ProofVerifier + ?Sized> ProofVerifier for Arc<T> {
     }
 }
 
-impl<T: CredentialProvider + ?Sized> CredentialProvider for Arc<T> {
-    fn mutation_credential(
-        &self,
-        account: &StripeAccountId,
-    ) -> Result<StripeCredential, PortError> {
-        (**self).mutation_credential(account)
+impl<T, S> CredentialProvider<S> for Arc<T>
+where
+    T: CredentialProvider<S> + ?Sized,
+{
+    fn credential(&self, account: &StripeAccountId) -> Result<StripeCredential<S>, PortError> {
+        (**self).credential(account)
     }
 }
 
@@ -146,15 +187,18 @@ impl<T: StripeGateway + ?Sized> StripeGateway for Arc<T> {
     fn create_refund(
         &self,
         command: &VerifiedRefundCommand,
-        credential: &StripeCredential,
+        credential: &StripeRefundCredential,
         now: u64,
     ) -> Result<RefundResult, PortError> {
         (**self).create_refund(command, credential, now)
     }
 }
 
-impl<T: ReceiptSink + ?Sized> ReceiptSink for Arc<T> {
-    fn append(&self, receipt: &StripeReceipt) -> Result<(), PortError> {
+impl<T, R> ReceiptSink<R> for Arc<T>
+where
+    T: ReceiptSink<R> + ?Sized,
+{
+    fn append(&self, receipt: &R) -> Result<(), PortError> {
         (**self).append(receipt)
     }
 }
@@ -192,4 +236,27 @@ pub enum PortError {
     /// Request outcome is ambiguous and requires reconciliation.
     #[error("Stripe request outcome is unknown")]
     OutcomeUnknown,
+}
+
+#[cfg(test)]
+mod tests {
+    use std::any::TypeId;
+
+    use super::{PaymentAuthorizeCredential, PaymentCollectCredential, StripeRefundCredential};
+
+    #[test]
+    fn credential_types_are_distinct_per_effect_scope() {
+        assert_ne!(
+            TypeId::of::<PaymentCollectCredential>(),
+            TypeId::of::<PaymentAuthorizeCredential>()
+        );
+        assert_ne!(
+            TypeId::of::<PaymentCollectCredential>(),
+            TypeId::of::<StripeRefundCredential>()
+        );
+        assert_ne!(
+            TypeId::of::<PaymentAuthorizeCredential>(),
+            TypeId::of::<StripeRefundCredential>()
+        );
+    }
 }

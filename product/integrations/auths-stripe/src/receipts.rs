@@ -2,14 +2,6 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::merchant::authorize::{
-    MerchantAuthorizationDecisionReceipt, MerchantAuthorizationObservationReceipt,
-    MerchantAuthorizationTransitionReceipt,
-};
-use crate::merchant::collect::{
-    MerchantCollectionDecisionReceipt, MerchantCollectionObservationReceipt,
-    MerchantCollectionTransitionReceipt,
-};
 use crate::{
     bounded::{
         AggregateBudgetSnapshot, BoundedRefundDecision, CONFIGURED_POLICY_PROVENANCE,
@@ -263,18 +255,6 @@ pub struct ObservationReceipt {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", content = "receipt", rename_all = "kebab-case")]
 pub enum StripeReceipt {
-    /// Exact proof and bounded manual-authorization decision.
-    MerchantAuthorizationDecision(Box<MerchantAuthorizationDecisionReceipt>),
-    /// Manual-authorization reservation/claim/provider transition.
-    MerchantAuthorizationTransition(Box<MerchantAuthorizationTransitionReceipt>),
-    /// Fresh manual-authorization provider observation.
-    MerchantAuthorizationObservation(Box<MerchantAuthorizationObservationReceipt>),
-    /// Exact proof and bounded collection decision.
-    MerchantCollectionDecision(Box<MerchantCollectionDecisionReceipt>),
-    /// Merchant reservation/claim/provider transition.
-    MerchantCollectionTransition(Box<MerchantCollectionTransitionReceipt>),
-    /// Fresh merchant provider observation.
-    MerchantCollectionObservation(Box<MerchantCollectionObservationReceipt>),
     /// Immutable configured-policy eligibility.
     BoundedDecision(Box<BoundedDecisionReceipt>),
     /// Durable aggregate reservation transition.
@@ -324,4 +304,14 @@ pub fn execution_receipt(
         status: result.status.clone(),
         executed_at: result.observed_at,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn legacy_refund_receipt_union_excludes_merchant_profile_receipts() {
+        let source = include_str!("receipts.rs");
+        assert!(!source.contains(&["Merchant", "Collection", "Receipt"].concat()));
+        assert!(!source.contains(&["Merchant", "Authorization", "Receipt"].concat()));
+    }
 }

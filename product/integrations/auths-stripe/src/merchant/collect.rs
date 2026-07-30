@@ -22,7 +22,7 @@ pub use execution::{
 pub use profile::{StripePaymentCollectCommand, StripePaymentCollectProfile};
 pub use receipts::{
     MerchantCollectionDecisionReceipt, MerchantCollectionObservationReceipt,
-    MerchantCollectionTransitionReceipt, merchant_policy_provenance,
+    MerchantCollectionReceipt, MerchantCollectionTransitionReceipt, merchant_policy_provenance,
 };
 pub use service::{
     ExecutePaymentCollectRequest, MerchantServiceError, PaymentCollectService,

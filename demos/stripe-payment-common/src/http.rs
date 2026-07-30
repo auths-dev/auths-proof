@@ -1,4 +1,4 @@
-use std::{env, io::Read as _, time::Duration};
+use std::{env, io::Read as _, marker::PhantomData, time::Duration};
 
 use auths_stripe::{
     CredentialProvider, PortError, StripeAccountId, StripeCredential,
@@ -53,16 +53,17 @@ pub struct StripeHttpResponse {
 
 /// Strict test-mode HTTP and credential mechanism shared by the separate
 /// collect and authorize provider adapters.
-pub struct StripeHttp {
+pub struct StripeHttp<S> {
     client: Client,
     base_url: String,
     fixture_secret: SecretBytes,
     mutation_secret: SecretBytes,
     account_id: StripeAccountId,
     api_version: String,
+    scope: PhantomData<fn() -> S>,
 }
 
-impl StripeHttp {
+impl<S> StripeHttp<S> {
     /// Loads fixed deployment configuration and discovers the account only in
     /// local development. Agent requests never influence these values.
     ///
@@ -127,6 +128,7 @@ impl StripeHttp {
                 .clone()
                 .unwrap_or_else(|| StripeAccountId::parse("acct_pending").expect("static id")),
             api_version,
+            scope: PhantomData,
         };
         if configured_account.is_none() {
             if production {
@@ -202,7 +204,7 @@ impl StripeHttp {
     pub fn protected_get(
         &self,
         path: &str,
-        credential: &StripeCredential,
+        credential: &StripeCredential<S>,
         connect: &MerchantConnectAccount,
     ) -> Result<StripeHttpResponse, PortError> {
         self.send(
@@ -224,7 +226,7 @@ impl StripeHttp {
         path: &str,
         parameters: &[(String, String)],
         idempotency_key: &str,
-        credential: &StripeCredential,
+        credential: &StripeCredential<S>,
         connect: &MerchantConnectAccount,
     ) -> Result<StripeHttpResponse, PortError> {
         self.send(
@@ -307,11 +309,8 @@ impl StripeHttp {
     }
 }
 
-impl CredentialProvider for StripeHttp {
-    fn mutation_credential(
-        &self,
-        account: &StripeAccountId,
-    ) -> Result<StripeCredential, PortError> {
+impl<S> CredentialProvider<S> for StripeHttp<S> {
+    fn credential(&self, account: &StripeAccountId) -> Result<StripeCredential<S>, PortError> {
         if account != &self.account_id {
             return Err(PortError::InvalidConfiguration);
         }

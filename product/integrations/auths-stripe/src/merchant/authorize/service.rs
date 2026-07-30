@@ -6,7 +6,7 @@ use serde::Serialize;
 
 use super::{
     MerchantAuthorizationDecisionReceipt, MerchantAuthorizationObservationReceipt,
-    MerchantAuthorizationTransitionReceipt, PaymentAuthorizeDecision,
+    MerchantAuthorizationReceipt, MerchantAuthorizationTransitionReceipt, PaymentAuthorizeDecision,
     PaymentAuthorizeDecisionClass, PaymentAuthorizeDecisionCode, PaymentAuthorizeDecisionStage,
     PaymentAuthorizeEffect, PaymentAuthorizeEvaluationContext, PaymentAuthorizeGateway,
     PaymentAuthorizeProofDecision, PaymentAuthorizeProofVerifier,
@@ -25,8 +25,10 @@ use crate::{
             MerchantReservationState, ReserveMerchantPaymentRequest, ReserveMerchantPaymentResult,
         },
     },
-    ports::{Clock, CredentialProvider, PortError, ReceiptSink},
-    receipts::StripeReceipt,
+    ports::{
+        Clock, CredentialProvider, PaymentAuthorizeCredential, PaymentAuthorizeCredentialScope,
+        PortError, ReceiptSink,
+    },
     types::DigestHex,
 };
 
@@ -74,10 +76,10 @@ pub struct PaymentAuthorizeService<V, C, G, S, R, T> {
 impl<V, C, G, S, R, T> PaymentAuthorizeService<V, C, G, S, R, T>
 where
     V: PaymentAuthorizeProofVerifier,
-    C: CredentialProvider,
+    C: CredentialProvider<PaymentAuthorizeCredentialScope>,
     G: PaymentAuthorizeGateway,
     S: MerchantPaymentStore,
-    R: ReceiptSink,
+    R: ReceiptSink<MerchantAuthorizationReceipt>,
     T: Clock,
 {
     /// Constructs the protected service.
@@ -351,7 +353,7 @@ where
         let credential = match self
             .dependencies
             .credential_provider
-            .mutation_credential(command.action().stripe_account_id())
+            .credential(command.action().stripe_account_id())
         {
             Ok(credential) => credential,
             Err(error) => {
@@ -549,7 +551,7 @@ where
         let credential = self
             .dependencies
             .credential_provider
-            .mutation_credential(record.stripe_account_id())?;
+            .credential(record.stripe_account_id())?;
         let outcome = self
             .dependencies
             .stripe_gateway
@@ -632,7 +634,7 @@ where
     fn finish_accepted(
         &self,
         command: &VerifiedPaymentAuthorizeCommand,
-        credential: &crate::ports::StripeCredential,
+        credential: &PaymentAuthorizeCredential,
         decision_digest: &DigestHex,
         lease: &crate::merchant::state::MerchantReservationLease,
         provider: MerchantProviderProjection,
@@ -728,7 +730,7 @@ where
     ) -> Result<(), MerchantServiceError> {
         self.dependencies
             .receipt_sink
-            .append(&StripeReceipt::MerchantAuthorizationDecision(Box::new(
+            .append(&MerchantAuthorizationReceipt::Decision(Box::new(
                 receipt.clone(),
             )))
             .map_err(MerchantServiceError::Port)
@@ -772,7 +774,7 @@ where
         };
         self.dependencies
             .receipt_sink
-            .append(&StripeReceipt::MerchantAuthorizationTransition(Box::new(
+            .append(&MerchantAuthorizationReceipt::Transition(Box::new(
                 receipt.clone(),
             )))
             .map_err(MerchantServiceError::Port)?;
@@ -813,7 +815,7 @@ where
         };
         self.dependencies
             .receipt_sink
-            .append(&StripeReceipt::MerchantAuthorizationObservation(Box::new(
+            .append(&MerchantAuthorizationReceipt::Observation(Box::new(
                 receipt,
             )))
             .map_err(MerchantServiceError::Port)
@@ -849,7 +851,7 @@ where
         };
         self.dependencies
             .receipt_sink
-            .append(&StripeReceipt::MerchantAuthorizationObservation(Box::new(
+            .append(&MerchantAuthorizationReceipt::Observation(Box::new(
                 receipt,
             )))
             .map_err(MerchantServiceError::Port)

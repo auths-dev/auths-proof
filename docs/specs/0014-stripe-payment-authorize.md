@@ -174,6 +174,11 @@ Browser -> demo API -> exact Auths verifier -> bounded hold evaluator
         -> Stripe test PaymentIntent -> retrieval/webhook observer
 ```
 
+The credential broker and provider gateway are both typed to
+`PaymentAuthorizeCredentialScope`. The profile persists only its closed
+`MerchantAuthorizationReceipt` family; authorization receipt additions do not
+expand a shared cross-profile union or require collection consumers to change.
+
 Use the session, execute, reconcile, machine receipt, and designed receipt
 routes defined in specification 0013. Add:
 

@@ -9,10 +9,10 @@ use std::{
 use auths_stripe::{
     ChargeId, CredentialProvider, Currency, CustomerId, MerchantConnectAccount, MerchantOperation,
     MerchantPaymentEvidenceInput, MerchantPaymentEvidenceV1, MerchantProviderProjection,
-    MerchantReservationRecord, PaymentCollectEffect, PaymentCollectGateway,
-    PaymentCollectReconciliationOutcome, PaymentIntentId, PaymentMethodId, PortError,
-    PriorMerchantPayment, PriorMerchantPaymentState, StripeAccountId, StripeCredential,
-    VerifiedPaymentCollectCommand,
+    MerchantReservationRecord, PaymentCollectCredential, PaymentCollectCredentialScope,
+    PaymentCollectEffect, PaymentCollectGateway, PaymentCollectReconciliationOutcome,
+    PaymentIntentId, PaymentMethodId, PortError, PriorMerchantPayment, PriorMerchantPaymentState,
+    StripeAccountId, VerifiedPaymentCollectCommand,
     canonical::{canonical_json, sha256},
 };
 use auths_stripe_payment_demo_common::StripeHttp;
@@ -37,7 +37,7 @@ pub struct EnvironmentDiagnostics {
 
 /// Collection-specific provider surface used by the application.
 pub trait DemoPaymentCollectEnvironment:
-    CredentialProvider + PaymentCollectGateway + Send + Sync
+    CredentialProvider<PaymentCollectCredentialScope> + PaymentCollectGateway + Send + Sync
 {
     /// Creates one Customer and attached test `PaymentMethod`.
     ///
@@ -74,7 +74,7 @@ pub trait DemoPaymentCollectEnvironment:
 
 /// Real Stripe test-mode collection environment.
 pub struct LivePaymentCollectEnvironment {
-    http: StripeHttp,
+    http: StripeHttp<PaymentCollectCredentialScope>,
     ambiguous_once: Mutex<HashSet<String>>,
     credential_requests: AtomicU64,
     provider_calls: AtomicU64,
@@ -100,7 +100,7 @@ impl LivePaymentCollectEnvironment {
     fn protected_get(
         &self,
         path: &str,
-        credential: &StripeCredential,
+        credential: &PaymentCollectCredential,
         connect: &MerchantConnectAccount,
     ) -> Result<auths_stripe_payment_demo_common::StripeHttpResponse, PortError> {
         self.provider_calls.fetch_add(1, Ordering::Relaxed);
@@ -113,7 +113,7 @@ impl LivePaymentCollectEnvironment {
         payment_method_id: &PaymentMethodId,
         order_scope: &str,
         connect: &MerchantConnectAccount,
-        credential: Option<&StripeCredential>,
+        credential: Option<&PaymentCollectCredential>,
         now: u64,
     ) -> Result<MerchantPaymentEvidenceV1, PortError> {
         let payment_method_path = format!("/v1/payment_methods/{payment_method_id}");
@@ -177,7 +177,7 @@ impl LivePaymentCollectEnvironment {
     fn retrieve_projection(
         &self,
         payment_intent_id: &PaymentIntentId,
-        credential: &StripeCredential,
+        credential: &PaymentCollectCredential,
         connect: &MerchantConnectAccount,
         now: u64,
     ) -> Result<MerchantProviderProjection, PortError> {
@@ -190,13 +190,10 @@ impl LivePaymentCollectEnvironment {
     }
 }
 
-impl CredentialProvider for LivePaymentCollectEnvironment {
-    fn mutation_credential(
-        &self,
-        account: &StripeAccountId,
-    ) -> Result<StripeCredential, PortError> {
+impl CredentialProvider<PaymentCollectCredentialScope> for LivePaymentCollectEnvironment {
+    fn credential(&self, account: &StripeAccountId) -> Result<PaymentCollectCredential, PortError> {
         self.credential_requests.fetch_add(1, Ordering::Relaxed);
-        self.http.mutation_credential(account)
+        self.http.credential(account)
     }
 }
 
@@ -285,7 +282,7 @@ impl PaymentCollectGateway for LivePaymentCollectEnvironment {
     fn reread_critical_evidence(
         &self,
         command: &VerifiedPaymentCollectCommand,
-        credential: &StripeCredential,
+        credential: &PaymentCollectCredential,
         now: u64,
     ) -> Result<MerchantPaymentEvidenceV1, PortError> {
         self.evidence(
@@ -301,7 +298,7 @@ impl PaymentCollectGateway for LivePaymentCollectEnvironment {
     fn collect(
         &self,
         command: &VerifiedPaymentCollectCommand,
-        credential: &StripeCredential,
+        credential: &PaymentCollectCredential,
         now: u64,
     ) -> Result<PaymentCollectEffect, PortError> {
         let action = command.action();
@@ -384,7 +381,7 @@ impl PaymentCollectGateway for LivePaymentCollectEnvironment {
     fn observe(
         &self,
         command: &VerifiedPaymentCollectCommand,
-        credential: &StripeCredential,
+        credential: &PaymentCollectCredential,
         payment_intent: &PaymentIntentId,
         now: u64,
     ) -> Result<MerchantProviderProjection, PortError> {
@@ -399,7 +396,7 @@ impl PaymentCollectGateway for LivePaymentCollectEnvironment {
     fn reconcile(
         &self,
         record: &MerchantReservationRecord,
-        credential: &StripeCredential,
+        credential: &PaymentCollectCredential,
         now: u64,
     ) -> Result<PaymentCollectReconciliationOutcome, PortError> {
         if record.operation() != MerchantOperation::Collect {

@@ -179,6 +179,34 @@ impl MerchantCollectionObservationReceipt {
     }
 }
 
+/// Closed receipt family owned by the exact collection profile.
+///
+/// Adding another Stripe profile does not add variants to this type.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(tag = "kind", content = "receipt")]
+pub enum MerchantCollectionReceipt {
+    /// Exact proof and bounded collection decision.
+    #[serde(rename = "merchant-collection-decision")]
+    Decision(Box<MerchantCollectionDecisionReceipt>),
+    /// Collection reservation, claim, provider, or terminal transition.
+    #[serde(rename = "merchant-collection-transition")]
+    Transition(Box<MerchantCollectionTransitionReceipt>),
+    /// Fresh collection provider observation.
+    #[serde(rename = "merchant-collection-observation")]
+    Observation(Box<MerchantCollectionObservationReceipt>),
+}
+
+impl MerchantCollectionReceipt {
+    /// Returns canonical receipt bytes.
+    ///
+    /// # Errors
+    ///
+    /// Returns a canonicalization failure.
+    pub fn canonical_bytes(&self) -> Result<Vec<u8>, CanonicalError> {
+        crate::canonical::canonical_json(self)
+    }
+}
+
 /// Produces the accurately labeled configured-policy provenance.
 #[must_use]
 pub fn merchant_policy_provenance() -> String {

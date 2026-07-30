@@ -6,12 +6,12 @@ use serde::Serialize;
 
 use super::{
     MerchantCollectionDecisionReceipt, MerchantCollectionObservationReceipt,
-    MerchantCollectionTransitionReceipt, PaymentCollectDecision, PaymentCollectDecisionClass,
-    PaymentCollectDecisionCode, PaymentCollectDecisionStage, PaymentCollectEffect,
-    PaymentCollectEvaluationContext, PaymentCollectGateway, PaymentCollectProofDecision,
-    PaymentCollectProofVerifier, PaymentCollectReconciliationOutcome, StripeExactPaymentCollectV1,
-    StripePaymentCollectProfile, VerifiedPaymentCollectCommand, evaluate_payment_collect,
-    merchant_policy_provenance,
+    MerchantCollectionReceipt, MerchantCollectionTransitionReceipt, PaymentCollectDecision,
+    PaymentCollectDecisionClass, PaymentCollectDecisionCode, PaymentCollectDecisionStage,
+    PaymentCollectEffect, PaymentCollectEvaluationContext, PaymentCollectGateway,
+    PaymentCollectProofDecision, PaymentCollectProofVerifier, PaymentCollectReconciliationOutcome,
+    StripeExactPaymentCollectV1, StripePaymentCollectProfile, VerifiedPaymentCollectCommand,
+    evaluate_payment_collect, merchant_policy_provenance,
 };
 use crate::{
     canonical::{canonical_digest, sha256},
@@ -24,8 +24,10 @@ use crate::{
             MerchantReservationState, ReserveMerchantPaymentRequest, ReserveMerchantPaymentResult,
         },
     },
-    ports::{Clock, CredentialProvider, PortError, ReceiptSink},
-    receipts::StripeReceipt,
+    ports::{
+        Clock, CredentialProvider, PaymentCollectCredential, PaymentCollectCredentialScope,
+        PortError, ReceiptSink,
+    },
     types::DigestHex,
 };
 
@@ -73,10 +75,10 @@ pub struct PaymentCollectService<V, C, G, S, R, T> {
 impl<V, C, G, S, R, T> PaymentCollectService<V, C, G, S, R, T>
 where
     V: PaymentCollectProofVerifier,
-    C: CredentialProvider,
+    C: CredentialProvider<PaymentCollectCredentialScope>,
     G: PaymentCollectGateway,
     S: MerchantPaymentStore,
-    R: ReceiptSink,
+    R: ReceiptSink<MerchantCollectionReceipt>,
     T: Clock,
 {
     /// Constructs the protected service.
@@ -349,7 +351,7 @@ where
         let credential = match self
             .dependencies
             .credential_provider
-            .mutation_credential(command.action().stripe_account_id())
+            .credential(command.action().stripe_account_id())
         {
             Ok(credential) => credential,
             Err(error) => {
@@ -545,7 +547,7 @@ where
         let credential = self
             .dependencies
             .credential_provider
-            .mutation_credential(record.stripe_account_id())?;
+            .credential(record.stripe_account_id())?;
         let outcome = self
             .dependencies
             .stripe_gateway
@@ -628,7 +630,7 @@ where
     fn finish_accepted(
         &self,
         command: &VerifiedPaymentCollectCommand,
-        credential: &crate::ports::StripeCredential,
+        credential: &PaymentCollectCredential,
         decision_digest: &DigestHex,
         lease: &crate::merchant::state::MerchantReservationLease,
         provider: MerchantProviderProjection,
@@ -720,7 +722,7 @@ where
     ) -> Result<(), MerchantServiceError> {
         self.dependencies
             .receipt_sink
-            .append(&StripeReceipt::MerchantCollectionDecision(Box::new(
+            .append(&MerchantCollectionReceipt::Decision(Box::new(
                 receipt.clone(),
             )))
             .map_err(MerchantServiceError::Port)
@@ -764,7 +766,7 @@ where
         };
         self.dependencies
             .receipt_sink
-            .append(&StripeReceipt::MerchantCollectionTransition(Box::new(
+            .append(&MerchantCollectionReceipt::Transition(Box::new(
                 receipt.clone(),
             )))
             .map_err(MerchantServiceError::Port)?;
@@ -805,9 +807,7 @@ where
         };
         self.dependencies
             .receipt_sink
-            .append(&StripeReceipt::MerchantCollectionObservation(Box::new(
-                receipt,
-            )))
+            .append(&MerchantCollectionReceipt::Observation(Box::new(receipt)))
             .map_err(MerchantServiceError::Port)
     }
 
@@ -841,9 +841,7 @@ where
         };
         self.dependencies
             .receipt_sink
-            .append(&StripeReceipt::MerchantCollectionObservation(Box::new(
-                receipt,
-            )))
+            .append(&MerchantCollectionReceipt::Observation(Box::new(receipt)))
             .map_err(MerchantServiceError::Port)
     }
 }

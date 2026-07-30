@@ -940,7 +940,7 @@ fn attach_latest_receipt(
     if let Some(receipt) = receipts
         .iter()
         .rev()
-        .find(|receipt| authorization_receipt_workflow(receipt) == Some(workflow_id))
+        .find(|receipt| authorization_receipt_workflow(receipt) == workflow_id)
     {
         let id = receipt_id(receipt).map_err(|_| ApiError::internal())?;
         response["receipt_id"] = json!(id);
@@ -952,25 +952,13 @@ fn attach_latest_receipt(
     Ok(())
 }
 
-fn authorization_receipt_workflow(receipt: &auths_stripe::StripeReceipt) -> Option<&str> {
+fn authorization_receipt_workflow(receipt: &auths_stripe::MerchantAuthorizationReceipt) -> &str {
     match receipt {
-        auths_stripe::StripeReceipt::MerchantAuthorizationDecision(receipt) => {
-            Some(&receipt.workflow_id)
+        auths_stripe::MerchantAuthorizationReceipt::Decision(receipt) => &receipt.workflow_id,
+        auths_stripe::MerchantAuthorizationReceipt::Transition(receipt) => {
+            receipt.reservation.workflow_id()
         }
-        auths_stripe::StripeReceipt::MerchantAuthorizationTransition(receipt) => {
-            Some(receipt.reservation.workflow_id())
-        }
-        auths_stripe::StripeReceipt::MerchantAuthorizationObservation(receipt) => {
-            Some(&receipt.workflow_id)
-        }
-        auths_stripe::StripeReceipt::MerchantCollectionDecision(_)
-        | auths_stripe::StripeReceipt::MerchantCollectionTransition(_)
-        | auths_stripe::StripeReceipt::MerchantCollectionObservation(_)
-        | auths_stripe::StripeReceipt::BoundedDecision(_)
-        | auths_stripe::StripeReceipt::Reservation(_)
-        | auths_stripe::StripeReceipt::Decision(_)
-        | auths_stripe::StripeReceipt::Execution(_)
-        | auths_stripe::StripeReceipt::Observation(_) => None,
+        auths_stripe::MerchantAuthorizationReceipt::Observation(receipt) => &receipt.workflow_id,
     }
 }
 
@@ -1095,9 +1083,9 @@ mod tests {
     use auths_stripe::{
         ChargeId, CredentialProvider, CustomerId, MerchantPaymentEvidenceInput,
         MerchantPaymentEvidenceV1, MerchantProviderProjection, MerchantReservationRecord,
-        PaymentAuthorizeEffect, PaymentAuthorizeGateway, PaymentAuthorizeReconciliationOutcome,
-        PaymentIntentId, PaymentMethodId, PortError, StripeAccountId, StripeCredential,
-        VerifiedPaymentAuthorizeCommand,
+        PaymentAuthorizeCredential, PaymentAuthorizeCredentialScope, PaymentAuthorizeEffect,
+        PaymentAuthorizeGateway, PaymentAuthorizeReconciliationOutcome, PaymentIntentId,
+        PaymentMethodId, PortError, StripeAccountId, VerifiedPaymentAuthorizeCommand,
     };
     use axum::{
         body::{Body, to_bytes},
@@ -1155,16 +1143,16 @@ mod tests {
         }
     }
 
-    impl CredentialProvider for MockEnvironment {
-        fn mutation_credential(
+    impl CredentialProvider<PaymentAuthorizeCredentialScope> for MockEnvironment {
+        fn credential(
             &self,
             account: &StripeAccountId,
-        ) -> Result<StripeCredential, PortError> {
+        ) -> Result<PaymentAuthorizeCredential, PortError> {
             if account != &self.account {
                 return Err(PortError::InvalidConfiguration);
             }
             self.credential_requests.fetch_add(1, Ordering::Relaxed);
-            StripeCredential::new(["sk", "test", "runtime_only_authorize_mock"].join("_"))
+            PaymentAuthorizeCredential::new(["sk", "test", "runtime_only_authorize_mock"].join("_"))
         }
     }
 
@@ -1236,7 +1224,7 @@ mod tests {
         fn reread_critical_evidence(
             &self,
             command: &VerifiedPaymentAuthorizeCommand,
-            _credential: &StripeCredential,
+            _credential: &PaymentAuthorizeCredential,
             now: u64,
         ) -> Result<MerchantPaymentEvidenceV1, PortError> {
             self.provider_calls.fetch_add(1, Ordering::Relaxed);
@@ -1276,7 +1264,7 @@ mod tests {
         fn authorize(
             &self,
             command: &VerifiedPaymentAuthorizeCommand,
-            _credential: &StripeCredential,
+            _credential: &PaymentAuthorizeCredential,
             now: u64,
         ) -> Result<PaymentAuthorizeEffect, PortError> {
             self.provider_calls.fetch_add(1, Ordering::Relaxed);
@@ -1338,7 +1326,7 @@ mod tests {
         fn observe(
             &self,
             command: &VerifiedPaymentAuthorizeCommand,
-            _credential: &StripeCredential,
+            _credential: &PaymentAuthorizeCredential,
             _payment_intent: &PaymentIntentId,
             now: u64,
         ) -> Result<MerchantProviderProjection, PortError> {
@@ -1349,7 +1337,7 @@ mod tests {
         fn reconcile(
             &self,
             record: &MerchantReservationRecord,
-            _credential: &StripeCredential,
+            _credential: &PaymentAuthorizeCredential,
             now: u64,
         ) -> Result<PaymentAuthorizeReconciliationOutcome, PortError> {
             self.provider_calls.fetch_add(1, Ordering::Relaxed);

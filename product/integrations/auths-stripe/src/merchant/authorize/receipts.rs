@@ -179,6 +179,34 @@ impl MerchantAuthorizationObservationReceipt {
     }
 }
 
+/// Closed receipt family owned by the exact authorization profile.
+///
+/// Adding another Stripe profile does not add variants to this type.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(tag = "kind", content = "receipt")]
+pub enum MerchantAuthorizationReceipt {
+    /// Exact proof and bounded authorization decision.
+    #[serde(rename = "merchant-authorization-decision")]
+    Decision(Box<MerchantAuthorizationDecisionReceipt>),
+    /// Authorization reservation, claim, provider, or terminal transition.
+    #[serde(rename = "merchant-authorization-transition")]
+    Transition(Box<MerchantAuthorizationTransitionReceipt>),
+    /// Fresh authorization provider observation.
+    #[serde(rename = "merchant-authorization-observation")]
+    Observation(Box<MerchantAuthorizationObservationReceipt>),
+}
+
+impl MerchantAuthorizationReceipt {
+    /// Returns canonical receipt bytes.
+    ///
+    /// # Errors
+    ///
+    /// Returns a canonicalization failure.
+    pub fn canonical_bytes(&self) -> Result<Vec<u8>, CanonicalError> {
+        crate::canonical::canonical_json(self)
+    }
+}
+
 /// Produces the accurately labeled configured-policy provenance.
 #[must_use]
 pub fn merchant_policy_provenance() -> String {

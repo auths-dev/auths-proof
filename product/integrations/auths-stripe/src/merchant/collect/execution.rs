@@ -12,7 +12,7 @@ use crate::{
         fixed_merchant_metadata_commitment,
         state::{MerchantProviderProjection, MerchantReservationRecord, MerchantReservationState},
     },
-    ports::{PortError, StripeCredential},
+    ports::{PaymentCollectCredential, PortError},
     types::{DigestHex, StripeAccountId},
 };
 
@@ -440,7 +440,7 @@ pub trait PaymentCollectGateway: Send + Sync {
     fn reread_critical_evidence(
         &self,
         command: &VerifiedPaymentCollectCommand,
-        credential: &StripeCredential,
+        credential: &PaymentCollectCredential,
         now: u64,
     ) -> Result<MerchantPaymentEvidenceV1, PortError>;
 
@@ -453,7 +453,7 @@ pub trait PaymentCollectGateway: Send + Sync {
     fn collect(
         &self,
         command: &VerifiedPaymentCollectCommand,
-        credential: &StripeCredential,
+        credential: &PaymentCollectCredential,
         now: u64,
     ) -> Result<PaymentCollectEffect, PortError>;
 
@@ -465,7 +465,7 @@ pub trait PaymentCollectGateway: Send + Sync {
     fn observe(
         &self,
         command: &VerifiedPaymentCollectCommand,
-        credential: &StripeCredential,
+        credential: &PaymentCollectCredential,
         payment_intent: &crate::types::PaymentIntentId,
         now: u64,
     ) -> Result<MerchantProviderProjection, PortError>;
@@ -478,7 +478,7 @@ pub trait PaymentCollectGateway: Send + Sync {
     fn reconcile(
         &self,
         record: &MerchantReservationRecord,
-        credential: &StripeCredential,
+        credential: &PaymentCollectCredential,
         now: u64,
     ) -> Result<PaymentCollectReconciliationOutcome, PortError>;
 }
@@ -487,7 +487,7 @@ impl<T: PaymentCollectGateway + ?Sized> PaymentCollectGateway for Arc<T> {
     fn reread_critical_evidence(
         &self,
         command: &VerifiedPaymentCollectCommand,
-        credential: &StripeCredential,
+        credential: &PaymentCollectCredential,
         now: u64,
     ) -> Result<MerchantPaymentEvidenceV1, PortError> {
         (**self).reread_critical_evidence(command, credential, now)
@@ -496,7 +496,7 @@ impl<T: PaymentCollectGateway + ?Sized> PaymentCollectGateway for Arc<T> {
     fn collect(
         &self,
         command: &VerifiedPaymentCollectCommand,
-        credential: &StripeCredential,
+        credential: &PaymentCollectCredential,
         now: u64,
     ) -> Result<PaymentCollectEffect, PortError> {
         (**self).collect(command, credential, now)
@@ -505,7 +505,7 @@ impl<T: PaymentCollectGateway + ?Sized> PaymentCollectGateway for Arc<T> {
     fn observe(
         &self,
         command: &VerifiedPaymentCollectCommand,
-        credential: &StripeCredential,
+        credential: &PaymentCollectCredential,
         payment_intent: &crate::types::PaymentIntentId,
         now: u64,
     ) -> Result<MerchantProviderProjection, PortError> {
@@ -515,7 +515,7 @@ impl<T: PaymentCollectGateway + ?Sized> PaymentCollectGateway for Arc<T> {
     fn reconcile(
         &self,
         record: &MerchantReservationRecord,
-        credential: &StripeCredential,
+        credential: &PaymentCollectCredential,
         now: u64,
     ) -> Result<PaymentCollectReconciliationOutcome, PortError> {
         (**self).reconcile(record, credential, now)

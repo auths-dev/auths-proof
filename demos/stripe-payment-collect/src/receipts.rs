@@ -6,7 +6,7 @@ use std::{
 };
 
 use auths_stripe::{
-    DigestHex, PortError, ReceiptSink, StripeReceipt,
+    DigestHex, MerchantCollectionReceipt, PortError, ReceiptSink,
     canonical::{canonical_json, sha256},
 };
 
@@ -39,14 +39,17 @@ impl ReceiptJournal {
     }
 
     /// Returns one exact receipt by canonical digest.
-    pub fn get(&self, receipt_id: &DigestHex) -> Result<Option<StripeReceipt>, PortError> {
+    pub fn get(
+        &self,
+        receipt_id: &DigestHex,
+    ) -> Result<Option<MerchantCollectionReceipt>, PortError> {
         Ok(self.read_all()?.into_iter().find(|receipt| {
             canonical_json(receipt).is_ok_and(|bytes| sha256(&bytes) == *receipt_id)
         }))
     }
 
     /// Returns the complete bounded journal in append order.
-    pub fn read_all(&self) -> Result<Vec<StripeReceipt>, PortError> {
+    pub fn read_all(&self) -> Result<Vec<MerchantCollectionReceipt>, PortError> {
         let _guard = self
             .process_lock
             .lock()
@@ -55,8 +58,8 @@ impl ReceiptJournal {
     }
 }
 
-impl ReceiptSink for ReceiptJournal {
-    fn append(&self, receipt: &StripeReceipt) -> Result<(), PortError> {
+impl ReceiptSink<MerchantCollectionReceipt> for ReceiptJournal {
+    fn append(&self, receipt: &MerchantCollectionReceipt) -> Result<(), PortError> {
         let bytes = canonical_json(receipt).map_err(|_| PortError::Malformed)?;
         if bytes.len() > MAX_RECEIPT_BYTES || bytes.contains(&b'\n') {
             return Err(PortError::LimitExceeded);
@@ -85,13 +88,13 @@ impl ReceiptSink for ReceiptJournal {
 }
 
 /// Computes the public digest address for a receipt.
-pub fn receipt_id(receipt: &StripeReceipt) -> Result<DigestHex, PortError> {
+pub fn receipt_id(receipt: &MerchantCollectionReceipt) -> Result<DigestHex, PortError> {
     canonical_json(receipt)
         .map(|bytes| sha256(&bytes))
         .map_err(|_| PortError::Malformed)
 }
 
-fn read_all_unlocked(path: &Path) -> Result<Vec<StripeReceipt>, PortError> {
+fn read_all_unlocked(path: &Path) -> Result<Vec<MerchantCollectionReceipt>, PortError> {
     let file = File::open(path).map_err(|_| PortError::Persistence)?;
     file.lock_shared().map_err(|_| PortError::Persistence)?;
     let result = read_all_from(&file);
@@ -99,7 +102,7 @@ fn read_all_unlocked(path: &Path) -> Result<Vec<StripeReceipt>, PortError> {
     result
 }
 
-fn read_all_from(file: &File) -> Result<Vec<StripeReceipt>, PortError> {
+fn read_all_from(file: &File) -> Result<Vec<MerchantCollectionReceipt>, PortError> {
     let clone = file.try_clone().map_err(|_| PortError::Persistence)?;
     let mut receipts = Vec::new();
     for line in BufReader::new(clone).split(b'\n') {
@@ -110,7 +113,7 @@ fn read_all_from(file: &File) -> Result<Vec<StripeReceipt>, PortError> {
         if line.len() > MAX_RECEIPT_BYTES || receipts.len() >= MAX_RECEIPTS {
             return Err(PortError::LimitExceeded);
         }
-        let receipt: StripeReceipt =
+        let receipt: MerchantCollectionReceipt =
             serde_json::from_slice(&line).map_err(|_| PortError::Malformed)?;
         let canonical = canonical_json(&receipt).map_err(|_| PortError::Malformed)?;
         if canonical != line {

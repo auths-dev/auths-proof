@@ -14,7 +14,7 @@ use crate::{
     executor::VerifiedRefundCommand,
     ports::{
         Clock, CredentialProvider, PortError, ProofDecision, ProofVerifier, ReceiptSink,
-        StripeGateway,
+        RefundCredentialScope, StripeGateway,
     },
     profile::StripeRefundProfile,
     receipts::{
@@ -76,11 +76,11 @@ pub struct BoundedRefundService<V, C, G, W, B, R, T> {
 impl<V, C, G, W, B, R, T> BoundedRefundService<V, C, G, W, B, R, T>
 where
     V: ProofVerifier,
-    C: CredentialProvider,
+    C: CredentialProvider<RefundCredentialScope>,
     G: StripeGateway,
     W: ClaimStore,
     B: RefundReservationStore,
-    R: ReceiptSink,
+    R: ReceiptSink<StripeReceipt>,
     T: Clock,
 {
     /// Constructs the service from explicit trusted dependencies.
@@ -315,7 +315,7 @@ where
         let credential = match self
             .dependencies
             .credential_provider
-            .mutation_credential(request.action.stripe_account_id())
+            .credential(request.action.stripe_account_id())
         {
             Ok(credential) => credential,
             Err(error) => {
@@ -508,7 +508,7 @@ mod tests {
             .map(|offset| reserve + offset)
             .expect("bounded service must durably claim the exact action");
         let credential = source[claim..]
-            .find(".mutation_credential")
+            .find(".credential(")
             .map(|offset| claim + offset)
             .expect("bounded service must acquire the credential");
         let provider = source[credential..]

@@ -911,7 +911,7 @@ fn attach_latest_receipt(
     if let Some(receipt) = receipts
         .iter()
         .rev()
-        .find(|receipt| collection_receipt_workflow(receipt) == Some(workflow_id))
+        .find(|receipt| collection_receipt_workflow(receipt) == workflow_id)
     {
         let id = receipt_id(receipt).map_err(|_| ApiError::internal())?;
         response["receipt_id"] = json!(id);
@@ -923,22 +923,13 @@ fn attach_latest_receipt(
     Ok(())
 }
 
-fn collection_receipt_workflow(receipt: &auths_stripe::StripeReceipt) -> Option<&str> {
+fn collection_receipt_workflow(receipt: &auths_stripe::MerchantCollectionReceipt) -> &str {
     match receipt {
-        auths_stripe::StripeReceipt::MerchantCollectionDecision(receipt) => {
-            Some(&receipt.workflow_id)
+        auths_stripe::MerchantCollectionReceipt::Decision(receipt) => &receipt.workflow_id,
+        auths_stripe::MerchantCollectionReceipt::Transition(receipt) => {
+            receipt.reservation.workflow_id()
         }
-        auths_stripe::StripeReceipt::MerchantCollectionTransition(receipt) => {
-            Some(receipt.reservation.workflow_id())
-        }
-        auths_stripe::StripeReceipt::MerchantCollectionObservation(receipt) => {
-            Some(&receipt.workflow_id)
-        }
-        auths_stripe::StripeReceipt::BoundedDecision(_)
-        | auths_stripe::StripeReceipt::Reservation(_)
-        | auths_stripe::StripeReceipt::Decision(_)
-        | auths_stripe::StripeReceipt::Execution(_)
-        | auths_stripe::StripeReceipt::Observation(_) => None,
+        auths_stripe::MerchantCollectionReceipt::Observation(receipt) => &receipt.workflow_id,
     }
 }
 
@@ -1063,9 +1054,9 @@ mod tests {
     use auths_stripe::{
         ChargeId, CredentialProvider, CustomerId, MerchantPaymentEvidenceInput,
         MerchantPaymentEvidenceV1, MerchantProviderProjection, MerchantReservationRecord,
-        PaymentCollectEffect, PaymentCollectGateway, PaymentCollectReconciliationOutcome,
-        PaymentIntentId, PaymentMethodId, PortError, StripeAccountId, StripeCredential,
-        VerifiedPaymentCollectCommand,
+        PaymentCollectCredential, PaymentCollectCredentialScope, PaymentCollectEffect,
+        PaymentCollectGateway, PaymentCollectReconciliationOutcome, PaymentIntentId,
+        PaymentMethodId, PortError, StripeAccountId, VerifiedPaymentCollectCommand,
     };
     use axum::{
         body::{Body, to_bytes},
@@ -1123,16 +1114,16 @@ mod tests {
         }
     }
 
-    impl CredentialProvider for MockEnvironment {
-        fn mutation_credential(
+    impl CredentialProvider<PaymentCollectCredentialScope> for MockEnvironment {
+        fn credential(
             &self,
             account: &StripeAccountId,
-        ) -> Result<StripeCredential, PortError> {
+        ) -> Result<PaymentCollectCredential, PortError> {
             if account != &self.account {
                 return Err(PortError::InvalidConfiguration);
             }
             self.credential_requests.fetch_add(1, Ordering::Relaxed);
-            StripeCredential::new(["sk", "test", "runtime_only_collect_mock"].join("_"))
+            PaymentCollectCredential::new(["sk", "test", "runtime_only_collect_mock"].join("_"))
         }
     }
 
@@ -1204,7 +1195,7 @@ mod tests {
         fn reread_critical_evidence(
             &self,
             command: &VerifiedPaymentCollectCommand,
-            _credential: &StripeCredential,
+            _credential: &PaymentCollectCredential,
             now: u64,
         ) -> Result<MerchantPaymentEvidenceV1, PortError> {
             self.provider_calls.fetch_add(1, Ordering::Relaxed);
@@ -1244,7 +1235,7 @@ mod tests {
         fn collect(
             &self,
             command: &VerifiedPaymentCollectCommand,
-            _credential: &StripeCredential,
+            _credential: &PaymentCollectCredential,
             now: u64,
         ) -> Result<PaymentCollectEffect, PortError> {
             self.provider_calls.fetch_add(1, Ordering::Relaxed);
@@ -1306,7 +1297,7 @@ mod tests {
         fn observe(
             &self,
             command: &VerifiedPaymentCollectCommand,
-            _credential: &StripeCredential,
+            _credential: &PaymentCollectCredential,
             _payment_intent: &PaymentIntentId,
             now: u64,
         ) -> Result<MerchantProviderProjection, PortError> {
@@ -1317,7 +1308,7 @@ mod tests {
         fn reconcile(
             &self,
             record: &MerchantReservationRecord,
-            _credential: &StripeCredential,
+            _credential: &PaymentCollectCredential,
             now: u64,
         ) -> Result<PaymentCollectReconciliationOutcome, PortError> {
             self.provider_calls.fetch_add(1, Ordering::Relaxed);

@@ -46,6 +46,13 @@ No denial path before the credential boundary can call the broker or Stripe.
 The private `VerifiedPaymentAuthorizeCommand` is the only input accepted by the
 authorization gateway.
 
+The broker and gateway share the compile-time
+`PaymentAuthorizeCredentialScope`; a collection, capture, cancellation, or
+refund credential type cannot satisfy this service. Authorization receipts are
+persisted as the closed `MerchantAuthorizationReceipt` family through
+`ReceiptSink<MerchantAuthorizationReceipt>`. Adding another profile therefore
+does not add variants that this demo must handle.
+
 ## State transition table
 
 Callers provide semantic events, never destination states. The shared

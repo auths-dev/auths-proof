@@ -383,10 +383,7 @@ impl DemoStripeEnvironment for LiveStripeEnvironment {
 }
 
 impl CredentialProvider for LiveStripeEnvironment {
-    fn mutation_credential(
-        &self,
-        account: &StripeAccountId,
-    ) -> Result<StripeCredential, PortError> {
+    fn credential(&self, account: &StripeAccountId) -> Result<StripeCredential, PortError> {
         if account != &self.account_id {
             return Err(PortError::InvalidConfiguration);
         }

@@ -23,7 +23,8 @@ pub use execution::{
 pub use profile::{StripePaymentAuthorizeCommand, StripePaymentAuthorizeProfile};
 pub use receipts::{
     MerchantAuthorizationDecisionReceipt, MerchantAuthorizationObservationReceipt,
-    MerchantAuthorizationTransitionReceipt, merchant_policy_provenance,
+    MerchantAuthorizationReceipt, MerchantAuthorizationTransitionReceipt,
+    merchant_policy_provenance,
 };
 pub use service::{
     ExecutePaymentAuthorizeRequest, PaymentAuthorizeService, PaymentAuthorizeServiceDependencies,

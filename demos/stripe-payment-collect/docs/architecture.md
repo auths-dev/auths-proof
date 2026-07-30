@@ -49,6 +49,13 @@ No denial path before the credential boundary can call the broker or Stripe.
 The private `VerifiedPaymentCollectCommand` is the only input accepted by the
 collection gateway.
 
+The broker and gateway share the compile-time
+`PaymentCollectCredentialScope`; an authorization, capture, cancellation, or
+refund credential type cannot satisfy this service. Collection receipts are
+persisted as the closed `MerchantCollectionReceipt` family through
+`ReceiptSink<MerchantCollectionReceipt>`. Adding another profile therefore
+does not add variants that this demo must handle.
+
 ## State transition table
 
 Callers provide semantic events, never destination states. The shared

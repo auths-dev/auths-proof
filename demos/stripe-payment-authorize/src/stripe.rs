@@ -9,10 +9,10 @@ use std::{
 use auths_stripe::{
     ChargeId, CredentialProvider, Currency, CustomerId, MerchantConnectAccount, MerchantOperation,
     MerchantPaymentEvidenceInput, MerchantPaymentEvidenceV1, MerchantProviderProjection,
-    MerchantReservationRecord, PaymentAuthorizeEffect, PaymentAuthorizeGateway,
-    PaymentAuthorizeReconciliationOutcome, PaymentIntentId, PaymentMethodId, PortError,
-    PriorMerchantPayment, PriorMerchantPaymentState, StripeAccountId, StripeCredential,
-    VerifiedPaymentAuthorizeCommand,
+    MerchantReservationRecord, PaymentAuthorizeCredential, PaymentAuthorizeCredentialScope,
+    PaymentAuthorizeEffect, PaymentAuthorizeGateway, PaymentAuthorizeReconciliationOutcome,
+    PaymentIntentId, PaymentMethodId, PortError, PriorMerchantPayment, PriorMerchantPaymentState,
+    StripeAccountId, VerifiedPaymentAuthorizeCommand,
     canonical::{canonical_json, sha256},
 };
 use auths_stripe_payment_demo_common::StripeHttp;
@@ -37,7 +37,7 @@ pub struct EnvironmentDiagnostics {
 
 /// Authorization-specific provider surface used by the application.
 pub trait DemoPaymentAuthorizeEnvironment:
-    CredentialProvider + PaymentAuthorizeGateway + Send + Sync
+    CredentialProvider<PaymentAuthorizeCredentialScope> + PaymentAuthorizeGateway + Send + Sync
 {
     /// Creates one Customer and attached test `PaymentMethod`.
     ///
@@ -74,7 +74,7 @@ pub trait DemoPaymentAuthorizeEnvironment:
 
 /// Real Stripe test-mode authorization environment.
 pub struct LivePaymentAuthorizeEnvironment {
-    http: StripeHttp,
+    http: StripeHttp<PaymentAuthorizeCredentialScope>,
     ambiguous_once: Mutex<HashSet<String>>,
     credential_requests: AtomicU64,
     provider_calls: AtomicU64,
@@ -100,7 +100,7 @@ impl LivePaymentAuthorizeEnvironment {
     fn protected_get(
         &self,
         path: &str,
-        credential: &StripeCredential,
+        credential: &PaymentAuthorizeCredential,
         connect: &MerchantConnectAccount,
     ) -> Result<auths_stripe_payment_demo_common::StripeHttpResponse, PortError> {
         self.provider_calls.fetch_add(1, Ordering::Relaxed);
@@ -113,7 +113,7 @@ impl LivePaymentAuthorizeEnvironment {
         payment_method_id: &PaymentMethodId,
         order_scope: &str,
         connect: &MerchantConnectAccount,
-        credential: Option<&StripeCredential>,
+        credential: Option<&PaymentAuthorizeCredential>,
         now: u64,
     ) -> Result<MerchantPaymentEvidenceV1, PortError> {
         let payment_method_path = format!("/v1/payment_methods/{payment_method_id}");
@@ -177,7 +177,7 @@ impl LivePaymentAuthorizeEnvironment {
     fn retrieve_projection(
         &self,
         payment_intent_id: &PaymentIntentId,
-        credential: &StripeCredential,
+        credential: &PaymentAuthorizeCredential,
         connect: &MerchantConnectAccount,
         now: u64,
     ) -> Result<MerchantProviderProjection, PortError> {
@@ -190,13 +190,13 @@ impl LivePaymentAuthorizeEnvironment {
     }
 }
 
-impl CredentialProvider for LivePaymentAuthorizeEnvironment {
-    fn mutation_credential(
+impl CredentialProvider<PaymentAuthorizeCredentialScope> for LivePaymentAuthorizeEnvironment {
+    fn credential(
         &self,
         account: &StripeAccountId,
-    ) -> Result<StripeCredential, PortError> {
+    ) -> Result<PaymentAuthorizeCredential, PortError> {
         self.credential_requests.fetch_add(1, Ordering::Relaxed);
-        self.http.mutation_credential(account)
+        self.http.credential(account)
     }
 }
 
@@ -288,7 +288,7 @@ impl PaymentAuthorizeGateway for LivePaymentAuthorizeEnvironment {
     fn reread_critical_evidence(
         &self,
         command: &VerifiedPaymentAuthorizeCommand,
-        credential: &StripeCredential,
+        credential: &PaymentAuthorizeCredential,
         now: u64,
     ) -> Result<MerchantPaymentEvidenceV1, PortError> {
         self.evidence(
@@ -304,7 +304,7 @@ impl PaymentAuthorizeGateway for LivePaymentAuthorizeEnvironment {
     fn authorize(
         &self,
         command: &VerifiedPaymentAuthorizeCommand,
-        credential: &StripeCredential,
+        credential: &PaymentAuthorizeCredential,
         now: u64,
     ) -> Result<PaymentAuthorizeEffect, PortError> {
         let action = command.action();
@@ -387,7 +387,7 @@ impl PaymentAuthorizeGateway for LivePaymentAuthorizeEnvironment {
     fn observe(
         &self,
         command: &VerifiedPaymentAuthorizeCommand,
-        credential: &StripeCredential,
+        credential: &PaymentAuthorizeCredential,
         payment_intent: &PaymentIntentId,
         now: u64,
     ) -> Result<MerchantProviderProjection, PortError> {
@@ -402,7 +402,7 @@ impl PaymentAuthorizeGateway for LivePaymentAuthorizeEnvironment {
     fn reconcile(
         &self,
         record: &MerchantReservationRecord,
-        credential: &StripeCredential,
+        credential: &PaymentAuthorizeCredential,
         now: u64,
     ) -> Result<PaymentAuthorizeReconciliationOutcome, PortError> {
         if record.operation() != MerchantOperation::Authorize {

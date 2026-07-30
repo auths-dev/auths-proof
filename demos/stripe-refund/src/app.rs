@@ -113,7 +113,7 @@ struct AppState {
     environment: Arc<dyn DemoStripeEnvironment>,
     claim_store: Arc<dyn ClaimStore>,
     reservation_store: Arc<dyn RefundReservationStore>,
-    receipt_sink: Arc<dyn ReceiptSink>,
+    receipt_sink: Arc<dyn ReceiptSink<StripeReceipt>>,
     sessions: Arc<Mutex<HashMap<String, Session>>>,
 }
 
@@ -181,7 +181,7 @@ pub fn app_with_environment(
     config: AppConfig,
     environment: Arc<dyn DemoStripeEnvironment>,
     claim_store: Arc<dyn ClaimStore>,
-    receipt_sink: Arc<dyn ReceiptSink>,
+    receipt_sink: Arc<dyn ReceiptSink<StripeReceipt>>,
 ) -> Router {
     app_with_stores(
         config,
@@ -198,7 +198,7 @@ pub fn app_with_stores(
     environment: Arc<dyn DemoStripeEnvironment>,
     claim_store: Arc<dyn ClaimStore>,
     reservation_store: Arc<dyn RefundReservationStore>,
-    receipt_sink: Arc<dyn ReceiptSink>,
+    receipt_sink: Arc<dyn ReceiptSink<StripeReceipt>>,
 ) -> Router {
     let cors = CorsLayer::new()
         .allow_origin(config.allowed_origin.clone())
@@ -1219,7 +1219,7 @@ impl JsonlReceiptSink {
     }
 }
 
-impl ReceiptSink for JsonlReceiptSink {
+impl ReceiptSink<StripeReceipt> for JsonlReceiptSink {
     fn append(&self, receipt: &StripeReceipt) -> Result<(), auths_stripe::PortError> {
         let _guard = self
             .write_lock
@@ -1422,7 +1422,7 @@ mod tests {
     }
 
     impl CredentialProvider for FakeStripe {
-        fn mutation_credential(&self, _: &StripeAccountId) -> Result<StripeCredential, PortError> {
+        fn credential(&self, _: &StripeAccountId) -> Result<StripeCredential, PortError> {
             self.credentials.fetch_add(1, Ordering::SeqCst);
             self.credential_after_reservation.store(
                 self.reservation_store.active_reservation_count() > 0,
@@ -1459,7 +1459,7 @@ mod tests {
     #[derive(Default)]
     struct MemoryReceipts(StdMutex<Vec<StripeReceipt>>);
 
-    impl ReceiptSink for MemoryReceipts {
+    impl ReceiptSink<StripeReceipt> for MemoryReceipts {
         fn append(&self, receipt: &StripeReceipt) -> Result<(), PortError> {
             self.0
                 .lock()

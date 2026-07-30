@@ -12,7 +12,7 @@ use crate::{
         fixed_merchant_metadata_commitment,
         state::{MerchantProviderProjection, MerchantReservationRecord, MerchantReservationState},
     },
-    ports::{PortError, StripeCredential},
+    ports::{PaymentAuthorizeCredential, PortError},
     types::{DigestHex, StripeAccountId},
 };
 
@@ -448,7 +448,7 @@ pub trait PaymentAuthorizeGateway: Send + Sync {
     fn reread_critical_evidence(
         &self,
         command: &VerifiedPaymentAuthorizeCommand,
-        credential: &StripeCredential,
+        credential: &PaymentAuthorizeCredential,
         now: u64,
     ) -> Result<MerchantPaymentEvidenceV1, PortError>;
 
@@ -461,7 +461,7 @@ pub trait PaymentAuthorizeGateway: Send + Sync {
     fn authorize(
         &self,
         command: &VerifiedPaymentAuthorizeCommand,
-        credential: &StripeCredential,
+        credential: &PaymentAuthorizeCredential,
         now: u64,
     ) -> Result<PaymentAuthorizeEffect, PortError>;
 
@@ -473,7 +473,7 @@ pub trait PaymentAuthorizeGateway: Send + Sync {
     fn observe(
         &self,
         command: &VerifiedPaymentAuthorizeCommand,
-        credential: &StripeCredential,
+        credential: &PaymentAuthorizeCredential,
         payment_intent: &crate::types::PaymentIntentId,
         now: u64,
     ) -> Result<MerchantProviderProjection, PortError>;
@@ -486,7 +486,7 @@ pub trait PaymentAuthorizeGateway: Send + Sync {
     fn reconcile(
         &self,
         record: &MerchantReservationRecord,
-        credential: &StripeCredential,
+        credential: &PaymentAuthorizeCredential,
         now: u64,
     ) -> Result<PaymentAuthorizeReconciliationOutcome, PortError>;
 }
@@ -495,7 +495,7 @@ impl<T: PaymentAuthorizeGateway + ?Sized> PaymentAuthorizeGateway for Arc<T> {
     fn reread_critical_evidence(
         &self,
         command: &VerifiedPaymentAuthorizeCommand,
-        credential: &StripeCredential,
+        credential: &PaymentAuthorizeCredential,
         now: u64,
     ) -> Result<MerchantPaymentEvidenceV1, PortError> {
         (**self).reread_critical_evidence(command, credential, now)
@@ -504,7 +504,7 @@ impl<T: PaymentAuthorizeGateway + ?Sized> PaymentAuthorizeGateway for Arc<T> {
     fn authorize(
         &self,
         command: &VerifiedPaymentAuthorizeCommand,
-        credential: &StripeCredential,
+        credential: &PaymentAuthorizeCredential,
         now: u64,
     ) -> Result<PaymentAuthorizeEffect, PortError> {
         (**self).authorize(command, credential, now)
@@ -513,7 +513,7 @@ impl<T: PaymentAuthorizeGateway + ?Sized> PaymentAuthorizeGateway for Arc<T> {
     fn observe(
         &self,
         command: &VerifiedPaymentAuthorizeCommand,
-        credential: &StripeCredential,
+        credential: &PaymentAuthorizeCredential,
         payment_intent: &crate::types::PaymentIntentId,
         now: u64,
     ) -> Result<MerchantProviderProjection, PortError> {
@@ -523,7 +523,7 @@ impl<T: PaymentAuthorizeGateway + ?Sized> PaymentAuthorizeGateway for Arc<T> {
     fn reconcile(
         &self,
         record: &MerchantReservationRecord,
-        credential: &StripeCredential,
+        credential: &PaymentAuthorizeCredential,
         now: u64,
     ) -> Result<PaymentAuthorizeReconciliationOutcome, PortError> {
         (**self).reconcile(record, credential, now)

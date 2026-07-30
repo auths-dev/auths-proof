@@ -49,8 +49,10 @@ pub use decision::{Decision, DecisionClass, DecisionCode, EvaluationContext, eva
 pub use executor::VerifiedRefundCommand;
 pub use merchant::*;
 pub use ports::{
-    Clock, CredentialProvider, PortError, ProofDecision, ProofVerifier, ReceiptSink,
-    StripeCredential, StripeGateway,
+    Clock, CredentialProvider, PaymentAuthorizeCredential, PaymentAuthorizeCredentialScope,
+    PaymentCollectCredential, PaymentCollectCredentialScope, PortError, ProofDecision,
+    ProofVerifier, ReceiptSink, RefundCredentialScope, StripeCredential, StripeGateway,
+    StripeRefundCredential,
 };
 pub use profile::{StripeRefundCommand, StripeRefundProfile};
 pub use receipts::{
