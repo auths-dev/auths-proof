@@ -358,8 +358,95 @@ mod proofs {
     }
 
     #[kani::proof]
+    fn starting_attempt_requires_durable_credential_authorization() {
+        let gates = arbitrary_gates();
+        if transition_code(
+            Some(LifecycleState::ExecutionIntentRecorded),
+            OperationCode::StartAttempt,
+            gates,
+        ) == KernelCode::Applied(LifecycleState::Executing)
+        {
+            assert!(gates.credential_authorized);
+            assert!(gates.execution_intent_present);
+            assert!(gates.configuration_matches);
+            assert!(gates.not_revoked);
+            assert!(gates.not_expired);
+        }
+    }
+
+    #[kani::proof]
+    fn committing_effect_requires_provider_call_entry() {
+        let gates = arbitrary_gates();
+        if transition_code(
+            Some(LifecycleState::Executing),
+            OperationCode::Commit,
+            gates,
+        ) == KernelCode::Applied(LifecycleState::Committed)
+        {
+            assert!(gates.attempt_present);
+            assert!(gates.provider_call_entered);
+            assert!(gates.definite_effect);
+        }
+    }
+
+    #[kani::proof]
+    fn outcome_unknown_cannot_release_capacity_directly() {
+        let gates = arbitrary_gates();
+        assert_ne!(
+            transition_code(
+                Some(LifecycleState::OutcomeUnknown),
+                OperationCode::Release,
+                gates,
+            ),
+            KernelCode::Applied(LifecycleState::Released)
+        );
+    }
+
+    #[kani::proof]
+    fn configuration_mismatch_stops_pre_execution_stages() {
+        let mut gates = arbitrary_gates();
+        gates.configuration_matches = false;
+        for (state, operation) in [
+            (LifecycleState::DecisionRecorded, OperationCode::Reserve),
+            (
+                LifecycleState::Reserved,
+                OperationCode::RecordExecutionIntent,
+            ),
+            (
+                LifecycleState::ExecutionIntentRecorded,
+                OperationCode::AuthorizeCredential,
+            ),
+            (
+                LifecycleState::ExecutionIntentRecorded,
+                OperationCode::StartAttempt,
+            ),
+        ] {
+            assert_eq!(
+                transition_code(Some(state), operation, gates),
+                KernelCode::ConfigurationMismatch
+            );
+        }
+    }
+
+    #[kani::proof]
     fn terminals_never_transition() {
-        let gates = TransitionGates {
+        let gates = arbitrary_gates();
+        let operation = arbitrary_operation();
+        for state in [
+            LifecycleState::Committed,
+            LifecycleState::Released,
+            LifecycleState::ReconciledCommitted,
+            LifecycleState::ReconciledReleased,
+        ] {
+            assert_eq!(
+                transition_code(Some(state), operation, gates),
+                KernelCode::Terminal
+            );
+        }
+    }
+
+    fn arbitrary_gates() -> TransitionGates {
+        TransitionGates {
             core_authorized: kani::any(),
             policy_eligible: kani::any(),
             configuration_matches: kani::any(),
@@ -375,8 +462,11 @@ mod proofs {
             definite_non_effect: kani::any(),
             reconciliation_fresh: kani::any(),
             reconciliation_matches: kani::any(),
-        };
-        let operation = match kani::any::<u8>() % 12 {
+        }
+    }
+
+    fn arbitrary_operation() -> OperationCode {
+        match kani::any::<u8>() % 12 {
             0 => OperationCode::RecordDecision,
             1 => OperationCode::Reserve,
             2 => OperationCode::RecordExecutionIntent,
@@ -389,17 +479,6 @@ mod proofs {
             9 => OperationCode::ReconcileEffect,
             10 => OperationCode::ReconcileNonEffect,
             _ => OperationCode::ReconcileInconclusive,
-        };
-        for state in [
-            LifecycleState::Committed,
-            LifecycleState::Released,
-            LifecycleState::ReconciledCommitted,
-            LifecycleState::ReconciledReleased,
-        ] {
-            assert_eq!(
-                transition_code(Some(state), operation, gates),
-                KernelCode::Terminal
-            );
         }
     }
 }
@@ -501,5 +580,63 @@ mod tests {
             ),
             KernelCode::IllegalTransition
         );
+    }
+
+    #[test]
+    fn exhaustive_gate_model_preserves_effect_and_credential_ordering() {
+        for bits in 0_u16..(1_u16 << 15) {
+            let gates = gates_from_bits(bits);
+            if transition_code(
+                Some(LifecycleState::ExecutionIntentRecorded),
+                OperationCode::StartAttempt,
+                gates,
+            ) == KernelCode::Applied(LifecycleState::Executing)
+            {
+                assert!(gates.credential_authorized);
+                assert!(gates.execution_intent_present);
+                assert!(gates.configuration_matches);
+                assert!(gates.not_revoked);
+                assert!(gates.not_expired);
+            }
+            if transition_code(
+                Some(LifecycleState::Executing),
+                OperationCode::Commit,
+                gates,
+            ) == KernelCode::Applied(LifecycleState::Committed)
+            {
+                assert!(gates.attempt_present);
+                assert!(gates.provider_call_entered);
+                assert!(gates.definite_effect);
+            }
+            assert_ne!(
+                transition_code(
+                    Some(LifecycleState::OutcomeUnknown),
+                    OperationCode::Release,
+                    gates,
+                ),
+                KernelCode::Applied(LifecycleState::Released)
+            );
+        }
+    }
+
+    fn gates_from_bits(bits: u16) -> TransitionGates {
+        let bit = |index: u16| bits & (1 << index) != 0;
+        TransitionGates {
+            core_authorized: bit(0),
+            policy_eligible: bit(1),
+            configuration_matches: bit(2),
+            not_revoked: bit(3),
+            not_expired: bit(4),
+            capacity_available: bit(5),
+            execution_intent_present: bit(6),
+            credential_authorized: bit(7),
+            attempt_present: bit(8),
+            provider_call_entered: bit(9),
+            cancellation_allowed: bit(10),
+            definite_effect: bit(11),
+            definite_non_effect: bit(12),
+            reconciliation_fresh: bit(13),
+            reconciliation_matches: bit(14),
+        }
     }
 }
