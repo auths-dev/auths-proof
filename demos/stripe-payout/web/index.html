@@ -7,7 +7,15 @@
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <main>
+  <a class="skip-link" href="#lab">Skip to the payout lab</a>
+  <header class="site-header">
+    <nav class="nav-shell" aria-label="Primary navigation">
+      <a class="wordmark" href="/">auths <i>/</i> <small>stripe payout</small></a>
+      <div class="nav-links"><a href="#lab">Exact payout</a><a href="#receipt-panel">Receipt</a></div>
+      <a class="nav-cta" href="#lab">Run the profile →</a>
+    </nav>
+  </header>
+  <main id="lab">
     <header>
       <p class="eyebrow">AUTHS × STRIPE PAYOUTS</p>
       <h1>Exact destination. Retained balance. Two approvers.</h1>
@@ -43,7 +51,7 @@
       <button id="replay" disabled>Replay same workflow</button>
     </section>
     <section id="result" class="result" aria-live="polite"><strong>READY</strong><span>Test mode does not move real bank funds.</span></section>
-    <section><h2>Canonical receipt</h2><pre id="receipt">No receipt yet.</pre></section>
+    <section id="receipt-panel"><h2>Canonical receipt</h2><pre id="receipt">No receipt yet.</pre></section>
     <footer>No routing number, account number, card number, or Stripe credential reaches this page.</footer>
   </main>
   <script src="/app.js"></script>

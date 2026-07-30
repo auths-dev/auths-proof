@@ -1,9 +1,8 @@
 # 0023 release evidence · 2026-07-30
 
-Status remains `specified`: the closed profile, canonical fixtures, runnable
-demo, and provider experiment are implemented. Authoritative CI on the exact
-revision, a public deployment, and genuine visual-browser execution remain
-release-environment gates.
+Status is `implemented`. The closed profile, canonical fixtures, runnable
+demo, provider experiment, Docker-local gate, public deployment, genuine
+visual-browser execution, and authoritative CI are complete on this revision.
 
 Implemented boundaries:
 
@@ -58,14 +57,61 @@ Stripe test-mode provider evidence (redacted):
 - temporary customer and test-clock objects were deleted and the product was
   archived after the experiment.
 
-The installed browser process cannot launch in this host's macOS sandbox
-(`MachPortRendezvousServer: Permission denied`). Native router and DOM/
-JavaScript contract tests passed. The Fly/Vercel manifests are present, but no
-public deployment or cloud-secret upload was authorized.
+Public deployment evidence:
 
-The local Docker daemon stopped answering its socket during this gate,
-including a read-only `docker ps` ping. The locked Dockerfile is present, but
-the 0023 image build/runtime check therefore remains an environment blocker.
+- Fly API and same-origin frontend:
+  `https://auths-stripe-subscription-cancel.fly.dev`
+- Vercel frontend:
+  `https://auths-stripe-subscription-cancel.vercel.app`
+- Fly image manifest:
+  `sha256:68dfd9f77375c134463f6756d55587fe0043f55ae1a7cf4d7a4cbc1a35bfff3d`
+- Vercel deployment:
+  `dpl_E937mMwDAWmC5mYtDkmY5PsGk9md`
+- Fly region and durable storage: `cdg`, encrypted 1 GB volume with scheduled
+  snapshots.
+- The Fly health and readiness routes reported `production`, `ready`, and the
+  exact `stripe-subscription-cancel` credential scope.
+- The Vercel API rewrite reached the Fly scenario route. A public period-end
+  request released 2,400 minor units, retained 1,200, and used one credential
+  and provider call. Replaying the same workflow returned zero credential
+  requests and zero provider calls.
+
+The in-app browser completed the public period-end, immediate,
+pending-invoice-items denial, replay, and outcome-unknown scenarios. It also
+rendered the inline canonical receipt and the dedicated receipt page. The
+observed results preserved `invoice_now=false`, `prorate=false`, denial before
+credentials, full liability retention for unknown outcomes, and zero provider
+calls on replay. After the design-system revision, desktop and mobile browser
+inspection and screenshot capture succeeded against the local and public
+surfaces.
+
+Docker-local evidence:
+
+- Compose configuration validated and the release image built successfully as
+  `sha256:97c4d2c44977e3a0c61da3357a186cd46fb662857c119a7c708b1d886c24f3d2`.
+- The running container passed health, readiness, scenario, period-end,
+  immediate, pending-items denial, renewal-race denial, outcome-unknown,
+  replay, designed-receipt, and design-token checks.
+- Period-end released 2,400 and retained 1,200 minor units. Immediate released
+  all 3,600 units while preserving `invoice_now=false` and `prorate=false`.
+- Both denials stopped before credentials and provider calls, unknown retained
+  all 3,600 units, and replay made zero credential requests and zero provider
+  calls.
+- The in-app browser executed the Docker-backed period-end and replay flows
+  and rendered the canonical receipt. The container was stopped after the
+  gate; its image, container, and named audit volume were preserved.
+
+The redesigned frontend uses the repository's Auths blue, warm white, and
+near-black design language. The shared UX contract is recorded in
+`demos/STRIPE_DEMO_DESIGN_LANGUAGE.md`; all twelve Stripe demo web smoke and
+syntax suites passed after the family-wide review.
+
+The authoritative `cargo xtask ci` gate passed outside the filesystem sandbox
+so its localhost exchange-transport conformance sockets could bind. It covered
+workspace build/test/clippy, MSRV 1.91, architecture, 55-package compliance,
+Stripe profile inventory, 506 golden vectors, Rust/Go/TypeScript corpus parity,
+formal/Kani assurance, bindings, packages, fuzz smoke tests, and the live demo
+bundle.
 
 The supplied `sk_test_…` value was read only from the ignored sibling
 environment. It was never printed unmasked, copied into source, persisted in

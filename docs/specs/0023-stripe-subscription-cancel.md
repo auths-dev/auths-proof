@@ -1,6 +1,6 @@
 # 0023: Bounded Stripe subscription cancellation
 
-Status: Proposed  
+Status: Implemented
 Exact action profile: `auths.stripe.exact-subscription-cancel/1`  
 Policy family: `auths.stripe.bounded-subscription-policy/1`  
 Evaluator: `auths.stripe.bounded-subscription-evaluator/1`  

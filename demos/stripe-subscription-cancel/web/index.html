@@ -7,7 +7,15 @@
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <main>
+  <a class="skip-link" href="#lab">Skip to the cancellation lab</a>
+  <header class="site-header">
+    <nav class="nav-shell" aria-label="Primary navigation">
+      <a class="wordmark" href="/">auths <i>/</i> <small>stripe subscription cancel</small></a>
+      <div class="nav-links"><a href="#lab">Exact cancellation</a><a href="#receipt-panel">Receipt</a></div>
+      <a class="nav-cta" href="#lab">Run the profile →</a>
+    </nav>
+  </header>
+  <main id="lab">
     <header><p class="eyebrow">AUTHS × STRIPE BILLING</p><h1>End one exact obligation—now or at period end.</h1><p>The action never invoices now, prorates, refunds, or silently removes pending invoice items.</p></header>
     <section class="grid">
       <article><h2>Cancellation policy</h2><dl><dt>Allowed modes</dt><dd>period end · immediate safe</dd><dt>Invoice behavior</dt><dd>invoice_now=false · prorate=false</dd><dt>Pending updates</dt><dd>denied</dd></dl></article>
@@ -24,7 +32,7 @@
       <button id="run">Run protected cancellation</button><button id="replay" disabled>Replay same workflow</button>
     </section>
     <section id="result" class="result" aria-live="polite"><strong>READY</strong><span>Existing invoices remain separately payable; this does not mean refunded.</span></section>
-    <section><h2>Canonical cancellation receipt</h2><pre id="receipt">No receipt yet.</pre><p><a href="/receipt.html">Open designed receipt</a></p></section>
+    <section id="receipt-panel"><h2>Canonical cancellation receipt</h2><pre id="receipt">No receipt yet.</pre><p><a href="/receipt.html">Open designed receipt →</a></p></section>
     <footer>Cancellation does not prove downstream service deprovisioning.</footer>
   </main>
   <script src="/app.js"></script>

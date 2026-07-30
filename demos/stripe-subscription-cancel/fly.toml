@@ -1,13 +1,14 @@
 app = "auths-stripe-subscription-cancel"
-primary_region = "mad"
+primary_region = "cdg"
 [build]
   dockerfile = "Dockerfile"
 [env]
   AUTHS_STRIPE_ALLOWED_ORIGIN = "https://auths-stripe-subscription-cancel.vercel.app"
+  AUTHS_STRIPE_RELEASE = "production"
   AUTHS_STRIPE_STATE_DIR = "/data/auths-stripe-subscription-cancel"
   PORT = "8080"
 [[mounts]]
-  source = "auths_stripe_subscription_cancel"
+  source = "auths_stripe_sub_cancel"
   destination = "/data"
 [[services]]
   internal_port = 8080

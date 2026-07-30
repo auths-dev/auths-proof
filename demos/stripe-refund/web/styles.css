@@ -1,12 +1,12 @@
 :root {
-  --ink: #171714;
-  --muted: #706f67;
-  --paper: #f4f2ea;
-  --panel: #fffefa;
-  --line: #d7d3c5;
-  --soft-line: #e8e4d8;
-  --accent: #ff5a36;
-  --accent-dark: #c93a1d;
+  --ink: #111310;
+  --muted: #64685f;
+  --paper: #f6f5f1;
+  --panel: #ffffff;
+  --line: #d9dcd4;
+  --soft-line: #eceee9;
+  --accent: #3157d5;
+  --accent-dark: #2547b8;
   --green: #126b4b;
   --green-soft: #e5f3ec;
   --red: #a32d20;
@@ -29,7 +29,7 @@ body {
   margin: 0;
   color: var(--ink);
   background:
-    radial-gradient(circle at 75% 4%, rgba(255, 90, 54, 0.08), transparent 27rem),
+    radial-gradient(circle at 75% 4%, rgba(49, 87, 213, 0.08), transparent 27rem),
     var(--paper);
   font-family: var(--sans);
 }
@@ -160,7 +160,7 @@ a {
   height: 7px;
   border-radius: 50%;
   background: var(--accent);
-  box-shadow: 0 0 0 5px rgba(255, 90, 54, 0.12);
+  box-shadow: 0 0 0 5px rgba(49, 87, 213, 0.12);
 }
 
 h1,
@@ -1105,3 +1105,26 @@ footer span {
     margin: 0;
   }
 }
+
+/* Stripe family visual system: blue actions, white evidence, black boundary. */
+:root { --code: #171a18; --code-soft: #242825; }
+body { background: var(--paper); }
+.site-header { background: rgb(246 245 241 / 94%); }
+.eyebrow i,
+.live-state i { border-radius: 0; box-shadow: 0 0 0 4px rgb(49 87 213 / 10%); }
+.controls { border-right-color: #414641; background: var(--code); color: #f7f8f5; }
+.controls .panel-kicker,
+.controls .controls-intro,
+.controls dt,
+.controls small,
+.controls .payment-card > span,
+.controls .agent-boundary > span { color: #aeb4ab; }
+.controls h2,
+.controls dd,
+.controls strong,
+.controls .variant { color: #f7f8f5; }
+.controls .payment-card,
+.controls .variant { border-color: #414641; background: var(--code-soft); }
+.controls .variant:hover { border-color: #798279; }
+.controls .variant.active { border-color: #7893ee; background: #26304f; box-shadow: inset 3px 0 var(--accent); }
+.controls .agent-boundary { border-color: #414641; background: #1e211f; }

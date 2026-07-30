@@ -363,7 +363,7 @@ depends_on = ["auths.stripe.exact-subscription-create/1"]
 [[profiles]]
 spec = 23
 spec_path = "docs/specs/0023-stripe-subscription-cancel.md"
-status = "specified"
+status = "implemented"
 profile = "auths.stripe.exact-subscription-cancel/1"
 family = "auths.stripe.bounded-subscription-policy/1"
 evaluator = "auths.stripe.bounded-subscription-evaluator/1"
