@@ -31,6 +31,7 @@ digraph auths_architecture {
   "auths-kubernetes-demo" [group="demos"];
   "auths-lab-matrix" [group="demos"];
   "auths-lab-wasm-bench" [group="demos"];
+  "auths-lifecycle" [group="product"];
   "auths-live-lab" [group="demos"];
   "auths-live-service" [group="demos"];
   "auths-mcp-demo" [group="demos"];
@@ -222,6 +223,7 @@ digraph auths_architecture {
   "auths-lab-wasm-bench" -> "auths-signature" [label="normal"];
   "auths-lab-wasm-bench" -> "auths-testkit" [label="normal"];
   "auths-lab-wasm-bench" -> "auths-verifier" [label="normal"];
+  "auths-lifecycle" -> "auths-bounded-policy" [label="normal"];
   "auths-live-lab" -> "auths-apps-testkit" [label="normal"];
   "auths-live-lab" -> "auths-codec" [label="normal"];
   "auths-live-lab" -> "auths-model" [label="normal"];

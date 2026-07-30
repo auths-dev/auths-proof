@@ -1,0 +1,22 @@
+[package]
+name = "auths-lifecycle"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Pure reservation and execution lifecycle semantics for bounded Auths actions"
+
+[features]
+default = ["std"]
+std = ["minicbor/std", "sha2/std", "auths-bounded-policy/std"]
+
+[dependencies]
+auths-bounded-policy.workspace = true
+minicbor.workspace = true
+sha2.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+
+[lints]
+workspace = true

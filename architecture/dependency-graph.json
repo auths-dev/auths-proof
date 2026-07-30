@@ -157,6 +157,11 @@
       "path": "demos/benchmarks/auths-lab-wasm-bench"
     },
     {
+      "name": "auths-lifecycle",
+      "layer": "product",
+      "path": "product/runtime/auths-lifecycle"
+    },
+    {
       "name": "auths-live-lab",
       "layer": "demos",
       "path": "demos/live-lab"
@@ -3421,6 +3426,56 @@
       "features": [
         "console"
       ]
+    },
+    {
+      "source": "auths-lifecycle",
+      "source_layer": "product",
+      "target": "auths-bounded-policy",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-lifecycle",
+      "source_layer": "product",
+      "target": "minicbor",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc"
+      ]
+    },
+    {
+      "source": "auths-lifecycle",
+      "source_layer": "product",
+      "target": "proptest",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-lifecycle",
+      "source_layer": "product",
+      "target": "sha2",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
     },
     {
       "source": "auths-live-lab",

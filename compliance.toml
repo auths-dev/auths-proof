@@ -981,6 +981,59 @@ security_state = []
 [packages.auths-bounded-policy-fuzz.claims]
 demo-conformance-fixture = ["product/policy/auths-bounded-policy/fuzz/tests/corpus.rs#seventeen_byte_boundary_seed_is_pinned"]
 
+[packages.auths-lifecycle]
+kind = "cargo"
+layer = "product"
+path = "product/runtime/auths-lifecycle"
+core_apis = []
+protocol_versions = [
+  "auths.product.reservation-execution-contract/1",
+  "auths.product.reservation-key/1",
+  "auths.product.lifecycle-record/1",
+  "auths.product.execution-intent/1",
+  "auths.product.execution-authorization/1",
+  "auths.product.provider-attempt/1",
+  "auths.product.reconciliation-observation/1",
+  "auths.product.lifecycle-receipt-envelope/1",
+  "auths.product.lifecycle-store-contract/1",
+  "auths.product.lifecycle-transition/1",
+]
+wire_objects = [
+  "ExecutionIntentV1",
+  "LifecycleRecordV1",
+  "LifecycleReceiptEnvelopeV1",
+  "ReconciliationObservationV1",
+  "ReservationSetV1",
+]
+fixture_suites = ["product/fixtures/v1/lifecycle"]
+principal_families = []
+signature_families = []
+profiles = ["closed-domain-lifecycle-registrations"]
+transports = []
+configuration_inputs = [
+  "capacity-snapshot",
+  "executed-configuration",
+  "explicit-verifier-time",
+  "revocation-snapshot",
+]
+security_state = [
+  "atomic-reservation",
+  "execution-intent",
+  "lifecycle-receipt-chain",
+  "provider-attempt",
+  "reconciliation-observation",
+]
+
+[packages.auths-lifecycle.claims]
+independent-semantic-implementation = [
+  "product/runtime/auths-lifecycle/src/kernel.rs#configuration_mismatch_precedes_every_side_effectful_gate",
+  "product/runtime/auths-lifecycle/src/kernel.rs#unknown_outcome_cannot_release_without_reconciliation",
+]
+runtime-enforcement-boundary = [
+  "product/runtime/auths-lifecycle/tests/lifecycle.rs#credentials_and_provider_calls_require_durable_ordered_stages",
+  "product/runtime/auths-lifecycle/tests/lifecycle.rs#exact_replay_returns_original_record_and_mutation_conflicts",
+]
+
 [packages.auths-profile-mcp]
 kind = "cargo"
 layer = "product"

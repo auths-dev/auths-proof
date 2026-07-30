@@ -58,6 +58,7 @@ members = [
     "product/profiles/auths-profile-api",
     "product/profiles/auths-profile-mcp",
     "product/profiles/auths-profile-domains",
+    "product/runtime/auths-lifecycle",
     "product/runtime/auths-runtime",
     "product/receipts/auths-receipts",
     "product/stores/auths-stores",
@@ -144,6 +145,7 @@ auths-proof-exchange-testkit = { version = "0.1.0", path = "exchange/testkit/aut
 auths-profile-mcp = { version = "0.1.0", path = "product/profiles/auths-profile-mcp" }
 auths-profile-api = { version = "0.1.0", path = "product/profiles/auths-profile-api" }
 auths-profile-domains = { version = "0.1.0", path = "product/profiles/auths-profile-domains" }
+auths-lifecycle = { version = "0.1.0", path = "product/runtime/auths-lifecycle", default-features = false }
 auths-runtime = { version = "0.1.0", path = "product/runtime/auths-runtime" }
 auths-receipts = { version = "0.1.0", path = "product/receipts/auths-receipts" }
 auths-stores = { version = "0.1.0", path = "product/stores/auths-stores" }

@@ -1,0 +1,41 @@
+schema = "auths.product.lifecycle-registry/1"
+contract = "auths.product.reservation-execution-contract/1"
+migration_status = "reference-only"
+domains = ["github", "kubernetes", "opentofu", "postgresql", "radicle", "records-api", "stripe"]
+
+[[semantic_surfaces]]
+id = "auths.product.reservation-key/1"
+rust_symbol = "auths_lifecycle::ReservationRequestV1"
+lean_artifact = "Auths.Product.Reservation"
+
+[[semantic_surfaces]]
+id = "auths.product.lifecycle-transition/1"
+rust_symbol = "auths_lifecycle::kernel::transition_code"
+lean_artifact = "Auths.Product.Lifecycle"
+
+[[semantic_surfaces]]
+id = "auths.product.execution-authorization/1"
+rust_symbol = "auths_lifecycle::ExecutionAuthorizationV1"
+lean_artifact = "Auths.Product.Execution"
+
+[[semantic_surfaces]]
+id = "auths.product.reconciliation-observation/1"
+rust_symbol = "auths_lifecycle::ReconciliationObservationV1"
+lean_artifact = "Auths.Product.Reconciliation"
+
+[[semantic_surfaces]]
+id = "auths.product.lifecycle-store-contract/1"
+rust_symbol = "auths_lifecycle::LifecycleStore"
+lean_artifact = "Auths.Product.StoreAssumptions"
+
+[[registrations]]
+domain_id = "reference"
+reservation_algebra_id = "auths.reference.none/1"
+provider_contract_id = "auths.reference.non-retryable/1"
+retry_class = "non-retryable"
+reservation_fixture = "product/runtime/auths-lifecycle/tests/lifecycle.rs"
+lifecycle_fixture = "product/runtime/auths-lifecycle/tests/lifecycle.rs"
+formal_namespace = "Auths.Product.Lifecycle"
+kani_harness = "product/runtime/auths-lifecycle/src/kernel.rs"
+store_conformance = "product/runtime/auths-lifecycle/tests/lifecycle.rs"
+production_migrated = false

@@ -617,6 +617,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "auths-lifecycle"
+version = "0.1.0"
+dependencies = [
+ "auths-bounded-policy",
+ "minicbor",
+ "proptest",
+ "sha2 0.10.9",
+]
+
+[[package]]
 name = "auths-live-lab"
 version = "0.1.0"
 dependencies = [
