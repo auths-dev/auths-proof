@@ -724,6 +724,8 @@ pub(crate) fn synchronize_formal_assurance_manifest(
         "formal/Auths/Product/Tightening.lean".to_owned(),
         "formal/Auths/Product/Theorems.lean".to_owned(),
         "formal/Auths/Product/Refinement.lean".to_owned(),
+        "formal/Auths/Lifecycle/Semantics.lean".to_owned(),
+        "formal/Auths/Lifecycle/Theorems.lean".to_owned(),
         "formal/Auths/Refinement/Production.lean".to_owned(),
         "formal/Auths/Composition.lean".to_owned(),
         "formal/Auths/Diversity.lean".to_owned(),
@@ -763,9 +765,12 @@ pub(crate) fn synchronize_formal_assurance_manifest(
                 .unwrap_or(&declaration.name);
             let phrase = short_name.replace('_', " ");
             let is_product = declaration.name.starts_with("Auths.Product.");
+            let is_lifecycle = declaration.name.starts_with("Auths.Lifecycle.");
             FormalAssuranceClaim {
                 claim_id: format!("AP-FORMAL-RICH-{rich_index:03}"),
-                claim_text: if is_product {
+                claim_text: if is_lifecycle {
+                    format!("Lean proves the reservation/execution lifecycle property: {phrase}.")
+                } else if is_product {
                     format!("Lean proves the bounded product-policy property: {phrase}.")
                 } else {
                     format!("Lean proves the rich authority property: {phrase}.")
@@ -779,13 +784,17 @@ pub(crate) fn synchronize_formal_assurance_manifest(
                 semantic_source_closure_sha256: String::new(),
                 evidence: vec![FormalEvidence {
                     kind: "lean-proof".to_owned(),
-                    artifact: if is_product {
+                    artifact: if is_lifecycle {
+                        "formal/Auths/Lifecycle/Theorems.lean".to_owned()
+                    } else if is_product {
                         "formal/Auths/Product/Theorems.lean".to_owned()
                     } else {
                         "formal/Auths/Rich/Theorems.lean".to_owned()
                     },
                 }],
-                scope: if is_product {
+                scope: if is_lifecycle {
+                    "Pure V1 lifecycle transitions, capacity conservation, replay, configuration gates, credential ordering, provider entry, and reconciliation.".to_owned()
+                } else if is_product {
                     "Pure V1 bounded product-policy commitments, checked arithmetic, configuration gating, and eligibility.".to_owned()
                 } else {
                     "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets.".to_owned()
@@ -815,7 +824,7 @@ pub(crate) fn synchronize_formal_assurance_manifest(
     manifest.claims = claims;
     let rendered = toml::to_string_pretty(manifest)
         .map_err(|error| format!("could not render formal assurance manifest: {error}"))?;
-    fs::write(manifest_path, format!("{rendered}\n"))
+    fs::write(manifest_path, format!("{}\n", rendered.trim_end()))
         .map_err(|error| format!("could not write {}: {error}", manifest_path.display()))?;
     println!(
         "Formal assurance update:    {} compiled claims synchronized",

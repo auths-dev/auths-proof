@@ -3,6 +3,7 @@ import Auths.Composition
 import Auths.Diversity
 import Auths.Product.Theorems
 import Auths.Product.Refinement
+import Auths.Lifecycle.Theorems
 import Auths.Refinement.Production
 
 namespace Auths
@@ -78,6 +79,23 @@ def theoremInventory : List Lean.Name :=
     `Auths.Product.Refinement.translated_checked_sub_refines_nat,
     `Auths.Product.Refinement.translated_checked_mul_refines_nat,
     `Auths.Product.Refinement.translated_checked_div_rejects_zero,
+    `Auths.Lifecycle.additive_capacity_success_positive,
+    `Auths.Lifecycle.additive_capacity_success_conserves,
+    `Auths.Lifecycle.additive_capacity_success_never_overflows_u64,
+    `Auths.Lifecycle.reserve_preserves_capacity,
+    `Auths.Lifecycle.commit_preserves_capacity,
+    `Auths.Lifecycle.release_preserves_capacity,
+    `Auths.Lifecycle.exact_replay_is_stable,
+    `Auths.Lifecycle.conflicting_replay_is_not_exact,
+    `Auths.Lifecycle.absent_replay_never_claims_effect,
+    `Auths.Lifecycle.start_attempt_requires_credential,
+    `Auths.Lifecycle.provider_call_requires_attempt,
+    `Auths.Lifecycle.commit_requires_provider_entry_and_effect,
+    `Auths.Lifecycle.outcome_unknown_cannot_release,
+    `Auths.Lifecycle.outcome_unknown_only_reconciliation_can_terminate,
+    `Auths.Lifecycle.configuration_mismatch_stops_reservation,
+    `Auths.Lifecycle.configuration_mismatch_stops_credential,
+    `Auths.Lifecycle.terminal_states_never_transition,
     `Auths.all_commutative,
     `Auths.all_associative,
     `Auths.all_idempotent,
