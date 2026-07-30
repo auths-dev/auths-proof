@@ -1,13 +1,55 @@
-# Known non-secret identifiers and documentation placeholders in immutable history.
-# Keep entries fingerprint-specific so new findings in the same files or commits fail CI.
+# Reviewed 2026-07-30 before public release. These are non-secret identifiers
+# in immutable history. Keep every exception fingerprint-specific so a new
+# finding in the same file, rule family, or fixture still fails CI.
+#
+# Compliance inventory values containing public did:key family identifiers.
 c06f0c07c5a34f985ff78f7b777425a811ea33f0:compliance.toml:generic-api-key:34
 c06f0c07c5a34f985ff78f7b777425a811ea33f0:compliance.toml:generic-api-key:52
 c06f0c07c5a34f985ff78f7b777425a811ea33f0:compliance.toml:generic-api-key:70
 c06f0c07c5a34f985ff78f7b777425a811ea33f0:compliance.toml:generic-api-key:199
+a8c446fc4756b07e22a9b9f88adfecb73546d806:compliance.toml:generic-api-key:458
+
+# Public release and WASM digests in historical rollback documentation.
 0e7f008044a71a7d2d59a439d6c3a1c809aca635:docs/target-state/LIVE_DEMO_PLAN.md:generic-api-key:488
 0e7f008044a71a7d2d59a439d6c3a1c809aca635:docs/target-state/LIVE_DEMO_PLAN.md:generic-api-key:489
-a8c446fc4756b07e22a9b9f88adfecb73546d806:compliance.toml:generic-api-key:458
+
+# Official public did:key interoperability vectors.
 99672a974401933b8a547e841113b804082066e3:adapters/auths-did-key/src/lib.rs:generic-api-key:253
 ac9f830dde718845f010e95f329e4d63c7f57037:adapters/auths-proof-did-key/src/lib.rs:generic-api-key:307
+
 # Public canonical Stripe fixture digests and workflow identifiers.
 1c1ab69068daa2339e192932e6bc206ef71e2cbf:product/integrations/auths-stripe/fixtures/v1/exact-action.json:generic-api-key:1
+750e6930cc1f91030a52c2c9a54aefe3a9e7fe1a:product/integrations/auths-stripe/fixtures/subscription-create/v1/evidence.json:generic-api-key:1
+1b1e5f2107e287e521badd21d4b407bc69b48101:product/integrations/auths-stripe/fixtures/merchant-cancel/v1/attempting.json:generic-api-key:1
+1b1e5f2107e287e521badd21d4b407bc69b48101:product/integrations/auths-stripe/fixtures/merchant-cancel/v1/claimed.json:generic-api-key:1
+1b1e5f2107e287e521badd21d4b407bc69b48101:product/integrations/auths-stripe/fixtures/merchant-cancel/v1/committed.json:generic-api-key:1
+1b1e5f2107e287e521badd21d4b407bc69b48101:product/integrations/auths-stripe/fixtures/merchant-cancel/v1/provider-accepted.json:generic-api-key:1
+1b1e5f2107e287e521badd21d4b407bc69b48101:product/integrations/auths-stripe/fixtures/merchant-cancel/v1/replay.json:generic-api-key:1
+1b1e5f2107e287e521badd21d4b407bc69b48101:product/integrations/auths-stripe/fixtures/merchant-cancel/v1/reservation.json:generic-api-key:1
+1b1e5f2107e287e521badd21d4b407bc69b48101:product/integrations/auths-stripe/fixtures/merchant-cancel/v1/transition-receipt.json:generic-api-key:1
+35cbd4746ac3cae862ecfdd887bd4f02ee14d1eb:product/integrations/auths-stripe/fixtures/merchant-authorize/v1/attempting.json:generic-api-key:1
+35cbd4746ac3cae862ecfdd887bd4f02ee14d1eb:product/integrations/auths-stripe/fixtures/merchant-authorize/v1/authorized.json:generic-api-key:1
+35cbd4746ac3cae862ecfdd887bd4f02ee14d1eb:product/integrations/auths-stripe/fixtures/merchant-authorize/v1/claimed.json:generic-api-key:1
+35cbd4746ac3cae862ecfdd887bd4f02ee14d1eb:product/integrations/auths-stripe/fixtures/merchant-authorize/v1/provider-accepted.json:generic-api-key:1
+35cbd4746ac3cae862ecfdd887bd4f02ee14d1eb:product/integrations/auths-stripe/fixtures/merchant-authorize/v1/replay.json:generic-api-key:1
+35cbd4746ac3cae862ecfdd887bd4f02ee14d1eb:product/integrations/auths-stripe/fixtures/merchant-authorize/v1/reservation.json:generic-api-key:1
+35cbd4746ac3cae862ecfdd887bd4f02ee14d1eb:product/integrations/auths-stripe/fixtures/merchant-authorize/v1/transition-receipt.json:generic-api-key:1
+5baae8d5e374adb1836c92b1464cf07263820420:product/integrations/auths-stripe/fixtures/merchant-capture/v1/attempting.json:generic-api-key:1
+5baae8d5e374adb1836c92b1464cf07263820420:product/integrations/auths-stripe/fixtures/merchant-capture/v1/claimed.json:generic-api-key:1
+5baae8d5e374adb1836c92b1464cf07263820420:product/integrations/auths-stripe/fixtures/merchant-capture/v1/committed.json:generic-api-key:1
+5baae8d5e374adb1836c92b1464cf07263820420:product/integrations/auths-stripe/fixtures/merchant-capture/v1/provider-accepted.json:generic-api-key:1
+5baae8d5e374adb1836c92b1464cf07263820420:product/integrations/auths-stripe/fixtures/merchant-capture/v1/replay.json:generic-api-key:1
+5baae8d5e374adb1836c92b1464cf07263820420:product/integrations/auths-stripe/fixtures/merchant-capture/v1/reservation.json:generic-api-key:1
+5baae8d5e374adb1836c92b1464cf07263820420:product/integrations/auths-stripe/fixtures/merchant-capture/v1/transition-receipt.json:generic-api-key:1
+af4791caed6a8cb6fc37313f9cacfe52bc0e2394:product/integrations/auths-stripe/fixtures/merchant-collect/v1/attempting.json:generic-api-key:1
+af4791caed6a8cb6fc37313f9cacfe52bc0e2394:product/integrations/auths-stripe/fixtures/merchant-collect/v1/claimed.json:generic-api-key:1
+af4791caed6a8cb6fc37313f9cacfe52bc0e2394:product/integrations/auths-stripe/fixtures/merchant-collect/v1/committed.json:generic-api-key:1
+af4791caed6a8cb6fc37313f9cacfe52bc0e2394:product/integrations/auths-stripe/fixtures/merchant-collect/v1/provider-accepted.json:generic-api-key:1
+af4791caed6a8cb6fc37313f9cacfe52bc0e2394:product/integrations/auths-stripe/fixtures/merchant-collect/v1/replay.json:generic-api-key:1
+af4791caed6a8cb6fc37313f9cacfe52bc0e2394:product/integrations/auths-stripe/fixtures/merchant-collect/v1/reservation.json:generic-api-key:1
+af4791caed6a8cb6fc37313f9cacfe52bc0e2394:product/integrations/auths-stripe/fixtures/merchant-collect/v1/transition-receipt.json:generic-api-key:1
+
+# Invalid synthetic test credentials. Both values were verified against
+# Stripe's read-only account endpoint on 2026-07-30 and returned HTTP 401.
+572a038ff87e5e0d058de76a8afd4d4a048d1014:demos/stripe-payment-mandate/src/app.rs:stripe-access-token:1055
+750e6930cc1f91030a52c2c9a54aefe3a9e7fe1a:demos/stripe-subscription-create/src/app.rs:stripe-access-token:957

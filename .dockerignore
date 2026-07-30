@@ -7,6 +7,9 @@ target
 **/.venv
 **/__pycache__
 **/.DS_Store
+**/.env
+**/.env.*
+!**/.env.example
 formal/.lake
 docs
 site
