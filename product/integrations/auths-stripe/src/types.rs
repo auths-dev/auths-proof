@@ -104,6 +104,18 @@ fn valid_payment_intent(value: &str) -> bool {
     valid_prefixed(value, "pi_", 96)
 }
 
+fn valid_setup_intent(value: &str) -> bool {
+    valid_prefixed(value, "seti_", 96)
+}
+
+fn valid_setup_attempt(value: &str) -> bool {
+    valid_prefixed(value, "setatt_", 96)
+}
+
+fn valid_mandate(value: &str) -> bool {
+    valid_prefixed(value, "mandate_", 96)
+}
+
 fn valid_refund(value: &str) -> bool {
     valid_prefixed(value, "re_", 96)
 }
@@ -124,6 +136,9 @@ validated_string!(ChargeId, ChargeId, valid_charge);
 validated_string!(CustomerId, CustomerId, valid_customer);
 validated_string!(PaymentMethodId, PaymentMethodId, valid_payment_method);
 validated_string!(PaymentIntentId, PaymentIntentId, valid_payment_intent);
+validated_string!(SetupIntentId, SetupIntentId, valid_setup_intent);
+validated_string!(SetupAttemptId, SetupAttemptId, valid_setup_attempt);
+validated_string!(MandateId, MandateId, valid_mandate);
 validated_string!(RefundId, RefundId, valid_refund);
 validated_string!(DigestHex, DigestHex, valid_digest);
 validated_string!(Currency, Currency, valid_currency);
@@ -154,6 +169,15 @@ pub enum TypeError {
     /// Invalid `PaymentIntent`.
     #[error("invalid Stripe PaymentIntent identifier")]
     PaymentIntentId,
+    /// Invalid `SetupIntent`.
+    #[error("invalid Stripe SetupIntent identifier")]
+    SetupIntentId,
+    /// Invalid `SetupAttempt`.
+    #[error("invalid Stripe SetupAttempt identifier")]
+    SetupAttemptId,
+    /// Invalid Mandate.
+    #[error("invalid Stripe Mandate identifier")]
+    MandateId,
     /// Invalid Refund.
     #[error("invalid Stripe Refund identifier")]
     RefundId,

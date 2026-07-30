@@ -15,6 +15,7 @@ pub mod canonical;
 pub mod claim;
 pub mod decision;
 pub mod executor;
+pub mod mandate;
 pub mod merchant;
 pub mod ports;
 pub mod profile;
@@ -47,13 +48,15 @@ pub use claim::{
 };
 pub use decision::{Decision, DecisionClass, DecisionCode, EvaluationContext, evaluate};
 pub use executor::VerifiedRefundCommand;
+pub use mandate::*;
 pub use merchant::*;
 pub use ports::{
     Clock, CredentialProvider, PaymentAuthorizeCredential, PaymentAuthorizeCredentialScope,
     PaymentCancelCredential, PaymentCancelCredentialScope, PaymentCaptureCredential,
     PaymentCaptureCredentialScope, PaymentCollectCredential, PaymentCollectCredentialScope,
-    PortError, ProofDecision, ProofVerifier, ReceiptSink, RefundCredentialScope, StripeCredential,
-    StripeGateway, StripeRefundCredential,
+    PaymentMandateCredential, PaymentMandateCredentialScope, PortError, ProofDecision,
+    ProofVerifier, ReceiptSink, RefundCredentialScope, StripeCredential, StripeGateway,
+    StripeRefundCredential,
 };
 pub use profile::{StripeRefundCommand, StripeRefundProfile};
 pub use receipts::{
@@ -69,7 +72,8 @@ pub use service::{
     ExecuteRefundRequest, RefundService, ServiceDependencies, ServiceError, WorkflowOutcome,
 };
 pub use types::{
-    ChargeId, Currency, CustomerId, DigestHex, ExactRefundActionInput, ExactRefundActionV1, Money,
-    PaymentIntentId, PaymentMethodId, RefundEvidenceInput, RefundEvidenceV1, RefundId,
-    RefundResult, StripeAccountId, StripeVerifierConfiguration, StripeVerifierConfigurationInput,
+    ChargeId, Currency, CustomerId, DigestHex, ExactRefundActionInput, ExactRefundActionV1,
+    MandateId, Money, PaymentIntentId, PaymentMethodId, RefundEvidenceInput, RefundEvidenceV1,
+    RefundId, RefundResult, SetupAttemptId, SetupIntentId, StripeAccountId,
+    StripeVerifierConfiguration, StripeVerifierConfigurationInput,
 };

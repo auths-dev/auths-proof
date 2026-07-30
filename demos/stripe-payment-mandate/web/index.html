@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Establish one consent-backed Stripe test payment mandate with Auths." />
+    <meta name="auths-api-base" content="" />
+    <title>Auths × Stripe — bounded payment mandate</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#lab">Skip to the experiment</a>
+    <header class="site-header">
+      <nav class="nav-shell" aria-label="Primary navigation">
+        <a class="wordmark" href="/">auths <i>/</i> <small>stripe mandate</small></a>
+        <div class="nav-links"><a href="#receipt">Receipt</a><a href="https://github.com/auths-dev/auths-proof" target="_blank" rel="noreferrer">Source ↗</a></div>
+        <a class="nav-cta" href="#lab">Run the profile →</a>
+      </nav>
+    </header>
+    <main>
+      <section class="hero authorize-hero" id="lab">
+        <div class="shell authorize-hero-grid">
+          <div class="authorize-intro">
+            <p class="eyebrow"><i></i> Future-use capability · Stripe test mode</p>
+            <h1>Let the agent request a mandate—but require <em>your separate consent.</em></h1>
+            <p class="lede">This profile creates and confirms one SetupIntent. It does not charge money, reveal a client secret, or authorize a later payment by itself.</p>
+            <div class="literal-callout"><strong>Exact synthetic terms</strong><span id="terms">Preparing repository-owned test terms…</span></div>
+          </div>
+          <div class="hero-workbench" aria-live="polite">
+            <div class="experiment-picker">
+              <span class="micro">Choose an experiment</span>
+              <div id="experiments" class="experiment-list"></div>
+            </div>
+            <article class="live-result">
+              <header><span class="micro">Live protected result</span><strong id="outcome" data-kind="idle">PREPARING</strong></header>
+              <p id="detail">Creating a synthetic Stripe Customer and card.</p>
+              <label class="literal-callout"><input id="accept" type="checkbox" /> I explicitly accept these synthetic test terms.</label>
+              <div class="hero-actions">
+                <button id="consent" type="button" disabled>Record trusted consent</button>
+                <button id="execute" type="button" disabled>Execute exact mandate</button>
+                <button id="reconcile" class="secondary-action" type="button" hidden>Retrieve and reconcile</button>
+              </div>
+              <dl class="compact-facts">
+                <div><dt>Credential requests</dt><dd id="credential">0</dd></div>
+                <div><dt>Provider calls</dt><dd id="provider">0</dd></div>
+                <div><dt>Consent</dt><dd id="consent-state">required</dd></div>
+                <div><dt>Capability state</dt><dd id="capability">—</dd></div>
+                <div><dt>Immediate charge</dt><dd>none</dd></div>
+                <div><dt>Client secret</dt><dd>never exposed</dd></div>
+              </dl>
+              <a id="receipt-link" class="receipt-link" hidden>Open the designed receipt →</a>
+            </article>
+          </div>
+        </div>
+      </section>
+      <section class="evidence-band">
+        <div class="shell side-by-side">
+          <article><span class="micro">Immutable policy</span><h2>Hard bounds</h2><dl class="fact-grid">
+            <div><dt>Policy</dt><dd><code id="policy">—</code></dd></div>
+            <div><dt>Maximum</dt><dd id="amount">—</dd></div>
+            <div><dt>Interval</dt><dd id="interval">—</dd></div>
+            <div><dt>Usage</dt><dd id="usage">—</dd></div>
+          </dl></article>
+          <article><span class="micro">Independent evidence</span><h2>Human consent</h2><p>The consent cookie is HttpOnly, same-site, short-lived, and distinct from the agent's Auths proof.</p><dl class="fact-grid">
+            <div><dt>Terms digest</dt><dd><code id="terms-digest">—</code></dd></div>
+            <div><dt>Assurance</dt><dd>trusted synthetic session / 2</dd></div>
+          </dl></article>
+          <article><span class="micro">Protected Stripe evidence</span><h2>Existing objects</h2><dl class="fact-grid">
+            <div><dt>Customer</dt><dd><code id="customer">—</code></dd></div>
+            <div><dt>PaymentMethod</dt><dd><code id="method">—</code></dd></div>
+            <div><dt>Mode</dt><dd>test only</dd></div>
+            <div><dt>Duplicate setup</dt><dd>none observed</dd></div>
+          </dl></article>
+        </div>
+      </section>
+      <section class="receipt-section" id="receipt"><div class="shell">
+        <header class="section-heading"><div><span class="micro">Canonical artifact</span><h2>Consent, decision, capability, and SetupIntent stay distinguishable.</h2></div><p>Future payments still need separate exact authority and their own current bounded payment policy.</p></header>
+        <article class="receipt-viewer authorize-receipt"><header><span>Canonical receipt JSON</span><strong id="receipt-state">not run</strong></header><pre id="receipt-json">Accept the terms and run an experiment.</pre></article>
+      </div></section>
+    </main>
+    <footer><div class="shell"><a class="wordmark" href="/">auths <i>/</i> <small>stripe mandate</small></a><p>A mandate is a capability, not a charge.</p></div></footer>
+    <script src="/config.js"></script>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

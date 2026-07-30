@@ -1,0 +1,1 @@
+{"codes":["payment-mandate-authorized","payment-mandate-consent-required","payment-mandate-consent-mismatch","payment-mandate-scope-exceeded","payment-mandate-capacity-exceeded","payment-mandate-customer-action-required","payment-mandate-provider-failed","payment-mandate-outcome-unknown","bounded-configuration-mismatch","bounded-evidence-stale"]}

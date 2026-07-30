@@ -78,6 +78,7 @@ digraph auths_architecture {
   "auths-stripe-payment-capture-demo" [group="demos"];
   "auths-stripe-payment-collect-demo" [group="demos"];
   "auths-stripe-payment-demo-common" [group="demos"];
+  "auths-stripe-payment-mandate-demo" [group="demos"];
   "auths-testkit" [group="core"];
   "auths-verifier" [group="core"];
   "auths-webauthn" [group="core"];
@@ -444,6 +445,10 @@ digraph auths_architecture {
   "auths-stripe-payment-demo-common" -> "auths-sdk" [label="normal"];
   "auths-stripe-payment-demo-common" -> "auths-signature" [label="normal"];
   "auths-stripe-payment-demo-common" -> "auths-stripe" [label="normal"];
+  "auths-stripe-payment-mandate-demo" -> "auths-profile-api" [label="normal"];
+  "auths-stripe-payment-mandate-demo" -> "auths-sdk" [label="normal"];
+  "auths-stripe-payment-mandate-demo" -> "auths-stripe" [label="normal"];
+  "auths-stripe-payment-mandate-demo" -> "auths-stripe-payment-demo-common" [label="normal"];
   "auths-testkit" -> "auths-author" [label="normal"];
   "auths-testkit" -> "auths-codec" [label="normal"];
   "auths-testkit" -> "auths-did-keri" [label="normal"];
