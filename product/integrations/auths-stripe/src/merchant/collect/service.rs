@@ -204,6 +204,27 @@ where
             });
         }
 
+        // A proved, configuration-equal replay must not be rejected merely
+        // because the original evidence or policy has aged after the durable
+        // provider effect committed. Resolve the existing workflow before
+        // time-sensitive evaluation, using the same immutable commitments as
+        // the atomic reservation boundary.
+        if let Some(existing) = self
+            .dependencies
+            .store
+            .get(&request.workflow_id)
+            .map_err(|_| MerchantServiceError::State)?
+        {
+            if existing.operation() == MerchantOperation::Collect
+                && existing.exact_action_profile() == crate::merchant::PAYMENT_COLLECT_PROFILE
+                && existing.action_digest() == &action_digest
+                && existing.policy_digest() == &policy_digest
+            {
+                return Ok(PaymentCollectWorkflowOutcome::Replay { record: existing });
+            }
+            return Ok(PaymentCollectWorkflowOutcome::Conflict { record: existing });
+        }
+
         let aggregate_before = self
             .dependencies
             .store

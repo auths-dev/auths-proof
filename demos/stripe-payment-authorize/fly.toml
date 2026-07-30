@@ -6,8 +6,8 @@ primary_region = "cdg"
 
 [env]
   PORT = "8080"
-  AUTHS_STRIPE_ALLOWED_ORIGIN = "https://replace-with-frontend.example"
-  AUTHS_PAYMENT_AUTHORIZE_PUBLIC_API_BASE = "https://replace-with-api.example"
+  AUTHS_STRIPE_ALLOWED_ORIGIN = "https://auths-stripe-payment-authorize-demo.fly.dev"
+  AUTHS_PAYMENT_AUTHORIZE_PUBLIC_API_BASE = "https://auths-stripe-payment-authorize-demo.fly.dev"
   AUTHS_STRIPE_RELEASE = "production"
   AUTHS_STRIPE_STATE_DIR = "/data/auths-stripe-payment-authorize"
 

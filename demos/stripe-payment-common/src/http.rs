@@ -19,7 +19,7 @@ struct SecretBytes(Vec<u8>);
 impl SecretBytes {
     fn new(value: String) -> Result<Self, PortError> {
         if !(16..=512).contains(&value.len())
-            || !value.starts_with("sk_test_")
+            || !(value.starts_with("sk_test_") || value.starts_with("rk_test_"))
             || value.bytes().any(|byte| byte.is_ascii_whitespace())
         {
             return Err(PortError::InvalidConfiguration);
@@ -126,7 +126,7 @@ impl<S> StripeHttp<S> {
             mutation_secret,
             account_id: configured_account
                 .clone()
-                .unwrap_or_else(|| StripeAccountId::parse("acct_pending").expect("static id")),
+                .unwrap_or_else(|| StripeAccountId::parse("acct_pending00").expect("static id")),
             api_version,
             scope: PhantomData,
         };
