@@ -672,6 +672,9 @@ credential, provider, or mutable-store I/O.
 Write and merge the state-machine specification before implementation. It must
 separate authorization from mutable lifecycle behavior and define:
 
+The governing contract is
+`docs/specs/0026-reservation-and-execution-state-semantics.md`.
+
 ```text
 available -> reserved -> committed
                     \-> released
