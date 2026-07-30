@@ -308,6 +308,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "auths-bounded-policy"
+version = "0.1.0"
+dependencies = [
+ "proptest",
+]
+
+[[package]]
+name = "auths-bounded-policy-fuzz"
+version = "0.1.0"
+dependencies = [
+ "auths-bounded-policy",
+ "libfuzzer-sys",
+]
+
+[[package]]
 name = "auths-cache"
 version = "0.1.0"
 dependencies = [

@@ -232,8 +232,8 @@ fn validate_manifest(root: &Path, qualification: &Qualification) -> Result<(), S
                 .to_owned(),
         );
     }
-    if qualification.case_modules.len() != 3
-        || qualification.translations.len() != 3
+    if qualification.case_modules.len() != 4
+        || qualification.translations.len() != 4
         || qualification.external_models.len() != 4
         || qualification.warning_inventory.len() != 2
         || qualification.template_axioms.len() != 3
@@ -864,8 +864,24 @@ fn reproduce(
         root,
         &[],
     )?;
+    run_checked(
+        charon,
+        &charon_arguments(
+            "auths_bounded_policy::kernel::configuration_match_code,auths_bounded_policy::kernel::checked_add_u64,auths_bounded_policy::kernel::checked_sub_u64,auths_bounded_policy::kernel::checked_mul_u64,auths_bounded_policy::kernel::checked_div_u64",
+            &stable_llbc.join("auths_bounded_policy.llbc"),
+            "product/policy/auths-bounded-policy/Cargo.toml",
+            &[],
+        ),
+        root,
+        &[],
+    )?;
 
-    for crate_name in ["auths_model", "auths_algebra_kernel", "auths_authority"] {
+    for crate_name in [
+        "auths_model",
+        "auths_algebra_kernel",
+        "auths_authority",
+        "auths_bounded_policy",
+    ] {
         let snapshot = llbc.join(format!("{crate_name}.llbc"));
         fs::copy(stable_llbc.join(format!("{crate_name}.llbc")), &snapshot).map_err(|error| {
             format!("could not snapshot deterministic {crate_name} LLBC: {error}")
@@ -886,6 +902,7 @@ fn reproduce(
         ("auths_model", "model"),
         ("auths_algebra_kernel", "algebra"),
         ("auths_authority", "authority"),
+        ("auths_bounded_policy", "bounded_policy"),
     ] {
         let destination = output.join(format!("{subdir}-run"));
         fs::create_dir_all(&destination).map_err(|error| {
@@ -914,7 +931,12 @@ fn reproduce(
             &[],
         )?;
     }
-    for crate_name in ["auths_model", "auths_algebra_kernel", "auths_authority"] {
+    for crate_name in [
+        "auths_model",
+        "auths_algebra_kernel",
+        "auths_authority",
+        "auths_bounded_policy",
+    ] {
         fs::remove_file(llbc.join(format!("{crate_name}.llbc")))
             .map_err(|error| format!("could not remove raw nondeterministic LLBC: {error}"))?;
     }
@@ -999,6 +1021,18 @@ fn synchronize_aeneas_output(root: &Path, reproduced: &Path, update: bool) -> Re
         (
             "authority-run/translation.json",
             "formal/qualification/aeneas/generated/authority/translation.json",
+        ),
+        (
+            "bounded_policy-run/qualification/aeneas/generated/bounded_policy/Types.lean",
+            "formal/qualification/aeneas/generated/bounded_policy/Types.lean",
+        ),
+        (
+            "bounded_policy-run/qualification/aeneas/generated/bounded_policy/Funs.lean",
+            "formal/qualification/aeneas/generated/bounded_policy/Funs.lean",
+        ),
+        (
+            "bounded_policy-run/translation.json",
+            "formal/qualification/aeneas/generated/bounded_policy/translation.json",
         ),
     ];
     for (source, destination) in mappings {

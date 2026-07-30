@@ -1,0 +1,109 @@
+{
+  "aeneas_version": "3a8586f",
+  "charon_version": "0.1.225",
+  "crate": "auths_bounded_policy",
+  "functions": [
+    {
+      "def_id": 0,
+      "lean_name": "auths_bounded_policy.kernel.configuration_match_code",
+      "lean_file": "qualification/aeneas/generated/bounded_policy/Funs.lean",
+      "rust_name": "auths_bounded_policy::kernel::configuration_match_code",
+      "is_local": true,
+      "source": {
+        "file": "product/policy/auths-bounded-policy/src/kernel.rs",
+        "begin_line": 28,
+        "end_line": 45
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 1,
+      "lean_name": "auths_bounded_policy.kernel.checked_add_u64",
+      "lean_file": "qualification/aeneas/generated/bounded_policy/Funs.lean",
+      "rust_name": "auths_bounded_policy::kernel::checked_add_u64",
+      "is_local": true,
+      "source": {
+        "file": "product/policy/auths-bounded-policy/src/kernel.rs",
+        "begin_line": 49,
+        "end_line": 51
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 2,
+      "lean_name": "auths_bounded_policy.kernel.checked_sub_u64",
+      "lean_file": "qualification/aeneas/generated/bounded_policy/Funs.lean",
+      "rust_name": "auths_bounded_policy::kernel::checked_sub_u64",
+      "is_local": true,
+      "source": {
+        "file": "product/policy/auths-bounded-policy/src/kernel.rs",
+        "begin_line": 55,
+        "end_line": 57
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 3,
+      "lean_name": "auths_bounded_policy.kernel.checked_mul_u64",
+      "lean_file": "qualification/aeneas/generated/bounded_policy/Funs.lean",
+      "rust_name": "auths_bounded_policy::kernel::checked_mul_u64",
+      "is_local": true,
+      "source": {
+        "file": "product/policy/auths-bounded-policy/src/kernel.rs",
+        "begin_line": 61,
+        "end_line": 63
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 4,
+      "lean_name": "auths_bounded_policy.kernel.checked_div_u64",
+      "lean_file": "qualification/aeneas/generated/bounded_policy/Funs.lean",
+      "rust_name": "auths_bounded_policy::kernel::checked_div_u64",
+      "is_local": true,
+      "source": {
+        "file": "product/policy/auths-bounded-policy/src/kernel.rs",
+        "begin_line": 67,
+        "end_line": 69
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    }
+  ],
+  "types": [
+    {
+      "def_id": 0,
+      "lean_name": "auths_bounded_policy.kernel.ConfigurationMatchCode",
+      "lean_file": "qualification/aeneas/generated/bounded_policy/Types.lean",
+      "rust_name": "auths_bounded_policy::kernel::ConfigurationMatchCode",
+      "is_local": true,
+      "source": {
+        "file": "product/policy/auths-bounded-policy/src/kernel.rs",
+        "begin_line": 9,
+        "end_line": 20
+      }
+    }
+  ],
+  "globals": [],
+  "trait_decls": [],
+  "trait_impls": []
+}
