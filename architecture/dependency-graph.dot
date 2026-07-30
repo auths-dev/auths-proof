@@ -72,6 +72,7 @@ digraph auths_architecture {
   "auths-spiffe-x509" [group="core"];
   "auths-stores" [group="product"];
   "auths-stripe" [group="product"];
+  "auths-stripe-connect-transfer-demo" [group="demos"];
   "auths-stripe-demo" [group="demos"];
   "auths-stripe-payment-authorize-demo" [group="demos"];
   "auths-stripe-payment-cancel-demo" [group="demos"];
@@ -79,6 +80,9 @@ digraph auths_architecture {
   "auths-stripe-payment-collect-demo" [group="demos"];
   "auths-stripe-payment-demo-common" [group="demos"];
   "auths-stripe-payment-mandate-demo" [group="demos"];
+  "auths-stripe-payout-demo" [group="demos"];
+  "auths-stripe-purchase-authorization-demo" [group="demos"];
+  "auths-stripe-subscription-cancel-demo" [group="demos"];
   "auths-stripe-subscription-create-demo" [group="demos"];
   "auths-stripe-subscription-modify-demo" [group="demos"];
   "auths-testkit" [group="core"];
@@ -410,6 +414,7 @@ digraph auths_architecture {
   "auths-stripe" -> "auths-runtime" [label="dev"];
   "auths-stripe" -> "auths-sdk" [label="normal"];
   "auths-stripe" -> "auths-signature" [label="dev"];
+  "auths-stripe-connect-transfer-demo" -> "auths-stripe" [label="normal"];
   "auths-stripe-demo" -> "auths-author" [label="normal"];
   "auths-stripe-demo" -> "auths-codec" [label="normal"];
   "auths-stripe-demo" -> "auths-model" [label="normal"];
@@ -451,6 +456,13 @@ digraph auths_architecture {
   "auths-stripe-payment-mandate-demo" -> "auths-sdk" [label="normal"];
   "auths-stripe-payment-mandate-demo" -> "auths-stripe" [label="normal"];
   "auths-stripe-payment-mandate-demo" -> "auths-stripe-payment-demo-common" [label="normal"];
+  "auths-stripe-payout-demo" -> "auths-stripe" [label="normal"];
+  "auths-stripe-purchase-authorization-demo" -> "auths-model" [label="normal"];
+  "auths-stripe-purchase-authorization-demo" -> "auths-profile-api" [label="normal"];
+  "auths-stripe-purchase-authorization-demo" -> "auths-sdk" [label="normal"];
+  "auths-stripe-purchase-authorization-demo" -> "auths-stripe" [label="normal"];
+  "auths-stripe-purchase-authorization-demo" -> "auths-stripe-payment-demo-common" [label="normal"];
+  "auths-stripe-subscription-cancel-demo" -> "auths-stripe" [label="normal"];
   "auths-stripe-subscription-create-demo" -> "auths-model" [label="normal"];
   "auths-stripe-subscription-create-demo" -> "auths-profile-api" [label="normal"];
   "auths-stripe-subscription-create-demo" -> "auths-sdk" [label="normal"];

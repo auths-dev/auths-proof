@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Auths · Bounded Subscription cancellation</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main>
+    <header><p class="eyebrow">AUTHS × STRIPE BILLING</p><h1>End one exact obligation—now or at period end.</h1><p>The action never invoices now, prorates, refunds, or silently removes pending invoice items.</p></header>
+    <section class="grid">
+      <article><h2>Cancellation policy</h2><dl><dt>Allowed modes</dt><dd>period end · immediate safe</dd><dt>Invoice behavior</dt><dd>invoice_now=false · prorate=false</dd><dt>Pending updates</dt><dd>denied</dd></dl></article>
+      <article><h2>Exact cancellation</h2><dl><dt>Subscription</dt><dd>repository-owned test fixture</dd><dt>Current period</dt><dd>USD 12.00 retained</dd><dt>Future liability</dt><dd>USD 24.00 releasable</dd></dl></article>
+    </section>
+    <section class="controls">
+      <select id="experiment">
+        <option value="at_period_end">Schedule at period end</option>
+        <option value="immediate">Cancel immediately</option>
+        <option value="pending_items_denied">Pending items deny immediate</option>
+        <option value="renewal_race_denied">Concurrent renewal denies</option>
+        <option value="outcome_unknown">Unknown result retains liability</option>
+      </select>
+      <button id="run">Run protected cancellation</button><button id="replay" disabled>Replay same workflow</button>
+    </section>
+    <section id="result" class="result" aria-live="polite"><strong>READY</strong><span>Existing invoices remain separately payable; this does not mean refunded.</span></section>
+    <section><h2>Canonical cancellation receipt</h2><pre id="receipt">No receipt yet.</pre><p><a href="/receipt.html">Open designed receipt</a></p></section>
+    <footer>Cancellation does not prove downstream service deprovisioning.</footer>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>

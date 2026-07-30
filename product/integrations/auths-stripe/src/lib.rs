@@ -64,7 +64,8 @@ pub use ports::{
     PaymentMandateCredentialScope, PayoutCredential, PayoutCredentialScope, PortError,
     ProofDecision, ProofVerifier, PurchaseAuthorizationCredential,
     PurchaseAuthorizationCredentialScope, ReceiptSink, RefundCredentialScope, StripeCredential,
-    StripeGateway, StripeRefundCredential, SubscriptionCreateCredential,
+    StripeGateway, StripeRefundCredential, SubscriptionCancelCredential,
+    SubscriptionCancelCredentialScope, SubscriptionCreateCredential,
     SubscriptionCreateCredentialScope, SubscriptionModifyCredential,
     SubscriptionModifyCredentialScope,
 };

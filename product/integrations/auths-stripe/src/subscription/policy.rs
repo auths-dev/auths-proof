@@ -397,6 +397,9 @@ impl StripeBoundedSubscriptionPolicyV1 {
     pub fn allowed_proration_behaviors(&self) -> &[SubscriptionProrationBehavior] {
         &self.allowed_proration_behaviors
     }
+    pub fn allowed_cancel_modes(&self) -> &[SubscriptionCancelMode] {
+        &self.allowed_cancel_modes
+    }
     pub fn maximum_quantity_by_price(&self) -> &BTreeMap<PriceId, u32> {
         &self.maximum_quantity_by_price
     }

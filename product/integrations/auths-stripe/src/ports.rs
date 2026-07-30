@@ -34,6 +34,9 @@ pub enum SubscriptionCreateCredentialScope {}
 /// Type marker for one exact bounded Subscription modification.
 pub enum SubscriptionModifyCredentialScope {}
 
+/// Type marker for one exact Subscription cancellation.
+pub enum SubscriptionCancelCredentialScope {}
+
 /// Type marker for read-only Issuing authorization reconciliation.
 pub enum PurchaseAuthorizationCredentialScope {}
 
@@ -173,6 +176,17 @@ pub type SubscriptionCreateCredential = StripeCredential<SubscriptionCreateCrede
 /// }
 /// ```
 pub type SubscriptionModifyCredential = StripeCredential<SubscriptionModifyCredentialScope>;
+
+/// Credential restricted to Subscription cancellation.
+///
+/// ```compile_fail
+/// use auths_stripe::{SubscriptionCancelCredential, SubscriptionModifyCredential};
+///
+/// fn wrong_scope(credential: SubscriptionModifyCredential) -> SubscriptionCancelCredential {
+///     credential
+/// }
+/// ```
+pub type SubscriptionCancelCredential = StripeCredential<SubscriptionCancelCredentialScope>;
 
 /// Credential restricted to the Issuing purchase-authorization profile.
 ///
@@ -414,7 +428,7 @@ mod tests {
         ConnectTransferCredential, PaymentAuthorizeCredential, PaymentCancelCredential,
         PaymentCaptureCredential, PaymentCollectCredential, PaymentMandateCredential,
         PayoutCredential, PurchaseAuthorizationCredential, StripeRefundCredential,
-        SubscriptionCreateCredential, SubscriptionModifyCredential,
+        SubscriptionCancelCredential, SubscriptionCreateCredential, SubscriptionModifyCredential,
     };
 
     #[test]
@@ -470,6 +484,14 @@ mod tests {
         assert_ne!(
             TypeId::of::<PaymentMandateCredential>(),
             TypeId::of::<SubscriptionModifyCredential>()
+        );
+        assert_ne!(
+            TypeId::of::<SubscriptionCancelCredential>(),
+            TypeId::of::<SubscriptionModifyCredential>()
+        );
+        assert_ne!(
+            TypeId::of::<SubscriptionCancelCredential>(),
+            TypeId::of::<SubscriptionCreateCredential>()
         );
         assert_ne!(
             TypeId::of::<PurchaseAuthorizationCredential>(),

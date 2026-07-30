@@ -1,0 +1,1 @@
+{"rewrites":[{"source":"/api/:path*","destination":"https://auths-stripe-subscription-cancel.fly.dev/api/:path*"}]}
