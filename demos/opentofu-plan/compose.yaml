@@ -1,5 +1,6 @@
 services:
   api:
+    image: auths-opentofu-demo:${AUTHS_DEMO_IMAGE_TAG:-local}
     build:
       context: ../..
       dockerfile: demos/opentofu-plan/Dockerfile

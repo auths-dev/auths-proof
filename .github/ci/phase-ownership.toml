@@ -1,0 +1,448 @@
+schema = "auths-proof-ci-phase-ownership/v1"
+version = 1
+comprehensive_events = ["push", "schedule", "workflow_dispatch"]
+always_required_phases = ["secrets"]
+
+[[phases]]
+id = "authoritative"
+workflows = ["ci"]
+baseline_minutes = 9
+
+[[phases]]
+id = "formal_translation"
+workflows = ["ci"]
+baseline_minutes = 28
+
+[[phases]]
+id = "compliance"
+workflows = ["ci"]
+baseline_minutes = 7
+
+[[phases]]
+id = "dependencies"
+workflows = ["ci"]
+baseline_minutes = 1
+
+[[phases]]
+id = "secrets"
+workflows = ["ci"]
+baseline_minutes = 1
+
+[[phases]]
+id = "opentofu_live"
+workflows = ["ci"]
+baseline_minutes = 8
+
+[[phases]]
+id = "postgresql_live"
+workflows = ["ci"]
+baseline_minutes = 8
+
+[[phases]]
+id = "records_api_live"
+workflows = ["ci"]
+baseline_minutes = 6
+
+[[phases]]
+id = "fuzz"
+workflows = ["fuzz"]
+baseline_minutes = 18
+
+[[phases]]
+id = "release"
+workflows = ["release"]
+baseline_minutes = 90
+
+[[rules]]
+id = "github-control-plane"
+kind = "prefix"
+value = ".github/"
+phases = ["authoritative", "formal_translation", "compliance", "dependencies", "secrets", "opentofu_live", "postgresql_live", "records_api_live", "fuzz", "release"]
+
+[[rules]]
+id = "xtask-control-plane"
+kind = "prefix"
+value = "xtask/"
+phases = ["authoritative", "formal_translation", "compliance", "dependencies", "secrets", "opentofu_live", "postgresql_live", "records_api_live", "fuzz", "release"]
+
+[[rules]]
+id = "cargo-configuration"
+kind = "prefix"
+value = ".cargo/"
+phases = ["authoritative", "formal_translation", "compliance", "dependencies", "secrets"]
+
+[[rules]]
+id = "core"
+kind = "prefix"
+value = "core/"
+phases = ["authoritative", "compliance", "secrets"]
+
+[[rules]]
+id = "fuzz-harness"
+kind = "prefix"
+value = "core/fuzz/"
+phases = ["authoritative", "compliance", "secrets", "fuzz"]
+
+[[rules]]
+id = "formal"
+kind = "prefix"
+value = "formal/"
+phases = ["formal_translation", "secrets"]
+
+[[rules]]
+id = "formal-refinement"
+kind = "prefix"
+value = "core/crates/auths-formal-refinement/"
+phases = ["authoritative", "formal_translation", "compliance", "secrets"]
+
+[[rules]]
+id = "algebra-kernel"
+kind = "prefix"
+value = "core/crates/auths-algebra-kernel/"
+phases = ["authoritative", "formal_translation", "compliance", "secrets"]
+
+[[rules]]
+id = "authority-kernel"
+kind = "prefix"
+value = "core/crates/auths-authority/"
+phases = ["authoritative", "formal_translation", "compliance", "secrets"]
+
+[[rules]]
+id = "model-kernel"
+kind = "prefix"
+value = "core/crates/auths-model/"
+phases = ["authoritative", "formal_translation", "compliance", "secrets"]
+
+[[rules]]
+id = "exchange"
+kind = "prefix"
+value = "exchange/"
+phases = ["authoritative", "compliance", "secrets"]
+
+[[rules]]
+id = "product"
+kind = "prefix"
+value = "product/"
+phases = ["authoritative", "compliance", "secrets"]
+
+[[rules]]
+id = "demos"
+kind = "prefix"
+value = "demos/"
+phases = ["authoritative", "compliance", "secrets"]
+
+[[rules]]
+id = "bindings"
+kind = "prefix"
+value = "bindings/"
+phases = ["authoritative", "compliance", "secrets"]
+
+[[rules]]
+id = "opentofu-domain"
+kind = "prefix"
+value = "product/integrations/auths-opentofu/"
+phases = ["authoritative", "compliance", "secrets", "opentofu_live"]
+
+[[rules]]
+id = "opentofu-demo"
+kind = "prefix"
+value = "demos/opentofu-plan/"
+phases = ["authoritative", "compliance", "secrets", "opentofu_live"]
+
+[[rules]]
+id = "opentofu-fixtures"
+kind = "prefix"
+value = "product/fixtures/v1/opentofu/"
+phases = ["authoritative", "compliance", "secrets", "opentofu_live"]
+
+[[rules]]
+id = "postgresql-domain"
+kind = "prefix"
+value = "product/integrations/auths-postgresql/"
+phases = ["authoritative", "compliance", "secrets", "postgresql_live"]
+
+[[rules]]
+id = "postgresql-demo"
+kind = "prefix"
+value = "demos/postgresql-data-change/"
+phases = ["authoritative", "compliance", "secrets", "postgresql_live"]
+
+[[rules]]
+id = "postgresql-fixtures"
+kind = "prefix"
+value = "product/fixtures/v1/postgresql/"
+phases = ["authoritative", "compliance", "secrets", "postgresql_live"]
+
+[[rules]]
+id = "records-domain"
+kind = "prefix"
+value = "product/integrations/auths-records-api/"
+phases = ["authoritative", "compliance", "secrets", "records_api_live"]
+
+[[rules]]
+id = "records-demo"
+kind = "prefix"
+value = "demos/rest-api-authorization/"
+phases = ["authoritative", "compliance", "secrets", "records_api_live"]
+
+[[rules]]
+id = "records-fixtures"
+kind = "prefix"
+value = "product/fixtures/v1/records-api/"
+phases = ["authoritative", "compliance", "secrets", "records_api_live"]
+
+[[rules]]
+id = "architecture-policy"
+kind = "prefix"
+value = "architecture"
+phases = ["authoritative", "compliance", "secrets"]
+
+[[rules]]
+id = "benchmark-evidence"
+kind = "prefix"
+value = "benchmark-results/"
+phases = ["authoritative", "secrets"]
+
+[[rules]]
+id = "documentation"
+kind = "prefix"
+value = "docs/"
+phases = ["secrets"]
+
+[[rules]]
+id = "agent-control"
+kind = "prefix"
+value = ".agents/"
+phases = ["authoritative", "secrets"]
+
+[[rules]]
+id = "auths-trust"
+kind = "prefix"
+value = ".auths/"
+phases = ["authoritative", "secrets"]
+
+[[rules]]
+id = "root-cargo-manifest"
+kind = "exact"
+value = "Cargo.toml"
+phases = ["authoritative", "compliance", "dependencies", "secrets", "fuzz"]
+
+[[rules]]
+id = "root-cargo-lock"
+kind = "exact"
+value = "Cargo.lock"
+phases = ["authoritative", "compliance", "dependencies", "secrets", "fuzz"]
+
+[[rules]]
+id = "rust-toolchain"
+kind = "exact"
+value = "rust-toolchain.toml"
+phases = ["authoritative", "formal_translation", "compliance", "dependencies", "secrets", "fuzz"]
+
+[[rules]]
+id = "compliance-policy"
+kind = "exact"
+value = "compliance.toml"
+phases = ["authoritative", "compliance", "secrets"]
+
+[[rules]]
+id = "dependency-policy"
+kind = "exact"
+value = "deny.toml"
+phases = ["dependencies", "secrets"]
+
+[[rules]]
+id = "gitleaks-policy"
+kind = "exact"
+value = ".gitleaksignore"
+phases = ["secrets"]
+
+[[rules]]
+id = "docker-context"
+kind = "exact"
+value = ".dockerignore"
+phases = ["secrets", "opentofu_live", "postgresql_live", "records_api_live"]
+
+[[rules]]
+id = "repository-ignore"
+kind = "exact"
+value = ".gitignore"
+phases = ["authoritative", "secrets"]
+
+[[rules]]
+id = "repository-contract"
+kind = "exact"
+value = "AGENTS.md"
+phases = ["authoritative", "secrets"]
+
+[[rules]]
+id = "root-documentation"
+kind = "exact"
+value = "README.md"
+phases = ["secrets"]
+
+[[rules]]
+id = "contribution-policy"
+kind = "exact"
+value = "CONTRIBUTING.md"
+phases = ["secrets"]
+
+[[rules]]
+id = "security-policy"
+kind = "exact"
+value = "SECURITY.md"
+phases = ["secrets"]
+
+[[rules]]
+id = "license-apache"
+kind = "exact"
+value = "LICENSE-APACHE"
+phases = ["secrets"]
+
+[[rules]]
+id = "license-mit"
+kind = "exact"
+value = "LICENSE-MIT"
+phases = ["secrets"]
+
+[[package_phase_roots]]
+phase = "opentofu_live"
+packages = ["auths-opentofu", "auths-opentofu-demo"]
+
+[[package_phase_roots]]
+phase = "postgresql_live"
+packages = ["auths-postgresql", "auths-postgresql-demo"]
+
+[[package_phase_roots]]
+phase = "records_api_live"
+packages = ["auths-records-api", "auths-records-demo"]
+
+[[package_phase_roots]]
+phase = "formal_translation"
+packages = ["auths-model", "auths-algebra-kernel", "auths-authority", "auths-formal-refinement"]
+
+[[workflow_jobs]]
+file = ".github/workflows/ci.yml"
+job = "ci-plan"
+phase = "planner"
+gate = true
+
+[[workflow_jobs]]
+file = ".github/workflows/ci.yml"
+job = "authoritative"
+phase = "authoritative"
+gate = true
+
+[[workflow_jobs]]
+file = ".github/workflows/ci.yml"
+job = "authoritative-run"
+phase = "authoritative"
+gate = false
+
+[[workflow_jobs]]
+file = ".github/workflows/ci.yml"
+job = "formal-translation"
+phase = "formal_translation"
+gate = true
+
+[[workflow_jobs]]
+file = ".github/workflows/ci.yml"
+job = "formal-translation-run"
+phase = "formal_translation"
+gate = false
+
+[[workflow_jobs]]
+file = ".github/workflows/ci.yml"
+job = "compliance"
+phase = "compliance"
+gate = true
+
+[[workflow_jobs]]
+file = ".github/workflows/ci.yml"
+job = "compliance-run"
+phase = "compliance"
+gate = false
+
+[[workflow_jobs]]
+file = ".github/workflows/ci.yml"
+job = "dependencies"
+phase = "dependencies"
+gate = true
+
+[[workflow_jobs]]
+file = ".github/workflows/ci.yml"
+job = "dependencies-run"
+phase = "dependencies"
+gate = false
+
+[[workflow_jobs]]
+file = ".github/workflows/ci.yml"
+job = "secrets"
+phase = "secrets"
+gate = true
+
+[[workflow_jobs]]
+file = ".github/workflows/ci.yml"
+job = "secrets-run"
+phase = "secrets"
+gate = false
+
+[[workflow_jobs]]
+file = ".github/workflows/ci.yml"
+job = "opentofu-live"
+phase = "opentofu_live"
+gate = true
+
+[[workflow_jobs]]
+file = ".github/workflows/ci.yml"
+job = "opentofu-live-run"
+phase = "opentofu_live"
+gate = false
+
+[[workflow_jobs]]
+file = ".github/workflows/ci.yml"
+job = "postgresql-live"
+phase = "postgresql_live"
+gate = true
+
+[[workflow_jobs]]
+file = ".github/workflows/ci.yml"
+job = "postgresql-live-run"
+phase = "postgresql_live"
+gate = false
+
+[[workflow_jobs]]
+file = ".github/workflows/ci.yml"
+job = "records-api-live"
+phase = "records_api_live"
+gate = true
+
+[[workflow_jobs]]
+file = ".github/workflows/ci.yml"
+job = "records-api-live-run"
+phase = "records_api_live"
+gate = false
+
+[[workflow_jobs]]
+file = ".github/workflows/fuzz.yml"
+job = "fuzz-plan"
+phase = "planner"
+gate = true
+
+[[workflow_jobs]]
+file = ".github/workflows/fuzz.yml"
+job = "fuzz"
+phase = "fuzz"
+gate = true
+
+[[workflow_jobs]]
+file = ".github/workflows/fuzz.yml"
+job = "fuzz-run"
+phase = "fuzz"
+gate = false
+
+[[workflow_jobs]]
+file = ".github/workflows/release.yml"
+job = "release"
+phase = "release"
+gate = true

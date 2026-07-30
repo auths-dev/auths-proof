@@ -13,6 +13,10 @@ inputs:
     description: Comma-separated Rust targets.
     required: false
     default: ""
+  additional-toolchains:
+    description: Comma-separated exact toolchains installed with the minimal profile without changing the active default.
+    required: false
+    default: ""
   compiler-cache:
     description: Enable the shared sccache compiler cache.
     required: false
@@ -26,6 +30,18 @@ runs:
         toolchain: ${{ inputs.toolchain }}
         components: ${{ inputs.components }}
         targets: ${{ inputs.targets }}
+
+    - name: Install additional exact Rust toolchains
+      if: inputs.additional-toolchains != ''
+      shell: bash
+      env:
+        AUTHS_ADDITIONAL_TOOLCHAINS: ${{ inputs.additional-toolchains }}
+      run: |
+        set -euo pipefail
+        IFS=',' read -ra toolchains <<< "$AUTHS_ADDITIONAL_TOOLCHAINS"
+        for toolchain in "${toolchains[@]}"; do
+          rustup toolchain install "$toolchain" --profile minimal
+        done
 
     - name: Install shared compiler cache
       if: inputs.compiler-cache == 'true'

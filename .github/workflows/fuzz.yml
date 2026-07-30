@@ -3,26 +3,66 @@ name: Fuzz
 on:
   schedule:
     - cron: "17 3 * * *"
+    - cron: "41 3 * * 0"
   workflow_dispatch:
+    inputs:
+      duration_seconds:
+        description: Seconds per fuzz target.
+        required: false
+        default: "120"
 
 permissions:
   contents: read
 
+concurrency:
+  group: fuzz-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
-  campaign:
-    timeout-minutes: 45
+  fuzz-plan:
+    name: fuzz-plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      required: ${{ steps.plan.outputs.fuzz_required }}
+      reason: ${{ steps.plan.outputs.fuzz_reason }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust-cache
+        with:
+          toolchain: 1.97.1
+          compiler-cache: "false"
+      - id: plan
+        run: >-
+          cargo run --locked -p auths-ci-plan --
+          plan
+          --event schedule
+          --workflow fuzz
+          --output target/ci/fuzz-plan.json
+      - run: cargo xtask fuzz-inventory
+      - name: Preserve the fuzz plan
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: auths-fuzz-plan-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/ci/fuzz-plan.json
+          if-no-files-found: error
+          retention-days: 30
+
+  fuzz-run:
+    name: fuzz implementation (shard ${{ matrix.shard }})
+    needs: fuzz-plan
+    if: needs.fuzz-plan.outputs.required == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
     strategy:
       fail-fast: false
       matrix:
-        target:
-          - target_codec
-          - target_portable_codecs
-          - target_model_state
-          - target_composition
-          - target_registry_handlers
-          - target_principal_parsers
-          - target_portable_abi
-    runs-on: ubuntu-latest
+        shard: [0, 1]
+    env:
+      AUTHS_FUZZ_SECONDS: ${{ github.event_name == 'workflow_dispatch' && inputs.duration_seconds || (github.event.schedule == '41 3 * * 0' && '600' || '120') }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -31,12 +71,90 @@ jobs:
         with:
           toolchain: nightly-2026-07-20
           compiler-cache: "false"
-      - run: cargo install cargo-fuzz --version 0.13.1 --locked
-      - run: cargo xtask fuzz-inventory
-      - run: cargo fuzz run ${{ matrix.target }} --manifest-path core/fuzz/Cargo.toml -- -max_total_time=300 -artifact_prefix=artifacts/${{ matrix.target }}/
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        if: failure()
+      - name: Install pinned cargo-fuzz
+        run: cargo install cargo-fuzz --version 0.13.1 --locked
+      - name: Run deterministic target shard and prove execution
+        shell: bash
+        env:
+          AUTHS_FUZZ_SHARD: ${{ matrix.shard }}
+        run: |
+          set -euo pipefail
+          targets=(
+            target_codec
+            target_portable_codecs
+            target_model_state
+            target_composition
+            target_registry_handlers
+            target_principal_parsers
+            target_portable_abi
+          )
+          mkdir -p artifacts logs
+          total_executions=0
+          for index in "${!targets[@]}"; do
+            if (( index % 2 != AUTHS_FUZZ_SHARD )); then
+              continue
+            fi
+            target="${targets[$index]}"
+            mkdir -p "artifacts/${target}"
+            log="logs/${target}.log"
+            started_at="$(date +%s)"
+            seed_digest="$(tar --sort=name --mtime='UTC 1970-01-01' --owner=0 --group=0 --numeric-owner -cf - -C core/fuzz/corpus "$target" | sha256sum | cut -d' ' -f1)"
+            set +e
+            cargo fuzz --manifest-path core/fuzz/Cargo.toml run "$target" -- \
+              "-max_total_time=${AUTHS_FUZZ_SECONDS}" \
+              "-print_final_stats=1" \
+              "-artifact_prefix=artifacts/${target}/" 2>&1 | tee "$log"
+            status="${PIPESTATUS[0]}"
+            set -e
+            executions="$(sed -n 's/.*stat::number_of_executed_units: *\\([0-9][0-9]*\\).*/\\1/p' "$log" | tail -n 1)"
+            if [[ -z "$executions" || "$executions" == "0" ]]; then
+              echo "::error::${target} produced no nonzero execution evidence."
+              exit 1
+            fi
+            duration="$(( $(date +%s) - started_at ))"
+            {
+              echo "target=${target}"
+              echo "seed_sha256=${seed_digest}"
+              echo "duration_seconds=${duration}"
+              echo "executions=${executions}"
+              echo "artifacts=artifacts/${target}/"
+            } > "logs/${target}-evidence.txt"
+            total_executions="$((total_executions + executions))"
+            if (( status != 0 )); then
+              echo "::error::${target} exited with status ${status}."
+              exit "$status"
+            fi
+          done
+          if (( total_executions == 0 )); then
+            echo "::error::Fuzz shard executed no inputs."
+            exit 1
+          fi
+          echo "Shard ${AUTHS_FUZZ_SHARD} executed ${total_executions} inputs." | tee "logs/shard-${AUTHS_FUZZ_SHARD}-summary.txt"
+      - name: Preserve logs, crashers, and minimized reproducers
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: fuzz-${{ matrix.target }}
-          path: artifacts/${{ matrix.target }}/
-          if-no-files-found: ignore
+          name: fuzz-shard-${{ matrix.shard }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            logs/
+            artifacts/
+            core/fuzz/corpus/
+          if-no-files-found: error
+          retention-days: 90
+
+  fuzz:
+    name: fuzz
+    if: always()
+    needs: [fuzz-plan, fuzz-run]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enforce planned result
+        env:
+          PLANNER: ${{ needs.fuzz-plan.result }}
+          REQUIRED: ${{ needs.fuzz-plan.outputs.required }}
+          REASON: ${{ needs.fuzz-plan.outputs.reason }}
+          RUN_RESULT: ${{ needs.fuzz-run.result }}
+        run: |
+          echo "Decision: ${REQUIRED}; implementation: ${RUN_RESULT}; ${REASON}" >> "$GITHUB_STEP_SUMMARY"
+          [[ "$PLANNER" == success ]]
+          [[ "$REQUIRED" == true && "$RUN_RESULT" == success ]] || [[ "$REQUIRED" == false && "$RUN_RESULT" == skipped ]]

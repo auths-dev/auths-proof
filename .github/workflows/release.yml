@@ -10,21 +10,25 @@ permissions:
 
 jobs:
   release:
+    name: release
     runs-on: ubuntu-latest
     timeout-minutes: 150
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # master
-        with:
-          toolchain: 1.91.0
       - uses: ./.github/actions/setup-rust-cache
         with:
           toolchain: 1.97.1
+          additional-toolchains: 1.91.0
           components: rustfmt, clippy
           targets: wasm32-unknown-unknown
           compiler-cache: "false"
+      - name: Check production source closure before formal setup
+        run: >-
+          cargo run --locked -p auths-ci-plan --
+          formal-source-closure check
+          --output target/formal/source-closure.expected.json
       - uses: leanprover/lean-action@38fbc41a8c28c4cbaec22d7f7de508ec2e7c0dd9 # v1.5.0
         with:
           auto-config: false

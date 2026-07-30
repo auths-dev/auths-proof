@@ -47,6 +47,11 @@
       "path": "product/cache/auths-cache"
     },
     {
+      "name": "auths-ci-plan",
+      "layer": "tooling",
+      "path": "xtask/ci-plan"
+    },
+    {
       "name": "auths-codec",
       "layer": "core",
       "path": "core/crates/auths-codec"
@@ -1172,6 +1177,72 @@
       "target_condition": null,
       "optional": false,
       "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-ci-plan",
+      "source_layer": "tooling",
+      "target": "hex",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-ci-plan",
+      "source_layer": "tooling",
+      "target": "serde",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "derive"
+      ]
+    },
+    {
+      "source": "auths-ci-plan",
+      "source_layer": "tooling",
+      "target": "serde_json",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "preserve_order"
+      ]
+    },
+    {
+      "source": "auths-ci-plan",
+      "source_layer": "tooling",
+      "target": "sha2",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-ci-plan",
+      "source_layer": "tooling",
+      "target": "toml",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
       "features": []
     },
     {
@@ -9543,6 +9614,18 @@
       "source_layer": "tooling",
       "target": "auths-bench-model",
       "target_layer": "demos",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "xtask",
+      "source_layer": "tooling",
+      "target": "auths-ci-plan",
+      "target_layer": "tooling",
       "scope": "internal",
       "kind": "normal",
       "target_condition": null,

@@ -72,7 +72,11 @@ async function recreateApi(fault) {
   await waitUntilReady();
 }
 
-compose(["up", "-d", "--build"]);
+compose([
+  "up",
+  "-d",
+  process.env.AUTHS_DEMO_PREBUILT === "true" ? "--no-build" : "--build",
+]);
 await waitUntilReady();
 
 await recreateApi("before-apply");
