@@ -1,6 +1,6 @@
 # 0006: Auths for Radicle Issue Workflows
 
-- Status: Proposed
+- Status: Implemented
 - Target: MVP
 - Profile: `auths.radicle.issue-address/1`
 - Product package: `product/integrations/auths-radicle`

@@ -1,6 +1,6 @@
 # 0012: Domain-local bounded Stripe refunds
 
-Status: Implementing
+Status: Implemented
 Target: Stripe-local bounded-autonomy demonstration
 Exact action profile: `auths.stripe.exact-refund/1`
 Policy type: `auths.stripe.bounded-refund-policy/1`

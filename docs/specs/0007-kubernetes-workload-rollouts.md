@@ -1,6 +1,6 @@
 # 0007: Auths for Kubernetes workload rollouts
 
-Status: Proposed  
+Status: Implemented
 Target: MVP plus public end-to-end demonstration  
 Profile: `auths.kubernetes.workload-rollout/1`  
 Product package: `product/integrations/auths-kubernetes`  
