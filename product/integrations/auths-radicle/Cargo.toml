@@ -6,6 +6,9 @@ license.workspace = true
 rust-version.workspace = true
 description = "Exact Auths authorization and sealed execution for Radicle issue patches"
 
+[features]
+fixture-support = []
+
 [dependencies]
 auths-codec.workspace = true
 auths-model.workspace = true

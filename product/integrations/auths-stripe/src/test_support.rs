@@ -1,3 +1,8 @@
+#![allow(
+    clippy::must_use_candidate,
+    reason = "repository fixture builders are consumed only by deterministic oracle tooling"
+)]
+
 use std::collections::BTreeMap;
 
 use crate::{

@@ -36,6 +36,7 @@ pub(crate) fn ci_compliance() -> Result<(), String> {
     product_conformance()?;
     product_fixtures(false)?;
     stripe_profiles()?;
+    bounded_domains()?;
     matrix()?;
     bindings_conformance()?;
     package_check()?;

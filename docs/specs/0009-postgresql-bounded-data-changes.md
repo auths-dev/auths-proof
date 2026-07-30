@@ -1,6 +1,6 @@
 # 0009: Auths for bounded PostgreSQL data changes
 
-Status: Proposed  
+Status: Implemented
 Target: MVP plus public end-to-end demonstration  
 Profile: `auths.postgresql.bounded-update/1`  
 Product package: `product/integrations/auths-postgresql`  

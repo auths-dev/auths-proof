@@ -28,8 +28,9 @@ pub mod subscription;
 pub mod treasury;
 pub mod types;
 
-#[cfg(test)]
-mod test_support;
+#[cfg(any(test, feature = "fixture-support"))]
+#[doc(hidden)]
+pub mod test_support;
 
 pub use adapters::{SdkProofVerifier, SystemClock};
 pub use bounded::{

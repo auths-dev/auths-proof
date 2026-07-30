@@ -25,9 +25,14 @@ auths-apps-testkit.workspace = true
 auths-bench-model.workspace = true
 auths-ci-plan = { path = "ci-plan", version = "0.1.0" }
 auths-lab-matrix.workspace = true
+auths-github = { workspace = true, features = ["fixture-support"] }
+auths-kubernetes.workspace = true
 auths-opentofu.workspace = true
 auths-postgresql.workspace = true
 auths-proof-exchange-testkit.workspace = true
+auths-radicle = { workspace = true, features = ["fixture-support"] }
+auths-records-api.workspace = true
+auths-stripe = { workspace = true, features = ["fixture-support"] }
 hex.workspace = true
 serde.workspace = true
 serde_json.workspace = true

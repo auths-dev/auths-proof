@@ -1,6 +1,6 @@
 # 0008: Auths for OpenTofu saved-plan application
 
-Status: Proposed  
+Status: Implemented
 Target: MVP plus public end-to-end demonstration  
 Profile: `auths.opentofu.saved-plan-apply/1`  
 Product package: `product/integrations/auths-opentofu`  

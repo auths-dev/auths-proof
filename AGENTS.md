@@ -309,6 +309,39 @@ Do not claim completion because a narrow crate test passed when the change
 affects wire compatibility, another language, a layer boundary, or generated
 evidence. Report exactly which checks ran and any checks that could not run.
 
+### Mandatory pre-commit secret scan and correction
+
+Before every commit, stage only the intended changes and scan that exact staged
+diff:
+
+```text
+gitleaks git --pre-commit --staged --redact --no-banner
+```
+
+Use gitleaks `v8.28.0`, matching `.github/workflows/ci.yml`. Do not create the
+commit until this scan passes.
+
+If the staged scan reports a finding:
+
+1. inspect it without printing the candidate secret into logs or chat;
+2. if it may be a credential, remove it before committing and rotate it if it
+   was ever exposed outside the local worktree;
+3. if it is a synthetic fixture, first correct the fixture generator to emit
+   an unmistakably non-secret value while preserving the specified semantics;
+4. if high-entropy public or deterministic content is semantically required,
+   document why it is not a credential and use only a reviewed,
+   fingerprint-specific `.gitleaksignore` entry;
+5. never add a broad path, rule, regex, or file allowlist.
+
+After the local commits are complete, also run CI's full-history command:
+
+```text
+gitleaks git --redact --no-banner
+```
+
+This second scan verifies commit-specific fingerprints and full CI parity. It
+is not a substitute for correcting staged content before the commit.
+
 ## Change discipline for agents
 
 - Preserve unrelated user changes. Never clean, reset, reformat, or stage files

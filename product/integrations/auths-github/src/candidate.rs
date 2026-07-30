@@ -71,6 +71,44 @@ pub struct CandidateEvidence {
 }
 
 impl CandidateEvidence {
+    /// Builds deterministic trusted facts for repository fixtures.
+    ///
+    /// Production callers must obtain this type from [`GitCandidateInspector`].
+    #[cfg(any(test, feature = "fixture-support"))]
+    #[doc(hidden)]
+    #[must_use]
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "the fixture constructor mirrors every immutable evidence field explicitly"
+    )]
+    pub fn fixture(
+        base_revision: GitOid,
+        candidate_revision: GitOid,
+        candidate_tree: GitOid,
+        commit_count: u16,
+        object_count: u32,
+        expanded_object_bytes: u64,
+        changed_paths: Vec<PathChange>,
+        added_bytes: u64,
+        deleted_bytes: u64,
+        bundle_digest: DigestHex,
+        change_set_digest: DigestHex,
+    ) -> Self {
+        Self {
+            base_revision,
+            candidate_revision,
+            candidate_tree,
+            commit_count,
+            object_count,
+            expanded_object_bytes,
+            changed_paths,
+            added_bytes,
+            deleted_bytes,
+            bundle_digest,
+            change_set_digest,
+        }
+    }
+
     /// Exact base revision.
     #[must_use]
     pub const fn base_revision(&self) -> &GitOid {

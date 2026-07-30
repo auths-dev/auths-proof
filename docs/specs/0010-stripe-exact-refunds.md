@@ -1,6 +1,6 @@
 # 0010: Auths for exact Stripe refunds
 
-Status: Proposed  
+Status: Implemented
 Target: MVP plus public end-to-end demonstration  
 Profile: `auths.stripe.exact-refund/1`  
 Product package: `product/integrations/auths-stripe`  

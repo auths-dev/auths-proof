@@ -1,0 +1,306 @@
+schema = 1
+
+[inventory]
+id = "auths-proof-seven-domain-bounded-authorization"
+plan = "docs/plans/BOUNDED_AUTHORIZATION_MILESTONE_3_READINESS_AND_EXECUTION_PLAN.md"
+audit = "docs/research/domains/0002-seven-domain-bounded-authorization-readiness-audit.md"
+semantic_report = "docs/research/domains/0003-seven-domain-bounded-authorization-semantic-inventory.md"
+closed_contract_spec = "docs/specs/0025-closed-bounded-authorization-policy.md"
+required_domains = ["github", "kubernetes", "opentofu", "postgresql", "radicle", "records-api", "stripe"]
+required_scenarios = [
+  "authorized",
+  "exact-boundary",
+  "boundary-plus-one",
+  "malformed-input",
+  "stale-evidence",
+  "configuration-mismatch",
+  "concurrent-final-capacity",
+  "replay",
+  "definite-pre-effect-failure",
+  "outcome-unknown",
+  "reconciliation",
+]
+
+[boundary]
+core_must_remain_provider_neutral = true
+shared_product_must_not_import_provider_sdks = true
+domain_actions_remain_domain_owned = true
+domain_evidence_remains_domain_owned = true
+verified_commands_remain_domain_owned = true
+provider_gateways_remain_domain_owned = true
+credential_scopes_remain_domain_owned = true
+reconciliation_meaning_remains_domain_owned = true
+receipt_payloads_remain_domain_owned = true
+demos_remain_compatibility_consumers = true
+one_production_path_after_migration = true
+reference_evaluators_remain_test_oracles = true
+
+[[domains]]
+id = "github"
+migration_order = 5
+package = "auths-github"
+package_path = "product/integrations/auths-github"
+demo_package = "auths-github-demo"
+demo_path = "demos/github-issue"
+spec = "docs/specs/0005-github-issue-workflows.md"
+status = "implemented"
+profiles = ["auths.github.issue-address/1"]
+evaluator_entrypoint = "auths_github::containment::evaluate"
+action_type = "auths_github::ExactGitHubAction"
+policy_type = "auths_github::WorkflowGrant"
+evidence_type = "auths_github::GitHubEvidence"
+configuration_type = "auths_github::VerifierConfiguration"
+decision_type = "auths_github::Decision"
+reservation_type = "auths_github::workflow::ExecutionClaim"
+verified_command = "auths_github::VerifiedPublishBranch|auths_github::VerifiedOpenDraftPullRequest"
+provider_gateway = "auths_github::ports::GitHubWritePort"
+credential_scope = "auths_github::ports::ScopedCredential+GitHubOperation"
+reconciliation = "auths_github::GitHubIssueWorkflowService::reconcile"
+receipt_types = ["GitHubDecisionReceipt", "GitHubExecutionReceipt", "SignedGitHubReceipt"]
+fixture_dir = "product/fixtures/v1/github"
+scenarios = [
+  "authorized",
+  "exact-boundary",
+  "boundary-plus-one",
+  "malformed-input",
+  "stale-evidence",
+  "configuration-mismatch",
+  "concurrent-final-capacity",
+  "replay",
+  "definite-pre-effect-failure",
+  "outcome-unknown",
+  "reconciliation",
+]
+not_applicable = {}
+scenario_evidence = { authorized = ["demos/github-issue/src/tests.rs#exact_flow_uses_real_auths_kernel_and_replay_mutates_nothing"], exact-boundary = ["product/integrations/auths-github/src/profile.rs#profile_derives_exact_resource_and_one_effect_budget"], boundary-plus-one = ["demos/github-issue/src/tests.rs#every_negative_demo_variant_is_a_native_denial_before_credentials"], malformed-input = ["product/integrations/auths-github/src/candidate.rs#fixed_seventeen_byte_malformed_bundle_is_rejected"], stale-evidence = ["demos/github-issue/src/tests.rs#every_negative_demo_variant_is_a_native_denial_before_credentials"], configuration-mismatch = ["demos/github-issue/src/tests.rs#required_and_executed_configuration_mismatch_is_visible_and_never_gets_a_credential"], concurrent-final-capacity = ["product/integrations/auths-github/src/workflow.rs#concurrent_duplicate_claims_have_one_winner"], replay = ["product/integrations/auths-github/src/workflow.rs#replay_returns_original_receipt"], definite-pre-effect-failure = ["demos/github-issue/src/tests.rs#every_negative_demo_variant_is_a_native_denial_before_credentials"], outcome-unknown = ["demos/github-issue/src/tests.rs#crash_after_branch_publication_reconciles_without_a_second_push"], reconciliation = ["demos/github-issue/src/tests.rs#crash_after_pr_creation_reconciles_without_a_second_pr"] }
+
+[[domains]]
+id = "radicle"
+migration_order = 6
+package = "auths-radicle"
+package_path = "product/integrations/auths-radicle"
+demo_package = "auths-radicle-demo"
+demo_path = "demos/radicle-issue"
+spec = "docs/specs/0006-radicle-issue-workflows.md"
+status = "implemented"
+profiles = ["auths.radicle.issue-address/1"]
+evaluator_entrypoint = "auths_radicle::containment::evaluate"
+action_type = "auths_radicle::OpenPatchActionV1"
+policy_type = "auths_radicle::IssueAddressGrantV1"
+evidence_type = "auths_radicle::RadicleEvidenceV1"
+configuration_type = "auths_radicle::VerifierConfiguration"
+decision_type = "auths_radicle::Decision"
+reservation_type = "auths_radicle::workflow::ExecutionLease"
+verified_command = "auths_radicle::VerifiedOpenPatchCommand"
+provider_gateway = "auths_radicle::ports::RadicleWriter"
+credential_scope = "configured did:key signer and executor node"
+reconciliation = "domain-specific propagation observation and operator reconciliation"
+receipt_types = ["RadicleDecisionReceipt", "RadicleExecutionReceipt", "RadiclePropagationReceipt"]
+fixture_dir = "product/fixtures/v1/radicle"
+scenarios = [
+  "authorized",
+  "exact-boundary",
+  "boundary-plus-one",
+  "malformed-input",
+  "stale-evidence",
+  "configuration-mismatch",
+  "concurrent-final-capacity",
+  "replay",
+  "definite-pre-effect-failure",
+  "reconciliation",
+]
+not_applicable = { outcome-unknown = "The local Radicle patch write is definitive; unavailable decentralized propagation is a separate observation state and must not be renamed as an ambiguous local effect." }
+scenario_evidence = { authorized = ["product/integrations/auths-radicle/src/containment.rs#exact_vertical_constraints_authorize"], exact-boundary = ["product/integrations/auths-radicle/src/profile.rs#profile_derives_exact_resource_and_one_write_budget"], boundary-plus-one = ["demos/radicle-issue/src/app.rs#denied_variant_never_enters_executor"], malformed-input = ["product/integrations/auths-radicle/src/candidate.rs#bundle_with_any_other_ref_is_rejected_before_fetch"], stale-evidence = ["product/integrations/auths-radicle/src/containment.rs#stale_distributed_evidence_is_indeterminate_not_denied"], configuration-mismatch = ["product/integrations/auths-radicle/src/containment.rs#required_and_executed_configuration_drift_is_a_hard_denial"], concurrent-final-capacity = ["product/integrations/auths-radicle/src/workflow.rs#concurrent_duplicate_claims_execute_exactly_once"], replay = ["demos/radicle-issue/src/app.rs#exact_execution_succeeds_once_and_replay_fails_closed"], definite-pre-effect-failure = ["product/integrations/auths-radicle/src/service.rs#configuration_mismatch_never_reaches_candidate_evidence_auths_signer_or_writer"], reconciliation = ["demos/radicle-issue/src/deployment.rs#stable_cli_executes_and_replicates_one_real_did_key_patch"] }
+
+[[domains]]
+id = "stripe"
+migration_order = 1
+package = "auths-stripe"
+package_path = "product/integrations/auths-stripe"
+demo_package = "auths-stripe-demo"
+demo_path = "demos/stripe-refund"
+spec = "docs/specs/0012-stripe-bounded-refunds.md"
+status = "implemented"
+profiles = ["auths.stripe.exact-refund/1"]
+evaluator_entrypoint = "auths_stripe::evaluate_bounded_refund"
+action_type = "auths_stripe::ExactRefundActionV1"
+policy_type = "auths_stripe::StripeBoundedRefundPolicyV1"
+evidence_type = "auths_stripe::RefundEvidenceV1"
+configuration_type = "auths_stripe::StripeBoundedEvaluatorConfigurationV1"
+decision_type = "auths_stripe::BoundedRefundDecision"
+reservation_type = "auths_stripe::RefundReservationRecord"
+verified_command = "auths_stripe::VerifiedRefundCommand"
+provider_gateway = "auths_stripe::StripeGateway"
+credential_scope = "auths_stripe::RefundCredentialScope"
+reconciliation = "auths_stripe::RefundReservationStore::reconcile"
+receipt_types = ["BoundedDecisionReceipt", "ReservationReceipt", "ExecutionReceipt", "ObservationReceipt"]
+fixture_dir = "product/fixtures/v1/stripe"
+scenarios = [
+  "authorized",
+  "exact-boundary",
+  "boundary-plus-one",
+  "malformed-input",
+  "stale-evidence",
+  "configuration-mismatch",
+  "concurrent-final-capacity",
+  "replay",
+  "definite-pre-effect-failure",
+  "outcome-unknown",
+  "reconciliation",
+]
+not_applicable = {}
+scenario_evidence = { authorized = ["product/integrations/auths-stripe/src/bounded.rs#configured_policy_authorizes_exact_refund_at_inclusive_boundary"], exact-boundary = ["product/integrations/auths-stripe/src/bounded.rs#configured_policy_authorizes_exact_refund_at_inclusive_boundary"], boundary-plus-one = ["product/integrations/auths-stripe/src/bounded.rs#percentage_rounds_down_and_boundary_plus_one_is_denied"], malformed-input = ["product/integrations/auths-stripe/tests/bounded_fixtures.rs#policy_fixture_rejects_unknown_fields"], stale-evidence = ["product/integrations/auths-stripe/src/bounded.rs#stale_evidence_and_expired_policy_fail_closed"], configuration-mismatch = ["product/integrations/auths-stripe/src/bounded.rs#required_and_executed_bounded_configuration_must_be_equal"], concurrent-final-capacity = ["product/integrations/auths-stripe/src/reservation.rs#concurrent_last_capacity_reserves_once"], replay = ["demos/stripe-refund/src/app.rs#exact_refund_executes_once_and_replay_fails_closed"], definite-pre-effect-failure = ["demos/stripe-refund/src/app.rs#denied_variant_never_reaches_stripe"], outcome-unknown = ["demos/stripe-refund/src/app.rs#ambiguous_stripe_response_holds_budget_until_reconciliation"], reconciliation = ["product/integrations/auths-stripe/src/reservation.rs#unknown_capacity_is_held_until_reconciled"] }
+
+[[domains]]
+id = "kubernetes"
+migration_order = 2
+package = "auths-kubernetes"
+package_path = "product/integrations/auths-kubernetes"
+demo_package = "auths-kubernetes-demo"
+demo_path = "demos/kubernetes-rollout"
+spec = "docs/specs/0007-kubernetes-workload-rollouts.md"
+status = "implemented"
+profiles = ["auths.kubernetes.workload-rollout/1"]
+evaluator_entrypoint = "auths_kubernetes::evaluate"
+action_type = "auths_kubernetes::KubernetesWorkloadRolloutV1"
+policy_type = "auths_kubernetes::KubernetesVerifierConfiguration"
+evidence_type = "auths_kubernetes::KubernetesEvidenceV1"
+configuration_type = "auths_kubernetes::KubernetesVerifierConfiguration"
+decision_type = "auths_kubernetes::Decision"
+reservation_type = "auths_kubernetes::ClaimRecord"
+verified_command = "auths_kubernetes::VerifiedRolloutCommand"
+provider_gateway = "auths_kubernetes::KubernetesGateway"
+credential_scope = "namespace/deployment-scoped Kubernetes mutation credential"
+reconciliation = "auths_kubernetes::KubernetesGateway::reconcile"
+receipt_types = ["DecisionReceipt", "ExecutionReceipt"]
+fixture_dir = "product/fixtures/v1/kubernetes"
+scenarios = [
+  "authorized",
+  "exact-boundary",
+  "boundary-plus-one",
+  "malformed-input",
+  "stale-evidence",
+  "configuration-mismatch",
+  "concurrent-final-capacity",
+  "replay",
+  "definite-pre-effect-failure",
+  "outcome-unknown",
+  "reconciliation",
+]
+not_applicable = {}
+scenario_evidence = { authorized = ["product/integrations/auths-kubernetes/src/decision.rs#exact_rollout_is_authorized"], exact-boundary = ["product/integrations/auths-kubernetes/src/profile.rs#profile_binds_exact_deployment_uid_and_one_effect_budget"], boundary-plus-one = ["demos/kubernetes-rollout/src/app.rs#exact_denial_replay_and_receipts_cross_the_http_boundary"], malformed-input = ["product/integrations/auths-kubernetes/src/test_support.rs#patch_is_canonical_and_digest_bound"], stale-evidence = ["demos/kubernetes-rollout/src/app.rs#exact_denial_replay_and_receipts_cross_the_http_boundary"], configuration-mismatch = ["product/integrations/auths-kubernetes/src/decision.rs#configuration_mismatch_returns_both_inputs_and_denies"], concurrent-final-capacity = ["product/integrations/auths-kubernetes/src/claim.rs#concurrent_claims_have_exactly_one_winner"], replay = ["demos/kubernetes-rollout/src/app.rs#exact_denial_replay_and_receipts_cross_the_http_boundary"], definite-pre-effect-failure = ["product/integrations/auths-kubernetes/src/service.rs#configuration_mismatch_never_verifies_claims_or_reads_mutation_credential"], outcome-unknown = ["demos/kubernetes-rollout/src/app.rs#exact_denial_replay_and_receipts_cross_the_http_boundary"], reconciliation = ["demos/kubernetes-rollout/src/app.rs#exact_denial_replay_and_receipts_cross_the_http_boundary"] }
+
+[[domains]]
+id = "opentofu"
+migration_order = 4
+package = "auths-opentofu"
+package_path = "product/integrations/auths-opentofu"
+demo_package = "auths-opentofu-demo"
+demo_path = "demos/opentofu-plan"
+spec = "docs/specs/0008-opentofu-saved-plan-apply.md"
+status = "implemented"
+profiles = ["auths.opentofu.saved-plan-apply/1"]
+evaluator_entrypoint = "auths_opentofu::evaluate"
+action_type = "auths_opentofu::OpenTofuSavedPlanApplyV1"
+policy_type = "auths_opentofu::OpenTofuVerifierConfigurationV1"
+evidence_type = "auths_opentofu::OpenTofuStateEvidenceV1"
+configuration_type = "auths_opentofu::OpenTofuVerifierConfigurationV1"
+decision_type = "auths_opentofu::Decision"
+reservation_type = "auths_opentofu::ClaimRecord"
+verified_command = "auths_opentofu::VerifiedOpenTofuApply"
+provider_gateway = "auths_opentofu::OpenTofuGateway"
+credential_scope = "backend/provider credential bound to exact saved plan"
+reconciliation = "auths_opentofu::OpenTofuGateway::reconcile"
+receipt_types = ["DecisionReceipt", "ApplyReceipt", "ObservationReceipt"]
+fixture_dir = "product/fixtures/v1/opentofu"
+scenarios = [
+  "authorized",
+  "exact-boundary",
+  "boundary-plus-one",
+  "malformed-input",
+  "stale-evidence",
+  "configuration-mismatch",
+  "concurrent-final-capacity",
+  "replay",
+  "definite-pre-effect-failure",
+  "outcome-unknown",
+  "reconciliation",
+]
+not_applicable = {}
+scenario_evidence = { authorized = ["product/integrations/auths-opentofu/src/decision.rs#exact_saved_plan_is_authorized"], exact-boundary = ["product/integrations/auths-opentofu/src/profile.rs#profile_binds_exact_plan_and_one_effect_budget"], boundary-plus-one = ["product/integrations/auths-opentofu/src/plan_projection.rs#projection_denies_destroy_and_replacement"], malformed-input = ["product/integrations/auths-opentofu/src/bundle.rs#source_bundle_rejects_traversal_and_forbidden_hooks"], stale-evidence = ["product/integrations/auths-opentofu/src/decision.rs#held_backend_lock_is_never_fresh_evidence"], configuration-mismatch = ["product/integrations/auths-opentofu/src/service.rs#configuration_mismatch_never_verifies_claims_resolves_plan_or_reads_credentials"], concurrent-final-capacity = ["product/integrations/auths-opentofu/src/claim.rs#concurrent_claims_have_exactly_one_winner"], replay = ["demos/opentofu-plan/src/app.rs#exact_denial_replay_and_receipts_cross_the_http_boundary"], definite-pre-effect-failure = ["demos/opentofu-plan/tests/live-contract.mjs#live_native_denial_and_concurrent_claim_contract"], outcome-unknown = ["product/integrations/auths-opentofu/src/claim.rs#outcome_unknown_resumes_only_for_reconciliation"], reconciliation = ["demos/opentofu-plan/tests/live-recovery.mjs#live_durable_fault_restart_reconcile_contract"] }
+
+[[domains]]
+id = "postgresql"
+migration_order = 3
+package = "auths-postgresql"
+package_path = "product/integrations/auths-postgresql"
+demo_package = "auths-postgresql-demo"
+demo_path = "demos/postgresql-data-change"
+spec = "docs/specs/0009-postgresql-bounded-data-changes.md"
+status = "implemented"
+profiles = ["auths.postgresql.bounded-update/1"]
+evaluator_entrypoint = "auths_postgresql::evaluate"
+action_type = "auths_postgresql::PostgresBoundedUpdateV1"
+policy_type = "auths_postgresql::PostgresUpdateIntentV1"
+evidence_type = "auths_postgresql::PostgresEvidenceV1"
+configuration_type = "auths_postgresql::PostgresVerifierConfigurationV1"
+decision_type = "auths_postgresql::Decision"
+reservation_type = "auths_postgresql::ClaimRecord+execution-ledger-row"
+verified_command = "auths_postgresql::VerifiedPostgresUpdate"
+provider_gateway = "auths_postgresql::TransactionGateway"
+credential_scope = "role/schema/table-scoped PostgreSQL credential"
+reconciliation = "auths_postgresql::TransactionGateway::reconcile"
+receipt_types = ["DecisionReceipt", "TransactionReceipt"]
+fixture_dir = "product/fixtures/v1/postgresql"
+scenarios = [
+  "authorized",
+  "exact-boundary",
+  "boundary-plus-one",
+  "malformed-input",
+  "stale-evidence",
+  "configuration-mismatch",
+  "concurrent-final-capacity",
+  "replay",
+  "definite-pre-effect-failure",
+  "outcome-unknown",
+  "reconciliation",
+]
+not_applicable = {}
+scenario_evidence = { authorized = ["product/integrations/auths-postgresql/src/decision.rs#exact_fixture_authorizes"], exact-boundary = ["product/integrations/auths-postgresql/src/test_support.rs#fixture_uses_serializable_and_exact_three_rows"], boundary-plus-one = ["product/integrations/auths-postgresql/src/decision.rs#maximum_rows_mismatch_denies_before_effects"], malformed-input = ["product/integrations/auths-postgresql/src/action.rs#duplicate_assignment_is_malformed_not_normalized"], stale-evidence = ["product/integrations/auths-postgresql/src/decision.rs#changed_before_value_denies"], configuration-mismatch = ["demos/postgresql-data-change/src/postgres.rs#configuration_mismatch_precedes_claim_credential_and_transaction"], concurrent-final-capacity = ["product/integrations/auths-postgresql/src/claim.rs#only_one_claim_wins"], replay = ["product/integrations/auths-postgresql/src/claim.rs#committed_claim_is_replay"], definite-pre-effect-failure = ["demos/postgresql-data-change/tests/live-database.mjs#live_privilege_rls_boundary_and_lock_contract"], outcome-unknown = ["product/integrations/auths-postgresql/src/claim.rs#outcome_unknown_resumes_with_the_original_claim_id"], reconciliation = ["demos/postgresql-data-change/tests/live-recovery.mjs#live_durable_rollback_restart_reconcile_contract"] }
+
+[[domains]]
+id = "records-api"
+migration_order = 7
+package = "auths-records-api"
+package_path = "product/integrations/auths-records-api"
+demo_package = "auths-records-demo"
+demo_path = "demos/rest-api-authorization"
+spec = "docs/specs/0024-transport-neutral-rest-api-authorization.md"
+status = "implemented"
+profiles = ["auths.demo.records.create/1", "auths.demo.records.read/1"]
+evaluator_entrypoint = "auths_records_api::evaluate_create|auths_records_api::evaluate_read"
+action_type = "auths_records_api::CreateRecordV1|auths_records_api::ReadRecordV1"
+policy_type = "auths_records_api::BoundedRecordApiPolicyV1"
+evidence_type = "canonical action presentation plus auths_records_api::Usage snapshot"
+configuration_type = "auths_records_api::RecordsApiVerifierConfigurationV1"
+decision_type = "auths_records_api::RecordsDecision"
+reservation_type = "auths_records_api::RecordsLedger atomic usage and replay transition"
+verified_command = "auths_records_api::VerifiedCreateRecordCommand|auths_records_api::VerifiedReadRecordCommand"
+provider_gateway = "auths_records_api::RecordsLedger"
+credential_scope = "no reusable API credential; presenter proof and sealed profile command"
+reconciliation = "definitive local ledger commit; HTTPS and Iroh delivery failures do not reinterpret committed effects"
+receipt_types = ["DeliveryReceipt", "DecisionReceipt", "EffectReceipt", "ObservationReceipt", "ReceiptBundle"]
+fixture_dir = "product/fixtures/v1/records-api"
+scenarios = [
+  "authorized",
+  "exact-boundary",
+  "boundary-plus-one",
+  "malformed-input",
+  "stale-evidence",
+  "configuration-mismatch",
+  "concurrent-final-capacity",
+  "replay",
+  "definite-pre-effect-failure",
+]
+not_applicable = { outcome-unknown = "The authoritative effect is one atomic local ledger transition; losing an HTTP or Iroh response does not make the durable ledger outcome unknowable.", reconciliation = "The ledger commit is definitive and replay returns committed state; transport redelivery is replay handling, not provider reconciliation." }
+scenario_evidence = { authorized = ["demos/rest-api-authorization/src/app.rs#exact_http_create_uses_real_auths_kernel_and_no_api_key"], exact-boundary = ["product/integrations/auths-records-api/src/ledger.rs#concurrent_final_unit_is_consumed_once"], boundary-plus-one = ["demos/rest-api-authorization/src/app.rs#oversized_customer_payload_is_a_policy_denial_not_a_malformed_action"], malformed-input = ["product/integrations/auths-records-api/src/action.rs#canonical_decoder_rejects_unknown_fields"], stale-evidence = ["product/integrations/auths-records-api/src/decision.rs#expired_action_denies_at_the_freshness_boundary"], configuration-mismatch = ["product/integrations/auths-records-api/src/decision.rs#configuration_regression_4096_vs_4097_denies"], concurrent-final-capacity = ["product/integrations/auths-records-api/src/ledger.rs#concurrent_final_unit_is_consumed_once"], replay = ["demos/rest-api-authorization/src/app.rs#iroh_executes_and_https_replay_cannot_duplicate_the_effect"], definite-pre-effect-failure = ["demos/rest-api-authorization/src/app.rs#one_changed_proof_byte_is_denied_before_storage"] }

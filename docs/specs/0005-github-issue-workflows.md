@@ -2,7 +2,7 @@
 
 ## Vertical Product Package and End-to-End Demonstration
 
-**Status:** Proposed
+**Status:** Implemented
 
 **Initial domain:** GitHub issue resolution
 

@@ -1,6 +1,6 @@
 # 0024: Transport-neutral REST API authorization without reusable client API keys
 
-Status: Proposed  
+Status: Implemented
 Exact action profiles: `auths.demo.records.create/1`,
 `auths.demo.records.read/1`  
 Policy family: `auths.demo.bounded-record-api-policy/1`  
