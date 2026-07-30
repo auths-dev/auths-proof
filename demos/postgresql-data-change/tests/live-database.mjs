@@ -242,7 +242,11 @@ async function waitForActivity(predicate, failure) {
   assert.fail(failure);
 }
 
-compose(["up", "-d", "--build"]);
+compose([
+  "up",
+  "-d",
+  process.env.AUTHS_DEMO_PREBUILT === "true" ? "--no-build" : "--build",
+]);
 compose(["up", "-d", "--force-recreate", "api"]);
 await waitUntilReady();
 adminSql(`DROP TRIGGER IF EXISTS auths_drift_trigger ON app.demo_accounts;

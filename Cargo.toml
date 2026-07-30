@@ -79,6 +79,7 @@ members = [
     "demos/opentofu-plan",
     "demos/postgresql-data-change",
     "demos/rest-api-authorization",
+    "xtask/ci-plan",
     "xtask",
 ]
 

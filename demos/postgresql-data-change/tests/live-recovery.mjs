@@ -96,7 +96,11 @@ async function executeFreshSession() {
   return { session, path, result: await request(path, { variant: "exact" }) };
 }
 
-compose(["up", "-d", "--build"]);
+compose([
+  "up",
+  "-d",
+  process.env.AUTHS_DEMO_PREBUILT === "true" ? "--no-build" : "--build",
+]);
 await waitUntilReady();
 
 resetDatabase();

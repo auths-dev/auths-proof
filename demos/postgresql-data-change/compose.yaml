@@ -43,6 +43,7 @@ services:
       retries: 20
 
   api:
+    image: auths-postgresql-demo:${AUTHS_DEMO_IMAGE_TAG:-local}
     build:
       context: ../..
       dockerfile: demos/postgresql-data-change/Dockerfile

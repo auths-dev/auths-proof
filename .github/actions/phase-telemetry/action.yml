@@ -1,0 +1,87 @@
+name: Record CI phase telemetry
+description: Report phase duration, disk use, and compiler-cache statistics without caching target directories.
+
+inputs:
+  phase:
+    description: Stable phase identifier.
+    required: true
+  started-at:
+    description: Unix timestamp captured before the phase.
+    required: true
+  warning-percent:
+    description: Percentage over baseline that emits a warning.
+    required: false
+    default: "25"
+
+runs:
+  using: composite
+  steps:
+    - name: Record phase telemetry
+      shell: bash
+      env:
+        AUTHS_PHASE: ${{ inputs.phase }}
+        AUTHS_STARTED_AT: ${{ inputs.started-at }}
+        AUTHS_WARNING_PERCENT: ${{ inputs.warning-percent }}
+      run: |
+        set -euo pipefail
+        finished_at="$(date +%s)"
+        duration="$((finished_at - AUTHS_STARTED_AT))"
+        normalized_phase="${AUTHS_PHASE//-/_}"
+        baseline_minutes="$(
+          awk -v target="$normalized_phase" '
+            function emit() {
+              if (in_phase && phase_id == target && baseline != "") {
+                print baseline
+                matches++
+              }
+            }
+            /^\[\[phases\]\]$/ {
+              emit()
+              in_phase = 1
+              phase_id = ""
+              baseline = ""
+              next
+            }
+            /^\[\[/ {
+              emit()
+              in_phase = 0
+              next
+            }
+            in_phase && /^id[[:space:]]*=/ {
+              value = $0
+              sub(/^[^=]*=[[:space:]]*"/, "", value)
+              sub(/"[[:space:]]*$/, "", value)
+              phase_id = value
+              next
+            }
+            in_phase && /^baseline_minutes[[:space:]]*=/ {
+              value = $0
+              sub(/^[^=]*=[[:space:]]*/, "", value)
+              sub(/[[:space:]]*$/, "", value)
+              baseline = value
+            }
+            END {
+              emit()
+              if (matches != 1) exit 42
+            }
+          ' .github/ci/phase-ownership.toml
+        )"
+        baseline_seconds="$((baseline_minutes * 60))"
+        warning_seconds="$((baseline_seconds + (baseline_seconds * AUTHS_WARNING_PERCENT / 100)))"
+        target_size="$(du -sh target 2>/dev/null | awk '{print $1}' || true)"
+        target_size="${target_size:-0}"
+        cache_summary="not enabled"
+        if command -v sccache >/dev/null 2>&1; then
+          cache_summary="$(sccache --show-stats | tr '\n' ';' | sed 's/;*$//')"
+        fi
+        {
+          echo "### CI telemetry: ${AUTHS_PHASE}"
+          echo
+          echo "- Duration: **${duration}s**"
+          echo "- Target directory: **${target_size}** (not cached)"
+          echo "- Compiler cache: \`${cache_summary}\`"
+        } >> "$GITHUB_STEP_SUMMARY"
+        if (( duration > warning_seconds )); then
+          echo "::warning::${AUTHS_PHASE} took ${duration}s; the ${baseline_minutes}m baseline plus ${AUTHS_WARNING_PERCENT}% warning allowance is ${warning_seconds}s."
+        fi
+        df -h /

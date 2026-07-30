@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  schedule:
+    - cron: "41 4 * * 1"
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -14,13 +17,68 @@ permissions:
   contents: read
 
 jobs:
-  authoritative:
+  ci-plan:
+    name: ci-plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      authoritative_required: ${{ steps.plan.outputs.authoritative_required }}
+      authoritative_reason: ${{ steps.plan.outputs.authoritative_reason }}
+      formal_translation_required: ${{ steps.plan.outputs.formal_translation_required }}
+      formal_translation_reason: ${{ steps.plan.outputs.formal_translation_reason }}
+      compliance_required: ${{ steps.plan.outputs.compliance_required }}
+      compliance_reason: ${{ steps.plan.outputs.compliance_reason }}
+      dependencies_required: ${{ steps.plan.outputs.dependencies_required }}
+      dependencies_reason: ${{ steps.plan.outputs.dependencies_reason }}
+      secrets_required: ${{ steps.plan.outputs.secrets_required }}
+      secrets_reason: ${{ steps.plan.outputs.secrets_reason }}
+      opentofu_live_required: ${{ steps.plan.outputs.opentofu_live_required }}
+      opentofu_live_reason: ${{ steps.plan.outputs.opentofu_live_reason }}
+      postgresql_live_required: ${{ steps.plan.outputs.postgresql_live_required }}
+      postgresql_live_reason: ${{ steps.plan.outputs.postgresql_live_reason }}
+      records_api_live_required: ${{ steps.plan.outputs.records_api_live_required }}
+      records_api_live_reason: ${{ steps.plan.outputs.records_api_live_reason }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust-cache
+        with:
+          toolchain: 1.97.1
+          compiler-cache: "false"
+      - id: plan
+        name: Classify the complete change
+        env:
+          AUTHS_CI_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          AUTHS_CI_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: >-
+          cargo run --locked -p auths-ci-plan --
+          plan
+          --event "${{ github.event_name }}"
+          --workflow ci
+          --output target/ci/plan.json
+      - name: Preserve the auditable plan
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: auths-ci-plan-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/ci/plan.json
+          if-no-files-found: error
+          retention-days: 30
+
+  authoritative-run:
+    name: authoritative implementation
+    needs: ci-plan
+    if: needs.ci-plan.outputs.authoritative_required == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
+      - name: Start telemetry
+        run: echo "AUTHS_PHASE_STARTED=$(date +%s)" >> "$GITHUB_ENV"
       - name: Reclaim disk for authoritative CI
         shell: bash
         run: |
@@ -34,20 +92,16 @@ jobs:
             /usr/share/dotnet
           sudo docker system prune --all --force
           sudo apt-get clean
-
           available_kib="$(df --output=avail / | tail -n 1 | tr -d ' ')"
           minimum_kib="$((30 * 1024 * 1024))"
-          df -h /
           if (( available_kib < minimum_kib )); then
-            echo "::error::Authoritative CI requires at least 30 GiB free before toolchain installation; runner has $((available_kib / 1024 / 1024)) GiB"
+            echo "::error::Authoritative CI requires 30 GiB free; found $((available_kib / 1024 / 1024)) GiB."
             exit 1
           fi
-      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
-        with:
-          toolchain: 1.91.0
       - uses: ./.github/actions/setup-rust-cache
         with:
           toolchain: 1.97.1
+          additional-toolchains: 1.91.0
           components: rustfmt, clippy
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
@@ -59,31 +113,36 @@ jobs:
           cargo --version
           go version
           sccache --version
-      - name: Verify workspace build capacity
-        shell: bash
-        run: |
-          set -euo pipefail
-          available_kib="$(df --output=avail / | tail -n 1 | tr -d ' ')"
-          minimum_kib="$((20 * 1024 * 1024))"
-          df -h /
-          if (( available_kib < minimum_kib )); then
-            echo "::error::Authoritative CI requires at least 20 GiB free after toolchain installation; runner has $((available_kib / 1024 / 1024)) GiB"
-            exit 1
-          fi
       - name: Run authoritative repository CI
-        shell: bash
-        run: |
-          set -euo pipefail
-          trap 'df -h /; du -sh target 2>/dev/null || true' EXIT
-          cargo xtask ci authoritative
+        run: cargo xtask ci authoritative
+      - name: Record authoritative telemetry
+        if: always()
+        uses: ./.github/actions/phase-telemetry
+        with:
+          phase: authoritative
+          started-at: ${{ env.AUTHS_PHASE_STARTED }}
 
-  formal-translation:
+  formal-translation-run:
+    name: formal-translation implementation
+    needs: ci-plan
+    if: needs.ci-plan.outputs.formal_translation_required == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
+      - name: Start telemetry
+        run: echo "AUTHS_PHASE_STARTED=$(date +%s)" >> "$GITHUB_ENV"
+      - uses: ./.github/actions/setup-rust-cache
+        with:
+          toolchain: 1.97.1
+          compiler-cache: "false"
+      - name: Check production source closure before formal setup
+        run: >-
+          cargo run --locked -p auths-ci-plan --
+          formal-source-closure check
+          --output target/formal/source-closure.expected.json
       - name: Reclaim disk for the pinned formal toolchain
         shell: bash
         run: |
@@ -97,15 +156,13 @@ jobs:
             /usr/share/dotnet
           sudo docker system prune --all --force
           sudo apt-get clean
-
           available_kib="$(df --output=avail / | tail -n 1 | tr -d ' ')"
           minimum_kib="$((25 * 1024 * 1024))"
-          df -h /
           if (( available_kib < minimum_kib )); then
-            echo "::error::Formal translation requires at least 25 GiB free; runner has $((available_kib / 1024 / 1024)) GiB"
+            echo "::error::Formal translation requires 25 GiB free; found $((available_kib / 1024 / 1024)) GiB."
             exit 1
           fi
-      - name: Install pinned Nix
+      - name: Install pinned Nix with the public Aeneas Cachix substitute
         uses: cachix/install-nix-action@ab739621df7a23f52766f9ccc97f38da6b7af14f # v31.10.5
         with:
           extra_nix_config: |
@@ -119,12 +176,6 @@ jobs:
           --cores 2
           github:AeneasVerif/aeneas/3a8586facab25b31bdb1e1f5f45acd60d1cc5ff0#aeneas
           --out-link target/formal-tools
-      - name: Report remaining runner capacity
-        run: df -h / /nix/store
-      - uses: ./.github/actions/setup-rust-cache
-        with:
-          toolchain: 1.97.1
-          compiler-cache: "false"
       - uses: leanprover/lean-action@38fbc41a8c28c4cbaec22d7f7de508ec2e7c0dd9 # v1.5.0
         with:
           auto-config: false
@@ -147,6 +198,7 @@ jobs:
           AUTHS_CHARON_BIN: ${{ github.workspace }}/target/formal-tools/bin/charon
         run: cargo xtask ci formal-translation
       - name: Preserve translation evidence
+        if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: auths-formal-translation-${{ github.run_id }}-${{ github.run_attempt }}
@@ -154,14 +206,25 @@ jobs:
           if-no-files-found: error
           retention-days: 90
           compression-level: 9
+      - name: Record formal telemetry
+        if: always()
+        uses: ./.github/actions/phase-telemetry
+        with:
+          phase: formal-translation
+          started-at: ${{ env.AUTHS_PHASE_STARTED }}
 
-  compliance:
+  compliance-run:
+    name: compliance implementation
+    needs: ci-plan
+    if: needs.ci-plan.outputs.compliance_required == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
+      - name: Start telemetry
+        run: echo "AUTHS_PHASE_STARTED=$(date +%s)" >> "$GITHUB_ENV"
       - uses: ./.github/actions/setup-rust-cache
         with:
           toolchain: 1.97.1
@@ -188,6 +251,7 @@ jobs:
           npm ci --prefix bindings/typescript
       - run: cargo xtask ci compliance
       - name: Preserve compliance evidence
+        if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: auths-product-core-compliance-${{ github.run_id }}-${{ github.run_attempt }}
@@ -195,17 +259,41 @@ jobs:
           if-no-files-found: error
           retention-days: 90
           compression-level: 9
+      - name: Record compliance telemetry
+        if: always()
+        uses: ./.github/actions/phase-telemetry
+        with:
+          phase: compliance
+          started-at: ${{ env.AUTHS_PHASE_STARTED }}
 
-  dependencies:
+  dependencies-run:
+    name: dependencies implementation
+    needs: ci-plan
+    if: needs.ci-plan.outputs.dependencies_required == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
+      - name: Start telemetry
+        run: echo "AUTHS_PHASE_STARTED=$(date +%s)" >> "$GITHUB_ENV"
+      - uses: ./.github/actions/setup-rust-cache
+        with:
+          toolchain: 1.97.1
+          compiler-cache: "false"
       - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2
+      - name: Record dependency telemetry
+        if: always()
+        uses: ./.github/actions/phase-telemetry
+        with:
+          phase: dependencies
+          started-at: ${{ env.AUTHS_PHASE_STARTED }}
 
-  secrets:
+  secrets-run:
+    name: secrets implementation
+    needs: ci-plan
+    if: needs.ci-plan.outputs.secrets_required == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -213,9 +301,399 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Start telemetry
+        run: echo "AUTHS_PHASE_STARTED=$(date +%s)" >> "$GITHUB_ENV"
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: 1.24.6
           cache: false
-      - run: go install github.com/zricethezav/gitleaks/v8@v8.28.0
+      - name: Install the pinned scanner when absent
+        run: |
+          if ! command -v gitleaks >/dev/null 2>&1 || [[ "$(gitleaks version)" != "8.28.0" ]]; then
+            go install github.com/zricethezav/gitleaks/v8@v8.28.0
+          fi
       - run: gitleaks git --redact --no-banner
+      - name: Record secrets telemetry
+        if: always()
+        uses: ./.github/actions/phase-telemetry
+        with:
+          phase: secrets
+          started-at: ${{ env.AUTHS_PHASE_STARTED }}
+
+  opentofu-live-run:
+    name: opentofu-live implementation
+    needs: ci-plan
+    if: needs.ci-plan.outputs.opentofu_live_required == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      AUTHS_DEMO_IMAGE_TAG: ci
+      AUTHS_DEMO_PREBUILT: "true"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Start telemetry
+        run: echo "AUTHS_PHASE_STARTED=$(date +%s)" >> "$GITHUB_ENV"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22.23.1
+          cache: npm
+          cache-dependency-path: demos/opentofu-plan/package-lock.json
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - name: Build the exact API image with shared BuildKit layers
+        id: build
+        uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671 # v6
+        with:
+          context: .
+          file: demos/opentofu-plan/Dockerfile
+          build-args: OPENTOFU_SANDBOX=local
+          load: true
+          push: false
+          tags: auths-opentofu-demo:ci
+          cache-from: type=gha,scope=opentofu-live
+          cache-to: type=gha,mode=max,scope=opentofu-live
+      - name: Record exact image provenance
+        run: |
+          mkdir -p target/ci
+          docker image inspect --format '{{.Id}}' auths-opentofu-demo:ci | tee target/ci/opentofu-image-digest.txt
+          echo "BuildKit digest: \`${{ steps.build.outputs.digest }}\`" >> "$GITHUB_STEP_SUMMARY"
+      - name: Install browser test dependencies
+        working-directory: demos/opentofu-plan
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Static frontend contract
+        working-directory: demos/opentofu-plan
+        run: npm run check
+      - name: Real OpenTofu fault, restart, and reconciliation contract
+        working-directory: demos/opentofu-plan
+        run: npm run test:live-recovery
+      - name: Native denial and concurrent-claim contract
+        working-directory: demos/opentofu-plan
+        run: npm run test:live-contract
+      - name: Browser-to-native-to-provider contract
+        working-directory: demos/opentofu-plan
+        run: npm run test:e2e
+      - name: Preserve service logs after failure
+        if: failure()
+        working-directory: demos/opentofu-plan
+        run: docker compose logs --no-color
+      - name: Preserve exact image provenance
+        if: always() && steps.build.outcome == 'success'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: opentofu-image-provenance-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/ci/opentofu-image-digest.txt
+          if-no-files-found: error
+          retention-days: 30
+      - name: Record OpenTofu telemetry
+        if: always()
+        uses: ./.github/actions/phase-telemetry
+        with:
+          phase: opentofu-live
+          started-at: ${{ env.AUTHS_PHASE_STARTED }}
+
+  postgresql-live-run:
+    name: postgresql-live implementation
+    needs: ci-plan
+    if: needs.ci-plan.outputs.postgresql_live_required == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      POSTGRES_ADMIN_PASSWORD: ci-admin-${{ github.run_id }}-${{ github.run_attempt }}
+      AUTHS_EXECUTOR_PASSWORD: ci-executor-${{ github.run_id }}-${{ github.run_attempt }}
+      AUTHS_POSTGRESQL_FAULT: none
+      AUTHS_POSTGRESQL_RECEIPT_FAULT: none
+      AUTHS_DEMO_IMAGE_TAG: ci
+      AUTHS_DEMO_PREBUILT: "true"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Start telemetry
+        run: echo "AUTHS_PHASE_STARTED=$(date +%s)" >> "$GITHUB_ENV"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22.23.1
+          cache: npm
+          cache-dependency-path: demos/postgresql-data-change/package-lock.json
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - name: Build the exact API image with shared BuildKit layers
+        id: build
+        uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671 # v6
+        with:
+          context: .
+          file: demos/postgresql-data-change/Dockerfile
+          load: true
+          push: false
+          tags: auths-postgresql-demo:ci
+          cache-from: type=gha,scope=postgresql-live
+          cache-to: type=gha,mode=max,scope=postgresql-live
+      - name: Record exact image provenance
+        run: |
+          mkdir -p target/ci
+          docker image inspect --format '{{.Id}}' auths-postgresql-demo:ci | tee target/ci/postgresql-image-digest.txt
+          echo "BuildKit digest: \`${{ steps.build.outputs.digest }}\`" >> "$GITHUB_STEP_SUMMARY"
+      - name: Build the PostgreSQL TLS fixture image
+        uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671 # v6
+        with:
+          context: demos/postgresql-data-change
+          file: demos/postgresql-data-change/database/Dockerfile.tls
+          load: true
+          push: false
+          tags: postgresql-data-change-certificates:latest
+          cache-from: type=gha,scope=postgresql-live-certificates
+          cache-to: type=gha,mode=max,scope=postgresql-live-certificates
+      - name: Install browser test dependencies
+        working-directory: demos/postgresql-data-change
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Static frontend contract
+        working-directory: demos/postgresql-data-change
+        run: npm run check
+      - name: Real PostgreSQL rollback, restart, and reconciliation contract
+        working-directory: demos/postgresql-data-change
+        run: npm run test:live-recovery
+      - name: Privilege, RLS, injection, concurrency, timeout, and drift contract
+        working-directory: demos/postgresql-data-change
+        run: npm run test:live-database
+      - name: Native denial and concurrent-claim contract
+        working-directory: demos/postgresql-data-change
+        run: npm run test:live-contract
+      - name: Reset before browser contract
+        working-directory: demos/postgresql-data-change
+        run: docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U migration_admin -d auths_demo -f /demo/reset.sql
+      - name: Browser-to-native-to-database contract
+        working-directory: demos/postgresql-data-change
+        run: npm run test:e2e
+      - name: Preserve service logs after failure
+        if: failure()
+        working-directory: demos/postgresql-data-change
+        run: docker compose logs --no-color
+      - name: Preserve exact image provenance
+        if: always() && steps.build.outcome == 'success'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: postgresql-image-provenance-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/ci/postgresql-image-digest.txt
+          if-no-files-found: error
+          retention-days: 30
+      - name: Record PostgreSQL telemetry
+        if: always()
+        uses: ./.github/actions/phase-telemetry
+        with:
+          phase: postgresql-live
+          started-at: ${{ env.AUTHS_PHASE_STARTED }}
+
+  records-api-live-run:
+    name: records-api-live implementation
+    needs: ci-plan
+    if: needs.ci-plan.outputs.records_api_live_required == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Start telemetry
+        run: echo "AUTHS_PHASE_STARTED=$(date +%s)" >> "$GITHUB_ENV"
+      - uses: ./.github/actions/setup-rust-cache
+        with:
+          toolchain: 1.97.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22.23.1
+      - name: Product and HTTP contracts
+        run: cargo test -p auths-records-api -p auths-records-demo --lib
+      - name: Real Iroh and cross-transport replay contract
+        run: >-
+          cargo test -p auths-records-demo
+          iroh_executes_and_https_replay_cannot_duplicate_the_effect
+          -- --ignored --nocapture
+      - name: Frontend contract
+        working-directory: demos/rest-api-authorization
+        run: npm run check
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - name: Build the exact production image with shared BuildKit layers
+        id: build
+        uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671 # v6
+        with:
+          context: .
+          file: demos/rest-api-authorization/Dockerfile
+          load: true
+          push: false
+          tags: auths-records-demo:ci
+          cache-from: type=gha,scope=records-api-live
+          cache-to: type=gha,mode=max,scope=records-api-live
+      - name: Exercise and record the exact production image
+        env:
+          AUTHS_DEMO_IMAGE_TAG: ci
+        run: |
+          mkdir -p target/ci
+          docker image inspect --format '{{.Id}}' auths-records-demo:ci | tee target/ci/records-image-digest.txt
+          docker compose -f demos/rest-api-authorization/compose.yaml up -d --no-build
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://localhost:4180/healthz >/dev/null; then
+              break
+            fi
+            if [[ "$attempt" == "30" ]]; then
+              docker compose -f demos/rest-api-authorization/compose.yaml logs --no-color
+              exit 1
+            fi
+            sleep 1
+          done
+          curl --fail --silent http://localhost:4180/healthz
+          echo "BuildKit digest: \`${{ steps.build.outputs.digest }}\`" >> "$GITHUB_STEP_SUMMARY"
+          docker compose -f demos/rest-api-authorization/compose.yaml down --volumes
+      - name: Preserve exact image provenance
+        if: always() && steps.build.outcome == 'success'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: records-image-provenance-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/ci/records-image-digest.txt
+          if-no-files-found: error
+          retention-days: 30
+      - name: Record records API telemetry
+        if: always()
+        uses: ./.github/actions/phase-telemetry
+        with:
+          phase: records-api-live
+          started-at: ${{ env.AUTHS_PHASE_STARTED }}
+
+  authoritative:
+    name: authoritative
+    if: always()
+    needs: [ci-plan, authoritative-run]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enforce planned result
+        env:
+          PLANNER: ${{ needs.ci-plan.result }}
+          REQUIRED: ${{ needs.ci-plan.outputs.authoritative_required }}
+          REASON: ${{ needs.ci-plan.outputs.authoritative_reason }}
+          RUN_RESULT: ${{ needs.authoritative-run.result }}
+        run: |
+          echo "Decision: ${REQUIRED}; implementation: ${RUN_RESULT}; ${REASON}" >> "$GITHUB_STEP_SUMMARY"
+          [[ "$PLANNER" == success ]]
+          [[ "$REQUIRED" == true && "$RUN_RESULT" == success ]] || [[ "$REQUIRED" == false && "$RUN_RESULT" == skipped ]]
+
+  formal-translation:
+    name: formal-translation
+    if: always()
+    needs: [ci-plan, formal-translation-run]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enforce planned result
+        env:
+          PLANNER: ${{ needs.ci-plan.result }}
+          REQUIRED: ${{ needs.ci-plan.outputs.formal_translation_required }}
+          REASON: ${{ needs.ci-plan.outputs.formal_translation_reason }}
+          RUN_RESULT: ${{ needs.formal-translation-run.result }}
+        run: |
+          echo "Decision: ${REQUIRED}; implementation: ${RUN_RESULT}; ${REASON}" >> "$GITHUB_STEP_SUMMARY"
+          [[ "$PLANNER" == success ]]
+          [[ "$REQUIRED" == true && "$RUN_RESULT" == success ]] || [[ "$REQUIRED" == false && "$RUN_RESULT" == skipped ]]
+
+  compliance:
+    name: compliance
+    if: always()
+    needs: [ci-plan, compliance-run]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enforce planned result
+        env:
+          PLANNER: ${{ needs.ci-plan.result }}
+          REQUIRED: ${{ needs.ci-plan.outputs.compliance_required }}
+          REASON: ${{ needs.ci-plan.outputs.compliance_reason }}
+          RUN_RESULT: ${{ needs.compliance-run.result }}
+        run: |
+          echo "Decision: ${REQUIRED}; implementation: ${RUN_RESULT}; ${REASON}" >> "$GITHUB_STEP_SUMMARY"
+          [[ "$PLANNER" == success ]]
+          [[ "$REQUIRED" == true && "$RUN_RESULT" == success ]] || [[ "$REQUIRED" == false && "$RUN_RESULT" == skipped ]]
+
+  dependencies:
+    name: dependencies
+    if: always()
+    needs: [ci-plan, dependencies-run]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enforce planned result
+        env:
+          PLANNER: ${{ needs.ci-plan.result }}
+          REQUIRED: ${{ needs.ci-plan.outputs.dependencies_required }}
+          REASON: ${{ needs.ci-plan.outputs.dependencies_reason }}
+          RUN_RESULT: ${{ needs.dependencies-run.result }}
+        run: |
+          echo "Decision: ${REQUIRED}; implementation: ${RUN_RESULT}; ${REASON}" >> "$GITHUB_STEP_SUMMARY"
+          [[ "$PLANNER" == success ]]
+          [[ "$REQUIRED" == true && "$RUN_RESULT" == success ]] || [[ "$REQUIRED" == false && "$RUN_RESULT" == skipped ]]
+
+  secrets:
+    name: secrets
+    if: always()
+    needs: [ci-plan, secrets-run]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enforce planned result
+        env:
+          PLANNER: ${{ needs.ci-plan.result }}
+          REQUIRED: ${{ needs.ci-plan.outputs.secrets_required }}
+          REASON: ${{ needs.ci-plan.outputs.secrets_reason }}
+          RUN_RESULT: ${{ needs.secrets-run.result }}
+        run: |
+          echo "Decision: ${REQUIRED}; implementation: ${RUN_RESULT}; ${REASON}" >> "$GITHUB_STEP_SUMMARY"
+          [[ "$PLANNER" == success ]]
+          [[ "$REQUIRED" == true && "$RUN_RESULT" == success ]] || [[ "$REQUIRED" == false && "$RUN_RESULT" == skipped ]]
+
+  opentofu-live:
+    name: opentofu-live
+    if: always()
+    needs: [ci-plan, opentofu-live-run]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enforce planned result
+        env:
+          PLANNER: ${{ needs.ci-plan.result }}
+          REQUIRED: ${{ needs.ci-plan.outputs.opentofu_live_required }}
+          REASON: ${{ needs.ci-plan.outputs.opentofu_live_reason }}
+          RUN_RESULT: ${{ needs.opentofu-live-run.result }}
+        run: |
+          echo "Decision: ${REQUIRED}; implementation: ${RUN_RESULT}; ${REASON}" >> "$GITHUB_STEP_SUMMARY"
+          [[ "$PLANNER" == success ]]
+          [[ "$REQUIRED" == true && "$RUN_RESULT" == success ]] || [[ "$REQUIRED" == false && "$RUN_RESULT" == skipped ]]
+
+  postgresql-live:
+    name: postgresql-live
+    if: always()
+    needs: [ci-plan, postgresql-live-run]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enforce planned result
+        env:
+          PLANNER: ${{ needs.ci-plan.result }}
+          REQUIRED: ${{ needs.ci-plan.outputs.postgresql_live_required }}
+          REASON: ${{ needs.ci-plan.outputs.postgresql_live_reason }}
+          RUN_RESULT: ${{ needs.postgresql-live-run.result }}
+        run: |
+          echo "Decision: ${REQUIRED}; implementation: ${RUN_RESULT}; ${REASON}" >> "$GITHUB_STEP_SUMMARY"
+          [[ "$PLANNER" == success ]]
+          [[ "$REQUIRED" == true && "$RUN_RESULT" == success ]] || [[ "$REQUIRED" == false && "$RUN_RESULT" == skipped ]]
+
+  records-api-live:
+    name: records-api-live
+    if: always()
+    needs: [ci-plan, records-api-live-run]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enforce planned result
+        env:
+          PLANNER: ${{ needs.ci-plan.result }}
+          REQUIRED: ${{ needs.ci-plan.outputs.records_api_live_required }}
+          REASON: ${{ needs.ci-plan.outputs.records_api_live_reason }}
+          RUN_RESULT: ${{ needs.records-api-live-run.result }}
+        run: |
+          echo "Decision: ${REQUIRED}; implementation: ${RUN_RESULT}; ${REASON}" >> "$GITHUB_STEP_SUMMARY"
+          [[ "$PLANNER" == success ]]
+          [[ "$REQUIRED" == true && "$RUN_RESULT" == success ]] || [[ "$REQUIRED" == false && "$RUN_RESULT" == skipped ]]

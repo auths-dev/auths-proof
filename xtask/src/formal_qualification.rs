@@ -2,7 +2,6 @@
 
 use serde::Deserialize;
 use serde_json::{Value, json};
-use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, BTreeSet},
     env, fs,
@@ -12,7 +11,6 @@ use std::{
 
 const QUALIFICATION_PATH: &str = "formal/qualification/aeneas/qualification.toml";
 const QUALIFICATION_SCHEMA: &str = "auths-proof-aeneas-qualification/v1";
-const SOURCE_CLOSURE_SCHEMA: &str = "auths-proof-translation-source-closure/v1";
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -126,6 +124,12 @@ pub(crate) fn validate(root: &Path, attenuation_dimensions: &[String]) -> Result
     Ok(closure_digest)
 }
 
+pub(crate) fn validate_source_closure(root: &Path) -> Result<String, String> {
+    let qualification = load_qualification(root)?;
+    validate_manifest(root, &qualification)?;
+    synchronize_source_closure(root, &qualification, false)
+}
+
 pub(crate) fn qualify(
     root: &Path,
     attenuation_dimensions: &[String],
@@ -133,6 +137,9 @@ pub(crate) fn qualify(
 ) -> Result<(), String> {
     let qualification = load_qualification(root)?;
     validate_manifest(root, &qualification)?;
+    if !update {
+        synchronize_source_closure(root, &qualification, false)?;
+    }
     ensure_clean_extraction_environment(&qualification)?;
     let charon = required_tool("AUTHS_CHARON_BIN", "charon")?;
     let aeneas = required_tool("AUTHS_AENEAS_BIN", "aeneas")?;
@@ -362,12 +369,20 @@ fn synchronize_source_closure(
     qualification: &Qualification,
     update: bool,
 ) -> Result<String, String> {
-    let (digest, files) = source_closure(root, &qualification.source_files)?;
-    let expected = json!({
-        "schema": SOURCE_CLOSURE_SCHEMA,
-        "digest": digest,
-        "files": files,
-    });
+    let translation_roots: Vec<_> = qualification
+        .translations
+        .iter()
+        .map(|translation| translation.crate_name.clone())
+        .collect();
+    let expected = auths_ci_plan::formal_source_closure_json(
+        root,
+        &qualification.source_files,
+        &translation_roots,
+    )?;
+    let digest = expected["digest"]
+        .as_str()
+        .ok_or("formal source closure omits digest")?
+        .to_owned();
     let path = root.join(&qualification.source_closure);
     if update {
         write_pretty_json(&path, &expected)?;
@@ -384,35 +399,6 @@ fn synchronize_source_closure(
         }
     }
     Ok(digest)
-}
-
-fn source_closure(root: &Path, paths: &[String]) -> Result<(String, Vec<Value>), String> {
-    let mut ordered = paths.to_vec();
-    ordered.sort();
-    ordered.dedup();
-    if ordered.len() != paths.len() {
-        return Err("production translation source paths must be unique".to_owned());
-    }
-    let mut aggregate = Sha256::new();
-    let mut entries = Vec::with_capacity(ordered.len());
-    for relative in ordered {
-        let path = root.join(&relative);
-        if !path.is_file() {
-            return Err(format!(
-                "production translation source is absent: {}",
-                path.display()
-            ));
-        }
-        let bytes = fs::read(&path)
-            .map_err(|error| format!("could not read {}: {error}", path.display()))?;
-        let sha256 = hex::encode(Sha256::digest(&bytes));
-        aggregate.update(relative.as_bytes());
-        aggregate.update([0]);
-        aggregate.update(&bytes);
-        aggregate.update([0xff]);
-        entries.push(json!({"path": relative, "sha256": sha256}));
-    }
-    Ok((hex::encode(aggregate.finalize()), entries))
 }
 
 fn synchronize_reviewed_bridges(

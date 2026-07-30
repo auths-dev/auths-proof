@@ -1,0 +1,52 @@
+{
+  "schema": "auths-proof-ci-cost-baseline/v1",
+  "captured_at": "2026-07-30",
+  "source": "https://github.com/auths-dev/auths-proof/issues/24",
+  "full_ci": {
+    "runner_minutes": 44.4,
+    "phases": {
+      "formal_translation": 27.8,
+      "authoritative": 8.37,
+      "compliance": 6.32,
+      "dependencies": 0.87,
+      "secrets": 1.05
+    }
+  },
+  "comprehensive_ci_runner_minutes": 66.4,
+  "release_candidate_runner_minutes": 90,
+  "unrelated_domain_overhead": {
+    "runner_minutes": 16,
+    "cause": "records-only changes started OpenTofu and PostgreSQL live workflows"
+  },
+  "scheduled_fuzz": {
+    "runner_minutes": 28,
+    "jobs": 7,
+    "confirmed_executions": 0,
+    "cause": "cargo-fuzz exited before fuzzing because --manifest-path was misplaced"
+  },
+  "projected_schedules": [
+    {
+      "workflow": "ci",
+      "name": "weekly comprehensive",
+      "runs_per_month": 4.35,
+      "minutes_per_run": 68
+    },
+    {
+      "workflow": "fuzz",
+      "name": "daily short campaign",
+      "runs_per_month": 30.4,
+      "minutes_per_run": 18
+    },
+    {
+      "workflow": "fuzz",
+      "name": "weekly campaign increment",
+      "runs_per_month": 4.35,
+      "minutes_per_run": 56
+    }
+  ],
+  "regression_policy": {
+    "mode": "warn",
+    "material_increase_percent": 25,
+    "blocking_after_observed_runs": 20
+  }
+}

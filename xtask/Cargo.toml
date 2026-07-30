@@ -23,6 +23,7 @@ auths-verifier = { workspace = true, features = ["std"] }
 auths-webauthn = { workspace = true, features = ["std"] }
 auths-apps-testkit.workspace = true
 auths-bench-model.workspace = true
+auths-ci-plan = { path = "ci-plan", version = "0.1.0" }
 auths-lab-matrix.workspace = true
 auths-opentofu.workspace = true
 auths-postgresql.workspace = true

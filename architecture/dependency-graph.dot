@@ -9,6 +9,7 @@ digraph auths_architecture {
   "auths-bench-native" [group="demos"];
   "auths-bench-wasm" [group="demos"];
   "auths-cache" [group="product"];
+  "auths-ci-plan" [group="tooling"];
   "auths-codec" [group="core"];
   "auths-composition" [group="core"];
   "auths-config" [group="product"];
@@ -466,6 +467,7 @@ digraph auths_architecture {
   "auths-webauthn" -> "auths-ports" [label="normal"];
   "xtask" -> "auths-apps-testkit" [label="normal"];
   "xtask" -> "auths-bench-model" [label="normal"];
+  "xtask" -> "auths-ci-plan" [label="normal"];
   "xtask" -> "auths-codec" [label="normal"];
   "xtask" -> "auths-did-keri" [label="normal"];
   "xtask" -> "auths-did-key" [label="normal"];

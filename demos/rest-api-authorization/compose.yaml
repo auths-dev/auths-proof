@@ -1,5 +1,6 @@
 services:
   records:
+    image: auths-records-demo:${AUTHS_DEMO_IMAGE_TAG:-local}
     build:
       context: ../..
       dockerfile: demos/rest-api-authorization/Dockerfile
