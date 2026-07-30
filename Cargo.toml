@@ -214,6 +214,7 @@ pyo3 = { version = "0.29.0", features = ["abi3-py39"] }
 proptest = "1.9.0"
 serde = { version = "1.0.228", default-features = false, features = ["alloc", "derive"] }
 serde_json = { version = "1.0.149", default-features = false, features = ["alloc", "preserve_order"] }
+postcard = { version = "1.1.3", default-features = false, features = ["alloc"] }
 sha2 = { version = "0.10.9", default-features = false }
 subtle = { version = "2.6.1", default-features = false }
 minicbor = { version = "2.3.0", default-features = false, features = ["alloc"] }

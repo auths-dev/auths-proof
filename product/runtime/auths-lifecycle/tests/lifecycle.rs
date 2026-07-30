@@ -12,7 +12,7 @@ use auths_lifecycle::{
     ProviderConditionDigest, ProviderContractId, ProviderRequestDigest, ProviderRetryClass,
     ReservationAlgebraId, ReservationSetV1, RevocationSnapshotV1, StoreError, StoreTransactionV1,
     StoredTransitionV1, TransitionCommandV1, TransitionContextV1, TransitionDisposition,
-    WorkflowId, apply_transition, execute_store_transaction,
+    WorkflowId, apply_transition, decode_record, encode_record, execute_store_transaction,
 };
 
 struct MemoryStore {
@@ -116,6 +116,7 @@ fn decision() -> DecisionInputV1 {
         execution_id: ExecutionId::parse("execution-1").unwrap(),
         domain_id: DomainId::parse("test").unwrap(),
         executor_audience: ExecutorAudienceId::parse("test://executor").unwrap(),
+        reservation_algebra_id: ReservationAlgebraId::parse("auths.test.none/1").unwrap(),
         commitments,
         outputs,
         reservations,
@@ -214,6 +215,25 @@ fn credentials_and_provider_calls_require_durable_ordered_stages() {
         call_authorization.provider_request_digest(),
         ProviderRequestDigest::new([21; 32])
     );
+    let canonical = encode_record(call_entry.record()).unwrap();
+    let decoded = decode_record(&canonical).unwrap();
+    assert_eq!(decoded, *call_entry.record());
+    assert_eq!(encode_record(&decoded).unwrap(), canonical);
+
+    let mut changed_receipt = canonical.clone();
+    let last = changed_receipt.last_mut().unwrap();
+    *last ^= 1;
+    assert!(decode_record(&changed_receipt).is_err());
+    assert!(decode_record(&canonical[..canonical.len() - 1]).is_err());
+    let mut unsupported = canonical.clone();
+    unsupported[0] = 2;
+    assert!(matches!(
+        decode_record(&unsupported),
+        Err(auths_lifecycle::CodecError::UnsupportedVersion)
+    ));
+    let mut trailing = canonical;
+    trailing.push(0);
+    assert!(decode_record(&trailing).is_err());
     assert!(
         execute_store_transaction(
             &store,

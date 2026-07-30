@@ -14,6 +14,11 @@ rust_symbol = "auths_lifecycle::kernel::transition_code"
 lean_artifact = "Auths.Product.Lifecycle"
 
 [[semantic_surfaces]]
+id = "auths.product.lifecycle-record/1"
+rust_symbol = "auths_lifecycle::encode_record"
+lean_artifact = "Auths.Product.LifecycleRecord"
+
+[[semantic_surfaces]]
 id = "auths.product.execution-authorization/1"
 rust_symbol = "auths_lifecycle::ExecutionAuthorizationV1"
 lean_artifact = "Auths.Product.Execution"
@@ -37,5 +42,5 @@ reservation_fixture = "product/runtime/auths-lifecycle/tests/lifecycle.rs"
 lifecycle_fixture = "product/runtime/auths-lifecycle/tests/lifecycle.rs"
 formal_namespace = "Auths.Product.Lifecycle"
 kani_harness = "product/runtime/auths-lifecycle/src/kernel.rs"
-store_conformance = "product/runtime/auths-lifecycle/tests/lifecycle.rs"
+store_conformance = "product/stores/auths-stores/src/lifecycle.rs"
 production_migrated = false

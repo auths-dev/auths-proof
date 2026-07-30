@@ -836,19 +836,16 @@ fn reserve_in(
     {
         return ReserveRefundResult::Unavailable;
     }
-    let Ok(reservation_id) = request.reservation_id() else {
-        return ReserveRefundResult::Unavailable;
-    };
     if let Some(existing) = records.get(&request.workflow_id) {
-        return if existing.reservation_id == reservation_id
-            && existing.action_digest == request.action_digest
-            && existing.policy_digest == request.policy_digest
-        {
+        return if is_exact_replay(existing, &request) {
             ReserveRefundResult::Replay(existing.clone())
         } else {
             ReserveRefundResult::Conflict(existing.clone())
         };
     }
+    let Ok(reservation_id) = request.reservation_id() else {
+        return ReserveRefundResult::Unavailable;
+    };
     for intent in &request.intents {
         let mut used = 0_u64;
         for existing in records.values().filter(|record| {
@@ -891,6 +888,31 @@ fn reserve_in(
         },
         record,
     }
+}
+
+fn is_exact_replay(existing: &RefundReservationRecord, request: &ReserveRefundRequest) -> bool {
+    existing.action_digest == request.action_digest
+        && existing.policy_digest == request.policy_digest
+        && existing.evaluator_semantic_id == request.evaluator_semantic_id
+        && existing.evaluator_semantic_version == request.evaluator_semantic_version
+        && existing.required_configuration_digest == request.required_configuration_digest
+        && existing.executed_configuration_digest == request.executed_configuration_digest
+        && existing.stripe_account_id == request.stripe_account_id
+        && existing.currency == request.currency
+        && existing.amount_minor == request.amount_minor
+        && existing.idempotency_key_digest == request.idempotency_key_digest
+        && existing.intents.len() == request.intents.len()
+        && existing
+            .intents
+            .iter()
+            .zip(&request.intents)
+            .all(|(left, right)| {
+                left.budget_id == right.budget_id
+                    && left.currency == right.currency
+                    && left.limit_minor == right.limit_minor
+                    && left.amount_minor == right.amount_minor
+                    && left.window.kind == right.window.kind
+            })
 }
 
 fn record_holds_capacity_in(
@@ -1143,6 +1165,60 @@ mod tests {
             .filter(|result| matches!(result, ReserveRefundResult::Reserved { .. }))
             .count();
         assert_eq!(reserved, 1);
+    }
+
+    #[test]
+    fn exact_replay_across_a_rolling_window_tick_is_not_a_conflict() {
+        let evidence = evidence(2_000, 0);
+        let exact = configuration(2_000);
+        let mut input = crate::test_support::bounded_policy_input(&evidence);
+        input.aggregate_budgets = vec![
+            crate::bounded::AggregateRefundBudget::new(
+                "support-rolling",
+                evidence.currency().clone(),
+                2_500,
+                crate::bounded::RefundBudgetWindow::Rolling {
+                    duration_seconds: 3_600,
+                },
+            )
+            .unwrap(),
+        ];
+        let policy = StripeBoundedRefundPolicyV1::new(input).unwrap();
+        let store = InMemoryRefundReservationStore::default();
+        let first = request_for_policy(
+            &store,
+            "bounded-rolling-replay-01",
+            1_000,
+            &evidence,
+            &exact,
+            &policy,
+        );
+        assert!(matches!(
+            store.reserve(first),
+            ReserveRefundResult::Reserved { .. }
+        ));
+
+        let mut replay = request_for_policy(
+            &store,
+            "bounded-rolling-replay-01",
+            1_000,
+            &evidence,
+            &exact,
+            &policy,
+        );
+        replay.now = replay.now.checked_add(1).unwrap();
+        let rolling = replay
+            .intents
+            .iter_mut()
+            .find(|intent| intent.window.kind == "rolling")
+            .unwrap();
+        rolling.window.starts_at = rolling.window.starts_at.checked_add(1).unwrap();
+        rolling.window.ends_at = rolling.window.ends_at.checked_add(1).unwrap();
+
+        assert!(matches!(
+            store.reserve(replay),
+            ReserveRefundResult::Replay(_)
+        ));
     }
 
     #[test]

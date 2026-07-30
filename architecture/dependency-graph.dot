@@ -425,6 +425,9 @@ digraph auths_architecture {
   "auths-signature" -> "auths-ports" [label="normal"];
   "auths-spiffe-x509" -> "auths-model" [label="normal"];
   "auths-spiffe-x509" -> "auths-ports" [label="normal"];
+  "auths-stores" -> "auths-bounded-policy" [label="normal"];
+  "auths-stores" -> "auths-lifecycle" [label="dev"];
+  "auths-stores" -> "auths-lifecycle" [label="normal"];
   "auths-stores" -> "auths-model" [label="normal"];
   "auths-stores" -> "auths-proof-exchange-model" [label="normal"];
   "auths-stores" -> "auths-receipts" [label="normal"];

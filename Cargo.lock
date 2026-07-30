@@ -621,8 +621,9 @@ name = "auths-lifecycle"
 version = "0.1.0"
 dependencies = [
  "auths-bounded-policy",
- "minicbor",
+ "postcard",
  "proptest",
+ "serde",
  "sha2 0.10.9",
 ]
 
@@ -1280,12 +1281,15 @@ dependencies = [
 name = "auths-stores"
 version = "0.1.0"
 dependencies = [
+ "auths-bounded-policy",
+ "auths-lifecycle",
  "auths-model",
  "auths-proof-exchange-model",
  "auths-receipts",
  "auths-runtime",
  "hex",
  "minicbor",
+ "sha2 0.10.9",
  "tempfile",
 ]
 

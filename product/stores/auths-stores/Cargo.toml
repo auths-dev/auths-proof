@@ -7,13 +7,19 @@ rust-version.workspace = true
 description = "Concrete replay-adjacent budget and canonical receipt stores for Auths applications"
 
 [dependencies]
+auths-bounded-policy.workspace = true
 auths-model.workspace = true
+auths-lifecycle.workspace = true
 auths-proof-exchange-model.workspace = true
 auths-receipts.workspace = true
 auths-runtime.workspace = true
 hex.workspace = true
 minicbor.workspace = true
+sha2.workspace = true
 tempfile.workspace = true
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+auths-lifecycle = { workspace = true, features = ["test-support"] }

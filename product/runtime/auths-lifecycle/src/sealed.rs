@@ -15,6 +15,8 @@ pub enum StoreError {
     Unavailable,
     /// Compare-and-swap revision failed.
     Conflict,
+    /// Pure lifecycle semantics rejected the command without mutation.
+    Rejected(crate::LifecycleFailure),
     /// Persisted bytes or indexes were invalid.
     Corrupt,
     /// A hard storage or record limit was exceeded.

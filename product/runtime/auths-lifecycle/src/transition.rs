@@ -519,6 +519,46 @@ fn make_receipt(
     let previous = record.receipts.last().map(|receipt| receipt.receipt_digest);
     let required = record.input.commitments.required_configuration().clone();
     let executed = record.input.commitments.executed_configuration().clone();
+    let receipt_digest = compute_receipt_digest(
+        record,
+        revision,
+        previous,
+        from,
+        to,
+        trigger,
+        domain_receipt,
+        verifier_time,
+        &required,
+        &executed,
+    );
+    LifecycleReceiptEnvelopeV1 {
+        revision,
+        previous,
+        from,
+        to,
+        trigger_digest: trigger,
+        verifier_time,
+        required_configuration: required,
+        executed_configuration: executed,
+        implementation_id: record.input.implementation_id.clone(),
+        domain_receipt_digest: domain_receipt,
+        receipt_digest,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn compute_receipt_digest(
+    record: &LifecycleRecordV1,
+    revision: u64,
+    previous: Option<LifecycleReceiptDigest>,
+    from: Option<LifecycleState>,
+    to: LifecycleState,
+    trigger: CommitmentDigest,
+    domain_receipt: Option<DomainReceiptDigest>,
+    verifier_time: VerifierTime,
+    required: &auths_bounded_policy::ConfigurationCommitmentV1,
+    executed: &auths_bounded_policy::ConfigurationCommitmentV1,
+) -> LifecycleReceiptDigest {
     let mut hasher = Sha256::new();
     hasher.update(b"AUTHS-LIFECYCLE-RECEIPT\x00\x01");
     hasher.update(record.input.lifecycle_id.as_str().as_bytes());
@@ -527,8 +567,8 @@ fn make_receipt(
     hasher.update([from.map_or(u8::MAX, state_code), state_code(to)]);
     hasher.update(trigger.as_bytes());
     hasher.update(verifier_time.unix_seconds().to_be_bytes());
-    hash_configuration(&mut hasher, &required);
-    hash_configuration(&mut hasher, &executed);
+    hash_configuration(&mut hasher, required);
+    hash_configuration(&mut hasher, executed);
     hasher.update(record.input.implementation_id.as_str().as_bytes());
     if let Some(previous) = previous {
         hasher.update([1]);
@@ -542,19 +582,171 @@ fn make_receipt(
     } else {
         hasher.update([0]);
     }
-    LifecycleReceiptEnvelopeV1 {
-        revision,
-        previous,
-        from,
-        to,
-        trigger_digest: trigger,
-        verifier_time,
-        required_configuration: required,
-        executed_configuration: executed,
-        implementation_id: record.input.implementation_id.clone(),
-        domain_receipt_digest: domain_receipt,
-        receipt_digest: LifecycleReceiptDigest::new(hasher.finalize().into()),
+    LifecycleReceiptDigest::new(hasher.finalize().into())
+}
+
+pub(crate) fn validate_record_integrity(record: &LifecycleRecordV1) -> bool {
+    let Ok(revision) = usize::try_from(record.revision) else {
+        return false;
+    };
+    if revision == 0
+        || record.events.len() != revision
+        || record.receipts.len() != revision
+        || record.created_at > record.updated_at
+        || record.receipts.last().map(|receipt| receipt.to) != Some(record.state)
+        || !record_shape_is_valid(record)
+    {
+        return false;
     }
+    let mut previous_digest = None;
+    let mut previous_state = None;
+    for (index, (event, receipt)) in record.events.iter().zip(&record.receipts).enumerate() {
+        let expected_revision = u64::try_from(index)
+            .ok()
+            .and_then(|value| value.checked_add(1));
+        if expected_revision != Some(event.revision)
+            || expected_revision != Some(receipt.revision)
+            || event.trigger_digest != receipt.trigger_digest
+            || receipt.previous != previous_digest
+            || receipt.from != previous_state
+            || receipt.required_configuration != *record.input.commitments.required_configuration()
+            || receipt.executed_configuration != *record.input.commitments.executed_configuration()
+            || receipt.implementation_id != record.input.implementation_id
+            || !valid_trace_event(receipt.from, receipt.to, event.kind)
+            || receipt.receipt_digest
+                != compute_receipt_digest(
+                    record,
+                    receipt.revision,
+                    receipt.previous,
+                    receipt.from,
+                    receipt.to,
+                    receipt.trigger_digest,
+                    receipt.domain_receipt_digest,
+                    receipt.verifier_time,
+                    &receipt.required_configuration,
+                    &receipt.executed_configuration,
+                )
+        {
+            return false;
+        }
+        previous_digest = Some(receipt.receipt_digest);
+        previous_state = Some(receipt.to);
+    }
+    record
+        .attempts
+        .iter()
+        .enumerate()
+        .all(|(index, attempt)| usize::from(attempt.ordinal.get()) == index + 1)
+}
+
+fn record_shape_is_valid(record: &LifecycleRecordV1) -> bool {
+    let planned = record.input.reservations.entries().len();
+    let reserved = record.reservation_entries.len();
+    let intent_present = record.execution_intent.is_some();
+    let attempts_present = !record.attempts.is_empty();
+    match record.state {
+        LifecycleState::DecisionRecorded => {
+            reserved == 0 && !intent_present && !record.credential_authorized && !attempts_present
+        }
+        LifecycleState::Reserved => {
+            reserved == planned
+                && !intent_present
+                && !record.credential_authorized
+                && !attempts_present
+                && reservations_are_live(record)
+        }
+        LifecycleState::ExecutionIntentRecorded => {
+            reserved == planned
+                && intent_present
+                && !attempts_present
+                && reservations_are_live(record)
+        }
+        LifecycleState::Executing | LifecycleState::OutcomeUnknown => {
+            reserved == planned
+                && intent_present
+                && attempts_present
+                && !record.credential_authorized
+                && reservations_are_live(record)
+        }
+        LifecycleState::Committed | LifecycleState::ReconciledCommitted => {
+            reserved == planned
+                && intent_present
+                && attempts_present
+                && record
+                    .reservation_entries
+                    .iter()
+                    .all(|entry| entry.is_committed() && !entry.is_released())
+        }
+        LifecycleState::Released | LifecycleState::ReconciledReleased => {
+            reserved == planned
+                && record
+                    .reservation_entries
+                    .iter()
+                    .all(|entry| entry.is_released() && !entry.is_committed())
+        }
+    }
+}
+
+fn reservations_are_live(record: &LifecycleRecordV1) -> bool {
+    record
+        .reservation_entries
+        .iter()
+        .all(|entry| !entry.is_committed() && !entry.is_released())
+}
+
+const fn valid_trace_event(
+    from: Option<LifecycleState>,
+    to: LifecycleState,
+    kind: LifecycleEventKind,
+) -> bool {
+    matches!(
+        (from, to, kind),
+        (
+            None,
+            LifecycleState::DecisionRecorded,
+            LifecycleEventKind::DecisionPersisted
+        ) | (
+            Some(LifecycleState::DecisionRecorded),
+            LifecycleState::Reserved,
+            LifecycleEventKind::ReservationPersisted
+        ) | (
+            Some(LifecycleState::Reserved),
+            LifecycleState::ExecutionIntentRecorded,
+            LifecycleEventKind::ExecutionIntentPersisted
+        ) | (
+            Some(LifecycleState::ExecutionIntentRecorded),
+            LifecycleState::ExecutionIntentRecorded,
+            LifecycleEventKind::CredentialAuthorized
+        ) | (
+            Some(LifecycleState::ExecutionIntentRecorded),
+            LifecycleState::Executing,
+            LifecycleEventKind::AttemptPersisted
+        ) | (
+            Some(LifecycleState::Executing),
+            LifecycleState::Executing,
+            LifecycleEventKind::ProviderCallEntered
+        ) | (
+            Some(LifecycleState::Executing),
+            LifecycleState::Committed | LifecycleState::Released,
+            LifecycleEventKind::ProviderResultPersisted
+        ) | (
+            Some(LifecycleState::Reserved | LifecycleState::ExecutionIntentRecorded),
+            LifecycleState::Released,
+            LifecycleEventKind::ProviderResultPersisted
+        ) | (
+            Some(LifecycleState::Executing),
+            LifecycleState::OutcomeUnknown,
+            LifecycleEventKind::OutcomeUnknownPersisted
+        ) | (
+            Some(LifecycleState::OutcomeUnknown),
+            LifecycleState::OutcomeUnknown,
+            LifecycleEventKind::ReconciliationObserved
+        ) | (
+            Some(LifecycleState::OutcomeUnknown),
+            LifecycleState::ReconciledCommitted | LifecycleState::ReconciledReleased,
+            LifecycleEventKind::ReconciliationPersisted
+        )
+    )
 }
 
 fn hash_configuration(
