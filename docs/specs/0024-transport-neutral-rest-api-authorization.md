@@ -6,6 +6,8 @@ Exact action profiles: `auths.demo.records.create/1`,
 Policy family: `auths.demo.bounded-record-api-policy/1`  
 Product package: `product/integrations/auths-records-api`  
 Demo: `demos/rest-api-authorization`  
+Required delivery adapters: HTTPS, Iroh
+
 Tracking issue: [#22](https://github.com/auths-dev/auths-proof/issues/22)
 
 ## 1. Decision
@@ -13,16 +15,19 @@ Tracking issue: [#22](https://github.com/auths-dev/auths-proof/issues/22)
 Build a concrete records API vertical demonstrating that an untrusted agent or
 client can make authenticated `POST` and `GET` requests without receiving a
 reusable API key, OAuth bearer token, session cookie, database credential, or
-other downstream secret.
+other downstream secret. The same logical request must be accepted through
+either a public HTTPS endpoint or a real Iroh endpoint.
 
 The caller presents an Auths proof plus a request presentation. The protected
 API independently verifies that evidence against a typed canonical product
 action, trusted context, required and executed configuration, and durable
 bounded state before reading protected data or performing a mutation.
 
-HTTP is one delivery and enforcement adapter. It does not define the authority
-algebra. The semantic action is `CreateRecord` or `ReadRecord`, not an
-arbitrary HTTP request.
+HTTP and Iroh are delivery and enforcement adapters. Neither defines the
+authority algebra. Both normalize into the same bounded records request
+envelope and the same semantic `CreateRecord` or `ReadRecord` action. The
+authority is not an arbitrary HTTP request, Iroh message, URL, or node
+identity.
 
 ## 2. Product claim
 
@@ -60,10 +65,14 @@ The vertical must:
 9. treat data disclosure as a bounded effect;
 10. distinguish authorization, execution, and observation receipts;
 11. expose required and executed verifier configuration;
-12. prove that HTTPS carries authority evidence but cannot create or upgrade
-    authority; and
-13. provide a complete Docker-local and public browser demonstration with
-    copyable `curl` requests.
+12. accept the same proof and canonical action over HTTPS and Iroh;
+13. prove that neither authenticated HTTPS nor an authenticated Iroh
+    connection can create or upgrade authority;
+14. share claim, replay, aggregate, execution, and reconciliation state across
+    both delivery paths;
+15. execute cross-transport replay and concurrency experiments; and
+16. provide a complete Docker-local and public browser demonstration with
+    copyable `curl` and native Iroh commands.
 
 ## 4. Non-goals
 
@@ -75,11 +84,15 @@ V1 does not:
 - accept a raw policy language or OpenAPI document from the caller;
 - turn reverse-proxy identity or successful TLS into authorization;
 - expose a generic API gateway or universal HTTP middleware;
+- expose a generic multi-transport execution framework;
 - standardize a permanent Auths HTTP header format;
+- make an Iroh node ID, connection, ticket, relay, or encrypted channel
+  sufficient authorization;
 - allow unrestricted record search, listing, filtering, or pagination;
 - support arbitrary JSON record values;
 - expose another visitor's records;
-- place HTTP routing, mutable replay state, or product policy in `core/`;
+- place HTTP routing, Iroh addressing, mutable replay state, or product policy
+  in `core/`;
 - treat a successful HTTP response as proof that an external effect was
   observed; or
 - infer that every REST integration has the same evidence, state, or receipt
@@ -91,12 +104,19 @@ prematurely.
 
 ## 5. Architectural boundary
 
-The required path is:
+The required paths converge before semantic verification:
 
 ```text
 untrusted HTTP bytes
-  -> bounded route-specific decoder
-  -> typed records-domain action
+  -> bounded route-specific HTTP adapter ----+
+                                              |
+untrusted Iroh message                        |
+  -> bounded records-protocol Iroh adapter ---+
+                                              v
+                                  RecordsRequestEnvelopeV1
+                                              |
+                                              v
+                                 typed records-domain action
   -> canonical action bytes and digest
   -> Auths proof and presentation verification
   -> records policy evaluation
@@ -122,6 +142,7 @@ GenericHttpAction {
 The records package owns:
 
 - record identifiers and values;
+- the transport-neutral records request envelope and operation identities;
 - create and read actions;
 - exact and bounded records policy;
 - protected records evidence;
@@ -132,13 +153,15 @@ The records package owns:
 - receipt meanings and stable codes; and
 - route-to-action mapping for this API.
 
-The demo owns HTTP serving, browser sessions, public experiment selection,
-deployment, and presentation.
+The demo owns HTTP and Iroh serving, browser sessions, the native Iroh client,
+public experiment selection, deployment, and presentation.
 
 Core continues to own portable proof, canonical action, attenuation,
 composition, and three-valued verification semantics. Exchange packages may
-carry opaque proof bytes. Neither HTTP nor the records package may redefine
-core verification.
+carry opaque proof bytes. The implementation must use the repository
+`auths-proof-exchange-iroh` adapter rather than recreating Iroh framing or
+identity semantics inside the records package. Neither transport nor the
+records package may redefine core verification.
 
 ## 6. Trust and credential boundaries
 
@@ -157,12 +180,13 @@ core verification.
 ### Trusted context
 
 - issuer trust roots;
-- configured API audience and external origin;
+- configured semantic executor audience;
+- trusted mappings from HTTPS origin and Iroh endpoint to that executor;
 - executed profile and canonicalization versions;
 - server time;
 - server-issued challenge;
 - protected namespace ownership;
-- route identity after trusted routing;
+- operation identity after trusted adapter decoding;
 - records-store identity and schema;
 - durable claim, replay, and aggregate state; and
 - receipt-store identity.
@@ -170,7 +194,8 @@ core verification.
 ### Credentials
 
 The public client receives no API key, OAuth access token, session cookie,
-database password, or provider credential.
+database password, or provider credential. An Iroh ticket or node address is
+delivery information, not a bearer authorization credential.
 
 If the records store requires a credential, only the native executor may
 acquire it, and only after proof verification, configuration equality, a
@@ -204,8 +229,8 @@ The presentation input commits to:
 presentation_version
 proof_digest
 presenter_principal
-api_audience
-application_route_id
+executor_audience
+operation_id
 canonical_action_digest
 challenge
 created_at
@@ -214,20 +239,60 @@ presentation_nonce
 ```
 
 HTTP method, route, query, and body are not independently granted authority.
-The trusted adapter derives the application route and typed action, then
-requires their commitments to match the presentation.
+An Iroh protocol name, node ID, connection identity, and message framing are
+also not independently granted authority. Each trusted adapter derives one of
+the transport-neutral operation identities:
+
+```text
+records.create.v1
+records.read.v1
+```
+
+and the same typed action. The adapter then requires the operation and action
+commitments to match the presentation.
 
 An HTTP adapter may carry the presentation through versioned Auths headers or
 HTTP Message Signatures. The semantic presentation above remains independent
-of that carrier. V1 does not declare a permanent Internet-wide header
-standard.
+of that carrier. The Iroh adapter carries the same semantic presentation in a
+bounded versioned message. V1 does not declare a permanent Internet-wide
+header standard.
 
 For copyable `curl`, the browser generates a complete, short-lived,
 single-action presentation. Copying the command does not expose the
 presenter's private key or a reusable general capability. The corresponding
 action is still protected by claim/replay state.
 
-## 8. Exact create action
+## 8. Transport-neutral request envelope
+
+Both delivery adapters produce:
+
+```text
+RecordsRequestEnvelopeV1 {
+  envelope_version
+  operation_id
+  canonical_action
+  proof
+  presentation
+}
+```
+
+The envelope contains no HTTP URL, arbitrary header map, Iroh ticket, relay
+URL, node-selection instruction, credential, or generic provider parameters.
+Transport-specific addressing and framing are consumed outside this semantic
+boundary.
+
+The HTTPS adapter derives the operation and action from its trusted route and
+bounded request decoder before constructing the envelope. The Iroh adapter
+decodes the closed records protocol message and constructs the same envelope.
+Both must produce byte-identical canonical action bytes and the same envelope
+fields for the same logical request.
+
+The envelope is not a generic product executor API. It is owned by the records
+vertical and can carry only the two profiles defined here. A future shared
+submission carrier requires the abstraction evidence and review process in the
+profile and domain boundary plan.
+
+## 9. Exact create action
 
 `CreateRecordV1` commits to:
 
@@ -241,7 +306,7 @@ expected_absent = true
 policy_digest
 required_evaluator
 required_configuration_digest
-api_audience
+executor_audience
 expires_at
 nonce
 ```
@@ -255,7 +320,7 @@ The verified command is constructed only from canonical action bytes. The
 executor never writes an unverified body that merely resembles the verified
 action.
 
-## 9. Exact read action
+## 10. Exact read action
 
 `ReadRecordV1` commits to:
 
@@ -269,7 +334,7 @@ expected_record_version
 policy_digest
 required_evaluator
 required_configuration_digest
-api_audience
+executor_audience
 expires_at
 nonce
 ```
@@ -291,7 +356,7 @@ response path before authorization. After authorization, the executor reads
 the exact record and constructs only the allowed projection. If canonical
 response bytes exceed `maximum_response_bytes`, nothing is disclosed.
 
-## 10. Bounded records policy
+## 11. Bounded records policy
 
 `BoundedRecordApiPolicyV1` contains:
 
@@ -315,7 +380,7 @@ expires_at
 maximum_action_lifetime_seconds
 maximum_presentation_lifetime_seconds
 maximum_evidence_age_seconds
-api_audience
+executor_audience
 ```
 
 The exact mode uses a policy narrowed to one operation, record, and value
@@ -335,7 +400,7 @@ query or discovery authority.
 Policy attenuation may remove operations, records, fields, time, bytes, and
 budget. It cannot add scope or replenish consumed capacity.
 
-## 11. Evidence and evaluator configuration
+## 12. Evidence and evaluator configuration
 
 Protected evaluation inputs include:
 
@@ -345,7 +410,8 @@ Protected evaluation inputs include:
 - active reservations and unknown outcomes;
 - exact-record existence or version metadata where required;
 - server challenge identity and lifetime;
-- API audience;
+- semantic executor audience;
+- HTTPS and Iroh adapter identities mapped to that executor;
 - records-store and receipt-store configuration commitments;
 - observation time; and
 - evidence source and freshness.
@@ -360,8 +426,11 @@ RecordsApiVerifierConfigurationV1 {
   evaluator_semantic_id_and_version
   canonicalization_version
   presentation_version
-  configured_api_audience
-  trusted_route_ids
+  configured_executor_audience
+  trusted_operation_ids
+  trusted_https_origin_mappings
+  trusted_iroh_endpoint_mappings
+  iroh_protocol_version
   identifier_grammar_version
   value_encoding
   maximum_http_header_bytes
@@ -390,7 +459,7 @@ A mandatory regression test requires `maximum_response_bytes = 4096` and runs
 an otherwise identical executor configured with `4097`. Verification must
 deny before accessing the protected record.
 
-## 12. Decision semantics
+## 13. Decision semantics
 
 The pure evaluator accepts explicit policy, action, protected metadata,
 aggregate state, required/executed configuration, presenter context, audience,
@@ -424,7 +493,7 @@ evidence is `indeterminate`; it is never converted into authorization.
 Transport authentication, successful TLS, a valid presenter signature, a
 recognized issuer, or an existing session alone is insufficient.
 
-## 13. Create execution protocol
+## 14. Create execution protocol
 
 After bounded decoding:
 
@@ -460,7 +529,7 @@ HTTP response loss does not erase the durable result. Repeating the same exact
 request returns replay and the original execution commitment without a second
 insert.
 
-## 14. Read execution protocol
+## 15. Read execution protocol
 
 After proof verification, configuration equality, policy evaluation, and any
 configured read reservation:
@@ -485,7 +554,7 @@ unit is fixed by the policy version and visible in the receipt.
 `GET` responses use `Cache-Control: no-store` and must not be placed in shared
 proxy or browser caches.
 
-## 15. HTTP mapping and canonicalization
+## 16. HTTP mapping and canonicalization
 
 V1 protected routes are:
 
@@ -494,17 +563,18 @@ POST /v1/records
 GET  /v1/records/{record_id}
 ```
 
-The trusted router supplies closed route identifiers:
+The trusted router maps the routes to closed transport-neutral operation
+identities:
 
 ```text
 records.create.v1
 records.read.v1
 ```
 
-The application route identifier, not a raw externally supplied URL, enters
-the presentation. The configured audience supplies scheme, authority, and
-deployment identity; untrusted `Host`, forwarding, or proxy headers cannot
-select it.
+The operation identity, not a raw externally supplied URL, enters the
+presentation. Trusted configuration maps the public HTTPS origin to the
+semantic executor audience. Untrusted `Host`, forwarding, or proxy headers
+cannot select either the audience or operation.
 
 The adapter must:
 
@@ -520,7 +590,7 @@ The adapter must:
   Auths header duplication;
 - derive the canonical action after trusted routing and typed decoding;
 - compare the derived action digest with the presentation commitment; and
-- ensure proxy and direct-server paths produce the same route identity and
+- ensure proxy and direct-server paths produce the same operation identity and
   action.
 
 Whitespace or member-order differences that decode to the same permitted typed
@@ -528,40 +598,116 @@ action have the same canonical action. A semantic value change produces a
 different action digest. The UI must describe this accurately rather than
 claiming every raw HTTP byte is independently authorized.
 
-## 16. Transport independence
+## 17. Required Iroh delivery
 
-The REST service proves one HTTP adapter; it does not make HTTP part of core
-authority.
+The native service exposes the closed records protocol through a real public
+Iroh endpoint using `auths-proof-exchange-iroh`. The protocol accepts only
+`RecordsRequestEnvelopeV1` messages for the two operation identities defined
+by this specification.
 
-Conformance tests must carry the same canonical action and proof through at
-least:
+The Iroh adapter:
+
+- enforces framing, message, proof, presentation, action, and work limits
+  before semantic processing;
+- rejects unsupported protocol and envelope versions;
+- maps its configured node and protocol endpoint to the same semantic executor
+  audience as HTTPS;
+- records peer and local node commitments as delivery evidence;
+- never treats a valid Iroh connection or node identity as authorization;
+- passes the normalized envelope to the same verifier, evaluator, claim store,
+  executor, and receipt store used by HTTPS; and
+- returns a bounded result envelope containing the canonical decision,
+  execution reference, and receipt reference.
+
+The public demo includes a native CLI or equivalent packaged client that sends
+the exact request directly to the Iroh endpoint. The CLI receives a proof,
+presentation, and action envelope; it does not receive an API key, issuer
+private key, database credential, arbitrary node-selection policy, or generic
+remote command.
+
+A browser button may ask a native sender service to exercise the Iroh path for
+accessibility, but the implementation and receipts must prove that a real Iroh
+connection reached the verifier. Relabeling an HTTP request as “Iroh” does not
+satisfy this specification.
+
+## 18. Transport independence and parity
+
+Conformance tests must carry the same canonical action and Auths proof through:
 
 - an in-memory exchange;
-- the repository file exchange; and
-- the HTTPS demo path.
+- the repository file exchange;
+- the public HTTPS path; and
+- the public Iroh path.
 
-After transport framing is removed, all three paths must produce identical
-canonical action digests and verifier results for the same trusted context.
-Mutation of proof bytes must deny identically. Authenticated or configured
-HTTPS transport must not upgrade an invalid proof.
+After transport framing is removed, all four paths must produce identical
+canonical action bytes, action digests, proof digests, semantic executor
+audiences, verifier results, policy results, and stable codes for the same
+trusted semantic context.
 
-The receipt records the delivery adapter as operational evidence, separately
-from the authority decision. Product policy may require trusted channel facts
-as explicit context, but those facts alone never authorize the action.
+The exact same proof and action may use a fresh transport presentation when
+challenge or channel binding requires it. The presentation must still resolve
+to the same presenter, operation, action digest, and executor audience.
+
+Claim, replay, aggregate, execution-ledger, and reconciliation state is shared
+across transports. Transport selection cannot create a new authorization or
+idempotency namespace.
+
+Required cross-transport behavior includes:
+
+```text
+execute over HTTPS -> replay over Iroh  -> one effect
+execute over Iroh  -> replay over HTTPS -> one effect
+race HTTPS and Iroh for final capacity  -> one reservation and one effect
+lose HTTPS response after commit        -> reconcile through shared ledger
+lose Iroh acknowledgement after commit  -> reconcile through shared ledger
+```
+
+Mutation of proof or action bytes must deny identically. Authenticated HTTPS
+and authenticated Iroh transport must not upgrade an invalid proof.
+
+The receipt records delivery separately from authority:
+
+```text
+DeliveryReceiptV1 {
+  transport = https | iroh
+  endpoint_commitment
+  peer_or_origin_commitment
+  received_at
+  delivery_status
+  envelope_digest
+}
+
+DecisionReceiptV1 {
+  executor_audience
+  operation_id
+  proof_digest
+  action_digest
+  policy_digest
+  configuration
+  verdict
+  stable_code
+}
+```
+
+For equivalent fresh state and trusted semantic context, only the delivery
+receipt changes when transport changes. Product policy may require trusted
+channel facts as explicit context, but those facts alone never authorize the
+action. Replay and later lifecycle receipts may naturally differ because the
+first transport already changed durable state.
 
 The public UI explains:
 
-> HTTPS carried the proof. The API authorized the typed action by verifying
-> the proof itself.
+> HTTPS or Iroh carried the same authority evidence. The executor authorized
+> the typed action by verifying the proof itself.
 
-An additional public Iroh, queue, or file-relay control is deferred until it
-can exercise a real exchange path rather than simulate one.
-
-## 17. Stable codes
+## 19. Stable codes
 
 - `malformed-http-request`
+- `malformed-iroh-message`
 - `unsupported-method`
 - `unsupported-media-type`
+- `unsupported-iroh-protocol`
+- `unsupported-transport-envelope`
 - `request-limit-exceeded`
 - `malformed-create-action`
 - `malformed-read-action`
@@ -572,8 +718,8 @@ can exercise a real exchange path rather than simulate one.
 - `presentation-expired`
 - `challenge-invalid`
 - `challenge-replayed`
-- `api-audience-mismatch`
-- `route-action-mismatch`
+- `executor-audience-mismatch`
+- `operation-action-mismatch`
 - `action-body-mismatch`
 - `verifier-configuration-mismatch`
 - `policy-invalid`
@@ -593,10 +739,21 @@ can exercise a real exchange path rather than simulate one.
 - `execution-outcome-unknown`
 - `reconciliation-required`
 
-Codes remain profile and stage specific. HTTP status mapping is an adapter
-concern and must not erase the canonical three-valued decision or stable code.
+Codes remain profile and stage specific. Malformed framing that never produces
+a bounded semantic envelope is a delivery result, not an authorization
+decision. HTTP status and Iroh result-envelope mappings are adapter concerns
+and must not erase a canonical three-valued decision or stable code after the
+semantic boundary is reached.
 
-## 18. Receipts
+## 20. Receipts
+
+### Delivery receipt
+
+Contains transport kind, protocol or HTTP adapter version, endpoint and peer
+or origin commitments, envelope digest, receipt time, and delivery outcome. It
+does not claim authorization and does not contain raw proof, presentation,
+ticket, IP address, or node identity unless a non-public deployment explicitly
+requires those values.
 
 ### Decision receipt
 
@@ -621,11 +778,11 @@ Contains a fresh exact record or ledger observation, reconciliation source,
 previous receipt digest, observation time, and whether the observed state
 matches the authorized effect.
 
-Authorization, attempted execution, HTTP response delivery, and observed
-effect remain separate facts. A `200` or `201` status does not rewrite the
-authorization receipt.
+Delivery, authorization, attempted execution, HTTP response or Iroh
+acknowledgement, and observed effect remain separate facts. A `200`, `201`, or
+successful Iroh result envelope does not rewrite the authorization receipt.
 
-## 19. Demo API
+## 21. Demo API
 
 Control-plane routes are:
 
@@ -654,7 +811,19 @@ downstream URL, or server-selected idempotency identity from the caller.
 Session identifiers are opaque routing handles, not authorization. Possessing
 one cannot read or mutate records.
 
-## 20. End-to-end demonstration
+The public Iroh service advertises one configured endpoint and records protocol
+version:
+
+```text
+protocol = "auths.records-api/1"
+operations = records.create.v1 | records.read.v1
+```
+
+It accepts the same semantic envelope as the HTTPS adapter and returns bounded
+canonical result and receipt references. It does not expose the HTTP
+control-plane routes through a generic remote-call message.
+
+## 22. End-to-end demonstration
 
 ### Workbench
 
@@ -663,9 +832,9 @@ live API result:
 
 ```text
 +------------------------------+------------------------------+
-| Granted authority            | Proposed REST call           |
-| exact or bounded             | method, route, typed body     |
-| namespace, fields, limits    | copyable curl, no API key     |
+| Granted authority            | Proposed records action      |
+| exact or bounded             | method/operation, typed body  |
+| namespace, fields, limits    | HTTPS or Iroh, no API key     |
 +------------------------------+------------------------------+
 | proof | configuration | claim | protected access | observed |
 +-------------------------------------------------------------+
@@ -680,7 +849,8 @@ The page visibly reports:
 - `reusable_api_key_present: false`;
 - proof and presenter status;
 - canonical product action;
-- delivery adapter;
+- semantic executor audience;
+- delivery adapter and separate delivery evidence;
 - required/executed configuration equality;
 - current verdict and stable code;
 - whether protected storage was read or mutated;
@@ -695,27 +865,35 @@ Copy explains exactly what occurred. It does not say “no authentication” or
 
 Required experiments are:
 
-1. exact valid create;
-2. create body value changed;
-3. record ID changed;
-4. method or route changed;
-5. wrong audience;
-6. expired presentation;
-7. required/executed configuration mismatch;
-8. exact create replay;
-9. bounded create at zero, exact limit, and limit plus one;
-10. concurrent requests for the final create unit;
-11. exact allowed read;
-12. another namespace or record requested;
-13. additional field requested;
-14. response limit reduced below the canonical response;
-15. exact read replay or bounded disclosure exhaustion;
-16. invalid proof over the valid HTTPS path; and
-17. injected lost create response followed by reconciliation.
+1. exact valid create over HTTPS;
+2. the same exact create delivered first over Iroh;
+3. execute over HTTPS and replay over Iroh;
+4. execute over Iroh and replay over HTTPS;
+5. race HTTPS and Iroh for the final bounded unit;
+6. exact valid read over both transports;
+7. lose an HTTPS response after commit and reconcile;
+8. lose an Iroh acknowledgement after commit and reconcile;
+9. invalid proof over authenticated HTTPS and Iroh paths;
+10. authenticated transport with no valid proof;
+11. create body value changed;
+12. record ID changed;
+13. HTTP method or route, or Iroh operation, changed;
+14. wrong executor audience;
+15. expired presentation;
+16. required/executed configuration mismatch;
+17. exact create replay on the same transport;
+18. bounded create at zero, exact limit, and limit plus one;
+19. concurrent requests for the final create unit;
+20. exact allowed read;
+21. another namespace or record requested;
+22. additional field requested;
+23. response limit reduced below the canonical response; and
+24. exact read replay or bounded disclosure exhaustion.
 
-Selecting an experiment immediately updates the visible authority, action, and
-generated `curl`. Executing it calls the real native backend. Denied paths
-prove that protected storage was not accessed.
+Selecting an experiment immediately updates the visible authority, action,
+delivery adapter, generated `curl`, and native Iroh command. Executing it calls
+the real native backend through the selected adapter. Denied paths prove that
+protected storage was not accessed.
 
 ### Copyable curl
 
@@ -734,7 +912,23 @@ The command contains no API key, OAuth token, session cookie, presenter private
 key, database credential, or reusable unrestricted capability. The proof and
 presentation are redacted from ordinary logs and expire promptly.
 
-## 21. Frontend and receipt interface
+### Native Iroh command
+
+The same experiment provides a command conceptually equivalent to:
+
+```text
+auths-records-demo send \
+  --transport iroh \
+  --endpoint <public-iroh-endpoint> \
+  --envelope <short-lived-envelope-file>
+```
+
+The command must open a real Iroh connection using the repository exchange
+adapter. Its result displays the same canonical action digest, executor
+audience, verdict, stable code, execution reference, and semantic receipt as
+HTTPS, plus separate Iroh delivery evidence.
+
+## 23. Frontend and receipt interface
 
 The frontend is a required implementation surface. A backend-only API,
 Swagger page, static mockup, or `file://` page does not satisfy this
@@ -745,6 +939,9 @@ It must:
 - use the `auths-proof-site` design language and plain factual copy;
 - keep the selected experiment and current result adjacent;
 - make clickable controls visibly interactive;
+- expose a clear `HTTPS` / `Iroh` delivery selector;
+- keep proof, action, audience, and semantic result visibly stable when only
+  the transport changes;
 - distinguish loading, unavailable, denied, indeterminate, eligible, claimed,
   executed, disclosed, observed, replay, and unknown outcomes;
 - render the complete canonical receipt JSON inline from the receipt API;
@@ -756,36 +953,42 @@ It must:
   several screens of scrolling.
 
 Browser tests must start from the rendered public page and exercise exact
-create, material denial, replay, bounded exhaustion, exact read, disclosure
-denial, lost response/reconciliation, inline receipt JSON, the dedicated
-receipt page, and a copyable command through the same routes used in
-deployment.
+create over HTTPS and Iroh, material denial over both, cross-transport replay,
+cross-transport final-capacity concurrency, bounded exhaustion, exact read,
+disclosure denial, lost response or acknowledgement reconciliation, inline
+receipt JSON, the dedicated receipt page, and both copyable commands through
+the real deployed adapters.
 
-## 22. Local and public deployment
+## 24. Local and public deployment
 
 Provide:
 
 - Docker-local operation through a documented HTTP `localhost` URL;
+- Docker-local Iroh operation through a documented native endpoint;
 - a public frontend deployment;
-- a public native API deployment;
+- a public native HTTPS API deployment;
+- a public native Iroh endpoint using the repository exchange adapter and a
+  reachable relay or direct-connect configuration;
 - durable isolated demo records, claims, budgets, and receipts;
 - automatic expiry and bounded retention for public sessions;
-- explicit CORS and trusted-origin configuration;
+- explicit CORS, trusted-origin, Iroh protocol, endpoint, and executor-audience
+  mappings;
 - TLS at the public boundary;
 - health and readiness that do not mutate or disclose protected records;
 - proof and secret header redaction in platform, proxy, and application logs;
 - rate and resource limits appropriate to an adversarial public demo; and
 - an incident shutdown and data-reset procedure.
 
-The deployment must test the actual proxy chain used publicly. Direct local
-server success is insufficient because path, header, authority, and body
-normalization can differ at a reverse proxy.
+The deployment must test the actual proxy chain and Iroh connectivity used
+publicly. Direct local server success is insufficient because path, header,
+authority, body normalization, relay reachability, and node addressing can
+differ in deployment.
 
 Opening a static HTML file, deploying only the frontend, committing deployment
-configuration without deploying it, or serving fixture-only decisions is
-incomplete.
+configuration without deploying it, simulating Iroh through an HTTP label, or
+serving fixture-only decisions is incomplete.
 
-## 23. Verification
+## 25. Verification
 
 ### Unit and property tests
 
@@ -819,7 +1022,7 @@ incomplete.
 
 ### HTTP and deployment
 
-- direct and reverse-proxy route identity parity;
+- direct and reverse-proxy operation identity parity;
 - request-smuggling and conflicting length/transfer framing rejection at the
   public edge;
 - duplicate Auths, host, forwarding, content-type, and query handling;
@@ -833,19 +1036,38 @@ incomplete.
 - public frontend/native readiness and browser interaction; and
 - copyable `curl` succeeds before its short expiry and replays safely.
 
+### Iroh and deployment
+
+- direct native client connects to the deployed Iroh endpoint;
+- protocol and envelope version negotiation is closed and bounded;
+- peer or node authentication alone never authorizes an action;
+- wrong endpoint mapping produces executor-audience mismatch;
+- malformed, truncated, oversized, duplicated, and unsupported messages fail
+  before semantic execution;
+- relay and direct-connect behavior preserve envelope bytes;
+- lost acknowledgement after commit reconciles without a second effect;
+- restart preserves cross-transport replay and reservations;
+- proof, presentation, ticket, node material, and protected values are absent
+  from prohibited logs and receipts; and
+- the copyable native command succeeds before expiry and replays safely.
+
 ### Transport conformance
 
-- memory, file, and HTTPS delivery produce the same action digest and verifier
-  result;
+- memory, file, HTTPS, and Iroh delivery produce the same action digest,
+  executor audience, verifier result, policy result, and stable code;
+- HTTPS-to-Iroh and Iroh-to-HTTPS replay produce one effect;
+- a concurrent HTTPS/Iroh final-capacity race produces one reservation and one
+  effect;
 - malformed or invalid proof remains invalid through every transport;
 - transport success without a valid proof denies;
 - transport failure does not create an authorization result; and
 - operational transport evidence remains separate from semantic decision
   fields.
 
-## 24. Formal assurance
+## 26. Formal assurance
 
-This vertical does not justify a generic formal HTTP policy algebra.
+This vertical does not justify a generic formal HTTP or multi-transport policy
+algebra.
 
 Use property tests and bounded model checking for:
 
@@ -864,12 +1086,12 @@ If records-domain pure predicates become a formal target, follow specification
 An independently rewritten Lean evaluator is not evidence that shipping HTTP
 or records code refines it.
 
-Network, proxy, filesystem, and database behavior remain explicit external
-boundaries. Formal models may reason about allowed commands, recorded outcomes,
-and observations; they must not assume HTTP delivery or store commit is
-atomic.
+Network, proxy, Iroh relay, filesystem, and database behavior remain explicit
+external boundaries. Formal models may reason about allowed commands, recorded
+outcomes, and observations; they must not assume HTTP delivery, Iroh delivery,
+or store commit is atomic.
 
-## 25. Completion evidence
+## 27. Completion evidence
 
 Before changing status from Proposed:
 
@@ -881,11 +1103,16 @@ Before changing status from Proposed:
 - prove bounded create capacity at zero, exact limit, and limit plus one;
 - prove exact and bounded GET disclose only authorized records and fields;
 - prove every material denial stops before protected access;
-- exercise lost-response and restart reconciliation against the real store;
-- pass memory, file, and HTTPS transport conformance;
+- exercise lost HTTP response, lost Iroh acknowledgement, and restart
+  reconciliation against the real store;
+- pass memory, file, HTTPS, and Iroh transport conformance;
+- prove HTTPS-to-Iroh and Iroh-to-HTTPS replay create one effect;
+- prove a concurrent cross-transport final-capacity race creates one
+  reservation and one effect;
 - pass direct-server and public reverse-proxy canonicalization tests;
-- complete Docker-local frontend/backend/browser tests;
-- complete public frontend/backend/browser tests;
+- complete Docker-local HTTPS/Iroh frontend/backend/browser/native-client
+  tests;
+- complete public HTTPS/Iroh frontend/backend/browser/native-client tests;
 - expose inline canonical JSON and a designed receipt page;
 - record tested public URLs, deployment identifiers, source revision, regions,
   configuration commitments, and timestamps;
@@ -895,40 +1122,48 @@ Before changing status from Proposed:
 - pass authoritative CI on the exact revision.
 
 The status remains Proposed if the implementation is fixture-only,
-backend-only, frontend-only, localhost-only, inaccessible through a copyable
-client request, or if the public path bypasses the native verifier.
+backend-only, frontend-only, localhost-only, inaccessible through copyable
+HTTP and Iroh client requests, simulates Iroh over HTTP, or if either public
+path bypasses the native verifier.
 
-## 26. Acceptance criteria
+## 28. Acceptance criteria
 
 1. A visitor performs successful protected `POST` and `GET` requests without
    receiving a reusable API key, OAuth bearer token, or session cookie.
 2. The API verifies Auths proof and presenter evidence locally.
-3. HTTP is the delivery adapter; typed product actions define authority.
-4. Changing the method, route, typed body, record, field set, audience,
-   presenter, proof, presentation, or configuration produces the expected
-   stable result.
-5. Exact create executes once under replay, concurrency, response loss, and
+3. HTTPS and Iroh are delivery adapters; typed product actions define
+   authority.
+4. For equivalent fresh state and trusted semantic context, the same proof,
+   canonical action, executor audience, evaluator, and stable result are used
+   across both public adapters.
+5. Changing the HTTP method or route, Iroh operation, typed body, record, field
+   set, audience, presenter, proof, presentation, or configuration produces
+   the expected stable result.
+6. Exact create executes once under replay, concurrency, response loss, and
    restart.
-6. Bounded creates and reads conserve aggregate capacity.
-7. Unauthorized reads return no protected data.
-8. Denial occurs before protected storage or credential access.
-9. Required and executed configurations are visible and equal on success.
-10. Decision, execution or disclosure, HTTP delivery, and observation remain
+7. Cross-transport replay and concurrency create one effect and consume
+   capacity once.
+8. Bounded creates and reads conserve aggregate capacity.
+9. Unauthorized reads return no protected data.
+10. Denial occurs before protected storage or credential access.
+11. Required and executed configurations are visible and equal on success.
+12. Delivery, decision, execution or disclosure, and observation remain
     separate receipt facts.
-11. Memory, file, and HTTPS delivery agree on canonical action and verifier
-    result.
-12. Invalid proof over trusted HTTPS remains invalid.
-13. The public frontend and copyable command use the real deployed native API.
-14. Core remains independent of HTTP routing, the records domain, replay
-    storage, and mutable product state.
+13. Memory, file, HTTPS, and Iroh delivery agree on canonical action and
+    verifier result.
+14. Invalid proof over trusted HTTPS or authenticated Iroh remains invalid.
+15. The public frontend, copyable `curl`, and native Iroh command use the real
+    deployed native verifier and shared state.
+16. Core remains independent of HTTP routing, Iroh addressing, the records
+    domain, replay storage, and mutable product state.
 
-## 27. Deferred work
+## 29. Deferred work
 
 - standardized Auths HTTP authorization and presentation headers;
 - reusable `auths-http` middleware for Axum, Actix, Go, Node, and Python;
 - OpenAPI extensions and typed action generation;
 - a generic API-gateway adapter;
-- public Iroh, queue, or file-relay delivery controls;
+- public queue, Unix-socket, or file-relay delivery controls;
 - WebAuthn-backed long-lived presenter identity;
 - richer record schemas and typed values;
 - query, list, pagination, and streaming disclosure profiles;
