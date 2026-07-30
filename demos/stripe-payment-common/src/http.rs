@@ -381,3 +381,16 @@ fn valid_api_version(value: &str) -> bool {
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.'))
         && value.as_bytes().first().is_some_and(u8::is_ascii_digit)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::SecretBytes;
+
+    #[test]
+    fn accepts_standard_and_restricted_test_keys_only() {
+        assert!(SecretBytes::new("sk_test_repository_test_value".into()).is_ok());
+        assert!(SecretBytes::new("rk_test_repository_test_value".into()).is_ok());
+        assert!(SecretBytes::new("sk_live_repository_test_value".into()).is_err());
+        assert!(SecretBytes::new("rk_test_contains whitespace".into()).is_err());
+    }
+}
