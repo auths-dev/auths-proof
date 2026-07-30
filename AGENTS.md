@@ -309,6 +309,34 @@ Do not claim completion because a narrow crate test passed when the change
 affects wire compatibility, another language, a layer boundary, or generated
 evidence. Report exactly which checks ran and any checks that could not run.
 
+### Mandatory pre-push secret scan
+
+After making the final commit and before every `git push`, run the same
+full-history secret scan used by CI:
+
+```text
+gitleaks git --redact --no-banner
+```
+
+Use gitleaks `v8.28.0`, matching `.github/workflows/ci.yml`. A scan of only the
+working tree or staged diff is insufficient because CI scans repository
+history.
+
+If the scan reports a finding:
+
+1. inspect it without printing the candidate secret into logs or chat;
+2. if it may be a credential, do not push—remove it from the branch history
+   and rotate it before continuing;
+3. if it is conclusively a public, synthetic, or deterministic non-secret,
+   add only its exact fingerprint to `.gitleaksignore` with a nearby comment
+   explaining the reviewed category;
+4. never add a broad path, rule, regex, or file allowlist;
+5. commit the reviewed exception, rerun the full-history scan, and push only
+   after it passes.
+
+Any commit created after a successful scan changes the history being scanned.
+Run gitleaks again after that commit and before pushing it.
+
 ## Change discipline for agents
 
 - Preserve unrelated user changes. Never clean, reset, reformat, or stage files
