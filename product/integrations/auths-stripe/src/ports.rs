@@ -19,6 +19,9 @@ pub enum PaymentCollectCredentialScope {}
 /// Type marker for the exact manual-authorization credential scope.
 pub enum PaymentAuthorizeCredentialScope {}
 
+/// Type marker for the exact final-capture credential scope.
+pub enum PaymentCaptureCredentialScope {}
+
 /// Secret Stripe credential bound to one compile-time effect scope.
 ///
 /// A credential with one scope cannot be passed to a provider gateway for
@@ -53,6 +56,25 @@ pub type PaymentCollectCredential = StripeCredential<PaymentCollectCredentialSco
 /// Exact manual-authorization credential.
 pub type PaymentAuthorizeCredential = StripeCredential<PaymentAuthorizeCredentialScope>;
 
+/// Exact final-capture credential.
+///
+/// An authorization-scoped credential cannot cross the capture boundary:
+///
+/// ```compile_fail
+/// use auths_stripe::{
+///     PaymentAuthorizeCredential, PaymentCaptureGateway, VerifiedPaymentCaptureCommand,
+/// };
+///
+/// fn wrong_scope(
+///     gateway: &dyn PaymentCaptureGateway,
+///     command: &VerifiedPaymentCaptureCommand,
+///     credential: &PaymentAuthorizeCredential,
+/// ) {
+///     let _ = gateway.capture(command, credential, 0);
+/// }
+/// ```
+pub type PaymentCaptureCredential = StripeCredential<PaymentCaptureCredentialScope>;
+
 impl<S> StripeCredential<S> {
     /// Wraps a non-empty Stripe test-mode secret.
     ///
@@ -62,7 +84,7 @@ impl<S> StripeCredential<S> {
     pub fn new(value: impl Into<Vec<u8>>) -> Result<Self, PortError> {
         let value = value.into();
         if !(16..=512).contains(&value.len())
-            || !value.starts_with(b"sk_test_")
+            || !(value.starts_with(b"sk_test_") || value.starts_with(b"rk_test_"))
             || value.iter().any(u8::is_ascii_whitespace)
         {
             return Err(PortError::InvalidConfiguration);
@@ -242,7 +264,10 @@ pub enum PortError {
 mod tests {
     use std::any::TypeId;
 
-    use super::{PaymentAuthorizeCredential, PaymentCollectCredential, StripeRefundCredential};
+    use super::{
+        PaymentAuthorizeCredential, PaymentCaptureCredential, PaymentCollectCredential,
+        StripeRefundCredential,
+    };
 
     #[test]
     fn credential_types_are_distinct_per_effect_scope() {
@@ -258,5 +283,18 @@ mod tests {
             TypeId::of::<PaymentAuthorizeCredential>(),
             TypeId::of::<StripeRefundCredential>()
         );
+        assert_ne!(
+            TypeId::of::<PaymentAuthorizeCredential>(),
+            TypeId::of::<PaymentCaptureCredential>()
+        );
+        assert_ne!(
+            TypeId::of::<PaymentCollectCredential>(),
+            TypeId::of::<PaymentCaptureCredential>()
+        );
+        assert_ne!(
+            TypeId::of::<PaymentCaptureCredential>(),
+            TypeId::of::<StripeRefundCredential>()
+        );
+        assert!(PaymentCaptureCredential::new(b"rk_test_repository_test_value".to_vec()).is_ok());
     }
 }

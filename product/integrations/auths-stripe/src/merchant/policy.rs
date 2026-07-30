@@ -29,6 +29,8 @@ pub const MERCHANT_EVALUATOR_VERSION: u16 = 1;
 pub const PAYMENT_COLLECT_PROFILE: &str = "auths.stripe.exact-payment-collect/1";
 /// Exact manual-capture authorization profile.
 pub const PAYMENT_AUTHORIZE_PROFILE: &str = "auths.stripe.exact-payment-authorize/1";
+/// Exact final capture of an existing authorization.
+pub const PAYMENT_CAPTURE_PROFILE: &str = "auths.stripe.exact-payment-capture/1";
 /// Protected statement descriptor suffix used by V1.
 pub const PAYMENT_STATEMENT_DESCRIPTOR: &str = "AUTHS DEMO";
 /// Receipt policy provenance until the protocol carries a signer commitment.
@@ -583,6 +585,30 @@ impl StripeMerchantEvaluatorConfigurationV1 {
         )
     }
 
+    /// Constructs exact final-capture runtime configuration.
+    ///
+    /// # Errors
+    ///
+    /// Rejects malformed or inconsistent configuration commitments.
+    pub fn for_capture_policy(
+        policy: &StripeBoundedMerchantPaymentPolicyV1,
+        evaluator_implementation_id: impl Into<String>,
+        stripe_account_id: StripeAccountId,
+        connect_account: MerchantConnectAccount,
+        stripe_api_version: impl Into<String>,
+        executor_audience: impl Into<String>,
+    ) -> Result<Self, MerchantValidationError> {
+        Self::for_profile(
+            policy,
+            evaluator_implementation_id,
+            PAYMENT_CAPTURE_PROFILE,
+            stripe_account_id,
+            connect_account,
+            stripe_api_version,
+            executor_audience,
+        )
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn for_profile(
         policy: &StripeBoundedMerchantPaymentPolicyV1,
@@ -637,7 +663,7 @@ impl StripeMerchantEvaluatorConfigurationV1 {
             || !valid_local_id(&self.evaluator_implementation_id)
             || !matches!(
                 self.exact_action_profile.as_str(),
-                PAYMENT_COLLECT_PROFILE | PAYMENT_AUTHORIZE_PROFILE
+                PAYMENT_COLLECT_PROFILE | PAYMENT_AUTHORIZE_PROFILE | PAYMENT_CAPTURE_PROFILE
             )
             || !valid_api_version(&self.stripe_api_version)
             || self.reservation_schema != "auths.stripe.merchant-reservation/1"

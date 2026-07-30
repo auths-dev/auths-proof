@@ -74,6 +74,7 @@ digraph auths_architecture {
   "auths-stripe" [group="product"];
   "auths-stripe-demo" [group="demos"];
   "auths-stripe-payment-authorize-demo" [group="demos"];
+  "auths-stripe-payment-capture-demo" [group="demos"];
   "auths-stripe-payment-collect-demo" [group="demos"];
   "auths-stripe-payment-demo-common" [group="demos"];
   "auths-testkit" [group="core"];
@@ -420,6 +421,10 @@ digraph auths_architecture {
   "auths-stripe-payment-authorize-demo" -> "auths-sdk" [label="normal"];
   "auths-stripe-payment-authorize-demo" -> "auths-stripe" [label="normal"];
   "auths-stripe-payment-authorize-demo" -> "auths-stripe-payment-demo-common" [label="normal"];
+  "auths-stripe-payment-capture-demo" -> "auths-profile-api" [label="normal"];
+  "auths-stripe-payment-capture-demo" -> "auths-sdk" [label="normal"];
+  "auths-stripe-payment-capture-demo" -> "auths-stripe" [label="normal"];
+  "auths-stripe-payment-capture-demo" -> "auths-stripe-payment-demo-common" [label="normal"];
   "auths-stripe-payment-collect-demo" -> "auths-profile-api" [label="normal"];
   "auths-stripe-payment-collect-demo" -> "auths-sdk" [label="normal"];
   "auths-stripe-payment-collect-demo" -> "auths-stripe" [label="normal"];

@@ -1,0 +1,35 @@
+app = "auths-stripe-payment-capture-demo"
+primary_region = "cdg"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "8080"
+  AUTHS_STRIPE_ALLOWED_ORIGIN = "https://auths-stripe-payment-capture-demo.fly.dev"
+  AUTHS_PAYMENT_CAPTURE_PUBLIC_API_BASE = "https://auths-stripe-payment-capture-demo.fly.dev"
+  AUTHS_STRIPE_RELEASE = "production"
+  AUTHS_STRIPE_STATE_DIR = "/data/auths-stripe-payment-capture"
+
+[[mounts]]
+  source = "auths_stripe_capture_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    grace_period = "10s"
+    interval = "15s"
+    method = "GET"
+    timeout = "3s"
+    path = "/healthz"
+
+[[vm]]
+  memory = "512mb"
+  cpu_kind = "shared"
+  cpus = 1

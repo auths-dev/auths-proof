@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Designed Auths bounded Stripe capture receipt." />
+    <title>Auths × Stripe — capture receipt</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="site-header"><nav class="nav-shell"><a class="wordmark" href="/">auths <i>/</i> <small>stripe capture</small></a><div class="nav-links"><a href="/">Live demo</a><a href="https://github.com/auths-dev/auths-proof" target="_blank" rel="noreferrer">Source ↗</a></div><a class="nav-cta" href="/">Run another capture →</a></nav></header>
+    <main>
+      <section class="hero receipt-hero"><div class="shell hero-grid"><div><p class="eyebrow"><i></i> Exact capture receipt</p><h1>Authority and effect, <em>kept distinct.</em></h1></div><div class="hero-copy"><p>This designed view renders one canonical receipt without exposing a Stripe credential, client secret, arbitrary headers, or mutable provider input.</p></div></div></section>
+      <section class="receipt-section"><div class="shell"><article class="receipt-page">
+        <header class="receipt-page-header"><div><span class="micro">Digest-addressed public record</span><h2 id="receipt-title">Loading canonical receipt.</h2><p id="receipt-detail">Querying the separate machine-readable API.</p></div><div class="receipt-verification" id="receipt-verification" data-state="loading"><span>Lifecycle</span><strong>CHECKING</strong></div></header>
+        <dl class="receipt-metadata">
+          <div><dt>Receipt</dt><dd><code id="receipt-id">—</code></dd></div>
+          <div><dt>Profile</dt><dd><code id="profile">—</code></dd></div>
+          <div><dt>Operation</dt><dd id="operation">—</dd></div>
+          <div><dt>Action</dt><dd><code id="action-digest">—</code></dd></div>
+          <div><dt>Policy</dt><dd><code id="policy-digest">—</code></dd></div>
+          <div><dt>Configuration</dt><dd id="configuration">—</dd></div>
+          <div><dt>Capture</dt><dd id="capture">—</dd></div>
+          <div><dt>Provider acceptance</dt><dd id="provider-acceptance">—</dd></div>
+        </dl>
+        <section class="receipt-card" id="receipt-card"></section>
+        <details class="receipt-viewer receipt-raw" id="raw" hidden><summary>View complete machine-readable JSON <span>canonical</span></summary><pre id="receipt-json">—</pre></details>
+        <section class="receipt-error" id="error" hidden><h2>The receipt could not be loaded.</h2><p id="error-detail"></p><a href="/">Return to the demo →</a></section>
+      </article></div></section>
+    </main>
+    <footer><div class="shell"><a class="wordmark" href="/">auths <i>/</i> <small>stripe capture</small></a><p>The human view and machine API address the same canonical record.</p></div></footer>
+    <script src="/config.js"></script>
+    <script type="module" src="/receipt.js"></script>
+  </body>
+</html>

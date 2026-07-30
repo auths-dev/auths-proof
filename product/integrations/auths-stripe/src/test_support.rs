@@ -231,8 +231,24 @@ pub fn merchant_policy(
         allowed_test_account_ids: vec![StripeAccountId::parse("acct_authsdemo01").unwrap()],
         allowed_connect_accounts: vec![MerchantConnectAccount::Platform],
         allowed_customer_ids: vec![CustomerId::parse("cus_authsdemo00000001").unwrap()],
-        allowed_payment_method_ids: vec![PaymentMethodId::parse("pm_authsdemo000000001").unwrap()],
-        allowed_payment_method_types: vec!["card".into()],
+        allowed_payment_method_ids: if matches!(
+            operation,
+            crate::merchant::MerchantOperation::Collect
+                | crate::merchant::MerchantOperation::Authorize
+        ) {
+            vec![PaymentMethodId::parse("pm_authsdemo000000001").unwrap()]
+        } else {
+            Vec::new()
+        },
+        allowed_payment_method_types: if matches!(
+            operation,
+            crate::merchant::MerchantOperation::Collect
+                | crate::merchant::MerchantOperation::Authorize
+        ) {
+            vec!["card".into()]
+        } else {
+            Vec::new()
+        },
         allowed_currencies: vec![currency.clone()],
         allowed_order_scopes: vec!["order-demo-001".into()],
         allowed_cancellation_reasons: Vec::new(),
@@ -305,6 +321,20 @@ pub fn merchant_authorize_configuration(
         crate::merchant::MerchantConnectAccount::Platform,
         "2025-04-30.basil",
         "https://stripe-authorize.auths.dev",
+    )
+    .unwrap()
+}
+
+pub fn merchant_capture_configuration(
+    policy: &crate::merchant::StripeBoundedMerchantPaymentPolicyV1,
+) -> crate::merchant::StripeMerchantEvaluatorConfigurationV1 {
+    crate::merchant::StripeMerchantEvaluatorConfigurationV1::for_capture_policy(
+        policy,
+        "auths-stripe-merchant-test-build",
+        StripeAccountId::parse("acct_authsdemo01").unwrap(),
+        crate::merchant::MerchantConnectAccount::Platform,
+        "2025-04-30.basil",
+        "https://stripe-capture.auths.dev",
     )
     .unwrap()
 }
@@ -410,6 +440,87 @@ pub fn merchant_authorize_action(
             &policy_digest,
         )
         .unwrap(),
+        stripe_api_version: "2025-04-30.basil".into(),
+        required_policy_digest: policy_digest,
+        required_configuration_digest: configuration.digest().unwrap(),
+        executor_audience: configuration.executor_audience().into(),
+        expires_at: NOW + 120,
+        nonce: sha256(workflow_id.as_bytes()),
+    })
+    .unwrap()
+}
+
+pub fn merchant_capture_evidence() -> crate::merchant::PaymentCaptureEvidenceV1 {
+    use crate::{
+        merchant::{
+            MerchantConnectAccount, MerchantReservationState, PaymentCaptureEvidenceInput,
+            PaymentCaptureEvidenceV1,
+        },
+        types::{CustomerId, PaymentIntentId},
+    };
+    PaymentCaptureEvidenceV1::new(PaymentCaptureEvidenceInput {
+        stripe_account_id: StripeAccountId::parse("acct_authsdemo01").unwrap(),
+        connect_account: MerchantConnectAccount::Platform,
+        payment_intent_id: PaymentIntentId::parse("pi_capturedemo00000001").unwrap(),
+        latest_charge_id: ChargeId::parse("ch_capturedemo00000001").unwrap(),
+        customer_id: CustomerId::parse("cus_authsdemo00000001").unwrap(),
+        order_scope: "order-demo-001".into(),
+        authorized_amount_minor: 1_000,
+        amount_capturable_minor: 1_000,
+        amount_captured_minor: 0,
+        currency: Currency::parse("usd").unwrap(),
+        payment_intent_status: "requires_capture".into(),
+        capture_before: NOW + 3_600,
+        livemode: false,
+        stripe_api_version: "2025-04-30.basil".into(),
+        authorization_workflow_id: "merchant-authorization-capture-source".into(),
+        authorization_action_digest: sha256(b"capture-authorization-action"),
+        authorization_reservation_id: sha256(b"capture-authorization-reservation"),
+        authorization_state: MerchantReservationState::Authorized,
+        authorization_created_at: NOW - 60,
+        observed_at: NOW - 5,
+        source: "stripe-api-and-auths-store".into(),
+        response_commitment: sha256(b"capture-evidence"),
+    })
+    .unwrap()
+}
+
+pub fn merchant_capture_action(
+    workflow_id: &str,
+    policy: &crate::merchant::StripeBoundedMerchantPaymentPolicyV1,
+    configuration: &crate::merchant::StripeMerchantEvaluatorConfigurationV1,
+    amount_minor: u64,
+) -> crate::merchant::StripeExactPaymentCaptureV1 {
+    use crate::{
+        merchant::{
+            MerchantConnectAccount, StripeExactPaymentCaptureInput, StripeExactPaymentCaptureV1,
+            fixed_merchant_metadata_commitment, merchant_statement_descriptor_commitment,
+        },
+        types::{CustomerId, PaymentIntentId},
+    };
+    let evidence = merchant_capture_evidence();
+    let policy_digest = policy.digest().unwrap();
+    StripeExactPaymentCaptureV1::new(StripeExactPaymentCaptureInput {
+        stripe_account_id: StripeAccountId::parse("acct_authsdemo01").unwrap(),
+        connect_account: MerchantConnectAccount::Platform,
+        payment_intent_id: PaymentIntentId::parse("pi_capturedemo00000001").unwrap(),
+        latest_charge_id: ChargeId::parse("ch_capturedemo00000001").unwrap(),
+        customer_id: CustomerId::parse("cus_authsdemo00000001").unwrap(),
+        order_scope: "order-demo-001".into(),
+        authorized_amount_minor: 1_000,
+        amount_capturable_before_minor: 1_000,
+        amount_to_capture_minor: amount_minor,
+        currency: Currency::parse("usd").unwrap(),
+        statement_descriptor_commitment: merchant_statement_descriptor_commitment(),
+        fixed_metadata_commitment: fixed_merchant_metadata_commitment(
+            workflow_id,
+            crate::merchant::PAYMENT_CAPTURE_PROFILE,
+            "order-demo-001",
+            &policy_digest,
+        )
+        .unwrap(),
+        authorization_action_digest: evidence.authorization_action_digest().clone(),
+        authorization_reservation_id: evidence.authorization_reservation_id().clone(),
         stripe_api_version: "2025-04-30.basil".into(),
         required_policy_digest: policy_digest,
         required_configuration_digest: configuration.digest().unwrap(),

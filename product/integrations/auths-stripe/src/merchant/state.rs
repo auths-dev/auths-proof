@@ -24,6 +24,10 @@ use crate::{
             PaymentAuthorizeReconciliationOutcome, PaymentAuthorizeTransition,
             transition_payment_authorize,
         },
+        capture::{
+            PaymentCaptureProviderProjection, PaymentCaptureReconciliationOutcome,
+            PaymentCaptureTransition, transition_payment_capture,
+        },
         collect::{
             PaymentCollectReconciliationOutcome, PaymentCollectTransition,
             transition_payment_collect,
@@ -61,6 +65,12 @@ pub enum MerchantReservationState {
     ReconciledCommitted,
     /// Retrieval proved the manual-capture authorization remains held.
     ReconciledAuthorized,
+    /// Final capture is committed to the settlement budget.
+    CaptureCommitted,
+    /// Retrieval proved final capture and committed settlement.
+    ReconciledCaptureCommitted,
+    /// An atomic final capture released this authorization hold.
+    AuthorizationReleasedByCapture,
     /// Retrieval proved definite non-execution.
     ReconciledReleased,
 }
@@ -74,7 +84,13 @@ impl MerchantReservationState {
     }
 
     fn holds_committed(self) -> bool {
-        matches!(self, Self::Committed | Self::ReconciledCommitted)
+        matches!(
+            self,
+            Self::Committed
+                | Self::ReconciledCommitted
+                | Self::CaptureCommitted
+                | Self::ReconciledCaptureCommitted
+        )
     }
 
     fn holds_active_authorization(self) -> bool {
@@ -143,6 +159,20 @@ pub struct MerchantReservationRecord {
     state: MerchantReservationState,
     idempotency_key_digest: DigestHex,
     provider: Option<MerchantProviderProjection>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    capture_provider: Option<PaymentCaptureProviderProjection>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    authorization_workflow_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    authorization_action_digest: Option<DigestHex>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    authorization_reservation_id: Option<DigestHex>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    authorization_release_minor: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    capture_payment_intent_id: Option<PaymentIntentId>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    capture_charge_id: Option<ChargeId>,
     created_at: u64,
     updated_at: u64,
 }
@@ -256,6 +286,54 @@ impl MerchantReservationRecord {
         self.provider.as_ref()
     }
 
+    /// Capture-owned provider projection, if known.
+    #[must_use]
+    pub const fn capture_provider(&self) -> Option<&PaymentCaptureProviderProjection> {
+        self.capture_provider.as_ref()
+    }
+
+    /// Linked authorization workflow for final capture.
+    #[must_use]
+    pub fn authorization_workflow_id(&self) -> Option<&str> {
+        self.authorization_workflow_id.as_deref()
+    }
+
+    /// Linked authorization action commitment for final capture.
+    #[must_use]
+    pub const fn authorization_action_digest(&self) -> Option<&DigestHex> {
+        self.authorization_action_digest.as_ref()
+    }
+
+    /// Linked authorization reservation for final capture.
+    #[must_use]
+    pub const fn authorization_reservation_id(&self) -> Option<&DigestHex> {
+        self.authorization_reservation_id.as_ref()
+    }
+
+    /// Hold amount released atomically when capture commits.
+    #[must_use]
+    pub const fn authorization_release_minor(&self) -> Option<u64> {
+        self.authorization_release_minor
+    }
+
+    /// Exact `PaymentIntent` targeted by final capture.
+    #[must_use]
+    pub const fn capture_payment_intent_id(&self) -> Option<&PaymentIntentId> {
+        self.capture_payment_intent_id.as_ref()
+    }
+
+    /// Exact Charge linked before final capture.
+    #[must_use]
+    pub const fn capture_charge_id(&self) -> Option<&ChargeId> {
+        self.capture_charge_id.as_ref()
+    }
+
+    /// Durable creation time.
+    #[must_use]
+    pub const fn created_at(&self) -> u64 {
+        self.created_at
+    }
+
     /// Deterministic protected idempotency-key commitment.
     #[must_use]
     pub const fn idempotency_key_digest(&self) -> &DigestHex {
@@ -367,8 +445,95 @@ impl ReserveMerchantPaymentRequest {
             state: MerchantReservationState::Reserved,
             idempotency_key_digest: self.idempotency_key_digest,
             provider: None,
+            capture_provider: None,
+            authorization_workflow_id: None,
+            authorization_action_digest: None,
+            authorization_reservation_id: None,
+            authorization_release_minor: None,
+            capture_payment_intent_id: None,
+            capture_charge_id: None,
             created_at: self.now,
             updated_at: self.now,
+        }
+    }
+}
+
+/// Complete inputs to an exact capture settlement reservation.
+///
+/// The constructor fixes operation and profile internally, so callers cannot
+/// select a generic operation tag or another profile.
+pub struct ReservePaymentCaptureRequest {
+    base: ReserveMerchantPaymentRequest,
+    authorization_workflow_id: String,
+    authorization_action_digest: DigestHex,
+    authorization_reservation_id: DigestHex,
+    authorization_release_minor: u64,
+    capture_payment_intent_id: PaymentIntentId,
+    capture_charge_id: ChargeId,
+}
+
+impl ReservePaymentCaptureRequest {
+    /// Binds settlement capacity to one exact durable authorization.
+    #[must_use]
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "capture reservation binds every durable decision and authorization fact"
+    )]
+    pub fn new(
+        workflow_id: String,
+        action_digest: DigestHex,
+        decision_receipt_digest: DigestHex,
+        policy_digest: DigestHex,
+        evaluator_semantic_id: String,
+        evaluator_semantic_version: u16,
+        evidence_digest: DigestHex,
+        required_configuration_digest: DigestHex,
+        executed_configuration_digest: DigestHex,
+        stripe_account_id: StripeAccountId,
+        connect_account: MerchantConnectAccount,
+        customer_id: CustomerId,
+        order_scope: String,
+        currency: Currency,
+        amount_minor: u64,
+        intents: Vec<MerchantReservationIntent>,
+        idempotency_key_digest: DigestHex,
+        authorization_workflow_id: String,
+        authorization_action_digest: DigestHex,
+        authorization_reservation_id: DigestHex,
+        authorization_release_minor: u64,
+        capture_payment_intent_id: PaymentIntentId,
+        capture_charge_id: ChargeId,
+        now: u64,
+    ) -> Self {
+        Self {
+            base: ReserveMerchantPaymentRequest {
+                workflow_id,
+                operation: MerchantOperation::Capture,
+                exact_action_profile: crate::merchant::PAYMENT_CAPTURE_PROFILE.into(),
+                action_digest,
+                decision_receipt_digest,
+                policy_digest,
+                evaluator_semantic_id,
+                evaluator_semantic_version,
+                evidence_digest,
+                required_configuration_digest,
+                executed_configuration_digest,
+                stripe_account_id,
+                connect_account,
+                customer_id,
+                order_scope,
+                currency,
+                amount_minor,
+                intents,
+                idempotency_key_digest,
+                now,
+            },
+            authorization_workflow_id,
+            authorization_action_digest,
+            authorization_reservation_id,
+            authorization_release_minor,
+            capture_payment_intent_id,
+            capture_charge_id,
         }
     }
 }
@@ -436,6 +601,80 @@ pub trait MerchantPaymentStore: Send + Sync {
 
     /// Atomically reserves all aggregate intents or none.
     fn reserve(&self, request: ReserveMerchantPaymentRequest) -> ReserveMerchantPaymentResult;
+
+    /// Atomically reserves exact capture settlement capacity linked to one hold.
+    fn reserve_capture(
+        &self,
+        request: ReservePaymentCaptureRequest,
+    ) -> ReserveMerchantPaymentResult;
+
+    /// Claims a new exact final-capture reservation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when durable state is unavailable or the transition is invalid.
+    fn claim_capture(
+        &self,
+        lease: &MerchantReservationLease,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError>;
+
+    /// Persists final-capture provider-attempt intent.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when durable state is unavailable or the transition is invalid.
+    fn mark_capture_attempting(
+        &self,
+        lease: &MerchantReservationLease,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError>;
+
+    /// Persists a normalized final-capture response.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when durable state is unavailable or the projection is invalid.
+    fn record_capture_provider_accepted(
+        &self,
+        lease: &MerchantReservationLease,
+        provider: PaymentCaptureProviderProjection,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError>;
+
+    /// Atomically commits settlement and releases the linked authorization hold.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error without changing either record when any link or state differs.
+    fn commit_capture(
+        &self,
+        lease: &MerchantReservationLease,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError>;
+
+    /// Releases only capture settlement capacity after definite non-execution.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when durable state is unavailable or the transition is invalid.
+    fn release_capture(
+        &self,
+        lease: &MerchantReservationLease,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError>;
+
+    /// Retains both capture settlement capacity and the authorization hold.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when durable state is unavailable or the transition is invalid.
+    fn mark_capture_outcome_unknown(
+        &self,
+        lease: &MerchantReservationLease,
+        provider: Option<PaymentCaptureProviderProjection>,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError>;
 
     /// Claims a new reservation for one verified command.
     ///
@@ -599,6 +838,19 @@ pub trait MerchantPaymentStore: Send + Sync {
         now: u64,
     ) -> Result<MerchantReservationRecord, MerchantStateError>;
 
+    /// Reconciles final capture without issuing another capture request.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error without partial state change when reconciliation is invalid.
+    fn reconcile_capture(
+        &self,
+        workflow_id: &str,
+        action_digest: &DigestHex,
+        outcome: PaymentCaptureReconciliationOutcome,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError>;
+
     /// Reads one durable workflow.
     ///
     /// # Errors
@@ -622,6 +874,63 @@ impl<T: MerchantPaymentStore + ?Sized> MerchantPaymentStore for Arc<T> {
 
     fn reserve(&self, request: ReserveMerchantPaymentRequest) -> ReserveMerchantPaymentResult {
         (**self).reserve(request)
+    }
+
+    fn reserve_capture(
+        &self,
+        request: ReservePaymentCaptureRequest,
+    ) -> ReserveMerchantPaymentResult {
+        (**self).reserve_capture(request)
+    }
+
+    fn claim_capture(
+        &self,
+        lease: &MerchantReservationLease,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        (**self).claim_capture(lease, now)
+    }
+
+    fn mark_capture_attempting(
+        &self,
+        lease: &MerchantReservationLease,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        (**self).mark_capture_attempting(lease, now)
+    }
+
+    fn record_capture_provider_accepted(
+        &self,
+        lease: &MerchantReservationLease,
+        provider: PaymentCaptureProviderProjection,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        (**self).record_capture_provider_accepted(lease, provider, now)
+    }
+
+    fn commit_capture(
+        &self,
+        lease: &MerchantReservationLease,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        (**self).commit_capture(lease, now)
+    }
+
+    fn release_capture(
+        &self,
+        lease: &MerchantReservationLease,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        (**self).release_capture(lease, now)
+    }
+
+    fn mark_capture_outcome_unknown(
+        &self,
+        lease: &MerchantReservationLease,
+        provider: Option<PaymentCaptureProviderProjection>,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        (**self).mark_capture_outcome_unknown(lease, provider, now)
     }
 
     fn claim(
@@ -744,6 +1053,16 @@ impl<T: MerchantPaymentStore + ?Sized> MerchantPaymentStore for Arc<T> {
         (**self).reconcile_authorization(workflow_id, action_digest, outcome, now)
     }
 
+    fn reconcile_capture(
+        &self,
+        workflow_id: &str,
+        action_digest: &DigestHex,
+        outcome: PaymentCaptureReconciliationOutcome,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        (**self).reconcile_capture(workflow_id, action_digest, outcome, now)
+    }
+
     fn get(
         &self,
         workflow_id: &str,
@@ -792,6 +1111,100 @@ impl MerchantPaymentStore for InMemoryMerchantPaymentStore {
             return ReserveMerchantPaymentResult::Unavailable;
         };
         reserve_in(&mut records, request)
+    }
+
+    fn reserve_capture(
+        &self,
+        request: ReservePaymentCaptureRequest,
+    ) -> ReserveMerchantPaymentResult {
+        let Ok(mut records) = self.records.lock() else {
+            return ReserveMerchantPaymentResult::Unavailable;
+        };
+        reserve_capture_in(&mut records, request)
+    }
+
+    fn claim_capture(
+        &self,
+        lease: &MerchantReservationLease,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        self.with_records(|records| {
+            transition_capture_in(records, lease, PaymentCaptureTransition::Claim, None, now)
+        })
+    }
+
+    fn mark_capture_attempting(
+        &self,
+        lease: &MerchantReservationLease,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        self.with_records(|records| {
+            transition_capture_in(
+                records,
+                lease,
+                PaymentCaptureTransition::BeginAttempt,
+                None,
+                now,
+            )
+        })
+    }
+
+    fn record_capture_provider_accepted(
+        &self,
+        lease: &MerchantReservationLease,
+        provider: PaymentCaptureProviderProjection,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        self.with_records(|records| {
+            transition_capture_in(
+                records,
+                lease,
+                PaymentCaptureTransition::ProviderAccepted,
+                Some(provider),
+                now,
+            )
+        })
+    }
+
+    fn commit_capture(
+        &self,
+        lease: &MerchantReservationLease,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        self.with_records(|records| commit_capture_in(records, lease, false, now))
+    }
+
+    fn release_capture(
+        &self,
+        lease: &MerchantReservationLease,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        self.with_records(|records| {
+            transition_capture_in(
+                records,
+                lease,
+                PaymentCaptureTransition::DefiniteFailureReleased,
+                None,
+                now,
+            )
+        })
+    }
+
+    fn mark_capture_outcome_unknown(
+        &self,
+        lease: &MerchantReservationLease,
+        provider: Option<PaymentCaptureProviderProjection>,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        self.with_records(|records| {
+            transition_capture_in(
+                records,
+                lease,
+                PaymentCaptureTransition::OutcomeBecameUnknown,
+                provider,
+                now,
+            )
+        })
     }
 
     fn claim(
@@ -1005,6 +1418,18 @@ impl MerchantPaymentStore for InMemoryMerchantPaymentStore {
     ) -> Result<MerchantReservationRecord, MerchantStateError> {
         self.with_records(|records| {
             reconcile_authorization_in(records, workflow_id, action_digest, outcome, now)
+        })
+    }
+
+    fn reconcile_capture(
+        &self,
+        workflow_id: &str,
+        action_digest: &DigestHex,
+        outcome: PaymentCaptureReconciliationOutcome,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        self.with_records(|records| {
+            reconcile_capture_in(records, workflow_id, action_digest, outcome, now)
         })
     }
 
@@ -1093,6 +1518,98 @@ impl MerchantPaymentStore for PersistentMerchantPaymentStore {
             .unwrap_or(ReserveMerchantPaymentResult::Unavailable)
     }
 
+    fn reserve_capture(
+        &self,
+        request: ReservePaymentCaptureRequest,
+    ) -> ReserveMerchantPaymentResult {
+        self.with_locked_records(|records| Ok(reserve_capture_in(records, request)))
+            .unwrap_or(ReserveMerchantPaymentResult::Unavailable)
+    }
+
+    fn claim_capture(
+        &self,
+        lease: &MerchantReservationLease,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        self.with_locked_records(|records| {
+            transition_capture_in(records, lease, PaymentCaptureTransition::Claim, None, now)
+        })
+    }
+
+    fn mark_capture_attempting(
+        &self,
+        lease: &MerchantReservationLease,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        self.with_locked_records(|records| {
+            transition_capture_in(
+                records,
+                lease,
+                PaymentCaptureTransition::BeginAttempt,
+                None,
+                now,
+            )
+        })
+    }
+
+    fn record_capture_provider_accepted(
+        &self,
+        lease: &MerchantReservationLease,
+        provider: PaymentCaptureProviderProjection,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        self.with_locked_records(|records| {
+            transition_capture_in(
+                records,
+                lease,
+                PaymentCaptureTransition::ProviderAccepted,
+                Some(provider),
+                now,
+            )
+        })
+    }
+
+    fn commit_capture(
+        &self,
+        lease: &MerchantReservationLease,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        self.with_locked_records(|records| commit_capture_in(records, lease, false, now))
+    }
+
+    fn release_capture(
+        &self,
+        lease: &MerchantReservationLease,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        self.with_locked_records(|records| {
+            transition_capture_in(
+                records,
+                lease,
+                PaymentCaptureTransition::DefiniteFailureReleased,
+                None,
+                now,
+            )
+        })
+    }
+
+    fn mark_capture_outcome_unknown(
+        &self,
+        lease: &MerchantReservationLease,
+        provider: Option<PaymentCaptureProviderProjection>,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        self.with_locked_records(|records| {
+            transition_capture_in(
+                records,
+                lease,
+                PaymentCaptureTransition::OutcomeBecameUnknown,
+                provider,
+                now,
+            )
+        })
+    }
+
     fn claim(
         &self,
         lease: &MerchantReservationLease,
@@ -1307,12 +1824,93 @@ impl MerchantPaymentStore for PersistentMerchantPaymentStore {
         })
     }
 
+    fn reconcile_capture(
+        &self,
+        workflow_id: &str,
+        action_digest: &DigestHex,
+        outcome: PaymentCaptureReconciliationOutcome,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        self.with_locked_records(|records| {
+            reconcile_capture_in(records, workflow_id, action_digest, outcome, now)
+        })
+    }
+
     fn get(
         &self,
         workflow_id: &str,
     ) -> Result<Option<MerchantReservationRecord>, MerchantStateError> {
         self.with_locked_records(|records| Ok(records.get(workflow_id).cloned()))
     }
+}
+
+fn reserve_capture_in(
+    records: &mut BTreeMap<String, MerchantReservationRecord>,
+    request: ReservePaymentCaptureRequest,
+) -> ReserveMerchantPaymentResult {
+    let authorization = match records.get(&request.authorization_workflow_id) {
+        Some(record)
+            if request.base.workflow_id != request.authorization_workflow_id
+                && record.operation == MerchantOperation::Authorize
+                && record.state.holds_active_authorization()
+                && record.action_digest == request.authorization_action_digest
+                && record.reservation_id == request.authorization_reservation_id
+                && record.amount_minor == request.authorization_release_minor
+                && record.stripe_account_id == request.base.stripe_account_id
+                && record.connect_account == request.base.connect_account
+                && record.customer_id == request.base.customer_id
+                && record.order_scope == request.base.order_scope
+                && record.currency == request.base.currency
+                && record.provider.as_ref().is_some_and(|provider| {
+                    provider.payment_intent_id == request.capture_payment_intent_id
+                        && provider.charge_id.as_ref() == Some(&request.capture_charge_id)
+                }) =>
+        {
+            record
+        }
+        _ => return ReserveMerchantPaymentResult::Unavailable,
+    };
+    let _ = authorization;
+    let authorization_workflow_id = request.authorization_workflow_id;
+    let authorization_action_digest = request.authorization_action_digest;
+    let authorization_reservation_id = request.authorization_reservation_id;
+    let authorization_release_minor = request.authorization_release_minor;
+    let capture_payment_intent_id = request.capture_payment_intent_id;
+    let capture_charge_id = request.capture_charge_id;
+    let workflow_id = request.base.workflow_id.clone();
+    let mut result = reserve_in(records, request.base);
+    match &mut result {
+        ReserveMerchantPaymentResult::Reserved {
+            record: returned, ..
+        } => {
+            let Some(record) = records.get_mut(&workflow_id) else {
+                return ReserveMerchantPaymentResult::Unavailable;
+            };
+            record.authorization_workflow_id = Some(authorization_workflow_id);
+            record.authorization_action_digest = Some(authorization_action_digest);
+            record.authorization_reservation_id = Some(authorization_reservation_id);
+            record.authorization_release_minor = Some(authorization_release_minor);
+            record.capture_payment_intent_id = Some(capture_payment_intent_id);
+            record.capture_charge_id = Some(capture_charge_id);
+            *returned = record.clone();
+        }
+        ReserveMerchantPaymentResult::Replay(record)
+            if record.authorization_workflow_id.as_deref()
+                != Some(authorization_workflow_id.as_str())
+                || record.authorization_action_digest.as_ref()
+                    != Some(&authorization_action_digest)
+                || record.authorization_reservation_id.as_ref()
+                    != Some(&authorization_reservation_id)
+                || record.authorization_release_minor != Some(authorization_release_minor)
+                || record.capture_payment_intent_id.as_ref()
+                    != Some(&capture_payment_intent_id)
+                || record.capture_charge_id.as_ref() != Some(&capture_charge_id) =>
+        {
+            return ReserveMerchantPaymentResult::Conflict(record.clone());
+        }
+        _ => {}
+    }
+    result
 }
 
 fn reserve_in(
@@ -1336,6 +1934,9 @@ fn reserve_in(
         ) | (
             MerchantOperation::Authorize,
             crate::merchant::PAYMENT_AUTHORIZE_PROFILE
+        ) | (
+            MerchantOperation::Capture,
+            crate::merchant::PAYMENT_CAPTURE_PROFILE
         )
     );
     if !exact_profile_matches
@@ -1530,6 +2131,157 @@ fn reconcile_collection_in(
     Ok(record.clone())
 }
 
+fn transition_capture_in(
+    records: &mut BTreeMap<String, MerchantReservationRecord>,
+    lease: &MerchantReservationLease,
+    event: PaymentCaptureTransition,
+    provider: Option<PaymentCaptureProviderProjection>,
+    now: u64,
+) -> Result<MerchantReservationRecord, MerchantStateError> {
+    let current = records
+        .get(&lease.workflow_id)
+        .ok_or(MerchantStateError::NotFound)?;
+    if current.reservation_id != lease.reservation_id
+        || current.action_digest != lease.action_digest
+        || current.operation != MerchantOperation::Capture
+    {
+        return Err(MerchantStateError::InvalidTransition);
+    }
+    let next = transition_payment_capture(current.state, event)
+        .ok_or(MerchantStateError::InvalidTransition)?;
+    if let Some(projection) = &provider {
+        validate_capture_projection(records, current, projection)?;
+    }
+    let record = records
+        .get_mut(&lease.workflow_id)
+        .ok_or(MerchantStateError::NotFound)?;
+    if let Some(provider) = provider {
+        record.capture_provider = Some(provider);
+    }
+    if event == PaymentCaptureTransition::ProviderAccepted && record.capture_provider.is_none() {
+        return Err(MerchantStateError::InvalidTransition);
+    }
+    record.state = next;
+    record.updated_at = now;
+    Ok(record.clone())
+}
+
+fn commit_capture_in(
+    records: &mut BTreeMap<String, MerchantReservationRecord>,
+    lease: &MerchantReservationLease,
+    reconciled: bool,
+    now: u64,
+) -> Result<MerchantReservationRecord, MerchantStateError> {
+    let capture = records
+        .get(&lease.workflow_id)
+        .ok_or(MerchantStateError::NotFound)?
+        .clone();
+    if capture.reservation_id != lease.reservation_id
+        || capture.action_digest != lease.action_digest
+        || capture.operation != MerchantOperation::Capture
+    {
+        return Err(MerchantStateError::InvalidTransition);
+    }
+    let event = if reconciled {
+        PaymentCaptureTransition::ReconcileCommitted
+    } else {
+        PaymentCaptureTransition::CaptureCommitted
+    };
+    let next = transition_payment_capture(capture.state, event)
+        .ok_or(MerchantStateError::InvalidTransition)?;
+    let provider = capture
+        .capture_provider
+        .as_ref()
+        .ok_or(MerchantStateError::InvalidTransition)?;
+    validate_committed_capture_projection(records, &capture, provider)?;
+    let authorization_workflow = capture
+        .authorization_workflow_id
+        .as_deref()
+        .ok_or(MerchantStateError::InvalidTransition)?;
+    let authorization = records
+        .get(authorization_workflow)
+        .ok_or(MerchantStateError::InvalidTransition)?;
+    if authorization.operation != MerchantOperation::Authorize
+        || !authorization.state.holds_active_authorization()
+        || Some(&authorization.action_digest) != capture.authorization_action_digest.as_ref()
+        || Some(&authorization.reservation_id) != capture.authorization_reservation_id.as_ref()
+        || Some(authorization.amount_minor) != capture.authorization_release_minor
+        || authorization.stripe_account_id != capture.stripe_account_id
+        || authorization.connect_account != capture.connect_account
+        || authorization.customer_id != capture.customer_id
+        || authorization.order_scope != capture.order_scope
+        || authorization.currency != capture.currency
+    {
+        return Err(MerchantStateError::InvalidTransition);
+    }
+    let authorization_workflow = authorization_workflow.to_owned();
+    let capture_record = records
+        .get_mut(&lease.workflow_id)
+        .ok_or(MerchantStateError::NotFound)?;
+    capture_record.state = next;
+    capture_record.updated_at = now;
+    let output = capture_record.clone();
+    let authorization_record = records
+        .get_mut(&authorization_workflow)
+        .ok_or(MerchantStateError::InvalidTransition)?;
+    authorization_record.state = MerchantReservationState::AuthorizationReleasedByCapture;
+    authorization_record.updated_at = now;
+    Ok(output)
+}
+
+fn reconcile_capture_in(
+    records: &mut BTreeMap<String, MerchantReservationRecord>,
+    workflow_id: &str,
+    action_digest: &DigestHex,
+    outcome: PaymentCaptureReconciliationOutcome,
+    now: u64,
+) -> Result<MerchantReservationRecord, MerchantStateError> {
+    let capture = records
+        .get(workflow_id)
+        .ok_or(MerchantStateError::NotFound)?
+        .clone();
+    if &capture.action_digest != action_digest || capture.operation != MerchantOperation::Capture {
+        return Err(MerchantStateError::InvalidTransition);
+    }
+    let lease = MerchantReservationLease {
+        workflow_id: workflow_id.into(),
+        reservation_id: capture.reservation_id.clone(),
+        action_digest: action_digest.clone(),
+    };
+    match outcome {
+        PaymentCaptureReconciliationOutcome::Committed(provider) => {
+            validate_committed_capture_projection(records, &capture, &provider)?;
+            records
+                .get_mut(workflow_id)
+                .ok_or(MerchantStateError::NotFound)?
+                .capture_provider = Some(provider);
+            commit_capture_in(records, &lease, true, now)
+        }
+        PaymentCaptureReconciliationOutcome::Released(provider) => {
+            if let Some(provider) = &provider {
+                validate_capture_projection(records, &capture, provider)?;
+                if provider.captured_amount_minor != 0 || provider.status != "requires_capture" {
+                    return Err(MerchantStateError::InvalidTransition);
+                }
+            }
+            transition_capture_in(
+                records,
+                &lease,
+                PaymentCaptureTransition::ReconcileReleased,
+                provider,
+                now,
+            )
+        }
+        PaymentCaptureReconciliationOutcome::OutcomeUnknown(provider) => transition_capture_in(
+            records,
+            &lease,
+            PaymentCaptureTransition::ReconcileStillUnknown,
+            provider,
+            now,
+        ),
+    }
+}
+
 fn transition_authorization_in(
     records: &mut BTreeMap<String, MerchantReservationRecord>,
     lease: &MerchantReservationLease,
@@ -1615,6 +2367,62 @@ fn reconcile_authorization_in(
     Ok(record.clone())
 }
 
+fn validate_capture_projection(
+    records: &BTreeMap<String, MerchantReservationRecord>,
+    capture: &MerchantReservationRecord,
+    provider: &PaymentCaptureProviderProjection,
+) -> Result<(), MerchantStateError> {
+    let authorization = capture
+        .authorization_workflow_id
+        .as_deref()
+        .and_then(|workflow| records.get(workflow))
+        .ok_or(MerchantStateError::InvalidTransition)?;
+    let authorization_provider = authorization
+        .provider
+        .as_ref()
+        .ok_or(MerchantStateError::InvalidTransition)?;
+    if provider.payment_intent_id != authorization_provider.payment_intent_id
+        || Some(&provider.charge_id) != authorization_provider.charge_id.as_ref()
+        || provider.authorized_amount_minor != authorization.amount_minor
+        || provider.currency != capture.currency
+        || provider.captured_amount_minor > capture.amount_minor
+        || provider.status.is_empty()
+        || provider.status.len() > 64
+        || !matches!(
+            provider.source.as_str(),
+            "capture-response" | "retrieve" | "webhook"
+        )
+        || provider
+            .stripe_request_id
+            .as_ref()
+            .is_some_and(|value| !valid_request_id(value))
+        || provider
+            .balance_transaction_id
+            .as_ref()
+            .is_some_and(|value| !valid_balance_transaction_id(value))
+    {
+        return Err(MerchantStateError::InvalidTransition);
+    }
+    Ok(())
+}
+
+fn validate_committed_capture_projection(
+    records: &BTreeMap<String, MerchantReservationRecord>,
+    capture: &MerchantReservationRecord,
+    provider: &PaymentCaptureProviderProjection,
+) -> Result<(), MerchantStateError> {
+    validate_capture_projection(records, capture, provider)?;
+    if provider.status != "succeeded"
+        || provider.captured_amount_minor != capture.amount_minor
+        || provider.amount_capturable_minor != 0
+        || provider.amount_received_minor != capture.amount_minor
+        || provider.balance_transaction_id.is_none()
+    {
+        return Err(MerchantStateError::InvalidTransition);
+    }
+    Ok(())
+}
+
 fn validate_provider(
     record: &MerchantReservationRecord,
     provider: &MerchantProviderProjection,
@@ -1660,6 +2468,14 @@ fn valid_request_id(value: &str) -> bool {
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
 }
 
+fn valid_balance_transaction_id(value: &str) -> bool {
+    value.starts_with("txn_")
+        && (12..=96).contains(&value.len())
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+}
+
 fn load_records(
     path: &Path,
 ) -> Result<BTreeMap<String, MerchantReservationRecord>, MerchantStateError> {
@@ -1685,6 +2501,10 @@ fn load_records(
     Ok(state.records)
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "the validator keeps the complete persisted-record invariant visible in one place"
+)]
 fn valid_record(record: &MerchantReservationRecord) -> bool {
     let identity = MerchantReservationIdentity {
         schema: RESERVATION_SCHEMA,
@@ -1699,19 +2519,41 @@ fn valid_record(record: &MerchantReservationRecord) -> bool {
     };
     let identity_matches =
         canonical_json(&identity).is_ok_and(|bytes| sha256(&bytes) == record.reservation_id);
-    let provider_shape = match record.state {
-        MerchantReservationState::ProviderAccepted
-        | MerchantReservationState::Committed
-        | MerchantReservationState::ReconciledCommitted
-        | MerchantReservationState::Authorized
-        | MerchantReservationState::ReconciledAuthorized => record.provider.is_some(),
-        MerchantReservationState::Reserved
-        | MerchantReservationState::Claimed
-        | MerchantReservationState::Attempting
-        | MerchantReservationState::Released => record.provider.is_none(),
-        MerchantReservationState::OutcomeUnknown | MerchantReservationState::ReconciledReleased => {
-            true
-        }
+    let provider_shape = if record.operation == MerchantOperation::Capture {
+        record.provider.is_none()
+            && match record.state {
+                MerchantReservationState::ProviderAccepted
+                | MerchantReservationState::CaptureCommitted
+                | MerchantReservationState::ReconciledCaptureCommitted => {
+                    record.capture_provider.is_some()
+                }
+                MerchantReservationState::Reserved
+                | MerchantReservationState::Claimed
+                | MerchantReservationState::Attempting
+                | MerchantReservationState::Released => record.capture_provider.is_none(),
+                MerchantReservationState::OutcomeUnknown
+                | MerchantReservationState::ReconciledReleased => true,
+                _ => false,
+            }
+    } else {
+        record.capture_provider.is_none()
+            && match record.state {
+                MerchantReservationState::ProviderAccepted
+                | MerchantReservationState::Committed
+                | MerchantReservationState::ReconciledCommitted
+                | MerchantReservationState::Authorized
+                | MerchantReservationState::ReconciledAuthorized
+                | MerchantReservationState::AuthorizationReleasedByCapture => {
+                    record.provider.is_some()
+                }
+                MerchantReservationState::Reserved
+                | MerchantReservationState::Claimed
+                | MerchantReservationState::Attempting
+                | MerchantReservationState::Released => record.provider.is_none(),
+                MerchantReservationState::OutcomeUnknown
+                | MerchantReservationState::ReconciledReleased => true,
+                _ => false,
+            }
     };
     let operation_profile_matches = matches!(
         (record.operation, record.exact_action_profile.as_str()),
@@ -1721,22 +2563,59 @@ fn valid_record(record: &MerchantReservationRecord) -> bool {
         ) | (
             MerchantOperation::Authorize,
             crate::merchant::PAYMENT_AUTHORIZE_PROFILE
-        )
-    );
-    let lifecycle_matches = !matches!(
-        (record.operation, record.state),
-        (
-            MerchantOperation::Collect,
-            MerchantReservationState::Authorized | MerchantReservationState::ReconciledAuthorized
         ) | (
-            MerchantOperation::Authorize,
-            MerchantReservationState::Committed | MerchantReservationState::ReconciledCommitted
+            MerchantOperation::Capture,
+            crate::merchant::PAYMENT_CAPTURE_PROFILE
         )
     );
+    let lifecycle_matches = match record.operation {
+        MerchantOperation::Collect => !matches!(
+            record.state,
+            MerchantReservationState::Authorized
+                | MerchantReservationState::ReconciledAuthorized
+                | MerchantReservationState::AuthorizationReleasedByCapture
+                | MerchantReservationState::CaptureCommitted
+                | MerchantReservationState::ReconciledCaptureCommitted
+        ),
+        MerchantOperation::Authorize => !matches!(
+            record.state,
+            MerchantReservationState::Committed
+                | MerchantReservationState::ReconciledCommitted
+                | MerchantReservationState::CaptureCommitted
+                | MerchantReservationState::ReconciledCaptureCommitted
+        ),
+        MerchantOperation::Capture => !matches!(
+            record.state,
+            MerchantReservationState::Committed
+                | MerchantReservationState::ReconciledCommitted
+                | MerchantReservationState::Authorized
+                | MerchantReservationState::ReconciledAuthorized
+                | MerchantReservationState::AuthorizationReleasedByCapture
+        ),
+        MerchantOperation::Cancel => false,
+    };
+    let capture_links_match = if record.operation == MerchantOperation::Capture {
+        record.authorization_workflow_id.is_some()
+            && record.authorization_action_digest.is_some()
+            && record.authorization_reservation_id.is_some()
+            && record
+                .authorization_release_minor
+                .is_some_and(|amount| amount > 0)
+            && record.capture_payment_intent_id.is_some()
+            && record.capture_charge_id.is_some()
+    } else {
+        record.authorization_workflow_id.is_none()
+            && record.authorization_action_digest.is_none()
+            && record.authorization_reservation_id.is_none()
+            && record.authorization_release_minor.is_none()
+            && record.capture_payment_intent_id.is_none()
+            && record.capture_charge_id.is_none()
+    };
     record.schema == RESERVATION_SCHEMA
         && identity_matches
         && operation_profile_matches
         && lifecycle_matches
+        && capture_links_match
         && provider_shape
         && (8..=96).contains(&record.workflow_id.len())
         && record.amount_minor > 0
@@ -2122,5 +3001,151 @@ mod tests {
             )
             .unwrap();
         assert_eq!(snapshot.usages[0].outcome_unknown_minor, 0);
+    }
+
+    #[test]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the test proves both sides of the atomic cross-budget transition"
+    )]
+    fn final_capture_atomically_commits_settlement_and_releases_the_linked_hold() {
+        let authorization_policy = merchant_policy(MerchantOperation::Authorize, 1_000, 1_000);
+        let capture_policy = merchant_policy(MerchantOperation::Capture, 1_000, 1_000);
+        let store = InMemoryMerchantPaymentStore::default();
+        let authorization_workflow = "merchant-capture-source-0001";
+        let ReserveMerchantPaymentResult::Reserved {
+            lease: authorization_lease,
+            ..
+        } = store.reserve(request(
+            &authorization_policy,
+            MerchantOperation::Authorize,
+            authorization_workflow,
+            1_000,
+        ))
+        else {
+            panic!("authorization reservation expected");
+        };
+        store
+            .claim_authorization(&authorization_lease, NOW)
+            .unwrap();
+        store
+            .mark_authorization_attempting(&authorization_lease, NOW)
+            .unwrap();
+        store
+            .record_authorization_provider_accepted(
+                &authorization_lease,
+                MerchantProviderProjection {
+                    payment_intent_id: PaymentIntentId::parse("pi_capture_state_test").unwrap(),
+                    charge_id: Some(ChargeId::parse("ch_capture_state_test").unwrap()),
+                    status: "requires_capture".into(),
+                    amount_minor: 1_000,
+                    currency: Currency::parse("usd").unwrap(),
+                    amount_capturable_minor: 1_000,
+                    amount_received_minor: 0,
+                    capture_before: Some(NOW + 3_600),
+                    stripe_request_id: Some("req_capture_authorize_test".into()),
+                    response_digest: sha256(b"capture-source-provider"),
+                    observed_at: NOW,
+                    source: "retrieve".into(),
+                },
+                NOW,
+            )
+            .unwrap();
+        let authorization = store
+            .commit_authorization(&authorization_lease, NOW)
+            .unwrap();
+
+        let budget = &capture_policy.aggregate_budgets()[0];
+        let capture_request = ReservePaymentCaptureRequest::new(
+            "merchant-final-capture-0001".into(),
+            sha256(b"capture-action"),
+            sha256(b"capture-decision"),
+            capture_policy.digest().unwrap(),
+            MERCHANT_EVALUATOR_ID.into(),
+            MERCHANT_EVALUATOR_VERSION,
+            sha256(b"capture-evidence"),
+            sha256(b"capture-configuration"),
+            sha256(b"capture-configuration"),
+            authorization.stripe_account_id().clone(),
+            authorization.connect_account().clone(),
+            authorization.customer_id().clone(),
+            authorization.order_scope().into(),
+            authorization.currency().clone(),
+            500,
+            vec![MerchantReservationIntent {
+                budget_id: budget.budget_id().into(),
+                operation: MerchantOperation::Capture,
+                currency: authorization.currency().clone(),
+                window: budget.window().identity(NOW).unwrap(),
+                limit_minor: budget.limit_minor(),
+                amount_minor: 500,
+                available_before_minor: budget.limit_minor(),
+            }],
+            sha256(b"capture-idempotency"),
+            authorization_workflow.into(),
+            authorization.action_digest().clone(),
+            authorization.reservation_id().clone(),
+            1_000,
+            PaymentIntentId::parse("pi_capture_state_test").unwrap(),
+            ChargeId::parse("ch_capture_state_test").unwrap(),
+            NOW,
+        );
+        let ReserveMerchantPaymentResult::Reserved {
+            lease: capture_lease,
+            ..
+        } = store.reserve_capture(capture_request)
+        else {
+            panic!("capture settlement reservation expected");
+        };
+        store.claim_capture(&capture_lease, NOW).unwrap();
+        store.mark_capture_attempting(&capture_lease, NOW).unwrap();
+        store
+            .record_capture_provider_accepted(
+                &capture_lease,
+                PaymentCaptureProviderProjection {
+                    payment_intent_id: PaymentIntentId::parse("pi_capture_state_test").unwrap(),
+                    charge_id: ChargeId::parse("ch_capture_state_test").unwrap(),
+                    balance_transaction_id: Some("txn_capture_state_test".into()),
+                    status: "succeeded".into(),
+                    authorized_amount_minor: 1_000,
+                    captured_amount_minor: 500,
+                    currency: Currency::parse("usd").unwrap(),
+                    amount_capturable_minor: 0,
+                    amount_received_minor: 500,
+                    capture_before: Some(NOW + 3_600),
+                    stripe_request_id: Some("req_capture_state_test".into()),
+                    response_digest: sha256(b"capture-provider"),
+                    observed_at: NOW,
+                    source: "retrieve".into(),
+                },
+                NOW,
+            )
+            .unwrap();
+        let capture = store.commit_capture(&capture_lease, NOW).unwrap();
+        let released_authorization = store.get(authorization_workflow).unwrap().unwrap();
+        assert_eq!(capture.state(), MerchantReservationState::CaptureCommitted);
+        assert_eq!(
+            released_authorization.state(),
+            MerchantReservationState::AuthorizationReleasedByCapture
+        );
+        let authorization_snapshot = store
+            .snapshot(
+                &authorization_policy,
+                &StripeAccountId::parse("acct_authsdemo01").unwrap(),
+                NOW,
+            )
+            .unwrap();
+        let capture_snapshot = store
+            .snapshot(
+                &capture_policy,
+                &StripeAccountId::parse("acct_authsdemo01").unwrap(),
+                NOW,
+            )
+            .unwrap();
+        assert_eq!(
+            authorization_snapshot.usages[0].active_authorization_minor,
+            0
+        );
+        assert_eq!(capture_snapshot.usages[0].committed_minor, 500);
     }
 }

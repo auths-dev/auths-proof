@@ -3,8 +3,8 @@
 use serde::Serialize;
 
 use super::{
-    MerchantValidationError, PAYMENT_AUTHORIZE_PROFILE, PAYMENT_COLLECT_PROFILE,
-    PAYMENT_STATEMENT_DESCRIPTOR, valid_local_id, valid_workflow_id,
+    MerchantValidationError, PAYMENT_AUTHORIZE_PROFILE, PAYMENT_CAPTURE_PROFILE,
+    PAYMENT_COLLECT_PROFILE, PAYMENT_STATEMENT_DESCRIPTOR, valid_local_id, valid_workflow_id,
 };
 use crate::{
     canonical::{canonical_digest, sha256},
@@ -36,7 +36,10 @@ pub fn fixed_merchant_metadata_commitment(
     policy_digest: &DigestHex,
 ) -> Result<DigestHex, MerchantValidationError> {
     if !valid_workflow_id(workflow_id)
-        || !matches!(profile, PAYMENT_COLLECT_PROFILE | PAYMENT_AUTHORIZE_PROFILE)
+        || !matches!(
+            profile,
+            PAYMENT_COLLECT_PROFILE | PAYMENT_AUTHORIZE_PROFILE | PAYMENT_CAPTURE_PROFILE
+        )
         || !valid_local_id(order_scope)
     {
         return Err(MerchantValidationError::InvalidAction);

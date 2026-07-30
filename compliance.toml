@@ -412,19 +412,19 @@ path = "product/integrations/auths-stripe"
 core_apis = ["auths-author", "auths-codec", "auths-model", "auths-ports", "auths-raw-key", "auths-registries", "auths-signature"]
 protocol_versions = ["auths-proof/v1"]
 wire_objects = ["CanonicalAction", "VerifiedAction"]
-fixture_suites = ["product/integrations/auths-stripe/fixtures/v1", "product/integrations/auths-stripe/fixtures/merchant-collect/v1", "product/integrations/auths-stripe/fixtures/merchant-authorize/v1"]
+fixture_suites = ["product/integrations/auths-stripe/fixtures/v1", "product/integrations/auths-stripe/fixtures/merchant-collect/v1", "product/integrations/auths-stripe/fixtures/merchant-authorize/v1", "product/integrations/auths-stripe/fixtures/merchant-capture/v1"]
 principal_families = []
 signature_families = []
-profiles = ["auths.stripe.exact-payment-authorize/1", "auths.stripe.exact-payment-collect/1", "auths.stripe.exact-refund/1"]
+profiles = ["auths.stripe.exact-payment-authorize/1", "auths.stripe.exact-payment-capture/1", "auths.stripe.exact-payment-collect/1", "auths.stripe.exact-refund/1"]
 transports = ["stripe-https"]
 configuration_inputs = ["bounded-evaluator-configuration", "executed-verifier-configuration", "immutable-configured-policy", "merchant-evaluator-configuration", "required-verifier-configuration", "stripe-account", "stripe-api-version"]
 security_state = ["aggregate-refund-budget", "merchant-operation-budget", "merchant-payment-claim", "merchant-payment-reservation", "refund-claim", "refund-reservation", "stripe-receipt-log"]
 
 [packages.auths-stripe.claims]
 core-api-consumer = ["product/integrations/auths-stripe/src/profile.rs#profile_binds_exact_refund_and_one_write_budget"]
-profile-contract = ["product/integrations/auths-stripe/src/bounded.rs#configured_policy_authorizes_exact_refund_at_inclusive_boundary", "product/integrations/auths-stripe/src/bounded.rs#every_stripe_scope_dimension_denies_independently", "product/integrations/auths-stripe/src/decision.rs#exact_refund_is_authorized", "product/integrations/auths-stripe/src/merchant/authorize/evaluator.rs#inclusive_authorization_boundary_and_one_past_are_distinct", "product/integrations/auths-stripe/src/merchant/authorize/evaluator.rs#tightening_every_shared_policy_dimension_never_opens_fixed_action", "product/integrations/auths-stripe/src/merchant/collect/evaluator.rs#inclusive_collection_boundary_and_one_past_are_distinct", "product/integrations/auths-stripe/src/merchant/collect/evaluator.rs#tightening_every_shared_policy_dimension_never_opens_fixed_action"]
-runtime-enforcement-boundary = ["product/integrations/auths-stripe/src/bounded_service.rs#credential_acquisition_is_after_reservation", "product/integrations/auths-stripe/src/merchant/authorize/execution.rs#authorization_transition_is_closed_and_profile_owned", "product/integrations/auths-stripe/src/merchant/collect/execution.rs#collection_transition_is_closed_and_profile_owned", "product/integrations/auths-stripe/src/merchant/state.rs#collect_and_authorize_store_transitions_remain_profile_owned", "product/integrations/auths-stripe/src/service.rs#configuration_mismatch_never_reads_mutation_credential"]
-stateful-replay-budget-component = ["product/integrations/auths-stripe/src/claim.rs#concurrent_claims_execute_once", "product/integrations/auths-stripe/src/merchant/state.rs#authorization_replay_survives_restart_without_a_second_lease", "product/integrations/auths-stripe/src/merchant/state.rs#concurrent_last_authorization_hold_is_reserved_once", "product/integrations/auths-stripe/src/merchant/state.rs#concurrent_last_unit_is_reserved_once", "product/integrations/auths-stripe/src/merchant/state.rs#replay_survives_restart_and_never_returns_a_second_lease", "product/integrations/auths-stripe/src/merchant/state.rs#unknown_capacity_is_held_until_fresh_reconciliation_releases_it", "product/integrations/auths-stripe/src/reservation.rs#concurrent_last_capacity_reserves_once", "product/integrations/auths-stripe/src/reservation.rs#unknown_capacity_is_held_until_reconciled"]
+profile-contract = ["product/integrations/auths-stripe/src/bounded.rs#configured_policy_authorizes_exact_refund_at_inclusive_boundary", "product/integrations/auths-stripe/src/bounded.rs#every_stripe_scope_dimension_denies_independently", "product/integrations/auths-stripe/src/decision.rs#exact_refund_is_authorized", "product/integrations/auths-stripe/src/merchant/authorize/evaluator.rs#inclusive_authorization_boundary_and_one_past_are_distinct", "product/integrations/auths-stripe/src/merchant/authorize/evaluator.rs#tightening_every_shared_policy_dimension_never_opens_fixed_action", "product/integrations/auths-stripe/src/merchant/capture/evaluator.rs#exact_capture_boundary_and_one_past_are_distinct", "product/integrations/auths-stripe/src/merchant/capture/evaluator.rs#partial_final_capture_reserves_settlement_and_releases_the_full_hold", "product/integrations/auths-stripe/src/merchant/collect/evaluator.rs#inclusive_collection_boundary_and_one_past_are_distinct", "product/integrations/auths-stripe/src/merchant/collect/evaluator.rs#tightening_every_shared_policy_dimension_never_opens_fixed_action"]
+runtime-enforcement-boundary = ["product/integrations/auths-stripe/src/bounded_service.rs#credential_acquisition_is_after_reservation", "product/integrations/auths-stripe/src/merchant/authorize/execution.rs#authorization_transition_is_closed_and_profile_owned", "product/integrations/auths-stripe/src/merchant/capture/execution.rs#capture_transition_is_closed_and_profile_owned", "product/integrations/auths-stripe/src/merchant/collect/execution.rs#collection_transition_is_closed_and_profile_owned", "product/integrations/auths-stripe/src/merchant/state.rs#collect_and_authorize_store_transitions_remain_profile_owned", "product/integrations/auths-stripe/src/service.rs#configuration_mismatch_never_reads_mutation_credential"]
+stateful-replay-budget-component = ["product/integrations/auths-stripe/src/claim.rs#concurrent_claims_execute_once", "product/integrations/auths-stripe/src/merchant/state.rs#authorization_replay_survives_restart_without_a_second_lease", "product/integrations/auths-stripe/src/merchant/state.rs#concurrent_last_authorization_hold_is_reserved_once", "product/integrations/auths-stripe/src/merchant/state.rs#concurrent_last_unit_is_reserved_once", "product/integrations/auths-stripe/src/merchant/state.rs#final_capture_atomically_commits_settlement_and_releases_the_linked_hold", "product/integrations/auths-stripe/src/merchant/state.rs#replay_survives_restart_and_never_returns_a_second_lease", "product/integrations/auths-stripe/src/merchant/state.rs#unknown_capacity_is_held_until_fresh_reconciliation_releases_it", "product/integrations/auths-stripe/src/reservation.rs#concurrent_last_capacity_reserves_once", "product/integrations/auths-stripe/src/reservation.rs#unknown_capacity_is_held_until_reconciled"]
 
 [packages.auths-stripe-demo]
 kind = "cargo"
@@ -501,6 +501,25 @@ security_state = ["authorization-exposure-budget", "expiring-session", "merchant
 [packages.auths-stripe-payment-authorize-demo.claims]
 runtime-enforcement-boundary = ["demos/stripe-payment-authorize/src/app.rs#denial_and_mismatch_stop_before_credentials_and_provider_io"]
 stateful-replay-budget-component = ["demos/stripe-payment-authorize/src/app.rs#ambiguous_delivery_retains_capacity_and_reconciles_without_create", "demos/stripe-payment-authorize/src/app.rs#exact_authorization_replay_never_creates_a_second_payment"]
+
+[packages.auths-stripe-payment-capture-demo]
+kind = "cargo"
+layer = "demos"
+path = "demos/stripe-payment-capture"
+core_apis = []
+protocol_versions = ["auths-proof/v1"]
+wire_objects = ["CanonicalAction", "ProofBundle", "VerifierContext"]
+fixture_suites = ["product/integrations/auths-stripe/fixtures/merchant-capture/v1"]
+principal_families = ["raw-key-v1"]
+signature_families = ["ed25519-v1"]
+profiles = ["auths.stripe.exact-payment-capture/1"]
+transports = ["https", "stripe-https"]
+configuration_inputs = ["executed-merchant-evaluator-configuration", "immutable-configured-policy", "required-merchant-evaluator-configuration", "stripe-test-mode"]
+security_state = ["authorization-exposure-budget", "capture-settlement-budget", "expiring-session", "merchant-capture-claim", "merchant-capture-reservation", "receipt-sink"]
+
+[packages.auths-stripe-payment-capture-demo.claims]
+runtime-enforcement-boundary = ["demos/stripe-payment-capture/src/app.rs#denial_and_mismatch_stop_before_credentials_and_provider_io"]
+stateful-replay-budget-component = ["demos/stripe-payment-capture/src/app.rs#ambiguous_delivery_retains_both_exposures_then_reconciles_without_recapture", "demos/stripe-payment-capture/src/app.rs#concurrent_exact_capture_has_one_provider_delivery", "demos/stripe-payment-capture/src/app.rs#durable_replay_survives_restart_without_credentials_or_provider_io", "demos/stripe-payment-capture/src/app.rs#exact_partial_final_capture_releases_the_entire_linked_hold_and_replays"]
 
 [packages.auths-kubernetes]
 kind = "cargo"

@@ -8,6 +8,7 @@
 
 pub mod authorize;
 mod budget;
+pub mod capture;
 pub mod collect;
 mod commitments;
 mod evidence;
@@ -31,6 +32,20 @@ pub use authorize::{
 pub use budget::{
     MerchantAggregateBudget, MerchantAggregateSnapshot, MerchantAggregateUsage,
     MerchantBudgetWindow, MerchantReservationIntent, MerchantWindowIdentity,
+};
+pub use capture::{
+    ExecutePaymentCaptureRequest, MerchantCaptureDecisionReceipt,
+    MerchantCaptureObservationReceipt, MerchantCaptureReceipt, MerchantCaptureServiceError,
+    MerchantCaptureTransitionReceipt, PaymentCaptureDecision, PaymentCaptureDecisionClass,
+    PaymentCaptureDecisionCode, PaymentCaptureDecisionStage, PaymentCaptureEffect,
+    PaymentCaptureEligibility, PaymentCaptureEvaluationContext, PaymentCaptureEvidenceInput,
+    PaymentCaptureEvidenceV1, PaymentCaptureGateway, PaymentCaptureProofDecision,
+    PaymentCaptureProofVerifier, PaymentCaptureProviderProjection, PaymentCaptureProviderRequest,
+    PaymentCaptureReconciliationOutcome, PaymentCaptureService, PaymentCaptureServiceDependencies,
+    PaymentCaptureTransition, PaymentCaptureWorkflowOutcome, SdkPaymentCaptureProofVerifier,
+    StripeExactPaymentCaptureInput, StripeExactPaymentCaptureV1, StripePaymentCaptureCommand,
+    StripePaymentCaptureProfile, VerifiedPaymentCaptureCommand, evaluate_payment_capture,
+    transition_payment_capture,
 };
 pub use collect::{
     ExecutePaymentCollectRequest, MerchantCollectionDecisionReceipt,
@@ -56,15 +71,15 @@ pub use policy::{
     MERCHANT_CANONICALIZATION, MERCHANT_EVALUATOR_ID, MERCHANT_EVALUATOR_VERSION,
     MERCHANT_POLICY_PROVENANCE, MERCHANT_POLICY_TYPE, MERCHANT_POLICY_VERSION,
     MerchantConnectAccount, MerchantEvaluatorCommitment, MerchantOperation,
-    PAYMENT_AUTHORIZE_PROFILE, PAYMENT_COLLECT_PROFILE, PAYMENT_STATEMENT_DESCRIPTOR,
-    StripeBoundedMerchantPaymentPolicyInput, StripeBoundedMerchantPaymentPolicyV1,
-    StripeMerchantEvaluatorConfigurationV1,
+    PAYMENT_AUTHORIZE_PROFILE, PAYMENT_CAPTURE_PROFILE, PAYMENT_COLLECT_PROFILE,
+    PAYMENT_STATEMENT_DESCRIPTOR, StripeBoundedMerchantPaymentPolicyInput,
+    StripeBoundedMerchantPaymentPolicyV1, StripeMerchantEvaluatorConfigurationV1,
 };
 pub use state::{
     InMemoryMerchantPaymentStore, MerchantPaymentStore, MerchantProviderProjection,
     MerchantReservationLease, MerchantReservationRecord, MerchantReservationState,
     MerchantStateError, PersistentMerchantPaymentStore, ReserveMerchantPaymentRequest,
-    ReserveMerchantPaymentResult,
+    ReserveMerchantPaymentResult, ReservePaymentCaptureRequest,
 };
 
 fn valid_nonempty_sorted<T: Ord>(values: &[T]) -> bool {
