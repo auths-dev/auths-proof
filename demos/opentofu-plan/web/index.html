@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="See Auths authorize one exact OpenTofu saved plan without giving the proposing agent infrastructure credentials." />
+    <meta name="color-scheme" content="light" />
+    <title>Auths × OpenTofu — Apply exactly what was planned</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#workbench">Skip to the workbench</a>
+    <header class="site-header">
+      <nav class="shell nav" aria-label="Primary navigation">
+        <a class="wordmark" href="/">auths <i>/</i> <small>OpenTofu lab</small></a>
+        <div class="nav-links"><a href="#workbench">Saved plan</a><a href="#boundary">Credential boundary</a><a href="https://github.com/auths-dev/auths-proof" rel="noreferrer" target="_blank">Source ↗</a></div>
+        <a class="button quiet" href="#workbench">Run the proof →</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="shell hero-grid">
+          <div>
+            <p class="eyebrow"><span></span> Auths × protected OpenTofu</p>
+            <h1>Plan once. <em>Apply only those bytes.</em></h1>
+          </div>
+          <div class="hero-copy">
+            <p>The agent can propose infrastructure, but it never receives the backend or provider credential. A protected planner commits the saved-plan bytes, semantic changes, workspace, state, dependencies, and verifier policy into one short-lived action.</p>
+            <ul><li>Saved plan, not re-plan</li><li>Claim before credentials</li><li>State read-back</li></ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="lab" id="workbench">
+        <div class="shell">
+          <div class="loading" id="loading" aria-live="polite"><span></span><div><strong>Creating a protected plan session</strong><p>Reading readiness, state evidence, and the sanitized projection.</p></div></div>
+          <div class="workbench" id="workbench-grid" hidden>
+            <section class="controls" aria-labelledby="experiment-title">
+              <header class="panel-head"><b>01</b><span>Change one committed fact</span><small>predicted locally by the native profile</small></header>
+              <h2 id="experiment-title">Try to substitute the plan.</h2>
+              <p class="intro">Every experiment starts from one signed Auths authorization. The selected fact and the result stay side by side.</p>
+              <article class="plan-card">
+                <div class="plan-title"><span>Protected saved plan</span><strong id="workspace">—</strong><small id="backend">—</small></div>
+                <dl>
+                  <div><dt>State lineage</dt><dd id="lineage">—</dd></div>
+                  <div><dt>State serial</dt><dd id="serial">—</dd></div>
+                  <div><dt>Changes</dt><dd id="changes">—</dd></div>
+                </dl>
+                <div class="digest"><span>Opaque plan commitment</span><code id="plan-digest">—</code></div>
+              </article>
+              <div class="variant-list" id="variant-list" aria-label="Saved-plan experiments">
+                <button class="variant active" data-variant="exact" type="button" aria-pressed="true"><span><b>Exact saved plan</b><small>Bytes, state, workspace, dependencies, and policy match</small></span><i>01</i></button>
+                <button class="variant" data-variant="swapped-plan" type="button" aria-pressed="false"><span><b>Plan substituted</b><small>Protected storage resolves different bytes</small></span><i>02</i></button>
+                <button class="variant" data-variant="source-changed" type="button" aria-pressed="false"><span><b>Source changed</b><small>The action commits to different source bytes</small></span><i>03</i></button>
+                <button class="variant" data-variant="workspace-changed" type="button" aria-pressed="false"><span><b>Workspace changed</b><small>The executor points at another workspace</small></span><i>04</i></button>
+                <button class="variant" data-variant="backend-changed" type="button" aria-pressed="false"><span><b>Backend changed</b><small>State comes from a different backend</small></span><i>05</i></button>
+                <button class="variant" data-variant="stale-state" type="button" aria-pressed="false"><span><b>State advanced</b><small>The state serial changed after planning</small></span><i>06</i></button>
+                <button class="variant" data-variant="state-lock-held" type="button" aria-pressed="false"><span><b>State lock unavailable</b><small>Fresh state cannot be established</small></span><i>07</i></button>
+                <button class="variant" data-variant="destroy-added" type="button" aria-pressed="false"><span><b>Destroy added</b><small>The projection now contains delete</small></span><i>08</i></button>
+                <button class="variant" data-variant="dependency-changed" type="button" aria-pressed="false"><span><b>Provider lock changed</b><small>The dependency commitment differs</small></span><i>09</i></button>
+                <button class="variant" data-variant="expired-plan" type="button" aria-pressed="false"><span><b>Plan expired</b><small>The freshness window elapsed</small></span><i>10</i></button>
+                <button class="variant" data-variant="configuration-changed" type="button" aria-pressed="false"><span><b>Verifier policy changed</b><small>The executor loads a different work limit</small></span><i>11</i></button>
+              </div>
+              <aside class="credential-probe" id="credential-probe"><span>Agent credential probe</span><strong>CHECKING BOUNDARY</strong><p>No secret names or values cross this interface.</p></aside>
+            </section>
+
+            <article class="result" aria-labelledby="result-title">
+              <header class="panel-head result-head"><span id="result-title">02 · Current authorization result</span><small class="service"><i></i><b id="service-state">connecting</b></small></header>
+              <section class="verdict" aria-live="polite" aria-atomic="true"><span>Native profile verdict</span><strong id="verdict" data-kind="authorized">AUTHORIZED</strong><p id="verdict-detail">Waiting for fresh protected evidence.</p></section>
+              <dl class="facts">
+                <div><dt>Stable code</dt><dd id="decision-code">—</dd></div>
+                <div><dt>Stopped at</dt><dd id="decision-stage">—</dd></div>
+                <div><dt>Credential called</dt><dd id="credential-called">NO</dd></div>
+                <div><dt>OpenTofu called</dt><dd id="opentofu-called">NO</dd></div>
+              </dl>
+              <section class="config-parity">
+                <div><span>Required configuration</span><code id="required-config">—</code></div>
+                <b id="config-match">exact match</b>
+                <div><span>Executed configuration</span><code id="executed-config">—</code></div>
+              </section>
+              <div class="execution-grid">
+                <section>
+                  <span class="micro">03 · Protected execution</span>
+                  <h3 id="execution-title">Apply this saved plan once.</h3>
+                  <p id="execution-copy">The native service verifies, claims, resolves the exact artifact, acquires credentials, rechecks state, and applies the saved plan.</p>
+                  <button class="button execute" id="execute" type="button">Apply exact saved plan</button>
+                  <a class="receipt-link" id="receipt-link" href="#" hidden>Open designed receipt page ↗</a>
+                </section>
+                <section class="timeline">
+                  <span class="micro">Ordered evidence</span>
+                  <ol id="timeline">
+                    <li data-stage="authorized"><span>Exact action verified</span><b>ready</b></li>
+                    <li data-stage="claimed"><span>One execution claimed</span><b>—</b></li>
+                    <li data-stage="artifact"><span>Plan bytes matched</span><b>—</b></li>
+                    <li data-stage="credential"><span>Credential acquired</span><b>—</b></li>
+                    <li data-stage="state"><span>State rechecked</span><b>—</b></li>
+                    <li data-stage="apply"><span>Saved plan applied</span><b>—</b></li>
+                    <li data-stage="observed"><span>Postcondition observed</span><b>—</b></li>
+                  </ol>
+                </section>
+              </div>
+              <dl class="observation" id="observation" hidden>
+                <div><dt>Prior state</dt><dd id="prior-state">—</dd></div>
+                <div><dt>Resulting state</dt><dd id="resulting-state">—</dd></div>
+                <div><dt>Committed</dt><dd id="committed">—</dd></div>
+                <div><dt>Converged</dt><dd id="converged">—</dd></div>
+              </dl>
+              <details class="receipt-viewer" id="receipt-viewer" hidden>
+                <summary>Complete receipt from the native API <span id="receipt-state">recorded</span></summary>
+                <pre id="receipt-json">Run an experiment to load its receipt.</pre>
+              </details>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="boundary" id="boundary">
+        <div class="shell">
+          <p class="eyebrow"><span></span> The authority boundary</p>
+          <div class="boundary-title"><h2>The proof authorizes an artifact. The executor holds the credential.</h2><p>The browser can submit only an experiment identifier. It cannot select CLI flags, environment variables, file paths, workspaces, or credentials. The fixed execution path never invokes a shell.</p></div>
+          <div class="flow"><article><b>01</b><strong>Agent</strong><p>Proposes bounded HCL and sees a sanitized projection.</p></article><i>→</i><article><b>02</b><strong>Protected planner</strong><p>Creates and stores one opaque saved plan.</p></article><i>→</i><article><b>03</b><strong>Auths</strong><p>Verifies the exact action and claims it once.</p></article><i>→</i><article><b>04</b><strong>Protected executor</strong><p>Applies those bytes, then reads state back.</p></article></div>
+        </div>
+      </section>
+    </main>
+    <footer><div class="shell"><a class="wordmark" href="/">auths <i>/</i> <small>OpenTofu lab</small></a><p>No production infrastructure. No credentials in browser state.</p><span id="release">connecting</span></div></footer>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

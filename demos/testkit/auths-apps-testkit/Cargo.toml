@@ -25,6 +25,7 @@ auths-raw-key.workspace = true
 auths-did-key.workspace = true
 auths-did-keri.workspace = true
 auths-signature.workspace = true
+auths-sdk.workspace = true
 async-trait.workspace = true
 ed25519-dalek.workspace = true
 iroh.workspace = true

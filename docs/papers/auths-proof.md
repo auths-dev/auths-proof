@@ -1,37 +1,46 @@
 ---
-title: "Auths-Proof: Mechanically Linking Authorization Algebra to Shipping Rust"
+title: "Auths-Proof: Mechanically Refining Rich Authorization Semantics to Shipping Rust"
 author: "bordumb · bordumbb@gmail.com"
-date: 27 July 2026
+date: 29 July 2026
 abstract: |
   Authorization systems are often verified at the wrong boundary. A proof
   assistant may establish elegant properties of a model while production code
   independently reimplements the model, leaving semantic correspondence to
   review and testing. We present the formal core of **Auths-Proof**, a
-  deterministic proof-carrying authorization kernel, and a refinement boundary
-  designed to make that gap explicit and mechanically difficult to cross.
+  deterministic proof-carrying authorization kernel, and a refinement chain
+  that connects its rich authority semantics to the exact safe Rust functions
+  used in production.
 
-  Auths-Proof models delegation as a product order over ten authority
-  dimensions and composition as a three-valued algebra over authorized,
-  denied, and indeterminate branch outcomes. Lean 4 proves transitivity,
-  antisymmetry, downward-closed action coverage, strict delegation depth,
-  threshold soundness, monotonicity, permutation invariance, termination, and
-  linear structural cost. A versioned declarative contract generates both the
-  shipping `no_std` Rust algebra kernel and the corresponding Lean definitions.
-  Production authority and composition code call that generated Rust kernel.
-  Lean exports all 1,024 Boolean attenuation projections and 2,448 threshold
-  states through the default 16-leaf deployment bound; Rust replays those
-  vectors against both the generated functions and the shipping composition
-  path. Kani additionally checks the two production functions over symbolic
-  bounded inputs.
+  Auths-Proof models permissions and audiences as finite sets, validity as
+  inclusive intervals, action authority as a closed constraint algebra,
+  budgets as optional ceilings, status as an ordered freshness policy, profile
+  selection as a state transition, and delegation as a linked, strictly
+  depth-decreasing chain. Lean 4 proves the component laws, semantic
+  containment, downward-closed action coverage and evidence requirements,
+  unique accepted transitions, ordered diagnostics, and three-valued
+  composition properties. Production authoring, delegation, and terminal
+  coverage were reshaped into total, pure, `unsafe`-free Rust evaluators over
+  validated borrowed views. Charon and Aeneas translate those exact functions
+  into Lean; three refinement theorems prove agreement with the handwritten
+  rich specification.
 
-  This is not a proof of the complete verifier. The Lean theorems are
-  unbounded, but the cross-language threshold enumeration is bounded; the
-  contract generator, Rust compiler, cryptographic and codec layers, and the
-  projection from rich protocol values to ten Boolean predicates remain in the
-  trusted computing base. The result is a precise middle ground between an
-  unlinked formal model and whole-program verification: small enough to audit,
-  executable in production, reproducible by one command, and honest about the
-  obligations that remain.
+  The evaluated artifact inventories 72 compiled Lean statements: 56 rich
+  authority and production-refinement claims and 16 composition claims. It
+  supplements the proofs with 23 rich semantic vectors, a required 21-mutation
+  matrix, all 1,024 Boolean attenuation projections, 2,448 threshold states
+  through the default 16-leaf deployment bound, and four Kani harnesses.
+  Statement hashes, transitive axioms, translation source closure, pinned
+  tools, external models, and generated artifacts are checked in a read-only
+  repository gate.
+
+  This is not a proof of the complete verifier. Canonical decoding,
+  cryptography, evidence acquisition, registries, clocks, stores, adapters,
+  credentials, external effects, the Rust compiler, and the reviewed
+  representation-validity premises remain outside or inside an explicit
+  trusted computing base. The result is stronger than two matching
+  implementations and narrower than whole-program verification: production
+  authority decisions are mechanically represented and proved against a
+  readable rich model, while the remaining assumptions stay inspectable.
 ---
 
 # 1. Introduction
@@ -81,96 +90,112 @@ detached from production. Experience from verified compilers and kernels shows
 that useful assurance depends on an explicit refinement chain and an explicit
 trusted computing base [@leroy2009compcert; @klein2009sel4].
 
-Auths-Proof therefore treats linkage as a first-class artifact. A small
-versioned contract generates the finite algebra surface in both languages.
-Lean proves unbounded mathematical properties over those generated
-definitions. Production Rust calls the generated Rust functions. Lean emits
-semantic vectors; Rust consumes them. Kani analyzes the same Rust functions
-with symbolic inputs. Figure 1 summarizes the chain.
+Auths-Proof therefore treats linkage as a first-class artifact at two
+boundaries. A small versioned contract generates the finite Boolean algebra
+surface in Rust and Lean. Separately, Charon and Aeneas translate the exact
+pure Rust authority evaluators and their leaf predicates into Lean. Handwritten
+theorems refine the translated functions to a readable rich specification.
+Compiled-statement auditing, semantic vectors, mutation witnesses, and Kani
+provide independent change detectors around that proof chain. Figure 1
+summarizes the resulting evidence graph.
 
 \begin{figure}[H]
 \centering
 \resizebox{0.97\linewidth}{!}{%
-\begin{tikzpicture}[node distance=7mm and 10mm]
-  \node[axisbox=purple, minimum width=45mm, minimum height=18mm] (contract) {
-    \textbf{Versioned algebra contract}\\[-1pt]
-    truth order · 10 dimensions · threshold partition
+\begin{tikzpicture}[node distance=7mm and 9mm]
+  \node[axisbox=purple, minimum width=43mm, minimum height=18mm] (rich) {
+    \textbf{Handwritten rich Lean}\\[-1pt]
+    sets · intervals · constraints · transitions
+  };
+  \node[axisbox=blue, minimum width=43mm, right=12mm of rich] (rust) {
+    \textbf{Shipping pure Rust}\\[-1pt]
+    author · delegate · terminal coverage
+  };
+  \node[card, minimum width=43mm, right=12mm of rust] (translated) {
+    \textcolor{green}{\faCogs}\quad\textbf{Aeneas Lean}\\
+    exact translated evaluators
   };
 
-  \node[card, minimum width=42mm, below left=11mm and 13mm of contract] (lean) {
-    \textcolor{purple}{\faCheckCircle}\quad\textbf{Generated Lean surface}\\
-    \texttt{Truth} · projection · functions
+  \node[axisbox=purple, minimum width=43mm, below=10mm of rich] (contract) {
+    \textbf{Algebra contract}\\
+    truth order · 10 fields · threshold
   };
-  \node[card, minimum width=42mm, below right=11mm and 13mm of contract] (rust) {
-    \textcolor{blue}{\faCogs}\quad\textbf{Generated Rust kernel}\\
-    \texttt{no\_std} · trait · functions
+  \node[kernel, minimum width=43mm, below=10mm of rust] (proofs) {
+    REFINEMENT THEOREMS\\[-1pt]
+    \normalfont\footnotesize exact decisions + transitions
   };
-
-  \node[axisbox=purple, minimum width=42mm, below=9mm of lean] (proofs) {
-    \textbf{Lean theorems}\\
-    unbounded algebraic obligations
-  };
-  \node[axisbox=blue, minimum width=42mm, below=9mm of rust] (shipping) {
-    \textbf{Shipping Rust}\\
-    authority + composition call kernel
+  \node[axisbox=green, minimum width=43mm, below=10mm of translated] (qualification) {
+    \textbf{Qualified translation}\\
+    pinned closure · no opaque locals
   };
 
-  \node[axisbox=green, minimum width=42mm, below=9mm of proofs] (vectors) {
-    \textbf{Lean vector exporter}\\
-    1,024 attenuation + 2,448 threshold
+  \node[card, minimum width=43mm, below=10mm of contract] (generated) {
+    \textbf{Generated Rust + Lean}\\
+    conjunction + threshold classifier
   };
-  \node[axisbox=amber, minimum width=42mm, below=9mm of shipping] (kani) {
-    \textbf{Kani harnesses}\\
-    symbolic bounded production checks
+  \node[axisbox=green, minimum width=43mm, below=10mm of proofs] (evidence) {
+    \textbf{Conformance evidence}\\
+    vectors · 21 mutations · 4 Kani
+  };
+  \node[axisbox=amber, minimum width=43mm, below=10mm of qualification] (manifest) {
+    \textbf{Assurance manifest}\\
+    72 statements · axioms · hashes
   };
 
-  \node[kernel, minimum width=99mm, below=12mm of $(vectors)!0.5!(kani)$] (gate) {
+  \node[kernel, minimum width=139mm, below=11mm of evidence] (gate) {
     \faLock\quad \texttt{cargo xtask formal}\\[2pt]
-    \normalfont\footnotesize source drift · theorem inventory · vector drift ·
-    Rust replay · Kani
+    \normalfont\footnotesize compiled audit · source closure · generated drift ·
+    translated refinement · vectors · mutations · Kani
   };
 
-  \draw[flow=purple] (contract) -- (lean);
-  \draw[flow=blue] (contract) -- (rust);
-  \draw[flow=purple] (lean) -- (proofs);
-  \draw[flow=blue] (rust) -- (shipping);
-  \draw[flow=green] (proofs) -- (vectors);
-  \draw[flow=amber] (shipping) -- (kani);
-  \draw[flow=green] (vectors) -- (gate);
-  \draw[flow=amber] (kani) -- (gate);
-  \draw[thinflow=blue,dashed] (shipping.south) |- (gate.east);
+  \draw[flow=blue] (rust) -- (translated);
+  \draw[flow=purple] (rich) -- (proofs);
+  \draw[flow=green] (translated) -- (proofs);
+  \draw[flow=purple] (contract) -- (generated);
+  \draw[flow=blue] (generated) -- (evidence);
+  \draw[flow=green] (proofs) -- (evidence);
+  \draw[flow=green] (qualification) -- (manifest);
+  \draw[flow=amber] (manifest) -- (gate);
+  \draw[flow=green] (evidence) -- (gate);
+  \draw[thinflow=blue,dashed] (rust.south) -- (proofs.north);
 \end{tikzpicture}}
-\caption{\textbf{The mechanical refinement boundary.} One contract generates
-the definitions used by Lean and production Rust. The proof, exhaustive finite
-replay, and bounded model-checking paths converge in one reproducible gate.}
+\caption{\textbf{The production refinement chain.} The finite algebra remains
+generated from one contract. The rich authority path translates shipping Rust,
+then proves its decisions against a handwritten semantic model. Both paths
+converge in one reproducible gate.}
 \end{figure}
 
 ## 1.1 Contributions
 
 This paper makes five contributions.
 
-**A closed authorization algebra.** Delegation is a product order over root,
-depth, profile, permissions, validity, audiences, action constraint, budget,
-status, and assurance. Composition is a three-valued algebra that preserves
-trustworthy uncertainty.
+**A closed authorization algebra.** Delegation combines a product order over
+profile, permissions, validity, audiences, action constraint, budget, status,
+and assurance with exact root linkage and strictly decreasing depth.
+Composition is a three-valued algebra that preserves trustworthy uncertainty.
 
-**An unbounded Lean model.** The Lean development proves the order-theoretic,
-coverage, threshold, determinism, termination, and cost properties needed by
-the V1 algebra. The checked source contains no `sorry`, `admit`, or new axioms.
+**A rich, unbounded Lean model.** The Lean development represents finite
+permission and audience sets, inclusive windows, action constraints, optional
+budgets, status freshness, profile selection, chain linkage, and terminal
+action membership directly. It proves order, coverage, evidence,
+delegation-depth, accepted-transition, diagnostic, and composition properties.
 
 **A generated language boundary.** A declarative TOML contract generates the
 Rust trait and functions and the corresponding Lean structure and functions.
 Changing a dimension is a cross-language schema change rather than two
 independent edits.
 
-**Production refinement evidence.** Shipping authority and composition code
-execute the generated Rust kernel. Lean-originated vectors cover the entire
-finite Boolean attenuation space and the entire threshold count space through
-the default deployment bound. Kani checks the same functions symbolically.
+**A mechanical rich-authority refinement.** Shipping code calls pure
+production evaluators that Charon and Aeneas translate into Lean. Refinement
+theorems cover pre-signing scope decisions, delegation linkage and its unique
+accepted transition, terminal action coverage, and each caller's stable
+first-failure result under validated-representation premises.
 
-**An explicit assurance ledger.** We distinguish what is proved, what is
-exhaustively checked under a bound, what is tested, and what remains trusted.
-The artifact does not claim whole-verifier formal verification.
+**An executable assurance ledger.** A 72-claim manifest binds English claims
+to exact compiled theorem statements, hashes, source closures, Rust symbols,
+evidence, transitive axioms, toolchain locks, and residual assumptions. Rich
+vectors, a required mutation matrix, finite exhaustive vectors, and Kani
+harnesses supplement rather than substitute for the proofs.
 
 ## 1.2 Scope and terminology
 
@@ -180,11 +205,13 @@ The paper uses *proof* in three different senses:
 - a **Lean proof** is a kernel-checked theorem;
 - a **Kani proof harness** is a bounded symbolic program check.
 
-These are not interchangeable. The formal model excludes parsing,
-cryptography, principal adapters, graph resolution, clocks, status evidence,
-and complete verifier control flow. Those components are relevant to the
-system, but the formal claim in this paper is confined to authority
-attenuation and branch composition.
+These are not interchangeable. The formal model excludes parsing, canonical
+CBOR correctness, cryptographic soundness, principal adapters, graph
+resolution, clocks, evidence acquisition, durable stores, external effects,
+and complete verifier control flow. It does include rich authority semantics
+and the isolated production decisions that author, delegate, and cover
+terminal actions. Those conclusions hold over constructor-validated Rust
+views satisfying explicitly stated representation invariants.
 
 # 2. Authorization semantics
 
@@ -327,49 +354,59 @@ is unavailable." Collapsing it into $\top$ fails open.
 
 ## 2.3 Delegation as a product order
 
-An effective authority value is modeled in Lean as:
+The rich model separates semantic scope from chain position. An authority scope
+is:
 
 $$
-E =
-(r,s,p,\pi,v,a,c,b,t,h,d),
+S = (p,\pi,v,a,c,b,t,h),
 $$
 
-where $r$ is the root, $s$ the current subject, $p$ profile authority,
-$\pi$ permissions, $v$ validity, $a$ audiences, $c$ action constraint,
-$b$ budget, $t$ status, $h$ assurance, and $d$ remaining delegation depth.
-The subject changes when authority is delegated; the other coordinates form
-the attenuation relation.
+where $p$ is profile-selection state, $\pi$ a finite permission set, $v$ an
+inclusive validity interval, $a$ a finite audience set, $c$ an action
+constraint, $b$ an optional budget ceiling, $t$ a status policy, and $h$ an
+assurance identifier. A chain state is:
 
-For child $E'$ and parent $E$:
+$$
+E = (r,s,S,d,g),
+$$
+
+with local root $r$, current subject $s$, scope $S$, remaining delegation depth
+$d$, and optional last-grant identifier $g$. Subject, depth, and last grant are
+transition state; treating them as ordinary partially ordered authority would
+make false antisymmetry claims.
+
+For child scope $S'$ and parent scope $S$:
 
 $$
 \begin{aligned}
-E' \sqsubseteq E \iff {}&
-r'=r
-\land p'\le p
-\land \pi'\le\pi
+S' \sqsubseteq S \iff {}&
+p'\le p
+\land \pi'\subseteq\pi
 \land v'\le v
-\land a'\le a\\
+\land a'\subseteq a\\
 &\land c'\le c
 \land b'\le b
 \land t'\le t
-\land h'\le h
-\land d'\le d.
+\land h'=h.
 \end{aligned}
 $$
 
-A valid delegation is stricter:
+A valid grant transition is stricter than scope containment:
 
 $$
-\operatorname{delegates}(E,E')
-\iff E'\sqsubseteq E \land d' < d.
+\operatorname{delegates}(E,G,E')
+\Rightarrow
+S'\sqsubseteq S \land r'=r \land d'<d,
 $$
 
-The production protocol has rich domain-specific orders. Permission and
-audience sets use subset. Validity uses interval containment. Action
-constraints order `AnyBody`, allowed digest sets, and exact digests. Bounded
-budgets use their selected algebra. Snapshot policy preserves the method and
-can only reduce accepted age. Assurance policy cannot weaken.
+and additionally requires exact issuer/parent linkage, selects or preserves the
+profile, updates the subject and last-grant identifier, and constructs the
+unique accepted next state. Permission and audience actions use membership,
+not subset. Validity uses interval containment. Action constraints order
+`AnyBody`, allowed digest sets, and exact digests. `None` is the unbounded
+authority budget, while an absent action budget request means no requested
+spend and is covered by every ceiling. Snapshot status preserves the method and
+can only demand fresher evidence. Assurance is invariant.
 
 \begin{figure}[H]
 \centering
@@ -402,76 +439,120 @@ false. Strictly decreasing depth bounds chain length.}
 
 # 3. Lean specification
 
-## 3.1 Why Lean
+## 3.1 Rich semantic values
 
 Lean 4 combines an interactive theorem prover with an executable functional
-language and a small proof-checking kernel [@demoura2021lean4]. The Auths-Proof
-model uses ordinary inductive types, structures, recursive functions, and
-theorems. `omega` discharges Presburger arithmetic obligations; finite truth
-tables are proved by case analysis.
+language and a small proof-checking kernel [@demoura2021lean4]. Auths-Proof
+uses opaque carrier types for identities and Mathlib `Finset` values for
+extensional sets. Numeric ordering is used only where the protocol itself is
+numeric: timestamps, freshness ages, ceilings, and remaining depth. No
+permission, audience, profile, principal, digest, or algebra identifier is
+ordered by an arbitrary integer encoding.
 
-The formal project is intentionally small. It does not model Rust memory,
-cryptographic primitives, CBOR, or dynamic adapter behavior. Instead it defines
-the semantic center that is both security-critical and stable enough to merit
-an unbounded mathematical treatment.
-
-The generated truth type is:
+The central types are intentionally independent of Rust allocation and wire
+layout:
 
 ```lean
-inductive Truth where
-  | denied
-  | indeterminate
-  | authorized
-  deriving BEq, DecidableEq, Repr
+structure AuthorityScope (v : Vocabulary) where
+  profileScope     : ProfileScope v
+  permissions      : FiniteSet (Permission v)
+  validity         : InclusiveWindow
+  audiences        : FiniteSet (Audience v)
+  actionConstraint : ActionConstraint v
+  budget           : Option (BudgetCeiling v)
+  status           : StatusPolicy v
+  assurance        : AssurancePolicy v
+
+structure ChainState (v : Vocabulary) where
+  root           : Principal v
+  subject        : Principal v
+  scope          : AuthorityScope v
+  remainingDepth : Nat
+  lastGrant      : Option (GrantId v)
 ```
 
-The generated attenuation surface is ten named Booleans. The abstract model
-then interprets those names as order relations over natural-number coordinates.
-This separation lets Lean prove order properties while the generated surface
-remains isomorphic to production's finite decision boundary.
-
-## 3.2 Attenuation theorems
-
-The attenuation development proves:
-
-1. reflexivity and transitivity of $\sqsubseteq$;
-2. antisymmetry when subjects agree;
-3. downward-closed action coverage;
-4. root preservation and strict depth for delegation;
-5. transitive non-widening across delegation chains;
-6. coverage of an authorized child action by its parent;
-7. equivalence between the generated Boolean kernel and abstract delegation.
-
-The central refinement theorem is executable documentation:
+The model defines two related notions. `structuralScopeLe` is the decidable
+target-V1 relation executed by the authority kernel. `semanticAttenuates`
+states the denotational safety property:
 
 ```lean
-theorem attenuation_kernel_refines
-    (parent child : EffectiveAuthority) :
-    Generated.attenuationAccepts
-        (delegationProjection parent child) = true
-      ↔ delegates parent child := by
-  simp [Generated.attenuationAccepts,
-        delegationProjection, delegates, attenuates]
-  omega
+def semanticAttenuates (child parent : AuthorityScope v) : Prop :=
+  ∀ facts, admits child facts → admits parent facts
 ```
 
-This theorem is stronger than separately proving the conjunction function and
-the abstract order. It states that the generated acceptance result is true
-exactly when the abstract delegation judgment holds.
+`admits` combines action coverage with already-validated status and assurance
+facts. It performs no I/O and makes no claim that external evidence is true.
+The proof `structural_scope_le_implies_semantic_attenuation` connects the
+efficient structural decision to semantic containment.
 
-The theorem `coverage_downward_closed` establishes:
+## 3.2 Component and containment theorems
+
+The rich development proves reflexivity, transitivity, canonical
+antisymmetry, and the appropriate coverage bridge for every ordered component:
+
+- finite-set subset and membership monotonicity for permissions and audiences;
+- inclusive-window containment and action-window monotonicity;
+- the complete `AnyBody` / `AllowedBodyDigests` / `ExactBodyDigest` relation;
+- optional-budget ordering with `None` as unbounded authority;
+- requested-budget coverage, including the distinct no-request case;
+- expiry-only and method-preserving snapshot freshness policies; and
+- profile selection from the root set followed by exact profile preservation.
+
+These component lemmas compose into three security statements:
 
 $$
-E' \sqsubseteq E \land \operatorname{covers}(E',A)
-\Longrightarrow
-\operatorname{covers}(E,A).
+\begin{aligned}
+S' \sqsubseteq S \land \operatorname{covers}(S',A)
+  &\Rightarrow \operatorname{covers}(S,A),\\
+S' \sqsubseteq S \land \operatorname{evidenceOK}(S',F)
+  &\Rightarrow \operatorname{evidenceOK}(S,F),\\
+S' \sqsubseteq S \land \operatorname{admits}(S',(A,F))
+  &\Rightarrow \operatorname{admits}(S,(A,F)).
+\end{aligned}
 $$
 
-This is the safety direction required for attenuation. Delegating narrower
-authority cannot make the descendant authorize an action that the ancestor
-could not authorize.
+This is the required safety direction: narrowing cannot create a descendant
+authorization that an ancestor's scope would reject. The theorem is about
+complete semantic facts; acquiring and validating those facts remains a
+separate verifier responsibility.
 
-## 3.3 Composition theorems
+## 3.3 Grant transitions and deterministic diagnostics
+
+A grant is accepted only when issuer and parent identifiers link to the current
+chain state, every scope dimension attenuates, and remaining depth strictly
+decreases. Lean constructs the next state from the accepted grant rather than
+allowing an arbitrary child state:
+
+```lean
+def delegates (parent : ChainState v) (grantId : GrantId v)
+    (grant : Grant v) (child : ChainState v) : Prop :=
+  linked parent grant ∧
+  ∃ checks : scopeDepthChecks parent grant,
+    child = acceptedNextState parent grantId grant checks
+```
+
+The development proves root preservation, exact subject and last-grant update,
+strict depth, non-widening scope, unique accepted state, transitive attenuation,
+and a chain-length bound:
+
+$$
+\operatorname{length}(\text{delegation successors})
+\le \operatorname{remainingDepth}(\text{start}).
+$$
+
+It also specifies the ordered diagnostic functions used by authoring,
+delegation, and terminal coverage. Acceptance is proved equivalent to the
+logical predicate; every denial is proved unsound for authorization; and
+delegation's first failure is characterized as broken linkage before aggregate
+scope expansion. Diagnostics report a result but never influence the truth of
+the authorization judgment.
+
+The generated ten-Boolean boundary is retained. Lean proves that its
+conjunction accepts exactly the rich scope-and-depth checks. Linkage and unique
+next-state construction are proved separately, avoiding the false claim that
+the Boolean projection alone represents a complete grant transition.
+
+## 3.4 Composition theorems
 
 For both `all` and `any`, Lean proves commutativity, associativity, and
 idempotence. It proves that one-of-two is `any`, two-of-two is `all`, and that
@@ -503,12 +584,14 @@ distinct actors, and distinct roots. The model proves that a tighter satisfied
 floor implies every looser floor is also satisfied. Thus raising local
 diversity requirements cannot create authorization.
 
-## 3.4 Proof inventory
+## 3.5 Proof inventory
 
-Table 1 groups the checked obligations. The formal source currently contains
-32 named theorems; the release manifest inventories 29 public
-algebra/refinement obligations, while three local helper/diversity declarations
-remain outside that release list.
+Table 1 groups the 72 exact declarations in the assurance manifest. The
+repository audits these names and statements from the compiled Lean
+environment, computes their transitive axioms, and rejects `sorryAx`, renamed
+claims, changed statements, and unreviewed additions. All 72 are marked
+`proved`; the audit does not infer that an English claim matches a proposition,
+so each manifest entry also records formal review and residual assumptions.
 
 \begin{table}[H]
 \centering
@@ -517,22 +600,27 @@ remain outside that release list.
 \toprule
 \textbf{Family} & \textbf{Representative obligations} & \textbf{Count}\\
 \midrule
-Attenuation &
-reflexive, transitive, antisymmetric, coverage closure, root, depth,
-chain attenuation, generated-kernel refinement & 12\\
-Composition &
-semilattice laws, threshold identities and monotonicity, permutation-stable
-truth and diagnostics, plan traversal, termination, structural cost,
-three threshold soundness directions & 17\\
-Helpers and diversity &
-truth-rank injectivity, canonical-code commutativity, tighter-floor monotonicity
+Rich component relations &
+sets, intervals, constraints, budgets, status, profiles, and monotonicity
+bridges & 24\\
+Scope and semantic containment &
+scope order, canonical antisymmetry, action/evidence/admission closure,
+decidability & 11\\
+Delegation, coverage, diagnostics &
+linkage, unique transition, root, depth, chains, projection, ordered decisions
+& 18\\
+Production refinement &
+translated author-scope, delegation, and terminal-coverage evaluators
 & 3\\
+Composition baseline &
+three-valued semilattice, threshold, swap, traversal, cost, and soundness
+& 16\\
 \midrule
-\textbf{Lean source total} & & \textbf{32}\\
+\textbf{Manifest total} & & \textbf{72}\\
 \bottomrule
 \end{tabular}
-\caption{\textbf{Lean theorem inventory.} Counts describe named declarations,
-not proof difficulty or whole-system coverage.}
+\caption{\textbf{Compiled assurance inventory.} Counts describe exact reviewed
+declarations, not proof difficulty or whole-system coverage.}
 \end{table}
 
 # 4. From model to shipping code
@@ -546,55 +634,176 @@ Translation validation instead validates the result of a particular
 translation rather than proving a translator correct for all inputs
 [@pnueli1998translation].
 
-Auths-Proof currently occupies a smaller point in this design space. It does
-not extract the full Rust verifier into Lean, and it does not verify the
-contract generator. It generates the small common algebra surface, proves the
-Lean interpretation, executes the generated Rust surface in production, and
-checks finite semantic agreement.
+The first Auths-Proof artifact linked only the final conjunction of ten Boolean
+attenuation checks. That proved aggregation after the security-relevant work
+had already happened. Production still computed those Booleans with rich Rust
+relations such as sorted-set subset, interval containment, action-constraint
+matching, and optional-budget ordering. Rewriting equivalent `Finset`
+definitions in Lean would have produced a better specification but not a proof
+that Rust implemented it.
 
-Tools such as Aeneas translate safe Rust into functional models for proof
-assistants [@ho2022aeneas], while Verus verifies rich properties directly over
-Rust-like programs [@lattuada2024verus]. Those approaches are promising future
-routes for reducing the remaining projection and generator trust. The present
-design was chosen because its boundary is smaller than the toolchain required
-to translate the complete verifier.
+Auths-Proof therefore uses a narrower extraction boundary than the complete
+verifier and a richer boundary than the Boolean conjunction. Production
+authority code was reshaped into total, pure, safe Rust functions; Charon
+lowers those exact functions to LLBC; Aeneas translates them to Lean
+[@ho2022aeneas]; and handwritten proofs connect the translated functions to
+the rich model. No verification-only Rust implementation is maintained.
 
-## 4.2 One declarative contract
+## 4.2 Production reshape
 
-The source of the shared surface is
-`formal/algebra-contract-v1.toml`. Its essential shape is:
+The shipping crates now expose three pure authority decisions over borrowed,
+lossless views:
 
-```toml
-schema = "auths-proof-algebra-contract/v1"
-exhaustive_threshold_bound = 16
-truth_order = ["denied", "indeterminate", "authorized"]
-attenuation_acceptance = "all"
-
-[[attenuation_dimensions]]
-rust = "root_preserved"
-lean = "rootPreserved"
-
-[[attenuation_dimensions]]
-rust = "depth_decreases"
-lean = "depthDecreases"
-
-[threshold]
-authorized = "authorized >= required"
-indeterminate =
-  "authorized < required &&
-   authorized + indeterminate >= required"
-denied = "authorized + indeterminate < required"
+```rust
+evaluate_author_scope_view(parent, child)
+evaluate_grant_view(parent, grant_id, grant)
+evaluate_action_coverage_view(authority, action)
 ```
 
-The real contract lists all ten dimensions. The generator parses a closed
-typed TOML schema, rejects unknown fields, checks unique names, and accepts only
-the declared V1 truth order and formulas. It then deterministically renders:
+`auths-model` owns the leaf predicates: profile and principal equality,
+permission/audience/digest membership and subset, inclusive-window
+containment, action-constraint allowance and attenuation, optional-budget
+attenuation and coverage, status-policy attenuation, and assurance equality.
+`evaluate_grant_view` owns linkage, all ten attenuation checks, aggregate
+acceptance, stable denial choice, and the fields of the accepted transition.
+`evaluate_action_coverage_view` owns terminal linkage, membership,
+containment, requested-budget coverage, and ordered denials.
 
-- `core/crates/auths-algebra-kernel/src/generated.rs`;
+Shipping authoring, `EffectiveAuthority::delegate`, and
+`EffectiveAuthority::authorizes` call these functions. The mutable delegation
+wrapper only clones the accepted fields into state; it does not recompute the
+decision. The private root and assurance policy are retained by that wrapper.
+This structural commit is deliberately distinguished from the translated
+decision theorem.
+
+## 4.3 Qualified Charon/Aeneas translation
+
+The translation environment pins shipping Rust 1.97.1, extraction nightly
+2026-06-01, Charon 0.1.225 at a specific commit, Aeneas at a specific commit,
+Lean 4.31.0, and Kani 0.67.0. The qualification translates:
+
+- 42 local `auths-model` functions with one transparent standard-library
+  external;
+- the generated attenuation conjunction;
+- four `auths-authority` functions with 16 transparent links to separately
+  translated model/algebra functions; and
+- no opaque local function.
+
+The only standard-library semantic model is `String::as_bytes`, represented as
+the exact UTF-8 bytes on Auths' validated bounded-string domain and failure
+outside the Aeneas carrier bound. Authority carrier links and leaf-function
+links import separately translated definitions under exact generated names;
+they are not axioms. The qualification requires zero compiled external axioms
+for these definitions, inventories every template axiom and upstream warning,
+reproduces the translation twice, and requires byte-identical generated output.
+
+\begin{figure}[H]
+\centering
+\resizebox{0.96\linewidth}{!}{%
+\begin{tikzpicture}[node distance=8mm and 10mm]
+  \node[axisbox=blue, minimum width=39mm] (rust) {
+    \textbf{Production Rust}\\
+    validated borrowed views
+  };
+  \node[card, minimum width=35mm, right=of rust] (llbc) {
+    \textbf{Charon / LLBC}\\
+    pinned source closure
+  };
+  \node[axisbox=green, minimum width=39mm, right=of llbc] (aeneas) {
+    \textbf{Aeneas Lean}\\
+    exact generated functions
+  };
+
+  \node[axisbox=purple, minimum width=47mm, below left=12mm and 7mm of aeneas] (bridge) {
+    \textbf{Representation bridge}\\
+    bytes · sets · windows · options
+  };
+  \node[axisbox=purple, minimum width=47mm, below right=12mm and 7mm of aeneas] (spec) {
+    \textbf{Rich specification}\\
+    containment · transitions · diagnostics
+  };
+  \node[kernel, minimum width=101mm, below=11mm of $(bridge)!0.5!(spec)$] (theorem) {
+    THREE PRODUCTION REFINEMENT THEOREMS
+  };
+
+  \draw[flow=blue] (rust) -- (llbc);
+  \draw[flow=green] (llbc) -- (aeneas);
+  \draw[flow=purple] (aeneas) -- (bridge);
+  \draw[flow=purple] (aeneas) -- (spec);
+  \draw[flow=green] (bridge) -- (theorem);
+  \draw[flow=purple] (spec) -- (theorem);
+\end{tikzpicture}}
+\caption{\textbf{Rich production refinement.} Translation preserves the exact
+production evaluator. Proofs relate translated carriers and decisions to the
+handwritten authority semantics under explicit representation premises.}
+\end{figure}
+
+## 4.4 Representation bridge
+
+Aeneas erases private Rust newtype constructors into Lean carriers. The
+refinement is therefore stated for values satisfying the invariants enforced
+by shipping constructors:
+
+- strings are non-empty and protocol-bounded;
+- permission and audience collections are non-empty, bounded, sorted, and
+  duplicate-free;
+- profile sets are bounded and selected profiles belong to the retained root
+  set;
+- validity windows are well formed;
+- snapshot freshness limits are non-zero; and
+- fixed-width numeric values embed exactly into Lean naturals.
+
+The proof layer defines abstraction functions from translated Rust values to
+rich identities, `Finset` scopes, windows, constraints, budgets, status, and
+actions. It proves that byte equality matches rich atom equality, binary-search
+membership and subset match extensional finite-set relations, interval
+comparisons match inclusive containment, and each policy predicate matches its
+rich relation.
+
+This closes the validated-model-to-rich-semantics gap. It does not prove that
+arbitrary bytes decode into valid values, or that signatures and evidence are
+sound. Canonical decoding, constructor enforcement, cryptography, and the
+view's losslessness remain separately tested or assumed boundaries.
+
+## 4.5 Production refinement theorems
+
+Three top-level theorems cover distinct public decisions.
+
+`translated_rust_refines_rich_spec` proves that the translated pre-signing
+scope evaluator returns exactly the rich target-V1 result and first failing
+authority dimension.
+
+`translated_coverage_refines_rich_spec` proves that terminal coverage agrees
+with the rich ordered decision, including actor and grant linkage, exact
+profile behavior, permission and audience membership, interval containment,
+action constraints, and the distinct requested-budget semantics.
+
+`translated_delegation_refines_rich_spec` proves that the translated grant
+evaluator agrees with rich linkage and attenuation and returns the exact
+accepted transition fields. Root and assurance retention occur in the
+structural caller around that returned transition and remain named as a
+residual boundary rather than being silently folded into the theorem.
+
+Each theorem carries representation-validity premises. None assumes the
+semantic result of a Rust leaf predicate; those leaf predicates are themselves
+translated and refined.
+
+## 4.6 The generated finite algebra remains
+
+The source for the shared Boolean aggregation and threshold classifier remains
+`formal/algebra-contract-v1.toml`. It declares the three-valued truth order,
+ten named attenuation fields, conjunction acceptance, a threshold partition,
+and the default exhaustive bound of 16. The generator deterministically
+renders:
+
+- `core/crates/auths-algebra-kernel/src/generated.rs`; and
 - `formal/Auths/Generated/Algebra.lean`.
 
 Normal verification compares both files byte-for-byte with fresh renderings.
-Intentional changes require `cargo xtask formal --update`.
+Intentional changes require `cargo xtask formal --update`. The generated
+boundary still prevents silent dimension drift and supplies a compact
+exhaustive regression surface; it is no longer the sole connection between
+production authority and Lean.
 
 \begin{figure}[H]
 \centering
@@ -615,12 +824,12 @@ Intentional changes require `cargo xtask formal --update`.
     bool conjunction + count threshold
   };
   \node[axisbox=purple, minimum width=43mm, below=of leansurface] (abstract) {
-    \textbf{Abstract Lean order}\\
-    rich coordinates mapped to predicates
+    \textbf{Rich Lean projection}\\
+    scope + strict depth predicates
   };
   \node[axisbox=blue, minimum width=43mm, below=of rustsurface] (domain) {
-    \textbf{Rich Rust projection}\\
-    sets + windows + policies mapped to predicates
+    \textbf{Translated Rust checks}\\
+    same fields inside grant evaluation
   };
   \node[kernel, minimum width=97mm, below=12mm of $(abstract)!0.5!(domain)$] (same) {
     SAME FINITE ACCEPTANCE SURFACE
@@ -633,267 +842,212 @@ Intentional changes require `cargo xtask formal --update`.
   \draw[flow=purple] (abstract) -- (same);
   \draw[flow=blue] (domain) -- (same);
 \end{tikzpicture}}
-\caption{\textbf{Generated structural correspondence.} The contract prevents
-silent field drift. Semantic correctness of each rich Rust predicate remains a
-separate obligation.}
+\caption{\textbf{The retained finite algebra boundary.} The contract prevents
+silent field drift. The rich Rust predicates feeding this boundary are now
+covered by the separate production refinement chain in Figure 5.}
 \end{figure}
-
-## 4.3 Shared traits, correctly understood
-
-There is no runtime trait object shared between Lean and Rust. Instead, the
-contract generates structurally corresponding interfaces:
-
-```rust
-pub trait AttenuationProjection {
-    fn root_preserved(&self) -> bool;
-    fn depth_decreases(&self) -> bool;
-    // ... eight more named dimensions
-}
-```
-
-```lean
-structure AttenuationProjection where
-  rootPreserved : Bool
-  depthDecreases : Bool
-  -- ... eight more named dimensions
-```
-
-This is stronger than manually duplicating traits because one source controls
-the field set, ordering, names, and aggregation semantics. It is weaker than
-proving a compiler from Rust to Lean. The distinction is central to the paper's
-claim.
-
-Adding an eleventh attenuation dimension causes deliberate breakage:
-
-1. the generated Rust trait changes;
-2. the generated Lean structure changes;
-3. Rust projection implementations fail to compile until they supply it;
-4. Lean projections fail to elaborate until they supply it;
-5. vector cardinality and exporter logic must change;
-6. the checked-in generated artifacts drift until explicitly regenerated.
-
-That failure mode turns semantic expansion into an auditable repository-wide
-event.
-
-## 4.4 Production Rust routing
-
-The generated kernel is a separate `no_std`, `unsafe`-free crate. Shipping
-composition no longer owns a handwritten threshold classifier:
-
-```rust
-pub fn evaluate_threshold_counts(
-    k: u16,
-    authorized: usize,
-    indeterminate: usize,
-) -> ThresholdTruth {
-    auths_algebra_kernel::threshold_counts(
-        k, authorized, indeterminate
-    )
-}
-```
-
-Shipping authority constructs a `GrantAttenuation` from rich domain checks and
-passes it to `attenuation_accepts`. The generated function accepts exactly the
-conjunction of all trait methods.
-
-Root preservation deserves special attention. In Rust, root is not supplied by
-an untrusted child grant; `EffectiveAuthority::delegate` mutates the existing
-state while retaining its private root field. The production projection
-therefore returns `true` for `root_preserved`. Lean models root explicitly and
-proves that an accepted abstract delegation preserves it. This is a legitimate
-representation difference, but it belongs in the trusted mapping rather than
-being hidden.
 
 # 5. Executable refinement evidence
 
-## 5.1 Lean-generated vectors
+Proofs establish universal statements under their premises. The artifact also
+uses independent executable evidence to expose specification, translation,
+and wiring errors with concrete counterexamples.
 
-The Lean executable `Auths.VectorExport` is the semantic vector producer. It
-does not call a Rust reference evaluator.
+## 5.1 Rich vectors and required mutations
 
-For attenuation, it enumerates all assignments in $\{0,1\}^{10}$:
+`Auths.VectorExport` emits 23 byte-stable rich-authority vectors from Lean.
+They cover accepted and rejected scope attenuation, linked delegation,
+terminal action coverage, ordered diagnostics, exact profile behavior, set
+membership and subset, inclusive interval endpoints, action constraints,
+status freshness, assurance identity, and both meanings of an absent optional
+budget. Rust replays each vector through the shipping pure evaluators.
+
+A checked-in 21-case mutation matrix names semantic mistakes that must be
+detected. It includes reversed interval and subset directions, negated
+membership, incorrect action-constraint constructors, budget direction and
+algebra confusion, conflating no requested spend with unbounded authority,
+weakened status/profile/assurance checks, non-strict depth, and partial
+principal or grant linkage. Each mutation has a witness, and the gate requires
+every mutation to be killed. This is a regression obligation, not a claim that
+mutation testing proves completeness.
+
+## 5.2 Exhaustive finite algebra vectors
+
+The same Lean executable remains the oracle for the generated finite algebra.
+It does not call a Rust reference evaluator. For attenuation it enumerates all
+assignments in $\{0,1\}^{10}$:
 
 $$
 2^{10}=1{,}024 \text{ cases}.
 $$
 
-Exactly one vector, the all-true assignment, is accepted because V1 aggregation
-is conjunction.
-
-For threshold counts, the declared exhaustive bound is $B=16$. The exporter
+Exactly one assignment is accepted because V1 aggregation is conjunction. For
+threshold counts, the declared exhaustive bound is $B=16$. The exporter
 enumerates:
 
 $$
-1\le k\le B,\quad 0\le a\le B,\quad 0\le u\le B-a.
+1\le k\le B,\quad 0\le a\le B,\quad 0\le u\le B-a,
 $$
 
-The case count is:
+giving
 
 $$
-B\sum_{a=0}^{B}(B-a+1)
-=16\cdot153
-=2{,}448.
+B\sum_{a=0}^{B}(B-a+1)=16\cdot153=2{,}448
 $$
 
-Rust checks every vector against `auths_algebra_kernel::threshold_counts`.
-It also constructs a real 16-leaf `AuthorizationPlan::k_of_n`, feeds the
-declared mix of branch outcomes to shipping `auths_composition::evaluate`, and
-checks that the result and full leaf visitation agree.
+states. Rust checks every vector against
+`auths_algebra_kernel::threshold_counts`. It also constructs a real 16-leaf
+`AuthorizationPlan::k_of_n`, feeds the declared branch outcomes to shipping
+composition, and checks both the result and full leaf visitation.
 
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}[node distance=7mm and 9mm]
   \node[axisbox=purple, minimum width=41mm] (lean) {
     \textbf{Lean evaluation}\\
-    unbounded definitions
+    rich + finite semantics
   };
   \node[axisbox=green, minimum width=41mm, right=of lean] (json) {
-    \textbf{Canonical JSON vectors}\\
-    schema + bound + expected result
+    \textbf{Canonical vectors}\\
+    23 + 1,024 + 2,448
   };
   \node[axisbox=blue, minimum width=41mm, right=of json] (kernel) {
-    \textbf{Generated Rust}\\
-    direct function replay
+    \textbf{Shipping Rust}\\
+    authority + composition
   };
-  \node[axisbox=blue, minimum width=41mm, below=of kernel] (shipping) {
-    \textbf{Shipping composition}\\
-    real bounded plan replay
+  \node[axisbox=amber, minimum width=41mm, below=of kernel] (mutation) {
+    \textbf{Mutation witnesses}\\
+    21 required failures
   };
   \node[kernel, minimum width=91mm, below=of $(lean)!0.5!(json)$] (stable) {
-    BYTE-STABLE CHECKED-IN ARTIFACTS
+    BYTE-STABLE CHECKED-IN EVIDENCE
   };
   \draw[flow=purple] (lean) -- (json);
   \draw[flow=green] (json) -- (kernel);
-  \draw[flow=blue] (kernel) -- (shipping);
+  \draw[flow=amber] (mutation) -- (kernel);
   \draw[flow=purple] (lean) -- (stable);
   \draw[flow=green] (json) -- (stable);
-  \draw[flow=blue] (shipping) -- (stable);
+  \draw[flow=blue] (kernel) -- (stable);
 \end{tikzpicture}
-\caption{\textbf{Semantic vector provenance.} Expected values originate in
-Lean. Rust is a consumer, not a co-author of the oracle.}
+\caption{\textbf{Executable evidence provenance.} Lean supplies expected
+semantics; shipping Rust is the consumer. Named mutations require the evidence
+to distinguish security-relevant near misses.}
 \end{figure}
 
-## 5.2 Kani over the shipping kernel
+## 5.3 Kani over shipping predicates
 
 Kani lowers Rust MIR into CBMC's bit-precise model-checking pipeline and checks
-assertions over symbolic inputs [@delmas2026kani; @kroening2023cbmc]. Two
-harnesses target the generated production crate.
+assertions over symbolic inputs [@delmas2026kani; @kroening2023cbmc]. Four
+harnesses cover two crates:
 
-The threshold harness selects symbolic `u16` values, assumes the declared
-default bound and a valid positive threshold, calls `threshold_counts`, and
-asserts the three-way partition. Kani also checks arithmetic overflow and
-runtime safety on reachable paths.
+- threshold classification under the declared bound;
+- conjunction over all ten attenuation Booleans;
+- the exact fixed-width inclusive-window relation; and
+- three-window containment transitivity.
 
-The attenuation harness selects ten symbolic Booleans and asserts:
+Kani checks reachable arithmetic and control flow in compiled Rust. It does not
+replace Lean's unbounded mathematical proofs, and the Lean theorems do not
+replace Kani's implementation-level checks.
 
-```rust
-attenuation_accepts(&checks)
-    == checks.root_preserved
-    && checks.depth_decreases
-    && checks.profile_attenuates
-    && checks.permissions_attenuate
-    && checks.validity_attenuates
-    && checks.audiences_attenuate
-    && checks.action_constraint_attenuates
-    && checks.budget_attenuates
-    && checks.status_attenuates
-    && checks.assurance_attenuates
-```
+## 5.4 One reproducible gate
 
-Kani contributes implementation-level evidence: the actual compiled Rust
-functions satisfy these assertions over the bounded harness domain. It does
-not replace the unbounded Lean theorems, and the Lean theorems do not replace
-Kani's check of Rust arithmetic and control flow.
+`cargo xtask formal`:
 
-## 5.3 One reproducible gate
+1. validates the versioned algebra contract and rejects generated-source drift;
+2. verifies the locked Rust, Lean, and Kani toolchains;
+3. builds every Lean module;
+4. audits 72 compiled statements, statement hashes, source closures, residual
+   assumptions, and transitive axioms;
+5. validates the checked-in Aeneas qualification, generated inventory,
+   translation reports, reviewed links, warning inventory, and zero-axiom
+   policy;
+6. regenerates rich, attenuation, and threshold vectors and rejects byte drift;
+7. replays vectors and the mutation matrix through shipping Rust; and
+8. runs both Kani crates and all four harnesses.
 
-`cargo xtask formal` performs, in order:
-
-1. parse and validate the contract;
-2. render both generated modules and reject byte drift;
-3. build the Lean project;
-4. execute the Lean vector exporter and reject vector drift;
-5. scan selected formal source for `sorry`, `admit`, and `axiom`;
-6. verify every release-inventory theorem name is declared;
-7. run Rust refinement tests over all vectors;
-8. run both Kani harnesses.
-
-The update mode is explicit:
+The stronger qualification command re-extracts production source twice and
+requires byte-identical output:
 
 ```text
-cargo xtask formal --update
+cargo xtask formal qualify aeneas
 ```
 
-It regenerates both language modules and both vector files. A normal run never
-silently updates proof evidence.
+Intentional artifact updates require the explicit `--update` mode. Ordinary
+validation is read-only.
 
-## 5.4 Evaluation results
+## 5.5 Evaluation results
 
 \begin{table}[H]
 \centering
 \small
-\begin{tabular}{@{}p{43mm}p{30mm}p{43mm}@{}}
+\begin{tabular}{@{}p{40mm}p{32mm}p{44mm}@{}}
 \toprule
 \textbf{Artifact} & \textbf{Observed result} & \textbf{Established scope}\\
 \midrule
-Lean source &
-32 named theorems; 29 release-inventoried &
-unbounded abstract attenuation, composition, traversal, and diversity facts\\
+Lean assurance manifest &
+72 / 72 compiled claims &
+56 rich/refinement and 16 composition statements, with reviewed axioms\\
+Production refinement &
+3 / 3 theorems &
+author scope, linked delegation transition, and terminal coverage\\
+Rich semantic vectors &
+23 / 23 replayed &
+production-shaped positive, negative, boundary, and diagnostic cases\\
+Required mutations &
+21 / 21 killed &
+named semantic near misses have concrete distinguishing witnesses\\
 Attenuation vectors &
 1,024 / 1,024 replayed &
 all Boolean assignments over ten generated predicates\\
-Threshold vectors &
-2,448 / 2,448 replayed &
-all valid count states through the default 16-leaf bound\\
-Shipping plan replay &
+Threshold and plan vectors &
 2,448 / 2,448 agreed &
-real `k-of-n` evaluation agrees with the Lean oracle at that bound\\
+all valid counts and shipping `k-of-n` evaluation through 16 leaves\\
 Kani &
-2 / 2 harnesses; 0 failures &
-symbolic bounded generated Rust functions and runtime checks\\
-Generated drift &
-no drift &
-checked-in Rust, Lean, and vectors match deterministic generation\\
+4 / 4 harnesses; 0 failures &
+symbolic bounded algebra and interval predicates\\
+Aeneas qualification &
+42 model + 1 algebra + 4 authority functions &
+no opaque local functions; 4 reviewed links; 0 compiled external axioms\\
 \bottomrule
 \end{tabular}
-\caption{\textbf{Formal artifact results at the evaluated revision.} These are
-semantic checks, not performance measurements.}
+\caption{\textbf{Formal artifact results at the evaluated revision.} Counts
+describe semantic evidence, not performance or whole-system coverage.}
 \end{table}
 
 # 6. Assurance boundary
 
 ## 6.1 What is proved
 
-The Lean kernel checks the following model-level claims:
+The Lean kernel checks:
 
-- attenuation is a partial order modulo subject identity;
-- delegation preserves the root, never widens authority, and strictly reduces
-  depth;
-- terminal action coverage implies ancestor coverage;
-- `all` and `any` have the expected semilattice laws;
-- threshold results imply their defining count inequalities;
-- tightening a two-branch threshold cannot increase truth;
-- truth and canonical diagnostic selection are permutation invariant;
-- finite plans terminate under the structural model and have linear declared
-  node cost;
-- tighter diversity floors cannot create authorization;
-- generated attenuation acceptance is equivalent to abstract delegation.
+- set, interval, action-constraint, budget, status, profile, and scope relation
+  laws under the model's canonical representation premises;
+- downward closure of action coverage, evidence requirements, and admission;
+- exact linked delegation acceptance, ordered diagnostics, root preservation,
+  strict depth decrease, and uniqueness of the returned transition fields;
+- exact agreement between three translated production evaluators and the rich
+  author-scope, delegation, and terminal-coverage decisions;
+- three-valued composition, threshold, monotonicity, traversal, diversity,
+  termination, and declared structural-cost claims listed in the manifest.
 
-These proofs quantify over natural numbers and finite inductive plans. They are
-not limited to 16 leaves.
+The rich and composition theorems are not limited to the 16-leaf vector bound.
+Each compiled claim has a separately reviewed statement and scope; a count of
+theorems is not a substitute for reading those statements.
 
-## 6.2 What is exhaustively checked under a bound
+## 6.2 What is finite or bounded evidence
 
-The cross-language threshold relation is exhaustive only through 16 leaves,
-which equals `DEFAULT_MAX_PLAN_LEAVES` for target V1. The protocol model also
-contains a separately configurable hard maximum of 128. The artifact does not
-enumerate or model-check every threshold count through 128.
+The threshold relation is exhaustively replayed through 16 leaves, equal to
+`DEFAULT_MAX_PLAN_LEAVES` for target V1, not through the configurable hard
+maximum of 128. The ten-Boolean attenuation interface is finite and completely
+enumerated. The 23 rich vectors and 21 mutation witnesses are targeted rather
+than exhaustive over rich values. Kani proves its four harness properties only
+over each harness's symbolic bounds and assumptions.
 
-The attenuation projection space is genuinely complete for the generated
-Boolean interface because it has exactly ten inputs. That completeness does not
-prove that each rich Rust predicate computes the intended domain relation.
+These layers are deliberately labelled. Finite evidence catches boundary,
+serialization, and production-routing mistakes; it does not enlarge a Lean
+theorem's premises or scope.
 
-## 6.3 What remains trusted
+## 6.3 Trusted computing base and outer boundary
 
 \begin{figure}[H]
 \centering
@@ -901,36 +1055,36 @@ prove that each rich Rust predicate computes the intended domain relation.
 \begin{tikzpicture}[node distance=7mm and 8mm]
   \node[kernel, minimum width=43mm, minimum height=24mm] (proved) {
     PROVED IN LEAN\\[2pt]
-    \normalfont\footnotesize abstract algebra\\
-    refinement theorem
+    \normalfont\footnotesize rich semantics\\
+    translated decisions
   };
   \node[axisbox=green, minimum width=43mm, minimum height=24mm,
         right=of proved] (checked) {
     \textbf{Mechanically checked}\\
-    generated drift · vectors\\
-    Kani bounded Rust
+    source closure · vectors\\
+    mutations · Kani
   };
   \node[axisbox=amber, minimum width=43mm, minimum height=24mm,
         right=of checked] (trusted) {
-    \textbf{Trusted mapping}\\
-    rich predicates · generator\\
-    compiler + tools
+    \textbf{Trusted basis}\\
+    kernels · tools · premises\\
+    model adequacy
   };
 
   \node[card, minimum width=43mm, below=of proved] (outside) {
     \textbf{Outside this model}\\
-    codecs · crypto · adapters\\
-    graph + full verifier
+    codecs · crypto · evidence\\
+    complete verifier
   };
   \node[card, minimum width=43mm, below=of checked] (tests) {
     \textbf{Covered elsewhere}\\
-    domain tests · corpus\\
-    conformance + fuzzing
+    conformance · corpus\\
+    property tests · fuzzing
   };
   \node[card, minimum width=43mm, below=of trusted] (effects) {
-    \textbf{Outer effects}\\
-    replay · budgets · custody\\
-    transport + execution
+    \textbf{State and effects}\\
+    replay · reservations\\
+    credentials · execution
   };
 
   \draw[flow=green] (proved) -- (checked);
@@ -939,55 +1093,49 @@ prove that each rich Rust predicate computes the intended domain relation.
   \draw[thinflow=muted,dashed] (tests) -- (effects);
 \end{tikzpicture}}
 \caption{\textbf{Claim and trust boundary.} Dark blue is theorem-proved;
-green is mechanically cross-checked; amber remains trusted. The lower row is
-outside the formal model.}
+green is mechanically cross-checked; amber is an explicit premise or tool.
+The lower row is outside this formal model.}
 \end{figure}
 
 The trusted computing base includes:
 
-- the Lean kernel and imported tactics;
-- the deterministic contract generator;
-- the Rust compiler and Kani/CBMC toolchain;
-- the mapping from rich Rust values to ten Boolean predicates;
-- the model's adequacy as a specification of intended authorization;
-- everything outside the algebra, including codecs and cryptography.
+- the Lean kernel, imported libraries, and reviewed uses of `propext`,
+  `Classical.choice`, and `Quot.sound`;
+- Charon, Aeneas, the Rust compiler, Kani/CBMC, and the pinned build
+  environment;
+- the reviewed `String::as_bytes` external model and the faithful handling of
+  validated constructors and borrowed views;
+- the deterministic generator for the retained finite Boolean algebra;
+- the adequacy of the rich model as the intended target-V1 authorization
+  specification; and
+- every component outside the isolated authority decisions, including codecs,
+  cryptography, evidence, stores, adapters, credentials, and effects.
 
 Rust's type system and `unsafe`-free core reduce memory-safety risk, but Rust
-language safety is not itself a proof of functional authorization correctness.
-RustBelt provides a machine-checked foundation for important Rust safety claims
-and illustrates why language safety and application correctness must remain
-separate statements [@jung2018rustbelt].
+language safety is not itself a proof of authorization correctness. RustBelt
+illustrates why language safety and application semantics remain separate
+claims [@jung2018rustbelt].
 
-## 6.4 The projection gap
+## 6.4 Residual representation and system boundary
 
-The largest remaining semantic gap is not the ten-input conjunction. It is the
-construction of those inputs:
+The former gap between `Nat` coordinates in Lean and independently written
+Rust set, interval, constraint, budget, status, profile, and assurance
+relations is closed for the three translated evaluator decisions. What remains
+is a different boundary.
 
-```rust
-GrantAttenuation {
-    permissions_attenuate:
-        grant.permissions().is_subset_of(&self.permissions),
-    validity_attenuates:
-        self.validity.contains_window(grant.validity()),
-    action_constraint_attenuates:
-        grant.action_constraint().attenuates(
-            &self.action_constraint
-        ),
-    // profile, audience, budget, status, assurance, depth
-}
-```
+The theorems begin with validated production views. They do not prove that
+arbitrary bytes decode canonically, that every constructor preserves its
+invariant, that signatures establish control, or that acquired evidence is
+fresh and authentic. The mutable delegation caller also performs structural
+commit work around the translated result: it preserves private root and
+assurance state while cloning accepted transition fields. Those obligations
+are named in the manifest rather than overstated as translated facts.
 
-Each method has ordinary Rust tests, but the Lean model abstracts it to an
-ordered natural-number coordinate. A future refinement should either:
-
-1. translate this isolated safe-Rust projection into Lean with Aeneas;
-2. model each rich domain type and prove its Rust relation against generated
-   vectors;
-3. use a Rust-native deductive verifier such as Verus for the projection;
-4. combine these approaches for defense in depth.
-
-Whole-verifier translation is not the immediate next step. The highest-value
-work is to close this narrow projection gap first.
+Likewise, an authorization decision is not an external effect. Replay
+protection, durable reservations, budget accounting, credential release,
+crash reconciliation, and idempotent execution require separate state-machine
+semantics. Closing the rich projection gap makes those next layers possible;
+it does not make them unnecessary.
 
 # 7. Security consequences
 
@@ -1007,8 +1155,10 @@ The product-order design makes widening explicit. A child must not:
 
 The aggregate function cannot accidentally omit a declared dimension because
 the generated trait and generated conjunction share the contract's field list.
-The projection can still miscompute a dimension; that is the residual gap
-described above.
+More importantly, the translated production evaluator and rich refinement
+theorems now cover how every declared rich predicate is computed. The remaining
+risks sit at the validated-view boundary and outside the isolated evaluator,
+not in an independently trusted Boolean projection.
 
 ## 7.2 Fail-closed uncertainty
 
@@ -1043,14 +1193,16 @@ even if no current theorem fails. It changes the review shape:
 
 \begin{invariantbox}{SEMANTIC CHANGE RULE}
 A new truth value, threshold rule, or attenuation dimension must appear as one
-contract change whose generated Rust, generated Lean, proofs, vector
-cardinality, production projection, and checked artifacts change together.
+reviewable semantic change whose rich Lean relation, shipping pure Rust
+predicate, Aeneas source closure, refinement theorem, assurance-manifest
+statement, mutation witness, generated finite boundary, and checked vectors
+change together.
 \end{invariantbox}
 
 This is not merely build convenience. It prevents a class of silent
 specification drift in which a production check is added without a formal
-counterpart, or a formal obligation is strengthened without changing shipping
-behavior.
+counterpart, a translated dependency becomes opaque, or a formal obligation is
+strengthened without changing shipping behavior.
 
 # 8. What the core enables
 
@@ -1109,6 +1261,13 @@ coverage. A correct algebra cannot compensate for an adapter that overstates
 control, a profile that assigns unsafe meaning, a stale status source, or an
 executor that ignores the sealed action.
 
+The GitHub, Radicle, Stripe, Kubernetes, OpenTofu, and PostgreSQL integrations
+also show why the rich core is not the final abstraction. Real domains require
+bounded policy over quantities, time, resources, and predicates, followed by
+durable reservation and exact execution. Those shared stateful semantics
+should be derived from multiple complete domains and formalized above this
+authority kernel, rather than pushed into an open-ended core policy language.
+
 # 9. Related work
 
 ## 9.1 Authorization and attenuation
@@ -1138,14 +1297,17 @@ CompCert proves semantic preservation through a realistic compiler
 [@leroy2009compcert]. seL4 proves refinement from an abstract specification to
 a C implementation [@klein2009sel4]. Translation validation checks a particular
 translation result [@pnueli1998translation]. Auths-Proof's generated boundary
-is closer in spirit to a small translation-validation artifact, but its
-generator is not verified and the rich projection is not yet translated.
+is a small translation-validation artifact for the finite algebra. Its rich
+authority path instead translates exact production functions and proves
+functional refinement under representation premises; neither Charon nor
+Aeneas is itself proved correct by this artifact.
 
 Lean 4 supplies the theorem-proving environment [@demoura2021lean4]. Aeneas
 uses functional translation to make safe Rust amenable to proof assistants
 [@ho2022aeneas]. Verus provides a practical Rust-centered systems-verification
-environment [@lattuada2024verus]. These systems define credible paths toward a
-stronger implementation refinement than the current generated correspondence.
+environment [@lattuada2024verus]. Auths-Proof uses Aeneas because its generated
+functional definitions can be related directly to the handwritten Lean model,
+while retaining Kani as an independent MIR-level check.
 
 ## 9.3 Model checking and testing
 
@@ -1165,9 +1327,10 @@ separately.
 
 \begin{limitbox}
 \textbf{This paper does not claim full functional correctness of the verifier.}
-It establishes an unbounded abstract algebra, a generated structural
-correspondence, exhaustive finite agreement for declared domains, and bounded
-checks of two shipping Rust functions.
+It establishes rich authority semantics, three production-function refinement
+theorems under representation premises, an unbounded composition algebra,
+exhaustive finite agreement for declared domains, and bounded checks of four
+shipping Rust properties.
 \end{limitbox}
 
 The most important limitations are:
@@ -1175,62 +1338,71 @@ The most important limitations are:
 **Model adequacy.** A correct proof of the wrong model is still wrong. Review of
 the chosen authority dimensions and their order remains essential.
 
-**Rich projection.** Permission sets, intervals, action constraints, budgets,
-status, and assurance are reduced to Booleans by unverified Rust relations.
-
-**Generator trust.** The generator is deterministic and drift-checked but not
-proved semantics-preserving.
+**Representation and codec boundary.** Refinement starts from validated
+production views. Canonical decoding, constructor preservation, view
+losslessness, and byte-to-rich abstraction are not end-to-end theorems.
 
 **Bound asymmetry.** Lean threshold theorems are unbounded. Rust vector replay
 and the Kani threshold harness stop at 16, not the configurable hard maximum of
 128.
 
-**Incomplete release inventory.** Three named Lean helper/diversity theorems
-are not currently listed in the 29-entry release manifest. The source builds
-them, but the inventory checker does not require their names.
+**Caller and whole-verifier exclusion.** Structural state commit, canonical
+parsing, graph resolution, signature verification, evidence adapters, status
+acquisition, replay, final sealing, and receipt persistence are not refined to
+Lean.
 
-**Whole-verifier exclusion.** Parsing, graph resolution, signature
-verification, evidence adapters, status, assurance matching, and final sealing
-are tested but not refined to Lean.
+**Effectful bounded authorization.** Optional ceilings in authority are not a
+formal model of concurrent reservations or aggregate spend. Bounded product
+policy, durable execution intent, crashes, unknown outcomes, reconciliation,
+and external side effects remain future layers.
 
-**Toolchain trust.** Lean, Rust, Kani, CBMC, the build environment, and their
-dependencies remain part of the evidence pipeline.
+**Toolchain trust.** Lean, Mathlib, Charon, Aeneas, Rust, Kani, CBMC, the
+generator, the build environment, and their dependencies remain part of the
+evidence pipeline.
 
 The next work should proceed in decreasing order of semantic leverage:
 
-1. model the rich authority types and close the Rust projection gap;
-2. include every public theorem in a generated release inventory;
-3. translate the isolated safe-Rust algebra/projection with Aeneas or verify it
-   with Verus;
-4. extend symbolic threshold checks to the hard bound or prove a Rust function
-   contract independent of enumeration;
-5. connect canonical codec and graph-state invariants to the formal model;
-6. produce proof-carrying build attestations for generated artifacts.
+1. connect canonical decoding, constructor invariants, and borrowed-view
+   losslessness to the rich representation bridge;
+2. translate or otherwise refine the structural caller that commits accepted
+   delegation fields and preserves private root and assurance state;
+3. derive a closed bounded-policy algebra from six end-to-end domains, then
+   prove tightening, arithmetic, freshness, reservation, replay, crash, and
+   reconciliation properties;
+4. refine credential release and exact external execution to the authorized
+   action and durable intent;
+5. extend symbolic threshold checks to the hard bound or prove the Rust
+   classifier independently of enumeration; and
+6. produce verifiable build attestations for source closure, generated
+   artifacts, theorem statements, and pinned translation tools.
 
 # 11. Conclusion
 
 Formalization is valuable only to the extent that its relationship to shipping
-behavior is understood. Auths-Proof does not solve that relationship by
-assertion. It makes the authorization algebra small, generates the finite
-language boundary from one contract, routes production Rust through that
-boundary, proves the abstract properties in Lean, exports expected behavior
-from Lean, replays every declared finite state in Rust, and model-checks the
-same Rust functions with Kani.
+behavior is understood. Auths-Proof no longer stops at proving a conjunction of
+predicates produced elsewhere. It models the rich authority relations, reshapes
+shipping decisions into isolated pure Rust, translates those exact functions,
+proves their authoring, delegation, and terminal-coverage results against the
+rich model, and audits the entire evidence chain as a release artifact.
 
 The resulting claim is intentionally precise:
 
 \begin{thesisbox}
 \centering
-\textbf{Auths-Proof's generated attenuation and threshold kernels agree with
-their Lean definitions over the declared finite boundary, while Lean proves
-the central algebraic properties without that bound.}
+\textbf{Under published validated-representation and toolchain assumptions,
+Auths-Proof's exact isolated production Rust evaluators for authoring,
+delegation, and terminal coverage refine its rich target-V1 Lean semantics;
+the generated composition boundary separately agrees over its declared finite
+domain while Lean proves its central algebraic properties without that bound.}
 \end{thesisbox}
 
 That claim is narrower than whole-program verification and substantially
-stronger than parallel handwritten models. More importantly, it exposes the
-remaining work: rich-domain projection, generator correctness, codecs,
-cryptography, adapters, and complete verifier control flow. The system can now
-improve along a visible refinement ladder rather than accumulating informal
-confidence around an isolated proof artifact.
+stronger than parallel handwritten models. The former rich-projection gap is
+closed at the shipping decision boundary. The remaining work is now clearer:
+bytes to validated views, structural commit, cryptography and evidence,
+stateful bounded authorization, credentials, external effects, and complete
+verifier control flow. The system can improve along a visible refinement
+ladder rather than accumulating informal confidence around an isolated proof
+artifact.
 
 # References

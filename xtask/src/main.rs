@@ -1442,7 +1442,7 @@ fn cross_language_corpus() -> Result<(), String> {
 
 fn product_fixtures(update: bool) -> Result<(), String> {
     let fixture = auths_apps_testkit::demo_fixture_bytes();
-    let expected = BTreeMap::from([
+    let mut expected = BTreeMap::from([
         (PathBuf::from("mcp-call.json"), fixture.body),
         (PathBuf::from("mcp-call.proof.cbor"), fixture.proof),
         (
@@ -1450,12 +1450,20 @@ fn product_fixtures(update: bool) -> Result<(), String> {
             format!("{}\n", fixture.root_principal).into_bytes(),
         ),
     ]);
+    expected.extend(opentofu_product_fixtures()?);
+    expected.extend(postgresql_product_fixtures()?);
     let directory = root().join("product/fixtures/v1");
     if update {
         fs::create_dir_all(&directory)
             .map_err(|error| format!("could not create product fixtures: {error}"))?;
         for (relative, bytes) in expected {
-            fs::write(directory.join(relative), bytes)
+            let path = directory.join(relative);
+            let parent = path
+                .parent()
+                .ok_or_else(|| format!("product fixture {} has no parent", path.display()))?;
+            fs::create_dir_all(parent)
+                .map_err(|error| format!("could not create product fixture directory: {error}"))?;
+            fs::write(path, bytes)
                 .map_err(|error| format!("could not write product fixture: {error}"))?;
         }
         println!("product fixtures updated");
@@ -1476,6 +1484,185 @@ fn product_fixtures(update: bool) -> Result<(), String> {
         }
     }
     println!("product fixtures are stable");
+    Ok(())
+}
+
+fn opentofu_product_fixtures() -> Result<BTreeMap<PathBuf, Vec<u8>>, String> {
+    use auths_opentofu::{
+        OpenTofuReceipt,
+        canonical::canonical_json,
+        decision_receipt,
+        test_support::{NOW, PLAN_BYTES, configuration_with_maximum_resource_changes, fixture},
+    };
+
+    let fixture = fixture();
+    let authorized = decision_receipt(
+        &fixture.action,
+        &fixture.projection,
+        &fixture.evidence,
+        &fixture.configuration,
+        &fixture.configuration,
+        fixture.configuration.executor_audience(),
+        NOW,
+    )
+    .map_err(|error| format!("could not build OpenTofu authorized fixture: {error}"))?;
+    let narrower_execution = configuration_with_maximum_resource_changes(3);
+    let denied = decision_receipt(
+        &fixture.action,
+        &fixture.projection,
+        &fixture.evidence,
+        &fixture.configuration,
+        &narrower_execution,
+        fixture.configuration.executor_audience(),
+        NOW,
+    )
+    .map_err(|error| format!("could not build OpenTofu denied fixture: {error}"))?;
+
+    let mut files = BTreeMap::from([
+        (
+            PathBuf::from("opentofu/action.json"),
+            fixture
+                .action
+                .canonical_bytes()
+                .map_err(|error| format!("could not serialize OpenTofu action: {error}"))?,
+        ),
+        (
+            PathBuf::from("opentofu/plan-projection.json"),
+            canonical_json(&fixture.projection)
+                .map_err(|error| format!("could not serialize OpenTofu projection: {error}"))?,
+        ),
+        (
+            PathBuf::from("opentofu/state-evidence.json"),
+            canonical_json(&fixture.evidence)
+                .map_err(|error| format!("could not serialize OpenTofu evidence: {error}"))?,
+        ),
+        (
+            PathBuf::from("opentofu/required-configuration.json"),
+            canonical_json(&fixture.configuration)
+                .map_err(|error| format!("could not serialize OpenTofu configuration: {error}"))?,
+        ),
+        (
+            PathBuf::from("opentofu/authorized-decision.json"),
+            canonical_json(&OpenTofuReceipt::Decision(Box::new(authorized)))
+                .map_err(|error| format!("could not serialize OpenTofu receipt: {error}"))?,
+        ),
+        (
+            PathBuf::from("opentofu/configuration-mismatch-decision.json"),
+            canonical_json(&OpenTofuReceipt::Decision(Box::new(denied)))
+                .map_err(|error| format!("could not serialize OpenTofu denial: {error}"))?,
+        ),
+        (
+            PathBuf::from("opentofu/saved-plan.bin"),
+            PLAN_BYTES.to_vec(),
+        ),
+    ]);
+    insert_fixture_manifest("auths.opentofu.fixture-manifest/1", &mut files)?;
+    Ok(files)
+}
+
+fn postgresql_product_fixtures() -> Result<BTreeMap<PathBuf, Vec<u8>>, String> {
+    use auths_postgresql::{
+        PostgresReceipt,
+        canonical::canonical_json,
+        compile_statement, decision_receipt,
+        test_support::{NOW, configuration_with_maximum_rows, fixture},
+    };
+
+    let fixture = fixture();
+    let authorized = decision_receipt(
+        &fixture.action,
+        &fixture.evidence,
+        &fixture.configuration,
+        &fixture.configuration,
+        &fixture.evidence.database_audience,
+        NOW,
+    )
+    .map_err(|error| format!("could not build PostgreSQL authorized fixture: {error}"))?;
+    let narrower_execution = configuration_with_maximum_rows(2);
+    let denied = decision_receipt(
+        &fixture.action,
+        &fixture.evidence,
+        &fixture.configuration,
+        &narrower_execution,
+        &fixture.evidence.database_audience,
+        NOW,
+    )
+    .map_err(|error| format!("could not build PostgreSQL denied fixture: {error}"))?;
+    let statement = compile_statement(&fixture.intent, &fixture.configuration)
+        .map_err(|error| format!("could not compile PostgreSQL fixture statement: {error}"))?;
+
+    let mut files = BTreeMap::from([
+        (
+            PathBuf::from("postgresql/action.json"),
+            fixture
+                .action
+                .canonical_bytes()
+                .map_err(|error| format!("could not serialize PostgreSQL action: {error}"))?,
+        ),
+        (
+            PathBuf::from("postgresql/intent.json"),
+            canonical_json(&fixture.intent)
+                .map_err(|error| format!("could not serialize PostgreSQL intent: {error}"))?,
+        ),
+        (
+            PathBuf::from("postgresql/evidence.json"),
+            canonical_json(&fixture.evidence)
+                .map_err(|error| format!("could not serialize PostgreSQL evidence: {error}"))?,
+        ),
+        (
+            PathBuf::from("postgresql/required-configuration.json"),
+            canonical_json(&fixture.configuration).map_err(|error| {
+                format!("could not serialize PostgreSQL configuration: {error}")
+            })?,
+        ),
+        (
+            PathBuf::from("postgresql/compiled-statement.json"),
+            canonical_json(&statement)
+                .map_err(|error| format!("could not serialize PostgreSQL statement: {error}"))?,
+        ),
+        (
+            PathBuf::from("postgresql/authorized-decision.json"),
+            canonical_json(&PostgresReceipt::Decision(Box::new(authorized)))
+                .map_err(|error| format!("could not serialize PostgreSQL receipt: {error}"))?,
+        ),
+        (
+            PathBuf::from("postgresql/configuration-mismatch-decision.json"),
+            canonical_json(&PostgresReceipt::Decision(Box::new(denied)))
+                .map_err(|error| format!("could not serialize PostgreSQL denial: {error}"))?,
+        ),
+    ]);
+    insert_fixture_manifest("auths.postgresql.fixture-manifest/1", &mut files)?;
+    Ok(files)
+}
+
+fn insert_fixture_manifest(
+    schema: &str,
+    files: &mut BTreeMap<PathBuf, Vec<u8>>,
+) -> Result<(), String> {
+    let entries = files
+        .iter()
+        .map(|(path, bytes)| {
+            Ok((
+                path.file_name()
+                    .and_then(|name| name.to_str())
+                    .ok_or_else(|| format!("fixture path {} has no file name", path.display()))?
+                    .to_owned(),
+                format!("{:x}", Sha256::digest(bytes)),
+            ))
+        })
+        .collect::<Result<BTreeMap<_, _>, String>>()?;
+    let prefix = files
+        .keys()
+        .next()
+        .and_then(|path| path.parent())
+        .ok_or("fixture corpus has no directory")?
+        .to_owned();
+    let manifest = serde_json::to_vec(&json!({
+        "schema": schema,
+        "sha256": entries,
+    }))
+    .map_err(|error| format!("could not serialize fixture manifest: {error}"))?;
+    files.insert(prefix.join("manifest.json"), manifest);
     Ok(())
 }
 
@@ -4717,7 +4904,7 @@ fn repository_hygiene() -> Result<(), String> {
     let mut locks = Vec::new();
     let mut nested_workspaces = Vec::new();
     let mut sibling_references = Vec::new();
-    let mut corpus_manifests = Vec::new();
+    let mut canonical_corpus_manifests = Vec::new();
     for path in repository_files(&repository)? {
         let relative = path
             .strip_prefix(&repository)
@@ -4730,7 +4917,17 @@ fn repository_hygiene() -> Result<(), String> {
                 .components()
                 .any(|component| component.as_os_str() == "fixtures")
         {
-            corpus_manifests.push(relative.to_path_buf());
+            let manifest: Value = serde_json::from_slice(
+                &fs::read(&path)
+                    .map_err(|error| format!("could not read {}: {error}", path.display()))?,
+            )
+            .map_err(|error| format!("invalid fixture manifest {}: {error}", path.display()))?;
+            if manifest["protocol"] == "Auths Proof Protocol V1"
+                && manifest["protocol_major"] == 1
+                && manifest["fixture_set"] == "target-v1"
+            {
+                canonical_corpus_manifests.push(relative.to_path_buf());
+            }
         }
         if relative.file_name().and_then(|name| name.to_str()) == Some("Cargo.toml")
             && relative != Path::new("Cargo.toml")
@@ -4772,9 +4969,10 @@ fn repository_hygiene() -> Result<(), String> {
             "nested Cargo workspaces are forbidden: {nested_workspaces:?}"
         ));
     }
-    if corpus_manifests != [PathBuf::from("core/fixtures/v1/manifest.json")] {
+    if canonical_corpus_manifests != [PathBuf::from("core/fixtures/v1/manifest.json")] {
         return Err(format!(
-            "canonical fixture manifest must have one core owner, found {corpus_manifests:?}"
+            "canonical fixture manifest must have one core owner, found \
+             {canonical_corpus_manifests:?}"
         ));
     }
     if !sibling_references.is_empty() {

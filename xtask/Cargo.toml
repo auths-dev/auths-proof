@@ -24,6 +24,8 @@ auths-webauthn = { workspace = true, features = ["std"] }
 auths-apps-testkit.workspace = true
 auths-bench-model.workspace = true
 auths-lab-matrix.workspace = true
+auths-opentofu.workspace = true
+auths-postgresql.workspace = true
 auths-proof-exchange-testkit.workspace = true
 hex.workspace = true
 serde.workspace = true

@@ -1,0 +1,54 @@
+app = "auths-opentofu-demo"
+primary_region = "cdg"
+
+[build]
+  dockerfile = "Dockerfile"
+  [build.args]
+    OPENTOFU_SANDBOX = "local"
+
+[env]
+  AUTHS_OPENTOFU_BIND = "0.0.0.0:8080"
+  AUTHS_OPENTOFU_ALLOWED_ORIGIN = "https://auths-opentofu-demo.vercel.app"
+  AUTHS_OPENTOFU_MODE = "live"
+  AUTHS_OPENTOFU_BINARY = "/usr/local/bin/tofu"
+  AUTHS_OPENTOFU_WORKING_DIRECTORY = "/workspace/opentofu"
+  AUTHS_OPENTOFU_STATE_DIR = "/data/auths-opentofu/service"
+  AUTHS_OPENTOFU_WORKSPACE = "auths-demo"
+  AUTHS_OPENTOFU_BACKEND_IDENTITY = "local-fly-volume://auths-opentofu-demo"
+  AUTHS_OPENTOFU_EXECUTOR_AUDIENCE = "https://auths-opentofu-demo.fly.dev"
+  AUTHS_OPENTOFU_VERSION = "1.12.5"
+  AUTHS_OPENTOFU_PROVIDER_SOURCES = "registry.opentofu.org/hashicorp/local"
+  AUTHS_OPENTOFU_RESOURCE_TYPES = "local_file"
+  AUTHS_OPENTOFU_MAX_CHANGES = "1"
+  AUTHS_OPENTOFU_MAX_PLAN_AGE_SECONDS = "120"
+  AUTHS_OPENTOFU_MAX_AUTHORIZATION_SECONDS = "120"
+  AUTHS_OPENTOFU_TIMEOUT_SECONDS = "90"
+  AUTHS_OPENTOFU_PLANNER_BUILD = "auths-opentofu-demo/1"
+  AUTHS_OPENTOFU_TOOL_BUILD = "opentofu/1.12.5-linux-amd64"
+  AUTHS_OPENTOFU_MODULE_MANIFEST = "root:local-file@v1;provider:hashicorp/local@2.9.0"
+  AUTHS_OPENTOFU_SESSION_VARIABLE = "TF_VAR_AUTHS_OBJECT_ID"
+  AUTHS_OPENTOFU_SESSION_WORKSPACE = "true"
+  AUTHS_OPENTOFU_FAULT = "none"
+
+[[mounts]]
+  source = "auths_opentofu_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    grace_period = "20s"
+    interval = "15s"
+    method = "GET"
+    timeout = "5s"
+    path = "/readyz"
+
+[[vm]]
+  memory = "1gb"
+  cpu_kind = "shared"
+  cpus = 1

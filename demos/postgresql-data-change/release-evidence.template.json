@@ -1,0 +1,28 @@
+{
+  "schema": "auths.postgresql.public-release-evidence/1",
+  "status": "not-tested",
+  "source_revision": null,
+  "frontend_url": null,
+  "native_api_url": null,
+  "fly_image_reference": null,
+  "vercel_deployment_id": null,
+  "postgresql_server_version": null,
+  "migration_sha256": null,
+  "schema_fingerprint": null,
+  "policy_fingerprint": null,
+  "trigger_fingerprint": null,
+  "database_region": null,
+  "tested_at": null,
+  "checks": {
+    "readiness": false,
+    "exact_commit": false,
+    "material_denial_without_effect": false,
+    "replay_without_second_effect": false,
+    "post_commit_readback": false,
+    "fault_restart_reconciliation": false,
+    "restricted_role_and_rls": false,
+    "inline_receipt": false,
+    "designed_receipt_route": false,
+    "cors_and_csp": false
+  }
+}

@@ -479,6 +479,64 @@ The deployed demo exposes stable public URLs and reports whether it is using liv
 - sandbox contract tests separated from offline conformance tests; and
 - workspace Rust edition, resolver, MSRV, lint, audit, and dependency checks.
 
+### Completion evidence checklist
+
+The following work is required before this specification may be marked
+implemented. A fixture backend may establish pure authorization and HTTP
+contract behavior, but it does not satisfy any item that requires OpenTofu,
+provider state, process interruption, restart, or public browser execution.
+
+- [x] Commit versioned, byte-stable policy, action, saved-plan projection,
+  evidence, decision, execution, observation, denial, and replay fixtures.
+  Programmatically constructed test values alone are not the canonical fixture
+  corpus.
+- [ ] Run the protected planner against the pinned OpenTofu binary, provider
+  lock, initialized workspace, real backend state, and live sandbox provider.
+  Capture the exact saved-plan artifact and derive the authorization from that
+  artifact and fresh state. The local-provider contract now proves the complete
+  planner and saved-artifact machinery, but it does not close this external
+  provider gate.
+- [ ] Apply that exact saved plan once and prove the real provider object and
+  backend state changed to the authorized postcondition. A fixture serial
+  increment or an `opentofu_called` test flag is not provider evidence. The
+  local-provider contract proves an exact provider effect and read-back, but
+  the primary Cloudflare or equivalent external-provider path remains to be
+  exercised.
+- [x] Exercise every material denial through the native enforcement boundary:
+  changed source configuration, one changed plan byte, workspace/backend
+  change, provider-lock change, state drift, unavailable state lock, destructive
+  change beyond policy, expired plan/evidence, and required/executed
+  configuration mismatch. Each denial must prove that credentials were not
+  released and `tofu apply` was not entered.
+- [x] Fault-inject an apply failure before any provider effect and verify the
+  claim, artifact, state, and receipts remain consistent.
+- [x] Fault-inject a provider partial effect or otherwise ambiguous apply
+  outcome, terminate the executor both before and after possible state commit,
+  restart with the durable claim/artifact/receipt stores, and reconcile from a
+  fresh backend and provider observation without issuing a second apply.
+- [x] Prove replay after committed and reconciled outcomes returns the durable
+  prior result and never invokes OpenTofu again.
+- [x] Run browser-driven end-to-end tests against the local live service. The
+  browser must create a fresh session and exercise readiness, exact apply,
+  material denial, replay, provider read-back, inline receipt JSON, the designed
+  receipt route, and fail-closed invalid receipt identifiers. Reading HTML or
+  JavaScript files and asserting that selectors or request strings exist is not
+  browser-level coverage.
+- [ ] Deploy the native live-mode service and frontend, then repeat the same
+  browser flow through the public frontend and public API. A `fly.toml`,
+  `vercel.json`, configured hostname, fixture-mode deployment, DNS record, or
+  HTTP 404 is not deployment evidence.
+- [ ] Record redacted release evidence containing the tested frontend and API
+  URLs, source revision, Fly image reference or equivalent native release,
+  Vercel deployment identifier, OpenTofu version, provider-lock digest,
+  provider/backend observation commitments, region, and test timestamp.
+- [ ] Map the live sandbox, fault/restart, browser, deployment, canonical
+  fixture, and secret-scan evidence into `compliance.toml`. A green compliance
+  job is insufficient if it points only to fixture-backed tests.
+- [ ] Pass formatting, architecture, workspace tests, clippy, MSRV, dependency
+  policy, secret scanning, compliance, and the complete authoritative CI suite
+  on the exact revision whose release evidence was recorded.
+
 ## 20. Acceptance criteria
 
 1. The agent proposes configuration without backend or provider credentials.
@@ -495,6 +553,10 @@ The deployed demo exposes stable public URLs and reports whether it is using liv
 12. Core crates remain independent of OpenTofu.
 13. The deployed frontend completes exact, denial, replay, provider-observation, and receipt flows against the deployed native backend.
 14. Browser-level end-to-end tests fail if frontend/backend wiring, CORS, readiness, interaction, or result rendering breaks.
+15. Canonical policy, action, projection, evidence, and receipt fixtures are committed and byte-stable.
+16. Live failure, interruption, restart, ambiguous-outcome reconciliation, and replay tests pass without duplicate provider effects.
+17. Redacted release evidence identifies and proves the exact public frontend, native release, provider/backend observation, and source revision tested.
+18. Complete compliance claims and authoritative CI pass for that revision.
 
 ## 21. Deferred work
 

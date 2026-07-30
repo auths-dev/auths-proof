@@ -1,0 +1,26 @@
+{
+  "schema": "auths.opentofu.public-release-evidence/1",
+  "status": "not-tested",
+  "source_revision": null,
+  "frontend_url": null,
+  "native_api_url": null,
+  "fly_image_reference": null,
+  "vercel_deployment_id": null,
+  "fly_region": null,
+  "opentofu_version": null,
+  "provider_lock_sha256": null,
+  "backend_observation_commitment": null,
+  "provider_observation_commitment": null,
+  "tested_at": null,
+  "checks": {
+    "readiness_live_opentofu": false,
+    "exact_apply": false,
+    "material_denial_without_credential_or_apply": false,
+    "replay_without_second_apply": false,
+    "fault_restart_reconciliation": false,
+    "provider_and_state_readback": false,
+    "inline_receipt": false,
+    "designed_receipt_route": false,
+    "cors_and_csp": false
+  }
+}

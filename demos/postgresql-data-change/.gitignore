@@ -1,0 +1,7 @@
+.env
+.state/
+web/.vercel/
+deployment-evidence.json
+*.pem
+*.key
+*.crt

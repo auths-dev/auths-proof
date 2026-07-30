@@ -1,0 +1,83 @@
+services:
+  certificates:
+    build:
+      context: .
+      dockerfile: database/Dockerfile.tls
+    volumes:
+      - postgres-certs:/certs
+      - ./database:/scripts:ro
+    restart: "no"
+
+  postgres:
+    image: postgres:17.10-bookworm
+    depends_on:
+      certificates:
+        condition: service_completed_successfully
+    command:
+      - postgres
+      - -c
+      - ssl=on
+      - -c
+      - ssl_cert_file=/certs/server.crt
+      - -c
+      - ssl_key_file=/certs/server.key
+      - -c
+      - password_encryption=scram-sha-256
+    environment:
+      POSTGRES_DB: auths_demo
+      POSTGRES_USER: migration_admin
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:?set POSTGRES_ADMIN_PASSWORD}
+      AUTHS_EXECUTOR_PASSWORD: ${AUTHS_EXECUTOR_PASSWORD:?set AUTHS_EXECUTOR_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - postgres-certs:/certs:ro
+      - ./database/bootstrap.sql:/docker-entrypoint-initdb.d/010-bootstrap.sql:ro
+      - ../../product/integrations/auths-postgresql/migrations/auths_execution_ledger.sql:/docker-entrypoint-initdb.d/020-ledger.sql:ro
+      - ./database/create-executor-login.sh:/docker-entrypoint-initdb.d/030-executor-login.sh:ro
+      - ./database/reset.sql:/demo/reset.sql:ro
+      - ./database/verify.sql:/demo/verify.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U migration_admin -d auths_demo"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build:
+      context: ../..
+      dockerfile: demos/postgresql-data-change/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      AUTHS_POSTGRESQL_BIND: 0.0.0.0:8080
+      AUTHS_POSTGRESQL_ALLOWED_ORIGIN: http://localhost:4175
+      AUTHS_POSTGRESQL_MODE: live
+      AUTHS_POSTGRESQL_STATE_DIR: /data/auths-postgresql
+      AUTHS_POSTGRESQL_CONNECTION_STRING: postgresql://auths_executor:${AUTHS_EXECUTOR_PASSWORD}@postgres/auths_demo?sslmode=require
+      AUTHS_POSTGRESQL_CA_FILE: /certs/ca.crt
+      AUTHS_POSTGRESQL_SERVER_IDENTITY: spiffe://auths.local/postgresql/synthetic
+      AUTHS_POSTGRESQL_AUDIENCE: http://localhost:4175
+      AUTHS_POSTGRESQL_DEMO_TENANT: tenant-demo
+      AUTHS_POSTGRESQL_FAULT: "${AUTHS_POSTGRESQL_FAULT:-none}"
+      AUTHS_POSTGRESQL_RECEIPT_FAULT: "${AUTHS_POSTGRESQL_RECEIPT_FAULT:-none}"
+    ports:
+      - "8080:8080"
+    volumes:
+      - postgres-certs:/certs:ro
+      - api-state:/data
+
+  web:
+    image: nginx:1.29.5-alpine
+    depends_on:
+      - api
+    ports:
+      - "${AUTHS_POSTGRESQL_WEB_PORT:-4175}:8080"
+    volumes:
+      - ./web:/usr/share/nginx/html:ro
+      - ./web/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+
+volumes:
+  postgres-data:
+  postgres-certs:
+  api-state:
