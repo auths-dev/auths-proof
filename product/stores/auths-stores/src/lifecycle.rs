@@ -4,6 +4,7 @@ use auths_lifecycle::{
     ReservationMode, StoreError, StoreTransactionV1, StoredTransitionV1, TransitionDisposition,
     WorkflowId, apply_transition, decode_record, encode_record,
 };
+use postgres::{Client, IsolationLevel, NoTls, Transaction};
 use sha2::{Digest as _, Sha256};
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -16,6 +17,8 @@ use tempfile::NamedTempFile;
 
 const DATABASE_MAGIC: &[u8; 8] = b"AUTHSLF1";
 const MAX_DATABASE_BYTES: usize = 256 * 1024 * 1024;
+const MAX_RECORD_BYTES: usize = 16 * 1024 * 1024;
+const POSTGRES_SCHEMA: &str = include_str!("../migrations/postgres_lifecycle_v1.sql");
 
 /// One closed capacity rule configured by a domain registration.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -55,6 +58,10 @@ pub enum LifecycleStoreConfigurationError {
     InvalidPersistentState,
     /// Filesystem operation failed.
     Io,
+    /// Transactional database could not be opened or initialized.
+    DatabaseUnavailable,
+    /// Existing transactional schema does not implement the V1 contract.
+    DatabaseSchemaMismatch,
 }
 
 #[derive(Clone)]
@@ -200,6 +207,259 @@ impl LifecycleStore for PersistentLifecycleStore {
             transaction,
             |next| persist_database(&path, next, fault),
         )
+    }
+}
+
+/// Transactional multi-process `PostgreSQL` lifecycle store.
+///
+/// The adapter serializes mutations through a singleton contract-row lock
+/// inside a database transaction. With every writer taking that lock before
+/// reading lifecycle state, `READ COMMITTED` supplies a fresh post-lock
+/// snapshot and is equivalent to serial execution for this closed schema. It
+/// reloads and validates every canonical lifecycle record under that lock
+/// before deriving capacity. The deliberately simple implementation is a
+/// correctness reference: database indexes and framing never participate in
+/// semantic digests, and no acknowledgement is returned before commit.
+pub struct PostgresLifecycleStore {
+    rules: Vec<LifecycleCapacityRuleV1>,
+    maximum_records: usize,
+    client: Mutex<Client>,
+}
+
+impl PostgresLifecycleStore {
+    /// Opens a PostgreSQL-backed store and installs the fixed V1 schema.
+    ///
+    /// The connection string is deployment configuration and is not part of
+    /// the canonical lifecycle contract. Callers should provision a dedicated
+    /// database or schema whose privileges prevent unrelated writers.
+    ///
+    /// # Errors
+    ///
+    /// Returns a typed configuration error when limits or rules are invalid,
+    /// the database is unavailable, or an existing metadata row conflicts
+    /// with the V1 store contract.
+    pub fn connect(
+        connection_string: &str,
+        rules: Vec<LifecycleCapacityRuleV1>,
+        maximum_records: usize,
+    ) -> Result<Self, LifecycleStoreConfigurationError> {
+        validate_configuration(&rules, maximum_records)?;
+        let mut client = Client::connect(connection_string, NoTls)
+            .map_err(|_| LifecycleStoreConfigurationError::DatabaseUnavailable)?;
+        client
+            .batch_execute(POSTGRES_SCHEMA)
+            .map_err(|_| LifecycleStoreConfigurationError::DatabaseUnavailable)?;
+        let metadata = client
+            .query_opt(
+                "SELECT schema_version, contract_id
+                 FROM auths_lifecycle_store_meta
+                 WHERE singleton = TRUE",
+                &[],
+            )
+            .map_err(|_| LifecycleStoreConfigurationError::DatabaseUnavailable)?
+            .ok_or(LifecycleStoreConfigurationError::DatabaseSchemaMismatch)?;
+        let schema_version: i32 = metadata
+            .try_get(0)
+            .map_err(|_| LifecycleStoreConfigurationError::DatabaseSchemaMismatch)?;
+        let contract_id: String = metadata
+            .try_get(1)
+            .map_err(|_| LifecycleStoreConfigurationError::DatabaseSchemaMismatch)?;
+        if schema_version != 1 || contract_id != "auths.lifecycle.transactional-store/1" {
+            return Err(LifecycleStoreConfigurationError::DatabaseSchemaMismatch);
+        }
+        Ok(Self {
+            rules,
+            maximum_records,
+            client: Mutex::new(client),
+        })
+    }
+
+    /// Loads and validates one canonical record using the current connection.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StoreError`] when the database is unavailable or the row,
+    /// its indexes, or its digest are inconsistent.
+    pub fn load(&self, workflow: &WorkflowId) -> Result<Option<LifecycleRecordV1>, StoreError> {
+        let mut client = self.client.lock().map_err(|_| StoreError::Unavailable)?;
+        let row = client
+            .query_opt(
+                "SELECT workflow_id, revision, lifecycle_state, record_bytes, record_sha256
+                 FROM auths_lifecycle_records
+                 WHERE workflow_id = $1",
+                &[&workflow.as_str()],
+            )
+            .map_err(|error| map_postgres_error(&error))?;
+        row.map(|row| decode_postgres_row(&row)).transpose()
+    }
+}
+
+impl LifecycleStore for PostgresLifecycleStore {
+    fn transact(&self, transaction: &StoreTransactionV1) -> Result<StoredTransitionV1, StoreError> {
+        let mut client = self.client.lock().map_err(|_| StoreError::Unavailable)?;
+        let mut sql = client
+            .build_transaction()
+            .isolation_level(IsolationLevel::ReadCommitted)
+            .start()
+            .map_err(|error| map_postgres_error(&error))?;
+        sql.query_one(
+            "SELECT schema_version
+             FROM auths_lifecycle_store_meta
+             WHERE singleton = TRUE
+             FOR UPDATE",
+            &[],
+        )
+        .map_err(|error| map_postgres_error(&error))?;
+        let mut database = load_postgres_database(&mut sql, self.maximum_records)?;
+        let stored = transact_database(
+            &mut database,
+            &self.rules,
+            self.maximum_records,
+            transaction,
+            |next| persist_postgres_record(&mut sql, next, transaction),
+        )?;
+        sql.commit().map_err(|error| map_postgres_error(&error))?;
+        Ok(stored)
+    }
+}
+
+fn load_postgres_database(
+    sql: &mut Transaction<'_>,
+    maximum_records: usize,
+) -> Result<LifecycleDatabase, StoreError> {
+    let rows = sql
+        .query(
+            "SELECT workflow_id, revision, lifecycle_state, record_bytes, record_sha256
+             FROM auths_lifecycle_records
+             ORDER BY workflow_id",
+            &[],
+        )
+        .map_err(|error| map_postgres_error(&error))?;
+    if rows.len() > maximum_records {
+        return Err(StoreError::LimitExceeded);
+    }
+    let mut records = BTreeMap::new();
+    for row in rows {
+        let record = decode_postgres_row(&row)?;
+        if records
+            .insert(record.workflow_id().clone(), record)
+            .is_some()
+        {
+            return Err(StoreError::Corrupt);
+        }
+    }
+    Ok(LifecycleDatabase { records })
+}
+
+fn decode_postgres_row(row: &postgres::Row) -> Result<LifecycleRecordV1, StoreError> {
+    let workflow_text: String = row.try_get(0).map_err(|_| StoreError::Corrupt)?;
+    let revision: i64 = row.try_get(1).map_err(|_| StoreError::Corrupt)?;
+    let state: i16 = row.try_get(2).map_err(|_| StoreError::Corrupt)?;
+    let record_bytes: Vec<u8> = row.try_get(3).map_err(|_| StoreError::Corrupt)?;
+    let stored_digest: Vec<u8> = row.try_get(4).map_err(|_| StoreError::Corrupt)?;
+    if record_bytes.is_empty()
+        || record_bytes.len() > MAX_RECORD_BYTES
+        || stored_digest.len() != 32
+        || Sha256::digest(&record_bytes).as_slice() != stored_digest
+    {
+        return Err(StoreError::Corrupt);
+    }
+    let workflow = WorkflowId::parse(&workflow_text).map_err(|_| StoreError::Corrupt)?;
+    let record = decode_record(&record_bytes).map_err(|_| StoreError::Corrupt)?;
+    let indexed_revision = u64::try_from(revision).map_err(|_| StoreError::Corrupt)?;
+    if record.workflow_id() != &workflow
+        || record.revision() != indexed_revision
+        || lifecycle_state_code(record.state()) != state
+    {
+        return Err(StoreError::Corrupt);
+    }
+    Ok(record)
+}
+
+fn persist_postgres_record(
+    sql: &mut Transaction<'_>,
+    database: &LifecycleDatabase,
+    requested: &StoreTransactionV1,
+) -> Result<(), StoreError> {
+    let record = database
+        .records
+        .get(&requested.workflow_id)
+        .ok_or(StoreError::Corrupt)?;
+    let record_bytes = encode_record(record).map_err(|_| StoreError::Corrupt)?;
+    if record_bytes.is_empty() || record_bytes.len() > MAX_RECORD_BYTES {
+        return Err(StoreError::LimitExceeded);
+    }
+    let record_digest: [u8; 32] = Sha256::digest(&record_bytes).into();
+    let revision = i64::try_from(record.revision()).map_err(|_| StoreError::LimitExceeded)?;
+    let affected = match requested.expected_revision {
+        None => sql.execute(
+            "INSERT INTO auths_lifecycle_records
+                 (workflow_id, revision, lifecycle_state, record_bytes, record_sha256)
+             VALUES ($1, $2, $3, $4, $5)
+             ON CONFLICT (workflow_id) DO NOTHING",
+            &[
+                &record.workflow_id().as_str(),
+                &revision,
+                &lifecycle_state_code(record.state()),
+                &record_bytes,
+                &&record_digest[..],
+            ],
+        ),
+        Some(expected) => {
+            let expected = i64::try_from(expected).map_err(|_| StoreError::Conflict)?;
+            sql.execute(
+                "UPDATE auths_lifecycle_records
+                 SET revision = $2,
+                     lifecycle_state = $3,
+                     record_bytes = $4,
+                     record_sha256 = $5
+                 WHERE workflow_id = $1 AND revision = $6",
+                &[
+                    &record.workflow_id().as_str(),
+                    &revision,
+                    &lifecycle_state_code(record.state()),
+                    &record_bytes,
+                    &&record_digest[..],
+                    &expected,
+                ],
+            )
+        }
+    }
+    .map_err(|error| map_postgres_error(&error))?;
+    if affected != 1 {
+        return Err(StoreError::Conflict);
+    }
+    Ok(())
+}
+
+const fn lifecycle_state_code(state: LifecycleState) -> i16 {
+    match state {
+        LifecycleState::DecisionRecorded => 0,
+        LifecycleState::Reserved => 1,
+        LifecycleState::ExecutionIntentRecorded => 2,
+        LifecycleState::Executing => 3,
+        LifecycleState::Committed => 4,
+        LifecycleState::Released => 5,
+        LifecycleState::OutcomeUnknown => 6,
+        LifecycleState::ReconciledCommitted => 7,
+        LifecycleState::ReconciledReleased => 8,
+    }
+}
+
+fn map_postgres_error(error: &postgres::Error) -> StoreError {
+    let Some(database_error) = error.as_db_error() else {
+        return StoreError::Unavailable;
+    };
+    let code = database_error.code();
+    if code == &postgres::error::SqlState::T_R_SERIALIZATION_FAILURE
+        || code == &postgres::error::SqlState::T_R_DEADLOCK_DETECTED
+        || code == &postgres::error::SqlState::UNIQUE_VIOLATION
+    {
+        StoreError::Conflict
+    } else if code == &postgres::error::SqlState::CHECK_VIOLATION {
+        StoreError::Corrupt
+    } else {
+        StoreError::Unavailable
     }
 }
 

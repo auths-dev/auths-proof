@@ -413,6 +413,9 @@ jobs:
           persist-credentials: false
       - name: Start telemetry
         run: echo "AUTHS_PHASE_STARTED=$(date +%s)" >> "$GITHUB_ENV"
+      - uses: ./.github/actions/setup-rust-cache
+        with:
+          toolchain: 1.97.1
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22.23.1
@@ -456,6 +459,13 @@ jobs:
       - name: Real PostgreSQL rollback, restart, and reconciliation contract
         working-directory: demos/postgresql-data-change
         run: npm run test:live-recovery
+      - name: Transactional multi-process lifecycle-store contract
+        env:
+          AUTHS_LIFECYCLE_POSTGRES_URL: postgresql://migration_admin:${{ env.POSTGRES_ADMIN_PASSWORD }}@127.0.0.1:54329/auths_demo
+        run: >-
+          cargo test --locked -p auths-stores
+          --test postgres_lifecycle
+          -- --ignored --test-threads=1
       - name: Privilege, RLS, injection, concurrency, timeout, and drift contract
         working-directory: demos/postgresql-data-change
         run: npm run test:live-database
