@@ -2,6 +2,13 @@
 
 #![forbid(unsafe_code)]
 
+mod lifecycle;
+
+pub use lifecycle::{
+    InMemoryLifecycleStore, LifecycleCapacityRuleV1, LifecycleStoreConfigurationError,
+    PersistentLifecycleStore,
+};
+
 use auths_model::{ActionId, BudgetCeiling, ReceiptId};
 use auths_proof_exchange_model::ChallengeNonce;
 use auths_receipts::{verify_attested_decision_bytes, verify_attested_execution_bytes};

@@ -9,14 +9,18 @@
 
 extern crate alloc;
 
+mod codec;
 mod digest;
 mod identifier;
 pub mod kernel;
 mod model;
 mod registry;
 mod sealed;
+#[cfg(feature = "test-support")]
+pub mod test_support;
 mod transition;
 
+pub use codec::{CodecError, decode_record, encode_record};
 pub use digest::{
     DecisionReceiptDigest, DomainReceiptDigest, ExecutionIntentDigest, LifecycleReceiptDigest,
     ObservationDigest, ProviderConditionDigest, ProviderRequestDigest, ProviderResultDigest,

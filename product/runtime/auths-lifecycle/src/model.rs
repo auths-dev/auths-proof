@@ -782,6 +782,8 @@ pub struct DecisionInputV1 {
     pub domain_id: DomainId,
     /// Exact executor audience.
     pub executor_audience: ExecutorAudienceId,
+    /// Closed reservation algebra applied to every emitted intent.
+    pub reservation_algebra_id: ReservationAlgebraId,
     /// Complete pure-evaluation commitments.
     pub commitments: EvaluationCommitmentsV1,
     /// Eligible outputs. Denied and indeterminate results cannot be supplied.

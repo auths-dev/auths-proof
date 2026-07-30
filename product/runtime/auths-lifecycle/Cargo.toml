@@ -8,11 +8,13 @@ description = "Pure reservation and execution lifecycle semantics for bounded Au
 
 [features]
 default = ["std"]
-std = ["minicbor/std", "sha2/std", "auths-bounded-policy/std"]
+std = ["sha2/std", "auths-bounded-policy/std"]
+test-support = ["std"]
 
 [dependencies]
 auths-bounded-policy.workspace = true
-minicbor.workspace = true
+postcard.workspace = true
+serde.workspace = true
 sha2.workspace = true
 
 [dev-dependencies]

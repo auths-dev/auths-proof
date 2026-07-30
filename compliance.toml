@@ -1026,6 +1026,7 @@ security_state = [
 
 [packages.auths-lifecycle.claims]
 independent-semantic-implementation = [
+  "product/runtime/auths-lifecycle/src/codec.rs#additive_decision_and_reservation_round_trip_exactly",
   "product/runtime/auths-lifecycle/src/kernel.rs#configuration_mismatch_precedes_every_side_effectful_gate",
   "product/runtime/auths-lifecycle/src/kernel.rs#unknown_outcome_cannot_release_without_reconciliation",
 ]
@@ -1189,18 +1190,23 @@ layer = "product"
 path = "product/stores/auths-stores"
 core_apis = ["auths-model"]
 protocol_versions = ["auths-proof/v1"]
-wire_objects = ["AttestedDecisionReceipt", "AttestedExecutionReceipt", "BudgetState", "ReplayState"]
-fixture_suites = []
+wire_objects = ["AttestedDecisionReceipt", "AttestedExecutionReceipt", "BudgetState", "LifecycleRecordV1", "ReplayState"]
+fixture_suites = ["product/fixtures/v1/lifecycle"]
 principal_families = []
 signature_families = []
 profiles = []
 transports = ["filesystem", "memory"]
-configuration_inputs = ["budget-algebra", "capacity", "receipt-policy"]
-security_state = ["budget-ledger", "receipt-spool", "replay-ledger"]
+configuration_inputs = ["budget-algebra", "capacity", "lifecycle-capacity-rule", "receipt-policy"]
+security_state = ["budget-ledger", "lifecycle-records", "receipt-spool", "replay-ledger"]
 
 [packages.auths-stores.claims]
 receipt-producer-consumer = ["product/stores/auths-stores/src/lib.rs#local_spool_policy_persists_attested_receipt_on_primary_failure"]
-stateful-replay-budget-component = ["product/stores/auths-stores/src/lib.rs#persistent_ledgers_survive_reopen"]
+stateful-replay-budget-component = [
+  "product/stores/auths-stores/src/lib.rs#persistent_ledgers_survive_reopen",
+  "product/stores/auths-stores/src/lifecycle.rs#concurrent_final_capacity_has_one_winner",
+  "product/stores/auths-stores/src/lifecycle.rs#persistent_capacity_and_replay_survive_reopen",
+  "product/stores/auths-stores/src/lifecycle.rs#crash_matrix_reopens_old_or_new_canonical_state_never_partial_state",
+]
 
 [packages."@auths-dev/proof"]
 kind = "npm"

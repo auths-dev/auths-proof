@@ -3442,7 +3442,7 @@
     {
       "source": "auths-lifecycle",
       "source_layer": "product",
-      "target": "minicbor",
+      "target": "postcard",
       "target_layer": null,
       "scope": "external",
       "kind": "normal",
@@ -3464,6 +3464,21 @@
       "optional": false,
       "default_features": true,
       "features": []
+    },
+    {
+      "source": "auths-lifecycle",
+      "source_layer": "product",
+      "target": "serde",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "derive"
+      ]
     },
     {
       "source": "auths-lifecycle",
@@ -8485,6 +8500,44 @@
     {
       "source": "auths-stores",
       "source_layer": "product",
+      "target": "auths-bounded-policy",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-stores",
+      "source_layer": "product",
+      "target": "auths-lifecycle",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "test-support"
+      ]
+    },
+    {
+      "source": "auths-stores",
+      "source_layer": "product",
+      "target": "auths-lifecycle",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-stores",
+      "source_layer": "product",
       "target": "auths-model",
       "target_layer": "core",
       "scope": "internal",
@@ -8555,6 +8608,18 @@
       "features": [
         "alloc"
       ]
+    },
+    {
+      "source": "auths-stores",
+      "source_layer": "product",
+      "target": "sha2",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
     },
     {
       "source": "auths-stores",
