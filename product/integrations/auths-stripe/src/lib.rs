@@ -25,6 +25,7 @@ pub mod receipts;
 pub mod reservation;
 pub mod service;
 pub mod subscription;
+pub mod treasury;
 pub mod types;
 
 #[cfg(test)]
@@ -60,10 +61,11 @@ pub use ports::{
     PaymentAuthorizeCredential, PaymentAuthorizeCredentialScope, PaymentCancelCredential,
     PaymentCancelCredentialScope, PaymentCaptureCredential, PaymentCaptureCredentialScope,
     PaymentCollectCredential, PaymentCollectCredentialScope, PaymentMandateCredential,
-    PaymentMandateCredentialScope, PortError, ProofDecision, ProofVerifier,
-    PurchaseAuthorizationCredential, PurchaseAuthorizationCredentialScope, ReceiptSink,
-    RefundCredentialScope, StripeCredential, StripeGateway, StripeRefundCredential,
-    SubscriptionCreateCredential, SubscriptionCreateCredentialScope, SubscriptionModifyCredential,
+    PaymentMandateCredentialScope, PayoutCredential, PayoutCredentialScope, PortError,
+    ProofDecision, ProofVerifier, PurchaseAuthorizationCredential,
+    PurchaseAuthorizationCredentialScope, ReceiptSink, RefundCredentialScope, StripeCredential,
+    StripeGateway, StripeRefundCredential, SubscriptionCreateCredential,
+    SubscriptionCreateCredentialScope, SubscriptionModifyCredential,
     SubscriptionModifyCredentialScope,
 };
 pub use profile::{StripeRefundCommand, StripeRefundProfile};
@@ -80,11 +82,12 @@ pub use service::{
     ExecuteRefundRequest, RefundService, ServiceDependencies, ServiceError, WorkflowOutcome,
 };
 pub use subscription::*;
+pub use treasury::*;
 pub use types::{
     BalanceTransactionId, ChargeId, Currency, CustomerId, DigestHex, EventId,
-    ExactRefundActionInput, ExactRefundActionV1, InvoiceId, IssuingAuthorizationId, IssuingCardId,
-    IssuingCardholderId, MandateId, Money, PaymentIntentId, PaymentMethodId, PriceId, ProductId,
-    RefundEvidenceInput, RefundEvidenceV1, RefundId, RefundResult, SetupAttemptId, SetupIntentId,
-    StripeAccountId, StripeVerifierConfiguration, StripeVerifierConfigurationInput, SubscriptionId,
-    SubscriptionItemId, TestClockId, TransferId,
+    ExactRefundActionInput, ExactRefundActionV1, ExternalAccountId, InvoiceId,
+    IssuingAuthorizationId, IssuingCardId, IssuingCardholderId, MandateId, Money, PaymentIntentId,
+    PaymentMethodId, PayoutId, PriceId, ProductId, RefundEvidenceInput, RefundEvidenceV1, RefundId,
+    RefundResult, SetupAttemptId, SetupIntentId, StripeAccountId, StripeVerifierConfiguration,
+    StripeVerifierConfigurationInput, SubscriptionId, SubscriptionItemId, TestClockId, TransferId,
 };

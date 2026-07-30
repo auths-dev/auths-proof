@@ -40,6 +40,9 @@ pub enum PurchaseAuthorizationCredentialScope {}
 /// Type marker for exact Connect Transfer creation and reconciliation.
 pub enum ConnectTransferCredentialScope {}
 
+/// Type marker for exact manual Payout creation and reconciliation.
+pub enum PayoutCredentialScope {}
+
 /// Secret Stripe credential bound to one compile-time effect scope.
 ///
 /// A credential with one scope cannot be passed to a provider gateway for
@@ -204,6 +207,19 @@ pub type PurchaseAuthorizationCredential = StripeCredential<PurchaseAuthorizatio
 /// }
 /// ```
 pub type ConnectTransferCredential = StripeCredential<ConnectTransferCredentialScope>;
+
+/// Credential restricted to the manual-payout profile.
+///
+/// A Connect Transfer credential cannot cross the payout boundary:
+///
+/// ```compile_fail
+/// use auths_stripe::{ConnectTransferCredential, PayoutCredential};
+///
+/// fn wrong_scope(credential: ConnectTransferCredential) -> PayoutCredential {
+///     credential
+/// }
+/// ```
+pub type PayoutCredential = StripeCredential<PayoutCredentialScope>;
 
 impl<S> StripeCredential<S> {
     /// Wraps a non-empty Stripe test-mode secret.
@@ -397,8 +413,8 @@ mod tests {
     use super::{
         ConnectTransferCredential, PaymentAuthorizeCredential, PaymentCancelCredential,
         PaymentCaptureCredential, PaymentCollectCredential, PaymentMandateCredential,
-        PurchaseAuthorizationCredential, StripeRefundCredential, SubscriptionCreateCredential,
-        SubscriptionModifyCredential,
+        PayoutCredential, PurchaseAuthorizationCredential, StripeRefundCredential,
+        SubscriptionCreateCredential, SubscriptionModifyCredential,
     };
 
     #[test]
@@ -470,6 +486,10 @@ mod tests {
         assert_ne!(
             TypeId::of::<ConnectTransferCredential>(),
             TypeId::of::<PurchaseAuthorizationCredential>()
+        );
+        assert_ne!(
+            TypeId::of::<PayoutCredential>(),
+            TypeId::of::<ConnectTransferCredential>()
         );
         assert!(PaymentCaptureCredential::new(b"rk_test_repository_test_value".to_vec()).is_ok());
     }

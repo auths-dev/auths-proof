@@ -164,6 +164,14 @@ fn valid_balance_transaction(value: &str) -> bool {
     valid_prefixed(value, "txn_", 96)
 }
 
+fn valid_payout(value: &str) -> bool {
+    valid_prefixed(value, "po_", 96)
+}
+
+fn valid_external_account(value: &str) -> bool {
+    valid_prefixed(value, "ba_", 96) || valid_prefixed(value, "card_", 96)
+}
+
 fn valid_refund(value: &str) -> bool {
     valid_prefixed(value, "re_", 96)
 }
@@ -215,6 +223,8 @@ validated_string!(
     BalanceTransactionId,
     valid_balance_transaction
 );
+validated_string!(PayoutId, PayoutId, valid_payout);
+validated_string!(ExternalAccountId, ExternalAccountId, valid_external_account);
 validated_string!(RefundId, RefundId, valid_refund);
 validated_string!(DigestHex, DigestHex, valid_digest);
 validated_string!(Currency, Currency, valid_currency);
@@ -290,6 +300,12 @@ pub enum TypeError {
     /// Invalid balance transaction.
     #[error("invalid Stripe balance transaction identifier")]
     BalanceTransactionId,
+    /// Invalid Payout.
+    #[error("invalid Stripe Payout identifier")]
+    PayoutId,
+    /// Invalid external bank/card destination.
+    #[error("invalid Stripe external account identifier")]
+    ExternalAccountId,
     /// Invalid Refund.
     #[error("invalid Stripe Refund identifier")]
     RefundId,

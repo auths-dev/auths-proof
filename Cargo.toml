@@ -84,6 +84,7 @@ members = [
     "demos/stripe-subscription-modify",
     "demos/stripe-purchase-authorization",
     "demos/stripe-connect-transfer",
+    "demos/stripe-payout",
     "demos/kubernetes-rollout",
     "demos/opentofu-plan",
     "demos/postgresql-data-change",
@@ -163,6 +164,7 @@ auths-stripe-subscription-create-demo = { version = "0.1.0", path = "demos/strip
 auths-stripe-subscription-modify-demo = { version = "0.1.0", path = "demos/stripe-subscription-modify" }
 auths-stripe-purchase-authorization-demo = { version = "0.1.0", path = "demos/stripe-purchase-authorization" }
 auths-stripe-connect-transfer-demo = { version = "0.1.0", path = "demos/stripe-connect-transfer" }
+auths-stripe-payout-demo = { version = "0.1.0", path = "demos/stripe-payout" }
 auths-kubernetes = { version = "0.1.0", path = "product/integrations/auths-kubernetes" }
 auths-opentofu = { version = "0.1.0", path = "product/integrations/auths-opentofu" }
 auths-postgresql = { version = "0.1.0", path = "product/integrations/auths-postgresql" }

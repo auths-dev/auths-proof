@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Auths · Bounded Stripe payout</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main>
+    <header>
+      <p class="eyebrow">AUTHS × STRIPE PAYOUTS</p>
+      <h1>Exact destination. Retained balance. Two approvers.</h1>
+      <p class="lede">A manual standard test payout can leave Stripe only when its redacted destination commitment, source, approvals, and every outgoing-capacity bound agree.</p>
+    </header>
+    <section class="grid">
+      <article>
+        <h2>Payout policy</h2>
+        <dl>
+          <dt>Method</dt><dd>standard only</dd>
+          <dt>Per payout</dt><dd>USD 5.00</dd>
+          <dt>Minimum retained</dt><dd>USD 5.00</dd>
+          <dt>Approvers</dt><dd>2 distinct · assurance 2</dd>
+        </dl>
+      </article>
+      <article>
+        <h2>Exact payout</h2>
+        <dl>
+          <dt>Destination</dt><dd>repository-owned commitment</dd>
+          <dt>Source</dt><dd>bank_account</dd>
+          <dt>Amount</dt><dd>USD 5.00</dd>
+          <dt>Available after</dt><dd>USD 15.00</dd>
+        </dl>
+      </article>
+    </section>
+    <section class="controls">
+      <select id="experiment">
+        <option value="pending">Create pending test payout</option>
+        <option value="denied">Missing approval denies</option>
+        <option value="unknown">Unknown outcome holds capacity</option>
+      </select>
+      <button id="run">Run protected payout</button>
+      <button id="replay" disabled>Replay same workflow</button>
+    </section>
+    <section id="result" class="result" aria-live="polite"><strong>READY</strong><span>Test mode does not move real bank funds.</span></section>
+    <section><h2>Canonical receipt</h2><pre id="receipt">No receipt yet.</pre></section>
+    <footer>No routing number, account number, card number, or Stripe credential reaches this page.</footer>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>
