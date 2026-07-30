@@ -501,6 +501,7 @@ pub struct RecordsExecutionRequest {
 #[serde(deny_unknown_fields)]
 pub struct RecordsWorkflowOutcome {
     pub receipt: ReceiptBundle,
+    #[serde(rename = "response")]
     pub projection: Option<RecordProjection>,
     pub replay: bool,
     pub reusable_api_key_present: bool,

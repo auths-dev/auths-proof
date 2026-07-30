@@ -12,8 +12,8 @@ use serde::{Deserialize, Serialize};
 use tempfile::NamedTempFile;
 
 use crate::{
-    BoundedRecordApiPolicyV1, CreateRecordV1, EffectReceipt, ReadField, ReadRecordV1,
-    ReceiptBundle, RecordIdentifier, RecordsError,
+    BoundedRecordApiPolicyV1, CreateRecordV1, CustomerRecordV1, EffectReceipt, ReadField,
+    ReadRecordV1, ReceiptBundle, RecordIdentifier, RecordsError,
     canonical::{canonical_digest, canonical_json, sha256},
 };
 
@@ -24,7 +24,7 @@ const MAX_STATE_BYTES: usize = 32 * 1024 * 1024;
 pub struct StoredRecord {
     pub namespace_id: RecordIdentifier,
     pub record_id: RecordIdentifier,
-    pub value: String,
+    pub customer: CustomerRecordV1,
     pub created_at: u64,
     pub updated_at: u64,
     pub version: u64,
@@ -36,7 +36,7 @@ pub struct RecordProjection {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub record_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub value: Option<String>,
+    pub customer: Option<CustomerRecordV1>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub created_at: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -364,7 +364,8 @@ fn create_in(
         .usage_by_policy
         .entry(action.policy_digest.clone())
         .or_default();
-    let value_bytes = u64::try_from(action.value.len()).map_err(|_| RecordsError::LimitExceeded)?;
+    let value_bytes = u64::try_from(canonical_json(&action.customer)?.len())
+        .map_err(|_| RecordsError::LimitExceeded)?;
     if usage.create_units >= policy.maximum_creates {
         return Ok(CreateTransition::Denied("create-budget-exhausted"));
     }
@@ -377,7 +378,7 @@ fn create_in(
     let record = StoredRecord {
         namespace_id: action.namespace_id.clone(),
         record_id: action.record_id.clone(),
-        value: action.value.clone(),
+        customer: action.customer.clone(),
         created_at: now,
         updated_at: now,
         version: 1,
@@ -389,7 +390,7 @@ fn create_in(
         action_digest: action_digest.clone(),
         namespace_commitment: sha256(action.namespace_id.as_str().as_bytes()),
         record_commitment: sha256(action.record_id.as_str().as_bytes()),
-        value_commitment: sha256(action.value.as_bytes()),
+        value_commitment: canonical_digest(&action.customer)?,
         record_version: 1,
         create_units_before: before.create_units,
         create_units_after: usage.create_units,
@@ -483,9 +484,9 @@ fn project(record: &StoredRecord, fields: &[ReadField]) -> RecordProjection {
         record_id: fields
             .contains(&ReadField::RecordId)
             .then(|| record.record_id.as_str().to_string()),
-        value: fields
-            .contains(&ReadField::Value)
-            .then(|| record.value.clone()),
+        customer: fields
+            .contains(&ReadField::Customer)
+            .then(|| record.customer.clone()),
         created_at: fields
             .contains(&ReadField::CreatedAt)
             .then_some(record.created_at),
@@ -519,7 +520,7 @@ mod tests {
             allowed_record_id_prefixes: vec!["demo-".into()],
             maximum_value_bytes: 100,
             maximum_response_bytes: 4096,
-            allowed_read_fields: vec![ReadField::RecordId, ReadField::Value],
+            allowed_read_fields: vec![ReadField::Customer, ReadField::RecordId],
             maximum_creates: 1,
             maximum_reads: 1,
             maximum_created_bytes: 100,
@@ -536,8 +537,13 @@ mod tests {
             profile: "auths.demo.records.create/1".into(),
             namespace_id: policy.namespace_id.clone(),
             record_id: RecordIdentifier::parse("demo-1").unwrap(),
-            value: "hello".into(),
-            value_encoding: "utf8-text/1".into(),
+            customer: CustomerRecordV1 {
+                age: 25,
+                name: "Bob".into(),
+                notes: "Demo customer".into(),
+                occupation: "Sales".into(),
+            },
+            value_encoding: "auths.demo.customer-record/1".into(),
             expected_absent: true,
             policy_digest: policy.digest().unwrap(),
             required_evaluator: "auths.records.create-evaluator/1".into(),

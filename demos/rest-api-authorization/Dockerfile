@@ -18,7 +18,7 @@ RUN useradd --system --uid 10001 --create-home auths \
 
 USER auths
 ENV PORT=8080
-ENV AUTHS_RECORDS_STATE_PATH=/data/auths-records/ledger.json
+ENV AUTHS_RECORDS_STATE_PATH=/data/auths-records/ledger-v2.json
 EXPOSE 8080
 
 ENTRYPOINT ["/usr/local/bin/auths-records-demo", "serve"]

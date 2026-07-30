@@ -8,6 +8,12 @@ one exact typed action, or one action chosen within a bounded records policy.
 The service verifies the proof and presenter signature locally before it
 touches protected storage.
 
+The protected resource is deliberately recognizable fictional business data:
+a typed customer record with `name`, `age`, and `occupation`. The successful
+GET response foregrounds that record as ordinary API output. Auths diagnostics
+and machine-readable receipts are shown separately, so visitors can distinguish
+the useful application response from the evidence proving why it was released.
+
 Changing delivery from HTTPS to Iroh does not change the action, proof,
 semantic executor audience, policy, or verifier. It changes only delivery
 evidence. Replaying an HTTPS execution over Iroh, or the reverse, cannot
@@ -35,6 +41,7 @@ It would also add:
 - multi-region receipt replication and signed receipt transparency;
 - explicit downstream credential brokerage after durable claim;
 - OpenAPI tooling generated from profile-owned typed actions;
+- domain schemas richer than the intentionally small fictional customer record;
 - production HTTP carrier standardization after more vertical evidence;
 - Iroh endpoint rotation and relay health monitoring;
 - structured privacy and retention policy for disclosed data and receipts;

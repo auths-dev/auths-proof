@@ -39,6 +39,13 @@ Both adapters reconstruct the same `RecordsRequestEnvelopeV1`. The semantic
 executor audience stays constant when delivery changes. An authenticated Iroh
 connection or HTTPS connection is delivery evidence, not authorization.
 
+The product model uses a typed `CustomerRecordV1` rather than an opaque value.
+The successful API outcome serializes the protected projection under
+`response`, producing a conventional application response such as a customer
+with `name`, `age`, and `occupation`. The adjacent Auths receipt does not replace
+that business response: it commits to the projection and records the
+authorization, delivery, effect, and observation facts.
+
 The public client receives a short-lived exact proof and presenter-bound
 presentation. It never receives a reusable API key, OAuth access token,
 database credential, or session cookie. The opaque session ID locates

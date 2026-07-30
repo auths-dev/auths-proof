@@ -8,7 +8,7 @@ services:
       AUTHS_RECORDS_ALLOWED_ORIGIN: "http://localhost:4180"
       AUTHS_RECORDS_EXECUTOR_AUDIENCE: "http://records-executor.auths.local"
       AUTHS_RECORDS_PUBLIC_URL: "http://localhost:4180"
-      AUTHS_RECORDS_STATE_PATH: "/data/auths-records/ledger.json"
+      AUTHS_RECORDS_STATE_PATH: "/data/auths-records/ledger-v2.json"
     ports:
       - "4180:8080"
     volumes:

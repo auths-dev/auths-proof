@@ -9,7 +9,7 @@ primary_region = "cdg"
   AUTHS_RECORDS_ALLOWED_ORIGIN = "https://auths-records-demo.fly.dev"
   AUTHS_RECORDS_EXECUTOR_AUDIENCE = "https://records-executor.auths.dev"
   AUTHS_RECORDS_PUBLIC_URL = "https://auths-records-demo.fly.dev"
-  AUTHS_RECORDS_STATE_PATH = "/data/auths-records/ledger.json"
+  AUTHS_RECORDS_STATE_PATH = "/data/auths-records/ledger-v2.json"
 
 [[mounts]]
   source = "auths_records_data"

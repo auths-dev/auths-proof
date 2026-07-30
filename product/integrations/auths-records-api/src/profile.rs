@@ -63,7 +63,7 @@ impl ActionProfile for CreateRecordProfile {
             vec![
                 ("Namespace".into(), action.namespace_id.as_str().into()),
                 ("Record".into(), action.record_id.as_str().into()),
-                ("Value bytes".into(), action.value.len().to_string()),
+                ("Customer".into(), action.customer.name.clone()),
                 ("Executor".into(), action.executor_audience.clone()),
             ],
             sha256(canonical.body()),
@@ -250,8 +250,8 @@ mod tests {
 
     use super::*;
     use crate::{
-        BoundedRecordApiPolicyV1, CREATE_OPERATION, READ_OPERATION, ReadField, RecordIdentifier,
-        demo_configuration,
+        BoundedRecordApiPolicyV1, CREATE_OPERATION, CustomerRecordV1, READ_OPERATION, ReadField,
+        RecordIdentifier, demo_configuration,
     };
 
     #[test]
@@ -268,7 +268,7 @@ mod tests {
             allowed_record_id_prefixes: vec!["demo-".into()],
             maximum_value_bytes: 1024,
             maximum_response_bytes: 4096,
-            allowed_read_fields: vec![ReadField::RecordId, ReadField::Value],
+            allowed_read_fields: vec![ReadField::Customer, ReadField::RecordId],
             maximum_creates: 1,
             maximum_reads: 1,
             maximum_created_bytes: 1024,
@@ -285,8 +285,13 @@ mod tests {
             profile: "auths.demo.records.create/1".into(),
             namespace_id: policy.namespace_id.clone(),
             record_id: RecordIdentifier::parse("demo-one").unwrap(),
-            value: "hello".into(),
-            value_encoding: "utf8-text/1".into(),
+            customer: CustomerRecordV1 {
+                age: 25,
+                name: "Bob".into(),
+                notes: "Demo customer".into(),
+                occupation: "Sales".into(),
+            },
+            value_encoding: "auths.demo.customer-record/1".into(),
             expected_absent: true,
             policy_digest: policy.digest().unwrap(),
             required_evaluator: "auths.records.create-evaluator/1".into(),

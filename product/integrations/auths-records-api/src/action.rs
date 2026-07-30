@@ -60,10 +60,33 @@ impl RecordIdentifier {
 #[serde(rename_all = "snake_case")]
 pub enum ReadField {
     CreatedAt,
+    Customer,
     RecordId,
     UpdatedAt,
-    Value,
     Version,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CustomerRecordV1 {
+    pub age: u8,
+    pub name: String,
+    pub notes: String,
+    pub occupation: String,
+}
+
+impl CustomerRecordV1 {
+    pub fn validate(&self) -> Result<(), RecordsError> {
+        if self.age == 0
+            || self.age > 120
+            || !valid_business_text(&self.name, 80)
+            || !valid_business_text(&self.notes, 4096)
+            || !valid_business_text(&self.occupation, 80)
+        {
+            return Err(RecordsError::MeaningMismatch);
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -72,7 +95,7 @@ pub struct CreateRecordV1 {
     pub profile: String,
     pub namespace_id: RecordIdentifier,
     pub record_id: RecordIdentifier,
-    pub value: String,
+    pub customer: CustomerRecordV1,
     pub value_encoding: String,
     pub expected_absent: bool,
     pub policy_digest: String,
@@ -86,10 +109,10 @@ pub struct CreateRecordV1 {
 impl CreateRecordV1 {
     pub fn validate(&self) -> Result<(), RecordsError> {
         if self.profile != format!("{CREATE_PROFILE_ID}/{PROFILE_VERSION}")
-            || self.value_encoding != "utf8-text/1"
+            || self.value_encoding != "auths.demo.customer-record/1"
             || !self.expected_absent
-            || self.value.len() > MAX_VALUE_BYTES
-            || self.value.contains('\0')
+            || canonical_json(&self.customer)?.len() > MAX_VALUE_BYTES
+            || self.customer.validate().is_err()
             || self.required_evaluator != "auths.records.create-evaluator/1"
             || self.executor_audience.is_empty()
             || !is_digest(&self.policy_digest)
@@ -225,6 +248,13 @@ fn is_nonce(value: &str) -> bool {
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
 }
 
+fn valid_business_text(value: &str, maximum_bytes: usize) -> bool {
+    !value.is_empty()
+        && value.len() <= maximum_bytes
+        && !value.contains('\0')
+        && value.chars().all(|character| !character.is_control())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -238,7 +268,7 @@ mod tests {
 
     #[test]
     fn canonical_decoder_rejects_unknown_fields() {
-        let bytes = br#"{"expected_absent":true,"executor_audience":"https://records.auths.dev","expires_at":1,"nonce":"0123456789abcdef","policy_digest":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","profile":"auths.demo.records.create/1","required_configuration_digest":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","required_evaluator":"auths.records.create-evaluator/1","namespace_id":"demo","record_id":"demo-1","unexpected":true,"value":"hello","value_encoding":"utf8-text/1"}"#;
+        let bytes = br#"{"customer":{"age":25,"name":"Bob","notes":"Demo customer","occupation":"Sales"},"expected_absent":true,"executor_audience":"https://records.auths.dev","expires_at":1,"namespace_id":"demo","nonce":"0123456789abcdef","policy_digest":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","profile":"auths.demo.records.create/1","record_id":"demo-1","required_configuration_digest":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","required_evaluator":"auths.records.create-evaluator/1","unexpected":true,"value_encoding":"auths.demo.customer-record/1"}"#;
         assert_eq!(
             CreateRecordV1::from_canonical_bytes(bytes),
             Err(RecordsError::Malformed)

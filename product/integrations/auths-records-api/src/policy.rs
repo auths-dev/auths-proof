@@ -137,7 +137,7 @@ impl RecordsApiVerifierConfigurationV1 {
             || self.presentation_version != "auths.records-presentation/1"
             || self.iroh_protocol_version != "auths.records-api/1"
             || self.identifier_grammar_version != "auths.records-identifier/1"
-            || self.value_encoding != "utf8-text/1"
+            || self.value_encoding != "auths.demo.customer-record/1"
             || self.trusted_operation_ids
                 != [CREATE_OPERATION.to_string(), READ_OPERATION.to_string()]
             || self.maximum_http_header_bytes == 0
@@ -176,7 +176,7 @@ pub fn demo_configuration(executor_audience: &str) -> RecordsApiVerifierConfigur
         trusted_iroh_endpoint_mappings: vec!["configured-at-startup".into()],
         iroh_protocol_version: "auths.records-api/1".into(),
         identifier_grammar_version: "auths.records-identifier/1".into(),
-        value_encoding: "utf8-text/1".into(),
+        value_encoding: "auths.demo.customer-record/1".into(),
         maximum_http_header_bytes: 32 * 1024,
         maximum_proof_bytes: 256 * 1024,
         maximum_presentation_bytes: 16 * 1024,

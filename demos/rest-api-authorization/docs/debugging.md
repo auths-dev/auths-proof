@@ -7,7 +7,7 @@ Run from the repository root:
 ```text
 PORT=4180 \
 AUTHS_RECORDS_PUBLIC_URL=http://localhost:4180 \
-AUTHS_RECORDS_STATE_PATH=.state/records/ledger.json \
+AUTHS_RECORDS_STATE_PATH=.state/records/ledger-v2.json \
 cargo run -p auths-records-demo -- serve
 ```
 
@@ -47,8 +47,10 @@ reported a stable code.
 
 ## Fly.io
 
-The Fly service terminates public HTTPS and persists the ledger at
-`/data/auths-records/ledger.json`. The process also creates a real Iroh
+The Fly service terminates public HTTPS and persists the current typed-customer
+ledger at `/data/auths-records/ledger-v2.json`. The previous demo ledger, if
+present, is left untouched instead of being destructively rewritten across the
+schema change. The process also creates a real Iroh
 endpoint using the N0 preset, so its advertised endpoint can contain relay and
 direct addressing information. Do not replace it with a WebSocket or HTTP
 endpoint labelled “Iroh.”

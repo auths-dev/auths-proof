@@ -13,6 +13,8 @@ test("workbench keeps authority, delivery, result, and receipts visible", async 
   assert.match(html, /id="receipt-link"/);
   assert.match(html, /id="curl-command"/);
   assert.match(html, /id="iroh-command"/);
+  assert.match(html, /Protected API response/);
+  assert.match(html, /id="business-response"/);
 });
 
 test("frontend calls both real delivery paths", async () => {
@@ -21,6 +23,8 @@ test("frontend calls both real delivery paths", async () => {
   assert.match(javascript, /execute-iroh/);
   assert.match(javascript, /auths-proof/);
   assert.match(javascript, /auths-presentation/);
+  assert.match(javascript, /outcome\.response/);
+  assert.match(javascript, /renderBusinessResponse/);
   assert.doesNotMatch(javascript, /mock|fixtureResult|fakeVerdict/i);
 });
 

@@ -21,11 +21,11 @@ use auths_proof_exchange_port::{
 };
 use auths_records_api::{
     BoundedRecordApiPolicyV1, CREATE_OPERATION, CreateRecordProfile, CreateRecordV1,
-    DeliveryAdapter, DeliveryReceipt, PersistentRecordsLedger, PresentationClaimsV1,
-    READ_OPERATION, ReadField, ReadRecordProfile, ReadRecordV1, ReceiptBundle, RecordIdentifier,
-    RecordsActionV1, RecordsApiVerifierConfigurationV1, RecordsExecutionRequest, RecordsLedger,
-    RecordsPresentationV1, RecordsRequestEnvelopeV1, RecordsService, RecordsWorkflowOutcome,
-    SdkRecordsProofVerifier, demo_configuration,
+    CustomerRecordV1, DeliveryAdapter, DeliveryReceipt, PersistentRecordsLedger,
+    PresentationClaimsV1, READ_OPERATION, ReadField, ReadRecordProfile, ReadRecordV1,
+    ReceiptBundle, RecordIdentifier, RecordsActionV1, RecordsApiVerifierConfigurationV1,
+    RecordsExecutionRequest, RecordsLedger, RecordsPresentationV1, RecordsRequestEnvelopeV1,
+    RecordsService, RecordsWorkflowOutcome, SdkRecordsProofVerifier, demo_configuration,
 };
 use auths_sdk::{RequestContext, Verifier};
 use axum::{
@@ -85,7 +85,7 @@ impl AppConfig {
             .map_err(|_| StartupError::Configuration)?,
             state_path: PathBuf::from(
                 env::var("AUTHS_RECORDS_STATE_PATH")
-                    .unwrap_or_else(|_| ".state/records/ledger.json".into()),
+                    .unwrap_or_else(|_| ".state/records/ledger-v2.json".into()),
             ),
             executor_audience: env::var("AUTHS_RECORDS_EXECUTOR_AUDIENCE")
                 .unwrap_or_else(|_| "https://records-executor.auths.dev".into()),
@@ -125,12 +125,21 @@ pub struct CreateSessionRequest {
     #[serde(default = "default_experiment")]
     pub experiment: String,
     pub record_id: Option<String>,
-    pub value: Option<String>,
+    pub customer: Option<CustomerRecordV1>,
     pub source_session_id: Option<String>,
 }
 
 fn default_experiment() -> String {
     "exact-create".into()
+}
+
+fn demo_customer() -> CustomerRecordV1 {
+    CustomerRecordV1 {
+        age: 25,
+        name: "Bob Martinez".into(),
+        notes: "Interested in the enterprise analytics plan.".into(),
+        occupation: "Sales manager".into(),
+    }
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -158,7 +167,7 @@ pub struct SessionView {
 #[serde(deny_unknown_fields)]
 struct CreateBody {
     record_id: String,
-    value: String,
+    customer: CustomerRecordV1,
 }
 
 #[derive(Clone, Debug, thiserror::Error)]
@@ -347,7 +356,7 @@ async fn create_session(
         &input.experiment,
         namespace,
         record_id,
-        input.value.unwrap_or_else(|| "hello from Auths".into()),
+        input.customer.unwrap_or_else(demo_customer),
         &policy,
         &required_configuration,
         now,
@@ -468,7 +477,7 @@ fn session_view(
     let body = match &session.envelope.canonical_action {
         RecordsActionV1::Create(action) => serde_json::to_string(&json!({
             "record_id": action.record_id.as_str(),
-            "value": action.value
+            "customer": action.customer
         }))
         .map_err(|_| ApiError::internal())?,
         RecordsActionV1::Read(_) => String::new(),
@@ -785,7 +794,7 @@ async fn create_record(
         let RecordsActionV1::Create(action) = &session.envelope.canonical_action else {
             return Err(ApiError::bad_request("session is not a create action"));
         };
-        if action.record_id.as_str() != body.record_id || action.value != body.value {
+        if action.record_id.as_str() != body.record_id || action.customer != body.customer {
             return Err(ApiError::bad_request(
                 "route input differs from the canonical action",
             ));
@@ -938,7 +947,7 @@ fn policy(
         allowed_record_id_prefixes: vec!["demo-".into()],
         maximum_value_bytes: 1024,
         maximum_response_bytes: 4096,
-        allowed_read_fields: vec![ReadField::RecordId, ReadField::Value, ReadField::Version],
+        allowed_read_fields: vec![ReadField::Customer, ReadField::RecordId, ReadField::Version],
         maximum_creates: if bounded { 3 } else { 1 },
         maximum_reads: if bounded { 3 } else { 1 },
         maximum_created_bytes: if bounded { 3072 } else { 1024 },
@@ -961,7 +970,7 @@ fn action(
     experiment: &str,
     namespace_id: RecordIdentifier,
     record_id: RecordIdentifier,
-    value: String,
+    customer: CustomerRecordV1,
     policy: &BoundedRecordApiPolicyV1,
     configuration: &RecordsApiVerifierConfigurationV1,
     now: u64,
@@ -969,7 +978,7 @@ fn action(
     let policy_digest = policy.digest().map_err(|_| ApiError::internal())?;
     let configuration_digest = configuration.digest().map_err(|_| ApiError::internal())?;
     if experiment == "exact-read" || experiment == "read-extra-field" {
-        let mut fields = vec![ReadField::RecordId, ReadField::Value, ReadField::Version];
+        let mut fields = vec![ReadField::Customer, ReadField::RecordId, ReadField::Version];
         if experiment == "read-extra-field" {
             fields.insert(0, ReadField::CreatedAt);
         }
@@ -992,12 +1001,15 @@ fn action(
         profile: "auths.demo.records.create/1".into(),
         namespace_id,
         record_id,
-        value: if experiment == "value-too-large" {
-            "x".repeat(1025)
+        customer: if experiment == "value-too-large" {
+            CustomerRecordV1 {
+                notes: "x".repeat(1025),
+                ..customer
+            }
         } else {
-            value
+            customer
         },
-        value_encoding: "utf8-text/1".into(),
+        value_encoding: "auths.demo.customer-record/1".into(),
         expected_absent: true,
         policy_digest,
         required_evaluator: "auths.records.create-evaluator/1".into(),
@@ -1184,7 +1196,7 @@ mod tests {
                     .body(Body::from(
                         serde_json::to_vec(&json!({
                             "record_id": action["record_id"],
-                            "value": action["value"]
+                            "customer": action["customer"]
                         }))
                         .unwrap(),
                     ))
@@ -1303,8 +1315,34 @@ mod tests {
             read_outcome["receipt"]["decision"]["decision"]["class"],
             "authorized"
         );
-        assert_eq!(read_outcome["projection"]["value"], "hello from Auths");
+        assert_eq!(read_outcome["response"]["customer"]["name"], "Bob Martinez");
+        assert_eq!(read_outcome["response"]["customer"]["age"], 25);
+        assert_eq!(
+            read_outcome["response"]["customer"]["occupation"],
+            "Sales manager"
+        );
+        assert_eq!(
+            read_outcome["response"]["customer"]["notes"],
+            "Interested in the enterprise analytics plan."
+        );
+        assert!(!read_outcome["receipt"].to_string().contains("Bob Martinez"));
         assert_eq!(read_outcome["receipt"]["effect"]["effect"], "read");
+    }
+
+    #[tokio::test]
+    async fn oversized_customer_payload_is_a_policy_denial_not_a_malformed_action() {
+        let (router, _directory) = test_app();
+        let session = issue(&router, "value-too-large").await;
+        let outcome = execute_create(&router, &session).await;
+        assert_eq!(
+            outcome["receipt"]["decision"]["decision"]["code"],
+            "value-limit-exceeded"
+        );
+        assert_eq!(
+            outcome["receipt"]["decision"]["protected_storage_accessed"],
+            false
+        );
+        assert!(outcome["response"].is_null());
     }
 
     #[tokio::test]

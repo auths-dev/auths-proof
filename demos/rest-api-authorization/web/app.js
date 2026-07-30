@@ -58,6 +58,12 @@ function renderSession() {
   $("curl-command").textContent = session.curl_command;
   $("iroh-command").textContent = session.iroh_command;
   $("operation-title").textContent = session.operation_id === "records.create.v1" ? "POST one record" : "GET one record";
+  $("response-title").textContent = session.operation_id === "records.create.v1"
+    ? "Created customer"
+    : "Returned customer";
+  $("response-route").textContent = session.operation_id === "records.create.v1"
+    ? "POST /v1/records"
+    : `GET /v1/records/${session.action.action.record_id}`;
   $("execute").textContent = state.transport === "https" ? "Send through HTTPS" : "Send through native Iroh";
   $("next-action").hidden = state.experiment !== "bounded-create";
   $("next-action").disabled = !state.boundedSource;
@@ -99,7 +105,7 @@ async function executeHttps() {
     return jsonFetch("/v1/records", {
       method: "POST",
       headers,
-      body: JSON.stringify({ record_id: action.action.record_id, value: action.action.value }),
+      body: JSON.stringify({ record_id: action.action.record_id, customer: action.action.customer }),
     });
   }
   return jsonFetch(`/v1/records/${encodeURIComponent(action.action.record_id)}`, { headers });
@@ -136,6 +142,7 @@ function renderOutcome(outcome) {
       ? "COMMITTED"
       : "UNCHANGED";
   $("observation-status").textContent = receipt.observation ? "RECORDED" : "NONE";
+  renderBusinessResponse(outcome, authorized);
   $("receipt-json").textContent = JSON.stringify(receipt, null, 2);
   const link = $("receipt-link");
   link.href = `/receipts/${receipt.decision.receipt_id}`;
@@ -153,12 +160,33 @@ function renderOutcome(outcome) {
   }
 }
 
+function renderBusinessResponse(outcome, authorized) {
+  const card = $("api-response");
+  if (!authorized) {
+    card.dataset.state = "empty";
+    $("response-detail").textContent = "No business data was returned because authorization did not complete.";
+    $("business-response").textContent = JSON.stringify({ response: null }, null, 2);
+    return;
+  }
+  const action = state.session.action.action;
+  const response = outcome.response || {
+    record_id: action.record_id,
+    customer: action.customer,
+    version: 1,
+  };
+  card.dataset.state = "returned";
+  $("response-detail").textContent = state.session.operation_id === "records.read.v1"
+    ? "The authorized fields were read from the protected store and returned to the caller."
+    : "The fictional customer was written to the protected store.";
+  $("business-response").textContent = JSON.stringify({ response }, null, 2);
+}
+
 function stableDetail(code) {
   const messages = {
     "proof-invalid": "The proof did not authorize the canonical action. Protected storage was not accessed.",
     "verifier-configuration-mismatch": "The required and executed verifier configurations differ. Execution stopped before protected storage.",
     "executor-audience-mismatch": "The action targets a different semantic executor.",
-    "value-limit-exceeded": "The record value exceeds the bounded policy.",
+    "value-limit-exceeded": "The customer payload exceeds the bounded policy.",
     "replay": "This exact action already completed. No second effect was created.",
   };
   return messages[code] || `The request stopped with stable code “${code}”.`;
@@ -173,6 +201,12 @@ function setVerdict(text, kind, detail) {
 function resetResult() {
   ["decision-code", "decision-stage", "proof-status", "storage-status", "capacity-status", "observation-status"].forEach((id) => $(id).textContent = "—");
   $("receipt-json").textContent = "Run a request to inspect its complete receipt.";
+  $("api-response").dataset.state = "waiting";
+  $("response-route").textContent = state.experiment === "exact-read"
+    ? "GET /v1/records/:id"
+    : "POST /v1/records";
+  $("response-detail").textContent = "Run the request to see the fictional business data returned by the protected API.";
+  $("business-response").textContent = JSON.stringify({ response: null }, null, 2);
   $("receipt-link").classList.add("disabled");
   $("receipt-link").setAttribute("aria-disabled", "true");
 }

@@ -44,13 +44,13 @@
               <h2 id="controls-title">Change one authorization fact.</h2>
               <p class="controls-intro">Each selection creates a fresh isolated namespace, proof, presenter signature, and typed action.</p>
               <div class="variant-list" id="experiment-list">
-                <button class="variant active" data-experiment="exact-create" type="button"><span><b>Create one record</b><small>Proof, action, policy, and configuration match</small></span><i>01</i></button>
+                <button class="variant active" data-experiment="exact-create" type="button"><span><b>Create Bob’s customer record</b><small>Proof, action, policy, and configuration match</small></span><i>01</i></button>
                 <button class="variant" data-experiment="bounded-create" type="button"><span><b>Use a bounded grant</b><small>Up to three records and 3 KiB in one namespace</small></span><i>02</i></button>
                 <button class="variant" data-experiment="exact-read" type="button" disabled title="Create a record first"><span><b>Read the created record</b><small>Disclose only the authorized fields and byte ceiling</small></span><i>03</i></button>
                 <button class="variant" data-experiment="invalid-proof" type="button"><span><b>Change one proof byte</b><small>The signed authority no longer verifies</small></span><i>04</i></button>
                 <button class="variant" data-experiment="configuration-mismatch" type="button"><span><b>Change verifier configuration</b><small>Required 4097 bytes; executor is fixed at 4096</small></span><i>05</i></button>
                 <button class="variant" data-experiment="wrong-audience" type="button"><span><b>Change executor audience</b><small>The action targets a different semantic executor</small></span><i>06</i></button>
-                <button class="variant" data-experiment="value-too-large" type="button"><span><b>Exceed the value limit</b><small>The concrete action is outside the bounded policy</small></span><i>07</i></button>
+                <button class="variant" data-experiment="value-too-large" type="button"><span><b>Exceed the payload limit</b><small>The customer data is outside the bounded policy</small></span><i>07</i></button>
               </div>
 
               <div class="transport-control">
@@ -79,6 +79,20 @@
                 <strong id="verdict" data-kind="loading">LOADING</strong>
                 <p id="verdict-detail">Issuing a short-lived proof and presenter-bound request.</p>
               </div>
+
+              <section class="api-response" id="api-response" data-state="waiting" aria-live="polite">
+                <header>
+                  <div>
+                    <span class="micro">Protected API response</span>
+                    <h3 id="response-title">Customer record</h3>
+                  </div>
+                  <code id="response-route">POST /v1/records</code>
+                </header>
+                <p id="response-detail">Run the request to see the fictional business data returned by the protected API.</p>
+                <pre id="business-response">{
+  "response": null
+}</pre>
+              </section>
 
               <dl class="facts">
                 <div><dt>Stable code</dt><dd id="decision-code">—</dd></div>

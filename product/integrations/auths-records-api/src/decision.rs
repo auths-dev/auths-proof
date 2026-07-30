@@ -5,7 +5,7 @@ use subtle::ConstantTimeEq as _;
 
 use crate::{
     BoundedRecordApiPolicyV1, CREATE_OPERATION, CreateRecordV1, READ_OPERATION, ReadRecordV1,
-    RecordsApiVerifierConfigurationV1,
+    RecordsApiVerifierConfigurationV1, canonical::canonical_json,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -110,7 +110,8 @@ pub fn evaluate_create(context: &CreateEvaluation<'_>) -> RecordsDecision {
     {
         return RecordsDecision::denied("record-not-authorized", "policy");
     }
-    if context.action.value.len() > usize::try_from(context.policy.maximum_value_bytes).unwrap_or(0)
+    if canonical_json(&context.action.customer).map_or(usize::MAX, |bytes| bytes.len())
+        > usize::try_from(context.policy.maximum_value_bytes).unwrap_or(0)
     {
         return RecordsDecision::denied("value-limit-exceeded", "policy");
     }
@@ -213,7 +214,7 @@ fn digest_eq(left: &str, right: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{ReadField, RecordIdentifier, demo_configuration};
+    use crate::{CustomerRecordV1, ReadField, RecordIdentifier, demo_configuration};
 
     fn fixture() -> (CreateRecordV1, BoundedRecordApiPolicyV1) {
         let config = demo_configuration("https://records.auths.dev");
@@ -228,7 +229,7 @@ mod tests {
             allowed_record_id_prefixes: vec!["demo-".into()],
             maximum_value_bytes: 1024,
             maximum_response_bytes: 4096,
-            allowed_read_fields: vec![ReadField::RecordId, ReadField::Value],
+            allowed_read_fields: vec![ReadField::Customer, ReadField::RecordId],
             maximum_creates: 3,
             maximum_reads: 3,
             maximum_created_bytes: 3072,
@@ -245,8 +246,13 @@ mod tests {
             profile: "auths.demo.records.create/1".into(),
             namespace_id: policy.namespace_id.clone(),
             record_id: RecordIdentifier::parse("demo-1").unwrap(),
-            value: "hello".into(),
-            value_encoding: "utf8-text/1".into(),
+            customer: CustomerRecordV1 {
+                age: 25,
+                name: "Bob".into(),
+                notes: "Demo customer".into(),
+                occupation: "Sales".into(),
+            },
+            value_encoding: "auths.demo.customer-record/1".into(),
             expected_absent: true,
             policy_digest: policy.digest().unwrap(),
             required_evaluator: "auths.records.create-evaluator/1".into(),
