@@ -664,7 +664,11 @@ where
         ) else {
             return self.unknown(decision_digest, lease, Some(provider), now);
         };
-        let exact = exact_authorization_projection(command, &observed);
+        let exact = exact_authorization_projection(
+            command.action(),
+            &observed,
+            command.minimum_capture_window_seconds(),
+        );
         self.append_observation_from_command(command, lease, observed.clone(), exact, false, now)?;
         if !exact {
             return self.unknown(decision_digest, lease, Some(observed), now);
@@ -957,10 +961,10 @@ fn payment_authorize_idempotency_key(
 }
 
 fn exact_authorization_projection(
-    command: &VerifiedPaymentAuthorizeCommand,
+    action: &StripeExactPaymentAuthorizeV1,
     provider: &MerchantProviderProjection,
+    minimum_capture_window_seconds: u64,
 ) -> bool {
-    let action = command.action();
     provider.status == "requires_capture"
         && provider.amount_minor == action.authorized_amount_minor()
         && provider.amount_received_minor == 0
@@ -970,7 +974,7 @@ fn exact_authorization_projection(
         && provider
             .capture_before
             .and_then(|capture_before| capture_before.checked_sub(provider.observed_at))
-            .is_some_and(|window| window >= command.minimum_capture_window_seconds())
+            .is_some_and(|window| window >= minimum_capture_window_seconds)
 }
 
 fn normalize_authorization_reconciliation(
@@ -1031,4 +1035,65 @@ pub enum MerchantServiceError {
     /// Closed port failure.
     #[error(transparent)]
     Port(#[from] PortError),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        canonical::sha256,
+        test_support::{
+            NOW, merchant_authorize_action, merchant_authorize_configuration, merchant_policy,
+        },
+        types::{ChargeId, Currency, PaymentIntentId},
+    };
+
+    fn projection() -> MerchantProviderProjection {
+        MerchantProviderProjection {
+            payment_intent_id: PaymentIntentId::parse("pi_authorize_service_test").unwrap(),
+            charge_id: Some(ChargeId::parse("ch_authorize_service_test").unwrap()),
+            status: "requires_capture".into(),
+            amount_minor: 500,
+            currency: Currency::parse("usd").unwrap(),
+            amount_capturable_minor: 500,
+            amount_received_minor: 0,
+            capture_before: Some(NOW + 3_600),
+            stripe_request_id: Some("req_authorize_service_test".into()),
+            response_digest: sha256(b"authorization-provider"),
+            observed_at: NOW,
+            source: "retrieve".into(),
+        }
+    }
+
+    #[test]
+    fn exact_manual_hold_requires_capturable_unsettled_provider_evidence() {
+        let policy = merchant_policy(MerchantOperation::Authorize, 1_000, 2_000);
+        let configuration = merchant_authorize_configuration(&policy);
+        let action =
+            merchant_authorize_action("merchant-authorize-service", &policy, &configuration, 500);
+        let provider = projection();
+        assert!(exact_authorization_projection(
+            &action,
+            &provider,
+            policy.minimum_capture_window_seconds(),
+        ));
+
+        let mut settled = provider.clone();
+        settled.status = "succeeded".into();
+        settled.amount_capturable_minor = 0;
+        settled.amount_received_minor = 500;
+        assert!(!exact_authorization_projection(
+            &action,
+            &settled,
+            policy.minimum_capture_window_seconds(),
+        ));
+
+        let mut too_short = provider;
+        too_short.capture_before = Some(NOW + policy.minimum_capture_window_seconds() - 1);
+        assert!(!exact_authorization_projection(
+            &action,
+            &too_short,
+            policy.minimum_capture_window_seconds(),
+        ));
+    }
 }

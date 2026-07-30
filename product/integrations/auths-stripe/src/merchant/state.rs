@@ -1914,6 +1914,53 @@ mod tests {
     }
 
     #[test]
+    fn concurrent_last_authorization_hold_is_reserved_once() {
+        let policy = Arc::new(merchant_policy(MerchantOperation::Authorize, 1_000, 1_000));
+        let store = Arc::new(InMemoryMerchantPaymentStore::default());
+        let barrier = Arc::new(Barrier::new(3));
+        let mut handles = Vec::new();
+        for suffix in ["0001", "0002"] {
+            let policy = Arc::clone(&policy);
+            let store = Arc::clone(&store);
+            let barrier = Arc::clone(&barrier);
+            handles.push(thread::spawn(move || {
+                barrier.wait();
+                store.reserve(request(
+                    &policy,
+                    MerchantOperation::Authorize,
+                    &format!("merchant-authorize-concurrent-{suffix}"),
+                    1_000,
+                ))
+            }));
+        }
+        barrier.wait();
+        let outcomes: Vec<_> = handles
+            .into_iter()
+            .map(|handle| handle.join().unwrap())
+            .collect();
+        assert_eq!(
+            outcomes
+                .iter()
+                .filter(|outcome| matches!(outcome, ReserveMerchantPaymentResult::Reserved { .. }))
+                .count(),
+            1
+        );
+        assert_eq!(
+            outcomes
+                .iter()
+                .filter(|outcome| matches!(
+                    outcome,
+                    ReserveMerchantPaymentResult::CapacityExceeded {
+                        available_minor: 0,
+                        ..
+                    }
+                ))
+                .count(),
+            1
+        );
+    }
+
+    #[test]
     fn replay_survives_restart_and_never_returns_a_second_lease() {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("merchant-state.json");
@@ -1947,6 +1994,38 @@ mod tests {
     }
 
     #[test]
+    fn authorization_replay_survives_restart_without_a_second_lease() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("merchant-authorize-state.json");
+        let policy = merchant_policy(MerchantOperation::Authorize, 1_000, 2_000);
+        let action_digest = sha256(b"action-merchant-authorize-restart-0001");
+        {
+            let store = PersistentMerchantPaymentStore::open(&path).unwrap();
+            assert!(matches!(
+                store.reserve(request(
+                    &policy,
+                    MerchantOperation::Authorize,
+                    "merchant-authorize-restart-0001",
+                    1_000,
+                )),
+                ReserveMerchantPaymentResult::Reserved { .. }
+            ));
+        }
+        let store = PersistentMerchantPaymentStore::open(&path).unwrap();
+        let replay = store.reserve(request(
+            &policy,
+            MerchantOperation::Authorize,
+            "merchant-authorize-restart-0001",
+            1_000,
+        ));
+        let ReserveMerchantPaymentResult::Replay(record) = replay else {
+            panic!("authorization restart must return replay");
+        };
+        assert_eq!(record.action_digest(), &action_digest);
+        assert_eq!(record.state(), MerchantReservationState::Reserved);
+    }
+
+    #[test]
     fn collect_and_authorize_store_transitions_remain_profile_owned() {
         let policy = merchant_policy(MerchantOperation::Authorize, 1_000, 1_000);
         let store = InMemoryMerchantPaymentStore::default();
@@ -1963,6 +2042,40 @@ mod tests {
             store.claim_authorization(&lease, NOW).unwrap().state(),
             MerchantReservationState::Claimed
         );
+        store.mark_authorization_attempting(&lease, NOW).unwrap();
+        store
+            .record_authorization_provider_accepted(
+                &lease,
+                MerchantProviderProjection {
+                    payment_intent_id: PaymentIntentId::parse("pi_authorize_state_test").unwrap(),
+                    charge_id: Some(ChargeId::parse("ch_authorize_state_test").unwrap()),
+                    status: "requires_capture".into(),
+                    amount_minor: 1_000,
+                    currency: Currency::parse("usd").unwrap(),
+                    amount_capturable_minor: 1_000,
+                    amount_received_minor: 0,
+                    capture_before: Some(NOW + 3_600),
+                    stripe_request_id: Some("req_authorize_state_test".into()),
+                    response_digest: sha256(b"authorization-state-provider"),
+                    observed_at: NOW,
+                    source: "retrieve".into(),
+                },
+                NOW,
+            )
+            .unwrap();
+        assert_eq!(
+            store.commit_authorization(&lease, NOW).unwrap().state(),
+            MerchantReservationState::Authorized
+        );
+        let snapshot = store
+            .snapshot(
+                &policy,
+                &StripeAccountId::parse("acct_authsdemo01").unwrap(),
+                NOW,
+            )
+            .unwrap();
+        assert_eq!(snapshot.usages[0].active_authorization_minor, 1_000);
+        assert_eq!(snapshot.usages[0].committed_minor, 0);
     }
 
     #[test]
