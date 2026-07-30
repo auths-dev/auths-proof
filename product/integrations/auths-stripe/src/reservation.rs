@@ -1169,14 +1169,43 @@ mod tests {
 
     #[test]
     fn exact_replay_across_a_rolling_window_tick_is_not_a_conflict() {
+        let evidence = evidence(2_000, 0);
+        let exact = configuration(2_000);
+        let mut input = crate::test_support::bounded_policy_input(&evidence);
+        input.aggregate_budgets = vec![
+            crate::bounded::AggregateRefundBudget::new(
+                "support-rolling",
+                evidence.currency().clone(),
+                2_500,
+                crate::bounded::RefundBudgetWindow::Rolling {
+                    duration_seconds: 3_600,
+                },
+            )
+            .unwrap(),
+        ];
+        let policy = StripeBoundedRefundPolicyV1::new(input).unwrap();
         let store = InMemoryRefundReservationStore::default();
-        let first = request(&store, "bounded-rolling-replay-01", 1_000);
+        let first = request_for_policy(
+            &store,
+            "bounded-rolling-replay-01",
+            1_000,
+            &evidence,
+            &exact,
+            &policy,
+        );
         assert!(matches!(
             store.reserve(first),
             ReserveRefundResult::Reserved { .. }
         ));
 
-        let mut replay = request(&store, "bounded-rolling-replay-01", 1_000);
+        let mut replay = request_for_policy(
+            &store,
+            "bounded-rolling-replay-01",
+            1_000,
+            &evidence,
+            &exact,
+            &policy,
+        );
         replay.now = replay.now.checked_add(1).unwrap();
         let rolling = replay
             .intents
