@@ -1,6 +1,7 @@
 /target/
 /formal/.lake/
 /fuzz/target/
+.DS_Store
 *.profraw
 *.profdata
 .env
