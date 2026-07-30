@@ -280,4 +280,19 @@ mod tests {
         assert_eq!(decision.code, "verifier-configuration-mismatch");
         assert_eq!(decision.stage, "verifier-configuration");
     }
+
+    #[test]
+    fn expired_action_denies_at_the_freshness_boundary() {
+        let (action, policy) = fixture();
+        let configuration = demo_configuration("https://records.auths.dev");
+        let decision = evaluate_create(&CreateEvaluation {
+            action: &action,
+            policy: &policy,
+            required_configuration: &configuration,
+            executed_configuration: &configuration,
+            now: action.expires_at + 1,
+        });
+        assert_eq!(decision.code, "authorization-expired");
+        assert_eq!(decision.stage, "freshness");
+    }
 }

@@ -18,8 +18,9 @@ pub mod service;
 pub mod types;
 pub mod workflow;
 
-#[cfg(test)]
-mod test_support;
+#[cfg(any(test, feature = "fixture-support"))]
+#[doc(hidden)]
+pub mod test_support;
 
 pub use containment::{Decision, DecisionClass, DecisionCode, EvaluationContext, evaluate};
 pub use executor::{LocalPublication, VerifiedOpenPatchCommand};

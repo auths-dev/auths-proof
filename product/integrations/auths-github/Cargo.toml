@@ -6,6 +6,9 @@ license.workspace = true
 rust-version.workspace = true
 description = "Exact Auths authorization and replay-safe execution for GitHub issue workflows"
 
+[features]
+fixture-support = []
+
 [dependencies]
 auths-model.workspace = true
 auths-profile-api.workspace = true

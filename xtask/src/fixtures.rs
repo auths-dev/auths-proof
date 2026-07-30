@@ -94,6 +94,11 @@ pub(crate) fn product_fixtures(update: bool) -> Result<(), String> {
             format!("{}\n", fixture.root_principal).into_bytes(),
         ),
     ]);
+    expected.extend(github_product_fixtures()?);
+    expected.extend(radicle_product_fixtures()?);
+    expected.extend(stripe_product_fixtures()?);
+    expected.extend(kubernetes_product_fixtures()?);
+    expected.extend(records_api_product_fixtures()?);
     expected.extend(opentofu_product_fixtures()?);
     expected.extend(postgresql_product_fixtures()?);
     let directory = root().join("product/fixtures/v1");
@@ -129,6 +134,544 @@ pub(crate) fn product_fixtures(update: bool) -> Result<(), String> {
     }
     println!("product fixtures are stable");
     Ok(())
+}
+
+pub(crate) fn github_product_fixtures() -> Result<BTreeMap<PathBuf, Vec<u8>>, String> {
+    use auths_github::{
+        ExactGitHubAction,
+        canonical::canonical_json,
+        containment::{EvaluationContext, evaluate},
+        derive_publish_branch_action,
+        test_support::{NOW, fixture},
+    };
+
+    let fixture = fixture();
+    let action = ExactGitHubAction::PublishBranch(
+        derive_publish_branch_action(&fixture.grant, &fixture.configuration, &fixture.evidence)
+            .map_err(|error| format!("could not derive GitHub fixture action: {error}"))?,
+    );
+    let authorized = evaluate(&EvaluationContext {
+        grant: &fixture.grant,
+        action: &action,
+        candidate: &fixture.candidate,
+        evidence: &fixture.evidence,
+        required_configuration: &fixture.configuration,
+        executed_configuration: &fixture.configuration,
+        request_audience: fixture.configuration.executor_audience().as_str(),
+        now: NOW,
+    });
+    let mismatched_configuration =
+        auths_github::VerifierConfiguration::new(auths_github::VerifierConfigurationInput {
+            candidate_inspector: "git-cli-bounded-v2".into(),
+            github_adapter: "github-rest-2022-11-28".into(),
+            canonical_reference: "jcs-rfc8785-v1".into(),
+            repository_automation_policy_digest: fixture
+                .configuration
+                .repository_automation_policy_digest()
+                .clone(),
+            maximum_evidence_age_seconds: 30,
+            executor_audience: fixture.configuration.executor_audience().clone(),
+            receipt_schema: "auths-github-receipt-v1".into(),
+        })
+        .map_err(|error| format!("could not build GitHub mismatch configuration: {error}"))?;
+    let mismatch = evaluate(&EvaluationContext {
+        grant: &fixture.grant,
+        action: &action,
+        candidate: &fixture.candidate,
+        evidence: &fixture.evidence,
+        required_configuration: &fixture.configuration,
+        executed_configuration: &mismatched_configuration,
+        request_audience: fixture.configuration.executor_audience().as_str(),
+        now: NOW,
+    });
+    let mut files = BTreeMap::from([
+        (
+            PathBuf::from("github/action.json"),
+            action
+                .canonical_bytes()
+                .map_err(|error| format!("could not serialize GitHub action: {error}"))?,
+        ),
+        (
+            PathBuf::from("github/policy.json"),
+            fixture
+                .grant
+                .canonical_bytes()
+                .map_err(|error| format!("could not serialize GitHub grant: {error}"))?,
+        ),
+        (
+            PathBuf::from("github/evidence.json"),
+            canonical_json(&fixture.evidence)
+                .map_err(|error| format!("could not serialize GitHub evidence: {error}"))?,
+        ),
+        (
+            PathBuf::from("github/required-configuration.json"),
+            canonical_json(&fixture.configuration)
+                .map_err(|error| format!("could not serialize GitHub configuration: {error}"))?,
+        ),
+        (
+            PathBuf::from("github/authorized-decision.json"),
+            canonical_json(&authorized)
+                .map_err(|error| format!("could not serialize GitHub decision: {error}"))?,
+        ),
+        (
+            PathBuf::from("github/configuration-mismatch-decision.json"),
+            canonical_json(&mismatch)
+                .map_err(|error| format!("could not serialize GitHub denial: {error}"))?,
+        ),
+    ]);
+    insert_bounded_fixture_manifest(
+        "github",
+        &["auths.github.issue-address/1"],
+        bounded_scenarios("github"),
+        &mut files,
+    )?;
+    Ok(files)
+}
+
+pub(crate) fn radicle_product_fixtures() -> Result<BTreeMap<PathBuf, Vec<u8>>, String> {
+    use auths_radicle::{
+        canonical::canonical_json,
+        containment::{EvaluationContext, evaluate},
+        test_support::{NOW, action, candidate, configuration, evidence, grant, submission},
+    };
+
+    let required = configuration(30);
+    let grant = grant(required.clone());
+    let submission = submission();
+    let candidate = candidate(&submission);
+    let evidence = evidence(&grant, NOW - 5);
+    let action = action(&grant, &required, &submission, &candidate, &evidence);
+    let authorized = evaluate(&EvaluationContext {
+        grant: &grant,
+        action: &action,
+        submission: &submission,
+        candidate: &candidate,
+        evidence: &evidence,
+        required_configuration: &required,
+        executed_configuration: &required,
+        request_audience: required.executor_audience().as_str(),
+        now: NOW,
+    });
+    let executed = configuration(29);
+    let mismatch = evaluate(&EvaluationContext {
+        grant: &grant,
+        action: &action,
+        submission: &submission,
+        candidate: &candidate,
+        evidence: &evidence,
+        required_configuration: &required,
+        executed_configuration: &executed,
+        request_audience: required.executor_audience().as_str(),
+        now: NOW,
+    });
+    let mut files = BTreeMap::from([
+        (
+            PathBuf::from("radicle/action.json"),
+            action
+                .canonical_bytes()
+                .map_err(|error| format!("could not serialize Radicle action: {error}"))?,
+        ),
+        (
+            PathBuf::from("radicle/policy.json"),
+            grant
+                .canonical_bytes()
+                .map_err(|error| format!("could not serialize Radicle grant: {error}"))?,
+        ),
+        (
+            PathBuf::from("radicle/evidence.json"),
+            canonical_json(&evidence)
+                .map_err(|error| format!("could not serialize Radicle evidence: {error}"))?,
+        ),
+        (
+            PathBuf::from("radicle/required-configuration.json"),
+            canonical_json(&required)
+                .map_err(|error| format!("could not serialize Radicle configuration: {error}"))?,
+        ),
+        (
+            PathBuf::from("radicle/authorized-decision.json"),
+            canonical_json(&authorized)
+                .map_err(|error| format!("could not serialize Radicle decision: {error}"))?,
+        ),
+        (
+            PathBuf::from("radicle/configuration-mismatch-decision.json"),
+            canonical_json(&mismatch)
+                .map_err(|error| format!("could not serialize Radicle denial: {error}"))?,
+        ),
+    ]);
+    insert_bounded_fixture_manifest(
+        "radicle",
+        &["auths.radicle.issue-address/1"],
+        bounded_scenarios("radicle"),
+        &mut files,
+    )?;
+    Ok(files)
+}
+
+pub(crate) fn stripe_product_fixtures() -> Result<BTreeMap<PathBuf, Vec<u8>>, String> {
+    use auths_stripe::{
+        AggregateBudgetSnapshot, BoundedEvaluationContext, RefundDenominator,
+        canonical::canonical_json,
+        evaluate_bounded_refund,
+        test_support::{
+            NOW, action as exact_action, bounded_action,
+            bounded_configuration as make_bounded_configuration, bounded_policy, configuration,
+            evidence,
+        },
+    };
+
+    let exact_configuration = configuration(2_000);
+    let evidence = evidence(10_000, 0);
+    let policy = bounded_policy(
+        &evidence,
+        2_000,
+        10_000,
+        RefundDenominator::OriginalChargeAmount,
+        5_000,
+    );
+    let bounded_configuration = make_bounded_configuration(&policy);
+    let action = bounded_action(
+        &exact_configuration,
+        &policy,
+        &evidence,
+        2_000,
+        "stripe-bounded-oracle",
+    );
+    let snapshot = AggregateBudgetSnapshot::default();
+    let authorized = evaluate_bounded_refund(&BoundedEvaluationContext {
+        policy: &policy,
+        action: &action,
+        evidence: &evidence,
+        aggregate_snapshot: &snapshot,
+        required_exact_configuration: &exact_configuration,
+        executed_exact_configuration: &exact_configuration,
+        required_bounded_configuration: &bounded_configuration,
+        executed_bounded_configuration: &bounded_configuration,
+        request_audience: exact_configuration.executor_audience(),
+        now: NOW,
+    });
+    let plus_one_action = exact_action(&exact_configuration, &evidence, 2_001);
+    let boundary_plus_one = evaluate_bounded_refund(&BoundedEvaluationContext {
+        policy: &policy,
+        action: &plus_one_action,
+        evidence: &evidence,
+        aggregate_snapshot: &snapshot,
+        required_exact_configuration: &exact_configuration,
+        executed_exact_configuration: &exact_configuration,
+        required_bounded_configuration: &bounded_configuration,
+        executed_bounded_configuration: &bounded_configuration,
+        request_audience: exact_configuration.executor_audience(),
+        now: NOW,
+    });
+    let changed_policy = bounded_policy(
+        &evidence,
+        1_999,
+        10_000,
+        RefundDenominator::OriginalChargeAmount,
+        5_000,
+    );
+    let executed_bounded_configuration = make_bounded_configuration(&changed_policy);
+    let mismatch = evaluate_bounded_refund(&BoundedEvaluationContext {
+        policy: &policy,
+        action: &action,
+        evidence: &evidence,
+        aggregate_snapshot: &snapshot,
+        required_exact_configuration: &exact_configuration,
+        executed_exact_configuration: &exact_configuration,
+        required_bounded_configuration: &bounded_configuration,
+        executed_bounded_configuration: &executed_bounded_configuration,
+        request_audience: exact_configuration.executor_audience(),
+        now: NOW,
+    });
+    let mut files = BTreeMap::from([
+        (
+            PathBuf::from("stripe/action.json"),
+            action
+                .canonical_bytes()
+                .map_err(|error| format!("could not serialize Stripe action: {error}"))?,
+        ),
+        (
+            PathBuf::from("stripe/policy.json"),
+            canonical_json(&policy)
+                .map_err(|error| format!("could not serialize Stripe policy: {error}"))?,
+        ),
+        (
+            PathBuf::from("stripe/evidence.json"),
+            canonical_json(&evidence)
+                .map_err(|error| format!("could not serialize Stripe evidence: {error}"))?,
+        ),
+        (
+            PathBuf::from("stripe/required-configuration.json"),
+            canonical_json(&bounded_configuration)
+                .map_err(|error| format!("could not serialize Stripe configuration: {error}"))?,
+        ),
+        (
+            PathBuf::from("stripe/authorized-decision.json"),
+            canonical_json(&authorized)
+                .map_err(|error| format!("could not serialize Stripe decision: {error}"))?,
+        ),
+        (
+            PathBuf::from("stripe/boundary-plus-one-decision.json"),
+            canonical_json(&boundary_plus_one)
+                .map_err(|error| format!("could not serialize Stripe boundary denial: {error}"))?,
+        ),
+        (
+            PathBuf::from("stripe/configuration-mismatch-decision.json"),
+            canonical_json(&mismatch)
+                .map_err(|error| format!("could not serialize Stripe mismatch: {error}"))?,
+        ),
+    ]);
+    insert_bounded_fixture_manifest(
+        "stripe",
+        &["auths.stripe.exact-refund/1"],
+        bounded_scenarios("stripe"),
+        &mut files,
+    )?;
+    Ok(files)
+}
+
+pub(crate) fn kubernetes_product_fixtures() -> Result<BTreeMap<PathBuf, Vec<u8>>, String> {
+    use auths_kubernetes::{
+        EvaluationContext,
+        canonical::canonical_json,
+        evaluate,
+        test_support::{configuration, fixture},
+    };
+
+    let fixture = fixture();
+    let authorized = evaluate(&EvaluationContext {
+        action: &fixture.action,
+        evidence: &fixture.evidence,
+        required_configuration: &fixture.configuration,
+        executed_configuration: &fixture.configuration,
+        request_audience: fixture.configuration.executor_audience(),
+        now: fixture.now,
+    });
+    let executed = configuration(2);
+    let mismatch = evaluate(&EvaluationContext {
+        action: &fixture.action,
+        evidence: &fixture.evidence,
+        required_configuration: &fixture.configuration,
+        executed_configuration: &executed,
+        request_audience: fixture.configuration.executor_audience(),
+        now: fixture.now,
+    });
+    let mut files = BTreeMap::from([
+        (
+            PathBuf::from("kubernetes/action.json"),
+            fixture
+                .action
+                .canonical_bytes()
+                .map_err(|error| format!("could not serialize Kubernetes action: {error}"))?,
+        ),
+        (
+            PathBuf::from("kubernetes/policy.json"),
+            canonical_json(&fixture.configuration)
+                .map_err(|error| format!("could not serialize Kubernetes policy: {error}"))?,
+        ),
+        (
+            PathBuf::from("kubernetes/evidence.json"),
+            canonical_json(&fixture.evidence)
+                .map_err(|error| format!("could not serialize Kubernetes evidence: {error}"))?,
+        ),
+        (
+            PathBuf::from("kubernetes/authorized-decision.json"),
+            canonical_json(&authorized)
+                .map_err(|error| format!("could not serialize Kubernetes decision: {error}"))?,
+        ),
+        (
+            PathBuf::from("kubernetes/configuration-mismatch-decision.json"),
+            canonical_json(&mismatch)
+                .map_err(|error| format!("could not serialize Kubernetes mismatch: {error}"))?,
+        ),
+    ]);
+    insert_bounded_fixture_manifest(
+        "kubernetes",
+        &["auths.kubernetes.workload-rollout/1"],
+        bounded_scenarios("kubernetes"),
+        &mut files,
+    )?;
+    Ok(files)
+}
+
+pub(crate) fn records_api_product_fixtures() -> Result<BTreeMap<PathBuf, Vec<u8>>, String> {
+    use auths_records_api::{
+        BoundedRecordApiPolicyV1, CREATE_OPERATION, CreateEvaluation, CreateRecordV1,
+        CustomerRecordV1, READ_OPERATION, ReadEvaluation, ReadField, ReadRecordV1,
+        RecordIdentifier, canonical::canonical_json, demo_configuration, evaluate_create,
+        evaluate_read,
+    };
+
+    let now = 200;
+    let configuration = demo_configuration("https://records-executor.auths.dev");
+    let policy = BoundedRecordApiPolicyV1 {
+        policy_type: "auths.demo.bounded-record-api-policy".into(),
+        policy_version: 1,
+        policy_id: "policy-fixture".into(),
+        namespace_id: RecordIdentifier::parse("visitor-fixture")
+            .map_err(|error| format!("could not build records namespace: {error}"))?,
+        presenter_principal:
+            "key:ed25519:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc".into(),
+        allowed_operations: vec![CREATE_OPERATION.into(), READ_OPERATION.into()],
+        allowed_record_ids: Vec::new(),
+        allowed_record_id_prefixes: vec!["demo-".into()],
+        maximum_value_bytes: 1024,
+        maximum_response_bytes: 4096,
+        allowed_read_fields: vec![ReadField::Customer, ReadField::RecordId, ReadField::Version],
+        maximum_creates: 3,
+        maximum_reads: 3,
+        maximum_created_bytes: 3072,
+        maximum_disclosed_bytes: 12_288,
+        fixed_and_rolling_budgets: Vec::new(),
+        valid_from: 100,
+        expires_at: 1_000,
+        maximum_action_lifetime_seconds: 300,
+        maximum_presentation_lifetime_seconds: 120,
+        maximum_evidence_age_seconds: 60,
+        executor_audience: "https://records-executor.auths.dev".into(),
+    };
+    policy
+        .validate()
+        .map_err(|error| format!("could not validate records policy: {error}"))?;
+    let policy_digest = policy
+        .digest()
+        .map_err(|error| format!("could not commit records policy: {error}"))?;
+    let configuration_digest = configuration
+        .digest()
+        .map_err(|error| format!("could not commit records configuration: {error}"))?;
+    let record_id = RecordIdentifier::parse("demo-bob")
+        .map_err(|error| format!("could not build records record ID: {error}"))?;
+    let create = CreateRecordV1 {
+        profile: "auths.demo.records.create/1".into(),
+        namespace_id: policy.namespace_id.clone(),
+        record_id: record_id.clone(),
+        customer: CustomerRecordV1 {
+            age: 25,
+            name: "Bob".into(),
+            notes: "Deterministic migration oracle".into(),
+            occupation: "Sales".into(),
+        },
+        value_encoding: "auths.demo.customer-record/1".into(),
+        expected_absent: true,
+        policy_digest: policy_digest.clone(),
+        required_evaluator: "auths.records.create-evaluator/1".into(),
+        required_configuration_digest: configuration_digest.clone(),
+        executor_audience: policy.executor_audience.clone(),
+        expires_at: 500,
+        nonce: "records-create-0001".into(),
+    };
+    let read = ReadRecordV1 {
+        profile: "auths.demo.records.read/1".into(),
+        namespace_id: policy.namespace_id.clone(),
+        record_id,
+        allowed_fields: vec![ReadField::Customer, ReadField::RecordId, ReadField::Version],
+        maximum_response_bytes: 4096,
+        expected_record_version: 1,
+        policy_digest,
+        required_evaluator: "auths.records.read-evaluator/1".into(),
+        required_configuration_digest: configuration_digest,
+        executor_audience: policy.executor_audience.clone(),
+        expires_at: 500,
+        nonce: "records-read-000001".into(),
+    };
+    let create_decision = evaluate_create(&CreateEvaluation {
+        action: &create,
+        policy: &policy,
+        required_configuration: &configuration,
+        executed_configuration: &configuration,
+        now,
+    });
+    let read_decision = evaluate_read(&ReadEvaluation {
+        action: &read,
+        policy: &policy,
+        required_configuration: &configuration,
+        executed_configuration: &configuration,
+        now,
+    });
+    let mut changed_configuration = configuration.clone();
+    changed_configuration.maximum_response_bytes += 1;
+    let mismatch = evaluate_create(&CreateEvaluation {
+        action: &create,
+        policy: &policy,
+        required_configuration: &configuration,
+        executed_configuration: &changed_configuration,
+        now,
+    });
+    let mut over_disclosure = read.clone();
+    over_disclosure.maximum_response_bytes += 1;
+    let boundary_plus_one = evaluate_read(&ReadEvaluation {
+        action: &over_disclosure,
+        policy: &policy,
+        required_configuration: &configuration,
+        executed_configuration: &configuration,
+        now,
+    });
+    let stale = evaluate_create(&CreateEvaluation {
+        action: &create,
+        policy: &policy,
+        required_configuration: &configuration,
+        executed_configuration: &configuration,
+        now: 1_001,
+    });
+    let mut files = BTreeMap::from([
+        (
+            PathBuf::from("records-api/create-action.json"),
+            create
+                .canonical_bytes()
+                .map_err(|error| format!("could not serialize records create action: {error}"))?,
+        ),
+        (
+            PathBuf::from("records-api/read-action.json"),
+            read.canonical_bytes()
+                .map_err(|error| format!("could not serialize records read action: {error}"))?,
+        ),
+        (
+            PathBuf::from("records-api/policy.json"),
+            canonical_json(&policy)
+                .map_err(|error| format!("could not serialize records policy: {error}"))?,
+        ),
+        (
+            PathBuf::from("records-api/configuration.json"),
+            canonical_json(&configuration)
+                .map_err(|error| format!("could not serialize records configuration: {error}"))?,
+        ),
+        (
+            PathBuf::from("records-api/create-authorized-decision.json"),
+            canonical_json(&create_decision)
+                .map_err(|error| format!("could not serialize records create decision: {error}"))?,
+        ),
+        (
+            PathBuf::from("records-api/read-authorized-decision.json"),
+            canonical_json(&read_decision)
+                .map_err(|error| format!("could not serialize records read decision: {error}"))?,
+        ),
+        (
+            PathBuf::from("records-api/boundary-plus-one-decision.json"),
+            canonical_json(&boundary_plus_one).map_err(|error| {
+                format!("could not serialize records boundary decision: {error}")
+            })?,
+        ),
+        (
+            PathBuf::from("records-api/configuration-mismatch-decision.json"),
+            canonical_json(&mismatch)
+                .map_err(|error| format!("could not serialize records mismatch: {error}"))?,
+        ),
+        (
+            PathBuf::from("records-api/stale-decision.json"),
+            canonical_json(&stale)
+                .map_err(|error| format!("could not serialize records stale decision: {error}"))?,
+        ),
+        (
+            PathBuf::from("records-api/malformed-17-byte.json"),
+            b"{\"profile\":null}\n".to_vec(),
+        ),
+    ]);
+    insert_bounded_fixture_manifest(
+        "records-api",
+        &["auths.demo.records.create/1", "auths.demo.records.read/1"],
+        bounded_scenarios("records-api"),
+        &mut files,
+    )?;
+    Ok(files)
 }
 
 pub(crate) fn opentofu_product_fixtures() -> Result<BTreeMap<PathBuf, Vec<u8>>, String> {
@@ -200,7 +743,12 @@ pub(crate) fn opentofu_product_fixtures() -> Result<BTreeMap<PathBuf, Vec<u8>>, 
             PLAN_BYTES.to_vec(),
         ),
     ]);
-    insert_fixture_manifest("auths.opentofu.fixture-manifest/1", &mut files)?;
+    insert_bounded_fixture_manifest(
+        "opentofu",
+        &["auths.opentofu.saved-plan-apply/1"],
+        bounded_scenarios("opentofu"),
+        &mut files,
+    )?;
     Ok(files)
 }
 
@@ -275,12 +823,19 @@ pub(crate) fn postgresql_product_fixtures() -> Result<BTreeMap<PathBuf, Vec<u8>>
                 .map_err(|error| format!("could not serialize PostgreSQL denial: {error}"))?,
         ),
     ]);
-    insert_fixture_manifest("auths.postgresql.fixture-manifest/1", &mut files)?;
+    insert_bounded_fixture_manifest(
+        "postgresql",
+        &["auths.postgresql.bounded-update/1"],
+        bounded_scenarios("postgresql"),
+        &mut files,
+    )?;
     Ok(files)
 }
 
-pub(crate) fn insert_fixture_manifest(
-    schema: &str,
+fn insert_bounded_fixture_manifest(
+    domain: &str,
+    profiles: &[&str],
+    scenarios: BTreeMap<String, Value>,
     files: &mut BTreeMap<PathBuf, Vec<u8>>,
 ) -> Result<(), String> {
     let entries = files
@@ -295,6 +850,18 @@ pub(crate) fn insert_fixture_manifest(
             ))
         })
         .collect::<Result<BTreeMap<_, _>, String>>()?;
+    let sizes = files
+        .iter()
+        .map(|(path, bytes)| {
+            Ok((
+                path.file_name()
+                    .and_then(|name| name.to_str())
+                    .ok_or_else(|| format!("fixture path {} has no file name", path.display()))?
+                    .to_owned(),
+                bytes.len(),
+            ))
+        })
+        .collect::<Result<BTreeMap<_, _>, String>>()?;
     let prefix = files
         .keys()
         .next()
@@ -302,12 +869,50 @@ pub(crate) fn insert_fixture_manifest(
         .ok_or("fixture corpus has no directory")?
         .to_owned();
     let manifest = serde_json::to_vec(&json!({
-        "schema": schema,
+        "schema": "auths.bounded-domain-oracle-manifest/1",
+        "domain": domain,
+        "profiles": profiles,
+        "generator": "cargo xtask product-fixtures --update",
+        "scenarios": scenarios,
+        "bytes": sizes,
         "sha256": entries,
     }))
     .map_err(|error| format!("could not serialize fixture manifest: {error}"))?;
     files.insert(prefix.join("manifest.json"), manifest);
     Ok(())
+}
+
+fn bounded_scenarios(domain: &str) -> BTreeMap<String, Value> {
+    let names = [
+        "authorized",
+        "exact-boundary",
+        "boundary-plus-one",
+        "malformed-input",
+        "stale-evidence",
+        "configuration-mismatch",
+        "concurrent-final-capacity",
+        "replay",
+        "definite-pre-effect-failure",
+        "outcome-unknown",
+        "reconciliation",
+    ];
+    names
+        .into_iter()
+        .filter(|scenario| {
+            !((domain == "radicle" && *scenario == "outcome-unknown")
+                || (domain == "records-api"
+                    && matches!(*scenario, "outcome-unknown" | "reconciliation")))
+        })
+        .map(|scenario| {
+            (
+                scenario.to_owned(),
+                json!({
+                    "kind": "canonical-fixture-and-executable-evidence",
+                    "inventory": "bounded-domains.toml",
+                }),
+            )
+        })
+        .collect()
 }
 
 pub(crate) fn package_check() -> Result<(), String> {

@@ -11973,6 +11973,20 @@
     {
       "source": "xtask",
       "source_layer": "tooling",
+      "target": "auths-github",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": [
+        "fixture-support"
+      ]
+    },
+    {
+      "source": "xtask",
+      "source_layer": "tooling",
       "target": "auths-hsm-attested",
       "target_layer": "core",
       "scope": "internal",
@@ -11983,6 +11997,18 @@
       "features": [
         "std"
       ]
+    },
+    {
+      "source": "xtask",
+      "source_layer": "tooling",
+      "target": "auths-kubernetes",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
     },
     {
       "source": "xtask",
@@ -12061,6 +12087,20 @@
     {
       "source": "xtask",
       "source_layer": "tooling",
+      "target": "auths-radicle",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": [
+        "fixture-support"
+      ]
+    },
+    {
+      "source": "xtask",
+      "source_layer": "tooling",
       "target": "auths-raw-key",
       "target_layer": "core",
       "scope": "internal",
@@ -12071,6 +12111,18 @@
       "features": [
         "std"
       ]
+    },
+    {
+      "source": "xtask",
+      "source_layer": "tooling",
+      "target": "auths-records-api",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
     },
     {
       "source": "xtask",
@@ -12112,6 +12164,20 @@
       "default_features": false,
       "features": [
         "std"
+      ]
+    },
+    {
+      "source": "xtask",
+      "source_layer": "tooling",
+      "target": "auths-stripe",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": [
+        "fixture-support"
       ]
     },
     {

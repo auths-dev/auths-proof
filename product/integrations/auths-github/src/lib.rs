@@ -17,6 +17,9 @@ pub mod ports;
 pub mod profile;
 pub mod receipts;
 pub mod service;
+#[cfg(any(test, feature = "fixture-support"))]
+#[doc(hidden)]
+pub mod test_support;
 pub mod types;
 pub mod workflow;
 
