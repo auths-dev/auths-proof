@@ -718,6 +718,12 @@ pub(crate) fn synchronize_formal_assurance_manifest(
         "formal/Auths/Rich/Types.lean".to_owned(),
         "formal/Auths/Rich/Semantics.lean".to_owned(),
         "formal/Auths/Rich/Theorems.lean".to_owned(),
+        "formal/Auths/Product/Commitment.lean".to_owned(),
+        "formal/Auths/Product/Arithmetic.lean".to_owned(),
+        "formal/Auths/Product/Eligibility.lean".to_owned(),
+        "formal/Auths/Product/Tightening.lean".to_owned(),
+        "formal/Auths/Product/Theorems.lean".to_owned(),
+        "formal/Auths/Product/Refinement.lean".to_owned(),
         "formal/Auths/Refinement/Production.lean".to_owned(),
         "formal/Auths/Composition.lean".to_owned(),
         "formal/Auths/Diversity.lean".to_owned(),
@@ -725,6 +731,8 @@ pub(crate) fn synchronize_formal_assurance_manifest(
         "formal/Auths/Theorems.lean".to_owned(),
         "formal/qualification/aeneas/generated/authority/Funs.lean".to_owned(),
         "formal/qualification/aeneas/generated/authority/Types.lean".to_owned(),
+        "formal/qualification/aeneas/generated/bounded_policy/Funs.lean".to_owned(),
+        "formal/qualification/aeneas/generated/bounded_policy/Types.lean".to_owned(),
         "formal/qualification/aeneas/generated/model/Funs.lean".to_owned(),
         "formal/qualification/aeneas/generated/model/Types.lean".to_owned(),
         "formal/algebra-contract-v1.toml".to_owned(),
@@ -754,9 +762,14 @@ pub(crate) fn synchronize_formal_assurance_manifest(
                 .next()
                 .unwrap_or(&declaration.name);
             let phrase = short_name.replace('_', " ");
+            let is_product = declaration.name.starts_with("Auths.Product.");
             FormalAssuranceClaim {
                 claim_id: format!("AP-FORMAL-RICH-{rich_index:03}"),
-                claim_text: format!("Lean proves the rich authority property: {phrase}."),
+                claim_text: if is_product {
+                    format!("Lean proves the bounded product-policy property: {phrase}.")
+                } else {
+                    format!("Lean proves the rich authority property: {phrase}.")
+                },
                 claim_status: "proved".to_owned(),
                 lean_declaration: declaration.name.clone(),
                 lean_statement_sha256: String::new(),
@@ -766,9 +779,17 @@ pub(crate) fn synchronize_formal_assurance_manifest(
                 semantic_source_closure_sha256: String::new(),
                 evidence: vec![FormalEvidence {
                     kind: "lean-proof".to_owned(),
-                    artifact: "formal/Auths/Rich/Theorems.lean".to_owned(),
+                    artifact: if is_product {
+                        "formal/Auths/Product/Theorems.lean".to_owned()
+                    } else {
+                        "formal/Auths/Rich/Theorems.lean".to_owned()
+                    },
                 }],
-                scope: "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets.".to_owned(),
+                scope: if is_product {
+                    "Pure V1 bounded product-policy commitments, checked arithmetic, configuration gating, and eligibility.".to_owned()
+                } else {
+                    "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets.".to_owned()
+                },
                 residual_assumptions: vec![
                     "Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted.".to_owned(),
                 ],

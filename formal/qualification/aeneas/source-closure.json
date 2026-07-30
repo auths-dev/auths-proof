@@ -1,15 +1,15 @@
 {
   "schema": "auths-proof-translation-source-closure/v2",
-  "digest": "1c80ab8c7e7a157d62a5f5717e59146305bf4f42c1cc91757b50bc39c39b5fc5",
+  "digest": "c49ba9ab15adeba48dd03d784da8ba101e8ae7ea2ad59b03ec6ce7b1ec0a8fc7",
   "files": [
     {
       "path": "Cargo.lock",
-      "sha256": "49498f951eb4f77e0616b4fdbb9d9a4ef091bf384df4b80864c451937ca6bc6c",
+      "sha256": "871cfc5dd37b2f6759543b87e053484033dde85ea71578aa4f81ca950ca5cf5d",
       "normalization": "translated-cargo-closure-v1"
     },
     {
       "path": "Cargo.toml",
-      "sha256": "3b763bf2a156b5d772220d2d7ab0aa6988ef93f3e21a2942b05bd200a09cff0d",
+      "sha256": "f107fc8b4db1f914ad3a800d84f344a1ff603e79138606d5915e06222edcc56f",
       "normalization": "translated-cargo-closure-v1"
     },
     {
@@ -46,11 +46,23 @@
     },
     {
       "path": "formal/qualification/aeneas/qualification.toml",
-      "sha256": "aebf79b6645accaa88f02c7b7f961fecf8e0fc8f2d5f1a29efbaac97afb0d082"
+      "sha256": "96f3fd30a704fb8e7f0dc52b09e040217fd726d0151af318771fe35fd0b925e1"
     },
     {
       "path": "formal/translation-toolchain.lock",
       "sha256": "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+    },
+    {
+      "path": "product/policy/auths-bounded-policy/Cargo.toml",
+      "sha256": "b177a4925578c55029c28d65f6686852abb2da4c7bbb26e4823600c601f754f2"
+    },
+    {
+      "path": "product/policy/auths-bounded-policy/src/kernel.rs",
+      "sha256": "b3f41df4e626a4f74ff470d5b6bc832cc8ae30262e8d927672649a42a85bfb27"
+    },
+    {
+      "path": "product/policy/auths-bounded-policy/src/lib.rs",
+      "sha256": "7480d654aec562478396bf9b00d52af3e7d6ef956a8fd5d6b13deb66836fe9a3"
     },
     {
       "path": "xtask/ci-plan/Cargo.toml",
@@ -62,11 +74,11 @@
     },
     {
       "path": "xtask/src/formal.rs",
-      "sha256": "798b60f2fef3ebc6807659aa09fd6c1978927b325994f6005e4439cab58ce2a8"
+      "sha256": "761c082ebc020ef3b672334db3cdecaa60eaa62990a9a62b626e7df5f460ac26"
     },
     {
       "path": "xtask/src/formal_qualification.rs",
-      "sha256": "3140e5ff6dc6833957144113dc5414cdf2923ea1aacb21c5517666c71068a0f7"
+      "sha256": "b221bfec57645e15f563ed2c13c2c6c814625a56eb291bf1277e1fb9972a1282"
     }
   ]
 }

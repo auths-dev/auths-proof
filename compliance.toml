@@ -921,6 +921,66 @@ security_state = []
 [packages.auths-profile-kit.claims]
 profile-canonicalizer = ["product/sdk/auths-profile-kit/src/lib.rs#fixture_rejects_nondeterministic_profile"]
 
+[packages.auths-bounded-policy]
+kind = "cargo"
+layer = "product"
+path = "product/policy/auths-bounded-policy"
+core_apis = []
+protocol_versions = [
+  "auths.product.bounded-policy-contract/1",
+  "auths.product.policy-commitment/1",
+  "auths.product.evaluation-commitments/1",
+  "auths.product.configuration-match/1",
+  "auths.product.eligibility/1",
+  "auths.product.checked-arithmetic/1",
+  "auths.product.bounded-decision-envelope/1",
+  "auths.product.bounded-policy-compatibility/1",
+]
+wire_objects = [
+  "BoundedDecisionEnvelopeV1",
+  "ConfigurationCommitmentV1",
+  "EligibilityV1",
+  "EvaluationCommitmentsV1",
+  "PolicyCommitmentV1",
+]
+fixture_suites = ["product/fixtures/v1/bounded-policy"]
+principal_families = []
+signature_families = []
+profiles = ["closed-domain-evaluators"]
+transports = []
+configuration_inputs = [
+  "executed-configuration",
+  "explicit-verifier-time",
+  "required-configuration",
+]
+security_state = []
+
+[packages.auths-bounded-policy.claims]
+independent-semantic-implementation = [
+  "product/policy/auths-bounded-policy/src/arithmetic.rs#rejects_every_arithmetic_escape_hatch",
+  "product/policy/auths-bounded-policy/src/commitment.rs#required_and_executed_can_differ_and_are_reported",
+  "product/policy/auths-bounded-policy/src/eligibility.rs#deleting_order_or_exceeding_bytes_fails_closed",
+  "product/policy/auths-bounded-policy/src/registry.rs#registry_is_closed_ordered_and_evidence_bearing",
+]
+
+[packages.auths-bounded-policy-fuzz]
+kind = "cargo"
+layer = "product"
+path = "product/policy/auths-bounded-policy/fuzz"
+core_apis = []
+protocol_versions = ["auths.product.bounded-policy-contract/1"]
+wire_objects = []
+fixture_suites = ["product/policy/auths-bounded-policy/fuzz/corpus/target_bounded_policy"]
+principal_families = []
+signature_families = []
+profiles = ["closed-domain-evaluators"]
+transports = []
+configuration_inputs = ["executed-configuration", "required-configuration"]
+security_state = []
+
+[packages.auths-bounded-policy-fuzz.claims]
+demo-conformance-fixture = ["product/policy/auths-bounded-policy/fuzz/tests/corpus.rs#seventeen_byte_boundary_seed_is_pinned"]
+
 [packages.auths-profile-mcp]
 kind = "cargo"
 layer = "product"

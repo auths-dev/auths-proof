@@ -42,6 +42,16 @@
       "path": "demos/benchmarks/auths-bench-wasm"
     },
     {
+      "name": "auths-bounded-policy",
+      "layer": "product",
+      "path": "product/policy/auths-bounded-policy"
+    },
+    {
+      "name": "auths-bounded-policy-fuzz",
+      "layer": "product",
+      "path": "product/policy/auths-bounded-policy/fuzz"
+    },
+    {
       "name": "auths-cache",
       "layer": "product",
       "path": "product/cache/auths-cache"
@@ -1202,6 +1212,42 @@
         "Window",
         "console"
       ]
+    },
+    {
+      "source": "auths-bounded-policy",
+      "source_layer": "product",
+      "target": "proptest",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-bounded-policy-fuzz",
+      "source_layer": "product",
+      "target": "auths-bounded-policy",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-bounded-policy-fuzz",
+      "source_layer": "product",
+      "target": "libfuzzer-sys",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
     },
     {
       "source": "auths-cache",

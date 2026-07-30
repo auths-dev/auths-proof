@@ -80,13 +80,14 @@ jobs:
         run: |
           set -euo pipefail
           targets=(
-            target_codec
-            target_portable_codecs
-            target_model_state
-            target_composition
-            target_registry_handlers
-            target_principal_parsers
-            target_portable_abi
+            "target_codec:core/fuzz/Cargo.toml:core/fuzz/corpus"
+            "target_portable_codecs:core/fuzz/Cargo.toml:core/fuzz/corpus"
+            "target_model_state:core/fuzz/Cargo.toml:core/fuzz/corpus"
+            "target_composition:core/fuzz/Cargo.toml:core/fuzz/corpus"
+            "target_registry_handlers:core/fuzz/Cargo.toml:core/fuzz/corpus"
+            "target_principal_parsers:core/fuzz/Cargo.toml:core/fuzz/corpus"
+            "target_portable_abi:core/fuzz/Cargo.toml:core/fuzz/corpus"
+            "target_bounded_policy:product/policy/auths-bounded-policy/fuzz/Cargo.toml:product/policy/auths-bounded-policy/fuzz/corpus"
           )
           mkdir -p artifacts logs
           total_executions=0
@@ -94,13 +95,13 @@ jobs:
             if (( index % 2 != AUTHS_FUZZ_SHARD )); then
               continue
             fi
-            target="${targets[$index]}"
+            IFS=: read -r target manifest corpus_root <<< "${targets[$index]}"
             mkdir -p "artifacts/${target}"
             log="logs/${target}.log"
             started_at="$(date +%s)"
-            seed_digest="$(tar --sort=name --mtime='UTC 1970-01-01' --owner=0 --group=0 --numeric-owner -cf - -C core/fuzz/corpus "$target" | sha256sum | cut -d' ' -f1)"
+            seed_digest="$(tar --sort=name --mtime='UTC 1970-01-01' --owner=0 --group=0 --numeric-owner -cf - -C "$corpus_root" "$target" | sha256sum | cut -d' ' -f1)"
             set +e
-            cargo fuzz --manifest-path core/fuzz/Cargo.toml run "$target" -- \
+            cargo fuzz --manifest-path "$manifest" run "$target" -- \
               "-max_total_time=${AUTHS_FUZZ_SECONDS}" \
               "-print_final_stats=1" \
               "-artifact_prefix=artifacts/${target}/" 2>&1 | tee "$log"
@@ -139,6 +140,7 @@ jobs:
             logs/
             artifacts/
             core/fuzz/corpus/
+            product/policy/auths-bounded-policy/fuzz/corpus/
           if-no-files-found: error
           retention-days: 90
 

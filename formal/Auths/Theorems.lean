@@ -1,6 +1,8 @@
 import Auths.Attenuation
 import Auths.Composition
 import Auths.Diversity
+import Auths.Product.Theorems
+import Auths.Product.Refinement
 import Auths.Refinement.Production
 
 namespace Auths
@@ -63,6 +65,19 @@ def theoremInventory : List Lean.Name :=
     `Auths.Refinement.translated_rust_refines_rich_spec,
     `Auths.Refinement.translated_coverage_refines_rich_spec,
     `Auths.Refinement.translated_delegation_refines_rich_spec,
+    `Auths.Product.configuration_match_refl,
+    `Auths.Product.configuration_match_deterministic,
+    `Auths.Product.checked_add_never_wraps,
+    `Auths.Product.checked_sub_never_underflows,
+    `Auths.Product.checked_div_rejects_zero,
+    `Auths.Product.three_way_partition,
+    `Auths.Product.product_contract_configuration_safety,
+    `Auths.Product.product_contract_output_completeness,
+    `Auths.Product.Refinement.translated_configuration_refines_projection,
+    `Auths.Product.Refinement.translated_checked_add_refines_nat,
+    `Auths.Product.Refinement.translated_checked_sub_refines_nat,
+    `Auths.Product.Refinement.translated_checked_mul_refines_nat,
+    `Auths.Product.Refinement.translated_checked_div_rejects_zero,
     `Auths.all_commutative,
     `Auths.all_associative,
     `Auths.all_idempotent,

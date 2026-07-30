@@ -20,6 +20,9 @@ source_files = [
   "core/crates/auths-algebra-kernel/src/generated.rs",
   "core/crates/auths-authority/Cargo.toml",
   "core/crates/auths-authority/src/lib.rs",
+  "product/policy/auths-bounded-policy/Cargo.toml",
+  "product/policy/auths-bounded-policy/src/lib.rs",
+  "product/policy/auths-bounded-policy/src/kernel.rs",
   "formal/algebra-contract-v1.toml",
   "formal/qualification/aeneas/qualification.toml",
   "formal/translation-toolchain.lock",
@@ -45,12 +48,16 @@ generated_files = [
   "formal/qualification/aeneas/generated/authority/FunsExternal_Template.lean",
   "formal/qualification/aeneas/generated/authority/FunsExternal.lean",
   "formal/qualification/aeneas/generated/authority/translation.json",
+  "formal/qualification/aeneas/generated/bounded_policy/Types.lean",
+  "formal/qualification/aeneas/generated/bounded_policy/Funs.lean",
+  "formal/qualification/aeneas/generated/bounded_policy/translation.json",
 ]
 
 case_modules = [
   "qualification.aeneas.cases.Model",
   "qualification.aeneas.cases.Algebra",
   "qualification.aeneas.cases.Authority",
+  "qualification.aeneas.cases.BoundedPolicy",
 ]
 
 [tools]
@@ -217,6 +224,21 @@ allowed_external_symbols = [
   "auths_model::optional_budget_covers",
   "auths_model::status_policy_attenuates",
 ]
+
+[[translations]]
+crate_name = "auths_bounded_policy"
+translation_json = "formal/qualification/aeneas/generated/bounded_policy/translation.json"
+local_functions = 5
+external_functions = 0
+opaque_local_functions = 0
+required_symbols = [
+  "auths_bounded_policy::kernel::configuration_match_code",
+  "auths_bounded_policy::kernel::checked_add_u64",
+  "auths_bounded_policy::kernel::checked_sub_u64",
+  "auths_bounded_policy::kernel::checked_mul_u64",
+  "auths_bounded_policy::kernel::checked_div_u64",
+]
+allowed_external_symbols = []
 
 [[template_axioms]]
 artifact = "formal/qualification/aeneas/generated/model/FunsExternal_Template.lean"

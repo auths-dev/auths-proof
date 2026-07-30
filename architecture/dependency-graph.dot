@@ -8,6 +8,8 @@ digraph auths_architecture {
   "auths-bench-model" [group="demos"];
   "auths-bench-native" [group="demos"];
   "auths-bench-wasm" [group="demos"];
+  "auths-bounded-policy" [group="product"];
+  "auths-bounded-policy-fuzz" [group="product"];
   "auths-cache" [group="product"];
   "auths-ci-plan" [group="tooling"];
   "auths-codec" [group="core"];
@@ -134,6 +136,7 @@ digraph auths_architecture {
   "auths-bench-native" -> "auths-verifier" [label="normal"];
   "auths-bench-native" -> "auths-webauthn" [label="normal"];
   "auths-bench-wasm" -> "auths-bench-model" [label="normal"];
+  "auths-bounded-policy-fuzz" -> "auths-bounded-policy" [label="normal"];
   "auths-cache" -> "auths-model" [label="normal"];
   "auths-cache" -> "auths-verifier" [label="normal"];
   "auths-codec" -> "auths-model" [label="normal"];
