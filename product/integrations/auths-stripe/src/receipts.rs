@@ -2,6 +2,10 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::merchant::authorize::{
+    MerchantAuthorizationDecisionReceipt, MerchantAuthorizationObservationReceipt,
+    MerchantAuthorizationTransitionReceipt,
+};
 use crate::merchant::collect::{
     MerchantCollectionDecisionReceipt, MerchantCollectionObservationReceipt,
     MerchantCollectionTransitionReceipt,
@@ -259,6 +263,12 @@ pub struct ObservationReceipt {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", content = "receipt", rename_all = "kebab-case")]
 pub enum StripeReceipt {
+    /// Exact proof and bounded manual-authorization decision.
+    MerchantAuthorizationDecision(Box<MerchantAuthorizationDecisionReceipt>),
+    /// Manual-authorization reservation/claim/provider transition.
+    MerchantAuthorizationTransition(Box<MerchantAuthorizationTransitionReceipt>),
+    /// Fresh manual-authorization provider observation.
+    MerchantAuthorizationObservation(Box<MerchantAuthorizationObservationReceipt>),
     /// Exact proof and bounded collection decision.
     MerchantCollectionDecision(Box<MerchantCollectionDecisionReceipt>),
     /// Merchant reservation/claim/provider transition.

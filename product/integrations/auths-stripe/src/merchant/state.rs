@@ -20,6 +20,10 @@ use crate::{
     merchant::{
         MerchantAggregateSnapshot, MerchantAggregateUsage, MerchantConnectAccount,
         MerchantOperation, MerchantReservationIntent, StripeBoundedMerchantPaymentPolicyV1,
+        authorize::{
+            PaymentAuthorizeReconciliationOutcome, PaymentAuthorizeTransition,
+            transition_payment_authorize,
+        },
         collect::{
             PaymentCollectReconciliationOutcome, PaymentCollectTransition,
             transition_payment_collect,
@@ -47,12 +51,16 @@ pub enum MerchantReservationState {
     ProviderAccepted,
     /// Automatic collection is durably committed.
     Committed,
+    /// Manual-capture authorization is durably held and remains an obligation.
+    Authorized,
     /// Definite non-execution returned capacity.
     Released,
     /// Delivery may have reached Stripe; capacity stays held.
     OutcomeUnknown,
     /// Retrieval proved automatic collection.
     ReconciledCommitted,
+    /// Retrieval proved the manual-capture authorization remains held.
+    ReconciledAuthorized,
     /// Retrieval proved definite non-execution.
     ReconciledReleased,
 }
@@ -67,6 +75,10 @@ impl MerchantReservationState {
 
     fn holds_committed(self) -> bool {
         matches!(self, Self::Committed | Self::ReconciledCommitted)
+    }
+
+    fn holds_active_authorization(self) -> bool {
+        matches!(self, Self::Authorized | Self::ReconciledAuthorized)
     }
 
     fn holds_unknown(self) -> bool {
@@ -470,6 +482,74 @@ pub trait MerchantPaymentStore: Send + Sync {
         now: u64,
     ) -> Result<MerchantReservationRecord, MerchantStateError>;
 
+    /// Claims a new manual-capture authorization reservation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when durable state is unavailable or the transition is invalid.
+    fn claim_authorization(
+        &self,
+        lease: &MerchantReservationLease,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError>;
+
+    /// Persists manual-authorization provider-attempt intent.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when durable state is unavailable or the transition is invalid.
+    fn mark_authorization_attempting(
+        &self,
+        lease: &MerchantReservationLease,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError>;
+
+    /// Persists a normalized manual-authorization response.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when durable state is unavailable or the projection is invalid.
+    fn record_authorization_provider_accepted(
+        &self,
+        lease: &MerchantReservationLease,
+        provider: MerchantProviderProjection,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError>;
+
+    /// Commits an observed `requires_capture` authorization hold.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when durable state is unavailable or the hold is not exact.
+    fn commit_authorization(
+        &self,
+        lease: &MerchantReservationLease,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError>;
+
+    /// Releases authorization capacity only after definite non-execution.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when durable state is unavailable or the transition is invalid.
+    fn release_authorization(
+        &self,
+        lease: &MerchantReservationLease,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError>;
+
+    /// Retains authorization capacity after ambiguous delivery.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when durable state is unavailable or the projection is invalid.
+    fn mark_authorization_outcome_unknown(
+        &self,
+        lease: &MerchantReservationLease,
+        provider: Option<MerchantProviderProjection>,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError>;
+
     /// Releases capacity only after definite non-execution.
     ///
     /// # Errors
@@ -503,6 +583,19 @@ pub trait MerchantPaymentStore: Send + Sync {
         workflow_id: &str,
         action_digest: &DigestHex,
         outcome: PaymentCollectReconciliationOutcome,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError>;
+
+    /// Applies fresh manual-authorization reconciliation without another create.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when durable state is unavailable or reconciliation is invalid.
+    fn reconcile_authorization(
+        &self,
+        workflow_id: &str,
+        action_digest: &DigestHex,
+        outcome: PaymentAuthorizeReconciliationOutcome,
         now: u64,
     ) -> Result<MerchantReservationRecord, MerchantStateError>;
 
@@ -564,6 +657,56 @@ impl<T: MerchantPaymentStore + ?Sized> MerchantPaymentStore for Arc<T> {
         (**self).commit_collection(lease, now)
     }
 
+    fn claim_authorization(
+        &self,
+        lease: &MerchantReservationLease,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        (**self).claim_authorization(lease, now)
+    }
+
+    fn mark_authorization_attempting(
+        &self,
+        lease: &MerchantReservationLease,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        (**self).mark_authorization_attempting(lease, now)
+    }
+
+    fn record_authorization_provider_accepted(
+        &self,
+        lease: &MerchantReservationLease,
+        provider: MerchantProviderProjection,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        (**self).record_authorization_provider_accepted(lease, provider, now)
+    }
+
+    fn commit_authorization(
+        &self,
+        lease: &MerchantReservationLease,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        (**self).commit_authorization(lease, now)
+    }
+
+    fn release_authorization(
+        &self,
+        lease: &MerchantReservationLease,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        (**self).release_authorization(lease, now)
+    }
+
+    fn mark_authorization_outcome_unknown(
+        &self,
+        lease: &MerchantReservationLease,
+        provider: Option<MerchantProviderProjection>,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        (**self).mark_authorization_outcome_unknown(lease, provider, now)
+    }
+
     fn release(
         &self,
         lease: &MerchantReservationLease,
@@ -589,6 +732,16 @@ impl<T: MerchantPaymentStore + ?Sized> MerchantPaymentStore for Arc<T> {
         now: u64,
     ) -> Result<MerchantReservationRecord, MerchantStateError> {
         (**self).reconcile_collection(workflow_id, action_digest, outcome, now)
+    }
+
+    fn reconcile_authorization(
+        &self,
+        workflow_id: &str,
+        action_digest: &DigestHex,
+        outcome: PaymentAuthorizeReconciliationOutcome,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        (**self).reconcile_authorization(workflow_id, action_digest, outcome, now)
     }
 
     fn get(
@@ -648,6 +801,104 @@ impl MerchantPaymentStore for InMemoryMerchantPaymentStore {
     ) -> Result<MerchantReservationRecord, MerchantStateError> {
         self.with_records(|records| {
             transition_in(records, lease, PaymentCollectTransition::Claim, None, now)
+        })
+    }
+
+    fn claim_authorization(
+        &self,
+        lease: &MerchantReservationLease,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        self.with_records(|records| {
+            transition_authorization_in(
+                records,
+                lease,
+                PaymentAuthorizeTransition::Claim,
+                None,
+                now,
+            )
+        })
+    }
+
+    fn mark_authorization_attempting(
+        &self,
+        lease: &MerchantReservationLease,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        self.with_records(|records| {
+            transition_authorization_in(
+                records,
+                lease,
+                PaymentAuthorizeTransition::BeginAttempt,
+                None,
+                now,
+            )
+        })
+    }
+
+    fn record_authorization_provider_accepted(
+        &self,
+        lease: &MerchantReservationLease,
+        provider: MerchantProviderProjection,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        self.with_records(|records| {
+            transition_authorization_in(
+                records,
+                lease,
+                PaymentAuthorizeTransition::ProviderAccepted,
+                Some(provider),
+                now,
+            )
+        })
+    }
+
+    fn commit_authorization(
+        &self,
+        lease: &MerchantReservationLease,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        self.with_records(|records| {
+            transition_authorization_in(
+                records,
+                lease,
+                PaymentAuthorizeTransition::AuthorizationHeld,
+                None,
+                now,
+            )
+        })
+    }
+
+    fn release_authorization(
+        &self,
+        lease: &MerchantReservationLease,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        self.with_records(|records| {
+            transition_authorization_in(
+                records,
+                lease,
+                PaymentAuthorizeTransition::DefiniteFailureReleased,
+                None,
+                now,
+            )
+        })
+    }
+
+    fn mark_authorization_outcome_unknown(
+        &self,
+        lease: &MerchantReservationLease,
+        provider: Option<MerchantProviderProjection>,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        self.with_records(|records| {
+            transition_authorization_in(
+                records,
+                lease,
+                PaymentAuthorizeTransition::OutcomeBecameUnknown,
+                provider,
+                now,
+            )
         })
     }
 
@@ -742,6 +993,18 @@ impl MerchantPaymentStore for InMemoryMerchantPaymentStore {
     ) -> Result<MerchantReservationRecord, MerchantStateError> {
         self.with_records(|records| {
             reconcile_collection_in(records, workflow_id, action_digest, outcome, now)
+        })
+    }
+
+    fn reconcile_authorization(
+        &self,
+        workflow_id: &str,
+        action_digest: &DigestHex,
+        outcome: PaymentAuthorizeReconciliationOutcome,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        self.with_records(|records| {
+            reconcile_authorization_in(records, workflow_id, action_digest, outcome, now)
         })
     }
 
@@ -889,6 +1152,104 @@ impl MerchantPaymentStore for PersistentMerchantPaymentStore {
         })
     }
 
+    fn claim_authorization(
+        &self,
+        lease: &MerchantReservationLease,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        self.with_locked_records(|records| {
+            transition_authorization_in(
+                records,
+                lease,
+                PaymentAuthorizeTransition::Claim,
+                None,
+                now,
+            )
+        })
+    }
+
+    fn mark_authorization_attempting(
+        &self,
+        lease: &MerchantReservationLease,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        self.with_locked_records(|records| {
+            transition_authorization_in(
+                records,
+                lease,
+                PaymentAuthorizeTransition::BeginAttempt,
+                None,
+                now,
+            )
+        })
+    }
+
+    fn record_authorization_provider_accepted(
+        &self,
+        lease: &MerchantReservationLease,
+        provider: MerchantProviderProjection,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        self.with_locked_records(|records| {
+            transition_authorization_in(
+                records,
+                lease,
+                PaymentAuthorizeTransition::ProviderAccepted,
+                Some(provider),
+                now,
+            )
+        })
+    }
+
+    fn commit_authorization(
+        &self,
+        lease: &MerchantReservationLease,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        self.with_locked_records(|records| {
+            transition_authorization_in(
+                records,
+                lease,
+                PaymentAuthorizeTransition::AuthorizationHeld,
+                None,
+                now,
+            )
+        })
+    }
+
+    fn release_authorization(
+        &self,
+        lease: &MerchantReservationLease,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        self.with_locked_records(|records| {
+            transition_authorization_in(
+                records,
+                lease,
+                PaymentAuthorizeTransition::DefiniteFailureReleased,
+                None,
+                now,
+            )
+        })
+    }
+
+    fn mark_authorization_outcome_unknown(
+        &self,
+        lease: &MerchantReservationLease,
+        provider: Option<MerchantProviderProjection>,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        self.with_locked_records(|records| {
+            transition_authorization_in(
+                records,
+                lease,
+                PaymentAuthorizeTransition::OutcomeBecameUnknown,
+                provider,
+                now,
+            )
+        })
+    }
+
     fn release(
         &self,
         lease: &MerchantReservationLease,
@@ -934,6 +1295,18 @@ impl MerchantPaymentStore for PersistentMerchantPaymentStore {
         })
     }
 
+    fn reconcile_authorization(
+        &self,
+        workflow_id: &str,
+        action_digest: &DigestHex,
+        outcome: PaymentAuthorizeReconciliationOutcome,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        self.with_locked_records(|records| {
+            reconcile_authorization_in(records, workflow_id, action_digest, outcome, now)
+        })
+    }
+
     fn get(
         &self,
         workflow_id: &str,
@@ -955,8 +1328,17 @@ fn reserve_in(
         }
         return ReserveMerchantPaymentResult::Conflict(existing.clone());
     }
-    if request.operation != MerchantOperation::Collect
-        || request.exact_action_profile != crate::merchant::PAYMENT_COLLECT_PROFILE
+    let exact_profile_matches = matches!(
+        (request.operation, request.exact_action_profile.as_str()),
+        (
+            MerchantOperation::Collect,
+            crate::merchant::PAYMENT_COLLECT_PROFILE
+        ) | (
+            MerchantOperation::Authorize,
+            crate::merchant::PAYMENT_AUTHORIZE_PROFILE
+        )
+    );
+    if !exact_profile_matches
         || request.intents.is_empty()
         || request.amount_minor == 0
         || request.intents.iter().any(|intent| {
@@ -980,6 +1362,7 @@ fn reserve_in(
                 })
                 && (record.state.holds_reserved()
                     || record.state.holds_committed()
+                    || record.state.holds_active_authorization()
                     || record.state.holds_unknown())
         }) {
             let Some(next) = used.checked_add(record.amount_minor) else {
@@ -1053,6 +1436,8 @@ fn snapshot_in(
                 &mut usage.reserved_minor
             } else if record.state.holds_committed() {
                 &mut usage.committed_minor
+            } else if record.state.holds_active_authorization() {
+                &mut usage.active_authorization_minor
             } else if record.state.holds_unknown() {
                 &mut usage.outcome_unknown_minor
             } else {
@@ -1145,6 +1530,91 @@ fn reconcile_collection_in(
     Ok(record.clone())
 }
 
+fn transition_authorization_in(
+    records: &mut BTreeMap<String, MerchantReservationRecord>,
+    lease: &MerchantReservationLease,
+    event: PaymentAuthorizeTransition,
+    provider: Option<MerchantProviderProjection>,
+    now: u64,
+) -> Result<MerchantReservationRecord, MerchantStateError> {
+    let record = records
+        .get_mut(&lease.workflow_id)
+        .ok_or(MerchantStateError::NotFound)?;
+    if record.reservation_id != lease.reservation_id || record.action_digest != lease.action_digest
+    {
+        return Err(MerchantStateError::InvalidTransition);
+    }
+    if record.operation != MerchantOperation::Authorize {
+        return Err(MerchantStateError::InvalidTransition);
+    }
+    let next = transition_payment_authorize(record.state, event)
+        .ok_or(MerchantStateError::InvalidTransition)?;
+    if let Some(provider) = provider {
+        validate_provider(record, &provider)?;
+        record.provider = Some(provider);
+    }
+    if matches!(
+        event,
+        PaymentAuthorizeTransition::ProviderAccepted
+            | PaymentAuthorizeTransition::AuthorizationHeld
+    ) && record.provider.is_none()
+    {
+        return Err(MerchantStateError::InvalidTransition);
+    }
+    if event == PaymentAuthorizeTransition::AuthorizationHeld {
+        validate_authorization_provider(
+            record,
+            record
+                .provider
+                .as_ref()
+                .ok_or(MerchantStateError::InvalidTransition)?,
+        )?;
+    }
+    record.state = next;
+    record.updated_at = now;
+    Ok(record.clone())
+}
+
+fn reconcile_authorization_in(
+    records: &mut BTreeMap<String, MerchantReservationRecord>,
+    workflow_id: &str,
+    action_digest: &DigestHex,
+    outcome: PaymentAuthorizeReconciliationOutcome,
+    now: u64,
+) -> Result<MerchantReservationRecord, MerchantStateError> {
+    let record = records
+        .get_mut(workflow_id)
+        .ok_or(MerchantStateError::NotFound)?;
+    if &record.action_digest != action_digest || record.operation != MerchantOperation::Authorize {
+        return Err(MerchantStateError::InvalidTransition);
+    }
+    let (event, provider) = match outcome {
+        PaymentAuthorizeReconciliationOutcome::Held(provider) => {
+            validate_authorization_provider(record, &provider)?;
+            (PaymentAuthorizeTransition::ReconcileHeld, Some(provider))
+        }
+        PaymentAuthorizeReconciliationOutcome::Released(provider) => {
+            if let Some(provider) = &provider {
+                validate_provider(record, provider)?;
+            }
+            (PaymentAuthorizeTransition::ReconcileReleased, provider)
+        }
+        PaymentAuthorizeReconciliationOutcome::OutcomeUnknown(provider) => {
+            if let Some(provider) = &provider {
+                validate_provider(record, provider)?;
+            }
+            (PaymentAuthorizeTransition::ReconcileStillUnknown, provider)
+        }
+    };
+    record.state = transition_payment_authorize(record.state, event)
+        .ok_or(MerchantStateError::InvalidTransition)?;
+    if provider.is_some() {
+        record.provider = provider;
+    }
+    record.updated_at = now;
+    Ok(record.clone())
+}
+
 fn validate_provider(
     record: &MerchantReservationRecord,
     provider: &MerchantProviderProjection,
@@ -1161,6 +1631,22 @@ fn validate_provider(
             .stripe_request_id
             .as_ref()
             .is_some_and(|value| !valid_request_id(value))
+    {
+        return Err(MerchantStateError::InvalidTransition);
+    }
+    Ok(())
+}
+
+fn validate_authorization_provider(
+    record: &MerchantReservationRecord,
+    provider: &MerchantProviderProjection,
+) -> Result<(), MerchantStateError> {
+    validate_provider(record, provider)?;
+    if provider.status != "requires_capture"
+        || provider.amount_capturable_minor != record.amount_minor
+        || provider.amount_received_minor != 0
+        || provider.charge_id.is_none()
+        || provider.capture_before.is_none()
     {
         return Err(MerchantStateError::InvalidTransition);
     }
@@ -1216,7 +1702,9 @@ fn valid_record(record: &MerchantReservationRecord) -> bool {
     let provider_shape = match record.state {
         MerchantReservationState::ProviderAccepted
         | MerchantReservationState::Committed
-        | MerchantReservationState::ReconciledCommitted => record.provider.is_some(),
+        | MerchantReservationState::ReconciledCommitted
+        | MerchantReservationState::Authorized
+        | MerchantReservationState::ReconciledAuthorized => record.provider.is_some(),
         MerchantReservationState::Reserved
         | MerchantReservationState::Claimed
         | MerchantReservationState::Attempting
@@ -1225,10 +1713,30 @@ fn valid_record(record: &MerchantReservationRecord) -> bool {
             true
         }
     };
+    let operation_profile_matches = matches!(
+        (record.operation, record.exact_action_profile.as_str()),
+        (
+            MerchantOperation::Collect,
+            crate::merchant::PAYMENT_COLLECT_PROFILE
+        ) | (
+            MerchantOperation::Authorize,
+            crate::merchant::PAYMENT_AUTHORIZE_PROFILE
+        )
+    );
+    let lifecycle_matches = !matches!(
+        (record.operation, record.state),
+        (
+            MerchantOperation::Collect,
+            MerchantReservationState::Authorized | MerchantReservationState::ReconciledAuthorized
+        ) | (
+            MerchantOperation::Authorize,
+            MerchantReservationState::Committed | MerchantReservationState::ReconciledCommitted
+        )
+    );
     record.schema == RESERVATION_SCHEMA
         && identity_matches
-        && record.operation == MerchantOperation::Collect
-        && record.exact_action_profile == crate::merchant::PAYMENT_COLLECT_PROFILE
+        && operation_profile_matches
+        && lifecycle_matches
         && provider_shape
         && (8..=96).contains(&record.workflow_id.len())
         && record.amount_minor > 0
@@ -1439,17 +1947,22 @@ mod tests {
     }
 
     #[test]
-    fn collect_store_rejects_an_authorization_lifecycle_record() {
+    fn collect_and_authorize_store_transitions_remain_profile_owned() {
         let policy = merchant_policy(MerchantOperation::Authorize, 1_000, 1_000);
-        assert!(matches!(
-            InMemoryMerchantPaymentStore::default().reserve(request(
-                &policy,
-                MerchantOperation::Authorize,
-                "merchant-authorize-state-0001",
-                1_000,
-            )),
-            ReserveMerchantPaymentResult::Unavailable
-        ));
+        let store = InMemoryMerchantPaymentStore::default();
+        let ReserveMerchantPaymentResult::Reserved { lease, .. } = store.reserve(request(
+            &policy,
+            MerchantOperation::Authorize,
+            "merchant-authorize-state-0001",
+            1_000,
+        )) else {
+            panic!("authorization reservation expected");
+        };
+        assert!(store.claim(&lease, NOW).is_err());
+        assert_eq!(
+            store.claim_authorization(&lease, NOW).unwrap().state(),
+            MerchantReservationState::Claimed
+        );
     }
 
     #[test]

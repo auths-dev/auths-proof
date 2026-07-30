@@ -15,8 +15,18 @@ mod policy;
 pub mod state;
 
 pub use authorize::{
+    ExecutePaymentAuthorizeRequest, MerchantAuthorizationDecisionReceipt,
+    MerchantAuthorizationObservationReceipt, MerchantAuthorizationTransitionReceipt,
+    PaymentAuthorizeDecision, PaymentAuthorizeDecisionClass, PaymentAuthorizeDecisionCode,
+    PaymentAuthorizeDecisionStage, PaymentAuthorizeEffect, PaymentAuthorizeEligibility,
+    PaymentAuthorizeEvaluationContext, PaymentAuthorizeGateway, PaymentAuthorizeProofDecision,
+    PaymentAuthorizeProofVerifier, PaymentAuthorizeProviderRequest,
+    PaymentAuthorizeReconciliationOutcome, PaymentAuthorizeService,
+    PaymentAuthorizeServiceDependencies, PaymentAuthorizeTransition,
+    PaymentAuthorizeWorkflowOutcome, SdkPaymentAuthorizeProofVerifier,
     StripeExactPaymentAuthorizeInput, StripeExactPaymentAuthorizeV1, StripePaymentAuthorizeCommand,
-    StripePaymentAuthorizeProfile,
+    StripePaymentAuthorizeProfile, VerifiedPaymentAuthorizeCommand, evaluate_payment_authorize,
+    transition_payment_authorize,
 };
 pub use budget::{
     MerchantAggregateBudget, MerchantAggregateSnapshot, MerchantAggregateUsage,
