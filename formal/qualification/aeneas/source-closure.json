@@ -1,14 +1,14 @@
 {
   "schema": "auths-proof-translation-source-closure/v1",
-  "digest": "36398163735d79110130d2f01d642a982809fe4ea4cf7df2d1a00cbeae360e9b",
+  "digest": "42219a1c5035ba60730dfcc7165258cc444360343d20f8e8f6c83629b91246fb",
   "files": [
     {
       "path": "Cargo.lock",
-      "sha256": "89609aede89e7ad3e59a7a91015d83cd452250d1136199069ea9fa8a6cc73987"
+      "sha256": "ab25fa09eca27fdde1b8f4de82cf7c3a67db578912ca88b51f57d8561fdd0a10"
     },
     {
       "path": "Cargo.toml",
-      "sha256": "0e674a20b0113f9cb8c54b4938e79e03d58cb564041b469ec27de24e905f09cb"
+      "sha256": "10464c85116df5d2b28848fac0751507454f0c317d2eb32a8242eb74e8051ea3"
     },
     {
       "path": "core/crates/auths-algebra-kernel/Cargo.toml",

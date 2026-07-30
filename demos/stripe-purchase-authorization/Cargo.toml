@@ -1,0 +1,32 @@
+[package]
+name = "auths-stripe-purchase-authorization-demo"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Interactive bounded Stripe Issuing purchase-authorization demonstration"
+publish = false
+
+[dependencies]
+auths-model.workspace = true
+auths-profile-api.workspace = true
+auths-sdk.workspace = true
+auths-stripe.workspace = true
+auths-stripe-payment-demo-common.workspace = true
+axum.workspace = true
+dotenvy.workspace = true
+getrandom.workspace = true
+hex.workspace = true
+hmac.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tokio.workspace = true
+tower-http.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+tower.workspace = true
+
+[lints]
+workspace = true

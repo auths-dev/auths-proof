@@ -140,6 +140,22 @@ fn valid_test_clock(value: &str) -> bool {
     valid_prefixed(value, "clock_", 96)
 }
 
+fn valid_event(value: &str) -> bool {
+    valid_prefixed(value, "evt_", 96)
+}
+
+fn valid_issuing_authorization(value: &str) -> bool {
+    valid_prefixed(value, "iauth_", 96)
+}
+
+fn valid_issuing_cardholder(value: &str) -> bool {
+    valid_prefixed(value, "ich_", 96)
+}
+
+fn valid_issuing_card(value: &str) -> bool {
+    valid_prefixed(value, "ic_", 96)
+}
+
 fn valid_refund(value: &str) -> bool {
     valid_prefixed(value, "re_", 96)
 }
@@ -173,6 +189,18 @@ validated_string!(
 );
 validated_string!(InvoiceId, InvoiceId, valid_invoice);
 validated_string!(TestClockId, TestClockId, valid_test_clock);
+validated_string!(EventId, EventId, valid_event);
+validated_string!(
+    IssuingAuthorizationId,
+    IssuingAuthorizationId,
+    valid_issuing_authorization
+);
+validated_string!(
+    IssuingCardholderId,
+    IssuingCardholderId,
+    valid_issuing_cardholder
+);
+validated_string!(IssuingCardId, IssuingCardId, valid_issuing_card);
 validated_string!(RefundId, RefundId, valid_refund);
 validated_string!(DigestHex, DigestHex, valid_digest);
 validated_string!(Currency, Currency, valid_currency);
@@ -230,6 +258,18 @@ pub enum TypeError {
     /// Invalid billing test clock.
     #[error("invalid Stripe test clock identifier")]
     TestClockId,
+    /// Invalid Event.
+    #[error("invalid Stripe Event identifier")]
+    EventId,
+    /// Invalid Issuing Authorization.
+    #[error("invalid Stripe Issuing Authorization identifier")]
+    IssuingAuthorizationId,
+    /// Invalid Issuing Cardholder.
+    #[error("invalid Stripe Issuing Cardholder identifier")]
+    IssuingCardholderId,
+    /// Invalid Issuing Card.
+    #[error("invalid Stripe Issuing Card identifier")]
+    IssuingCardId,
     /// Invalid Refund.
     #[error("invalid Stripe Refund identifier")]
     RefundId,

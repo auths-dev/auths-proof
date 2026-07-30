@@ -15,6 +15,7 @@ pub mod canonical;
 pub mod claim;
 pub mod decision;
 pub mod executor;
+pub mod issuing;
 pub mod mandate;
 pub mod merchant;
 pub mod ports;
@@ -49,6 +50,7 @@ pub use claim::{
 };
 pub use decision::{Decision, DecisionClass, DecisionCode, EvaluationContext, evaluate};
 pub use executor::VerifiedRefundCommand;
+pub use issuing::*;
 pub use mandate::*;
 pub use merchant::*;
 pub use ports::{
@@ -56,9 +58,10 @@ pub use ports::{
     PaymentCancelCredential, PaymentCancelCredentialScope, PaymentCaptureCredential,
     PaymentCaptureCredentialScope, PaymentCollectCredential, PaymentCollectCredentialScope,
     PaymentMandateCredential, PaymentMandateCredentialScope, PortError, ProofDecision,
-    ProofVerifier, ReceiptSink, RefundCredentialScope, StripeCredential, StripeGateway,
-    StripeRefundCredential, SubscriptionCreateCredential, SubscriptionCreateCredentialScope,
-    SubscriptionModifyCredential, SubscriptionModifyCredentialScope,
+    ProofVerifier, PurchaseAuthorizationCredential, PurchaseAuthorizationCredentialScope,
+    ReceiptSink, RefundCredentialScope, StripeCredential, StripeGateway, StripeRefundCredential,
+    SubscriptionCreateCredential, SubscriptionCreateCredentialScope, SubscriptionModifyCredential,
+    SubscriptionModifyCredentialScope,
 };
 pub use profile::{StripeRefundCommand, StripeRefundProfile};
 pub use receipts::{
@@ -75,9 +78,10 @@ pub use service::{
 };
 pub use subscription::*;
 pub use types::{
-    ChargeId, Currency, CustomerId, DigestHex, ExactRefundActionInput, ExactRefundActionV1,
-    InvoiceId, MandateId, Money, PaymentIntentId, PaymentMethodId, PriceId, ProductId,
-    RefundEvidenceInput, RefundEvidenceV1, RefundId, RefundResult, SetupAttemptId, SetupIntentId,
-    StripeAccountId, StripeVerifierConfiguration, StripeVerifierConfigurationInput, SubscriptionId,
+    ChargeId, Currency, CustomerId, DigestHex, EventId, ExactRefundActionInput,
+    ExactRefundActionV1, InvoiceId, IssuingAuthorizationId, IssuingCardId, IssuingCardholderId,
+    MandateId, Money, PaymentIntentId, PaymentMethodId, PriceId, ProductId, RefundEvidenceInput,
+    RefundEvidenceV1, RefundId, RefundResult, SetupAttemptId, SetupIntentId, StripeAccountId,
+    StripeVerifierConfiguration, StripeVerifierConfigurationInput, SubscriptionId,
     SubscriptionItemId, TestClockId,
 };

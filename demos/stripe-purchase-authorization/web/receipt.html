@@ -1,0 +1,9 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Purchase authorization receipt</title><link rel="stylesheet" href="/styles.css"></head>
+<body><main><p class="eyebrow">DESIGNED RECEIPT</p><h1>Purchase authorization evidence</h1><section><pre id="receipt">Loading…</pre></section></main>
+<script src="/config.js"></script><script>
+const id=location.pathname.split("/").pop();
+const base=(window.AUTHS_PURCHASE_AUTHORIZATION_API_BASE||"").replace(/\/$/,"");
+fetch(`${base}/api/v1/receipts/${id}`).then(async r=>{if(!r.ok)throw new Error("Receipt not found");return r.json()}).then(v=>document.querySelector("#receipt").textContent=JSON.stringify(v,null,2)).catch(e=>document.querySelector("#receipt").textContent=e.message);
+</script></body></html>
