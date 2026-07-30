@@ -26,19 +26,45 @@ runs:
         set -euo pipefail
         finished_at="$(date +%s)"
         duration="$((finished_at - AUTHS_STARTED_AT))"
+        normalized_phase="${AUTHS_PHASE//-/_}"
         baseline_minutes="$(
-          python3 - "$AUTHS_PHASE" <<'PY'
-        import pathlib
-        import sys
-        import tomllib
-
-        phase = sys.argv[1].replace("-", "_")
-        manifest = tomllib.loads(pathlib.Path(".github/ci/phase-ownership.toml").read_text())
-        matches = [item["baseline_minutes"] for item in manifest["phases"] if item["id"] == phase]
-        if len(matches) != 1:
-            raise SystemExit(f"phase baseline is missing or ambiguous: {phase}")
-        print(matches[0])
-        PY
+          awk -v target="$normalized_phase" '
+            function emit() {
+              if (in_phase && phase_id == target && baseline != "") {
+                print baseline
+                matches++
+              }
+            }
+            /^\[\[phases\]\]$/ {
+              emit()
+              in_phase = 1
+              phase_id = ""
+              baseline = ""
+              next
+            }
+            /^\[\[/ {
+              emit()
+              in_phase = 0
+              next
+            }
+            in_phase && /^id[[:space:]]*=/ {
+              value = $0
+              sub(/^[^=]*=[[:space:]]*"/, "", value)
+              sub(/"[[:space:]]*$/, "", value)
+              phase_id = value
+              next
+            }
+            in_phase && /^baseline_minutes[[:space:]]*=/ {
+              value = $0
+              sub(/^[^=]*=[[:space:]]*/, "", value)
+              sub(/[[:space:]]*$/, "", value)
+              baseline = value
+            }
+            END {
+              emit()
+              if (matches != 1) exit 42
+            }
+          ' .github/ci/phase-ownership.toml
         )"
         baseline_seconds="$((baseline_minutes * 60))"
         warning_seconds="$((baseline_seconds + (baseline_seconds * AUTHS_WARNING_PERCENT / 100)))"

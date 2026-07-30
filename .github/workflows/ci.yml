@@ -435,6 +435,16 @@ jobs:
           mkdir -p target/ci
           docker image inspect --format '{{.Id}}' auths-postgresql-demo:ci | tee target/ci/postgresql-image-digest.txt
           echo "BuildKit digest: \`${{ steps.build.outputs.digest }}\`" >> "$GITHUB_STEP_SUMMARY"
+      - name: Build the PostgreSQL TLS fixture image
+        uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671 # v6
+        with:
+          context: demos/postgresql-data-change
+          file: demos/postgresql-data-change/database/Dockerfile.tls
+          load: true
+          push: false
+          tags: postgresql-data-change-certificates:latest
+          cache-from: type=gha,scope=postgresql-live-certificates
+          cache-to: type=gha,mode=max,scope=postgresql-live-certificates
       - name: Install browser test dependencies
         working-directory: demos/postgresql-data-change
         run: |
