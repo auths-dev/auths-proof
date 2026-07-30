@@ -1,7 +1,7 @@
 # AP-SPEC-011: Rich Authority Refinement and Bounded Authorization
 
-**Status:** In progress — Milestone 0 implemented; Milestone 1 awaits the
-Milestone 0 ADR merge gate
+**Status:** In progress — Milestones 0–2 implemented; Milestone 3 is governed
+by AP-SPEC-025 and the seven-domain execution plan
 
 **Intended audience:** protocol authors, formal-methods engineers, core and
 product implementers, auditors, and independent verifier implementers
@@ -59,7 +59,7 @@ that decision is merged.
 The OpenTofu and PostgreSQL verticals remain prerequisites for extracting a
 generic bounded-authorization implementation. They are not prerequisites for
 closing the existing core Rust–Lean projection gap. Those two workstreams
-proceed in parallel and converge only after the six-domain bounded-policy
+proceed in parallel and converge only after the seven-domain bounded-policy
 inventory is complete.
 
 ## 1. Decision
@@ -934,7 +934,7 @@ Work proceeds on two parallel tracks:
 Track A: core assurance             Track B: bounded-domain evidence
 claim audit                         OpenTofu end-to-end vertical
 rich Lean authority model           PostgreSQL end-to-end vertical
-pure Rust kernel                    six-domain comparison
+pure Rust kernel                    seven-domain comparison
 mechanical Rust refinement                    |
           |                                   |
           +-----------------+-----------------+
@@ -1042,7 +1042,7 @@ must account for every obligation by stable identity and state.
 
 ### 7.4 Bounded-policy laws
 
-The generic contract MUST be extracted from the six-domain comparison, not
+The generic contract MUST be extracted from the seven-domain comparison, not
 invented before it. Each closed policy type MUST then prove:
 
 - deterministic evaluation for exact inputs;
@@ -1294,7 +1294,7 @@ later observations.
 
 ### 7.8 Domain refinement
 
-After the common contract is based on six working domains, each concrete
+After the common contract is based on seven working domains, each concrete
 evaluator version MUST provide:
 
 - a closed mathematical policy and evidence model;
@@ -1644,14 +1644,14 @@ production predicate outside the proved boundary.
 - complete specifications 0008 and 0009 end to end;
 - retain domain-local implementations while gathering evidence;
 - exercise concurrency, interruption, outcome-unknown, and reconciliation; and
-- produce the six-domain semantic inventory required by the bounded plan.
+- produce the seven-domain semantic inventory required by the bounded plan.
 
 **Gate:** both demos perform real local effects, pass hostile and crash cases,
 and expose complete frontend and receipt experiences.
 
 ### Milestone 3: closed bounded-policy semantics
 
-- derive the common contract from the six-domain inventory;
+- derive the common contract from the seven-domain inventory;
 - formalize each selected closed evaluator version;
 - prove fixed-context policy tightening and arithmetic/freshness laws;
 - mechanically link each pure reference evaluator; and
@@ -1676,7 +1676,7 @@ receipt, reservation, and execution intent.
 
 ### Milestone 5: extraction and migration
 
-- extract only abstractions justified by the six-domain comparison; an
+- extract only abstractions justified by the seven-domain comparison; an
   abstraction MAY serve a demonstrated subset while other domains compose
   smaller primitives or retain domain-specific behavior;
 - migrate Stripe first while retaining its previous implementation as an

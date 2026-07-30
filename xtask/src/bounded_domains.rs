@@ -113,9 +113,15 @@ fn validate_bounded_domain_inventory(inventory: &BoundedDomainInventory) -> Resu
     ] {
         require_nonempty(label, value)?;
     }
-    for required in [&inventory.inventory.plan, &inventory.inventory.audit] {
+    for required in [
+        &inventory.inventory.plan,
+        &inventory.inventory.audit,
+        &inventory.inventory.semantic_report,
+        &inventory.inventory.closed_contract_spec,
+    ] {
         require_repository_file(required)?;
     }
+    validate_closed_contract_artifacts(inventory)?;
     let declared_domains = unique_strings(
         "bounded inventory required domains",
         &inventory.inventory.required_domains,
@@ -256,6 +262,71 @@ fn validate_bounded_domain_inventory(inventory: &BoundedDomainInventory) -> Resu
         return Err(format!(
             "bounded domain records drifted; expected={expected_domains:?}, actual={domain_ids:?}"
         ));
+    }
+    Ok(())
+}
+
+fn validate_closed_contract_artifacts(inventory: &BoundedDomainInventory) -> Result<(), String> {
+    let report =
+        fs::read_to_string(root().join(&inventory.inventory.semantic_report)).map_err(|error| {
+            format!(
+                "could not read semantic report {}: {error}",
+                inventory.inventory.semantic_report
+            )
+        })?;
+    let contract = fs::read_to_string(root().join(&inventory.inventory.closed_contract_spec))
+        .map_err(|error| {
+            format!(
+                "could not read closed contract specification {}: {error}",
+                inventory.inventory.closed_contract_spec
+            )
+        })?;
+
+    for domain in REQUIRED_DOMAIN_IDS {
+        let report_name = if domain == "records-api" {
+            "Records API"
+        } else {
+            domain
+        };
+        if !report
+            .to_ascii_lowercase()
+            .contains(&report_name.to_ascii_lowercase())
+        {
+            return Err(format!(
+                "seven-domain semantic report does not name required domain {domain}"
+            ));
+        }
+    }
+    for identity in [
+        "auths.product.bounded-policy-contract/1",
+        "auths.product.policy-commitment/1",
+        "auths.product.evaluation-commitments/1",
+        "auths.product.configuration-match/1",
+        "auths.product.eligibility/1",
+        "auths.product.checked-arithmetic/1",
+        "auths.product.bounded-decision-envelope/1",
+        "auths.product.bounded-policy-compatibility/1",
+    ] {
+        if !contract.contains(identity) {
+            return Err(format!(
+                "closed bounded-policy contract does not reserve {identity}"
+            ));
+        }
+    }
+    for case in [
+        "0001-policy-and-evaluator-commitments.md",
+        "0002-evaluation-context-and-configuration-match.md",
+        "0003-eligibility-reservations-and-obligations.md",
+        "0004-checked-arithmetic-limits-and-tightening.md",
+        "0005-receipt-envelope.md",
+        "0006-evidence-provider-and-lifecycle-exclusions.md",
+    ] {
+        require_repository_file(&format!("docs/research/domains/abstraction-cases/{case}"))?;
+        if !report.contains(case) {
+            return Err(format!(
+                "semantic report does not reference abstraction case {case}"
+            ));
+        }
     }
     Ok(())
 }
