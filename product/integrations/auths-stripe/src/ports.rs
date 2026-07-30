@@ -22,6 +22,9 @@ pub enum PaymentAuthorizeCredentialScope {}
 /// Type marker for the exact final-capture credential scope.
 pub enum PaymentCaptureCredentialScope {}
 
+/// Type marker for the exact `PaymentIntent` cancellation credential scope.
+pub enum PaymentCancelCredentialScope {}
+
 /// Secret Stripe credential bound to one compile-time effect scope.
 ///
 /// A credential with one scope cannot be passed to a provider gateway for
@@ -74,6 +77,25 @@ pub type PaymentAuthorizeCredential = StripeCredential<PaymentAuthorizeCredentia
 /// }
 /// ```
 pub type PaymentCaptureCredential = StripeCredential<PaymentCaptureCredentialScope>;
+
+/// Exact `PaymentIntent` cancellation credential.
+///
+/// A capture-scoped credential cannot cross the cancellation boundary:
+///
+/// ```compile_fail
+/// use auths_stripe::{
+///     PaymentCancelGateway, PaymentCaptureCredential, VerifiedPaymentCancelCommand,
+/// };
+///
+/// fn wrong_scope(
+///     gateway: &dyn PaymentCancelGateway,
+///     command: &VerifiedPaymentCancelCommand,
+///     credential: &PaymentCaptureCredential,
+/// ) {
+///     let _ = gateway.cancel(command, credential, 0);
+/// }
+/// ```
+pub type PaymentCancelCredential = StripeCredential<PaymentCancelCredentialScope>;
 
 impl<S> StripeCredential<S> {
     /// Wraps a non-empty Stripe test-mode secret.
@@ -265,8 +287,8 @@ mod tests {
     use std::any::TypeId;
 
     use super::{
-        PaymentAuthorizeCredential, PaymentCaptureCredential, PaymentCollectCredential,
-        StripeRefundCredential,
+        PaymentAuthorizeCredential, PaymentCancelCredential, PaymentCaptureCredential,
+        PaymentCollectCredential, StripeRefundCredential,
     };
 
     #[test]
@@ -294,6 +316,14 @@ mod tests {
         assert_ne!(
             TypeId::of::<PaymentCaptureCredential>(),
             TypeId::of::<StripeRefundCredential>()
+        );
+        assert_ne!(
+            TypeId::of::<PaymentCancelCredential>(),
+            TypeId::of::<PaymentCaptureCredential>()
+        );
+        assert_ne!(
+            TypeId::of::<PaymentCancelCredential>(),
+            TypeId::of::<PaymentAuthorizeCredential>()
         );
         assert!(PaymentCaptureCredential::new(b"rk_test_repository_test_value".to_vec()).is_ok());
     }

@@ -24,6 +24,10 @@ use crate::{
             PaymentAuthorizeReconciliationOutcome, PaymentAuthorizeTransition,
             transition_payment_authorize,
         },
+        cancel::{
+            PaymentCancelProviderProjection, PaymentCancelReconciliationOutcome,
+            PaymentCancelTransition, PaymentCancellationReason, transition_payment_cancel,
+        },
         capture::{
             PaymentCaptureProviderProjection, PaymentCaptureReconciliationOutcome,
             PaymentCaptureTransition, transition_payment_capture,
@@ -69,8 +73,16 @@ pub enum MerchantReservationState {
     CaptureCommitted,
     /// Retrieval proved final capture and committed settlement.
     ReconciledCaptureCommitted,
+    /// Terminal cancellation was observed.
+    CancelCommitted,
+    /// Retrieval proved terminal cancellation.
+    ReconciledCancelCommitted,
+    /// A capture won the cancellation race; no hold was released by cancellation.
+    CancelCaptureConflict,
     /// An atomic final capture released this authorization hold.
     AuthorizationReleasedByCapture,
+    /// An observed terminal cancellation released this authorization hold.
+    AuthorizationReleasedByCancel,
     /// Retrieval proved definite non-execution.
     ReconciledReleased,
 }
@@ -162,6 +174,8 @@ pub struct MerchantReservationRecord {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     capture_provider: Option<PaymentCaptureProviderProjection>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    cancel_provider: Option<PaymentCancelProviderProjection>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     authorization_workflow_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     authorization_action_digest: Option<DigestHex>,
@@ -173,6 +187,14 @@ pub struct MerchantReservationRecord {
     capture_payment_intent_id: Option<PaymentIntentId>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     capture_charge_id: Option<ChargeId>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    cancel_payment_intent_id: Option<PaymentIntentId>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    cancellation_reason: Option<PaymentCancellationReason>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    cancel_pre_status: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    cancel_amount_minor: Option<u64>,
     created_at: u64,
     updated_at: u64,
 }
@@ -292,6 +314,12 @@ impl MerchantReservationRecord {
         self.capture_provider.as_ref()
     }
 
+    /// Cancellation-owned provider projection, if known.
+    #[must_use]
+    pub const fn cancel_provider(&self) -> Option<&PaymentCancelProviderProjection> {
+        self.cancel_provider.as_ref()
+    }
+
     /// Linked authorization workflow for final capture.
     #[must_use]
     pub fn authorization_workflow_id(&self) -> Option<&str> {
@@ -326,6 +354,30 @@ impl MerchantReservationRecord {
     #[must_use]
     pub const fn capture_charge_id(&self) -> Option<&ChargeId> {
         self.capture_charge_id.as_ref()
+    }
+
+    /// Exact `PaymentIntent` targeted by cancellation.
+    #[must_use]
+    pub const fn cancel_payment_intent_id(&self) -> Option<&PaymentIntentId> {
+        self.cancel_payment_intent_id.as_ref()
+    }
+
+    /// Exact cancellation reason.
+    #[must_use]
+    pub const fn cancellation_reason(&self) -> Option<PaymentCancellationReason> {
+        self.cancellation_reason
+    }
+
+    /// Provider state immediately before the cancellation claim.
+    #[must_use]
+    pub fn cancel_pre_status(&self) -> Option<&str> {
+        self.cancel_pre_status.as_deref()
+    }
+
+    /// Original amount of the cancellation target.
+    #[must_use]
+    pub const fn cancel_amount_minor(&self) -> Option<u64> {
+        self.cancel_amount_minor
     }
 
     /// Durable creation time.
@@ -446,12 +498,17 @@ impl ReserveMerchantPaymentRequest {
             idempotency_key_digest: self.idempotency_key_digest,
             provider: None,
             capture_provider: None,
+            cancel_provider: None,
             authorization_workflow_id: None,
             authorization_action_digest: None,
             authorization_reservation_id: None,
             authorization_release_minor: None,
             capture_payment_intent_id: None,
             capture_charge_id: None,
+            cancel_payment_intent_id: None,
+            cancellation_reason: None,
+            cancel_pre_status: None,
+            cancel_amount_minor: None,
             created_at: self.now,
             updated_at: self.now,
         }
@@ -470,6 +527,90 @@ pub struct ReservePaymentCaptureRequest {
     authorization_release_minor: u64,
     capture_payment_intent_id: PaymentIntentId,
     capture_charge_id: ChargeId,
+}
+
+/// Complete inputs to one exact cancellation exclusivity claim.
+///
+/// The constructor fixes operation and profile internally. It carries no
+/// monetary reservation intent; an optional linked hold is released only by
+/// the cancellation-specific observed terminal transition.
+pub struct ReservePaymentCancelRequest {
+    base: ReserveMerchantPaymentRequest,
+    authorization_workflow_id: Option<String>,
+    authorization_action_digest: Option<DigestHex>,
+    authorization_reservation_id: Option<DigestHex>,
+    authorization_release_minor: Option<u64>,
+    cancel_payment_intent_id: PaymentIntentId,
+    cancellation_reason: PaymentCancellationReason,
+    cancel_pre_status: String,
+    cancel_amount_minor: u64,
+}
+
+impl ReservePaymentCancelRequest {
+    #[must_use]
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "cancellation claim binds every exact decision, target, and optional hold fact"
+    )]
+    pub fn new(
+        workflow_id: String,
+        action_digest: DigestHex,
+        decision_receipt_digest: DigestHex,
+        policy_digest: DigestHex,
+        evaluator_semantic_id: String,
+        evaluator_semantic_version: u16,
+        evidence_digest: DigestHex,
+        required_configuration_digest: DigestHex,
+        executed_configuration_digest: DigestHex,
+        stripe_account_id: StripeAccountId,
+        connect_account: MerchantConnectAccount,
+        customer_id: CustomerId,
+        order_scope: String,
+        currency: Currency,
+        idempotency_key_digest: DigestHex,
+        authorization_workflow_id: Option<String>,
+        authorization_action_digest: Option<DigestHex>,
+        authorization_reservation_id: Option<DigestHex>,
+        authorization_release_minor: Option<u64>,
+        cancel_payment_intent_id: PaymentIntentId,
+        cancellation_reason: PaymentCancellationReason,
+        cancel_pre_status: String,
+        cancel_amount_minor: u64,
+        now: u64,
+    ) -> Self {
+        Self {
+            base: ReserveMerchantPaymentRequest {
+                workflow_id,
+                operation: MerchantOperation::Cancel,
+                exact_action_profile: crate::merchant::PAYMENT_CANCEL_PROFILE.into(),
+                action_digest,
+                decision_receipt_digest,
+                policy_digest,
+                evaluator_semantic_id,
+                evaluator_semantic_version,
+                evidence_digest,
+                required_configuration_digest,
+                executed_configuration_digest,
+                stripe_account_id,
+                connect_account,
+                customer_id,
+                order_scope,
+                currency,
+                amount_minor: 0,
+                intents: Vec::new(),
+                idempotency_key_digest,
+                now,
+            },
+            authorization_workflow_id,
+            authorization_action_digest,
+            authorization_reservation_id,
+            authorization_release_minor,
+            cancel_payment_intent_id,
+            cancellation_reason,
+            cancel_pre_status,
+            cancel_amount_minor,
+        }
+    }
 }
 
 impl ReservePaymentCaptureRequest {
@@ -676,6 +817,89 @@ pub trait MerchantPaymentStore: Send + Sync {
         now: u64,
     ) -> Result<MerchantReservationRecord, MerchantStateError>;
 
+    /// Atomically claims one exact cancellation target.
+    fn reserve_cancel(&self, request: ReservePaymentCancelRequest) -> ReserveMerchantPaymentResult;
+
+    /// Claims the cancellation workflow.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when durable state is unavailable or the transition is invalid.
+    fn claim_cancel(
+        &self,
+        lease: &MerchantReservationLease,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError>;
+
+    /// Persists cancellation delivery intent.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when durable state is unavailable or the transition is invalid.
+    fn mark_cancel_attempting(
+        &self,
+        lease: &MerchantReservationLease,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError>;
+
+    /// Persists a normalized cancellation response before observation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when durable state is unavailable or the transition is invalid.
+    fn record_cancel_provider_accepted(
+        &self,
+        lease: &MerchantReservationLease,
+        provider: PaymentCancelProviderProjection,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError>;
+
+    /// Commits observed cancellation and atomically releases an optional hold.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error without partial state change when the terminal observation is invalid.
+    fn commit_cancel(
+        &self,
+        lease: &MerchantReservationLease,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError>;
+
+    /// Releases only the cancellation exclusivity claim after definite non-delivery.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when durable state is unavailable or the transition is invalid.
+    fn release_cancel(
+        &self,
+        lease: &MerchantReservationLease,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError>;
+
+    /// Retains the cancellation claim and optional hold after ambiguous delivery.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when durable state is unavailable or the transition is invalid.
+    fn mark_cancel_outcome_unknown(
+        &self,
+        lease: &MerchantReservationLease,
+        provider: Option<PaymentCancelProviderProjection>,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError>;
+
+    /// Records that capture won the cancellation race without releasing the hold.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error without partial state change when the provider conflict is invalid.
+    fn record_cancel_capture_conflict(
+        &self,
+        lease: &MerchantReservationLease,
+        provider: PaymentCancelProviderProjection,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError>;
+
     /// Claims a new reservation for one verified command.
     ///
     /// # Errors
@@ -851,6 +1075,19 @@ pub trait MerchantPaymentStore: Send + Sync {
         now: u64,
     ) -> Result<MerchantReservationRecord, MerchantStateError>;
 
+    /// Reconciles cancellation by retrieval and never repeats cancellation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error without partial state change when reconciliation is invalid.
+    fn reconcile_cancel(
+        &self,
+        workflow_id: &str,
+        action_digest: &DigestHex,
+        outcome: PaymentCancelReconciliationOutcome,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError>;
+
     /// Reads one durable workflow.
     ///
     /// # Errors
@@ -931,6 +1168,69 @@ impl<T: MerchantPaymentStore + ?Sized> MerchantPaymentStore for Arc<T> {
         now: u64,
     ) -> Result<MerchantReservationRecord, MerchantStateError> {
         (**self).mark_capture_outcome_unknown(lease, provider, now)
+    }
+
+    fn reserve_cancel(&self, request: ReservePaymentCancelRequest) -> ReserveMerchantPaymentResult {
+        (**self).reserve_cancel(request)
+    }
+
+    fn claim_cancel(
+        &self,
+        lease: &MerchantReservationLease,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        (**self).claim_cancel(lease, now)
+    }
+
+    fn mark_cancel_attempting(
+        &self,
+        lease: &MerchantReservationLease,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        (**self).mark_cancel_attempting(lease, now)
+    }
+
+    fn record_cancel_provider_accepted(
+        &self,
+        lease: &MerchantReservationLease,
+        provider: PaymentCancelProviderProjection,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        (**self).record_cancel_provider_accepted(lease, provider, now)
+    }
+
+    fn commit_cancel(
+        &self,
+        lease: &MerchantReservationLease,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        (**self).commit_cancel(lease, now)
+    }
+
+    fn release_cancel(
+        &self,
+        lease: &MerchantReservationLease,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        (**self).release_cancel(lease, now)
+    }
+
+    fn mark_cancel_outcome_unknown(
+        &self,
+        lease: &MerchantReservationLease,
+        provider: Option<PaymentCancelProviderProjection>,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        (**self).mark_cancel_outcome_unknown(lease, provider, now)
+    }
+
+    fn record_cancel_capture_conflict(
+        &self,
+        lease: &MerchantReservationLease,
+        provider: PaymentCancelProviderProjection,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        (**self).record_cancel_capture_conflict(lease, provider, now)
     }
 
     fn claim(
@@ -1063,6 +1363,16 @@ impl<T: MerchantPaymentStore + ?Sized> MerchantPaymentStore for Arc<T> {
         (**self).reconcile_capture(workflow_id, action_digest, outcome, now)
     }
 
+    fn reconcile_cancel(
+        &self,
+        workflow_id: &str,
+        action_digest: &DigestHex,
+        outcome: PaymentCancelReconciliationOutcome,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        (**self).reconcile_cancel(workflow_id, action_digest, outcome, now)
+    }
+
     fn get(
         &self,
         workflow_id: &str,
@@ -1130,6 +1440,114 @@ impl MerchantPaymentStore for InMemoryMerchantPaymentStore {
     ) -> Result<MerchantReservationRecord, MerchantStateError> {
         self.with_records(|records| {
             transition_capture_in(records, lease, PaymentCaptureTransition::Claim, None, now)
+        })
+    }
+
+    fn reserve_cancel(&self, request: ReservePaymentCancelRequest) -> ReserveMerchantPaymentResult {
+        let Ok(mut records) = self.records.lock() else {
+            return ReserveMerchantPaymentResult::Unavailable;
+        };
+        reserve_cancel_in(&mut records, request)
+    }
+
+    fn claim_cancel(
+        &self,
+        lease: &MerchantReservationLease,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        self.with_records(|records| {
+            transition_cancel_in(records, lease, PaymentCancelTransition::Claim, None, now)
+        })
+    }
+
+    fn mark_cancel_attempting(
+        &self,
+        lease: &MerchantReservationLease,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        self.with_records(|records| {
+            transition_cancel_in(
+                records,
+                lease,
+                PaymentCancelTransition::BeginAttempt,
+                None,
+                now,
+            )
+        })
+    }
+
+    fn record_cancel_provider_accepted(
+        &self,
+        lease: &MerchantReservationLease,
+        provider: PaymentCancelProviderProjection,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        self.with_records(|records| {
+            transition_cancel_in(
+                records,
+                lease,
+                PaymentCancelTransition::ProviderAccepted,
+                Some(provider),
+                now,
+            )
+        })
+    }
+
+    fn commit_cancel(
+        &self,
+        lease: &MerchantReservationLease,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        self.with_records(|records| commit_cancel_in(records, lease, false, now))
+    }
+
+    fn release_cancel(
+        &self,
+        lease: &MerchantReservationLease,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        self.with_records(|records| {
+            transition_cancel_in(
+                records,
+                lease,
+                PaymentCancelTransition::DefiniteFailureReleased,
+                None,
+                now,
+            )
+        })
+    }
+
+    fn mark_cancel_outcome_unknown(
+        &self,
+        lease: &MerchantReservationLease,
+        provider: Option<PaymentCancelProviderProjection>,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        self.with_records(|records| {
+            transition_cancel_in(
+                records,
+                lease,
+                PaymentCancelTransition::OutcomeBecameUnknown,
+                provider,
+                now,
+            )
+        })
+    }
+
+    fn record_cancel_capture_conflict(
+        &self,
+        lease: &MerchantReservationLease,
+        provider: PaymentCancelProviderProjection,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        self.with_records(|records| {
+            transition_cancel_in(
+                records,
+                lease,
+                PaymentCancelTransition::CaptureConflictObserved,
+                Some(provider),
+                now,
+            )
         })
     }
 
@@ -1433,6 +1851,18 @@ impl MerchantPaymentStore for InMemoryMerchantPaymentStore {
         })
     }
 
+    fn reconcile_cancel(
+        &self,
+        workflow_id: &str,
+        action_digest: &DigestHex,
+        outcome: PaymentCancelReconciliationOutcome,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        self.with_records(|records| {
+            reconcile_cancel_in(records, workflow_id, action_digest, outcome, now)
+        })
+    }
+
     fn get(
         &self,
         workflow_id: &str,
@@ -1515,6 +1945,11 @@ impl MerchantPaymentStore for PersistentMerchantPaymentStore {
 
     fn reserve(&self, request: ReserveMerchantPaymentRequest) -> ReserveMerchantPaymentResult {
         self.with_locked_records(|records| Ok(reserve_in(records, request)))
+            .unwrap_or(ReserveMerchantPaymentResult::Unavailable)
+    }
+
+    fn reserve_cancel(&self, request: ReservePaymentCancelRequest) -> ReserveMerchantPaymentResult {
+        self.with_locked_records(|records| Ok(reserve_cancel_in(records, request)))
             .unwrap_or(ReserveMerchantPaymentResult::Unavailable)
     }
 
@@ -1605,6 +2040,107 @@ impl MerchantPaymentStore for PersistentMerchantPaymentStore {
                 lease,
                 PaymentCaptureTransition::OutcomeBecameUnknown,
                 provider,
+                now,
+            )
+        })
+    }
+
+    fn claim_cancel(
+        &self,
+        lease: &MerchantReservationLease,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        self.with_locked_records(|records| {
+            transition_cancel_in(records, lease, PaymentCancelTransition::Claim, None, now)
+        })
+    }
+
+    fn mark_cancel_attempting(
+        &self,
+        lease: &MerchantReservationLease,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        self.with_locked_records(|records| {
+            transition_cancel_in(
+                records,
+                lease,
+                PaymentCancelTransition::BeginAttempt,
+                None,
+                now,
+            )
+        })
+    }
+
+    fn record_cancel_provider_accepted(
+        &self,
+        lease: &MerchantReservationLease,
+        provider: PaymentCancelProviderProjection,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        self.with_locked_records(|records| {
+            transition_cancel_in(
+                records,
+                lease,
+                PaymentCancelTransition::ProviderAccepted,
+                Some(provider),
+                now,
+            )
+        })
+    }
+
+    fn commit_cancel(
+        &self,
+        lease: &MerchantReservationLease,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        self.with_locked_records(|records| commit_cancel_in(records, lease, false, now))
+    }
+
+    fn release_cancel(
+        &self,
+        lease: &MerchantReservationLease,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        self.with_locked_records(|records| {
+            transition_cancel_in(
+                records,
+                lease,
+                PaymentCancelTransition::DefiniteFailureReleased,
+                None,
+                now,
+            )
+        })
+    }
+
+    fn mark_cancel_outcome_unknown(
+        &self,
+        lease: &MerchantReservationLease,
+        provider: Option<PaymentCancelProviderProjection>,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        self.with_locked_records(|records| {
+            transition_cancel_in(
+                records,
+                lease,
+                PaymentCancelTransition::OutcomeBecameUnknown,
+                provider,
+                now,
+            )
+        })
+    }
+
+    fn record_cancel_capture_conflict(
+        &self,
+        lease: &MerchantReservationLease,
+        provider: PaymentCancelProviderProjection,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        self.with_locked_records(|records| {
+            transition_cancel_in(
+                records,
+                lease,
+                PaymentCancelTransition::CaptureConflictObserved,
+                Some(provider),
                 now,
             )
         })
@@ -1836,6 +2372,18 @@ impl MerchantPaymentStore for PersistentMerchantPaymentStore {
         })
     }
 
+    fn reconcile_cancel(
+        &self,
+        workflow_id: &str,
+        action_digest: &DigestHex,
+        outcome: PaymentCancelReconciliationOutcome,
+        now: u64,
+    ) -> Result<MerchantReservationRecord, MerchantStateError> {
+        self.with_locked_records(|records| {
+            reconcile_cancel_in(records, workflow_id, action_digest, outcome, now)
+        })
+    }
+
     fn get(
         &self,
         workflow_id: &str,
@@ -1848,6 +2396,16 @@ fn reserve_capture_in(
     records: &mut BTreeMap<String, MerchantReservationRecord>,
     request: ReservePaymentCaptureRequest,
 ) -> ReserveMerchantPaymentResult {
+    if records.values().any(|record| {
+        record.operation == MerchantOperation::Cancel
+            && record.cancel_payment_intent_id.as_ref() == Some(&request.capture_payment_intent_id)
+            && !matches!(
+                record.state,
+                MerchantReservationState::Released | MerchantReservationState::ReconciledReleased
+            )
+    }) {
+        return ReserveMerchantPaymentResult::Unavailable;
+    }
     let authorization = match records.get(&request.authorization_workflow_id) {
         Some(record)
             if request.base.workflow_id != request.authorization_workflow_id
@@ -1911,6 +2469,137 @@ fn reserve_capture_in(
         _ => {}
     }
     result
+}
+
+#[allow(
+    clippy::too_many_lines,
+    reason = "the atomic profile-specific claim validation remains linear and auditable"
+)]
+fn reserve_cancel_in(
+    records: &mut BTreeMap<String, MerchantReservationRecord>,
+    request: ReservePaymentCancelRequest,
+) -> ReserveMerchantPaymentResult {
+    if let Some(existing) = records.get(&request.base.workflow_id) {
+        if existing.action_digest == request.base.action_digest
+            && existing.policy_digest == request.base.policy_digest
+            && existing.operation == MerchantOperation::Cancel
+            && existing.authorization_workflow_id == request.authorization_workflow_id
+            && existing.authorization_action_digest == request.authorization_action_digest
+            && existing.authorization_reservation_id == request.authorization_reservation_id
+            && existing.authorization_release_minor == request.authorization_release_minor
+            && existing.cancel_payment_intent_id.as_ref() == Some(&request.cancel_payment_intent_id)
+            && existing.cancellation_reason == Some(request.cancellation_reason)
+            && existing.cancel_pre_status.as_ref() == Some(&request.cancel_pre_status)
+            && existing.cancel_amount_minor == Some(request.cancel_amount_minor)
+        {
+            return ReserveMerchantPaymentResult::Replay(existing.clone());
+        }
+        return ReserveMerchantPaymentResult::Conflict(existing.clone());
+    }
+    let hold_fields = [
+        request.authorization_workflow_id.is_some(),
+        request.authorization_action_digest.is_some(),
+        request.authorization_reservation_id.is_some(),
+        request.authorization_release_minor.is_some(),
+    ];
+    let complete_hold = hold_fields.iter().all(|present| *present);
+    let no_hold = hold_fields.iter().all(|present| !*present);
+    let hold_shape = if request.cancel_pre_status == "requires_capture" {
+        complete_hold
+            && request
+                .authorization_release_minor
+                .is_some_and(|amount| amount > 0)
+    } else {
+        no_hold
+    };
+    if request.base.operation != MerchantOperation::Cancel
+        || request.base.exact_action_profile != crate::merchant::PAYMENT_CANCEL_PROFILE
+        || request.base.amount_minor != 0
+        || !request.base.intents.is_empty()
+        || request.cancel_amount_minor == 0
+        || !matches!(
+            request.cancel_pre_status.as_str(),
+            "requires_payment_method"
+                | "requires_capture"
+                | "requires_confirmation"
+                | "requires_action"
+        )
+        || !hold_shape
+    {
+        return ReserveMerchantPaymentResult::Unavailable;
+    }
+    if complete_hold {
+        let Some(authorization) = request
+            .authorization_workflow_id
+            .as_deref()
+            .and_then(|workflow| records.get(workflow))
+        else {
+            return ReserveMerchantPaymentResult::Unavailable;
+        };
+        if authorization.operation != MerchantOperation::Authorize
+            || !authorization.state.holds_active_authorization()
+            || Some(&authorization.action_digest) != request.authorization_action_digest.as_ref()
+            || Some(&authorization.reservation_id) != request.authorization_reservation_id.as_ref()
+            || Some(authorization.amount_minor) != request.authorization_release_minor
+            || authorization.amount_minor != request.cancel_amount_minor
+            || authorization.stripe_account_id != request.base.stripe_account_id
+            || authorization.connect_account != request.base.connect_account
+            || authorization.customer_id != request.base.customer_id
+            || authorization.order_scope != request.base.order_scope
+            || authorization.currency != request.base.currency
+            || authorization.provider.as_ref().is_none_or(|provider| {
+                provider.payment_intent_id != request.cancel_payment_intent_id
+            })
+        {
+            return ReserveMerchantPaymentResult::Unavailable;
+        }
+    }
+    if records.values().any(|record| {
+        let same_target = record.capture_payment_intent_id.as_ref()
+            == Some(&request.cancel_payment_intent_id)
+            || record.cancel_payment_intent_id.as_ref() == Some(&request.cancel_payment_intent_id);
+        same_target
+            && !matches!(
+                record.state,
+                MerchantReservationState::Released | MerchantReservationState::ReconciledReleased
+            )
+    }) {
+        return ReserveMerchantPaymentResult::Unavailable;
+    }
+    if records.len() >= MAX_RECORDS {
+        return ReserveMerchantPaymentResult::Unavailable;
+    }
+    let Ok(reservation_id) = request.base.reservation_id() else {
+        return ReserveMerchantPaymentResult::Unavailable;
+    };
+    let workflow_id = request.base.workflow_id.clone();
+    let action_digest = request.base.action_digest.clone();
+    let authorization_workflow_id = request.authorization_workflow_id;
+    let authorization_action_digest = request.authorization_action_digest;
+    let authorization_reservation_id = request.authorization_reservation_id;
+    let authorization_release_minor = request.authorization_release_minor;
+    let cancel_payment_intent_id = request.cancel_payment_intent_id;
+    let cancellation_reason = request.cancellation_reason;
+    let cancel_pre_status = request.cancel_pre_status;
+    let cancel_amount_minor = request.cancel_amount_minor;
+    let mut record = request.base.into_record(reservation_id.clone());
+    record.authorization_workflow_id = authorization_workflow_id;
+    record.authorization_action_digest = authorization_action_digest;
+    record.authorization_reservation_id = authorization_reservation_id;
+    record.authorization_release_minor = authorization_release_minor;
+    record.cancel_payment_intent_id = Some(cancel_payment_intent_id);
+    record.cancellation_reason = Some(cancellation_reason);
+    record.cancel_pre_status = Some(cancel_pre_status);
+    record.cancel_amount_minor = Some(cancel_amount_minor);
+    records.insert(workflow_id.clone(), record.clone());
+    ReserveMerchantPaymentResult::Reserved {
+        lease: MerchantReservationLease {
+            workflow_id,
+            reservation_id,
+            action_digest,
+        },
+        record,
+    }
 }
 
 fn reserve_in(
@@ -2282,6 +2971,169 @@ fn reconcile_capture_in(
     }
 }
 
+fn transition_cancel_in(
+    records: &mut BTreeMap<String, MerchantReservationRecord>,
+    lease: &MerchantReservationLease,
+    event: PaymentCancelTransition,
+    provider: Option<PaymentCancelProviderProjection>,
+    now: u64,
+) -> Result<MerchantReservationRecord, MerchantStateError> {
+    let current = records
+        .get(&lease.workflow_id)
+        .ok_or(MerchantStateError::NotFound)?;
+    if current.reservation_id != lease.reservation_id
+        || current.action_digest != lease.action_digest
+        || current.operation != MerchantOperation::Cancel
+    {
+        return Err(MerchantStateError::InvalidTransition);
+    }
+    let next = transition_payment_cancel(current.state, event)
+        .ok_or(MerchantStateError::InvalidTransition)?;
+    if let Some(projection) = &provider {
+        validate_cancel_projection(current, projection)?;
+        if matches!(
+            event,
+            PaymentCancelTransition::CaptureConflictObserved
+                | PaymentCancelTransition::ReconcileCaptureConflict
+        ) {
+            validate_cancel_capture_conflict_projection(projection)?;
+        }
+    }
+    let record = records
+        .get_mut(&lease.workflow_id)
+        .ok_or(MerchantStateError::NotFound)?;
+    if let Some(provider) = provider {
+        record.cancel_provider = Some(provider);
+    }
+    if event == PaymentCancelTransition::ProviderAccepted && record.cancel_provider.is_none() {
+        return Err(MerchantStateError::InvalidTransition);
+    }
+    record.state = next;
+    record.updated_at = now;
+    Ok(record.clone())
+}
+
+fn commit_cancel_in(
+    records: &mut BTreeMap<String, MerchantReservationRecord>,
+    lease: &MerchantReservationLease,
+    reconciled: bool,
+    now: u64,
+) -> Result<MerchantReservationRecord, MerchantStateError> {
+    let cancel = records
+        .get(&lease.workflow_id)
+        .ok_or(MerchantStateError::NotFound)?
+        .clone();
+    if cancel.reservation_id != lease.reservation_id
+        || cancel.action_digest != lease.action_digest
+        || cancel.operation != MerchantOperation::Cancel
+    {
+        return Err(MerchantStateError::InvalidTransition);
+    }
+    let event = if reconciled {
+        PaymentCancelTransition::ReconcileCanceled
+    } else {
+        PaymentCancelTransition::CancelObserved
+    };
+    let next = transition_payment_cancel(cancel.state, event)
+        .ok_or(MerchantStateError::InvalidTransition)?;
+    let provider = cancel
+        .cancel_provider
+        .as_ref()
+        .ok_or(MerchantStateError::InvalidTransition)?;
+    validate_committed_cancel_projection(&cancel, provider)?;
+    let authorization_workflow = cancel.authorization_workflow_id.clone();
+    if let Some(workflow) = authorization_workflow.as_deref() {
+        let authorization = records
+            .get(workflow)
+            .ok_or(MerchantStateError::InvalidTransition)?;
+        if authorization.operation != MerchantOperation::Authorize
+            || !authorization.state.holds_active_authorization()
+            || Some(&authorization.action_digest) != cancel.authorization_action_digest.as_ref()
+            || Some(&authorization.reservation_id) != cancel.authorization_reservation_id.as_ref()
+            || Some(authorization.amount_minor) != cancel.authorization_release_minor
+            || Some(authorization.amount_minor) != cancel.cancel_amount_minor
+            || authorization.stripe_account_id != cancel.stripe_account_id
+            || authorization.connect_account != cancel.connect_account
+            || authorization.customer_id != cancel.customer_id
+            || authorization.order_scope != cancel.order_scope
+            || authorization.currency != cancel.currency
+        {
+            return Err(MerchantStateError::InvalidTransition);
+        }
+    }
+    let cancel_record = records
+        .get_mut(&lease.workflow_id)
+        .ok_or(MerchantStateError::NotFound)?;
+    cancel_record.state = next;
+    cancel_record.updated_at = now;
+    let output = cancel_record.clone();
+    if let Some(workflow) = authorization_workflow {
+        let authorization = records
+            .get_mut(&workflow)
+            .ok_or(MerchantStateError::InvalidTransition)?;
+        authorization.state = MerchantReservationState::AuthorizationReleasedByCancel;
+        authorization.updated_at = now;
+    }
+    Ok(output)
+}
+
+fn reconcile_cancel_in(
+    records: &mut BTreeMap<String, MerchantReservationRecord>,
+    workflow_id: &str,
+    action_digest: &DigestHex,
+    outcome: PaymentCancelReconciliationOutcome,
+    now: u64,
+) -> Result<MerchantReservationRecord, MerchantStateError> {
+    let cancel = records
+        .get(workflow_id)
+        .ok_or(MerchantStateError::NotFound)?
+        .clone();
+    if &cancel.action_digest != action_digest || cancel.operation != MerchantOperation::Cancel {
+        return Err(MerchantStateError::InvalidTransition);
+    }
+    let lease = MerchantReservationLease {
+        workflow_id: workflow_id.into(),
+        reservation_id: cancel.reservation_id.clone(),
+        action_digest: action_digest.clone(),
+    };
+    match outcome {
+        PaymentCancelReconciliationOutcome::Canceled(provider) => {
+            validate_committed_cancel_projection(&cancel, &provider)?;
+            records
+                .get_mut(workflow_id)
+                .ok_or(MerchantStateError::NotFound)?
+                .cancel_provider = Some(provider);
+            commit_cancel_in(records, &lease, true, now)
+        }
+        PaymentCancelReconciliationOutcome::Released(provider) => {
+            if let Some(provider) = &provider {
+                validate_released_cancel_projection(&cancel, provider)?;
+            }
+            transition_cancel_in(
+                records,
+                &lease,
+                PaymentCancelTransition::ReconcileReleased,
+                provider,
+                now,
+            )
+        }
+        PaymentCancelReconciliationOutcome::CaptureConflict(provider) => transition_cancel_in(
+            records,
+            &lease,
+            PaymentCancelTransition::ReconcileCaptureConflict,
+            Some(provider),
+            now,
+        ),
+        PaymentCancelReconciliationOutcome::OutcomeUnknown(provider) => transition_cancel_in(
+            records,
+            &lease,
+            PaymentCancelTransition::ReconcileStillUnknown,
+            provider,
+            now,
+        ),
+    }
+}
+
 fn transition_authorization_in(
     records: &mut BTreeMap<String, MerchantReservationRecord>,
     lease: &MerchantReservationLease,
@@ -2423,6 +3275,73 @@ fn validate_committed_capture_projection(
     Ok(())
 }
 
+fn validate_cancel_projection(
+    cancel: &MerchantReservationRecord,
+    provider: &PaymentCancelProviderProjection,
+) -> Result<(), MerchantStateError> {
+    if Some(&provider.payment_intent_id) != cancel.cancel_payment_intent_id.as_ref()
+        || Some(provider.amount_minor) != cancel.cancel_amount_minor
+        || provider.currency != cancel.currency
+        || provider.amount_capturable_minor > provider.amount_minor
+        || provider.amount_received_minor > provider.amount_minor
+        || provider.status.is_empty()
+        || provider.status.len() > 64
+        || !matches!(
+            provider.source.as_str(),
+            "cancel-response" | "retrieve" | "webhook"
+        )
+        || provider
+            .stripe_request_id
+            .as_ref()
+            .is_some_and(|value| !valid_request_id(value))
+    {
+        return Err(MerchantStateError::InvalidTransition);
+    }
+    Ok(())
+}
+
+fn validate_committed_cancel_projection(
+    cancel: &MerchantReservationRecord,
+    provider: &PaymentCancelProviderProjection,
+) -> Result<(), MerchantStateError> {
+    validate_cancel_projection(cancel, provider)?;
+    if provider.status != "canceled"
+        || provider.amount_capturable_minor != 0
+        || provider.amount_received_minor != 0
+        || provider.cancellation_reason != cancel.cancellation_reason
+        || provider.charge_captured == Some(true)
+    {
+        return Err(MerchantStateError::InvalidTransition);
+    }
+    Ok(())
+}
+
+fn validate_released_cancel_projection(
+    cancel: &MerchantReservationRecord,
+    provider: &PaymentCancelProviderProjection,
+) -> Result<(), MerchantStateError> {
+    validate_cancel_projection(cancel, provider)?;
+    let expected_capturable = cancel.authorization_release_minor.unwrap_or(0);
+    if Some(provider.status.as_str()) != cancel.cancel_pre_status.as_deref()
+        || provider.amount_capturable_minor != expected_capturable
+        || provider.amount_received_minor != 0
+        || provider.cancellation_reason.is_some()
+        || provider.charge_captured == Some(true)
+    {
+        return Err(MerchantStateError::InvalidTransition);
+    }
+    Ok(())
+}
+
+fn validate_cancel_capture_conflict_projection(
+    provider: &PaymentCancelProviderProjection,
+) -> Result<(), MerchantStateError> {
+    if provider.status != "succeeded" && provider.charge_captured != Some(true) {
+        return Err(MerchantStateError::InvalidTransition);
+    }
+    Ok(())
+}
+
 fn validate_provider(
     record: &MerchantReservationRecord,
     provider: &MerchantProviderProjection,
@@ -2519,41 +3438,66 @@ fn valid_record(record: &MerchantReservationRecord) -> bool {
     };
     let identity_matches =
         canonical_json(&identity).is_ok_and(|bytes| sha256(&bytes) == record.reservation_id);
-    let provider_shape = if record.operation == MerchantOperation::Capture {
-        record.provider.is_none()
-            && match record.state {
-                MerchantReservationState::ProviderAccepted
-                | MerchantReservationState::CaptureCommitted
-                | MerchantReservationState::ReconciledCaptureCommitted => {
-                    record.capture_provider.is_some()
+    let provider_shape = match record.operation {
+        MerchantOperation::Capture => {
+            record.provider.is_none()
+                && record.cancel_provider.is_none()
+                && match record.state {
+                    MerchantReservationState::ProviderAccepted
+                    | MerchantReservationState::CaptureCommitted
+                    | MerchantReservationState::ReconciledCaptureCommitted => {
+                        record.capture_provider.is_some()
+                    }
+                    MerchantReservationState::Reserved
+                    | MerchantReservationState::Claimed
+                    | MerchantReservationState::Attempting
+                    | MerchantReservationState::Released => record.capture_provider.is_none(),
+                    MerchantReservationState::OutcomeUnknown
+                    | MerchantReservationState::ReconciledReleased => true,
+                    _ => false,
                 }
-                MerchantReservationState::Reserved
-                | MerchantReservationState::Claimed
-                | MerchantReservationState::Attempting
-                | MerchantReservationState::Released => record.capture_provider.is_none(),
-                MerchantReservationState::OutcomeUnknown
-                | MerchantReservationState::ReconciledReleased => true,
-                _ => false,
-            }
-    } else {
-        record.capture_provider.is_none()
-            && match record.state {
-                MerchantReservationState::ProviderAccepted
-                | MerchantReservationState::Committed
-                | MerchantReservationState::ReconciledCommitted
-                | MerchantReservationState::Authorized
-                | MerchantReservationState::ReconciledAuthorized
-                | MerchantReservationState::AuthorizationReleasedByCapture => {
-                    record.provider.is_some()
+        }
+        MerchantOperation::Cancel => {
+            record.provider.is_none()
+                && record.capture_provider.is_none()
+                && match record.state {
+                    MerchantReservationState::ProviderAccepted
+                    | MerchantReservationState::CancelCommitted
+                    | MerchantReservationState::ReconciledCancelCommitted
+                    | MerchantReservationState::CancelCaptureConflict => {
+                        record.cancel_provider.is_some()
+                    }
+                    MerchantReservationState::Reserved
+                    | MerchantReservationState::Claimed
+                    | MerchantReservationState::Attempting
+                    | MerchantReservationState::Released => record.cancel_provider.is_none(),
+                    MerchantReservationState::OutcomeUnknown
+                    | MerchantReservationState::ReconciledReleased => true,
+                    _ => false,
                 }
-                MerchantReservationState::Reserved
-                | MerchantReservationState::Claimed
-                | MerchantReservationState::Attempting
-                | MerchantReservationState::Released => record.provider.is_none(),
-                MerchantReservationState::OutcomeUnknown
-                | MerchantReservationState::ReconciledReleased => true,
-                _ => false,
-            }
+        }
+        MerchantOperation::Collect | MerchantOperation::Authorize => {
+            record.capture_provider.is_none()
+                && record.cancel_provider.is_none()
+                && match record.state {
+                    MerchantReservationState::ProviderAccepted
+                    | MerchantReservationState::Committed
+                    | MerchantReservationState::ReconciledCommitted
+                    | MerchantReservationState::Authorized
+                    | MerchantReservationState::ReconciledAuthorized
+                    | MerchantReservationState::AuthorizationReleasedByCapture
+                    | MerchantReservationState::AuthorizationReleasedByCancel => {
+                        record.provider.is_some()
+                    }
+                    MerchantReservationState::Reserved
+                    | MerchantReservationState::Claimed
+                    | MerchantReservationState::Attempting
+                    | MerchantReservationState::Released => record.provider.is_none(),
+                    MerchantReservationState::OutcomeUnknown
+                    | MerchantReservationState::ReconciledReleased => true,
+                    _ => false,
+                }
+        }
     };
     let operation_profile_matches = matches!(
         (record.operation, record.exact_action_profile.as_str()),
@@ -2566,6 +3510,9 @@ fn valid_record(record: &MerchantReservationRecord) -> bool {
         ) | (
             MerchantOperation::Capture,
             crate::merchant::PAYMENT_CAPTURE_PROFILE
+        ) | (
+            MerchantOperation::Cancel,
+            crate::merchant::PAYMENT_CANCEL_PROFILE
         )
     );
     let lifecycle_matches = match record.operation {
@@ -2574,8 +3521,12 @@ fn valid_record(record: &MerchantReservationRecord) -> bool {
             MerchantReservationState::Authorized
                 | MerchantReservationState::ReconciledAuthorized
                 | MerchantReservationState::AuthorizationReleasedByCapture
+                | MerchantReservationState::AuthorizationReleasedByCancel
                 | MerchantReservationState::CaptureCommitted
                 | MerchantReservationState::ReconciledCaptureCommitted
+                | MerchantReservationState::CancelCommitted
+                | MerchantReservationState::ReconciledCancelCommitted
+                | MerchantReservationState::CancelCaptureConflict
         ),
         MerchantOperation::Authorize => !matches!(
             record.state,
@@ -2583,6 +3534,9 @@ fn valid_record(record: &MerchantReservationRecord) -> bool {
                 | MerchantReservationState::ReconciledCommitted
                 | MerchantReservationState::CaptureCommitted
                 | MerchantReservationState::ReconciledCaptureCommitted
+                | MerchantReservationState::CancelCommitted
+                | MerchantReservationState::ReconciledCancelCommitted
+                | MerchantReservationState::CancelCaptureConflict
         ),
         MerchantOperation::Capture => !matches!(
             record.state,
@@ -2591,10 +3545,24 @@ fn valid_record(record: &MerchantReservationRecord) -> bool {
                 | MerchantReservationState::Authorized
                 | MerchantReservationState::ReconciledAuthorized
                 | MerchantReservationState::AuthorizationReleasedByCapture
+                | MerchantReservationState::AuthorizationReleasedByCancel
+                | MerchantReservationState::CancelCommitted
+                | MerchantReservationState::ReconciledCancelCommitted
+                | MerchantReservationState::CancelCaptureConflict
         ),
-        MerchantOperation::Cancel => false,
+        MerchantOperation::Cancel => !matches!(
+            record.state,
+            MerchantReservationState::Committed
+                | MerchantReservationState::ReconciledCommitted
+                | MerchantReservationState::Authorized
+                | MerchantReservationState::ReconciledAuthorized
+                | MerchantReservationState::AuthorizationReleasedByCapture
+                | MerchantReservationState::AuthorizationReleasedByCancel
+                | MerchantReservationState::CaptureCommitted
+                | MerchantReservationState::ReconciledCaptureCommitted
+        ),
     };
-    let capture_links_match = if record.operation == MerchantOperation::Capture {
+    let operation_links_match = if record.operation == MerchantOperation::Capture {
         record.authorization_workflow_id.is_some()
             && record.authorization_action_digest.is_some()
             && record.authorization_reservation_id.is_some()
@@ -2603,6 +3571,41 @@ fn valid_record(record: &MerchantReservationRecord) -> bool {
                 .is_some_and(|amount| amount > 0)
             && record.capture_payment_intent_id.is_some()
             && record.capture_charge_id.is_some()
+            && record.cancel_payment_intent_id.is_none()
+            && record.cancellation_reason.is_none()
+            && record.cancel_pre_status.is_none()
+            && record.cancel_amount_minor.is_none()
+    } else if record.operation == MerchantOperation::Cancel {
+        let hold_fields = [
+            record.authorization_workflow_id.is_some(),
+            record.authorization_action_digest.is_some(),
+            record.authorization_reservation_id.is_some(),
+            record.authorization_release_minor.is_some(),
+        ];
+        let complete_hold = hold_fields.iter().all(|present| *present);
+        let no_hold = hold_fields.iter().all(|present| !*present);
+        record.capture_payment_intent_id.is_none()
+            && record.capture_charge_id.is_none()
+            && record.cancel_payment_intent_id.is_some()
+            && record.cancellation_reason.is_some()
+            && record.cancel_amount_minor.is_some_and(|amount| amount > 0)
+            && record.cancel_pre_status.as_deref().is_some_and(|status| {
+                matches!(
+                    status,
+                    "requires_payment_method"
+                        | "requires_capture"
+                        | "requires_confirmation"
+                        | "requires_action"
+                )
+            })
+            && if record.cancel_pre_status.as_deref() == Some("requires_capture") {
+                complete_hold
+                    && record
+                        .authorization_release_minor
+                        .is_some_and(|amount| amount > 0)
+            } else {
+                no_hold
+            }
     } else {
         record.authorization_workflow_id.is_none()
             && record.authorization_action_digest.is_none()
@@ -2610,21 +3613,30 @@ fn valid_record(record: &MerchantReservationRecord) -> bool {
             && record.authorization_release_minor.is_none()
             && record.capture_payment_intent_id.is_none()
             && record.capture_charge_id.is_none()
+            && record.cancel_payment_intent_id.is_none()
+            && record.cancellation_reason.is_none()
+            && record.cancel_pre_status.is_none()
+            && record.cancel_amount_minor.is_none()
+    };
+    let amount_shape = if record.operation == MerchantOperation::Cancel {
+        record.amount_minor == 0 && record.intents.is_empty()
+    } else {
+        record.amount_minor > 0
+            && !record.intents.is_empty()
+            && record.intents.iter().all(|intent| {
+                intent.operation == record.operation
+                    && intent.currency == record.currency
+                    && intent.amount_minor == record.amount_minor
+            })
     };
     record.schema == RESERVATION_SCHEMA
         && identity_matches
         && operation_profile_matches
         && lifecycle_matches
-        && capture_links_match
+        && operation_links_match
         && provider_shape
         && (8..=96).contains(&record.workflow_id.len())
-        && record.amount_minor > 0
-        && !record.intents.is_empty()
-        && record.intents.iter().all(|intent| {
-            intent.operation == record.operation
-                && intent.currency == record.currency
-                && intent.amount_minor == record.amount_minor
-        })
+        && amount_shape
 }
 
 fn persist_records(
@@ -2741,6 +3753,46 @@ mod tests {
             idempotency_key_digest: sha256(format!("idempotency-{workflow}").as_bytes()),
             now: NOW,
         }
+    }
+
+    fn held_authorization(
+        store: &InMemoryMerchantPaymentStore,
+        workflow: &str,
+        payment_intent: &PaymentIntentId,
+        charge: &ChargeId,
+    ) -> MerchantReservationRecord {
+        let policy = merchant_policy(MerchantOperation::Authorize, 1_000, 1_000);
+        let ReserveMerchantPaymentResult::Reserved { lease, .. } = store.reserve(request(
+            &policy,
+            MerchantOperation::Authorize,
+            workflow,
+            1_000,
+        )) else {
+            panic!("authorization reservation expected");
+        };
+        store.claim_authorization(&lease, NOW).unwrap();
+        store.mark_authorization_attempting(&lease, NOW).unwrap();
+        store
+            .record_authorization_provider_accepted(
+                &lease,
+                MerchantProviderProjection {
+                    payment_intent_id: payment_intent.clone(),
+                    charge_id: Some(charge.clone()),
+                    status: "requires_capture".into(),
+                    amount_minor: 1_000,
+                    currency: Currency::parse("usd").unwrap(),
+                    amount_capturable_minor: 1_000,
+                    amount_received_minor: 0,
+                    capture_before: Some(NOW + 3_600),
+                    stripe_request_id: Some("req_concurrent_authorization".into()),
+                    response_digest: sha256(b"concurrent-authorization-provider"),
+                    observed_at: NOW,
+                    source: "retrieve".into(),
+                },
+                NOW,
+            )
+            .unwrap();
+        store.commit_authorization(&lease, NOW).unwrap()
     }
 
     #[test]
@@ -3147,5 +4199,362 @@ mod tests {
             0
         );
         assert_eq!(capture_snapshot.usages[0].committed_minor, 500);
+    }
+
+    #[test]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the test proves the complete atomic cancellation and hold-release path"
+    )]
+    fn cancellation_claim_excludes_capture_and_terminal_observation_releases_the_hold() {
+        let authorization_policy = merchant_policy(MerchantOperation::Authorize, 1_000, 1_000);
+        let capture_policy = merchant_policy(MerchantOperation::Capture, 1_000, 1_000);
+        let store = InMemoryMerchantPaymentStore::default();
+        let authorization_workflow = "merchant-cancel-source-0001";
+        let ReserveMerchantPaymentResult::Reserved {
+            lease: authorization_lease,
+            ..
+        } = store.reserve(request(
+            &authorization_policy,
+            MerchantOperation::Authorize,
+            authorization_workflow,
+            1_000,
+        ))
+        else {
+            panic!("authorization reservation expected");
+        };
+        store
+            .claim_authorization(&authorization_lease, NOW)
+            .unwrap();
+        store
+            .mark_authorization_attempting(&authorization_lease, NOW)
+            .unwrap();
+        let payment_intent = PaymentIntentId::parse("pi_cancel_state_test").unwrap();
+        let charge = ChargeId::parse("ch_cancel_state_test").unwrap();
+        store
+            .record_authorization_provider_accepted(
+                &authorization_lease,
+                MerchantProviderProjection {
+                    payment_intent_id: payment_intent.clone(),
+                    charge_id: Some(charge.clone()),
+                    status: "requires_capture".into(),
+                    amount_minor: 1_000,
+                    currency: Currency::parse("usd").unwrap(),
+                    amount_capturable_minor: 1_000,
+                    amount_received_minor: 0,
+                    capture_before: Some(NOW + 3_600),
+                    stripe_request_id: Some("req_cancel_authorize_test".into()),
+                    response_digest: sha256(b"cancel-source-provider"),
+                    observed_at: NOW,
+                    source: "retrieve".into(),
+                },
+                NOW,
+            )
+            .unwrap();
+        let authorization = store
+            .commit_authorization(&authorization_lease, NOW)
+            .unwrap();
+        let cancel_request = ReservePaymentCancelRequest::new(
+            "merchant-payment-cancel-0001".into(),
+            sha256(b"cancel-action"),
+            sha256(b"cancel-decision"),
+            merchant_policy(MerchantOperation::Cancel, 0, 0)
+                .digest()
+                .unwrap(),
+            MERCHANT_EVALUATOR_ID.into(),
+            MERCHANT_EVALUATOR_VERSION,
+            sha256(b"cancel-evidence"),
+            sha256(b"cancel-configuration"),
+            sha256(b"cancel-configuration"),
+            authorization.stripe_account_id().clone(),
+            authorization.connect_account().clone(),
+            authorization.customer_id().clone(),
+            authorization.order_scope().into(),
+            authorization.currency().clone(),
+            sha256(b"cancel-idempotency"),
+            Some(authorization_workflow.into()),
+            Some(authorization.action_digest().clone()),
+            Some(authorization.reservation_id().clone()),
+            Some(authorization.amount_minor()),
+            payment_intent.clone(),
+            PaymentCancellationReason::RequestedByCustomer,
+            "requires_capture".into(),
+            authorization.amount_minor(),
+            NOW,
+        );
+        let ReserveMerchantPaymentResult::Reserved {
+            lease: cancel_lease,
+            ..
+        } = store.reserve_cancel(cancel_request)
+        else {
+            panic!("cancellation claim expected");
+        };
+
+        let budget = &capture_policy.aggregate_budgets()[0];
+        let competing_capture = ReservePaymentCaptureRequest::new(
+            "merchant-competing-capture-0001".into(),
+            sha256(b"competing-capture-action"),
+            sha256(b"competing-capture-decision"),
+            capture_policy.digest().unwrap(),
+            MERCHANT_EVALUATOR_ID.into(),
+            MERCHANT_EVALUATOR_VERSION,
+            sha256(b"competing-capture-evidence"),
+            sha256(b"capture-configuration"),
+            sha256(b"capture-configuration"),
+            authorization.stripe_account_id().clone(),
+            authorization.connect_account().clone(),
+            authorization.customer_id().clone(),
+            authorization.order_scope().into(),
+            authorization.currency().clone(),
+            1_000,
+            vec![MerchantReservationIntent {
+                budget_id: budget.budget_id().into(),
+                operation: MerchantOperation::Capture,
+                currency: authorization.currency().clone(),
+                window: budget.window().identity(NOW).unwrap(),
+                limit_minor: budget.limit_minor(),
+                amount_minor: 1_000,
+                available_before_minor: budget.limit_minor(),
+            }],
+            sha256(b"competing-capture-idempotency"),
+            authorization_workflow.into(),
+            authorization.action_digest().clone(),
+            authorization.reservation_id().clone(),
+            authorization.amount_minor(),
+            payment_intent.clone(),
+            charge.clone(),
+            NOW,
+        );
+        assert!(matches!(
+            store.reserve_capture(competing_capture),
+            ReserveMerchantPaymentResult::Unavailable
+        ));
+
+        store.claim_cancel(&cancel_lease, NOW).unwrap();
+        store.mark_cancel_attempting(&cancel_lease, NOW).unwrap();
+        store
+            .record_cancel_provider_accepted(
+                &cancel_lease,
+                PaymentCancelProviderProjection {
+                    payment_intent_id: payment_intent,
+                    latest_charge_id: Some(charge),
+                    status: "canceled".into(),
+                    cancellation_reason: Some(PaymentCancellationReason::RequestedByCustomer),
+                    amount_minor: 1_000,
+                    amount_capturable_minor: 0,
+                    amount_received_minor: 0,
+                    currency: Currency::parse("usd").unwrap(),
+                    charge_captured: Some(false),
+                    stripe_request_id: Some("req_cancel_state_test".into()),
+                    response_digest: sha256(b"cancel-provider"),
+                    observed_at: NOW,
+                    source: "retrieve".into(),
+                },
+                NOW,
+            )
+            .unwrap();
+        let canceled = store.commit_cancel(&cancel_lease, NOW).unwrap();
+        assert_eq!(canceled.state(), MerchantReservationState::CancelCommitted);
+        assert_eq!(
+            store.get(authorization_workflow).unwrap().unwrap().state(),
+            MerchantReservationState::AuthorizationReleasedByCancel
+        );
+    }
+
+    #[test]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the test constructs both complete profile-specific race requests"
+    )]
+    fn concurrent_capture_and_cancel_reservations_are_mutually_exclusive() {
+        let store = Arc::new(InMemoryMerchantPaymentStore::default());
+        let payment_intent = PaymentIntentId::parse("pi_cancel_capture_race").unwrap();
+        let charge = ChargeId::parse("ch_cancel_capture_race").unwrap();
+        let authorization_workflow = "merchant-race-authorization-0001";
+        let authorization =
+            held_authorization(&store, authorization_workflow, &payment_intent, &charge);
+        let capture_policy = merchant_policy(MerchantOperation::Capture, 1_000, 1_000);
+        let capture_budget = &capture_policy.aggregate_budgets()[0];
+        let capture_request = ReservePaymentCaptureRequest::new(
+            "merchant-race-capture-0001".into(),
+            sha256(b"race-capture-action"),
+            sha256(b"race-capture-decision"),
+            capture_policy.digest().unwrap(),
+            MERCHANT_EVALUATOR_ID.into(),
+            MERCHANT_EVALUATOR_VERSION,
+            sha256(b"race-capture-evidence"),
+            sha256(b"capture-configuration"),
+            sha256(b"capture-configuration"),
+            authorization.stripe_account_id().clone(),
+            authorization.connect_account().clone(),
+            authorization.customer_id().clone(),
+            authorization.order_scope().into(),
+            authorization.currency().clone(),
+            1_000,
+            vec![MerchantReservationIntent {
+                budget_id: capture_budget.budget_id().into(),
+                operation: MerchantOperation::Capture,
+                currency: authorization.currency().clone(),
+                window: capture_budget.window().identity(NOW).unwrap(),
+                limit_minor: capture_budget.limit_minor(),
+                amount_minor: 1_000,
+                available_before_minor: capture_budget.limit_minor(),
+            }],
+            sha256(b"race-capture-idempotency"),
+            authorization_workflow.into(),
+            authorization.action_digest().clone(),
+            authorization.reservation_id().clone(),
+            authorization.amount_minor(),
+            payment_intent.clone(),
+            charge,
+            NOW,
+        );
+        let cancel_request = ReservePaymentCancelRequest::new(
+            "merchant-race-cancel-0001".into(),
+            sha256(b"race-cancel-action"),
+            sha256(b"race-cancel-decision"),
+            merchant_policy(MerchantOperation::Cancel, 0, 0)
+                .digest()
+                .unwrap(),
+            MERCHANT_EVALUATOR_ID.into(),
+            MERCHANT_EVALUATOR_VERSION,
+            sha256(b"race-cancel-evidence"),
+            sha256(b"cancel-configuration"),
+            sha256(b"cancel-configuration"),
+            authorization.stripe_account_id().clone(),
+            authorization.connect_account().clone(),
+            authorization.customer_id().clone(),
+            authorization.order_scope().into(),
+            authorization.currency().clone(),
+            sha256(b"race-cancel-idempotency"),
+            Some(authorization_workflow.into()),
+            Some(authorization.action_digest().clone()),
+            Some(authorization.reservation_id().clone()),
+            Some(authorization.amount_minor()),
+            payment_intent,
+            PaymentCancellationReason::RequestedByCustomer,
+            "requires_capture".into(),
+            authorization.amount_minor(),
+            NOW,
+        );
+        let barrier = Arc::new(Barrier::new(3));
+        let capture_store = Arc::clone(&store);
+        let capture_barrier = Arc::clone(&barrier);
+        let capture = thread::spawn(move || {
+            capture_barrier.wait();
+            capture_store.reserve_capture(capture_request)
+        });
+        let cancel_store = Arc::clone(&store);
+        let cancel_barrier = Arc::clone(&barrier);
+        let cancel = thread::spawn(move || {
+            cancel_barrier.wait();
+            cancel_store.reserve_cancel(cancel_request)
+        });
+        barrier.wait();
+        let outcomes = [capture.join().unwrap(), cancel.join().unwrap()];
+        assert_eq!(
+            outcomes
+                .iter()
+                .filter(|outcome| matches!(outcome, ReserveMerchantPaymentResult::Reserved { .. }))
+                .count(),
+            1
+        );
+        assert_eq!(
+            outcomes
+                .iter()
+                .filter(|outcome| matches!(outcome, ReserveMerchantPaymentResult::Unavailable))
+                .count(),
+            1
+        );
+        assert_eq!(
+            store.get(authorization_workflow).unwrap().unwrap().state(),
+            MerchantReservationState::Authorized
+        );
+    }
+
+    #[test]
+    fn released_cancel_reconciliation_requires_the_exact_unchanged_provider_state() {
+        let store = InMemoryMerchantPaymentStore::default();
+        let payment_intent = PaymentIntentId::parse("pi_cancel_release_validation").unwrap();
+        let cancel_request = ReservePaymentCancelRequest::new(
+            "merchant-cancel-release-validation-0001".into(),
+            sha256(b"cancel-release-action"),
+            sha256(b"cancel-release-decision"),
+            merchant_policy(MerchantOperation::Cancel, 0, 0)
+                .digest()
+                .unwrap(),
+            MERCHANT_EVALUATOR_ID.into(),
+            MERCHANT_EVALUATOR_VERSION,
+            sha256(b"cancel-release-evidence"),
+            sha256(b"cancel-configuration"),
+            sha256(b"cancel-configuration"),
+            StripeAccountId::parse("acct_authsdemo01").unwrap(),
+            MerchantConnectAccount::Platform,
+            CustomerId::parse("cus_authsdemo00000001").unwrap(),
+            "order-cancel-release-validation".into(),
+            Currency::parse("usd").unwrap(),
+            sha256(b"cancel-release-idempotency"),
+            None,
+            None,
+            None,
+            None,
+            payment_intent.clone(),
+            PaymentCancellationReason::Duplicate,
+            "requires_confirmation".into(),
+            1_000,
+            NOW,
+        );
+        let ReserveMerchantPaymentResult::Reserved { lease, .. } =
+            store.reserve_cancel(cancel_request)
+        else {
+            panic!("cancellation claim expected");
+        };
+        store.claim_cancel(&lease, NOW).unwrap();
+        store.mark_cancel_attempting(&lease, NOW).unwrap();
+        let unknown = store
+            .mark_cancel_outcome_unknown(&lease, None, NOW)
+            .unwrap();
+        let projection = PaymentCancelProviderProjection {
+            payment_intent_id: payment_intent,
+            latest_charge_id: None,
+            status: "requires_action".into(),
+            cancellation_reason: None,
+            amount_minor: 1_000,
+            amount_capturable_minor: 0,
+            amount_received_minor: 0,
+            currency: Currency::parse("usd").unwrap(),
+            charge_captured: None,
+            stripe_request_id: Some("req_cancel_release_validation".into()),
+            response_digest: sha256(b"cancel-release-provider"),
+            observed_at: NOW,
+            source: "retrieve".into(),
+        };
+        assert_eq!(
+            store.reconcile_cancel(
+                lease.workflow_id(),
+                unknown.action_digest(),
+                PaymentCancelReconciliationOutcome::Released(Some(projection.clone())),
+                NOW + 1,
+            ),
+            Err(MerchantStateError::InvalidTransition)
+        );
+        assert_eq!(
+            store.get(lease.workflow_id()).unwrap().unwrap().state(),
+            MerchantReservationState::OutcomeUnknown
+        );
+        let mut unchanged = projection;
+        unchanged.status = "requires_confirmation".into();
+        let released = store
+            .reconcile_cancel(
+                lease.workflow_id(),
+                unknown.action_digest(),
+                PaymentCancelReconciliationOutcome::Released(Some(unchanged)),
+                NOW + 2,
+            )
+            .unwrap();
+        assert_eq!(
+            released.state(),
+            MerchantReservationState::ReconciledReleased
+        );
     }
 }

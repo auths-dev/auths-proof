@@ -50,9 +50,10 @@ pub use executor::VerifiedRefundCommand;
 pub use merchant::*;
 pub use ports::{
     Clock, CredentialProvider, PaymentAuthorizeCredential, PaymentAuthorizeCredentialScope,
-    PaymentCaptureCredential, PaymentCaptureCredentialScope, PaymentCollectCredential,
-    PaymentCollectCredentialScope, PortError, ProofDecision, ProofVerifier, ReceiptSink,
-    RefundCredentialScope, StripeCredential, StripeGateway, StripeRefundCredential,
+    PaymentCancelCredential, PaymentCancelCredentialScope, PaymentCaptureCredential,
+    PaymentCaptureCredentialScope, PaymentCollectCredential, PaymentCollectCredentialScope,
+    PortError, ProofDecision, ProofVerifier, ReceiptSink, RefundCredentialScope, StripeCredential,
+    StripeGateway, StripeRefundCredential,
 };
 pub use profile::{StripeRefundCommand, StripeRefundProfile};
 pub use receipts::{

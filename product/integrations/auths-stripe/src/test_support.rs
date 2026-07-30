@@ -211,6 +211,10 @@ pub fn bounded_action(
     .unwrap()
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "the shared test policy keeps every bounded dimension explicit"
+)]
 pub fn merchant_policy(
     operation: crate::merchant::MerchantOperation,
     operation_limit: u64,
@@ -223,6 +227,7 @@ pub fn merchant_policy(
     use crate::types::{CustomerId, PaymentMethodId};
 
     let currency = Currency::parse("usd").unwrap();
+    let money_operation = operation != crate::merchant::MerchantOperation::Cancel;
     StripeBoundedMerchantPaymentPolicyV1::new(StripeBoundedMerchantPaymentPolicyInput {
         policy_id: "merchant-payments-v1".into(),
         valid_from: NOW - 60,
@@ -249,29 +254,57 @@ pub fn merchant_policy(
         } else {
             Vec::new()
         },
-        allowed_currencies: vec![currency.clone()],
+        allowed_currencies: money_operation
+            .then(|| currency.clone())
+            .into_iter()
+            .collect(),
         allowed_order_scopes: vec!["order-demo-001".into()],
-        allowed_cancellation_reasons: Vec::new(),
-        per_operation_absolute_minor_by_currency: BTreeMap::from([(
-            operation,
-            BTreeMap::from([(currency.clone(), operation_limit)]),
-        )]),
-        per_customer_minor_by_currency: BTreeMap::from([(currency.clone(), operation_limit)]),
-        per_order_minor_by_currency: BTreeMap::from([(currency.clone(), operation_limit)]),
-        aggregate_budgets: vec![
-            MerchantAggregateBudget::new(
-                "merchant-daily",
+        allowed_cancellation_reasons: if operation == crate::merchant::MerchantOperation::Cancel {
+            vec![
+                "abandoned".into(),
+                "duplicate".into(),
+                "fraudulent".into(),
+                "requested_by_customer".into(),
+            ]
+        } else {
+            Vec::new()
+        },
+        per_operation_absolute_minor_by_currency: if money_operation {
+            BTreeMap::from([(
                 operation,
-                currency,
-                aggregate_limit,
-                MerchantBudgetWindow::Fixed {
-                    starts_at: NOW - 3_600,
-                    ends_at: NOW + 3_600,
-                },
-                NOW,
-            )
-            .unwrap(),
-        ],
+                BTreeMap::from([(currency.clone(), operation_limit)]),
+            )])
+        } else {
+            BTreeMap::new()
+        },
+        per_customer_minor_by_currency: if money_operation {
+            BTreeMap::from([(currency.clone(), operation_limit)])
+        } else {
+            BTreeMap::new()
+        },
+        per_order_minor_by_currency: if money_operation {
+            BTreeMap::from([(currency.clone(), operation_limit)])
+        } else {
+            BTreeMap::new()
+        },
+        aggregate_budgets: if money_operation {
+            vec![
+                MerchantAggregateBudget::new(
+                    "merchant-daily",
+                    operation,
+                    currency,
+                    aggregate_limit,
+                    MerchantBudgetWindow::Fixed {
+                        starts_at: NOW - 3_600,
+                        ends_at: NOW + 3_600,
+                    },
+                    NOW,
+                )
+                .unwrap(),
+            ]
+        } else {
+            Vec::new()
+        },
         maximum_authorization_age_seconds: if matches!(
             operation,
             crate::merchant::MerchantOperation::Authorize
@@ -335,6 +368,20 @@ pub fn merchant_capture_configuration(
         crate::merchant::MerchantConnectAccount::Platform,
         "2025-04-30.basil",
         "https://stripe-capture.auths.dev",
+    )
+    .unwrap()
+}
+
+pub fn merchant_cancel_configuration(
+    policy: &crate::merchant::StripeBoundedMerchantPaymentPolicyV1,
+) -> crate::merchant::StripeMerchantEvaluatorConfigurationV1 {
+    crate::merchant::StripeMerchantEvaluatorConfigurationV1::for_cancel_policy(
+        policy,
+        "auths-stripe-merchant-test-build",
+        StripeAccountId::parse("acct_authsdemo01").unwrap(),
+        crate::merchant::MerchantConnectAccount::Platform,
+        "2025-04-30.basil",
+        "https://stripe-cancel.auths.dev",
     )
     .unwrap()
 }

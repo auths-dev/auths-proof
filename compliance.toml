@@ -521,6 +521,25 @@ security_state = ["authorization-exposure-budget", "capture-settlement-budget", 
 runtime-enforcement-boundary = ["demos/stripe-payment-capture/src/app.rs#denial_and_mismatch_stop_before_credentials_and_provider_io"]
 stateful-replay-budget-component = ["demos/stripe-payment-capture/src/app.rs#ambiguous_delivery_retains_both_exposures_then_reconciles_without_recapture", "demos/stripe-payment-capture/src/app.rs#concurrent_exact_capture_has_one_provider_delivery", "demos/stripe-payment-capture/src/app.rs#durable_replay_survives_restart_without_credentials_or_provider_io", "demos/stripe-payment-capture/src/app.rs#exact_partial_final_capture_releases_the_entire_linked_hold_and_replays"]
 
+[packages.auths-stripe-payment-cancel-demo]
+kind = "cargo"
+layer = "demos"
+path = "demos/stripe-payment-cancel"
+core_apis = []
+protocol_versions = ["auths-proof/v1"]
+wire_objects = ["CanonicalAction", "ProofBundle", "VerifierContext"]
+fixture_suites = ["product/integrations/auths-stripe/fixtures/merchant-cancel/v1"]
+principal_families = ["raw-key-v1"]
+signature_families = ["ed25519-v1"]
+profiles = ["auths.stripe.exact-payment-cancel/1"]
+transports = ["https", "stripe-https"]
+configuration_inputs = ["executed-merchant-evaluator-configuration", "immutable-configured-policy", "required-merchant-evaluator-configuration", "stripe-test-mode"]
+security_state = ["authorization-exposure-budget", "cancellation-exclusivity-claim", "expiring-session", "merchant-cancellation-claim", "receipt-sink"]
+
+[packages.auths-stripe-payment-cancel-demo.claims]
+runtime-enforcement-boundary = ["demos/stripe-payment-cancel/src/app.rs#denial_and_mismatch_stop_before_credentials_and_provider_io"]
+stateful-replay-budget-component = ["demos/stripe-payment-cancel/src/app.rs#ambiguous_delivery_retains_both_exposures_then_reconciles_without_recancel", "demos/stripe-payment-cancel/src/app.rs#capture_conflict_is_terminal_and_never_releases_the_hold", "demos/stripe-payment-cancel/src/app.rs#concurrent_exact_cancel_has_one_provider_delivery", "demos/stripe-payment-cancel/src/app.rs#durable_replay_survives_restart_without_credentials_or_provider_io", "demos/stripe-payment-cancel/src/app.rs#exact_terminal_cancellation_releases_the_linked_hold_and_replays"]
+
 [packages.auths-kubernetes]
 kind = "cargo"
 layer = "product"
