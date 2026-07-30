@@ -58,6 +58,7 @@ pub use ports::{
     PaymentMandateCredential, PaymentMandateCredentialScope, PortError, ProofDecision,
     ProofVerifier, ReceiptSink, RefundCredentialScope, StripeCredential, StripeGateway,
     StripeRefundCredential, SubscriptionCreateCredential, SubscriptionCreateCredentialScope,
+    SubscriptionModifyCredential, SubscriptionModifyCredentialScope,
 };
 pub use profile::{StripeRefundCommand, StripeRefundProfile};
 pub use receipts::{
@@ -78,5 +79,5 @@ pub use types::{
     InvoiceId, MandateId, Money, PaymentIntentId, PaymentMethodId, PriceId, ProductId,
     RefundEvidenceInput, RefundEvidenceV1, RefundId, RefundResult, SetupAttemptId, SetupIntentId,
     StripeAccountId, StripeVerifierConfiguration, StripeVerifierConfigurationInput, SubscriptionId,
-    TestClockId,
+    SubscriptionItemId, TestClockId,
 };

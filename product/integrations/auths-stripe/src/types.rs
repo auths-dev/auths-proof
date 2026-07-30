@@ -128,6 +128,10 @@ fn valid_subscription(value: &str) -> bool {
     valid_prefixed(value, "sub_", 96)
 }
 
+fn valid_subscription_item(value: &str) -> bool {
+    valid_prefixed(value, "si_", 96)
+}
+
 fn valid_invoice(value: &str) -> bool {
     valid_prefixed(value, "in_", 96)
 }
@@ -162,6 +166,11 @@ validated_string!(MandateId, MandateId, valid_mandate);
 validated_string!(ProductId, ProductId, valid_product);
 validated_string!(PriceId, PriceId, valid_price);
 validated_string!(SubscriptionId, SubscriptionId, valid_subscription);
+validated_string!(
+    SubscriptionItemId,
+    SubscriptionItemId,
+    valid_subscription_item
+);
 validated_string!(InvoiceId, InvoiceId, valid_invoice);
 validated_string!(TestClockId, TestClockId, valid_test_clock);
 validated_string!(RefundId, RefundId, valid_refund);
@@ -212,6 +221,9 @@ pub enum TypeError {
     /// Invalid Subscription.
     #[error("invalid Stripe Subscription identifier")]
     SubscriptionId,
+    /// Invalid Subscription Item.
+    #[error("invalid Stripe Subscription Item identifier")]
+    SubscriptionItemId,
     /// Invalid Invoice.
     #[error("invalid Stripe Invoice identifier")]
     InvoiceId,

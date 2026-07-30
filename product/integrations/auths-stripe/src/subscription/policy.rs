@@ -257,6 +257,23 @@ impl StripeBoundedSubscriptionPolicyV1 {
         Ok(policy)
     }
 
+    /// Enables the closed modify semantics without changing creation defaults.
+    pub fn with_modify_limits(
+        mut self,
+        maximum_proration_debit_minor_by_currency: BTreeMap<Currency, u64>,
+    ) -> Result<Self, SubscriptionValidationError> {
+        self.allowed_operations.push(SubscriptionOperation::Modify);
+        self.allowed_operations.sort();
+        self.allowed_operations.dedup();
+        self.allowed_proration_behaviors = vec![
+            SubscriptionProrationBehavior::None,
+            SubscriptionProrationBehavior::AlwaysInvoice,
+        ];
+        self.maximum_proration_debit_minor_by_currency = maximum_proration_debit_minor_by_currency;
+        self.validate()?;
+        Ok(self)
+    }
+
     pub fn validate(&self) -> Result<(), SubscriptionValidationError> {
         let valid = self.policy_type == SUBSCRIPTION_POLICY_TYPE
             && self.canonicalization == SUBSCRIPTION_CANONICALIZATION
@@ -276,7 +293,25 @@ impl StripeBoundedSubscriptionPolicyV1 {
             && self.allowed_collection_methods
                 == [SubscriptionCollectionMethod::ChargeAutomatically]
             && sorted_unique_nonempty(&self.allowed_payment_behaviors)
-            && self.allowed_proration_behaviors == [SubscriptionProrationBehavior::None]
+            && sorted_unique_nonempty(&self.allowed_proration_behaviors)
+            && self
+                .allowed_proration_behaviors
+                .binary_search(&SubscriptionProrationBehavior::None)
+                .is_ok()
+            && (!self
+                .allowed_operations
+                .contains(&SubscriptionOperation::Modify)
+                || (self
+                    .allowed_proration_behaviors
+                    .binary_search(&SubscriptionProrationBehavior::AlwaysInvoice)
+                    .is_ok()
+                    && !self.maximum_proration_debit_minor_by_currency.is_empty()))
+            && self
+                .maximum_proration_debit_minor_by_currency
+                .iter()
+                .all(|(currency, amount)| {
+                    *amount > 0 && self.allowed_currencies.binary_search(currency).is_ok()
+                })
             && !self.maximum_quantity_by_price.is_empty()
             && self
                 .maximum_quantity_by_price
@@ -359,6 +394,9 @@ impl StripeBoundedSubscriptionPolicyV1 {
     pub fn allowed_payment_behaviors(&self) -> &[SubscriptionPaymentBehavior] {
         &self.allowed_payment_behaviors
     }
+    pub fn allowed_proration_behaviors(&self) -> &[SubscriptionProrationBehavior] {
+        &self.allowed_proration_behaviors
+    }
     pub fn maximum_quantity_by_price(&self) -> &BTreeMap<PriceId, u32> {
         &self.maximum_quantity_by_price
     }
@@ -367,6 +405,9 @@ impl StripeBoundedSubscriptionPolicyV1 {
     }
     pub fn first_invoice_limits(&self) -> &BTreeMap<Currency, u64> {
         &self.maximum_first_invoice_minor_by_currency
+    }
+    pub fn proration_debit_limits(&self) -> &BTreeMap<Currency, u64> {
+        &self.maximum_proration_debit_minor_by_currency
     }
     pub const fn maximum_term_seconds(&self) -> u64 {
         self.maximum_term_seconds

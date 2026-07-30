@@ -14,10 +14,12 @@
 )]
 
 pub mod create;
+pub mod modify;
 mod policy;
 mod state;
 
 pub use create::*;
+pub use modify::*;
 pub use policy::*;
 pub use state::*;
 

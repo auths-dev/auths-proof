@@ -579,6 +579,26 @@ core-api-consumer = ["demos/stripe-subscription-create/src/app.rs#success_and_re
 runtime-enforcement-boundary = ["demos/stripe-subscription-create/src/app.rs#denial_precedes_credentials_and_provider_io"]
 stateful-replay-budget-component = ["demos/stripe-subscription-create/src/app.rs#ambiguous_delivery_reconciles_without_second_create", "demos/stripe-subscription-create/src/app.rs#success_and_replay_create_exactly_once"]
 
+[packages.auths-stripe-subscription-modify-demo]
+kind = "cargo"
+layer = "demos"
+path = "demos/stripe-subscription-modify"
+core_apis = ["auths-model"]
+protocol_versions = ["auths-proof/v1"]
+wire_objects = ["CanonicalAction", "ProofBundle", "VerifierContext"]
+fixture_suites = ["product/integrations/auths-stripe/fixtures/subscription-modify/v1"]
+principal_families = ["raw-key-v1"]
+signature_families = ["ed25519-v1"]
+profiles = ["auths.stripe.exact-subscription-modify/1"]
+transports = ["https", "stripe-https", "stripe-test-clock"]
+configuration_inputs = ["executed-subscription-configuration", "exact-before-state", "exact-proration-preview", "immutable-configured-policy", "mandate-receipt", "required-subscription-configuration", "stripe-test-mode", "test-clock"]
+security_state = ["expiring-session", "incremental-term-liability-reservation", "proration-debit-reservation", "receipt-sink", "subscription-modify-claim", "subscription-pending-update"]
+
+[packages.auths-stripe-subscription-modify-demo.claims]
+core-api-consumer = ["demos/stripe-subscription-modify/src/app.rs#exact_update_and_replay_execute_once"]
+runtime-enforcement-boundary = ["demos/stripe-subscription-modify/src/app.rs#denial_precedes_credentials_and_provider_io"]
+stateful-replay-budget-component = ["demos/stripe-subscription-modify/src/app.rs#ambiguous_update_reconciles_without_second_write", "product/integrations/auths-stripe/src/subscription/modify/state.rs#persistent_replay_survives_restart"]
+
 [packages.auths-kubernetes]
 kind = "cargo"
 layer = "product"

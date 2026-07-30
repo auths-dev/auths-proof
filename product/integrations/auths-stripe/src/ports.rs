@@ -31,6 +31,9 @@ pub enum PaymentMandateCredentialScope {}
 /// Type marker for exact fixed-term Subscription creation.
 pub enum SubscriptionCreateCredentialScope {}
 
+/// Type marker for one exact bounded Subscription modification.
+pub enum SubscriptionModifyCredentialScope {}
+
 /// Secret Stripe credential bound to one compile-time effect scope.
 ///
 /// A credential with one scope cannot be passed to a provider gateway for
@@ -141,6 +144,26 @@ pub type PaymentMandateCredential = StripeCredential<PaymentMandateCredentialSco
 /// }
 /// ```
 pub type SubscriptionCreateCredential = StripeCredential<SubscriptionCreateCredentialScope>;
+
+/// Exact subscription-modify credential.
+///
+/// A create credential cannot cross the modify boundary:
+///
+/// ```compile_fail
+/// use auths_stripe::{
+///     SubscriptionCreateCredential, SubscriptionModifyGateway,
+///     VerifiedSubscriptionModifyCommand,
+/// };
+///
+/// fn wrong_scope(
+///     gateway: &dyn SubscriptionModifyGateway,
+///     command: &VerifiedSubscriptionModifyCommand,
+///     credential: &SubscriptionCreateCredential,
+/// ) {
+///     let _ = gateway.modify(command, credential, 0);
+/// }
+/// ```
+pub type SubscriptionModifyCredential = StripeCredential<SubscriptionModifyCredentialScope>;
 
 impl<S> StripeCredential<S> {
     /// Wraps a non-empty Stripe test-mode secret.
@@ -334,6 +357,7 @@ mod tests {
     use super::{
         PaymentAuthorizeCredential, PaymentCancelCredential, PaymentCaptureCredential,
         PaymentCollectCredential, PaymentMandateCredential, StripeRefundCredential,
+        SubscriptionCreateCredential, SubscriptionModifyCredential,
     };
 
     #[test]
@@ -381,6 +405,14 @@ mod tests {
         assert_ne!(
             TypeId::of::<PaymentMandateCredential>(),
             TypeId::of::<StripeRefundCredential>()
+        );
+        assert_ne!(
+            TypeId::of::<SubscriptionCreateCredential>(),
+            TypeId::of::<SubscriptionModifyCredential>()
+        );
+        assert_ne!(
+            TypeId::of::<PaymentMandateCredential>(),
+            TypeId::of::<SubscriptionModifyCredential>()
         );
         assert!(PaymentCaptureCredential::new(b"rk_test_repository_test_value".to_vec()).is_ok());
     }
