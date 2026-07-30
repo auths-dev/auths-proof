@@ -335,7 +335,7 @@ PostgreSQL is complete only when:
 
 ## Phase 3: cross-domain abstraction report
 
-After both demos pass, compare all six verticals:
+After both demos pass, compare all seven verticals:
 
 | Domain | Lifecycle characteristic |
 | --- | --- |
@@ -345,6 +345,7 @@ After both demos pass, compare all six verticals:
 | Kubernetes | Conditional mutation and asynchronous convergence |
 | OpenTofu | Saved artifact, state lock, partial apply, and reconciliation |
 | PostgreSQL | Transactional mutation, row bounds, rollback, and ambiguous commit |
+| Records API | Separate create/read disclosure semantics across HTTPS and Iroh without reusable client credentials |
 
 For every lifecycle concept, classify it as:
 
@@ -447,7 +448,7 @@ unlimited implicitly.
 
 ### Stateful reservations
 
-Define the shared lifecycle only after the six-domain comparison. At minimum,
+Define the shared lifecycle only after the seven-domain comparison. At minimum,
 it must represent:
 
 ```text
@@ -565,7 +566,9 @@ Migrate one vertical at a time:
 2. Kubernetes;
 3. PostgreSQL;
 4. OpenTofu;
-5. GitHub and Radicle as compositions of smaller primitives.
+5. GitHub;
+6. Radicle;
+7. records create/read.
 
 For each migration:
 
@@ -840,7 +843,7 @@ The bounded authorization abstraction is complete when:
 
 - OpenTofu and PostgreSQL work end to end with real local effects and complete
   frontends;
-- the six-domain comparison proves every extracted lifecycle concept;
+- the seven-domain comparison proves every extracted lifecycle concept;
 - canonical policy bytes and evaluator semantics are versioned;
 - evidence-relative and aggregate bounds are demonstrated;
 - reservations are atomic, persistent, crash recoverable, and reconcilable;

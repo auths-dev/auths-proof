@@ -12,13 +12,13 @@ program is complete:
 - OpenTofu and PostgreSQL satisfy the complete end-to-end criteria, including
   real effects, concurrency, crashes, reconciliation, receipts, and
   frontends.
-- The six-domain semantic inventory classifies every candidate concept.
+- The seven-domain semantic inventory classifies every candidate concept.
 - Representative canonical fixtures from every vertical are frozen as
   migration oracles.
 - Milestones 3 and 4 establish pure bounded-policy semantics and separate
   mutable reservation/execution semantics.
-- Milestone 5 migrates Stripe, Kubernetes, PostgreSQL, OpenTofu, GitHub, and
-  Radicle with decision and receipt equivalence.
+- Milestone 5 migrates Stripe, Kubernetes, PostgreSQL, OpenTofu, GitHub,
+  Radicle, and records create/read with decision and receipt equivalence.
 - Milestone 6 optimizes only measured bottlenecks while proving equivalence to
   the reference evaluators.
 
@@ -36,7 +36,7 @@ Milestone 6 complete
   -> stable developer and runtime surfaces
   -> profile certification
   -> real flagship deployment
-  -> unified six-domain workbench
+  -> unified seven-domain workbench
   -> public v1 release
   -> controlled domain expansion
 ```
@@ -89,7 +89,7 @@ The release candidate must contain:
 - production Rust refinement evidence;
 - the closed bounded-policy contract;
 - reservation and exact-effect semantics;
-- six migrated domain integrations;
+- seven migrated domain integrations;
 - reference-versus-extracted differential tests;
 - reference-versus-optimized differential tests;
 - canonical migration fixtures for every domain;
@@ -453,7 +453,7 @@ The flagship survives continuous operation, upgrades, configuration changes,
 credential rotation, provider failures, crashes, and operator recovery without
 breaking exactness or receipt truth.
 
-## Phase 14: unify the six-domain workbench
+## Phase 14: unify the seven-domain workbench
 
 ### Objective
 
@@ -605,7 +605,7 @@ This post-Milestone 6 program is complete when:
 - profile conformance is executable;
 - one real GitHub workflow operates without agent credentials;
 - the infrastructure flagship is operationally proven;
-- the six-domain workbench demonstrates the complete lifecycle;
+- the seven-domain workbench demonstrates the complete lifecycle;
 - the public v1 release is reproducible and auditable;
 - new domains can be added without changing core or weakening boundaries.
 
