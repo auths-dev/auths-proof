@@ -1,0 +1,23 @@
+services:
+  records:
+    build:
+      context: ../..
+      dockerfile: demos/rest-api-authorization/Dockerfile
+    environment:
+      PORT: "8080"
+      AUTHS_RECORDS_ALLOWED_ORIGIN: "http://localhost:4180"
+      AUTHS_RECORDS_EXECUTOR_AUDIENCE: "http://records-executor.auths.local"
+      AUTHS_RECORDS_PUBLIC_URL: "http://localhost:4180"
+      AUTHS_RECORDS_STATE_PATH: "/data/auths-records/ledger-v2.json"
+    ports:
+      - "4180:8080"
+    volumes:
+      - records-data:/data/auths-records
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8080/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  records-data:

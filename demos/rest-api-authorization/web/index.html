@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Call a protected records API over HTTPS or Iroh with exact Auths authorization and no reusable client API key." />
+    <meta name="color-scheme" content="light" />
+    <title>Auths × Records API — No reusable client API key</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#workbench">Skip to the demo</a>
+    <header class="site-header">
+      <nav class="nav-shell" aria-label="Primary navigation">
+        <a class="wordmark" href="https://auths-proof-site.vercel.app">auths <i>/</i> <small>records lab</small></a>
+        <div class="nav-links">
+          <a href="#workbench">Live request</a>
+          <a href="#evidence">Receipts</a>
+          <a href="https://github.com/auths-dev/auths-proof" target="_blank" rel="noreferrer">GitHub ↗</a>
+        </div>
+        <a class="nav-cta" href="#workbench">Run the demo →</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="shell hero-grid">
+          <div>
+            <p class="eyebrow"><i aria-hidden="true"></i> Auths × API access, live</p>
+            <h1>Call an API. <em>Do not hand the agent an API key.</em></h1>
+          </div>
+          <div class="hero-copy">
+            <p>A short-lived proof authorizes one typed records action. The native service verifies it locally, reserves capacity, and then reads or writes the protected store.</p>
+            <ul><li>HTTPS or Iroh</li><li>Exact typed action</li><li>No reusable client key</li></ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="workbench-section" id="workbench">
+        <div class="shell">
+          <div class="workbench">
+            <section class="controls" aria-labelledby="controls-title">
+              <header class="panel-kicker"><span>01</span><strong>Choose one request</strong><small>Real native verifier</small></header>
+              <h2 id="controls-title">Change one authorization fact.</h2>
+              <p class="controls-intro">Each selection creates a fresh isolated namespace, proof, presenter signature, and typed action.</p>
+              <div class="variant-list" id="experiment-list">
+                <button class="variant active" data-experiment="exact-create" type="button"><span><b>Create Bob’s customer record</b><small>Proof, action, policy, and configuration match</small></span><i>01</i></button>
+                <button class="variant" data-experiment="bounded-create" type="button"><span><b>Use a bounded grant</b><small>Up to three records and 3 KiB in one namespace</small></span><i>02</i></button>
+                <button class="variant" data-experiment="exact-read" type="button" disabled title="Create a record first"><span><b>Read the created record</b><small>Disclose only the authorized fields and byte ceiling</small></span><i>03</i></button>
+                <button class="variant" data-experiment="invalid-proof" type="button"><span><b>Change one proof byte</b><small>The signed authority no longer verifies</small></span><i>04</i></button>
+                <button class="variant" data-experiment="configuration-mismatch" type="button"><span><b>Change verifier configuration</b><small>Required 4097 bytes; executor is fixed at 4096</small></span><i>05</i></button>
+                <button class="variant" data-experiment="wrong-audience" type="button"><span><b>Change executor audience</b><small>The action targets a different semantic executor</small></span><i>06</i></button>
+                <button class="variant" data-experiment="value-too-large" type="button"><span><b>Exceed the payload limit</b><small>The customer data is outside the bounded policy</small></span><i>07</i></button>
+              </div>
+
+              <div class="transport-control">
+                <span class="micro light">Deliver the same envelope</span>
+                <div>
+                  <button class="transport active" data-transport="https" type="button">HTTPS</button>
+                  <button class="transport" data-transport="iroh" type="button">Iroh</button>
+                </div>
+                <p id="transport-copy">The browser sends the protected POST directly to the HTTPS adapter.</p>
+              </div>
+
+              <div class="grant-note">
+                <span>Authority being tested</span>
+                <p id="grant-copy">Create one record under an isolated visitor namespace.</p>
+              </div>
+            </section>
+
+            <article class="result" aria-labelledby="result-title">
+              <header class="result-header">
+                <div><span class="micro">02 · Native authorization result</span><strong id="result-title">AUTH-V1 / RECORDS</strong></div>
+                <span class="live-state" id="service-indicator"><i aria-hidden="true"></i><b id="service-state">connecting</b></span>
+              </header>
+
+              <div class="verdict-block" aria-live="polite" aria-atomic="true">
+                <span class="micro">Current verdict</span>
+                <strong id="verdict" data-kind="loading">LOADING</strong>
+                <p id="verdict-detail">Issuing a short-lived proof and presenter-bound request.</p>
+              </div>
+
+              <section class="api-response" id="api-response" data-state="waiting" aria-live="polite">
+                <header>
+                  <div>
+                    <span class="micro">Protected API response</span>
+                    <h3 id="response-title">Customer record</h3>
+                  </div>
+                  <code id="response-route">POST /v1/records</code>
+                </header>
+                <p id="response-detail">Run the request to see the fictional business data returned by the protected API.</p>
+                <pre id="business-response">{
+  "response": null
+}</pre>
+              </section>
+
+              <dl class="facts">
+                <div><dt>Stable code</dt><dd id="decision-code">—</dd></div>
+                <div><dt>Stopped at</dt><dd id="decision-stage">—</dd></div>
+                <div><dt>Delivery</dt><dd id="delivery">HTTPS</dd></div>
+                <div><dt>Reusable API key</dt><dd>NONE</dd></div>
+              </dl>
+
+              <div class="configuration">
+                <div><span>Required response ceiling</span><code id="required-config">—</code></div>
+                <span id="config-link" class="config-link">checking</span>
+                <div><span>Executor response ceiling</span><code id="executed-config">—</code></div>
+              </div>
+
+              <section class="execution">
+                <div class="execution-action">
+                  <span class="micro">03 · Call the protected API</span>
+                  <h3 id="operation-title">POST one record</h3>
+                  <p>The request contains a proof and a single-action presentation. It contains no OAuth bearer token, API key, or session cookie.</p>
+                  <button id="execute" type="button" disabled>Preparing request</button>
+                  <button id="next-action" class="secondary-action" type="button" hidden>Prepare another action under this grant</button>
+                </div>
+                <section class="status-card">
+                  <span class="micro">What the native service did</span>
+                  <ol>
+                    <li><span>Proof verified locally</span><strong id="proof-status">—</strong></li>
+                    <li><span>Protected store accessed</span><strong id="storage-status">—</strong></li>
+                    <li><span>Capacity changed</span><strong id="capacity-status">—</strong></li>
+                    <li><span>Effect observed</span><strong id="observation-status">—</strong></li>
+                  </ol>
+                </section>
+              </section>
+
+              <details class="commands">
+                <summary>Copy the exact client commands</summary>
+                <div><span>curl / HTTPS</span><pre id="curl-command">Preparing…</pre></div>
+                <div><span>native / Iroh</span><pre id="iroh-command">Preparing…</pre></div>
+              </details>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="receipt-section" id="evidence">
+        <div class="shell receipt-grid">
+          <div>
+            <p class="eyebrow"><i aria-hidden="true"></i> Verifiable result</p>
+            <h2>Delivery and authority remain separate facts.</h2>
+            <p>The receipt records how bytes arrived, what Auths decided, whether a protected effect occurred, and what state was observed afterward.</p>
+            <a id="receipt-link" class="receipt-link disabled" href="#" aria-disabled="true">Open the designed receipt page ↗</a>
+          </div>
+          <pre id="receipt-json">Run a request to inspect its complete receipt.</pre>
+        </div>
+      </section>
+    </main>
+
+    <footer><div class="shell"><a class="wordmark" href="#">auths <i>/</i> <small>records lab</small></a><p>Proof authorizes the action. Transport only delivers it.</p><span>AUTH-V1</span></div></footer>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
