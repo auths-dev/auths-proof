@@ -1,0 +1,35 @@
+app = "auths-stripe-connect-transfer"
+primary_region = "mad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  AUTHS_STRIPE_ALLOWED_ORIGIN = "https://auths-stripe-connect-transfer.vercel.app"
+  AUTHS_STRIPE_STATE_DIR = "/data/auths-stripe-connect-transfer"
+  PORT = "8080"
+
+[[mounts]]
+  source = "auths_stripe_connect_transfer"
+  destination = "/data"
+
+[[services]]
+  internal_port = 8080
+  protocol = "tcp"
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[services.ports]]
+    handlers = ["http"]
+    port = 80
+
+  [[services.ports]]
+    handlers = ["tls", "http"]
+    port = 443
+
+  [[services.http_checks]]
+    interval = "15s"
+    timeout = "2s"
+    method = "GET"
+    path = "/healthz"

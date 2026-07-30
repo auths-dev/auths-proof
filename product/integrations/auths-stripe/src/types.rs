@@ -156,6 +156,14 @@ fn valid_issuing_card(value: &str) -> bool {
     valid_prefixed(value, "ic_", 96)
 }
 
+fn valid_transfer(value: &str) -> bool {
+    valid_prefixed(value, "tr_", 96)
+}
+
+fn valid_balance_transaction(value: &str) -> bool {
+    valid_prefixed(value, "txn_", 96)
+}
+
 fn valid_refund(value: &str) -> bool {
     valid_prefixed(value, "re_", 96)
 }
@@ -201,6 +209,12 @@ validated_string!(
     valid_issuing_cardholder
 );
 validated_string!(IssuingCardId, IssuingCardId, valid_issuing_card);
+validated_string!(TransferId, TransferId, valid_transfer);
+validated_string!(
+    BalanceTransactionId,
+    BalanceTransactionId,
+    valid_balance_transaction
+);
 validated_string!(RefundId, RefundId, valid_refund);
 validated_string!(DigestHex, DigestHex, valid_digest);
 validated_string!(Currency, Currency, valid_currency);
@@ -270,6 +284,12 @@ pub enum TypeError {
     /// Invalid Issuing Card.
     #[error("invalid Stripe Issuing Card identifier")]
     IssuingCardId,
+    /// Invalid Connect Transfer.
+    #[error("invalid Stripe Connect Transfer identifier")]
+    TransferId,
+    /// Invalid balance transaction.
+    #[error("invalid Stripe balance transaction identifier")]
+    BalanceTransactionId,
     /// Invalid Refund.
     #[error("invalid Stripe Refund identifier")]
     RefundId,

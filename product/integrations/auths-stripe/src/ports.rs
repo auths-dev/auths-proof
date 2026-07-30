@@ -37,6 +37,9 @@ pub enum SubscriptionModifyCredentialScope {}
 /// Type marker for read-only Issuing authorization reconciliation.
 pub enum PurchaseAuthorizationCredentialScope {}
 
+/// Type marker for exact Connect Transfer creation and reconciliation.
+pub enum ConnectTransferCredentialScope {}
+
 /// Secret Stripe credential bound to one compile-time effect scope.
 ///
 /// A credential with one scope cannot be passed to a provider gateway for
@@ -186,6 +189,21 @@ pub type SubscriptionModifyCredential = StripeCredential<SubscriptionModifyCrede
 /// }
 /// ```
 pub type PurchaseAuthorizationCredential = StripeCredential<PurchaseAuthorizationCredentialScope>;
+
+/// Credential restricted to the Connect-transfer profile.
+///
+/// A refund credential cannot cross the transfer boundary:
+///
+/// ```compile_fail
+/// use auths_stripe::{
+///     ConnectTransferCredential, StripeRefundCredential, StripeCredential,
+/// };
+///
+/// fn wrong_scope(credential: StripeRefundCredential) -> ConnectTransferCredential {
+///     credential
+/// }
+/// ```
+pub type ConnectTransferCredential = StripeCredential<ConnectTransferCredentialScope>;
 
 impl<S> StripeCredential<S> {
     /// Wraps a non-empty Stripe test-mode secret.
@@ -377,9 +395,10 @@ mod tests {
     use std::any::TypeId;
 
     use super::{
-        PaymentAuthorizeCredential, PaymentCancelCredential, PaymentCaptureCredential,
-        PaymentCollectCredential, PaymentMandateCredential, PurchaseAuthorizationCredential,
-        StripeRefundCredential, SubscriptionCreateCredential, SubscriptionModifyCredential,
+        ConnectTransferCredential, PaymentAuthorizeCredential, PaymentCancelCredential,
+        PaymentCaptureCredential, PaymentCollectCredential, PaymentMandateCredential,
+        PurchaseAuthorizationCredential, StripeRefundCredential, SubscriptionCreateCredential,
+        SubscriptionModifyCredential,
     };
 
     #[test]
@@ -443,6 +462,14 @@ mod tests {
         assert_ne!(
             TypeId::of::<PurchaseAuthorizationCredential>(),
             TypeId::of::<SubscriptionModifyCredential>()
+        );
+        assert_ne!(
+            TypeId::of::<ConnectTransferCredential>(),
+            TypeId::of::<StripeRefundCredential>()
+        );
+        assert_ne!(
+            TypeId::of::<ConnectTransferCredential>(),
+            TypeId::of::<PurchaseAuthorizationCredential>()
         );
         assert!(PaymentCaptureCredential::new(b"rk_test_repository_test_value".to_vec()).is_ok());
     }

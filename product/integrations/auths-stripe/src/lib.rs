@@ -13,6 +13,7 @@ pub mod bounded;
 pub mod bounded_service;
 pub mod canonical;
 pub mod claim;
+pub mod connect;
 pub mod decision;
 pub mod executor;
 pub mod issuing;
@@ -48,18 +49,20 @@ pub use claim::{
     ClaimLease, ClaimRecord, ClaimResult, ClaimStage, ClaimStore, InMemoryClaimStore,
     PersistentClaimStore,
 };
+pub use connect::*;
 pub use decision::{Decision, DecisionClass, DecisionCode, EvaluationContext, evaluate};
 pub use executor::VerifiedRefundCommand;
 pub use issuing::*;
 pub use mandate::*;
 pub use merchant::*;
 pub use ports::{
-    Clock, CredentialProvider, PaymentAuthorizeCredential, PaymentAuthorizeCredentialScope,
-    PaymentCancelCredential, PaymentCancelCredentialScope, PaymentCaptureCredential,
-    PaymentCaptureCredentialScope, PaymentCollectCredential, PaymentCollectCredentialScope,
-    PaymentMandateCredential, PaymentMandateCredentialScope, PortError, ProofDecision,
-    ProofVerifier, PurchaseAuthorizationCredential, PurchaseAuthorizationCredentialScope,
-    ReceiptSink, RefundCredentialScope, StripeCredential, StripeGateway, StripeRefundCredential,
+    Clock, ConnectTransferCredential, ConnectTransferCredentialScope, CredentialProvider,
+    PaymentAuthorizeCredential, PaymentAuthorizeCredentialScope, PaymentCancelCredential,
+    PaymentCancelCredentialScope, PaymentCaptureCredential, PaymentCaptureCredentialScope,
+    PaymentCollectCredential, PaymentCollectCredentialScope, PaymentMandateCredential,
+    PaymentMandateCredentialScope, PortError, ProofDecision, ProofVerifier,
+    PurchaseAuthorizationCredential, PurchaseAuthorizationCredentialScope, ReceiptSink,
+    RefundCredentialScope, StripeCredential, StripeGateway, StripeRefundCredential,
     SubscriptionCreateCredential, SubscriptionCreateCredentialScope, SubscriptionModifyCredential,
     SubscriptionModifyCredentialScope,
 };
@@ -78,10 +81,10 @@ pub use service::{
 };
 pub use subscription::*;
 pub use types::{
-    ChargeId, Currency, CustomerId, DigestHex, EventId, ExactRefundActionInput,
-    ExactRefundActionV1, InvoiceId, IssuingAuthorizationId, IssuingCardId, IssuingCardholderId,
-    MandateId, Money, PaymentIntentId, PaymentMethodId, PriceId, ProductId, RefundEvidenceInput,
-    RefundEvidenceV1, RefundId, RefundResult, SetupAttemptId, SetupIntentId, StripeAccountId,
-    StripeVerifierConfiguration, StripeVerifierConfigurationInput, SubscriptionId,
-    SubscriptionItemId, TestClockId,
+    BalanceTransactionId, ChargeId, Currency, CustomerId, DigestHex, EventId,
+    ExactRefundActionInput, ExactRefundActionV1, InvoiceId, IssuingAuthorizationId, IssuingCardId,
+    IssuingCardholderId, MandateId, Money, PaymentIntentId, PaymentMethodId, PriceId, ProductId,
+    RefundEvidenceInput, RefundEvidenceV1, RefundId, RefundResult, SetupAttemptId, SetupIntentId,
+    StripeAccountId, StripeVerifierConfiguration, StripeVerifierConfigurationInput, SubscriptionId,
+    SubscriptionItemId, TestClockId, TransferId,
 };
