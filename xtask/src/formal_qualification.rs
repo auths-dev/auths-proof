@@ -232,8 +232,8 @@ fn validate_manifest(root: &Path, qualification: &Qualification) -> Result<(), S
                 .to_owned(),
         );
     }
-    if qualification.case_modules.len() != 4
-        || qualification.translations.len() != 4
+    if qualification.case_modules.len() != 5
+        || qualification.translations.len() != 5
         || qualification.external_models.len() != 4
         || qualification.warning_inventory.len() != 2
         || qualification.template_axioms.len() != 3
@@ -875,12 +875,24 @@ fn reproduce(
         root,
         &[],
     )?;
+    run_checked(
+        charon,
+        &charon_arguments(
+            "auths_lifecycle::kernel::transition_code,auths_lifecycle::kernel::additive_capacity_available,auths_lifecycle::kernel::exclusive_capacity_available,auths_lifecycle::kernel::replay_code",
+            &stable_llbc.join("auths_lifecycle.llbc"),
+            "product/runtime/auths-lifecycle/Cargo.toml",
+            &[],
+        ),
+        root,
+        &[],
+    )?;
 
     for crate_name in [
         "auths_model",
         "auths_algebra_kernel",
         "auths_authority",
         "auths_bounded_policy",
+        "auths_lifecycle",
     ] {
         let snapshot = llbc.join(format!("{crate_name}.llbc"));
         fs::copy(stable_llbc.join(format!("{crate_name}.llbc")), &snapshot).map_err(|error| {
@@ -903,6 +915,7 @@ fn reproduce(
         ("auths_algebra_kernel", "algebra"),
         ("auths_authority", "authority"),
         ("auths_bounded_policy", "bounded_policy"),
+        ("auths_lifecycle", "lifecycle"),
     ] {
         let destination = output.join(format!("{subdir}-run"));
         fs::create_dir_all(&destination).map_err(|error| {
@@ -936,6 +949,7 @@ fn reproduce(
         "auths_algebra_kernel",
         "auths_authority",
         "auths_bounded_policy",
+        "auths_lifecycle",
     ] {
         fs::remove_file(llbc.join(format!("{crate_name}.llbc")))
             .map_err(|error| format!("could not remove raw nondeterministic LLBC: {error}"))?;
@@ -1033,6 +1047,18 @@ fn synchronize_aeneas_output(root: &Path, reproduced: &Path, update: bool) -> Re
         (
             "bounded_policy-run/translation.json",
             "formal/qualification/aeneas/generated/bounded_policy/translation.json",
+        ),
+        (
+            "lifecycle-run/qualification/aeneas/generated/lifecycle/Types.lean",
+            "formal/qualification/aeneas/generated/lifecycle/Types.lean",
+        ),
+        (
+            "lifecycle-run/qualification/aeneas/generated/lifecycle/Funs.lean",
+            "formal/qualification/aeneas/generated/lifecycle/Funs.lean",
+        ),
+        (
+            "lifecycle-run/translation.json",
+            "formal/qualification/aeneas/generated/lifecycle/translation.json",
         ),
     ];
     for (source, destination) in mappings {
