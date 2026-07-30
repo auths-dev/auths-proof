@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Auths · Bounded Issuing purchase</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#lab">Skip to the Issuing lab</a>
+  <header class="site-header">
+    <nav class="nav-shell" aria-label="Primary navigation">
+      <a class="wordmark" href="/">auths <i>/</i> <small>stripe issuing</small></a>
+      <div class="nav-links"><a href="#lab">Exact purchase</a><a href="#receipt-panel">Receipt</a></div>
+      <a class="nav-cta" href="#lab">Run the profile →</a>
+    </nav>
+  </header>
+  <main id="lab">
+    <header>
+      <p class="eyebrow">AUTHS × STRIPE ISSUING</p>
+      <h1>One exact purchase. Every bound visible.</h1>
+      <p class="lede">Authorize a full-amount test purchase only when its signed event, procurement intent, merchant, category, country, currency, and aggregate budget all match.</p>
+    </header>
+    <section class="grid">
+      <article>
+        <h2>Agent purchase policy</h2>
+        <dl>
+          <dt>Merchant</dt><dd>merchant-auths</dd>
+          <dt>Category</dt><dd>computer software stores</dd>
+          <dt>Country</dt><dd>US</dd>
+          <dt>Per purchase</dt><dd>USD 10.00</dd>
+          <dt>Aggregate</dt><dd>USD 10.00</dd>
+        </dl>
+      </article>
+      <article>
+        <h2>Incoming purchase</h2>
+        <div id="incoming" class="empty">Create a procurement intent to bind an exact incoming authorization.</div>
+      </article>
+    </section>
+    <section class="controls">
+      <button id="create">Create procurement intent</button>
+      <select id="experiment">
+        <option value="success">Authorize exact purchase</option>
+        <option value="denial">Deadline fallback decline</option>
+        <option value="unknown">Unknown response holds capacity</option>
+        <option value="replay">Replay without another effect</option>
+      </select>
+      <button id="run" disabled>Run decision</button>
+    </section>
+    <section id="result" class="result" aria-live="polite">
+      <strong>READY</strong><span>Provider timeout fallback: decline</span>
+    </section>
+    <section id="receipt-panel">
+      <div class="receipt-head"><h2>Canonical receipt</h2><a id="designed" hidden>Designed receipt ↗</a></div>
+      <pre id="receipt">No receipt yet.</pre>
+    </section>
+    <footer>No PAN, CVC, Stripe credential, or full merchant payload reaches this page.</footer>
+  </main>
+  <script src="/config.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>

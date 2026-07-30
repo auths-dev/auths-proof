@@ -10,7 +10,7 @@ use crate::{
     executor::VerifiedRefundCommand,
     ports::{
         Clock, CredentialProvider, PortError, ProofDecision, ProofVerifier, ReceiptSink,
-        StripeGateway,
+        RefundCredentialScope, StripeGateway,
     },
     profile::StripeRefundProfile,
     receipts::{DecisionReceipt, ExecutionReceipt, StripeReceipt, execution_receipt},
@@ -59,10 +59,10 @@ pub struct RefundService<V, C, G, W, R, T> {
 impl<V, C, G, W, R, T> RefundService<V, C, G, W, R, T>
 where
     V: ProofVerifier,
-    C: CredentialProvider,
+    C: CredentialProvider<RefundCredentialScope>,
     G: StripeGateway,
     W: ClaimStore,
-    R: ReceiptSink,
+    R: ReceiptSink<StripeReceipt>,
     T: Clock,
 {
     /// Constructs the service from explicit trusted dependencies.
@@ -181,7 +181,7 @@ where
         let credential = match self
             .dependencies
             .credential_provider
-            .mutation_credential(request.action.stripe_account_id())
+            .credential(request.action.stripe_account_id())
         {
             Ok(credential) => credential,
             Err(error) => {
@@ -386,7 +386,7 @@ mod tests {
     }
 
     impl CredentialProvider for ForbiddenEffects {
-        fn mutation_credential(
+        fn credential(
             &self,
             _: &crate::types::StripeAccountId,
         ) -> Result<StripeCredential, PortError> {
@@ -417,7 +417,7 @@ mod tests {
     #[derive(Default)]
     struct CapturingReceipts(Mutex<Vec<StripeReceipt>>);
 
-    impl ReceiptSink for CapturingReceipts {
+    impl ReceiptSink<StripeReceipt> for CapturingReceipts {
         fn append(&self, receipt: &StripeReceipt) -> Result<(), PortError> {
             self.0
                 .lock()

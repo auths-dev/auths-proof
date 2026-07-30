@@ -1,0 +1,28 @@
+[package]
+name = "auths-stripe-payment-demo-common"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Mechanism-only support for the separate Stripe merchant-payment demos"
+publish = false
+
+[dependencies]
+auths-author.workspace = true
+auths-codec.workspace = true
+auths-model.workspace = true
+auths-ports.workspace = true
+auths-raw-key.workspace = true
+auths-registries.workspace = true
+auths-runtime.workspace = true
+auths-sdk.workspace = true
+auths-signature.workspace = true
+auths-stripe.workspace = true
+ed25519-dalek.workspace = true
+reqwest = { workspace = true, features = ["json"] }
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+
+[lints]
+workspace = true

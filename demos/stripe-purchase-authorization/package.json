@@ -1,0 +1,8 @@
+{
+  "name": "auths-stripe-purchase-authorization-demo-web",
+  "private": true,
+  "scripts": {
+    "check": "node --check web/app.js && node --test tests/web-smoke.mjs",
+    "test:e2e": "python tests/browser-e2e.py"
+  }
+}

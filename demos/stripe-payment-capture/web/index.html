@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Bound one exact Stripe test-mode capture with Auths." />
+    <meta name="auths-api-base" content="" />
+    <title>Auths × Stripe — bounded capture</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#lab">Skip to the experiment</a>
+    <header class="site-header">
+      <nav class="nav-shell" aria-label="Primary navigation">
+        <a class="wordmark" href="/">auths <i>/</i> <small>stripe capture</small></a>
+        <div class="nav-links">
+          <a href="#receipt">Receipt</a>
+          <a href="https://github.com/auths-dev/auths-proof" target="_blank" rel="noreferrer">Source ↗</a>
+        </div>
+        <a class="nav-cta" href="#lab">Run the profile →</a>
+      </nav>
+    </header>
+    <main>
+      <section class="hero capture-hero" id="lab">
+        <div class="shell capture-hero-grid">
+          <div class="capture-intro">
+            <p class="eyebrow"><i></i> Exact final capture · Stripe test mode</p>
+            <h1>Turn one exact hold into <em>one bounded settlement.</em></h1>
+            <p class="lede">Session setup establishes a real $10.00 manual-capture authorization. This profile captures exactly $5.00 once and atomically releases the remaining $5.00 hold. It cannot create a PaymentIntent, choose another card, perform multicapture, or hand the agent a Stripe key.</p>
+            <div class="literal-callout"><strong>What will happen</strong><span id="literal-copy">Establish a fresh $10.00 test authorization, prove the exact $5.00 final capture, reserve settlement capacity, capture once, then release the full prior hold.</span></div>
+          </div>
+          <div class="hero-workbench" aria-live="polite">
+            <div class="experiment-picker">
+              <span class="micro">Choose a repository-owned experiment</span>
+              <div id="experiments" class="experiment-list"></div>
+            </div>
+            <article class="live-result">
+              <header><span class="micro">Live protected result</span><strong id="outcome" data-kind="idle">READY</strong></header>
+              <p id="outcome-detail">Start a session to load fresh Stripe evidence.</p>
+              <dl class="compact-facts">
+                <div><dt>Credential requests</dt><dd id="credential-requests">0</dd></div>
+                <div><dt>Provider calls</dt><dd id="provider-calls">0</dd></div>
+                <div><dt>Configuration</dt><dd id="configuration">—</dd></div>
+                <div><dt>Durable state</dt><dd id="durable-state">available</dd></div>
+                <div><dt>Capturable</dt><dd id="capturable-amount">—</dd></div>
+                <div><dt>Capture before</dt><dd id="capture-before">—</dd></div>
+              </dl>
+              <div class="hero-actions">
+                <button id="execute" type="button" disabled>Preparing Stripe evidence…</button>
+                <button id="reconcile" class="secondary-action" type="button" hidden>Reconcile without another capture</button>
+              </div>
+              <a id="receipt-link" class="receipt-link" hidden>Open the designed receipt →</a>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="evidence-band">
+        <div class="shell side-by-side">
+          <article>
+            <span class="micro">Immutable configured policy</span>
+            <h2>The delegation</h2>
+            <p>The protocol does not yet carry a mechanically human-signed standing policy commitment. This demo accurately records an immutable executor-configured policy.</p>
+            <dl class="fact-grid">
+              <div><dt>Policy</dt><dd><code id="policy-digest">—</code></dd></div>
+              <div><dt>Evaluator</dt><dd><code id="evaluator">—</code></dd></div>
+              <div><dt>Per action</dt><dd id="action-limit">—</dd></div>
+              <div><dt>Per customer</dt><dd id="customer-limit">—</dd></div>
+              <div><dt>Per order</dt><dd id="order-limit">—</dd></div>
+              <div><dt>Window</dt><dd>fixed + rolling</dd></div>
+            </dl>
+          </article>
+          <article>
+            <span class="micro">Agent-selected exact effect</span>
+            <h2>The capture</h2>
+            <p>No endpoint accepts arbitrary headers, provider URLs, idempotency keys, fees, transfers, or capture modes. The verified command fixes the existing PaymentIntent, Charge, amount, and final-capture flag.</p>
+            <dl class="fact-grid">
+              <div><dt>Amount</dt><dd id="exact-amount">—</dd></div>
+              <div><dt>Capture</dt><dd>final = true</dd></div>
+              <div><dt>Customer</dt><dd><code id="customer">—</code></dd></div>
+              <div><dt>PaymentIntent</dt><dd><code id="payment-intent">—</code></dd></div>
+              <div><dt>Charge</dt><dd><code id="charge">—</code></dd></div>
+              <div><dt>Order</dt><dd><code id="order">—</code></dd></div>
+              <div><dt>Profile</dt><dd><code>exact-payment-capture/1</code></dd></div>
+            </dl>
+          </article>
+          <article>
+            <span class="micro">Fresh protected evidence</span>
+            <h2>Stripe + budget state</h2>
+            <p>PaymentIntent, Charge, amounts, capture window, and the durable Auths hold are re-read after the settlement claim. Changed facts release only the new settlement reservation.</p>
+            <dl class="fact-grid">
+              <div><dt>Observed</dt><dd id="observed-at">—</dd></div>
+              <div><dt>Test mode</dt><dd id="test-mode">—</dd></div>
+              <div><dt>Available</dt><dd id="budget-available">—</dd></div>
+              <div><dt>Prior hold</dt><dd id="budget-held">—</dd></div>
+              <div><dt>Reserved</dt><dd id="budget-reserved">—</dd></div>
+              <div><dt>Captured</dt><dd id="budget-spent">—</dd></div>
+              <div><dt>Unknown</dt><dd id="budget-unknown">—</dd></div>
+            </dl>
+          </article>
+        </div>
+      </section>
+
+      <section class="receipt-section" id="receipt">
+        <div class="shell">
+          <header class="section-heading">
+            <div><span class="micro">Inline canonical artifact</span><h2>Hold, settlement, provider acceptance, and observation stay distinct.</h2></div>
+            <p>The same canonical JSON is addressable through a separate machine API. The public link opens a designed human receipt, never raw JSON.</p>
+          </header>
+          <article class="receipt-viewer capture-receipt">
+            <header><span>Canonical receipt JSON</span><strong id="receipt-state">not run</strong></header>
+            <pre id="receipt-json">Run an experiment to record a receipt.</pre>
+          </article>
+        </div>
+      </section>
+    </main>
+    <footer><div class="shell"><a class="wordmark" href="/">auths <i>/</i> <small>stripe capture</small></a><p>Collection, authorization holds, final capture, and refunds remain separate exact-action verticals.</p></div></footer>
+    <script src="/config.js"></script>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

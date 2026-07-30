@@ -7,6 +7,8 @@ const elements = {
   title: $("#receipt-title"), detail: $("#receipt-detail"),
   verification: $("#receipt-verification"), session: $("#session-id"),
   action: $("#action-digest"), evidence: $("#evidence-digest"),
+  policy: $("#policy-digest"), provenance: $("#policy-provenance"),
+  reservation: $("#reservation-state"),
   configuration: $("#configuration-result"), card: $("#receipt-card"),
   error: $("#receipt-error"), errorDetail: $("#receipt-error-detail"),
   raw: $("#receipt-raw"), json: $("#receipt-json"),
@@ -37,8 +39,13 @@ function render(receipt) {
   const executed = result?.executed_configuration;
   const matches = required && executed ? required === executed : true;
   const authorized = decision?.class === "authorized";
+  const replay = decision?.code === "bounded-replay";
 
-  elements.title.textContent = authorized ? "The exact refund was authorized." : "The request was denied before an unauthorized refund.";
+  elements.title.textContent = authorized
+    ? "The exact refund was authorized."
+    : replay
+      ? "The replay was blocked without another Stripe call."
+      : "The request was denied before an unauthorized refund.";
   elements.detail.textContent = decision?.detail ?? "No execution result has been recorded for this session.";
   elements.verification.dataset.state = authorized ? "verified" : "denied";
   elements.verification.querySelector("strong").textContent = decision?.class?.toUpperCase() ?? "NOT RUN";
@@ -48,6 +55,10 @@ function render(receipt) {
   elements.action.title = receipt.action_digest;
   elements.evidence.textContent = short(receipt.evidence_digest);
   elements.evidence.title = receipt.evidence_digest;
+  elements.policy.textContent = short(receipt.policy_digest);
+  elements.policy.title = receipt.policy_digest;
+  elements.provenance.textContent = receipt.policy_provenance ?? "unavailable";
+  elements.reservation.textContent = receipt.reservation?.state ?? "not reserved";
   elements.configuration.textContent = matches ? "required = executed" : "mismatch recorded";
   elements.configuration.classList.toggle("safe", matches);
 
@@ -70,6 +81,16 @@ function render(receipt) {
     const facts = document.createElement("dl");
     addFact(facts, "Stopped at", decision.stage);
     addFact(facts, "Stripe called", String(result.stripe_called));
+    addFact(facts, "Policy provenance", receipt.policy_provenance);
+    addFact(facts, "Evaluator", receipt.evaluator?.evaluator_semantic_id);
+    addFact(facts, "Reservation", receipt.reservation?.state);
+    addFact(
+      facts,
+      "Aggregate spent",
+      receipt.aggregate_budget?.budgets?.[0]
+        ? String(receipt.aggregate_budget.budgets[0].spent_minor)
+        : "0",
+    );
     addFact(facts, "Required config", required);
     addFact(facts, "Executed config", executed);
     card.append(header, facts);

@@ -1,0 +1,1 @@
+{"class":"denied","code":"connect-context-denied","detail":"the exact action does not commit to the evidenced Stripe Connect context","eligibility":null,"stage":"stripe-context"}

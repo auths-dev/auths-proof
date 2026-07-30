@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Auths · Bounded subscription</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#lab">Skip to the subscription lab</a>
+  <header class="site-header">
+    <nav class="nav-shell" aria-label="Primary navigation">
+      <a class="wordmark" href="/">auths <i>/</i> <small>stripe subscription create</small></a>
+      <div class="nav-links"><a href="#lab">Exact creation</a><a href="#workspace">Evidence</a></div>
+      <a class="nav-cta" href="#lab">Run the profile →</a>
+    </nav>
+  </header>
+  <main>
+    <section class="hero" id="lab">
+      <p class="eyebrow">EXACT SUBSCRIPTION CREATE / V1</p>
+      <h1>Recurring authority,<br><em>with an end.</em></h1>
+      <p class="lede">One typed mandate. One licensed Price. Three provider-clock cycles. Auths reserves the whole term and the first invoice before Stripe credentials become reachable.</p>
+      <button id="begin">Create test-clock fixture</button>
+    </section>
+
+    <section id="workspace" class="hidden">
+      <div class="grid">
+        <article>
+          <div class="section-label">01 · BOUNDED POLICY</div>
+          <dl id="policy"></dl>
+        </article>
+        <article>
+          <div class="section-label">02 · EXACT SUBSCRIPTION</div>
+          <dl id="action"></dl>
+        </article>
+      </div>
+      <div class="liability">
+        <div><span>PER CYCLE</span><strong id="recurring">—</strong></div>
+        <div><span>FIRST INVOICE</span><strong id="immediate">—</strong></div>
+        <div><span>FINITE TERM</span><strong id="term">—</strong></div>
+        <div><span>CYCLES</span><strong id="cycles">—</strong></div>
+      </div>
+      <section class="experiment">
+        <div>
+          <div class="section-label">03 · RUN THE BOUNDARY</div>
+          <select id="experiment"></select>
+          <p id="experiment-detail"></p>
+        </div>
+        <div class="actions">
+          <button id="execute">Authorize &amp; execute</button>
+          <button id="reconcile" class="secondary">Reconcile</button>
+          <button id="advance" class="secondary">Advance test clock</button>
+        </div>
+      </section>
+      <section id="result" class="result hidden">
+        <div class="result-head">
+          <div><span>OUTCOME</span><strong id="outcome">—</strong></div>
+          <div><span>CREDENTIAL REQUESTS</span><strong id="credentials">0</strong></div>
+          <div><span>PROVIDER CALLS</span><strong id="calls">0</strong></div>
+          <a id="receipt-link" href="#">Designed receipt ↗</a>
+        </div>
+        <pre id="receipt"></pre>
+      </section>
+    </section>
+  </main>
+  <footer>AUTHORITY IS NOT A BOOLEAN · LIABILITY IS NOT AN ESTIMATE</footer>
+  <script src="/config.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>

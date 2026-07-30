@@ -1,9 +1,9 @@
 use std::{env, io::Read as _, time::Duration};
 
 use auths_stripe::{
-    ChargeId, CredentialProvider, Currency, Money, PaymentIntentId, PortError, RefundEvidenceInput,
-    RefundEvidenceV1, RefundId, RefundResult, StripeAccountId, StripeCredential, StripeGateway,
-    VerifiedRefundCommand,
+    ChargeId, CredentialProvider, Currency, ExactRefundActionV1, Money, PaymentIntentId, PortError,
+    RefundEvidenceInput, RefundEvidenceV1, RefundId, RefundResult, StripeAccountId,
+    StripeCredential, StripeGateway, VerifiedRefundCommand,
     canonical::{canonical_json, sha256},
 };
 use reqwest::{
@@ -34,6 +34,18 @@ pub trait DemoStripeEnvironment: CredentialProvider + StripeGateway {
 
     /// Returns a truthful execution mode label.
     fn execution_mode(&self) -> &'static str;
+
+    /// Observes whether Stripe created the exact refund after an ambiguous call.
+    ///
+    /// # Errors
+    ///
+    /// Returns a closed provider/evidence failure. `None` means a fresh,
+    /// bounded Stripe list proved no matching refund.
+    fn reconcile_refund(
+        &self,
+        action: &ExactRefundActionV1,
+        now: u64,
+    ) -> Result<Option<RefundResult>, PortError>;
 }
 
 struct SecretBytes(Vec<u8>);
@@ -180,6 +192,7 @@ impl LiveStripeEnvironment {
         &self,
         secret: &[u8],
         idempotency_key: Option<&str>,
+        connect_account: Option<&StripeAccountId>,
     ) -> Result<HeaderMap, PortError> {
         let secret = std::str::from_utf8(secret).map_err(|_| PortError::InvalidConfiguration)?;
         let mut authorization = HeaderValue::from_str(&format!("Bearer {secret}"))
@@ -200,6 +213,13 @@ impl LiveStripeEnvironment {
             headers.insert(
                 HeaderName::from_static("idempotency-key"),
                 HeaderValue::from_str(value).map_err(|_| PortError::InvalidConfiguration)?,
+            );
+        }
+        if let Some(account) = connect_account {
+            headers.insert(
+                HeaderName::from_static("stripe-account"),
+                HeaderValue::from_str(account.as_str())
+                    .map_err(|_| PortError::InvalidConfiguration)?,
             );
         }
         Ok(headers)
@@ -237,18 +257,25 @@ impl LiveStripeEnvironment {
         &self,
         charge_id: &ChargeId,
         now: u64,
+        connect_account: Option<&StripeAccountId>,
     ) -> Result<RefundEvidenceV1, PortError> {
         let response = self
             .client
             .get(format!("{}/v1/charges/{}", self.base_url, charge_id))
-            .headers(self.headers(&self.fixture_secret.0, None)?)
+            .headers(self.headers(&self.fixture_secret.0, None, connect_account)?)
             .send()
             .map_err(|_| PortError::EvidenceUnavailable)?;
         let (value, _) = Self::read_json(response).map_err(|error| match error {
             PortError::Execution => PortError::EvidenceUnavailable,
             other => other,
         })?;
-        evidence_from_charge(&value, &self.account_id, &self.api_version, now)
+        evidence_from_charge(
+            &value,
+            &self.account_id,
+            &self.api_version,
+            connect_account,
+            now,
+        )
     }
 }
 
@@ -280,6 +307,7 @@ impl DemoStripeEnvironment for LiveStripeEnvironment {
             .headers(self.headers(
                 &self.fixture_secret.0,
                 Some(&format!("auths-fixture-{workflow_id}")),
+                None,
             )?)
             .body(body)
             .send()
@@ -293,7 +321,7 @@ impl DemoStripeEnvironment for LiveStripeEnvironment {
             .and_then(Value::as_str)
             .ok_or(PortError::Malformed)
             .and_then(|value| ChargeId::parse(value).map_err(|_| PortError::Malformed))?;
-        self.retrieve_charge(&charge_id, now)
+        self.retrieve_charge(&charge_id, now, None)
     }
 
     fn account_id(&self) -> &StripeAccountId {
@@ -307,13 +335,55 @@ impl DemoStripeEnvironment for LiveStripeEnvironment {
     fn execution_mode(&self) -> &'static str {
         "stripe-test-mode"
     }
+
+    fn reconcile_refund(
+        &self,
+        action: &ExactRefundActionV1,
+        now: u64,
+    ) -> Result<Option<RefundResult>, PortError> {
+        if action.stripe_account_id() != &self.account_id
+            || action.stripe_api_version() != self.api_version
+            || action.livemode()
+        {
+            return Err(PortError::InvalidConfiguration);
+        }
+        let connect_account = connect_account_for_action(action)?;
+        let response = self
+            .client
+            .get(format!(
+                "{}/v1/refunds?charge={}&limit=100",
+                self.base_url,
+                action.charge_id()
+            ))
+            .headers(self.headers(&self.fixture_secret.0, None, connect_account.as_ref())?)
+            .send()
+            .map_err(|_| PortError::EvidenceUnavailable)?;
+        let (value, request_id) = Self::read_json(response)?;
+        let data = value
+            .get("data")
+            .and_then(Value::as_array)
+            .ok_or(PortError::Malformed)?;
+        for candidate in data {
+            let workflow_matches = candidate
+                .get("metadata")
+                .and_then(Value::as_object)
+                .and_then(|metadata| metadata.get("auths_workflow"))
+                .and_then(Value::as_str)
+                == Some(action.workflow_id());
+            let amount_matches = candidate.get("amount").and_then(Value::as_u64)
+                == Some(action.amount().amount_minor());
+            let currency_matches = candidate.get("currency").and_then(Value::as_str)
+                == Some(action.amount().currency().as_str());
+            if workflow_matches && amount_matches && currency_matches {
+                return refund_result(candidate, request_id.as_deref(), now).map(Some);
+            }
+        }
+        Ok(None)
+    }
 }
 
 impl CredentialProvider for LiveStripeEnvironment {
-    fn mutation_credential(
-        &self,
-        account: &StripeAccountId,
-    ) -> Result<StripeCredential, PortError> {
+    fn credential(&self, account: &StripeAccountId) -> Result<StripeCredential, PortError> {
         if account != &self.account_id {
             return Err(PortError::InvalidConfiguration);
         }
@@ -335,15 +405,18 @@ impl StripeGateway for LiveStripeEnvironment {
         {
             return Err(PortError::InvalidConfiguration);
         }
-        let fresh = self.retrieve_charge(action.charge_id(), now)?;
+        let connect_account = connect_account_for_action(action)?;
+        let fresh = self.retrieve_charge(action.charge_id(), now, connect_account.as_ref())?;
         let authorized = command.evidence();
         if fresh.stripe_account_id() != authorized.stripe_account_id()
             || fresh.stripe_api_version() != authorized.stripe_api_version()
             || fresh.livemode() != authorized.livemode()
             || fresh.charge_id() != authorized.charge_id()
             || fresh.payment_intent_id() != authorized.payment_intent_id()
+            || fresh.connect_account_id() != authorized.connect_account_id()
             || fresh.currency() != authorized.currency()
             || fresh.charge_amount_minor() != authorized.charge_amount_minor()
+            || fresh.captured_amount_minor() != authorized.captured_amount_minor()
             || fresh.amount_refunded_minor() != authorized.amount_refunded_minor()
             || fresh.refundable_amount_minor() != authorized.refundable_amount_minor()
             || fresh.paid() != authorized.paid()
@@ -366,19 +439,45 @@ impl StripeGateway for LiveStripeEnvironment {
         let response = self
             .client
             .post(format!("{}/v1/refunds", self.base_url))
-            .headers(self.headers(credential.expose(), Some(action.idempotency_key()))?)
+            .headers(self.headers(
+                credential.expose(),
+                Some(action.idempotency_key()),
+                connect_account.as_ref(),
+            )?)
             .body(encode_form(&parameters))
             .send()
             .map_err(|_| PortError::OutcomeUnknown)?;
-        let (value, request_id) = Self::read_json(response)?;
-        let result = refund_result(&value, request_id.as_deref(), now)?;
+        let (value, request_id) = Self::read_json(response).map_err(|error| {
+            if error == PortError::Execution {
+                PortError::Execution
+            } else {
+                PortError::OutcomeUnknown
+            }
+        })?;
+        let result = refund_result(&value, request_id.as_deref(), now)
+            .map_err(|_| PortError::OutcomeUnknown)?;
         if result.charge_id != *action.charge_id()
             || result.amount != *action.amount()
             || value.get("object").and_then(Value::as_str) != Some("refund")
         {
-            return Err(PortError::Malformed);
+            return Err(PortError::OutcomeUnknown);
         }
         Ok(result)
+    }
+}
+
+fn connect_account_for_action(
+    action: &ExactRefundActionV1,
+) -> Result<Option<StripeAccountId>, PortError> {
+    match action
+        .metadata()
+        .get("auths_connect_account")
+        .map(String::as_str)
+    {
+        None | Some("platform") => Ok(None),
+        Some(value) => StripeAccountId::parse(value)
+            .map(Some)
+            .map_err(|_| PortError::InvalidConfiguration),
     }
 }
 
@@ -386,6 +485,7 @@ fn evidence_from_charge(
     value: &Value,
     account_id: &StripeAccountId,
     api_version: &str,
+    connect_account: Option<&StripeAccountId>,
     now: u64,
 ) -> Result<RefundEvidenceV1, PortError> {
     let charge_id = string_id(value, "id", |value| ChargeId::parse(value.to_owned()))?;
@@ -405,8 +505,13 @@ fn evidence_from_charge(
         livemode: boolean(value, "livemode")?,
         charge_id,
         payment_intent_id,
+        connect_account_id: connect_account.cloned(),
         currency,
         charge_amount_minor: amount,
+        captured_amount_minor: value
+            .get("amount_captured")
+            .and_then(Value::as_u64)
+            .unwrap_or(amount),
         amount_refunded_minor: amount_refunded,
         paid: boolean(value, "paid")?,
         captured: boolean(value, "captured")?,

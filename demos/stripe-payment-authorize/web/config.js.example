@@ -1,0 +1,1 @@
+window.AUTHS_PAYMENT_AUTHORIZE_API_BASE = "https://replace-with-api.example";

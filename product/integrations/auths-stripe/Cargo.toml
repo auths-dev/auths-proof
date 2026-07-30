@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
-description = "Exact, replay-safe Auths authorization for Stripe refunds"
+description = "Exact, replay-safe Auths authorization for Stripe domain effects"
 
 [dependencies]
 auths-model.workspace = true
@@ -28,6 +28,7 @@ auths-registries.workspace = true
 auths-runtime.workspace = true
 auths-signature.workspace = true
 ed25519-dalek.workspace = true
+proptest.workspace = true
 
 [lints]
 workspace = true

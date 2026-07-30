@@ -92,8 +92,84 @@ fn valid_charge(value: &str) -> bool {
     valid_prefixed(value, "ch_", 96)
 }
 
+fn valid_customer(value: &str) -> bool {
+    valid_prefixed(value, "cus_", 96)
+}
+
+fn valid_payment_method(value: &str) -> bool {
+    valid_prefixed(value, "pm_", 96)
+}
+
 fn valid_payment_intent(value: &str) -> bool {
     valid_prefixed(value, "pi_", 96)
+}
+
+fn valid_setup_intent(value: &str) -> bool {
+    valid_prefixed(value, "seti_", 96)
+}
+
+fn valid_setup_attempt(value: &str) -> bool {
+    valid_prefixed(value, "setatt_", 96)
+}
+
+fn valid_mandate(value: &str) -> bool {
+    valid_prefixed(value, "mandate_", 96)
+}
+
+fn valid_product(value: &str) -> bool {
+    valid_prefixed(value, "prod_", 96)
+}
+
+fn valid_price(value: &str) -> bool {
+    valid_prefixed(value, "price_", 96)
+}
+
+fn valid_subscription(value: &str) -> bool {
+    valid_prefixed(value, "sub_", 96)
+}
+
+fn valid_subscription_item(value: &str) -> bool {
+    valid_prefixed(value, "si_", 96)
+}
+
+fn valid_invoice(value: &str) -> bool {
+    valid_prefixed(value, "in_", 96)
+}
+
+fn valid_test_clock(value: &str) -> bool {
+    valid_prefixed(value, "clock_", 96)
+}
+
+fn valid_event(value: &str) -> bool {
+    valid_prefixed(value, "evt_", 96)
+}
+
+fn valid_issuing_authorization(value: &str) -> bool {
+    valid_prefixed(value, "iauth_", 96)
+}
+
+fn valid_issuing_cardholder(value: &str) -> bool {
+    valid_prefixed(value, "ich_", 96)
+}
+
+fn valid_issuing_card(value: &str) -> bool {
+    valid_prefixed(value, "ic_", 96)
+}
+
+fn valid_transfer(value: &str) -> bool {
+    valid_prefixed(value, "tr_", 96)
+}
+
+fn valid_balance_transaction(value: &str) -> bool {
+    valid_prefixed(value, "txn_", 96)
+}
+
+fn valid_payout(value: &str) -> bool {
+    valid_prefixed(value, "po_", 96)
+}
+
+fn valid_external_account(value: &str) -> bool {
+    valid_prefixed(value, "ba_", 96) || valid_prefixed(value, "card_", 96)
 }
 
 fn valid_refund(value: &str) -> bool {
@@ -113,7 +189,42 @@ fn valid_currency(value: &str) -> bool {
 
 validated_string!(StripeAccountId, StripeAccountId, valid_account);
 validated_string!(ChargeId, ChargeId, valid_charge);
+validated_string!(CustomerId, CustomerId, valid_customer);
+validated_string!(PaymentMethodId, PaymentMethodId, valid_payment_method);
 validated_string!(PaymentIntentId, PaymentIntentId, valid_payment_intent);
+validated_string!(SetupIntentId, SetupIntentId, valid_setup_intent);
+validated_string!(SetupAttemptId, SetupAttemptId, valid_setup_attempt);
+validated_string!(MandateId, MandateId, valid_mandate);
+validated_string!(ProductId, ProductId, valid_product);
+validated_string!(PriceId, PriceId, valid_price);
+validated_string!(SubscriptionId, SubscriptionId, valid_subscription);
+validated_string!(
+    SubscriptionItemId,
+    SubscriptionItemId,
+    valid_subscription_item
+);
+validated_string!(InvoiceId, InvoiceId, valid_invoice);
+validated_string!(TestClockId, TestClockId, valid_test_clock);
+validated_string!(EventId, EventId, valid_event);
+validated_string!(
+    IssuingAuthorizationId,
+    IssuingAuthorizationId,
+    valid_issuing_authorization
+);
+validated_string!(
+    IssuingCardholderId,
+    IssuingCardholderId,
+    valid_issuing_cardholder
+);
+validated_string!(IssuingCardId, IssuingCardId, valid_issuing_card);
+validated_string!(TransferId, TransferId, valid_transfer);
+validated_string!(
+    BalanceTransactionId,
+    BalanceTransactionId,
+    valid_balance_transaction
+);
+validated_string!(PayoutId, PayoutId, valid_payout);
+validated_string!(ExternalAccountId, ExternalAccountId, valid_external_account);
 validated_string!(RefundId, RefundId, valid_refund);
 validated_string!(DigestHex, DigestHex, valid_digest);
 validated_string!(Currency, Currency, valid_currency);
@@ -135,9 +246,66 @@ pub enum TypeError {
     /// Invalid Charge.
     #[error("invalid Stripe Charge identifier")]
     ChargeId,
+    /// Invalid Customer.
+    #[error("invalid Stripe Customer identifier")]
+    CustomerId,
+    /// Invalid `PaymentMethod`.
+    #[error("invalid Stripe PaymentMethod identifier")]
+    PaymentMethodId,
     /// Invalid `PaymentIntent`.
     #[error("invalid Stripe PaymentIntent identifier")]
     PaymentIntentId,
+    /// Invalid `SetupIntent`.
+    #[error("invalid Stripe SetupIntent identifier")]
+    SetupIntentId,
+    /// Invalid `SetupAttempt`.
+    #[error("invalid Stripe SetupAttempt identifier")]
+    SetupAttemptId,
+    /// Invalid Mandate.
+    #[error("invalid Stripe Mandate identifier")]
+    MandateId,
+    /// Invalid Product.
+    #[error("invalid Stripe Product identifier")]
+    ProductId,
+    /// Invalid Price.
+    #[error("invalid Stripe Price identifier")]
+    PriceId,
+    /// Invalid Subscription.
+    #[error("invalid Stripe Subscription identifier")]
+    SubscriptionId,
+    /// Invalid Subscription Item.
+    #[error("invalid Stripe Subscription Item identifier")]
+    SubscriptionItemId,
+    /// Invalid Invoice.
+    #[error("invalid Stripe Invoice identifier")]
+    InvoiceId,
+    /// Invalid billing test clock.
+    #[error("invalid Stripe test clock identifier")]
+    TestClockId,
+    /// Invalid Event.
+    #[error("invalid Stripe Event identifier")]
+    EventId,
+    /// Invalid Issuing Authorization.
+    #[error("invalid Stripe Issuing Authorization identifier")]
+    IssuingAuthorizationId,
+    /// Invalid Issuing Cardholder.
+    #[error("invalid Stripe Issuing Cardholder identifier")]
+    IssuingCardholderId,
+    /// Invalid Issuing Card.
+    #[error("invalid Stripe Issuing Card identifier")]
+    IssuingCardId,
+    /// Invalid Connect Transfer.
+    #[error("invalid Stripe Connect Transfer identifier")]
+    TransferId,
+    /// Invalid balance transaction.
+    #[error("invalid Stripe balance transaction identifier")]
+    BalanceTransactionId,
+    /// Invalid Payout.
+    #[error("invalid Stripe Payout identifier")]
+    PayoutId,
+    /// Invalid external bank/card destination.
+    #[error("invalid Stripe external account identifier")]
+    ExternalAccountId,
     /// Invalid Refund.
     #[error("invalid Stripe Refund identifier")]
     RefundId,
@@ -426,8 +594,10 @@ pub struct RefundEvidenceV1 {
     livemode: bool,
     charge_id: ChargeId,
     payment_intent_id: Option<PaymentIntentId>,
+    connect_account_id: Option<StripeAccountId>,
     currency: Currency,
     charge_amount_minor: u64,
+    captured_amount_minor: u64,
     amount_refunded_minor: u64,
     refundable_amount_minor: u64,
     paid: bool,
@@ -454,10 +624,14 @@ pub struct RefundEvidenceInput {
     pub charge_id: ChargeId,
     /// Related `PaymentIntent`.
     pub payment_intent_id: Option<PaymentIntentId>,
+    /// Explicit Stripe Connect account context, absent for direct/platform use.
+    pub connect_account_id: Option<StripeAccountId>,
     /// Currency.
     pub currency: Currency,
     /// Original amount.
     pub charge_amount_minor: u64,
+    /// Amount captured by Stripe.
+    pub captured_amount_minor: u64,
     /// Already-refunded amount.
     pub amount_refunded_minor: u64,
     /// Paid bit.
@@ -483,12 +657,15 @@ impl RefundEvidenceV1 {
     pub fn new(input: RefundEvidenceInput) -> Result<Self, ValidationError> {
         if !valid_api_version(&input.stripe_api_version)
             || input.charge_amount_minor == 0
+            || input.captured_amount_minor == 0
+            || input.captured_amount_minor > input.charge_amount_minor
             || input.amount_refunded_minor > input.charge_amount_minor
+            || input.amount_refunded_minor > input.captured_amount_minor
         {
             return Err(ValidationError::InvalidEvidence);
         }
         let refundable_amount_minor = input
-            .charge_amount_minor
+            .captured_amount_minor
             .checked_sub(input.amount_refunded_minor)
             .ok_or(ValidationError::InvalidEvidence)?;
         if input.charge_refunded != (refundable_amount_minor == 0) {
@@ -501,8 +678,10 @@ impl RefundEvidenceV1 {
             livemode: input.livemode,
             charge_id: input.charge_id,
             payment_intent_id: input.payment_intent_id,
+            connect_account_id: input.connect_account_id,
             currency: input.currency,
             charge_amount_minor: input.charge_amount_minor,
+            captured_amount_minor: input.captured_amount_minor,
             amount_refunded_minor: input.amount_refunded_minor,
             refundable_amount_minor,
             paid: input.paid,
@@ -553,6 +732,12 @@ impl RefundEvidenceV1 {
         self.payment_intent_id.as_ref()
     }
 
+    /// Explicit connected-account context.
+    #[must_use]
+    pub const fn connect_account_id(&self) -> Option<&StripeAccountId> {
+        self.connect_account_id.as_ref()
+    }
+
     /// Currency.
     #[must_use]
     pub const fn currency(&self) -> &Currency {
@@ -563,6 +748,12 @@ impl RefundEvidenceV1 {
     #[must_use]
     pub const fn charge_amount_minor(&self) -> u64 {
         self.charge_amount_minor
+    }
+
+    /// Captured amount.
+    #[must_use]
+    pub const fn captured_amount_minor(&self) -> u64 {
+        self.captured_amount_minor
     }
 
     /// Already refunded.
@@ -778,7 +969,7 @@ impl ExactRefundActionV1 {
             || self.expected_charge_amount_minor == 0
             || self.expected_amount_refunded_minor > self.expected_charge_amount_minor
             || self.expected_refundable_amount_minor
-                != self.expected_charge_amount_minor - self.expected_amount_refunded_minor
+                > self.expected_charge_amount_minor - self.expected_amount_refunded_minor
             || self.amount.amount_minor() > self.expected_refundable_amount_minor
             || self.refund_application_fee
             || self.reverse_transfer

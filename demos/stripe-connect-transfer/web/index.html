@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Auths · Bounded Connect transfer</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#lab">Skip to the transfer lab</a>
+  <header class="site-header">
+    <nav class="nav-shell" aria-label="Primary navigation">
+      <a class="wordmark" href="/">auths <i>/</i> <small>stripe transfer</small></a>
+      <div class="nav-links"><a href="#lab">Exact transfer</a><a href="#receipt-panel">Receipt</a></div>
+      <a class="nav-cta" href="#lab">Run the profile →</a>
+    </nav>
+  </header>
+  <main id="lab">
+    <header>
+      <p class="eyebrow">AUTHS × STRIPE CONNECT</p>
+      <h1>One source charge. One exact destination.</h1>
+      <p class="lede">A transfer is eligible only when the destination, source transaction, group, currency, platform balance, and every aggregate reservation agree.</p>
+    </header>
+    <section class="grid">
+      <article>
+        <h2>Signed transfer</h2>
+        <dl>
+          <dt>Destination</dt><dd>acct_destinationfixture</dd>
+          <dt>Source transaction</dt><dd>ch_connectfixture</dd>
+          <dt>Amount</dt><dd>USD 5.00</dd>
+          <dt>Transfer group</dt><dd>order-fixture</dd>
+        </dl>
+      </article>
+      <article>
+        <h2>Conservation bounds</h2>
+        <dl>
+          <dt>Source ceiling</dt><dd>USD 10.00</dd>
+          <dt>Source available</dt><dd>USD 7.00</dd>
+          <dt>Destination limit</dt><dd>USD 10.00</dd>
+          <dt>Platform available</dt><dd>USD 50.00</dd>
+        </dl>
+      </article>
+    </section>
+    <section class="controls">
+      <select id="experiment">
+        <option value="exact">Execute exact transfer</option>
+        <option value="denied">Deny before credentials</option>
+        <option value="unknown">Unknown outcome holds capacity</option>
+      </select>
+      <button id="run">Run protected transfer</button>
+      <button id="replay" disabled>Replay same workflow</button>
+    </section>
+    <section id="result" class="result" aria-live="polite">
+      <strong>READY</strong><span>No Stripe credential is present in this browser.</span>
+    </section>
+    <section id="receipt-panel">
+      <h2>Canonical receipt</h2>
+      <pre id="receipt">No receipt yet.</pre>
+    </section>
+    <footer>The exact provider command requires source_transaction; payout and refund behavior are outside this profile.</footer>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>

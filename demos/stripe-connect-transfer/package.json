@@ -1,0 +1,7 @@
+{
+  "name": "auths-stripe-connect-transfer-demo",
+  "private": true,
+  "scripts": {
+    "test": "node --test tests/web-smoke.mjs"
+  }
+}

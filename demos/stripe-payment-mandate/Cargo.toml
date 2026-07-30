@@ -1,0 +1,30 @@
+[package]
+name = "auths-stripe-payment-mandate-demo"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Interactive exact bounded Stripe payment-mandate demonstration"
+publish = false
+
+[dependencies]
+auths-profile-api.workspace = true
+auths-sdk.workspace = true
+auths-stripe.workspace = true
+auths-stripe-payment-demo-common.workspace = true
+axum.workspace = true
+dotenvy.workspace = true
+getrandom.workspace = true
+hex.workspace = true
+reqwest = { workspace = true, features = ["json"] }
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tower-http.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+tower.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,20 @@
+services:
+  subscription-modify:
+    build:
+      context: ../..
+      dockerfile: demos/stripe-subscription-modify/Dockerfile
+    env_file:
+      - .env
+    environment:
+      PORT: "8080"
+      AUTHS_STRIPE_ALLOWED_ORIGIN: "http://localhost:8080"
+      AUTHS_SUBSCRIPTION_MODIFY_PUBLIC_API_BASE: "http://localhost:8080"
+      AUTHS_STRIPE_STATE_DIR: "/data/auths-stripe-subscription-modify"
+    ports:
+      - "8080:8080"
+    volumes:
+      - subscription-modify-state:/data/auths-stripe-subscription-modify
+    restart: unless-stopped
+
+volumes:
+  subscription-modify-state:

@@ -1,0 +1,382 @@
+schema = 1
+
+[inventory]
+id = "auths-proof-stripe-profile-inventory"
+product_package = "product/integrations/auths-stripe"
+implementation_plan = "docs/target-state/STRIPE_PROFILE_FAMILY_IMPLEMENTATION_PLAN.md"
+spec_numbers = [13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]
+allowed_statuses = ["specified", "implemented"]
+
+[boundary]
+generic_policy_language_forbidden = true
+runtime_operation_dispatch_forbidden = true
+union_action_forbidden = true
+generic_provider_gateway_forbidden = true
+generic_credential_scope_forbidden = true
+authorization_is_not_execution = true
+provider_success_requires_observation = true
+unknown_outcomes_hold_capacity = true
+profile_receipts_required = true
+profile_fixtures_required = true
+profile_live_demos_required = true
+
+shared_mechanisms = [
+  "canonical-leaf-types",
+  "checked-minor-unit-arithmetic",
+  "immutable-policy-and-evaluator-commitments",
+  "durable-storage-mechanics",
+  "replay-and-idempotency-identifiers",
+  "receipt-envelope-fields",
+  "secret-redaction",
+  "frontend-layout-and-browser-test-infrastructure",
+]
+
+profile_owned_surfaces = [
+  "exact-action",
+  "typed-evaluator-entrypoint",
+  "verified-command",
+  "lifecycle-transition",
+  "provider-gateway",
+  "credential-scope",
+  "execution-service",
+  "reconciliation",
+  "receipt-and-stable-codes",
+  "fixtures-and-mutation-corpus",
+  "live-demo-contract",
+]
+
+[[families]]
+id = "auths.stripe.bounded-merchant-payment-policy/1"
+evaluator = "auths.stripe.bounded-merchant-payment-evaluator/1"
+owner_spec = 13
+members = [
+  "auths.stripe.exact-payment-collect/1",
+  "auths.stripe.exact-payment-authorize/1",
+  "auths.stripe.exact-payment-capture/1",
+  "auths.stripe.exact-payment-cancel/1",
+]
+shared_semantics = [
+  "closed-policy-carrier",
+  "merchant-account-and-connect-scope",
+  "customer-order-and-payment-method-scope",
+  "checked-money-and-window-primitives",
+  "aggregate-reservation-store-mechanics",
+]
+forbidden_shared_semantics = [
+  "operation-tagged-evaluator",
+  "operation-tagged-verified-command",
+  "operation-tagged-provider-request",
+  "operation-neutral-lifecycle-receipt",
+]
+
+[[families]]
+id = "auths.stripe.bounded-purchase-policy/1"
+evaluator = "auths.stripe.bounded-purchase-evaluator/1"
+owner_spec = 17
+members = ["auths.stripe.exact-purchase-authorization/1"]
+shared_semantics = [
+  "closed-policy-carrier",
+  "checked-money-and-window-primitives",
+  "atomic-authorization-capacity",
+]
+forbidden_shared_semantics = [
+  "merchant-payment-policy-alias",
+  "merchant-payment-evaluator-alias",
+]
+
+[[families]]
+id = "auths.stripe.bounded-connect-transfer-policy/1"
+evaluator = "auths.stripe.bounded-connect-transfer-evaluator/1"
+owner_spec = 18
+members = ["auths.stripe.exact-connect-transfer/1"]
+shared_semantics = [
+  "closed-policy-carrier",
+  "checked-money-and-window-primitives",
+  "atomic-transfer-capacity",
+]
+forbidden_shared_semantics = [
+  "payout-policy-alias",
+  "generic-funds-movement-evaluator",
+]
+
+[[families]]
+id = "auths.stripe.bounded-payout-policy/1"
+evaluator = "auths.stripe.bounded-payout-evaluator/1"
+owner_spec = 19
+members = ["auths.stripe.exact-payout/1"]
+shared_semantics = [
+  "closed-policy-carrier",
+  "checked-money-and-window-primitives",
+  "atomic-payout-capacity",
+]
+forbidden_shared_semantics = [
+  "connect-transfer-policy-alias",
+  "generic-funds-movement-evaluator",
+]
+
+[[families]]
+id = "auths.stripe.bounded-payment-mandate-policy/1"
+evaluator = "auths.stripe.bounded-payment-mandate-evaluator/1"
+owner_spec = 20
+members = ["auths.stripe.exact-payment-mandate/1"]
+shared_semantics = [
+  "closed-policy-carrier",
+  "consent-and-capability-commitments",
+  "checked-money-and-window-primitives",
+]
+forbidden_shared_semantics = [
+  "boolean-consent",
+  "subscription-policy-alias",
+]
+
+[[families]]
+id = "auths.stripe.bounded-subscription-policy/1"
+evaluator = "auths.stripe.bounded-subscription-evaluator/1"
+owner_spec = 21
+members = [
+  "auths.stripe.exact-subscription-create/1",
+  "auths.stripe.exact-subscription-modify/1",
+  "auths.stripe.exact-subscription-cancel/1",
+]
+shared_semantics = [
+  "closed-policy-carrier",
+  "catalog-and-mandate-scope",
+  "checked-cycle-and-liability-arithmetic",
+  "recurring-liability-store-mechanics",
+]
+forbidden_shared_semantics = [
+  "operation-tagged-subscription-evaluator",
+  "netted-credit-and-debit-authorization",
+  "unobserved-liability-release",
+]
+
+[[profiles]]
+spec = 13
+spec_path = "docs/specs/0013-stripe-payment-collect.md"
+status = "implemented"
+profile = "auths.stripe.exact-payment-collect/1"
+family = "auths.stripe.bounded-merchant-payment-policy/1"
+evaluator = "auths.stripe.bounded-merchant-payment-evaluator/1"
+module = "merchant::collect"
+action_type = "StripeExactPaymentCollectV1"
+evaluator_entrypoint = "evaluate_payment_collect"
+verified_command = "VerifiedPaymentCollectCommand"
+lifecycle_transition = "transition_payment_collect"
+state_store = "merchant-payment-reservations"
+receipt_type = "MerchantCollectionReceipt"
+provider_gateway = "PaymentCollectGateway"
+credential_scope = "stripe-payment-intent-create-confirm-automatic"
+effect = "payment-intent-create-confirm-automatic"
+demo = "demos/stripe-payment-collect"
+fixture_dir = "product/integrations/auths-stripe/fixtures/merchant-collect/v1"
+depends_on = []
+
+[[profiles]]
+spec = 14
+spec_path = "docs/specs/0014-stripe-payment-authorize.md"
+status = "specified"
+profile = "auths.stripe.exact-payment-authorize/1"
+family = "auths.stripe.bounded-merchant-payment-policy/1"
+evaluator = "auths.stripe.bounded-merchant-payment-evaluator/1"
+module = "merchant::authorize"
+action_type = "StripeExactPaymentAuthorizeV1"
+evaluator_entrypoint = "evaluate_payment_authorize"
+verified_command = "VerifiedPaymentAuthorizeCommand"
+lifecycle_transition = "transition_payment_authorize"
+state_store = "merchant-payment-reservations"
+receipt_type = "MerchantAuthorizationReceipt"
+provider_gateway = "PaymentAuthorizeGateway"
+credential_scope = "stripe-payment-intent-create-confirm-manual"
+effect = "payment-intent-create-confirm-manual"
+demo = "demos/stripe-payment-authorize"
+fixture_dir = "product/integrations/auths-stripe/fixtures/merchant-authorize/v1"
+depends_on = []
+
+[[profiles]]
+spec = 15
+spec_path = "docs/specs/0015-stripe-payment-capture.md"
+status = "specified"
+profile = "auths.stripe.exact-payment-capture/1"
+family = "auths.stripe.bounded-merchant-payment-policy/1"
+evaluator = "auths.stripe.bounded-merchant-payment-evaluator/1"
+module = "merchant::capture"
+action_type = "StripeExactPaymentCaptureV1"
+evaluator_entrypoint = "evaluate_payment_capture"
+verified_command = "VerifiedPaymentCaptureCommand"
+lifecycle_transition = "transition_payment_capture"
+state_store = "merchant-payment-reservations"
+receipt_type = "MerchantCaptureReceipt"
+provider_gateway = "PaymentCaptureGateway"
+credential_scope = "stripe-payment-intent-capture"
+effect = "payment-intent-capture"
+demo = "demos/stripe-payment-capture"
+fixture_dir = "product/integrations/auths-stripe/fixtures/merchant-capture/v1"
+depends_on = ["auths.stripe.exact-payment-authorize/1"]
+
+[[profiles]]
+spec = 16
+spec_path = "docs/specs/0016-stripe-payment-cancel.md"
+status = "specified"
+profile = "auths.stripe.exact-payment-cancel/1"
+family = "auths.stripe.bounded-merchant-payment-policy/1"
+evaluator = "auths.stripe.bounded-merchant-payment-evaluator/1"
+module = "merchant::cancel"
+action_type = "StripeExactPaymentCancelV1"
+evaluator_entrypoint = "evaluate_payment_cancel"
+verified_command = "VerifiedPaymentCancelCommand"
+lifecycle_transition = "transition_payment_cancel"
+state_store = "merchant-payment-reservations"
+receipt_type = "MerchantCancelReceipt"
+provider_gateway = "PaymentCancelGateway"
+credential_scope = "stripe-payment-intent-cancel"
+effect = "payment-intent-cancel"
+demo = "demos/stripe-payment-cancel"
+fixture_dir = "product/integrations/auths-stripe/fixtures/merchant-cancel/v1"
+depends_on = ["auths.stripe.exact-payment-authorize/1"]
+
+[[profiles]]
+spec = 17
+spec_path = "docs/specs/0017-stripe-purchase-authorization.md"
+status = "specified"
+profile = "auths.stripe.exact-purchase-authorization/1"
+family = "auths.stripe.bounded-purchase-policy/1"
+evaluator = "auths.stripe.bounded-purchase-evaluator/1"
+module = "issuing::purchase_authorization"
+action_type = "StripeExactPurchaseAuthorizationV1"
+evaluator_entrypoint = "evaluate_purchase_authorization"
+verified_command = "VerifiedPurchaseAuthorizationCommand"
+lifecycle_transition = "transition_purchase_authorization"
+state_store = "issuing-authorization-reservations"
+receipt_type = "PurchaseAuthorizationReceipt"
+provider_gateway = "PurchaseAuthorizationGateway"
+credential_scope = "stripe-issuing-authorization-retrieve"
+effect = "issuing-authorization-approve-or-decline"
+demo = "demos/stripe-purchase-authorization"
+fixture_dir = "product/integrations/auths-stripe/fixtures/purchase-authorization/v1"
+depends_on = []
+
+[[profiles]]
+spec = 18
+spec_path = "docs/specs/0018-stripe-connect-transfer.md"
+status = "specified"
+profile = "auths.stripe.exact-connect-transfer/1"
+family = "auths.stripe.bounded-connect-transfer-policy/1"
+evaluator = "auths.stripe.bounded-connect-transfer-evaluator/1"
+module = "connect::transfer"
+action_type = "StripeExactConnectTransferV1"
+evaluator_entrypoint = "evaluate_connect_transfer"
+verified_command = "VerifiedConnectTransferCommand"
+lifecycle_transition = "transition_connect_transfer"
+state_store = "connect-transfer-reservations"
+receipt_type = "ConnectTransferReceipt"
+provider_gateway = "ConnectTransferGateway"
+credential_scope = "stripe-connect-transfer-create"
+effect = "connect-transfer-create"
+demo = "demos/stripe-connect-transfer"
+fixture_dir = "product/integrations/auths-stripe/fixtures/connect-transfer/v1"
+depends_on = []
+
+[[profiles]]
+spec = 19
+spec_path = "docs/specs/0019-stripe-payout.md"
+status = "specified"
+profile = "auths.stripe.exact-payout/1"
+family = "auths.stripe.bounded-payout-policy/1"
+evaluator = "auths.stripe.bounded-payout-evaluator/1"
+module = "treasury::payout"
+action_type = "StripeExactPayoutV1"
+evaluator_entrypoint = "evaluate_payout"
+verified_command = "VerifiedPayoutCommand"
+lifecycle_transition = "transition_payout"
+state_store = "payout-reservations"
+receipt_type = "PayoutReceipt"
+provider_gateway = "PayoutGateway"
+credential_scope = "stripe-payout-create"
+effect = "payout-create"
+demo = "demos/stripe-payout"
+fixture_dir = "product/integrations/auths-stripe/fixtures/payout/v1"
+depends_on = []
+
+[[profiles]]
+spec = 20
+spec_path = "docs/specs/0020-stripe-payment-mandate.md"
+status = "specified"
+profile = "auths.stripe.exact-payment-mandate/1"
+family = "auths.stripe.bounded-payment-mandate-policy/1"
+evaluator = "auths.stripe.bounded-payment-mandate-evaluator/1"
+module = "mandate"
+action_type = "StripeExactPaymentMandateV1"
+evaluator_entrypoint = "evaluate_payment_mandate"
+verified_command = "VerifiedPaymentMandateCommand"
+lifecycle_transition = "transition_payment_mandate"
+state_store = "payment-mandate-capabilities"
+receipt_type = "PaymentMandateReceipt"
+provider_gateway = "PaymentMandateGateway"
+credential_scope = "stripe-setup-intent-create-confirm"
+effect = "setup-intent-create-confirm"
+demo = "demos/stripe-payment-mandate"
+fixture_dir = "product/integrations/auths-stripe/fixtures/payment-mandate/v1"
+depends_on = []
+
+[[profiles]]
+spec = 21
+spec_path = "docs/specs/0021-stripe-subscription-create.md"
+status = "specified"
+profile = "auths.stripe.exact-subscription-create/1"
+family = "auths.stripe.bounded-subscription-policy/1"
+evaluator = "auths.stripe.bounded-subscription-evaluator/1"
+module = "subscription::create"
+action_type = "StripeExactSubscriptionCreateV1"
+evaluator_entrypoint = "evaluate_subscription_create"
+verified_command = "VerifiedSubscriptionCreateCommand"
+lifecycle_transition = "transition_subscription_create"
+state_store = "subscription-liability-reservations"
+receipt_type = "SubscriptionCreateReceipt"
+provider_gateway = "SubscriptionCreateGateway"
+credential_scope = "stripe-subscription-create"
+effect = "subscription-create"
+demo = "demos/stripe-subscription-create"
+fixture_dir = "product/integrations/auths-stripe/fixtures/subscription-create/v1"
+depends_on = ["auths.stripe.exact-payment-mandate/1"]
+
+[[profiles]]
+spec = 22
+spec_path = "docs/specs/0022-stripe-subscription-modify.md"
+status = "specified"
+profile = "auths.stripe.exact-subscription-modify/1"
+family = "auths.stripe.bounded-subscription-policy/1"
+evaluator = "auths.stripe.bounded-subscription-evaluator/1"
+module = "subscription::modify"
+action_type = "StripeExactSubscriptionModifyV1"
+evaluator_entrypoint = "evaluate_subscription_modify"
+verified_command = "VerifiedSubscriptionModifyCommand"
+lifecycle_transition = "transition_subscription_modify"
+state_store = "subscription-liability-reservations"
+receipt_type = "SubscriptionModifyReceipt"
+provider_gateway = "SubscriptionModifyGateway"
+credential_scope = "stripe-subscription-modify"
+effect = "subscription-modify-pending-if-incomplete"
+demo = "demos/stripe-subscription-modify"
+fixture_dir = "product/integrations/auths-stripe/fixtures/subscription-modify/v1"
+depends_on = ["auths.stripe.exact-subscription-create/1"]
+
+[[profiles]]
+spec = 23
+spec_path = "docs/specs/0023-stripe-subscription-cancel.md"
+status = "implemented"
+profile = "auths.stripe.exact-subscription-cancel/1"
+family = "auths.stripe.bounded-subscription-policy/1"
+evaluator = "auths.stripe.bounded-subscription-evaluator/1"
+module = "subscription::cancel"
+action_type = "StripeExactSubscriptionCancelV1"
+evaluator_entrypoint = "evaluate_subscription_cancel"
+verified_command = "VerifiedSubscriptionCancelCommand"
+lifecycle_transition = "transition_subscription_cancel"
+state_store = "subscription-liability-reservations"
+receipt_type = "SubscriptionCancelReceipt"
+provider_gateway = "SubscriptionCancelGateway"
+credential_scope = "stripe-subscription-cancel"
+effect = "subscription-cancel"
+demo = "demos/stripe-subscription-cancel"
+fixture_dir = "product/integrations/auths-stripe/fixtures/subscription-cancel/v1"
+depends_on = ["auths.stripe.exact-subscription-create/1"]

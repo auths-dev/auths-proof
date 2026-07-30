@@ -8,7 +8,7 @@
       content="See Auths authorize one exact Stripe test-mode refund while the agent remains credentialless."
     />
     <meta name="color-scheme" content="light" />
-    <title>Auths × Stripe — One exact refund</title>
+    <title>Auths × Stripe — Bounded refunds</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
@@ -35,19 +35,20 @@
         <div class="shell hero-grid">
           <div>
             <p class="eyebrow"><i aria-hidden="true"></i> Auths × Stripe test mode</p>
-            <h1>Authorize $10.00. <em>Reject $10.01.</em></h1>
+            <h1>Delegate a refund range. <em>Execute one exact choice.</em></h1>
           </div>
           <div class="hero-copy">
             <p>
-              A synthetic agent proposes one refund without receiving a Stripe
-              key. Auths checks the exact payment, amount, currency, account,
-              evidence, and executor configuration before the protected
-              service can call Stripe.
+              A synthetic agent selects one exact refund inside an immutable
+              configured policy without receiving a Stripe key. Auths checks
+              fresh payment evidence, percentage and absolute limits, aggregate
+              capacity, and exact configuration before the protected service
+              can call Stripe.
             </p>
             <ul>
               <li>Real Stripe test payment</li>
               <li>Mutation key isolated from the agent</li>
-              <li>One exact refund claim</li>
+              <li>Durable budget reservation before credentials</li>
             </ul>
           </div>
         </div>
@@ -70,15 +71,28 @@
                 <strong>Choose what reaches Auths</strong>
                 <small>Verdict updates immediately</small>
               </header>
-              <h2 id="controls-title">Change one refund fact.</h2>
+              <h2 id="controls-title">Choose one exact refund.</h2>
               <p class="controls-intro">
-                Every case starts from the same signed authorization. Choose a
-                case, inspect the result beside it, then submit it to the native
-                executor.
+                Every case uses the same immutable configured policy and exact
+                Auths action profile. This is local configured policy—not yet a
+                human-signed standing delegation.
               </p>
 
+              <div class="payment-card delegation-card" id="delegation-card">
+                <span>Immutable configured policy</span>
+                <div>
+                  <strong id="policy-limit">50% · $15.00 max</strong>
+                  <small id="policy-digest">loading policy</small>
+                </div>
+                <dl>
+                  <div><dt>Denominator</dt><dd id="policy-denominator">original charge</dd></div>
+                  <div><dt>Evaluator</dt><dd id="policy-evaluator">—</dd></div>
+                  <div><dt>Provenance</dt><dd id="policy-provenance">local config</dd></div>
+                </dl>
+              </div>
+
               <div class="payment-card">
-                <span>Stripe test payment</span>
+                <span>Fresh Stripe evidence</span>
                 <div>
                   <strong id="payment-amount">$20.00</strong>
                   <small id="payment-id">loading</small>
@@ -86,17 +100,18 @@
                 <dl>
                   <div><dt>Already refunded</dt><dd id="already-refunded">$0.00</dd></div>
                   <div><dt>Available</dt><dd id="refundable">$20.00</dd></div>
+                  <div><dt>Observed</dt><dd id="evidence-freshness">just now</dd></div>
                   <div><dt>Mode</dt><dd>TEST</dd></div>
                 </dl>
               </div>
 
               <div class="variant-list" id="variant-list">
                 <button class="variant active" data-variant="exact" type="button" aria-pressed="true">
-                  <span><b>Exact $10.00 refund</b><small>The signed amount and payment both match</small></span>
+                  <span><b>Exact $10.00 refund</b><small>At the configured 50% evidence boundary</small></span>
                   <i>01</i>
                 </button>
                 <button class="variant" data-variant="amount-changed" type="button" aria-pressed="false">
-                  <span><b>Amount changed to $10.01</b><small>One minor unit exceeds the authorization</small></span>
+                  <span><b>Amount changed to $10.01</b><small>One minor unit exceeds the relative limit</small></span>
                   <i>02</i>
                 </button>
                 <button class="variant" data-variant="charge-changed" type="button" aria-pressed="false">
@@ -104,7 +119,7 @@
                   <i>03</i>
                 </button>
                 <button class="variant" data-variant="configuration-changed" type="button" aria-pressed="false">
-                  <span><b>Executor policy changed</b><small>The loaded refund limit differs from the signed policy</small></span>
+                  <span><b>Executed configuration changed</b><small>The evaluator build commitment no longer matches</small></span>
                   <i>04</i>
                 </button>
               </div>
@@ -138,6 +153,16 @@
                 <div><dt>Stripe contacted</dt><dd id="stripe-contacted">NOT YET</dd></div>
               </dl>
 
+              <section class="budget-strip" aria-label="Aggregate refund budget">
+                <span class="micro">Aggregate budget · available → reserved → spent</span>
+                <dl>
+                  <div><dt>Available</dt><dd id="budget-available">$25.00</dd></div>
+                  <div><dt>Reserved</dt><dd id="budget-reserved">$0.00</dd></div>
+                  <div><dt>Spent</dt><dd id="budget-spent">$0.00</dd></div>
+                  <div><dt>Unknown</dt><dd id="budget-unknown">$0.00</dd></div>
+                </dl>
+              </section>
+
               <div class="configuration">
                 <div>
                   <span>Required by authorization</span>
@@ -155,8 +180,8 @@
                   <span class="micro">03 · Submit to protected executor</span>
                   <h3 id="execution-title">Create the exact test refund.</h3>
                   <p id="execution-copy">
-                    The executor will claim this action, request its restricted
-                    Stripe key, and submit these exact parameters.
+                    The executor will durably reserve aggregate capacity, claim
+                    this exact action, then request its restricted Stripe key.
                   </p>
                   <button id="execute" type="button">Create exact $10.00 refund</button>
                   <a id="receipt-link" class="receipt-link" href="#" target="_blank" rel="noreferrer" hidden>
@@ -169,7 +194,7 @@
                   <h3>What actually happened</h3>
                   <ol id="receipt-timeline">
                     <li data-stage="authorized"><span>Exact action authorized</span><strong>ready</strong></li>
-                    <li data-stage="claimed"><span>One execution claimed</span><strong>—</strong></li>
+                    <li data-stage="reserved"><span>Budget reserved durably</span><strong>—</strong></li>
                     <li data-stage="credential"><span>Stripe key requested</span><strong>—</strong></li>
                     <li data-stage="stripe"><span>Stripe refund created</span><strong>—</strong></li>
                     <li data-stage="observed"><span>Provider status observed</span><strong>—</strong></li>
@@ -201,17 +226,17 @@
             <p>
               Stripe’s key still protects the account, but Auths prevents that
               key from becoming the agent’s reusable authority. The native
-              service receives the key only after the signed action, current
-              payment evidence, verifier configuration, and one-time claim all
-              match.
+              service receives the key only after the exact action, fresh
+              payment evidence, configured policy, evaluator configuration,
+              durable aggregate reservation, and one-time claim all match.
             </p>
           </div>
           <div class="flow" aria-label="Exact refund flow">
-            <article><span>01</span><strong>Human</strong><p>Authorizes one payment and amount.</p></article>
+            <article><span>01</span><strong>Configuration</strong><p>Commits immutable Stripe refund bounds.</p></article>
             <b aria-hidden="true">→</b>
             <article><span>02</span><strong>Agent</strong><p>Submits the refund and proof without a key.</p></article>
             <b aria-hidden="true">→</b>
-            <article><span>03</span><strong>Auths</strong><p>Checks exact bytes, evidence, and policy.</p></article>
+            <article><span>03</span><strong>Auths</strong><p>Checks exact bytes, policy, evidence, and reserves budget.</p></article>
             <b aria-hidden="true">→</b>
             <article><span>04</span><strong>Stripe</strong><p>Receives one claimed test-mode refund.</p></article>
           </div>

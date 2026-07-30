@@ -36,6 +36,16 @@ const elements = {
   paymentId: document.querySelector("#payment-id"),
   alreadyRefunded: document.querySelector("#already-refunded"),
   refundable: document.querySelector("#refundable"),
+  evidenceFreshness: document.querySelector("#evidence-freshness"),
+  policyLimit: document.querySelector("#policy-limit"),
+  policyDigest: document.querySelector("#policy-digest"),
+  policyDenominator: document.querySelector("#policy-denominator"),
+  policyEvaluator: document.querySelector("#policy-evaluator"),
+  policyProvenance: document.querySelector("#policy-provenance"),
+  budgetAvailable: document.querySelector("#budget-available"),
+  budgetReserved: document.querySelector("#budget-reserved"),
+  budgetSpent: document.querySelector("#budget-spent"),
+  budgetUnknown: document.querySelector("#budget-unknown"),
   receiptLink: document.querySelector("#receipt-link"),
   receiptViewer: document.querySelector("#receipt-viewer"),
   receiptState: document.querySelector("#receipt-state"),
@@ -76,17 +86,37 @@ function selected() {
 
 function renderSession() {
   const payment = state.session.payment;
+  const delegation = state.session.delegation;
+  const budget = state.session.aggregate_budget.budgets[0];
   elements.paymentAmount.textContent = money(payment.amount_minor, payment.currency);
   elements.paymentId.textContent = short(payment.charge_id, 24);
   elements.paymentId.title = payment.charge_id;
   elements.alreadyRefunded.textContent = money(payment.amount_refunded_minor, payment.currency);
   elements.refundable.textContent = money(payment.refundable_amount_minor, payment.currency);
+  elements.evidenceFreshness.textContent = "fresh · protected read";
+  elements.policyLimit.textContent =
+    `${delegation.basis_points / 100}% · ${money(delegation.absolute_limit_minor, payment.currency)} max`;
+  elements.policyDigest.textContent = short(delegation.policy_digest, 24);
+  elements.policyDigest.title = delegation.policy_digest;
+  elements.policyDenominator.textContent = delegation.denominator.replaceAll("-", " ");
+  elements.policyEvaluator.textContent =
+    `${delegation.evaluator_semantic_id}/${delegation.evaluator_semantic_version}`;
+  elements.policyProvenance.textContent = "executor-local config";
+  renderBudget(budget);
   const receiptQuery = API ? `?api=${encodeURIComponent(API)}` : "";
   elements.receiptLink.href = `/receipts/${state.session.session_id}${receiptQuery}`;
   elements.release.textContent = `${state.scenario.release} · ${state.scenario.region}`;
   elements.loading.hidden = true;
   elements.workbench.hidden = false;
   renderDecision();
+}
+
+function renderBudget(budget) {
+  if (!budget) return;
+  elements.budgetAvailable.textContent = money(budget.available_minor, budget.currency);
+  elements.budgetReserved.textContent = money(budget.reserved_minor, budget.currency);
+  elements.budgetSpent.textContent = money(budget.spent_minor, budget.currency);
+  elements.budgetUnknown.textContent = money(budget.outcome_unknown_minor, budget.currency);
 }
 
 function renderDecision() {
@@ -109,7 +139,7 @@ function renderDecision() {
     decision.class === "authorized" ? "Create the exact test refund." : "Confirm this request is blocked.";
   elements.executionCopy.textContent =
     decision.class === "authorized"
-      ? "The executor will claim this action, request its restricted Stripe key, and submit these exact parameters."
+      ? "The executor will durably reserve aggregate capacity, claim this action, then request its restricted Stripe key."
       : "The native service should stop at the displayed check without requesting the Stripe key or calling Stripe.";
   elements.execute.textContent =
     state.active === "exact" && state.exactExecuted
@@ -149,6 +179,20 @@ function renderExecution(result) {
   elements.code.textContent = result.decision.code;
   elements.stage.textContent = result.decision.stage;
   elements.contacted.textContent = result.stripe_called ? "YES" : "NO";
+  const intent = result.reservation?.intents?.[0];
+  if (intent) {
+    const spent = result.reservation.state.includes("committed")
+      ? result.reservation.amount_minor
+      : 0;
+    renderBudget({
+      currency: intent.currency,
+      available_minor: intent.available_before_minor - result.reservation.amount_minor,
+      reserved_minor: result.reservation.state === "reserved" ? result.reservation.amount_minor : 0,
+      spent_minor: spent,
+      outcome_unknown_minor:
+        result.reservation.state === "outcome-unknown" ? result.reservation.amount_minor : 0,
+    });
+  }
   for (const stage of result.stages ?? []) {
     const item = elements.timeline.querySelector(`[data-stage="${stage.name}"]`);
     if (!item) continue;
@@ -198,7 +242,7 @@ async function execute() {
     renderExecution(result);
     await loadReceipt();
     elements.executionCopy.textContent = result.stripe_called
-      ? "Stripe test mode created this exact refund. Submit it again to see the durable replay claim stop execution."
+      ? "Stripe test mode created this exact refund. Submit it again to see the durable reservation replay without another provider call."
       : "The request stopped before the protected service requested its Stripe key.";
   } catch (error) {
     elements.verdict.textContent = "INDETERMINATE";

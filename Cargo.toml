@@ -75,6 +75,18 @@ members = [
     "demos/radicle-issue",
     "demos/github-issue",
     "demos/stripe-refund",
+    "demos/stripe-payment-common",
+    "demos/stripe-payment-authorize",
+    "demos/stripe-payment-cancel",
+    "demos/stripe-payment-capture",
+    "demos/stripe-payment-collect",
+    "demos/stripe-payment-mandate",
+    "demos/stripe-subscription-create",
+    "demos/stripe-subscription-modify",
+    "demos/stripe-subscription-cancel",
+    "demos/stripe-purchase-authorization",
+    "demos/stripe-connect-transfer",
+    "demos/stripe-payout",
     "demos/kubernetes-rollout",
     "demos/opentofu-plan",
     "demos/postgresql-data-change",
@@ -146,6 +158,18 @@ auths-custody = { version = "0.1.0", path = "product/integrations/auths-custody"
 auths-radicle = { version = "0.1.0", path = "product/integrations/auths-radicle" }
 auths-github = { version = "0.1.0", path = "product/integrations/auths-github" }
 auths-stripe = { version = "0.1.0", path = "product/integrations/auths-stripe" }
+auths-stripe-payment-demo-common = { version = "0.1.0", path = "demos/stripe-payment-common" }
+auths-stripe-payment-authorize-demo = { version = "0.1.0", path = "demos/stripe-payment-authorize" }
+auths-stripe-payment-cancel-demo = { version = "0.1.0", path = "demos/stripe-payment-cancel" }
+auths-stripe-payment-capture-demo = { version = "0.1.0", path = "demos/stripe-payment-capture" }
+auths-stripe-payment-collect-demo = { version = "0.1.0", path = "demos/stripe-payment-collect" }
+auths-stripe-payment-mandate-demo = { version = "0.1.0", path = "demos/stripe-payment-mandate" }
+auths-stripe-subscription-create-demo = { version = "0.1.0", path = "demos/stripe-subscription-create" }
+auths-stripe-subscription-modify-demo = { version = "0.1.0", path = "demos/stripe-subscription-modify" }
+auths-stripe-subscription-cancel-demo = { version = "0.1.0", path = "demos/stripe-subscription-cancel" }
+auths-stripe-purchase-authorization-demo = { version = "0.1.0", path = "demos/stripe-purchase-authorization" }
+auths-stripe-connect-transfer-demo = { version = "0.1.0", path = "demos/stripe-connect-transfer" }
+auths-stripe-payout-demo = { version = "0.1.0", path = "demos/stripe-payout" }
 auths-kubernetes = { version = "0.1.0", path = "product/integrations/auths-kubernetes" }
 auths-opentofu = { version = "0.1.0", path = "product/integrations/auths-opentofu" }
 auths-postgresql = { version = "0.1.0", path = "product/integrations/auths-postgresql" }
@@ -200,6 +224,7 @@ wasm-bindgen = "=0.2.118"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(kani)"] }
 
 [workspace.lints.clippy]
 all = "deny"

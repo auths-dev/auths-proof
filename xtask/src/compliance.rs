@@ -10,6 +10,7 @@ pub(crate) fn compliance() -> Result<(), String> {
     exchange_conformance()?;
     product_conformance()?;
     product_fixtures(false)?;
+    stripe_profiles()?;
     matrix()?;
     bindings_check()?;
     package_check()?;
