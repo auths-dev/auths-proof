@@ -1383,6 +1383,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "auths-stripe-subscription-create-demo"
+version = "0.1.0"
+dependencies = [
+ "auths-model",
+ "auths-profile-api",
+ "auths-sdk",
+ "auths-stripe",
+ "auths-stripe-payment-demo-common",
+ "axum",
+ "dotenvy",
+ "getrandom 0.3.4",
+ "hex",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tower",
+ "tower-http 0.7.0",
+]
+
+[[package]]
 name = "auths-testkit"
 version = "0.1.0"
 dependencies = [

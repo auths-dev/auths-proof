@@ -22,6 +22,7 @@ pub mod profile;
 pub mod receipts;
 pub mod reservation;
 pub mod service;
+pub mod subscription;
 pub mod types;
 
 #[cfg(test)]
@@ -56,7 +57,7 @@ pub use ports::{
     PaymentCaptureCredentialScope, PaymentCollectCredential, PaymentCollectCredentialScope,
     PaymentMandateCredential, PaymentMandateCredentialScope, PortError, ProofDecision,
     ProofVerifier, ReceiptSink, RefundCredentialScope, StripeCredential, StripeGateway,
-    StripeRefundCredential,
+    StripeRefundCredential, SubscriptionCreateCredential, SubscriptionCreateCredentialScope,
 };
 pub use profile::{StripeRefundCommand, StripeRefundProfile};
 pub use receipts::{
@@ -71,9 +72,11 @@ pub use reservation::{
 pub use service::{
     ExecuteRefundRequest, RefundService, ServiceDependencies, ServiceError, WorkflowOutcome,
 };
+pub use subscription::*;
 pub use types::{
     ChargeId, Currency, CustomerId, DigestHex, ExactRefundActionInput, ExactRefundActionV1,
-    MandateId, Money, PaymentIntentId, PaymentMethodId, RefundEvidenceInput, RefundEvidenceV1,
-    RefundId, RefundResult, SetupAttemptId, SetupIntentId, StripeAccountId,
-    StripeVerifierConfiguration, StripeVerifierConfigurationInput,
+    InvoiceId, MandateId, Money, PaymentIntentId, PaymentMethodId, PriceId, ProductId,
+    RefundEvidenceInput, RefundEvidenceV1, RefundId, RefundResult, SetupAttemptId, SetupIntentId,
+    StripeAccountId, StripeVerifierConfiguration, StripeVerifierConfigurationInput, SubscriptionId,
+    TestClockId,
 };

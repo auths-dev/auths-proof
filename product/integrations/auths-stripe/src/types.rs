@@ -116,6 +116,26 @@ fn valid_mandate(value: &str) -> bool {
     valid_prefixed(value, "mandate_", 96)
 }
 
+fn valid_product(value: &str) -> bool {
+    valid_prefixed(value, "prod_", 96)
+}
+
+fn valid_price(value: &str) -> bool {
+    valid_prefixed(value, "price_", 96)
+}
+
+fn valid_subscription(value: &str) -> bool {
+    valid_prefixed(value, "sub_", 96)
+}
+
+fn valid_invoice(value: &str) -> bool {
+    valid_prefixed(value, "in_", 96)
+}
+
+fn valid_test_clock(value: &str) -> bool {
+    valid_prefixed(value, "clock_", 96)
+}
+
 fn valid_refund(value: &str) -> bool {
     valid_prefixed(value, "re_", 96)
 }
@@ -139,6 +159,11 @@ validated_string!(PaymentIntentId, PaymentIntentId, valid_payment_intent);
 validated_string!(SetupIntentId, SetupIntentId, valid_setup_intent);
 validated_string!(SetupAttemptId, SetupAttemptId, valid_setup_attempt);
 validated_string!(MandateId, MandateId, valid_mandate);
+validated_string!(ProductId, ProductId, valid_product);
+validated_string!(PriceId, PriceId, valid_price);
+validated_string!(SubscriptionId, SubscriptionId, valid_subscription);
+validated_string!(InvoiceId, InvoiceId, valid_invoice);
+validated_string!(TestClockId, TestClockId, valid_test_clock);
 validated_string!(RefundId, RefundId, valid_refund);
 validated_string!(DigestHex, DigestHex, valid_digest);
 validated_string!(Currency, Currency, valid_currency);
@@ -178,6 +203,21 @@ pub enum TypeError {
     /// Invalid Mandate.
     #[error("invalid Stripe Mandate identifier")]
     MandateId,
+    /// Invalid Product.
+    #[error("invalid Stripe Product identifier")]
+    ProductId,
+    /// Invalid Price.
+    #[error("invalid Stripe Price identifier")]
+    PriceId,
+    /// Invalid Subscription.
+    #[error("invalid Stripe Subscription identifier")]
+    SubscriptionId,
+    /// Invalid Invoice.
+    #[error("invalid Stripe Invoice identifier")]
+    InvoiceId,
+    /// Invalid billing test clock.
+    #[error("invalid Stripe test clock identifier")]
+    TestClockId,
     /// Invalid Refund.
     #[error("invalid Stripe Refund identifier")]
     RefundId,

@@ -28,6 +28,9 @@ pub enum PaymentCancelCredentialScope {}
 /// Type marker for exact `SetupIntent` creation, confirmation, and retrieval.
 pub enum PaymentMandateCredentialScope {}
 
+/// Type marker for exact fixed-term Subscription creation.
+pub enum SubscriptionCreateCredentialScope {}
+
 /// Secret Stripe credential bound to one compile-time effect scope.
 ///
 /// A credential with one scope cannot be passed to a provider gateway for
@@ -118,6 +121,26 @@ pub type PaymentCancelCredential = StripeCredential<PaymentCancelCredentialScope
 /// }
 /// ```
 pub type PaymentMandateCredential = StripeCredential<PaymentMandateCredentialScope>;
+
+/// Exact subscription-create credential.
+///
+/// A mandate credential cannot cross the subscription-create boundary:
+///
+/// ```compile_fail
+/// use auths_stripe::{
+///     PaymentMandateCredential, SubscriptionCreateGateway,
+///     VerifiedSubscriptionCreateCommand,
+/// };
+///
+/// fn wrong_scope(
+///     gateway: &dyn SubscriptionCreateGateway,
+///     command: &VerifiedSubscriptionCreateCommand,
+///     credential: &PaymentMandateCredential,
+/// ) {
+///     let _ = gateway.create(command, credential, 0);
+/// }
+/// ```
+pub type SubscriptionCreateCredential = StripeCredential<SubscriptionCreateCredentialScope>;
 
 impl<S> StripeCredential<S> {
     /// Wraps a non-empty Stripe test-mode secret.
