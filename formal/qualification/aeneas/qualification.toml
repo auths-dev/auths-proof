@@ -23,6 +23,9 @@ source_files = [
   "formal/algebra-contract-v1.toml",
   "formal/qualification/aeneas/qualification.toml",
   "formal/translation-toolchain.lock",
+  "xtask/ci-plan/Cargo.toml",
+  "xtask/ci-plan/src/lib.rs",
+  "xtask/src/formal.rs",
   "xtask/src/formal_qualification.rs",
 ]
 

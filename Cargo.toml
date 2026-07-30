@@ -52,6 +52,7 @@ members = [
     "product/integrations/auths-kubernetes",
     "product/integrations/auths-opentofu",
     "product/integrations/auths-postgresql",
+    "product/integrations/auths-records-api",
     "product/profiles/auths-profile-api",
     "product/profiles/auths-profile-mcp",
     "product/profiles/auths-profile-domains",
@@ -89,6 +90,8 @@ members = [
     "demos/kubernetes-rollout",
     "demos/opentofu-plan",
     "demos/postgresql-data-change",
+    "demos/rest-api-authorization",
+    "xtask/ci-plan",
     "xtask",
 ]
 
@@ -170,6 +173,7 @@ auths-stripe-payout-demo = { version = "0.1.0", path = "demos/stripe-payout" }
 auths-kubernetes = { version = "0.1.0", path = "product/integrations/auths-kubernetes" }
 auths-opentofu = { version = "0.1.0", path = "product/integrations/auths-opentofu" }
 auths-postgresql = { version = "0.1.0", path = "product/integrations/auths-postgresql" }
+auths-records-api = { version = "0.1.0", path = "product/integrations/auths-records-api" }
 auths-apps-testkit = { version = "0.1.0", path = "demos/testkit/auths-apps-testkit" }
 auths-live-lab = { version = "0.1.0", path = "demos/live-lab" }
 auths-lab-matrix = { version = "0.1.0", path = "demos/matrix/auths-lab-matrix" }
