@@ -22,6 +22,11 @@ pub struct ReservationIntentCommitmentV1 {
 
 impl ReservationIntentCommitmentV1 {
     /// Constructs a complete reservation-intent commitment.
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`OutputError`] when the canonical payload length is zero or
+    /// exceeds the V1 output ceiling.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         schema_id: SchemaId,
@@ -127,6 +132,10 @@ pub enum ReservationKind {
 
 impl ReservationKind {
     /// Constructs a non-zero additive reservation.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`OutputError::ZeroReservationAmount`] when `amount` is zero.
     pub fn additive(unit: UnitId, amount: u64) -> Result<Self, OutputError> {
         if amount == 0 {
             Err(OutputError::ZeroReservationAmount)
@@ -148,6 +157,11 @@ pub struct ObligationCommitmentV1 {
 
 impl ObligationCommitmentV1 {
     /// Constructs a complete obligation commitment.
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`OutputError`] when the canonical payload length is zero or
+    /// exceeds the V1 output ceiling.
     pub fn new(
         schema_id: SchemaId,
         obligation_id: ObligationId,
@@ -220,6 +234,12 @@ pub struct BoundedOutputs {
 
 impl BoundedOutputs {
     /// Validates ordering, uniqueness, count, and combined byte limits.
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`OutputError`] when either collection exceeds its count
+    /// ceiling, entries are not strictly ordered and unique, or canonical byte
+    /// accounting exceeds the V1 ceiling.
     pub fn new(
         reservation_intents: Vec<ReservationIntentCommitmentV1>,
         obligations: Vec<ObligationCommitmentV1>,
@@ -246,7 +266,7 @@ impl BoundedOutputs {
                     .iter()
                     .map(ObligationCommitmentV1::canonical_bytes),
             )
-            .try_fold(0_u32, |total, length| total.checked_add(length))
+            .try_fold(0_u32, u32::checked_add)
             .ok_or(OutputError::CombinedBytesExceeded)?;
         if canonical_bytes as usize > MAX_OUTPUT_BYTES {
             return Err(OutputError::CombinedBytesExceeded);

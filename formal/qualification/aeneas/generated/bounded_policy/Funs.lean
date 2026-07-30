@@ -16,7 +16,7 @@ set_option maxRecDepth 2048
 namespace auths_bounded_policy
 
 /-- [auths_bounded_policy::kernel::configuration_match_code]:
-    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 24:0-41:1
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 28:0-45:1
     Visibility: public -/
 def kernel.configuration_match_code
   (semantic_equal : Bool) (canonicalization_equal : Bool) (digest_equal : Bool)
@@ -37,28 +37,28 @@ def kernel.configuration_match_code
   else ok kernel.ConfigurationMatchCode.SemanticMismatch
 
 /-- [auths_bounded_policy::kernel::checked_add_u64]:
-    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 45:0-47:1
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 49:0-51:1
     Visibility: public -/
 def kernel.checked_add_u64
   (left : Std.U64) (right : Std.U64) : Result (Option Std.U64) := do
   ok (U64.checked_add left right)
 
 /-- [auths_bounded_policy::kernel::checked_sub_u64]:
-    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 51:0-53:1
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 55:0-57:1
     Visibility: public -/
 def kernel.checked_sub_u64
   (left : Std.U64) (right : Std.U64) : Result (Option Std.U64) := do
   ok (U64.checked_sub left right)
 
 /-- [auths_bounded_policy::kernel::checked_mul_u64]:
-    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 57:0-59:1
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 61:0-63:1
     Visibility: public -/
 def kernel.checked_mul_u64
   (left : Std.U64) (right : Std.U64) : Result (Option Std.U64) := do
   ok (U64.checked_mul left right)
 
 /-- [auths_bounded_policy::kernel::checked_div_u64]:
-    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 63:0-65:1
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 67:0-69:1
     Visibility: public -/
 def kernel.checked_div_u64
   (left : Std.U64) (right : Std.U64) : Result (Option Std.U64) := do

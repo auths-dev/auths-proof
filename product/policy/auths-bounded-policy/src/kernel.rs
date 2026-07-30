@@ -21,6 +21,10 @@ pub enum ConfigurationMatchCode {
 
 /// Applies the immutable configuration diagnostic order.
 #[must_use]
+#[allow(
+    clippy::fn_params_excessive_bools,
+    reason = "this generated boundary deliberately projects four independent proof gates"
+)]
 pub fn configuration_match_code(
     semantic_equal: bool,
     canonicalization_equal: bool,

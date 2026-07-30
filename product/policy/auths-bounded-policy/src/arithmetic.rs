@@ -30,6 +30,11 @@ impl UnitQuantity {
     }
 
     /// Adds same-dimension quantities with overflow rejection.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ArithmeticError::IncompatibleUnit`] for different units or
+    /// [`ArithmeticError::Overflow`] when the sum does not fit in `u64`.
     pub fn checked_add(&self, right: &Self) -> Result<Self, ArithmeticError> {
         self.ensure_same_unit(right)?;
         let amount = checked_add_u64(self.amount, right.amount).ok_or(ArithmeticError::Overflow)?;
@@ -37,6 +42,11 @@ impl UnitQuantity {
     }
 
     /// Subtracts same-dimension quantities with underflow rejection.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ArithmeticError::IncompatibleUnit`] for different units or
+    /// [`ArithmeticError::Underflow`] when `right` exceeds `self`.
     pub fn checked_sub(&self, right: &Self) -> Result<Self, ArithmeticError> {
         self.ensure_same_unit(right)?;
         let amount =
@@ -45,12 +55,21 @@ impl UnitQuantity {
     }
 
     /// Multiplies by an exact scalar with overflow rejection.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ArithmeticError::Overflow`] when the product does not fit in
+    /// `u64`.
     pub fn checked_mul(&self, scalar: u64) -> Result<Self, ArithmeticError> {
         let amount = checked_mul_u64(self.amount, scalar).ok_or(ArithmeticError::Overflow)?;
         Ok(Self::new(self.unit.clone(), amount))
     }
 
     /// Divides by an exact scalar, rejecting division by zero.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ArithmeticError::DivisionByZero`] when `scalar` is zero.
     pub fn checked_div(&self, scalar: u64) -> Result<Self, ArithmeticError> {
         let amount = checked_div_u64(self.amount, scalar).ok_or(ArithmeticError::DivisionByZero)?;
         Ok(Self::new(self.unit.clone(), amount))
@@ -65,12 +84,16 @@ impl UnitQuantity {
     }
 }
 
-/// Closed basis-point percentage in the inclusive range 0..=10_000.
+/// Closed basis-point percentage in the inclusive range `0..=10_000`.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct BasisPoints(u16);
 
 impl BasisPoints {
     /// Constructs a V1 basis-point value.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ArithmeticError::BasisPointsOutOfRange`] above 10,000.
     pub const fn new(value: u16) -> Result<Self, ArithmeticError> {
         if value <= 10_000 {
             Ok(Self(value))
@@ -96,6 +119,11 @@ pub enum RoundingDirection {
 }
 
 /// Computes a basis-point fraction using a widened intermediate.
+///
+/// # Errors
+///
+/// Returns [`ArithmeticError::Overflow`] if the widened or rounded result
+/// cannot be represented as `u64`.
 pub fn checked_basis_points(
     denominator: u64,
     basis_points: BasisPoints,
@@ -108,11 +136,10 @@ pub fn checked_basis_points(
     let quotient = numerator / divisor;
     let remainder = numerator % divisor;
     let rounded = match rounding {
-        RoundingDirection::Down => quotient,
         RoundingDirection::Up if remainder > 0 => {
             quotient.checked_add(1).ok_or(ArithmeticError::Overflow)?
         }
-        RoundingDirection::Up => quotient,
+        RoundingDirection::Down | RoundingDirection::Up => quotient,
     };
     u64::try_from(rounded).map_err(|_| ArithmeticError::Overflow)
 }

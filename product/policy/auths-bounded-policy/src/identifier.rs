@@ -60,6 +60,12 @@ macro_rules! identifier {
 
         impl $name {
             /// Parses the closed ASCII representation.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`IdentifierError`] when the value is empty, exceeds
+            /// this identifier type's V1 byte ceiling, or contains a byte
+            /// outside the closed ASCII vocabulary.
             pub fn parse(value: &str) -> Result<Self, IdentifierError> {
                 validate(value, $maximum)?;
                 Ok(Self(value.to_string()))

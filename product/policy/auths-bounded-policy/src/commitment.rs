@@ -16,6 +16,10 @@ pub struct PolicyCommitmentV1 {
 
 impl PolicyCommitmentV1 {
     /// Constructs a policy commitment. Version zero is not a V1 schema.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CommitmentError::ZeroVersion`] when `policy_version` is zero.
     pub fn new(
         policy_type: PolicyTypeId,
         policy_version: u16,
@@ -266,10 +270,10 @@ pub fn configuration_match(
     required: &ConfigurationCommitmentV1,
     executed: &ConfigurationCommitmentV1,
 ) -> ConfigurationMatch {
-    let implementation_equal_or_unpinned = !required
+    let implementation_equal_or_unpinned = required
         .implementation_id
         .as_ref()
-        .is_some_and(|required_id| executed.implementation_id.as_ref() != Some(required_id));
+        .is_none_or(|required_id| executed.implementation_id.as_ref() == Some(required_id));
     match configuration_match_code(
         required.semantic_id == executed.semantic_id,
         required.canonicalization_id == executed.canonicalization_id,

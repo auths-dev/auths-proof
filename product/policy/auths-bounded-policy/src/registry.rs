@@ -31,6 +31,11 @@ pub struct EvaluatorRegistrationV1 {
 }
 
 /// Validates a closed, canonical evaluator inventory.
+///
+/// # Errors
+///
+/// Returns [`RegistryError`] when an entry is outside the product layer,
+/// lacks required evidence, is duplicated, or is not canonically ordered.
 pub fn validate_registry(registrations: &[EvaluatorRegistrationV1]) -> Result<(), RegistryError> {
     let mut previous: Option<(&ProfileId, &PolicyTypeId, &EvaluatorSemanticId)> = None;
     for registration in registrations {
