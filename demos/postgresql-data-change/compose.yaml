@@ -28,6 +28,8 @@ services:
       POSTGRES_USER: migration_admin
       POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:?set POSTGRES_ADMIN_PASSWORD}
       AUTHS_EXECUTOR_PASSWORD: ${AUTHS_EXECUTOR_PASSWORD:?set AUTHS_EXECUTOR_PASSWORD}
+    ports:
+      - "127.0.0.1:${AUTHS_POSTGRESQL_PORT:-54329}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - postgres-certs:/certs:ro
