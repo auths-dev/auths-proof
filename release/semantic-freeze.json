@@ -640,7 +640,7 @@
         "xtask/src/fixtures.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "9f90d0025a03e87ff91df60c11e677a94fc602fbc9064c7900e71fadc1814f79"
+      "sha256": "3b50ecb1e6644e61ecabab462977aa65e4807114c7fc268eb6d06b410e1c08cc"
     }
   ]
 }
