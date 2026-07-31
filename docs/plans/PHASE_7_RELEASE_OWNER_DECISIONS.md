@@ -11,6 +11,10 @@ recommended default.
 [AP-SPEC-032](../specs/0032-reproducible-release-candidate-and-exact-assurance-claim.md)
 requires these decisions before Phase 7 release implementation begins.
 
+The read-only
+[Phase 7 release readiness audit](PHASE_7_RELEASE_READINESS_AUDIT.md) maps each
+decision to the current repository and the implementation it blocks.
+
 The executing agent may maintain specifications, inspect the repository, and
 prepare read-only analysis while decisions are unresolved. It MUST NOT change
 release automation, freeze package metadata, publish artifacts, create or move
