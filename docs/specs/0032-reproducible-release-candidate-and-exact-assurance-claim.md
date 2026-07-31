@@ -1,8 +1,8 @@
 # AP-SPEC-032: Reproducible release candidate and exact assurance claim
 
-**Status:** Specified — owner-decision subgate approved; execution still
-requires the remaining Phase 7 entry evidence and separate Phase 7 and Phase 8
-pull requests
+**Status:** Specified — owner-decision subgate approved; remaining execution is
+blocked on AP-SPEC-034 public naming consolidation, the remaining Phase 7 entry
+evidence, and separate Phase 7 and Phase 8 pull requests
 
 **Governs:** Phase 7 and Phase 8 of the
 [Post-Milestone 6 Productization and Release Plan](../target-state/POST_MILESTONE_6_PRODUCTIZATION_AND_RELEASE_PLAN.md)
@@ -10,7 +10,8 @@ pull requests
 **Aligned with:** [Post-Milestone-6 Technical and Go-to-Market
 Alignment](../plans/POST_MILESTONE_6_TECHNICAL_AND_GO_TO_MARKET_ALIGNMENT.md)
 
-**Depends on:** AP-SPEC-0011, AP-SPEC-0025, AP-SPEC-0026, the completed
+**Depends on:** AP-SPEC-0011, AP-SPEC-0025, AP-SPEC-0026,
+[AP-SPEC-034](0034-auths-public-naming-consolidation.md), the completed
 Milestone 6 baseline on `main`, the formal assurance manifest, canonical
 fixtures, conformance inventories, benchmark evidence, and the existing
 release-check machinery
@@ -143,6 +144,13 @@ The current decision state is maintained in the
 [Phase 7 release owner decision register](../plans/PHASE_7_RELEASE_OWNER_DECISIONS.md).
 An unresolved recommendation in that register is not approval.
 
+[AP-SPEC-034](0034-auths-public-naming-consolidation.md) supersedes the public
+coordinates previously selected in `P7-OD-003` and `P7-OD-007`. Remaining
+release implementation MUST use
+[`release/public-naming.toml`](../../release/public-naming.toml) and MUST NOT
+freeze an artifact or metadata graph using `auths-proof-sdk`,
+`@auths-dev/proof`, PyPI `auths-proof`, or an `auths-proof-v*` RC tag.
+
 | Decision | Recommended default | Required before |
 | --- | --- | --- |
 | Release license | Keep `MIT OR Apache-2.0` through v1 | Freezing package and release metadata |
@@ -159,6 +167,9 @@ An unresolved recommendation in that register is not approval.
 
 The entry revision MUST also satisfy:
 
+- AP-SPEC-034's exit gate has passed, including registry custody, package
+  publication order, current documentation, predecessor notice, external
+  website alignment, and hosted stale-name enforcement;
 - Milestones 0 through 6 are complete on `main`;
 - no open branch contains a required semantic or evidence fix;
 - all required checks on the candidate revision are terminal and successful;
@@ -591,6 +602,8 @@ large pull request.
 
 The minimum boundaries are:
 
+0. **AP-SPEC-034 naming PRs.** Complete every bounded naming, predecessor, and
+   external-content unit before release metadata or artifacts are frozen.
 1. **Decision and specification PR.** Record owner decisions, this
    specification, schemas, and the execution plan. No release implementation.
 2. **Semantic-freeze PR.** Add the freeze inventory and drift enforcement.
@@ -620,16 +633,19 @@ behavior. Provider/domain behavior MUST remain profile- or domain-owned.
 ## 15. Delivery order
 
 1. Record the owner decisions in Section 5.
-2. Freeze the semantic and artifact schemas.
-3. Implement and validate the semantic-freeze inventory.
-4. Upgrade release evidence to the approved SBOM and provenance contract.
-5. Implement clean preparation and no-rebuild promotion.
-6. Run two isolated preparations and close reproducibility gaps.
-7. Merge the final candidate revision after all checks pass.
-8. Promote the immutable RC tag and publish its evidence bundle.
-9. Build the exact claim registry against those immutable subjects.
-10. Publish and synchronize the human-readable assurance statement.
-11. Submit the fixed candidate and claim bundle to Phase 9 independent review.
+2. Complete AP-SPEC-034 and reconcile every release input to the Auths naming
+   inventory.
+3. Freeze the semantic and artifact schemas.
+4. Implement and validate the semantic-freeze inventory.
+5. Upgrade release evidence to the approved SBOM and provenance contract.
+6. Implement clean preparation and no-rebuild promotion.
+7. Run two isolated preparations and close reproducibility gaps.
+8. Merge the final candidate revision after all checks pass.
+9. Promote the immutable `auths-v1.0.0-rc.1` tag and publish its evidence
+   bundle only after separate exact-manifest authorization.
+10. Build the exact claim registry against those immutable subjects.
+11. Publish and synchronize the human-readable assurance statement.
+12. Submit the fixed candidate and claim bundle to Phase 9 independent review.
 
 ## 16. Completion and handoff
 

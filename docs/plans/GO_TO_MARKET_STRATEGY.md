@@ -422,6 +422,15 @@ Restricted integrations:               =========>
 Customer-operated pilots:                            ===========>
 ```
 
+### Phase 7 prerequisite: one Auths identity
+
+[Specification: AP-SPEC-034, Auths public naming
+consolidation](../specs/0034-auths-public-naming-consolidation.md)
+
+Before release artifacts are frozen, align the product, package, documentation,
+predecessor, website, and release identities under Auths. The proof protocol
+remains an explicit component boundary; it is not a competing product name.
+
 ### Phases 7–8: reproducible candidate and exact claim
 
 [Specification: AP-SPEC-032, Reproducible release candidate and exact
@@ -597,11 +606,11 @@ When using this document to plan or implement work:
 11. Stop at each phase gate and record what was learned before widening
     scope.
 
-The immediate execution program is AP-SPEC-032: record its owner decisions,
-produce the reproducible release candidate, and publish the exact claim bundle.
-AP-SPEC-033 independent review follows. AP-SPEC-027 and AP-SPEC-028 remain
-blocked until that review gate permits the explicitly labeled Phase 10
-developer preview.
+The immediate execution program is AP-SPEC-034 followed by the remaining
+AP-SPEC-032 work: establish one Auths identity, produce the reproducible release
+candidate, and publish the exact claim bundle. AP-SPEC-033 independent review
+follows. AP-SPEC-027 and AP-SPEC-028 remain blocked until that review gate
+permits the explicitly labeled Phase 10 developer preview.
 
 ## Related architecture
 

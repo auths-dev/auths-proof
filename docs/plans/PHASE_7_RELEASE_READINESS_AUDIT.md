@@ -6,6 +6,14 @@ Read-only repository audit for AP-SPEC-032. This document records current
 implementation facts and gaps; it does not approve owner decisions or
 authorize release changes.
 
+> **Historical baseline:** this audit predates issue 54 and AP-SPEC-034. Its
+> `auths-proof-sdk`, `@auths-dev/proof`, PyPI `auths-proof`, and
+> `auths-proof-v*` references describe the reviewed baseline and the now-
+> superseded owner decision. The governing targets are in
+> [`release/public-naming.toml`](../../release/public-naming.toml): `auths`,
+> `auths-sdk`, `@auths-dev/sdk`, PyPI `auths`, and
+> `auths-v1.0.0-rc.1`.
+
 The code and workflow baseline reviewed was `main` at `6f8df76`. The audit was
 prepared on the documentation-only specification branch. That branch does not
 change release behavior.

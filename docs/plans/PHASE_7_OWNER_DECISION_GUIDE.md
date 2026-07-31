@@ -1,5 +1,11 @@
 # Phase 7 owner decision guide
 
+> **Historical decision aid:** this guide predates the owner's issue 54 naming
+> decision. Package and tag alternatives recorded here are not current
+> recommendations. `P7-OD-012`, AP-SPEC-034, and
+> [`release/public-naming.toml`](../../release/public-naming.toml) govern the
+> Auths coordinates.
+
 ## Purpose
 
 This guide explains the choices in the
