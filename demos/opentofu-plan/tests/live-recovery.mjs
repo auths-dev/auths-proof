@@ -93,9 +93,12 @@ assert.equal(providerObjects(failedSession.session_id), "");
 await recreateApi("after-apply-unreconciled");
 const uncertainSession = await request("/api/v1/sessions", {});
 const uncertainPath = `/api/v1/sessions/${uncertainSession.session_id}/execute`;
-const uncertain = await request(uncertainPath, { variant: "exact" }, 500);
-assert.equal(uncertain.error.code, "execution-failed");
-assert.match(uncertain.error.message, /outcome is unknown/i);
+const uncertain = await request(uncertainPath, { variant: "exact" });
+assert.equal(uncertain.result.decision.class, "indeterminate");
+assert.equal(uncertain.result.decision.code, "execution-outcome-unknown");
+assert.equal(uncertain.result.claim.stage, "outcome-unknown");
+assert.equal(uncertain.result.credential_called, true);
+assert.equal(uncertain.result.opentofu_called, true);
 assert.notEqual(providerObjects(uncertainSession.session_id), "");
 
 await recreateApi("none");
