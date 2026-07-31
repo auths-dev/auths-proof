@@ -206,8 +206,8 @@ policy_type = "auths_opentofu::OpenTofuVerifierConfigurationV1"
 evidence_type = "auths_opentofu::OpenTofuStateEvidenceV1"
 configuration_type = "auths_opentofu::OpenTofuVerifierConfigurationV1"
 decision_type = "auths_opentofu::Decision"
-reservation_type = "auths_opentofu::ClaimRecord"
-verified_command = "auths_opentofu::VerifiedOpenTofuApply"
+reservation_type = "auths_lifecycle::LifecycleRecordV1"
+verified_command = "auths_opentofu::VerifiedSavedPlanCommand"
 provider_gateway = "auths_opentofu::OpenTofuGateway"
 credential_scope = "backend/provider credential bound to exact saved plan"
 reconciliation = "auths_opentofu::OpenTofuGateway::reconcile"
@@ -227,7 +227,7 @@ scenarios = [
   "reconciliation",
 ]
 not_applicable = {}
-scenario_evidence = { authorized = ["product/integrations/auths-opentofu/src/decision.rs#exact_saved_plan_is_authorized"], exact-boundary = ["product/integrations/auths-opentofu/src/profile.rs#profile_binds_exact_plan_and_one_effect_budget"], boundary-plus-one = ["product/integrations/auths-opentofu/src/plan_projection.rs#projection_denies_destroy_and_replacement"], malformed-input = ["product/integrations/auths-opentofu/src/bundle.rs#source_bundle_rejects_traversal_and_forbidden_hooks"], stale-evidence = ["product/integrations/auths-opentofu/src/decision.rs#held_backend_lock_is_never_fresh_evidence"], configuration-mismatch = ["product/integrations/auths-opentofu/src/service.rs#configuration_mismatch_never_verifies_claims_resolves_plan_or_reads_credentials"], concurrent-final-capacity = ["product/integrations/auths-opentofu/src/claim.rs#concurrent_claims_have_exactly_one_winner"], replay = ["demos/opentofu-plan/src/app.rs#exact_denial_replay_and_receipts_cross_the_http_boundary"], definite-pre-effect-failure = ["demos/opentofu-plan/tests/live-contract.mjs#live_native_denial_and_concurrent_claim_contract"], outcome-unknown = ["product/integrations/auths-opentofu/src/claim.rs#outcome_unknown_resumes_only_for_reconciliation"], reconciliation = ["demos/opentofu-plan/tests/live-recovery.mjs#live_durable_fault_restart_reconcile_contract"] }
+scenario_evidence = { authorized = ["product/integrations/auths-opentofu/src/decision.rs#exact_saved_plan_is_authorized"], exact-boundary = ["product/integrations/auths-opentofu/src/profile.rs#profile_binds_exact_plan_and_one_effect_budget"], boundary-plus-one = ["product/integrations/auths-opentofu/src/plan_projection.rs#projection_denies_destroy_and_replacement"], malformed-input = ["product/integrations/auths-opentofu/src/bundle.rs#source_bundle_rejects_traversal_and_forbidden_hooks"], stale-evidence = ["product/integrations/auths-opentofu/src/decision.rs#held_backend_lock_is_never_fresh_evidence"], configuration-mismatch = ["demos/opentofu-plan/src/app.rs#exact_denial_replay_and_receipts_cross_the_http_boundary"], concurrent-final-capacity = ["demos/opentofu-plan/src/app.rs#competing_same_scope_actions_execute_one_provider_effect"], replay = ["demos/opentofu-plan/src/app.rs#exact_denial_replay_and_receipts_cross_the_http_boundary"], definite-pre-effect-failure = ["demos/opentofu-plan/tests/live-contract.mjs#live_native_denial_and_concurrent_claim_contract"], outcome-unknown = ["demos/opentofu-plan/src/app.rs#restart_reconciles_unknown_apply_without_resubmission"], reconciliation = ["demos/opentofu-plan/src/app.rs#restart_reconciles_unknown_apply_without_resubmission", "demos/opentofu-plan/tests/live-recovery.mjs#live_durable_fault_restart_reconcile_contract"] }
 
 [[domains]]
 id = "postgresql"

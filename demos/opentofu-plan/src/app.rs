@@ -12,13 +12,14 @@ use std::{
 };
 
 use auths_opentofu::{
-    ClaimStore, ExecuteSavedPlanRequest, FixedClock, MemoryClaimStore, MemoryPlanArtifactStore,
-    MemoryReceiptSink, OpenTofuReceipt, OpenTofuSavedPlanApplyInput, OpenTofuSavedPlanApplyV1,
+    ExecuteSavedPlanRequest, FixedClock, MemoryPlanArtifactStore, MemoryReceiptSink,
+    OpenTofuLifecycleStore, OpenTofuReceipt, OpenTofuSavedPlanApplyInput, OpenTofuSavedPlanApplyV1,
     OpenTofuStateEvidenceV1, OpenTofuVerifierConfigurationInput, OpenTofuVerifierConfigurationV1,
-    PermittedChangeSummaryV1, PersistentClaimStore, PersistentPlanArtifactStore, PlanArtifactStore,
-    PlanHandle, PortError, ReceiptSink, ResourceAction, SavedPlanArtifact, SavedPlanProjectionV1,
+    PermittedChangeSummaryV1, PersistentPlanArtifactStore, PlanArtifactStore, PlanHandle,
+    PortError, ReceiptSink, ResourceAction, SavedPlanArtifact, SavedPlanProjectionV1,
     SavedPlanService, SdkProofVerifier, ServiceDependencies, ServiceError, WorkflowOutcome,
     canonical::{canonical_digest, canonical_json, sha256},
+    reservation_scope_digest,
     test_support::Fixture,
 };
 use axum::{
@@ -226,10 +227,73 @@ fn configured_fault() -> Result<OpenTofuFault, StartupError> {
 #[derive(Clone)]
 struct AppState {
     config: AppConfig,
-    claims: Arc<dyn ClaimStore>,
+    lifecycles: Arc<OpenTofuLifecycleRegistry>,
     artifacts: Arc<dyn PlanArtifactStore>,
     durable_receipts: Arc<dyn ReceiptSink>,
     sessions: Arc<Mutex<HashMap<String, Session>>>,
+}
+
+struct DemoOpenTofuLifecycleStore {
+    inner: auths_stores::PersistentLifecycleStore,
+}
+
+impl auths_lifecycle::LifecycleStore for DemoOpenTofuLifecycleStore {
+    fn transact(
+        &self,
+        transaction: &auths_lifecycle::StoreTransactionV1,
+    ) -> Result<auths_lifecycle::StoredTransitionV1, auths_lifecycle::StoreError> {
+        self.inner.transact(transaction)
+    }
+}
+
+impl OpenTofuLifecycleStore for DemoOpenTofuLifecycleStore {
+    fn load_opentofu_lifecycle(
+        &self,
+        workflow: &auths_lifecycle::WorkflowId,
+    ) -> Result<Option<auths_lifecycle::LifecycleRecordV1>, auths_lifecycle::StoreError> {
+        self.inner.load(workflow)
+    }
+}
+
+struct OpenTofuLifecycleRegistry {
+    directory: PathBuf,
+    stores: Mutex<HashMap<String, Arc<DemoOpenTofuLifecycleStore>>>,
+}
+
+impl OpenTofuLifecycleRegistry {
+    fn new(directory: PathBuf) -> Result<Self, StartupError> {
+        fs::create_dir_all(&directory).map_err(|_| StartupError::State)?;
+        Ok(Self {
+            directory,
+            stores: Mutex::new(HashMap::new()),
+        })
+    }
+
+    fn for_action(
+        &self,
+        action: &OpenTofuSavedPlanApplyV1,
+    ) -> Result<Arc<DemoOpenTofuLifecycleStore>, PortError> {
+        let scope = reservation_scope_digest(action).map_err(|_| PortError::Persistence)?;
+        let scope_hex = hex::encode(scope.as_bytes());
+        let mut stores = self.stores.lock().map_err(|_| PortError::Persistence)?;
+        if let Some(store) = stores.get(&scope_hex) {
+            return Ok(Arc::clone(store));
+        }
+        let store = Arc::new(DemoOpenTofuLifecycleStore {
+            inner: auths_stores::PersistentLifecycleStore::open(
+                self.directory.join(format!("{scope_hex}.lifecycle")),
+                vec![auths_stores::LifecycleCapacityRuleV1::Exclusive {
+                    scope_digest: scope,
+                    window_digest: None,
+                    retain_after_commit: false,
+                }],
+                4096,
+            )
+            .map_err(|_| PortError::Persistence)?,
+        });
+        stores.insert(scope_hex, Arc::clone(&store));
+        Ok(store)
+    }
 }
 
 struct Session {
@@ -271,22 +335,19 @@ struct ExecuteRequest {
 /// Builds the production API router.
 pub fn app(config: AppConfig) -> Result<Router, StartupError> {
     fs::create_dir_all(config.state_directory.as_ref()).map_err(|_| StartupError::State)?;
-    let (claims, artifacts): (Arc<dyn ClaimStore>, Arc<dyn PlanArtifactStore>) =
+    if config.state_directory.join("claims.json").exists() {
+        return Err(StartupError::State);
+    }
+    let lifecycles = Arc::new(OpenTofuLifecycleRegistry::new(
+        config.state_directory.join("lifecycle"),
+    )?);
+    let artifacts: Arc<dyn PlanArtifactStore> =
         if matches!(config.backend, BackendSettings::Fixture) {
-            (
-                Arc::new(MemoryClaimStore::default()),
-                Arc::new(MemoryPlanArtifactStore::default()),
-            )
+            Arc::new(MemoryPlanArtifactStore::default())
         } else {
-            (
-                Arc::new(
-                    PersistentClaimStore::open(config.state_directory.join("claims.json"))
-                        .map_err(|_| StartupError::State)?,
-                ),
-                Arc::new(
-                    PersistentPlanArtifactStore::open(config.state_directory.join("saved-plans"))
-                        .map_err(|_| StartupError::State)?,
-                ),
+            Arc::new(
+                PersistentPlanArtifactStore::open(config.state_directory.join("saved-plans"))
+                    .map_err(|_| StartupError::State)?,
             )
         };
     let durable_receipts = Arc::new(
@@ -309,7 +370,7 @@ pub fn app(config: AppConfig) -> Result<Router, StartupError> {
         .route("/api/v1/receipts/{session_id}", get(receipt))
         .with_state(AppState {
             config,
-            claims,
+            lifecycles,
             artifacts,
             durable_receipts,
             sessions: Arc::new(Mutex::new(sessions)),
@@ -598,7 +659,6 @@ async fn execute(
         auths_request,
         backend,
         artifacts,
-        claims,
         receipts,
         before_credentials,
         before_applies,
@@ -621,7 +681,6 @@ async fn execute(
             session.auths_request.clone(),
             Arc::clone(&session.backend),
             Arc::clone(&session.artifacts),
-            Arc::clone(&state.claims),
             Arc::clone(&session.receipts),
             session.backend.credential_calls(),
             session.backend.apply_calls(),
@@ -636,12 +695,16 @@ async fn execute(
         .map_err(|_| ApiError::internal())?;
     let opaque_plan_digest = variant.action.opaque_plan_digest().clone();
     let artifact_store = RequestArtifactStore { artifacts, corrupt };
+    let lifecycle_store = state
+        .lifecycles
+        .for_action(&variant.action)
+        .map_err(ApiError::port)?;
     let service = SavedPlanService::new(ServiceDependencies {
         proof_verifier: verifier,
         artifact_store,
         credential_provider: Arc::clone(&backend),
         opentofu_gateway: Arc::clone(&backend),
-        claim_store: claims,
+        lifecycle_store,
         receipt_sink: DemoReceiptSink {
             memory: Arc::clone(&receipts),
             durable: Arc::clone(&state.durable_receipts),
@@ -781,6 +844,23 @@ fn workflow_json(
             "stages": [
                 {"name": "authorized", "status": "verified"},
                 {"name": "claimed", "status": "replay-blocked"}
+            ],
+        }),
+        WorkflowOutcome::OutcomeUnknown { record } => json!({
+            "decision": {
+                "class": "indeterminate",
+                "code": "execution-outcome-unknown",
+                "stage": "reconciliation",
+                "detail": "the apply may have committed and requires observation before any retry"
+            },
+            "claim": record,
+            "credential_called": credential_called,
+            "opentofu_called": opentofu_called,
+            "stages": [
+                {"name": "authorized", "status": "verified"},
+                {"name": "claimed", "status": "claimed"},
+                {"name": "apply", "status": "outcome-unknown"},
+                {"name": "observed", "status": "pending"}
             ],
         }),
         WorkflowOutcome::Executed {
@@ -1218,10 +1298,72 @@ impl IntoResponse for ApiError {
 
 #[cfg(test)]
 mod tests {
+    use std::{sync::Barrier, thread};
+
     use axum::body::{Body, to_bytes};
     use tower::ServiceExt as _;
 
     use super::*;
+
+    fn demo_with_nonce(nonce_byte: u8) -> crate::fixture::DemoFixture {
+        let mut product = auths_opentofu::test_support::fixture();
+        let mut action = serde_json::to_value(&product.action).unwrap();
+        action["nonce"] = Value::String(format!("{nonce_byte:02x}").repeat(32));
+        product.action = serde_json::from_value(action).unwrap();
+        product.action.validate().unwrap();
+        demo_fixture_from_product(product, auths_opentofu::test_support::NOW, [nonce_byte; 32])
+    }
+
+    fn fixture_lifecycle_store(
+        path: &Path,
+        action: &OpenTofuSavedPlanApplyV1,
+    ) -> Arc<DemoOpenTofuLifecycleStore> {
+        let scope = reservation_scope_digest(action).unwrap();
+        Arc::new(DemoOpenTofuLifecycleStore {
+            inner: auths_stores::PersistentLifecycleStore::open(
+                path,
+                vec![auths_stores::LifecycleCapacityRuleV1::Exclusive {
+                    scope_digest: scope,
+                    window_digest: None,
+                    retain_after_commit: false,
+                }],
+                32,
+            )
+            .unwrap(),
+        })
+    }
+
+    fn execute_fixture_workflow(
+        lifecycle_store: Arc<DemoOpenTofuLifecycleStore>,
+        artifacts: MemoryPlanArtifactStore,
+        backend: Arc<OpenTofuBackend>,
+        nonce_byte: u8,
+    ) -> WorkflowOutcome {
+        let demo = demo_with_nonce(nonce_byte);
+        let handle = artifacts
+            .put(SavedPlanArtifact::new(auths_opentofu::test_support::PLAN_BYTES.to_vec()).unwrap())
+            .unwrap();
+        assert_eq!(&handle, demo.product.action.plan_handle());
+        SavedPlanService::new(ServiceDependencies {
+            proof_verifier: SdkProofVerifier::new(demo.auths.verifier),
+            artifact_store: artifacts,
+            credential_provider: Arc::clone(&backend),
+            opentofu_gateway: backend,
+            lifecycle_store,
+            receipt_sink: MemoryReceiptSink::default(),
+            clock: FixedClock(auths_opentofu::test_support::NOW),
+            executed_configuration: demo.product.configuration.clone(),
+        })
+        .execute(ExecuteSavedPlanRequest {
+            action: demo.product.action,
+            projection: demo.product.projection,
+            evidence: demo.product.evidence,
+            required_configuration: demo.product.configuration,
+            proof: demo.auths.proof,
+            auths_request: demo.auths.request,
+        })
+        .unwrap()
+    }
 
     async fn request(
         router: &Router,
@@ -1301,5 +1443,93 @@ mod tests {
         );
         assert_eq!(denied["result"]["credential_called"], false);
         assert_eq!(denied["result"]["opentofu_called"], false);
+    }
+
+    #[test]
+    fn competing_same_scope_actions_execute_one_provider_effect() {
+        let state = tempfile::tempdir().unwrap();
+        let demo = demo_with_nonce(0x11);
+        let lifecycle_store =
+            fixture_lifecycle_store(&state.path().join("lifecycle"), &demo.product.action);
+        let artifacts = MemoryPlanArtifactStore::default();
+        let backend = Arc::new(OpenTofuBackend::fixture(demo.product.evidence));
+        let barrier = Arc::new(Barrier::new(2));
+
+        let handles = [0x11, 0x22]
+            .into_iter()
+            .map(|nonce_byte| {
+                let lifecycle_store = Arc::clone(&lifecycle_store);
+                let artifacts = artifacts.clone();
+                let backend = Arc::clone(&backend);
+                let barrier = Arc::clone(&barrier);
+                thread::spawn(move || {
+                    barrier.wait();
+                    execute_fixture_workflow(lifecycle_store, artifacts, backend, nonce_byte)
+                })
+            })
+            .collect::<Vec<_>>();
+        let outcomes = handles
+            .into_iter()
+            .map(|handle| handle.join().unwrap())
+            .collect::<Vec<_>>();
+
+        assert_eq!(backend.apply_calls(), 1);
+        assert_eq!(
+            outcomes
+                .iter()
+                .filter(|outcome| matches!(outcome, WorkflowOutcome::Executed { .. }))
+                .count(),
+            1
+        );
+        assert_eq!(
+            outcomes
+                .iter()
+                .filter(|outcome| {
+                    matches!(
+                        outcome,
+                        WorkflowOutcome::Replay { .. } | WorkflowOutcome::Conflict { .. }
+                    )
+                })
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn restart_reconciles_unknown_apply_without_resubmission() {
+        let state = tempfile::tempdir().unwrap();
+        let lifecycle_path = state.path().join("lifecycle");
+        let demo = demo_with_nonce(0x11);
+        let artifacts = MemoryPlanArtifactStore::default();
+        let backend = Arc::new(OpenTofuBackend::fixture(demo.product.evidence));
+        backend.set_fault(OpenTofuFault::AfterApplyUnreconciled);
+
+        let first_store = fixture_lifecycle_store(&lifecycle_path, &demo.product.action);
+        let first = execute_fixture_workflow(
+            Arc::clone(&first_store),
+            artifacts.clone(),
+            Arc::clone(&backend),
+            0x11,
+        );
+        assert!(matches!(first, WorkflowOutcome::OutcomeUnknown { .. }));
+        assert_eq!(backend.apply_calls(), 1);
+        drop(first_store);
+
+        let reopened_store = fixture_lifecycle_store(&lifecycle_path, &demo.product.action);
+        let recovered =
+            execute_fixture_workflow(reopened_store, artifacts, Arc::clone(&backend), 0x11);
+        assert!(matches!(recovered, WorkflowOutcome::Executed { .. }));
+        assert_eq!(backend.apply_calls(), 1);
+    }
+
+    #[test]
+    fn obsolete_claim_database_is_rejected_at_startup() {
+        let state = tempfile::tempdir().unwrap();
+        fs::write(state.path().join("claims.json"), b"{}").unwrap();
+
+        assert!(matches!(
+            app(AppConfig::for_test(state.path().to_path_buf())),
+            Err(StartupError::State)
+        ));
     }
 }

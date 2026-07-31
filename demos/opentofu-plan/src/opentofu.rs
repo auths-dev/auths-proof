@@ -16,8 +16,9 @@ use std::{
 
 use auths_opentofu::{
     CredentialProvider, DigestHex, OpenTofuApplyResult, OpenTofuCredential, OpenTofuGateway,
-    OpenTofuSavedPlanApplyV1, OpenTofuStateEvidenceV1, PortError, SavedPlanArtifact,
-    VerifiedSavedPlanCommand,
+    OpenTofuReconciliationAuthorizationV1, OpenTofuSavedPlanApplyV1, OpenTofuStateEvidenceV1,
+    PortError, SavedPlanArtifact, VerifiedOpenTofuReconciliationCommand, VerifiedSavedPlanCommand,
+    VerifiedSavedPlanPreparationCommand,
     canonical::{canonical_digest, canonical_json, sha256},
 };
 use tempfile::NamedTempFile;
@@ -484,8 +485,18 @@ fn apply_fixture_saved_plan(
 }
 
 impl CredentialProvider for OpenTofuBackend {
-    fn mutation_credential(
+    fn credential_after_authorization(
         &self,
+        _: &auths_lifecycle::ExecutionAuthorizationV1,
+        _: &OpenTofuSavedPlanApplyV1,
+    ) -> Result<OpenTofuCredential, PortError> {
+        self.credential_calls.fetch_add(1, Ordering::SeqCst);
+        OpenTofuCredential::new(self.credential.0.clone())
+    }
+
+    fn reconciliation_credential(
+        &self,
+        _: &OpenTofuReconciliationAuthorizationV1,
         _: &OpenTofuSavedPlanApplyV1,
     ) -> Result<OpenTofuCredential, PortError> {
         self.credential_calls.fetch_add(1, Ordering::SeqCst);
@@ -496,7 +507,7 @@ impl CredentialProvider for OpenTofuBackend {
 impl OpenTofuGateway for OpenTofuBackend {
     fn recheck_state(
         &self,
-        _: &VerifiedSavedPlanCommand,
+        _: &VerifiedSavedPlanPreparationCommand,
         credential: &OpenTofuCredential,
     ) -> Result<OpenTofuStateEvidenceV1, PortError> {
         match self.mode.as_ref() {
@@ -559,7 +570,21 @@ impl OpenTofuGateway for OpenTofuBackend {
             BackendMode::Fixture {
                 planning,
                 current_serial,
-            } => apply_fixture_saved_plan(planning, current_serial, command, artifact, now),
+            } => {
+                let result =
+                    apply_fixture_saved_plan(planning, current_serial, command, artifact, now)?;
+                if matches!(
+                    fault,
+                    OpenTofuFault::AfterApplyUnknown | OpenTofuFault::AfterApplyUnreconciled
+                ) {
+                    if fault == OpenTofuFault::AfterApplyUnreconciled {
+                        self.fault
+                            .store(OpenTofuFault::ReconcileUnavailable.code(), Ordering::SeqCst);
+                    }
+                    return Err(PortError::OutcomeUnknown);
+                }
+                Ok(result)
+            }
             BackendMode::Cli { .. } => {
                 self.apply_cli_saved_plan(command, artifact, credential, now, fault)
             }
@@ -568,7 +593,7 @@ impl OpenTofuGateway for OpenTofuBackend {
 
     fn reconcile(
         &self,
-        command: &VerifiedSavedPlanCommand,
+        command: &VerifiedOpenTofuReconciliationCommand,
         credential: &OpenTofuCredential,
         now: u64,
     ) -> Result<OpenTofuApplyResult, PortError> {

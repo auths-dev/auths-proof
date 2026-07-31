@@ -58,7 +58,12 @@ Create an encrypted persistent volume mounted at `/data`. Restrict
 `/data/auths-opentofu` and `/workspace/opentofu` to UID 10001. Retain saved
 plans until their action expires plus the reconciliation window, then remove
 them under an operator-controlled retention job. Retain credential-free
-receipts and claims according to the demo audit policy.
+receipts and shared lifecycle records according to the demo audit policy.
+
+This prelaunch source cutover deliberately has no compatibility reader. Before
+deploying the shared-lifecycle build, discard any non-production demo volume
+that still contains the obsolete `claims.json` database. Startup fails closed
+when that file is present; it is never interpreted, migrated, or dual-written.
 
 ## Cloud edges
 
@@ -78,5 +83,6 @@ designed receipt route through the public frontend before publishing URLs.
 For an incident, revoke the Cloudflare token first, stop the Fly machines, then
 preserve the encrypted state volume for reconciliation. Roll back application
 images only when their pinned OpenTofu and profile versions match existing
-claims. If an apply outcome is ambiguous, compare the backend lineage, serial,
-canonical state digest, and provider object before any new plan is issued.
+lifecycle records. If an apply outcome is ambiguous, compare the backend
+lineage, serial, canonical state digest, and provider object before any new
+plan is issued.

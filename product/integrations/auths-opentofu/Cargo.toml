@@ -9,6 +9,8 @@ repository.workspace = true
 homepage.workspace = true
 
 [dependencies]
+auths-bounded-policy.workspace = true
+auths-lifecycle.workspace = true
 auths-model.workspace = true
 auths-profile-api.workspace = true
 auths-sdk.workspace = true
@@ -20,6 +22,9 @@ sha2.workspace = true
 subtle.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
+
+[dev-dependencies]
+auths-stores.workspace = true
 
 [lints]
 workspace = true

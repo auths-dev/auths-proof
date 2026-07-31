@@ -2,13 +2,17 @@
 
 use std::sync::Arc;
 
+use auths_lifecycle::ExecutionAuthorizationV1;
 use auths_model::CanonicalAction;
 use auths_sdk::{Authorized, RequestContext};
 
 use crate::{
     action::OpenTofuSavedPlanApplyV1,
     errors::PortError,
-    executor::VerifiedSavedPlanCommand,
+    executor::{
+        OpenTofuReconciliationAuthorizationV1, VerifiedOpenTofuReconciliationCommand,
+        VerifiedSavedPlanCommand, VerifiedSavedPlanPreparationCommand,
+    },
     profile::OpenTofuApplyCommand,
     receipts::OpenTofuReceipt,
     types::{OpenTofuApplyResult, OpenTofuStateEvidenceV1, PlanHandle},
@@ -82,10 +86,20 @@ pub trait PlanArtifactStore: Send + Sync {
     fn resolve(&self, handle: &PlanHandle) -> Result<SavedPlanArtifact, PortError>;
 }
 
-/// Protected credential broker called only after claim.
+/// Protected credential broker called only through durable stage-sealed
+/// authority.
 pub trait CredentialProvider: Send + Sync {
-    fn mutation_credential(
+    fn credential_after_authorization(
         &self,
+        authorization: &ExecutionAuthorizationV1,
+        action: &OpenTofuSavedPlanApplyV1,
+    ) -> Result<OpenTofuCredential, PortError>;
+
+    /// Acquires the same least-privilege credential solely for protected
+    /// observation of an existing outcome-unknown execution.
+    fn reconciliation_credential(
+        &self,
+        authorization: &OpenTofuReconciliationAuthorizationV1,
         action: &OpenTofuSavedPlanApplyV1,
     ) -> Result<OpenTofuCredential, PortError>;
 }
@@ -94,7 +108,7 @@ pub trait CredentialProvider: Send + Sync {
 pub trait OpenTofuGateway: Send + Sync {
     fn recheck_state(
         &self,
-        command: &VerifiedSavedPlanCommand,
+        command: &VerifiedSavedPlanPreparationCommand,
         credential: &OpenTofuCredential,
     ) -> Result<OpenTofuStateEvidenceV1, PortError>;
 
@@ -109,7 +123,7 @@ pub trait OpenTofuGateway: Send + Sync {
     /// Reconciles an ambiguous apply without submitting the plan again.
     fn reconcile(
         &self,
-        command: &VerifiedSavedPlanCommand,
+        command: &VerifiedOpenTofuReconciliationCommand,
         credential: &OpenTofuCredential,
         now: u64,
     ) -> Result<OpenTofuApplyResult, PortError>;
@@ -142,17 +156,26 @@ impl<T: PlanArtifactStore + ?Sized> PlanArtifactStore for Arc<T> {
     }
 }
 impl<T: CredentialProvider + ?Sized> CredentialProvider for Arc<T> {
-    fn mutation_credential(
+    fn credential_after_authorization(
         &self,
+        authorization: &ExecutionAuthorizationV1,
         action: &OpenTofuSavedPlanApplyV1,
     ) -> Result<OpenTofuCredential, PortError> {
-        (**self).mutation_credential(action)
+        (**self).credential_after_authorization(authorization, action)
+    }
+
+    fn reconciliation_credential(
+        &self,
+        authorization: &OpenTofuReconciliationAuthorizationV1,
+        action: &OpenTofuSavedPlanApplyV1,
+    ) -> Result<OpenTofuCredential, PortError> {
+        (**self).reconciliation_credential(authorization, action)
     }
 }
 impl<T: OpenTofuGateway + ?Sized> OpenTofuGateway for Arc<T> {
     fn recheck_state(
         &self,
-        command: &VerifiedSavedPlanCommand,
+        command: &VerifiedSavedPlanPreparationCommand,
         credential: &OpenTofuCredential,
     ) -> Result<OpenTofuStateEvidenceV1, PortError> {
         (**self).recheck_state(command, credential)
@@ -168,7 +191,7 @@ impl<T: OpenTofuGateway + ?Sized> OpenTofuGateway for Arc<T> {
     }
     fn reconcile(
         &self,
-        command: &VerifiedSavedPlanCommand,
+        command: &VerifiedOpenTofuReconciliationCommand,
         credential: &OpenTofuCredential,
         now: u64,
     ) -> Result<OpenTofuApplyResult, PortError> {

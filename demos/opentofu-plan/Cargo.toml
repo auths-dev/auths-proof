@@ -11,10 +11,12 @@ publish = false
 
 [dependencies]
 auths-apps-testkit.workspace = true
+auths-lifecycle.workspace = true
 auths-model.workspace = true
 auths-opentofu.workspace = true
 auths-profile-api.workspace = true
 auths-sdk.workspace = true
+auths-stores.workspace = true
 axum.workspace = true
 dotenvy.workspace = true
 getrandom.workspace = true
