@@ -1,0 +1,20 @@
+[package]
+name = "auths"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+homepage = "https://auths.dev"
+documentation = "https://docs.rs/auths"
+description = "Supported embedded core facade for Auths"
+
+[features]
+default = ["std"]
+std = ["auths-proof/std"]
+
+[dependencies]
+auths-proof.workspace = true
+
+[lints]
+workspace = true

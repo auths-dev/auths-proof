@@ -12,7 +12,7 @@ flowchart LR
         Model["auths-model<br/>proof vocabulary"]
         Author["auths-author<br/>grant/action preparation"]
         Codec["auths-codec<br/>canonical IDs and bundles"]
-        Kernel["auths-runtime + auths-proof-sdk<br/>AuthsKernel / Verifier"]
+        Kernel["auths-runtime + auths-sdk<br/>AuthsKernel / Verifier"]
         Crypto["auths-raw-key + auths-signature<br/>identity and Ed25519"]
         Registries["auths-registries + auths-ports<br/>accepted mechanisms"]
     end
@@ -87,7 +87,7 @@ Auths core never imports the demo or GitHub integration.
 | `auths-codec` | Produces canonical identifiers and proof-bundle bytes. | `fixture.rs` derives action, evidence, grant, and plan identifiers and encodes the proof bundle. |
 | `auths-profile-api` | Lets a domain define canonical action bytes, permissions, resources, and budgets. | `auths-github::GitHubIssueProfile` maps a sealed GitHub action into the generic Auths verification interface. |
 | `auths-runtime` | Runs the configured Auths kernel. | `fixture.rs` builds the `AuthsKernel` from accepted registries and trusted adapters. |
-| `auths-proof-sdk` | Exposes the verifier and the closed authorized/denied/indeterminate result. | `EphemeralAuthsAuthorizer` calls `Verifier::verify` over the real proof and exact canonical GitHub action. |
+| `auths-sdk` | Exposes the verifier and the closed authorized/denied/indeterminate result. | `EphemeralAuthsAuthorizer` calls `Verifier::verify` over the real proof and exact canonical GitHub action. |
 | `auths-ports` | Defines trusted extension boundaries. | Raw-key principal resolution and Ed25519 signature verification are installed through core ports. |
 | `auths-registries` | Pins accepted mechanism registries. | The demo loads the target registry manifest into the verifier context. |
 | `auths-raw-key` | Supplies the demo's self-certifying identity method. | Human, workflow, and agent identities use raw Ed25519 public-key descriptors. |

@@ -45,7 +45,7 @@ Implemented profile contracts:
 Implemented developer surfaces (only the semantic-freeze inventory determines
 the release-candidate publication set):
 
-- `auths-proof-sdk`: trusted-context, verification, issuance, and custody
+- `auths-sdk`: trusted-context, verification, issuance, and custody
   facade selected for the first public Rust surface;
 - `auths-enforcement`: HTTP, gRPC, CI, MCP, and service-local enforcement
   entry points;

@@ -1189,7 +1189,7 @@ receipt-producer-consumer = ["demos/testkit/auths-apps-testkit/src/lib.rs#target
 runtime-enforcement-boundary = ["demos/testkit/auths-apps-testkit/src/lib.rs#authenticated_transport_does_not_upgrade_bad_proof"]
 stateful-replay-budget-component = ["demos/testkit/auths-apps-testkit/src/lib.rs#concurrent_duplicate_executes_exactly_once"]
 
-[packages.auths-proof-sdk]
+[packages.auths-sdk]
 kind = "cargo"
 layer = "product"
 path = "product/sdk/auths-sdk"
@@ -1204,7 +1204,7 @@ transports = []
 configuration_inputs = ["assurance-policy", "composition-requirement", "executed-verifier-configuration", "required-verifier-configuration", "trust-anchors", "verifier-limits"]
 security_state = []
 
-[packages.auths-proof-sdk.claims]
+[packages.auths-sdk.claims]
 core-api-consumer = ["demos/testkit/auths-apps-testkit/src/lib.rs#target_flow_is_transport_independent_and_replay_safe"]
 runtime-enforcement-boundary = ["demos/testkit/auths-apps-testkit/src/lib.rs#signed_permission_must_match_tool"]
 

@@ -1,11 +1,12 @@
 [package]
-name = "auths-proof-sdk"
+name = "auths-sdk"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
 repository.workspace = true
-homepage.workspace = true
+homepage = "https://auths.dev"
+documentation = "https://docs.rs/auths-sdk"
 description = "Idiomatic embedded Auths enforcement SDK"
 
 [dependencies]
