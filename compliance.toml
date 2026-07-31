@@ -729,13 +729,13 @@ signature_families = []
 profiles = ["auths.opentofu.saved-plan-apply/1"]
 transports = ["protected-artifact-store", "opentofu-cli"]
 configuration_inputs = ["backend-identity", "dependency-lock", "executed-verifier-configuration", "required-verifier-configuration", "state-evidence", "variable-commitment"]
-security_state = ["opentofu-mutation-credential", "saved-plan-artifact", "saved-plan-claim", "saved-plan-receipt-log"]
+security_state = ["opentofu-mutation-credential", "saved-plan-artifact", "shared-lifecycle-record", "saved-plan-receipt-log"]
 
 [packages.auths-opentofu.claims]
 core-api-consumer = ["product/integrations/auths-opentofu/src/profile.rs#profile_binds_exact_plan_and_one_effect_budget"]
-profile-contract = ["product/integrations/auths-opentofu/src/decision.rs#exact_saved_plan_is_authorized"]
-runtime-enforcement-boundary = ["product/integrations/auths-opentofu/src/service.rs#configuration_mismatch_never_verifies_claims_resolves_plan_or_reads_credentials"]
-stateful-replay-budget-component = ["product/integrations/auths-opentofu/src/claim.rs#concurrent_claims_have_exactly_one_winner"]
+profile-contract = ["product/integrations/auths-opentofu/src/decision.rs#exact_saved_plan_is_authorized", "product/integrations/auths-opentofu/src/lifecycle.rs#authorized_projection_binds_backend_workspace_and_prior_state", "product/integrations/auths-opentofu/src/lifecycle.rs#reference_denial_cannot_project_to_shared_authority"]
+runtime-enforcement-boundary = ["demos/opentofu-plan/src/app.rs#exact_denial_replay_and_receipts_cross_the_http_boundary", "product/integrations/auths-opentofu/src/lifecycle.rs#authorized_projection_binds_backend_workspace_and_prior_state"]
+stateful-replay-budget-component = ["demos/opentofu-plan/src/app.rs#competing_same_scope_actions_execute_one_provider_effect", "demos/opentofu-plan/src/app.rs#restart_reconciles_unknown_apply_without_resubmission", "demos/opentofu-plan/src/app.rs#obsolete_claim_database_is_rejected_at_startup"]
 
 [packages.auths-opentofu-demo]
 kind = "cargo"
@@ -750,7 +750,7 @@ signature_families = ["ed25519-v1"]
 profiles = ["auths.opentofu.saved-plan-apply/1"]
 transports = ["https", "opentofu-cli", "protected-artifact-store"]
 configuration_inputs = ["backend-identity", "executed-verifier-configuration", "required-verifier-configuration", "state-evidence"]
-security_state = ["expiring-session", "opentofu-mutation-credential", "saved-plan-artifact", "saved-plan-claim", "receipt-sink"]
+security_state = ["expiring-session", "opentofu-mutation-credential", "saved-plan-artifact", "shared-lifecycle-record", "receipt-sink"]
 
 [packages.auths-opentofu-demo.claims]
 demo-conformance-fixture = [
@@ -762,7 +762,10 @@ runtime-enforcement-boundary = [
     "demos/opentofu-plan/tests/live-contract.mjs#live_native_denial_and_concurrent_claim_contract",
 ]
 stateful-replay-budget-component = [
+    "demos/opentofu-plan/src/app.rs#competing_same_scope_actions_execute_one_provider_effect",
     "demos/opentofu-plan/src/app.rs#exact_denial_replay_and_receipts_cross_the_http_boundary",
+    "demos/opentofu-plan/src/app.rs#obsolete_claim_database_is_rejected_at_startup",
+    "demos/opentofu-plan/src/app.rs#restart_reconciles_unknown_apply_without_resubmission",
     "demos/opentofu-plan/tests/live-recovery.mjs#live_durable_fault_restart_reconcile_contract",
 ]
 

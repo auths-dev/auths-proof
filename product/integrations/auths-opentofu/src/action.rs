@@ -238,4 +238,8 @@ impl OpenTofuSavedPlanApplyV1 {
     pub const fn permitted_change_summary(&self) -> &PermittedChangeSummaryV1 {
         &self.permitted_change_summary
     }
+    #[must_use]
+    pub const fn nonce(&self) -> &DigestHex {
+        &self.nonce
+    }
 }
