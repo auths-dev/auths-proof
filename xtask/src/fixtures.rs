@@ -183,19 +183,19 @@ domain_id = "records-api"
 owning_package = "auths-records-api"
 layer = "product"
 profile_id = "auths.demo.records.create/1"
-policy_type_id = "auths.records.create-policy/1"
-evaluator_semantic_id = "auths.demo.records.create.evaluate/1"
-implementation_id = "auths-records-api/reference-pre-migration"
+policy_type_id = "auths.demo.bounded-record-api-policy/1"
+evaluator_semantic_id = "auths.records.create-evaluator/1"
+implementation_id = "auths-records-api/shared-lifecycle-production/1"
 canonicalization_id = "rfc8785-sha256-v1"
 rust_symbol = "auths_records_api::evaluate_create"
 lean_artifact = "Auths.Product.fixed_context_tightening"
 action_schema = "auths_records_api::CreateRecordV1"
 policy_schema = "auths_records_api::BoundedRecordApiPolicyV1"
-evidence_schema = "none-pre-migration"
-state_schema = "none-pre-migration"
+evidence_schema = "auths.records.presentation-evidence/1"
+state_schema = "auths.records.pre-effect-state/1"
 result_schema = "auths_records_api::RecordsDecision"
-intent_schema = "none-pre-migration"
-obligation_schema = "none-pre-migration"
+intent_schema = "auths.records.create-additive-intent/1"
+obligation_schema = "auths.records.verified-create-command/1"
 receipt_schema = "auths_records_api::DecisionReceipt"
 stable_code_source = "product/integrations/auths-records-api/src/decision.rs"
 stable_stage_source = "product/integrations/auths-records-api/src/decision.rs"
@@ -213,19 +213,19 @@ domain_id = "records-api"
 owning_package = "auths-records-api"
 layer = "product"
 profile_id = "auths.demo.records.read/1"
-policy_type_id = "auths.records.read-policy/1"
-evaluator_semantic_id = "auths.demo.records.read.evaluate/1"
-implementation_id = "auths-records-api/reference-pre-migration"
+policy_type_id = "auths.demo.bounded-record-api-policy/1"
+evaluator_semantic_id = "auths.records.read-evaluator/1"
+implementation_id = "auths-records-api/shared-lifecycle-production/1"
 canonicalization_id = "rfc8785-sha256-v1"
 rust_symbol = "auths_records_api::evaluate_read"
 lean_artifact = "Auths.Product.fixed_context_tightening"
 action_schema = "auths_records_api::ReadRecordV1"
 policy_schema = "auths_records_api::BoundedRecordApiPolicyV1"
-evidence_schema = "none-pre-migration"
-state_schema = "none-pre-migration"
+evidence_schema = "auths.records.presentation-evidence/1"
+state_schema = "auths.records.pre-effect-state/1"
 result_schema = "auths_records_api::RecordsDecision"
-intent_schema = "none-pre-migration"
-obligation_schema = "none-pre-migration"
+intent_schema = "auths.records.read-additive-intent/1"
+obligation_schema = "auths.records.verified-read-command/1"
 receipt_schema = "auths_records_api::DecisionReceipt"
 stable_code_source = "product/integrations/auths-records-api/src/decision.rs"
 stable_stage_source = "product/integrations/auths-records-api/src/decision.rs"
@@ -1223,7 +1223,7 @@ fn insert_bounded_fixture_manifest(
     Ok(())
 }
 
-fn bounded_scenarios(domain: &str) -> BTreeMap<String, Value> {
+fn bounded_scenarios(_domain: &str) -> BTreeMap<String, Value> {
     let names = [
         "authorized",
         "exact-boundary",
@@ -1239,9 +1239,6 @@ fn bounded_scenarios(domain: &str) -> BTreeMap<String, Value> {
     ];
     names
         .into_iter()
-        .filter(|scenario| {
-            !(domain == "records-api" && matches!(*scenario, "outcome-unknown" | "reconciliation"))
-        })
         .map(|scenario| {
             (
                 scenario.to_owned(),

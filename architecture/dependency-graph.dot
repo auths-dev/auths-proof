@@ -396,11 +396,16 @@ digraph auths_architecture {
   "auths-raw-key" -> "auths-ports" [label="normal"];
   "auths-receipts" -> "auths-model" [label="normal"];
   "auths-receipts" -> "auths-ports" [label="normal"];
+  "auths-records-api" -> "auths-bounded-policy" [label="normal"];
+  "auths-records-api" -> "auths-lifecycle" [label="normal"];
   "auths-records-api" -> "auths-model" [label="normal"];
   "auths-records-api" -> "auths-profile-api" [label="normal"];
   "auths-records-api" -> "auths-sdk" [label="normal"];
+  "auths-records-api" -> "auths-stores" [label="dev"];
   "auths-records-demo" -> "auths-author" [label="normal"];
+  "auths-records-demo" -> "auths-bounded-policy" [label="normal"];
   "auths-records-demo" -> "auths-codec" [label="normal"];
+  "auths-records-demo" -> "auths-lifecycle" [label="normal"];
   "auths-records-demo" -> "auths-model" [label="normal"];
   "auths-records-demo" -> "auths-ports" [label="normal"];
   "auths-records-demo" -> "auths-profile-api" [label="normal"];
@@ -413,6 +418,7 @@ digraph auths_architecture {
   "auths-records-demo" -> "auths-runtime" [label="normal"];
   "auths-records-demo" -> "auths-sdk" [label="normal"];
   "auths-records-demo" -> "auths-signature" [label="normal"];
+  "auths-records-demo" -> "auths-stores" [label="normal"];
   "auths-registries" -> "auths-model" [label="normal"];
   "auths-registries" -> "auths-ports" [label="normal"];
   "auths-resolver-did-web" -> "auths-codec" [label="normal"];

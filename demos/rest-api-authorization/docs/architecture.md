@@ -10,8 +10,11 @@ flowchart LR
     Envelope --> Read["ReadRecordProfile + read evaluator"]
     Create --> Kernel["auths-sdk / AuthsKernel"]
     Read --> Kernel
-    Kernel --> Ledger["Atomic records + replay + budget ledger"]
-    Ledger --> Receipts["Delivery, decision, effect, observation receipts"]
+    Kernel --> Projection["Records-owned shared commitment projection"]
+    Projection --> Lifecycle["Shared durable lifecycle + additive capacity"]
+    Lifecycle --> Seal["Execution + provider-call seals"]
+    Seal --> Ledger["Atomic records + disclosure ledger"]
+    Ledger --> Receipts["Delivery, immutable decision, effect, observation receipts"]
 ```
 
 The implementation deliberately has one records-domain product package and one
@@ -20,8 +23,9 @@ demo package:
 - `product/integrations/auths-records-api` owns the semantic contract:
   identifiers, create and read actions, two Auths profiles, bounded policy,
   required and executed verifier configuration, presenter verification,
-  separate create and read evaluators, durable transitions, and receipt
-  meanings.
+  separate create and read evaluators, shared-contract projections,
+  profile-specific sealed provider commands, protected-store transitions,
+  reconciliation, and receipt meanings.
 - `demos/rest-api-authorization` owns delivery and presentation: Axum routes,
   the repository Iroh exchange adapter, the short-lived demo issuer, browser
   sessions, the native CLI, deployment configuration, and the frontend.
@@ -52,8 +56,16 @@ database credential, or session cookie. The opaque session ID locates
 repository-owned demo materials; it cannot authorize a request without the
 matching proof and presentation.
 
-The ledger commits records, aggregate create/read capacity, replay state, and
-effect evidence through canonical JSON and atomic file replacement. A process
-restart therefore cannot make a completed action executable again. Repeating
-the exact action through the other transport returns replay rather than
-creating a second effect.
+One shared lifecycle store per policy digest atomically enforces create units,
+canonical created bytes, and read units across HTTPS and Iroh. Actual disclosed
+bytes remain records-domain semantics and are checked in the same atomic
+transaction that constructs the protected projection. The provider accepts
+only a profile-specific command carrying exact Auths authorization plus
+durable credential and provider-call seals.
+
+The V2 records ledger atomically commits records, disclosure accounting, exact
+completed actions, and effect evidence. If execution stops after provider-call
+entry, restart queries that ledger instead of resubmitting the provider call:
+matching completion reconciles to effect, canonical absence reconciles to
+non-effect, and unavailable evidence keeps shared capacity held as
+outcome-unknown. Obsolete prelaunch V1 state is rejected without migration.

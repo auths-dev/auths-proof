@@ -845,13 +845,22 @@ signature_families = []
 profiles = ["auths.demo.records.create/1", "auths.demo.records.read/1"]
 transports = []
 configuration_inputs = ["bounded-record-policy", "executed-verifier-configuration", "presenter-binding", "required-verifier-configuration"]
-security_state = ["aggregate-capacity", "protected-records", "records-replay-ledger", "records-receipt-log"]
+security_state = ["protected-records", "records-domain-ledger-v2", "records-receipt-log", "shared-lifecycle-capacity"]
 
 [packages.auths-records-api.claims]
 core-api-consumer = ["product/integrations/auths-records-api/src/profile.rs#verified_commands_are_decoded_only_from_sealed_auths_output"]
 profile-contract = ["product/integrations/auths-records-api/src/action.rs#canonical_decoder_rejects_unknown_fields"]
-runtime-enforcement-boundary = ["product/integrations/auths-records-api/src/decision.rs#configuration_regression_4096_vs_4097_denies"]
-stateful-replay-budget-component = ["product/integrations/auths-records-api/src/ledger.rs#concurrent_final_unit_is_consumed_once"]
+runtime-enforcement-boundary = [
+    "product/integrations/auths-records-api/src/decision.rs#configuration_regression_4096_vs_4097_denies",
+    "demos/rest-api-authorization/src/app.rs#one_changed_proof_byte_is_denied_before_storage",
+]
+stateful-replay-budget-component = [
+    "product/integrations/auths-records-api/src/lifecycle.rs#concurrent_final_create_unit_has_one_reservation_winner",
+    "product/integrations/auths-records-api/src/lifecycle.rs#concurrent_final_read_unit_has_one_reservation_winner",
+    "product/integrations/auths-records-api/src/ledger.rs#obsolete_v1_state_is_rejected_without_rewrite",
+    "demos/rest-api-authorization/src/app.rs#replay_gets_a_distinct_receipt_without_overwriting_authorization",
+    "demos/rest-api-authorization/src/app.rs#call_entry_failure_reconciles_without_provider_resubmission",
+]
 
 [packages.auths-records-demo]
 kind = "cargo"
@@ -866,7 +875,7 @@ signature_families = ["ed25519-v1"]
 profiles = ["auths.demo.records.create/1", "auths.demo.records.read/1"]
 transports = ["https", "iroh"]
 configuration_inputs = ["bounded-record-policy", "executed-verifier-configuration", "required-verifier-configuration", "trusted-route-mapping"]
-security_state = ["aggregate-capacity", "expiring-session", "protected-records", "records-replay-ledger", "receipt-sink"]
+security_state = ["expiring-session", "protected-records", "records-domain-ledger-v2", "receipt-sink", "shared-lifecycle-capacity"]
 
 [packages.auths-records-demo.claims]
 demo-conformance-fixture = [

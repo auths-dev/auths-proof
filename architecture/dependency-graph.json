@@ -7555,6 +7555,30 @@
     {
       "source": "auths-records-api",
       "source_layer": "product",
+      "target": "auths-bounded-policy",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-records-api",
+      "source_layer": "product",
+      "target": "auths-lifecycle",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-records-api",
+      "source_layer": "product",
       "target": "auths-model",
       "target_layer": "core",
       "scope": "internal",
@@ -7583,6 +7607,18 @@
       "target_layer": "product",
       "scope": "internal",
       "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-records-api",
+      "source_layer": "product",
+      "target": "auths-stores",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "dev",
       "target_condition": null,
       "optional": false,
       "default_features": true,
@@ -7743,8 +7779,32 @@
     {
       "source": "auths-records-demo",
       "source_layer": "demos",
+      "target": "auths-bounded-policy",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-records-demo",
+      "source_layer": "demos",
       "target": "auths-codec",
       "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-records-demo",
+      "source_layer": "demos",
+      "target": "auths-lifecycle",
+      "target_layer": "product",
       "scope": "internal",
       "kind": "normal",
       "target_condition": null,
@@ -7894,6 +7954,18 @@
       "target_condition": null,
       "optional": false,
       "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-records-demo",
+      "source_layer": "demos",
+      "target": "auths-stores",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
       "features": []
     },
     {

@@ -42,6 +42,12 @@ pub struct DecisionReceipt {
     pub decision: RecordsDecision,
     pub auths_decision: String,
     pub auths_code: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub shared_workflow_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reservation_set_digest: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reservation_intents_commitment: Option<String>,
     pub protected_storage_accessed: bool,
     pub decided_at: u64,
 }
@@ -78,6 +84,26 @@ pub enum EffectReceipt {
         disclosed_bytes_after: u64,
         disclosed_at: u64,
     },
+    NonEffect {
+        receipt_id: String,
+        decision_digest: String,
+        action_digest: String,
+        operation_id: String,
+        code: String,
+        protected_storage_accessed: bool,
+        observed_at: u64,
+    },
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ExecutionClassification {
+    NotAuthorized,
+    Executed,
+    DefiniteNonEffect,
+    ReplayEffect,
+    ReplayNonEffect,
+    OutcomeUnknown,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -98,6 +124,7 @@ pub struct ReceiptBundle {
     pub schema: String,
     pub delivery: DeliveryReceipt,
     pub decision: DecisionReceipt,
+    pub execution: ExecutionClassification,
     pub effect: Option<EffectReceipt>,
     pub observation: Option<ObservationReceipt>,
 }

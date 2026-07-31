@@ -1159,9 +1159,12 @@ dependencies = [
 name = "auths-records-api"
 version = "0.1.0"
 dependencies = [
+ "auths-bounded-policy",
+ "auths-lifecycle",
  "auths-model",
  "auths-profile-api",
  "auths-sdk",
+ "auths-stores",
  "ed25519-dalek 2.2.0",
  "hex",
  "proptest",
@@ -1180,7 +1183,9 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "auths-author",
+ "auths-bounded-policy",
  "auths-codec",
+ "auths-lifecycle",
  "auths-model",
  "auths-ports",
  "auths-profile-api",
@@ -1193,6 +1198,7 @@ dependencies = [
  "auths-runtime",
  "auths-sdk",
  "auths-signature",
+ "auths-stores",
  "axum",
  "clap",
  "dotenvy",

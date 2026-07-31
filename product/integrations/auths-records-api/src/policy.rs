@@ -123,6 +123,8 @@ pub struct RecordsApiVerifierConfigurationV1 {
     pub maximum_presentation_lifetime_seconds: u64,
     pub challenge_schema: String,
     pub claim_and_replay_schema: String,
+    pub lifecycle_state: String,
+    pub domain_ledger_state: String,
     pub records_store_schema: String,
     pub receipt_schema: String,
 }
@@ -138,6 +140,11 @@ impl RecordsApiVerifierConfigurationV1 {
             || self.iroh_protocol_version != "auths.records-api/1"
             || self.identifier_grammar_version != "auths.records-identifier/1"
             || self.value_encoding != "auths.demo.customer-record/1"
+            || self.claim_and_replay_schema != "auths.records.shared-lifecycle/1"
+            || self.lifecycle_state != "auths.records.lifecycle-state/1"
+            || self.domain_ledger_state != "auths.records-ledger-state/2"
+            || self.records_store_schema != "auths.records-store/2"
+            || self.receipt_schema != "auths.records-receipt/2"
             || self.trusted_operation_ids
                 != [CREATE_OPERATION.to_string(), READ_OPERATION.to_string()]
             || self.maximum_http_header_bytes == 0
@@ -189,9 +196,11 @@ pub fn demo_configuration(executor_audience: &str) -> RecordsApiVerifierConfigur
         maximum_action_lifetime_seconds: 300,
         maximum_presentation_lifetime_seconds: 120,
         challenge_schema: "auths.records-challenge/1".into(),
-        claim_and_replay_schema: "auths.records-ledger/1".into(),
-        records_store_schema: "auths.records-store/1".into(),
-        receipt_schema: "auths.records-receipt/1".into(),
+        claim_and_replay_schema: "auths.records.shared-lifecycle/1".into(),
+        lifecycle_state: "auths.records.lifecycle-state/1".into(),
+        domain_ledger_state: "auths.records-ledger-state/2".into(),
+        records_store_schema: "auths.records-store/2".into(),
+        receipt_schema: "auths.records-receipt/2".into(),
     }
 }
 

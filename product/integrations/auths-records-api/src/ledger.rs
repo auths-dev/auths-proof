@@ -12,12 +12,13 @@ use serde::{Deserialize, Serialize};
 use tempfile::NamedTempFile;
 
 use crate::{
-    BoundedRecordApiPolicyV1, CreateRecordV1, CustomerRecordV1, EffectReceipt, ReadField,
-    ReadRecordV1, ReceiptBundle, RecordIdentifier, RecordsError,
+    CustomerRecordV1, EffectReceipt, ReadField, ReceiptBundle, RecordIdentifier, RecordsError,
+    SealedCreateRecordCommand, SealedReadRecordCommand,
     canonical::{canonical_digest, canonical_json, sha256},
 };
 
 const MAX_STATE_BYTES: usize = 32 * 1024 * 1024;
+const LEDGER_STATE_SCHEMA: &str = "auths.records-ledger-state/2";
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -56,18 +57,31 @@ pub struct Usage {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct CompletedAction {
-    effect: EffectReceipt,
-    projection: Option<RecordProjection>,
+pub struct CompletedRecordsAction {
+    pub effect: EffectReceipt,
+    pub projection: Option<RecordProjection>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Default)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct LedgerState {
+    schema: String,
     records: BTreeMap<String, StoredRecord>,
     usage_by_policy: BTreeMap<String, Usage>,
-    completed_actions: BTreeMap<String, CompletedAction>,
+    completed_actions: BTreeMap<String, CompletedRecordsAction>,
     receipts: BTreeMap<String, ReceiptBundle>,
+}
+
+impl LedgerState {
+    fn empty() -> Self {
+        Self {
+            schema: LEDGER_STATE_SCHEMA.into(),
+            records: BTreeMap::new(),
+            usage_by_policy: BTreeMap::new(),
+            completed_actions: BTreeMap::new(),
+            receipts: BTreeMap::new(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -91,22 +105,14 @@ pub enum ReadTransition {
 }
 
 pub trait RecordsLedger: Send + Sync {
-    fn create(
-        &self,
-        action: &CreateRecordV1,
-        policy: &BoundedRecordApiPolicyV1,
-        decision_digest: &str,
-        now: u64,
-    ) -> Result<CreateTransition, RecordsError>;
+    fn create(&self, command: SealedCreateRecordCommand) -> Result<CreateTransition, RecordsError>;
 
-    fn read(
-        &self,
-        action: &ReadRecordV1,
-        policy: &BoundedRecordApiPolicyV1,
-        decision_digest: &str,
-        now: u64,
-    ) -> Result<ReadTransition, RecordsError>;
+    fn read(&self, command: SealedReadRecordCommand) -> Result<ReadTransition, RecordsError>;
 
+    fn completed(
+        &self,
+        action_digest: &str,
+    ) -> Result<Option<CompletedRecordsAction>, RecordsError>;
     fn append_receipt(&self, receipt: ReceiptBundle) -> Result<(), RecordsError>;
     fn receipt(&self, receipt_id: &str) -> Result<Option<ReceiptBundle>, RecordsError>;
     fn usage(&self, policy_digest: &str) -> Result<Usage, RecordsError>;
@@ -114,24 +120,19 @@ pub trait RecordsLedger: Send + Sync {
 }
 
 impl<T: RecordsLedger + ?Sized> RecordsLedger for Arc<T> {
-    fn create(
-        &self,
-        action: &CreateRecordV1,
-        policy: &BoundedRecordApiPolicyV1,
-        decision_digest: &str,
-        now: u64,
-    ) -> Result<CreateTransition, RecordsError> {
-        (**self).create(action, policy, decision_digest, now)
+    fn create(&self, command: SealedCreateRecordCommand) -> Result<CreateTransition, RecordsError> {
+        (**self).create(command)
     }
 
-    fn read(
+    fn read(&self, command: SealedReadRecordCommand) -> Result<ReadTransition, RecordsError> {
+        (**self).read(command)
+    }
+
+    fn completed(
         &self,
-        action: &ReadRecordV1,
-        policy: &BoundedRecordApiPolicyV1,
-        decision_digest: &str,
-        now: u64,
-    ) -> Result<ReadTransition, RecordsError> {
-        (**self).read(action, policy, decision_digest, now)
+        action_digest: &str,
+    ) -> Result<Option<CompletedRecordsAction>, RecordsError> {
+        (**self).completed(action_digest)
     }
 
     fn append_receipt(&self, receipt: ReceiptBundle) -> Result<(), RecordsError> {
@@ -151,38 +152,53 @@ impl<T: RecordsLedger + ?Sized> RecordsLedger for Arc<T> {
     }
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct MemoryRecordsLedger {
     state: Arc<Mutex<LedgerState>>,
 }
 
+impl Default for MemoryRecordsLedger {
+    fn default() -> Self {
+        Self {
+            state: Arc::new(Mutex::new(LedgerState::empty())),
+        }
+    }
+}
+
 impl RecordsLedger for MemoryRecordsLedger {
-    fn create(
-        &self,
-        action: &CreateRecordV1,
-        policy: &BoundedRecordApiPolicyV1,
-        decision_digest: &str,
-        now: u64,
-    ) -> Result<CreateTransition, RecordsError> {
+    fn create(&self, command: SealedCreateRecordCommand) -> Result<CreateTransition, RecordsError> {
+        if !command.lifecycle_authorization_matches() {
+            return Err(RecordsError::MeaningMismatch);
+        }
         let mut state = self
             .state
             .lock()
             .map_err(|_| RecordsError::StateUnavailable)?;
-        create_in(&mut state, action, policy, decision_digest, now)
+        create_in(&mut state, &command)
     }
 
-    fn read(
-        &self,
-        action: &ReadRecordV1,
-        policy: &BoundedRecordApiPolicyV1,
-        decision_digest: &str,
-        now: u64,
-    ) -> Result<ReadTransition, RecordsError> {
+    fn read(&self, command: SealedReadRecordCommand) -> Result<ReadTransition, RecordsError> {
+        if !command.lifecycle_authorization_matches() {
+            return Err(RecordsError::MeaningMismatch);
+        }
         let mut state = self
             .state
             .lock()
             .map_err(|_| RecordsError::StateUnavailable)?;
-        read_in(&mut state, action, policy, decision_digest, now)
+        read_in(&mut state, &command)
+    }
+
+    fn completed(
+        &self,
+        action_digest: &str,
+    ) -> Result<Option<CompletedRecordsAction>, RecordsError> {
+        Ok(self
+            .state
+            .lock()
+            .map_err(|_| RecordsError::StateUnavailable)?
+            .completed_actions
+            .get(action_digest)
+            .cloned())
     }
 
     fn append_receipt(&self, receipt: ReceiptBundle) -> Result<(), RecordsError> {
@@ -241,12 +257,12 @@ impl PersistentRecordsLedger {
             }
             let state: LedgerState =
                 serde_json::from_slice(&bytes).map_err(|_| RecordsError::StateUnavailable)?;
-            if canonical_json(&state)? != bytes {
+            if state.schema != LEDGER_STATE_SCHEMA || canonical_json(&state)? != bytes {
                 return Err(RecordsError::NonCanonical);
             }
             state
         } else {
-            LedgerState::default()
+            LedgerState::empty()
         };
         Ok(Self {
             path,
@@ -285,24 +301,31 @@ impl PersistentRecordsLedger {
 }
 
 impl RecordsLedger for PersistentRecordsLedger {
-    fn create(
-        &self,
-        action: &CreateRecordV1,
-        policy: &BoundedRecordApiPolicyV1,
-        decision_digest: &str,
-        now: u64,
-    ) -> Result<CreateTransition, RecordsError> {
-        self.mutate(|state| create_in(state, action, policy, decision_digest, now))
+    fn create(&self, command: SealedCreateRecordCommand) -> Result<CreateTransition, RecordsError> {
+        if !command.lifecycle_authorization_matches() {
+            return Err(RecordsError::MeaningMismatch);
+        }
+        self.mutate(|state| create_in(state, &command))
     }
 
-    fn read(
+    fn read(&self, command: SealedReadRecordCommand) -> Result<ReadTransition, RecordsError> {
+        if !command.lifecycle_authorization_matches() {
+            return Err(RecordsError::MeaningMismatch);
+        }
+        self.mutate(|state| read_in(state, &command))
+    }
+
+    fn completed(
         &self,
-        action: &ReadRecordV1,
-        policy: &BoundedRecordApiPolicyV1,
-        decision_digest: &str,
-        now: u64,
-    ) -> Result<ReadTransition, RecordsError> {
-        self.mutate(|state| read_in(state, action, policy, decision_digest, now))
+        action_digest: &str,
+    ) -> Result<Option<CompletedRecordsAction>, RecordsError> {
+        Ok(self
+            .state
+            .lock()
+            .map_err(|_| RecordsError::StateUnavailable)?
+            .completed_actions
+            .get(action_digest)
+            .cloned())
     }
 
     fn append_receipt(&self, receipt: ReceiptBundle) -> Result<(), RecordsError> {
@@ -347,11 +370,9 @@ impl RecordsLedger for PersistentRecordsLedger {
 
 fn create_in(
     state: &mut LedgerState,
-    action: &CreateRecordV1,
-    policy: &BoundedRecordApiPolicyV1,
-    decision_digest: &str,
-    now: u64,
+    command: &SealedCreateRecordCommand,
 ) -> Result<CreateTransition, RecordsError> {
+    let action = command.action();
     let action_digest = action.digest()?;
     if let Some(completed) = state.completed_actions.get(&action_digest) {
         return Ok(CreateTransition::Replay(completed.effect.clone()));
@@ -366,27 +387,27 @@ fn create_in(
         .or_default();
     let value_bytes = u64::try_from(canonical_json(&action.customer)?.len())
         .map_err(|_| RecordsError::LimitExceeded)?;
-    if usage.create_units >= policy.maximum_creates {
-        return Ok(CreateTransition::Denied("create-budget-exhausted"));
-    }
-    if usage.created_bytes.saturating_add(value_bytes) > policy.maximum_created_bytes {
-        return Ok(CreateTransition::Denied("created-bytes-budget-exhausted"));
-    }
     let before = usage.clone();
-    usage.create_units = usage.create_units.saturating_add(1);
-    usage.created_bytes = usage.created_bytes.saturating_add(value_bytes);
+    usage.create_units = usage
+        .create_units
+        .checked_add(1)
+        .ok_or(RecordsError::StateUnavailable)?;
+    usage.created_bytes = usage
+        .created_bytes
+        .checked_add(value_bytes)
+        .ok_or(RecordsError::StateUnavailable)?;
     let record = StoredRecord {
         namespace_id: action.namespace_id.clone(),
         record_id: action.record_id.clone(),
         customer: action.customer.clone(),
-        created_at: now,
-        updated_at: now,
+        created_at: command.executed_at(),
+        updated_at: command.executed_at(),
         version: 1,
     };
     state.records.insert(key, record);
     let effect = EffectReceipt::Create {
         receipt_id: format!("effect-{}", &action_digest[..24]),
-        decision_digest: decision_digest.into(),
+        decision_digest: command.decision_digest().into(),
         action_digest: action_digest.clone(),
         namespace_commitment: sha256(action.namespace_id.as_str().as_bytes()),
         record_commitment: sha256(action.record_id.as_str().as_bytes()),
@@ -396,11 +417,11 @@ fn create_in(
         create_units_after: usage.create_units,
         created_bytes_before: before.created_bytes,
         created_bytes_after: usage.created_bytes,
-        executed_at: now,
+        executed_at: command.executed_at(),
     };
     state.completed_actions.insert(
         action_digest,
-        CompletedAction {
+        CompletedRecordsAction {
             effect: effect.clone(),
             projection: None,
         },
@@ -410,11 +431,10 @@ fn create_in(
 
 fn read_in(
     state: &mut LedgerState,
-    action: &ReadRecordV1,
-    policy: &BoundedRecordApiPolicyV1,
-    decision_digest: &str,
-    now: u64,
+    command: &SealedReadRecordCommand,
 ) -> Result<ReadTransition, RecordsError> {
+    let action = command.action();
+    let policy = command.policy();
     let action_digest = action.digest()?;
     if let Some(completed) = state.completed_actions.get(&action_digest) {
         if let Some(projection) = &completed.projection {
@@ -442,18 +462,21 @@ fn read_in(
         .usage_by_policy
         .entry(action.policy_digest.clone())
         .or_default();
-    if usage.read_units >= policy.maximum_reads {
-        return Ok(ReadTransition::Denied("read-budget-exhausted"));
-    }
     if usage.disclosed_bytes.saturating_add(response_bytes) > policy.maximum_disclosed_bytes {
         return Ok(ReadTransition::Denied("disclosure-budget-exhausted"));
     }
     let before = usage.clone();
-    usage.read_units = usage.read_units.saturating_add(1);
-    usage.disclosed_bytes = usage.disclosed_bytes.saturating_add(response_bytes);
+    usage.read_units = usage
+        .read_units
+        .checked_add(1)
+        .ok_or(RecordsError::StateUnavailable)?;
+    usage.disclosed_bytes = usage
+        .disclosed_bytes
+        .checked_add(response_bytes)
+        .ok_or(RecordsError::StateUnavailable)?;
     let effect = EffectReceipt::Read {
         receipt_id: format!("effect-{}", &action_digest[..24]),
-        decision_digest: decision_digest.into(),
+        decision_digest: command.decision_digest().into(),
         action_digest: action_digest.clone(),
         namespace_commitment: sha256(action.namespace_id.as_str().as_bytes()),
         record_commitment: sha256(action.record_id.as_str().as_bytes()),
@@ -464,11 +487,11 @@ fn read_in(
         read_units_after: usage.read_units,
         disclosed_bytes_before: before.disclosed_bytes,
         disclosed_bytes_after: usage.disclosed_bytes,
-        disclosed_at: now,
+        disclosed_at: command.disclosed_at(),
     };
     state.completed_actions.insert(
         action_digest,
-        CompletedAction {
+        CompletedRecordsAction {
             effect: effect.clone(),
             projection: Some(projection.clone()),
         },
@@ -506,100 +529,30 @@ fn record_key(namespace: &RecordIdentifier, record: &RecordIdentifier) -> String
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{CREATE_OPERATION, READ_OPERATION};
-
-    fn fixture() -> (CreateRecordV1, BoundedRecordApiPolicyV1) {
-        let policy = BoundedRecordApiPolicyV1 {
-            policy_type: "auths.demo.bounded-record-api-policy".into(),
-            policy_version: 1,
-            policy_id: "p".into(),
-            namespace_id: RecordIdentifier::parse("visitor").unwrap(),
-            presenter_principal: "key:demo".into(),
-            allowed_operations: vec![CREATE_OPERATION.into(), READ_OPERATION.into()],
-            allowed_record_ids: Vec::new(),
-            allowed_record_id_prefixes: vec!["demo-".into()],
-            maximum_value_bytes: 100,
-            maximum_response_bytes: 4096,
-            allowed_read_fields: vec![ReadField::Customer, ReadField::RecordId],
-            maximum_creates: 1,
-            maximum_reads: 1,
-            maximum_created_bytes: 100,
-            maximum_disclosed_bytes: 4096,
-            fixed_and_rolling_budgets: Vec::new(),
-            valid_from: 0,
-            expires_at: 100,
-            maximum_action_lifetime_seconds: 100,
-            maximum_presentation_lifetime_seconds: 100,
-            maximum_evidence_age_seconds: 100,
-            executor_audience: "https://records".into(),
-        };
-        let action = CreateRecordV1 {
-            profile: "auths.demo.records.create/1".into(),
-            namespace_id: policy.namespace_id.clone(),
-            record_id: RecordIdentifier::parse("demo-1").unwrap(),
-            customer: CustomerRecordV1 {
-                age: 25,
-                name: "Bob".into(),
-                notes: "Demo customer".into(),
-                occupation: "Sales".into(),
-            },
-            value_encoding: "auths.demo.customer-record/1".into(),
-            expected_absent: true,
-            policy_digest: policy.digest().unwrap(),
-            required_evaluator: "auths.records.create-evaluator/1".into(),
-            required_configuration_digest: "a".repeat(64),
-            executor_audience: policy.executor_audience.clone(),
-            expires_at: 50,
-            nonce: "0123456789abcdef".into(),
-        };
-        (action, policy)
-    }
 
     #[test]
-    fn concurrent_final_unit_is_consumed_once() {
-        let ledger = Arc::new(MemoryRecordsLedger::default());
-        let (action, policy) = fixture();
-        let handles: Vec<_> = (0..8)
-            .map(|_| {
-                let ledger = Arc::clone(&ledger);
-                let action = action.clone();
-                let policy = policy.clone();
-                std::thread::spawn(move || ledger.create(&action, &policy, "decision", 1).unwrap())
-            })
-            .collect();
-        let outcomes: Vec<_> = handles
-            .into_iter()
-            .map(|handle| handle.join().unwrap())
-            .collect();
-        assert_eq!(
-            outcomes
-                .iter()
-                .filter(|outcome| matches!(outcome, CreateTransition::Executed(_)))
-                .count(),
-            1
-        );
-        assert_eq!(ledger.usage(&action.policy_digest).unwrap().create_units, 1);
-    }
-
-    #[test]
-    fn committed_action_and_budget_survive_process_restart() {
+    fn empty_v2_state_survives_restart() {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("records-ledger.json");
-        let (action, policy) = fixture();
-
-        {
-            let ledger = PersistentRecordsLedger::open(&path).unwrap();
-            let first = ledger.create(&action, &policy, "decision-1", 1).unwrap();
-            assert!(matches!(first, CreateTransition::Executed(_)));
-            assert_eq!(ledger.usage(&action.policy_digest).unwrap().create_units, 1);
-        }
+        let first = PersistentRecordsLedger::open(&path).unwrap();
+        let commitment = first.state_commitment().unwrap();
+        first.mutate(|_| Ok(())).unwrap();
+        drop(first);
 
         let reopened = PersistentRecordsLedger::open(&path).unwrap();
-        let replay = reopened.create(&action, &policy, "decision-2", 2).unwrap();
-        assert!(matches!(replay, CreateTransition::Replay(_)));
-        assert_eq!(
-            reopened.usage(&action.policy_digest).unwrap().create_units,
-            1
-        );
+        assert_eq!(reopened.state_commitment().unwrap(), commitment);
+        assert!(reopened.completed(&"a".repeat(64)).unwrap().is_none());
+    }
+
+    #[test]
+    fn obsolete_v1_state_is_rejected_without_rewrite() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("records-ledger.json");
+        let obsolete =
+            br#"{"completed_actions":{},"receipts":{},"records":{},"usage_by_policy":{}}"#;
+        fs::write(&path, obsolete).unwrap();
+
+        assert!(PersistentRecordsLedger::open(&path).is_err());
+        assert_eq!(fs::read(&path).unwrap(), obsolete);
     }
 }
