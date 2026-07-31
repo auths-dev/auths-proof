@@ -5,6 +5,7 @@
 mod app;
 mod deployment;
 mod fixture;
+mod lifecycle;
 mod live;
 mod observer;
 mod scenario;

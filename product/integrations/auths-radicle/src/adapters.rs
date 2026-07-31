@@ -18,7 +18,8 @@ use crate::{
     executor::{LocalPublication, VerifiedOpenPatchCommand},
     ports::{
         CandidateInspector, Clock, EvidenceSource, PortError, ProofDecision, ProofVerifier,
-        PropagationObserver, RadicleWriter, ReceiptSink,
+        PropagationObserver, PublicationReconciliation, PublicationReconciliationQuery,
+        RadicleWriter, ReceiptSink,
     },
     profile::RadiclePatchProfile,
     receipts::{RadiclePropagationReceipt, RadicleReceipt},
@@ -29,6 +30,7 @@ use crate::{
 };
 
 const MAX_COMMAND_OUTPUT_BYTES: u64 = 1024 * 1024;
+const MAX_RECEIPT_LOG_BYTES: u64 = 64 * 1024 * 1024;
 const RADICLE_COMMAND_TIMEOUT: Duration = Duration::from_mins(1);
 
 /// Candidate port backed by the bounded Git CLI inspector.
@@ -143,6 +145,19 @@ impl ReceiptSink for JsonlReceiptSink {
         let bytes = receipt
             .canonical_bytes()
             .map_err(|_| PortError::Persistence)?;
+        if self.path.exists() {
+            let metadata = fs::metadata(&self.path).map_err(|_| PortError::Persistence)?;
+            if metadata.len() > MAX_RECEIPT_LOG_BYTES {
+                return Err(PortError::LimitExceeded);
+            }
+            let existing = fs::read(&self.path).map_err(|_| PortError::Persistence)?;
+            if existing
+                .split(|byte| *byte == b'\n')
+                .any(|line| line == bytes)
+            {
+                return Ok(());
+            }
+        }
         let mut file = OpenOptions::new()
             .create(true)
             .append(true)
@@ -336,6 +351,73 @@ impl EvidenceSource for RadicleCliEvidenceSource {
                 PortError::Execution => PortError::EvidenceUnavailable,
                 error => error,
             })
+    }
+
+    fn reconcile_publication(
+        &self,
+        query: &PublicationReconciliationQuery,
+        now: u64,
+    ) -> Result<PublicationReconciliation, PortError> {
+        let repository = storage_repository(&self.cli.rad_home, query.action.rid())?;
+        let refs = normalized_output(&self.cli.git(
+            &repository,
+            [
+                "for-each-ref",
+                "--format=%(objectname) %(refname)",
+                "refs/namespaces",
+            ],
+        )?);
+        let mut candidate_patch_ids = refs
+            .lines()
+            .filter_map(|line| line.split_once(' '))
+            .filter(|(oid, _)| *oid == query.action.candidate_oid().as_str())
+            .filter_map(|(_, reference)| reference.rsplit_once("/refs/heads/patches/"))
+            .map(|(_, patch_id)| patch_id.to_owned())
+            .collect::<Vec<_>>();
+        candidate_patch_ids.sort_unstable();
+        candidate_patch_ids.dedup();
+
+        let mut exact = Vec::new();
+        for patch_id in candidate_patch_ids {
+            let Ok(patch_id) = CobId::parse(&patch_id) else {
+                continue;
+            };
+            let patch = self.cli.rad([
+                "cob",
+                "show",
+                "--repo",
+                query.action.rid().as_str(),
+                "--type",
+                "xyz.radicle.patch",
+                "--object",
+                patch_id.as_str(),
+                "--format",
+                "json",
+            ])?;
+            if reconcile_patch_postcondition(&patch.stdout, &patch_id, &query.action)? {
+                let node = query
+                    .action
+                    .signer_did()
+                    .as_str()
+                    .strip_prefix("did:key:")
+                    .ok_or(PortError::Malformed)
+                    .and_then(|value| NodeId::parse(value).map_err(|_| PortError::Malformed))?;
+                exact.push(LocalPublication {
+                    rid: query.action.rid().clone(),
+                    revision_id: GitOid::parse(patch_id.as_str())
+                        .map_err(|_| PortError::Malformed)?,
+                    patch_id,
+                    candidate_oid: query.action.candidate_oid().clone(),
+                    signer_did: query.action.signer_did().clone(),
+                    node_id: node,
+                    stored_at: now,
+                });
+            }
+        }
+        match exact.as_slice() {
+            [publication] => Ok(PublicationReconciliation::Exact(publication.clone())),
+            [] | [_, ..] => Ok(PublicationReconciliation::Ambiguous),
+        }
     }
 }
 
@@ -544,7 +626,10 @@ impl RadicleWriter for RadicleCliWriter {
         &self,
         command: VerifiedOpenPatchCommand,
         now: u64,
-    ) -> Result<(LocalPublication, crate::workflow::ExecutionLease), PortError> {
+    ) -> Result<LocalPublication, PortError> {
+        if !command.lifecycle_authorization_matches() {
+            return Err(PortError::InvalidConfiguration);
+        }
         let node = normalized_output(&self.rad(["node", "status", "--only", "nid"])?);
         let signer = format!("did:key:{node}");
         if signer != command.signer_did().as_str() || node != command.node_id().as_str() {
@@ -656,7 +741,10 @@ impl RadicleWriter for RadicleCliWriter {
             node_id: materials.evidence.executor_node_id().clone(),
             stored_at: now,
         };
-        Ok((publication, materials.lease))
+        let _execution_authorization = materials.execution_authorization;
+        let _provider_call_authorization = materials.provider_call_authorization;
+        let _claim_id = materials.claim_id;
+        Ok(publication)
     }
 
     fn announce(&self, publication: &LocalPublication) -> Result<(), PortError> {
@@ -772,5 +860,163 @@ fn validate_patch_postcondition(
         Ok(())
     } else {
         Err(PortError::Execution)
+    }
+}
+
+fn reconcile_patch_postcondition(
+    bytes: &[u8],
+    patch_id: &CobId,
+    action: &crate::types::OpenPatchActionV1,
+) -> Result<bool, PortError> {
+    let patch: serde_json::Value =
+        serde_json::from_slice(bytes).map_err(|_| PortError::Malformed)?;
+    let Some(revision) = patch
+        .get("revisions")
+        .and_then(serde_json::Value::as_object)
+        .filter(|revisions| revisions.len() == 1)
+        .and_then(|revisions| revisions.get(patch_id.as_str()))
+    else {
+        return Ok(false);
+    };
+    let Some(description) = revision
+        .get("description")
+        .and_then(serde_json::Value::as_array)
+        .filter(|description| description.len() == 1)
+        .and_then(|description| description.first())
+        .and_then(|description| description.get("body"))
+        .and_then(serde_json::Value::as_str)
+    else {
+        return Ok(false);
+    };
+    let suffix = format!(
+        "\n\nRadicle-Issue: {}\n\nAuths-Workflow: {}",
+        action.issue_id(),
+        action.workflow_id()
+    );
+    let Some(body) = description.strip_suffix(&suffix) else {
+        return Ok(false);
+    };
+    let issue_reference = format!(
+        "Radicle-Issue: {}\nAuths-Workflow: {}",
+        action.issue_id(),
+        action.workflow_id()
+    );
+    let exact = patch
+        .get("title")
+        .and_then(serde_json::Value::as_str)
+        .is_some_and(|title| sha256(title.as_bytes()) == *action.patch_title_digest())
+        && sha256(body.as_bytes()) == *action.patch_body_digest()
+        && sha256(issue_reference.as_bytes()) == *action.issue_reference_digest()
+        && patch
+            .pointer("/state/status")
+            .and_then(serde_json::Value::as_str)
+            == Some("open")
+        && patch.get("target").and_then(serde_json::Value::as_str) == Some("delegates")
+        && patch
+            .pointer("/author/id")
+            .and_then(serde_json::Value::as_str)
+            == Some(action.signer_did().as_str())
+        && revision.get("id").and_then(serde_json::Value::as_str) == Some(patch_id.as_str())
+        && revision.get("base").and_then(serde_json::Value::as_str)
+            == Some(action.canonical_base_oid().as_str())
+        && revision.get("oid").and_then(serde_json::Value::as_str)
+            == Some(action.candidate_oid().as_str())
+        && revision
+            .pointer("/author/id")
+            .and_then(serde_json::Value::as_str)
+            == Some(action.signer_did().as_str());
+    Ok(exact)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        containment::{Decision, DecisionClass, DecisionCode},
+        receipts::preflight_decision_receipt,
+        test_support::{NOW, action, candidate, configuration, evidence, grant, submission},
+    };
+
+    #[test]
+    fn exact_local_patch_reconciliation_is_read_only_and_closed() {
+        let configuration = configuration(30);
+        let grant = grant(configuration.clone());
+        let submission = submission();
+        let candidate = candidate(&submission);
+        let evidence = evidence(&grant, NOW);
+        let action = action(&grant, &configuration, &submission, &candidate, &evidence);
+        let patch_id = CobId::parse("a".repeat(40)).unwrap();
+        let description = format!(
+            "{}\n\nRadicle-Issue: {}\n\nAuths-Workflow: {}",
+            submission.patch_body,
+            action.issue_id(),
+            action.workflow_id()
+        );
+        let exact = serde_json::json!({
+            "title": submission.patch_title,
+            "state": {"status": "open"},
+            "target": "delegates",
+            "author": {"id": action.signer_did()},
+            "revisions": {
+                patch_id.as_str(): {
+                    "id": patch_id,
+                    "base": action.canonical_base_oid(),
+                    "oid": action.candidate_oid(),
+                    "author": {"id": action.signer_did()},
+                    "description": [{"body": description}],
+                }
+            }
+        });
+        let exact_bytes = serde_json::to_vec(&exact).unwrap();
+        assert!(reconcile_patch_postcondition(&exact_bytes, &patch_id, &action).unwrap());
+
+        let mut changed = exact;
+        changed["revisions"][patch_id.as_str()]["description"][0]["body"] =
+            serde_json::Value::String("different body".into());
+        assert!(
+            !reconcile_patch_postcondition(
+                &serde_json::to_vec(&changed).unwrap(),
+                &patch_id,
+                &action
+            )
+            .unwrap()
+        );
+    }
+
+    #[test]
+    fn canonical_receipt_append_is_idempotent_for_crash_recovery() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("receipts.jsonl");
+        let sink = JsonlReceiptSink::new(path.clone()).unwrap();
+        let required = configuration(30);
+        let executed = configuration(31);
+        let grant = grant(required.clone());
+        let receipt = RadicleReceipt::Decision(Box::new(
+            preflight_decision_receipt(
+                grant.workflow_id().clone(),
+                grant.digest().unwrap(),
+                required,
+                executed,
+                Decision {
+                    class: DecisionClass::Denied,
+                    code: DecisionCode::VerifierConfigurationMismatch,
+                    detail: "configuration mismatch".into(),
+                },
+                NOW,
+            )
+            .unwrap(),
+        ));
+
+        sink.append(&receipt).unwrap();
+        sink.append(&receipt).unwrap();
+
+        assert_eq!(
+            fs::read_to_string(path)
+                .unwrap()
+                .lines()
+                .filter(|line| !line.is_empty())
+                .count(),
+            1
+        );
     }
 }

@@ -8,8 +8,27 @@ use crate::{
     executor::{LocalPublication, VerifiedOpenPatchCommand},
     profile::RadiclePatchCommand,
     receipts::{RadiclePropagationReceipt, RadicleReceipt},
-    types::{CandidateSubmission, CobId, Rid, VerifierConfiguration, WorkflowId},
+    types::{
+        CandidateSubmission, CobId, DigestHex, OpenPatchActionV1, Rid, VerifierConfiguration,
+        WorkflowId,
+    },
 };
+
+/// Read-only exact query authorized from durable outcome-unknown state.
+pub struct PublicationReconciliationQuery {
+    /// Exact action whose local publication may have completed.
+    pub action: OpenPatchActionV1,
+    /// Stable shared-lifecycle claim commitment.
+    pub claim_id: DigestHex,
+}
+
+/// Radicle-owned interpretation of local publication evidence.
+pub enum PublicationReconciliation {
+    /// Exactly one matching local publication exists.
+    Exact(LocalPublication),
+    /// Absence or multiple matches cannot safely prove non-effect.
+    Ambiguous,
+}
 
 /// Trusted candidate inspection boundary.
 pub trait CandidateInspector: Send + Sync {
@@ -39,6 +58,21 @@ pub trait EvidenceSource: Send + Sync {
         configuration: &VerifierConfiguration,
         now: u64,
     ) -> Result<crate::types::RadicleEvidenceV1, PortError>;
+
+    /// Searches local signed refs and collaborative objects without mutating
+    /// Radicle state.
+    ///
+    /// # Errors
+    ///
+    /// Returns a closed read failure when exact reconciliation evidence is
+    /// unavailable.
+    fn reconcile_publication(
+        &self,
+        _query: &PublicationReconciliationQuery,
+        _now: u64,
+    ) -> Result<PublicationReconciliation, PortError> {
+        Err(PortError::EvidenceUnavailable)
+    }
 }
 
 /// Auths proof-verification outcome.
@@ -83,7 +117,7 @@ pub trait RadicleWriter: Send + Sync {
         &self,
         command: VerifiedOpenPatchCommand,
         now: u64,
-    ) -> Result<(LocalPublication, crate::workflow::ExecutionLease), PortError>;
+    ) -> Result<LocalPublication, PortError>;
 
     /// Announces a patch that was already stored and receipted.
     ///

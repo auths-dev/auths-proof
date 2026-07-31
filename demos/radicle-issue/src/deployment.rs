@@ -531,11 +531,12 @@ mod tests {
         },
         candidate::GitCandidateInspector,
         ports::{Clock, EvidenceSource as _, PortError},
-        workflow::PersistentWorkflowStore,
     };
 
     use crate::{
-        HttpPropagationObserver, ObserverRuntime, authorization_fixture, observer_app,
+        HttpPropagationObserver, ObserverRuntime, authorization_fixture,
+        lifecycle::DemoRadicleLifecycleRegistry,
+        observer_app,
         scenario::{live_configuration, live_grant, live_submission},
     };
 
@@ -686,13 +687,14 @@ mod tests {
         )
         .expect("exact live action");
         let fixture = authorization_fixture(&action, now, [0x91; 32]);
-        let state_path = temporary.path().join("executor/workflows.json");
+        let state_path = temporary.path().join("executor/lifecycle");
+        let obsolete_state_path = temporary.path().join("executor/workflows.json");
         let receipt_path = temporary.path().join("executor/receipts.jsonl");
         let service = RadicleIssueWorkflowService::new(ServiceDependencies {
             candidate_inspector: inspector,
             evidence_source,
             proof_verifier: SdkProofVerifier::new(fixture.verifier),
-            workflow_store: PersistentWorkflowStore::open(state_path)
+            workflow_store: DemoRadicleLifecycleRegistry::open(state_path, &obsolete_state_path)
                 .expect("durable workflow store"),
             radicle_writer: executor_cli,
             propagation_observer,

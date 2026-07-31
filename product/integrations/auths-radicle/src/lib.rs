@@ -11,6 +11,7 @@ pub mod candidate;
 pub mod canonical;
 pub mod containment;
 pub mod executor;
+pub mod lifecycle;
 pub mod ports;
 pub mod profile;
 pub mod receipts;

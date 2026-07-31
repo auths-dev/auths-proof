@@ -90,11 +90,11 @@ policy_type = "auths_radicle::IssueAddressGrantV1"
 evidence_type = "auths_radicle::RadicleEvidenceV1"
 configuration_type = "auths_radicle::VerifierConfiguration"
 decision_type = "auths_radicle::Decision"
-reservation_type = "auths_radicle::workflow::ExecutionLease"
+reservation_type = "auths_lifecycle::LifecycleRecordV1"
 verified_command = "auths_radicle::VerifiedOpenPatchCommand"
 provider_gateway = "auths_radicle::ports::RadicleWriter"
-credential_scope = "configured did:key signer and executor node"
-reconciliation = "domain-specific propagation observation and operator reconciliation"
+credential_scope = "auths_lifecycle::ExecutionAuthorizationV1+auths_lifecycle::ProviderCallAuthorizationV1+configured did:key signer and executor node"
+reconciliation = "auths_radicle::RadicleIssueWorkflowService::reconcile_unknown"
 receipt_types = ["RadicleDecisionReceipt", "RadicleExecutionReceipt", "RadiclePropagationReceipt"]
 fixture_dir = "product/fixtures/v1/radicle"
 scenarios = [
@@ -107,10 +107,11 @@ scenarios = [
   "concurrent-final-capacity",
   "replay",
   "definite-pre-effect-failure",
+  "outcome-unknown",
   "reconciliation",
 ]
-not_applicable = { outcome-unknown = "The local Radicle patch write is definitive; unavailable decentralized propagation is a separate observation state and must not be renamed as an ambiguous local effect." }
-scenario_evidence = { authorized = ["product/integrations/auths-radicle/src/containment.rs#exact_vertical_constraints_authorize"], exact-boundary = ["product/integrations/auths-radicle/src/profile.rs#profile_derives_exact_resource_and_one_write_budget"], boundary-plus-one = ["demos/radicle-issue/src/app.rs#denied_variant_never_enters_executor"], malformed-input = ["product/integrations/auths-radicle/src/candidate.rs#bundle_with_any_other_ref_is_rejected_before_fetch"], stale-evidence = ["product/integrations/auths-radicle/src/containment.rs#stale_distributed_evidence_is_indeterminate_not_denied"], configuration-mismatch = ["product/integrations/auths-radicle/src/containment.rs#required_and_executed_configuration_drift_is_a_hard_denial"], concurrent-final-capacity = ["product/integrations/auths-radicle/src/workflow.rs#concurrent_duplicate_claims_execute_exactly_once"], replay = ["demos/radicle-issue/src/app.rs#exact_execution_succeeds_once_and_replay_fails_closed"], definite-pre-effect-failure = ["product/integrations/auths-radicle/src/service.rs#configuration_mismatch_never_reaches_candidate_evidence_auths_signer_or_writer"], reconciliation = ["demos/radicle-issue/src/deployment.rs#stable_cli_executes_and_replicates_one_real_did_key_patch"] }
+not_applicable = {}
+scenario_evidence = { authorized = ["product/integrations/auths-radicle/src/containment.rs#exact_vertical_constraints_authorize"], exact-boundary = ["product/integrations/auths-radicle/src/profile.rs#profile_derives_exact_resource_and_one_write_budget"], boundary-plus-one = ["demos/radicle-issue/src/app.rs#denied_variant_never_enters_executor"], malformed-input = ["product/integrations/auths-radicle/src/candidate.rs#bundle_with_any_other_ref_is_rejected_before_fetch"], stale-evidence = ["product/integrations/auths-radicle/src/containment.rs#stale_distributed_evidence_is_indeterminate_not_denied"], configuration-mismatch = ["product/integrations/auths-radicle/src/containment.rs#required_and_executed_configuration_drift_is_a_hard_denial"], concurrent-final-capacity = ["product/integrations/auths-radicle/src/lifecycle.rs#different_actions_for_one_workflow_have_one_concurrent_reservation_winner"], replay = ["demos/radicle-issue/src/app.rs#exact_execution_succeeds_once_and_replay_fails_closed"], definite-pre-effect-failure = ["product/integrations/auths-radicle/src/service.rs#configuration_mismatch_never_reaches_candidate_evidence_auths_signer_or_writer"], outcome-unknown = ["product/integrations/auths-radicle/src/adapters.rs#canonical_receipt_append_is_idempotent_for_crash_recovery"], reconciliation = ["product/integrations/auths-radicle/src/adapters.rs#exact_local_patch_reconciliation_is_read_only_and_closed"] }
 
 [[domains]]
 id = "stripe"

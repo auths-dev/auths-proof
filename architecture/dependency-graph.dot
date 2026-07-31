@@ -367,7 +367,9 @@ digraph auths_architecture {
   "auths-proof-wasm" -> "auths-testkit" [label="dev"];
   "auths-proof-wasm" -> "auths-verifier" [label="normal"];
   "auths-radicle" -> "auths-author" [label="dev"];
+  "auths-radicle" -> "auths-bounded-policy" [label="normal"];
   "auths-radicle" -> "auths-codec" [label="normal"];
+  "auths-radicle" -> "auths-lifecycle" [label="normal"];
   "auths-radicle" -> "auths-model" [label="normal"];
   "auths-radicle" -> "auths-profile-api" [label="normal"];
   "auths-radicle" -> "auths-raw-key" [label="dev"];
@@ -375,9 +377,11 @@ digraph auths_architecture {
   "auths-radicle" -> "auths-registries" [label="dev"];
   "auths-radicle" -> "auths-sdk" [label="normal"];
   "auths-radicle" -> "auths-signature" [label="dev"];
+  "auths-radicle" -> "auths-stores" [label="dev"];
   "auths-radicle" -> "auths-verifier" [label="normal"];
   "auths-radicle-demo" -> "auths-author" [label="normal"];
   "auths-radicle-demo" -> "auths-codec" [label="normal"];
+  "auths-radicle-demo" -> "auths-lifecycle" [label="normal"];
   "auths-radicle-demo" -> "auths-model" [label="normal"];
   "auths-radicle-demo" -> "auths-ports" [label="normal"];
   "auths-radicle-demo" -> "auths-profile-api" [label="normal"];
@@ -387,6 +391,7 @@ digraph auths_architecture {
   "auths-radicle-demo" -> "auths-runtime" [label="normal"];
   "auths-radicle-demo" -> "auths-sdk" [label="normal"];
   "auths-radicle-demo" -> "auths-signature" [label="normal"];
+  "auths-radicle-demo" -> "auths-stores" [label="normal"];
   "auths-raw-key" -> "auths-model" [label="normal"];
   "auths-raw-key" -> "auths-ports" [label="normal"];
   "auths-receipts" -> "auths-model" [label="normal"];

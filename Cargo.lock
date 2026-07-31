@@ -1078,7 +1078,9 @@ name = "auths-radicle"
 version = "0.1.0"
 dependencies = [
  "auths-author",
+ "auths-bounded-policy",
  "auths-codec",
+ "auths-lifecycle",
  "auths-model",
  "auths-profile-api",
  "auths-raw-key",
@@ -1086,6 +1088,7 @@ dependencies = [
  "auths-registries",
  "auths-sdk",
  "auths-signature",
+ "auths-stores",
  "auths-verifier",
  "ed25519-dalek 2.2.0",
  "hex",
@@ -1104,6 +1107,7 @@ version = "0.1.0"
 dependencies = [
  "auths-author",
  "auths-codec",
+ "auths-lifecycle",
  "auths-model",
  "auths-ports",
  "auths-profile-api",
@@ -1113,6 +1117,7 @@ dependencies = [
  "auths-runtime",
  "auths-sdk",
  "auths-signature",
+ "auths-stores",
  "axum",
  "ed25519-dalek 2.2.0",
  "getrandom 0.3.4",
