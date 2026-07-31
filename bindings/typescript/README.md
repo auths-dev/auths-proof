@@ -1,9 +1,10 @@
-# `@auths-dev/proof`
+# `@auths-dev/sdk`
 
-Embedded Auths Proof Protocol V1 verification for browser and Node.
+The embedded Auths SDK for browser and Node. Its current public surface wraps
+the bounded Auths Proof Protocol V1 verifier.
 
 ```ts
-import { loadAuths } from "@auths-dev/proof";
+import { loadAuths } from "@auths-dev/sdk";
 
 const auths = await loadAuths();
 const result = auths.verify(proofBytes, canonicalActionBytes, contextBytes);

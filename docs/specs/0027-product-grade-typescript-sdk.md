@@ -26,7 +26,7 @@ requirements on conforming implementations.
 
 ## 1. Decision
 
-Auths will make the existing `@auths-dev/proof` package the first polished
+Auths will make the existing `@auths-dev/sdk` coordinate the first polished
 developer-preview SDK.
 
 The package currently exposes the portable three-input verifier and a sealed
@@ -74,7 +74,7 @@ as required by their change classifications.
 
 The implementation begins from these maintained surfaces:
 
-- `bindings/typescript` publishes `@auths-dev/proof`;
+- `bindings/typescript` prepares `@auths-dev/sdk`;
 - `auths-proof-wasm` exposes the supported portable verification boundary;
 - `auths-sdk` owns the embedded Rust verifier and product-facing profile
   decoding;
@@ -134,7 +134,7 @@ The Phase 10 developer preview MUST NOT:
 The happy path MUST fit this conceptual shape:
 
 ```ts
-import { loadAuths, mcp } from "@auths-dev/proof";
+import { loadAuths, mcp } from "@auths-dev/sdk";
 
 const auths = await loadAuths({ signer, trustedAuthority });
 
@@ -215,7 +215,7 @@ Developer errors and authorization outcomes are different:
 +-------|------------|-------------|-------------|--------------------------+
         |            |             |             |
         v            v             v             v
-+----------------------- @auths-dev/proof ------------------------+
++------------------------ @auths-dev/sdk -------------------------+
 | workflow API | resource lifetimes | typed results | explanations |
 | profile facade | signer port | approval port | advanced raw API  |
 +-------------------------------|----------------------------------+

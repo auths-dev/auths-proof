@@ -1,10 +1,10 @@
-# auths-proof for Python
+# Auths for Python
 
-`auths-proof` embeds the Auths Proof Protocol V1 verifier. Verification is
+The `auths` package embeds the Auths Proof Protocol V1 verifier. Verification is
 deterministic, performs no I/O, and accepts exactly three byte strings:
 
 ```python
-from auths_proof import verify
+from auths import verify
 
 result = verify(proof_cbor, canonical_action_cbor, trusted_context_cbor)
 if result.kind == "authorized":

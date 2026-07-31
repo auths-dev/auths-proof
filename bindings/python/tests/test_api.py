@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-import auths_proof
-from auths_proof import Authorized, Denied, VerifiedAction, verify
+import auths
+from auths import Authorized, Denied, VerifiedAction, verify
 
 
 CORPUS = (
@@ -63,15 +63,15 @@ def test_portable_decoder_rejects_shape_version_and_trailing_data() -> None:
     assert canonical[-2:] == b"\x0f\x02"
 
     with pytest.raises(ValueError, match="trailing"):
-        auths_proof._decode_result(canonical + b"\x00")
+        auths._decode_result(canonical + b"\x00")
 
     reordered_keys = bytes([0xB0, 0x01, 0x04, 0x00, 0x00]) + canonical[5:]
     with pytest.raises(ValueError, match="canonical"):
-        auths_proof._decode_result(reordered_keys)
+        auths._decode_result(reordered_keys)
 
     unknown_field = bytes([0xB1]) + canonical[1:] + b"\x10\xf6"
     with pytest.raises(ValueError, match="shape"):
-        auths_proof._decode_result(unknown_field)
+        auths._decode_result(unknown_field)
 
     with pytest.raises(ValueError, match="ABI version"):
-        auths_proof._decode_result(canonical[:-1] + b"\x03")
+        auths._decode_result(canonical[:-1] + b"\x03")

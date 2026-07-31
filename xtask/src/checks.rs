@@ -174,7 +174,7 @@ pub(crate) fn npm_package_smoke() -> Result<(), String> {
     let smoke = install_directory.join("smoke.mjs");
     fs::write(
         &smoke,
-        "import * as auths from '@auths-dev/proof';\n\
+        "import * as auths from '@auths-dev/sdk';\n\
          if (typeof auths.Auths !== 'function') throw new Error('Auths export missing');\n",
     )
     .map_err(|error| format!("could not write npm install smoke: {error}"))?;

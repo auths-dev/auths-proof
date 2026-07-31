@@ -1232,7 +1232,7 @@ stateful-replay-budget-component = [
   "product/stores/auths-stores/src/lifecycle.rs#crash_matrix_reopens_old_or_new_canonical_state_never_partial_state",
 ]
 
-[packages."@auths-dev/proof"]
+[packages."@auths-dev/sdk"]
 kind = "npm"
 layer = "bindings"
 path = "bindings/typescript"
@@ -1247,7 +1247,7 @@ transports = []
 configuration_inputs = ["executed-verifier-configuration", "required-verifier-configuration"]
 security_state = []
 
-[packages."@auths-dev/proof".claims]
+[packages."@auths-dev/sdk".claims]
 core-wire-consumer = ["bindings/typescript/test/api.test.js#portable decoder rejects shape version and trailing data"]
 language-binding = ["bindings/typescript/test/api.test.js#configuration mismatch reports required and executed commitments"]
 

@@ -1,4 +1,4 @@
-"""Idiomatic embedded Auths Proof Protocol V1 verification."""
+"""Idiomatic embedded Auths SDK with Proof Protocol V1 verification."""
 
 from __future__ import annotations
 
