@@ -629,10 +629,31 @@ pub(crate) fn core_boundary() -> Result<(), String> {
             .ok_or_else(|| format!("core package {package} has no workspace path"))?;
         let manifest = fs::read_to_string(package_root.join("Cargo.toml"))
             .map_err(|error| format!("could not read {package} manifest: {error}"))?;
-        for line in manifest.lines().filter(|line| line.contains("path")) {
-            if line.contains("../..") {
+        let manifest: toml::Value = toml::from_str(&manifest)
+            .map_err(|error| format!("could not parse {package} manifest: {error}"))?;
+        let mut dependency_paths = Vec::new();
+        collect_dependency_paths(&manifest, &mut dependency_paths);
+        let core_root = fs::canonicalize(root().join("core"))
+            .map_err(|error| format!("could not resolve core boundary: {error}"))?;
+        for dependency_path in dependency_paths {
+            let dependency_path = Path::new(dependency_path);
+            if dependency_path.is_absolute() {
                 return Err(format!(
-                    "core manifest {package} has a path escaping core/: {line}"
+                    "core manifest {package} has an absolute dependency path: {}",
+                    dependency_path.display()
+                ));
+            }
+            let resolved =
+                fs::canonicalize(package_root.join(dependency_path)).map_err(|error| {
+                    format!(
+                        "core manifest {package} has an unresolved dependency path {}: {error}",
+                        dependency_path.display()
+                    )
+                })?;
+            if !resolved.starts_with(&core_root) {
+                return Err(format!(
+                    "core manifest {package} has a dependency path escaping core/: {}",
+                    dependency_path.display()
                 ));
             }
         }
@@ -640,6 +661,29 @@ pub(crate) fn core_boundary() -> Result<(), String> {
     repository_hygiene()?;
     println!("core offline, no_std, source, and repository boundaries passed");
     Ok(())
+}
+
+fn collect_dependency_paths<'a>(value: &'a toml::Value, paths: &mut Vec<&'a str>) {
+    let Some(table) = value.as_table() else {
+        return;
+    };
+    for (key, nested) in table {
+        if matches!(
+            key.as_str(),
+            "dependencies" | "dev-dependencies" | "build-dependencies"
+        ) {
+            if let Some(dependencies) = nested.as_table() {
+                paths.extend(dependencies.values().filter_map(|dependency| {
+                    dependency
+                        .as_table()
+                        .and_then(|specification| specification.get("path"))
+                        .and_then(toml::Value::as_str)
+                }));
+            }
+        } else {
+            collect_dependency_paths(nested, paths);
+        }
+    }
 }
 
 pub(crate) fn workspace_package_paths() -> Result<BTreeMap<String, PathBuf>, String> {
@@ -894,4 +938,31 @@ pub(crate) fn files_with_extension(
         .collect();
     files.sort();
     Ok(files)
+}
+
+#[cfg(test)]
+mod dependency_path_tests {
+    use super::*;
+
+    #[test]
+    fn dependency_paths_are_collected_from_top_level_and_target_tables() {
+        let manifest: toml::Value = toml::from_str(
+            r#"
+                [dependencies]
+                local = { path = "../local" }
+                registry = "1"
+
+                [target.'cfg(unix)'.dev-dependencies]
+                support = { path = "../../testkit/support", features = ["std"] }
+
+                [package.metadata.example]
+                path = "not-a-dependency"
+            "#,
+        )
+        .unwrap();
+        let mut paths = Vec::new();
+        collect_dependency_paths(&manifest, &mut paths);
+        paths.sort();
+        assert_eq!(paths, ["../../testkit/support", "../local"]);
+    }
 }

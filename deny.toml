@@ -30,6 +30,10 @@ allow = [
 [bans]
 multiple-versions = "warn"
 wildcards = "deny"
+# Public crates may use path-only dev-dependencies on private workspace
+# testkits/adapters. Cargo permits this for dev-dependencies, and their paths
+# are repository-local; published dependency surfaces remain version-pinned.
+allow-wildcard-paths = true
 highlight = "all"
 
 [sources]

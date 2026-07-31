@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
+publish = false
 description = "Transport-neutral in-process enforcement kit for Auths V1"
 
 [dependencies]

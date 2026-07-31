@@ -1,6 +1,6 @@
 {
   "schema": "auths-proof-translation-source-closure/v2",
-  "digest": "6d1b2c5ce0183e9be561e0dc6dbfcb8375d1c5f2c1b2341cae2c80a24a2fc229",
+  "digest": "c5f185d14eb2afa12eb39d424fab17d3b943f16fd070f60c0b8df8da40785542",
   "files": [
     {
       "path": "Cargo.lock",
@@ -54,7 +54,7 @@
     },
     {
       "path": "product/policy/auths-bounded-policy/Cargo.toml",
-      "sha256": "b177a4925578c55029c28d65f6686852abb2da4c7bbb26e4823600c601f754f2"
+      "sha256": "27c28805b49d49c7dd3441f1547dcf0ebe32ab5721d63003a8b464861461b00f"
     },
     {
       "path": "product/policy/auths-bounded-policy/src/kernel.rs",
@@ -66,7 +66,7 @@
     },
     {
       "path": "product/runtime/auths-lifecycle/Cargo.toml",
-      "sha256": "2fc3bcb7b95ce7afe1bcf130ae7ebd758a42002e071c8dcf0ad2ab2c945e8c79"
+      "sha256": "4c824075df014e28b2e7365a6604c8c33bccde645a8fd3aebe71d5daecde7199"
     },
     {
       "path": "product/runtime/auths-lifecycle/src/kernel.rs",

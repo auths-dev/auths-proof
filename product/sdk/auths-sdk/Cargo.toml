@@ -1,9 +1,11 @@
 [package]
-name = "auths-sdk"
+name = "auths-proof-sdk"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
+repository.workspace = true
+homepage.workspace = true
 description = "Idiomatic embedded Auths enforcement SDK"
 
 [dependencies]
@@ -25,7 +27,7 @@ thiserror.workspace = true
 
 [dev-dependencies]
 auths-codec.workspace = true
-auths-testkit.workspace = true
+auths-testkit = { path = "../../../core/testkit/auths-testkit" }
 
 [lints]
 workspace = true

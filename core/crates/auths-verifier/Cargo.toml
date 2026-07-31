@@ -32,13 +32,13 @@ auths-registries.workspace = true
 [dev-dependencies]
 auths-did-key = { workspace = true, features = ["std"] }
 auths-did-keri = { workspace = true, features = ["std"] }
-auths-did-web = { workspace = true, features = ["std"] }
-auths-hsm-attested = { workspace = true, features = ["std"] }
+auths-did-web = { path = "../../adapters/auths-did-web", default-features = false, features = ["std"] }
+auths-hsm-attested = { path = "../../adapters/auths-hsm-attested", default-features = false, features = ["std"] }
 auths-raw-key = { workspace = true, features = ["std"] }
 auths-signature = { workspace = true, features = ["std"] }
-auths-spiffe-x509 = { workspace = true, features = ["std"] }
-auths-testkit.workspace = true
-auths-webauthn = { workspace = true, features = ["std"] }
+auths-spiffe-x509 = { path = "../../adapters/auths-spiffe-x509", default-features = false, features = ["std"] }
+auths-testkit = { path = "../../testkit/auths-testkit" }
+auths-webauthn = { path = "../../adapters/auths-webauthn", default-features = false, features = ["std"] }
 ed25519-dalek.workspace = true
 
 [lints]

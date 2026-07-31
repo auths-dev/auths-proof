@@ -15,6 +15,7 @@ mod live_demo;
 mod prelude;
 mod process;
 mod release;
+mod semantic_freeze;
 mod stripe;
 
 pub(crate) use architecture::*;
@@ -31,9 +32,10 @@ pub(crate) use live_demo::*;
 pub(crate) use prelude::*;
 pub(crate) use process::*;
 pub(crate) use release::*;
+pub(crate) use semantic_freeze::*;
 pub(crate) use stripe::*;
 
-const USAGE: &str = "usage: cargo xtask <fmt|arch [--update]|core-boundary|workspace-msrv|abi|core|exchange|product|bindings|demos|package|wire [--update]|spec-sync|conformance|exchange-conformance|product-conformance|stripe-profiles|bounded-domains|compliance|matrix|cross-language|product-fixtures [--update]|semantic-digest|wasm|live-demo|fuzz-inventory|fuzz-smoke|platform-artifact [output]|formal [--skip-kani] [--update]|formal qualify aeneas [--update]|adversarial-conformance [--surface <name>|--adapter <name>|--case <id>]|bench <prepare|run|report|compare|verify-artifact|bounded>|ci [authoritative|formal-translation|compliance]|release-check>";
+const USAGE: &str = "usage: cargo xtask <fmt|arch [--update]|semantic-freeze [--update]|core-boundary|workspace-msrv|abi|core|exchange|product|bindings|demos|package|wire [--update]|spec-sync|conformance|exchange-conformance|product-conformance|stripe-profiles|bounded-domains|compliance|matrix|cross-language|product-fixtures [--update]|semantic-digest|wasm|live-demo|fuzz-inventory|fuzz-smoke|platform-artifact [output]|formal [--skip-kani] [--update]|formal qualify aeneas [--update]|adversarial-conformance [--surface <name>|--adapter <name>|--case <id>]|bench <prepare|run|report|compare|verify-artifact|bounded>|ci [authoritative|formal-translation|compliance]|release-check>";
 
 fn main() -> ExitCode {
     match run() {
@@ -67,6 +69,7 @@ fn dispatch(arguments: impl IntoIterator<Item = String>) -> Result<(), String> {
             }
         }
         "arch" => arch(args.any(|arg| arg == "--update")),
+        "semantic-freeze" => semantic_freeze(args.any(|arg| arg == "--update")),
         "fmt" => format_all(),
         "core-boundary" => core_boundary(),
         "workspace-msrv" | "core-msrv" => workspace_msrv(),
@@ -135,7 +138,7 @@ mod tests {
     fn help_output_is_stable() {
         assert_eq!(
             USAGE,
-            "usage: cargo xtask <fmt|arch [--update]|core-boundary|workspace-msrv|abi|core|exchange|product|bindings|demos|package|wire [--update]|spec-sync|conformance|exchange-conformance|product-conformance|stripe-profiles|bounded-domains|compliance|matrix|cross-language|product-fixtures [--update]|semantic-digest|wasm|live-demo|fuzz-inventory|fuzz-smoke|platform-artifact [output]|formal [--skip-kani] [--update]|formal qualify aeneas [--update]|adversarial-conformance [--surface <name>|--adapter <name>|--case <id>]|bench <prepare|run|report|compare|verify-artifact|bounded>|ci [authoritative|formal-translation|compliance]|release-check>"
+            "usage: cargo xtask <fmt|arch [--update]|semantic-freeze [--update]|core-boundary|workspace-msrv|abi|core|exchange|product|bindings|demos|package|wire [--update]|spec-sync|conformance|exchange-conformance|product-conformance|stripe-profiles|bounded-domains|compliance|matrix|cross-language|product-fixtures [--update]|semantic-digest|wasm|live-demo|fuzz-inventory|fuzz-smoke|platform-artifact [output]|formal [--skip-kani] [--update]|formal qualify aeneas [--update]|adversarial-conformance [--surface <name>|--adapter <name>|--case <id>]|bench <prepare|run|report|compare|verify-artifact|bounded>|ci [authoritative|formal-translation|compliance]|release-check>"
         );
     }
 

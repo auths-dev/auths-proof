@@ -8,7 +8,7 @@ flowchart LR
     Iroh --> Envelope
     Envelope --> Create["CreateRecordProfile + create evaluator"]
     Envelope --> Read["ReadRecordProfile + read evaluator"]
-    Create --> Kernel["auths-sdk / AuthsKernel"]
+    Create --> Kernel["auths-proof-sdk / AuthsKernel"]
     Read --> Kernel
     Kernel --> Projection["Records-owned shared commitment projection"]
     Projection --> Lifecycle["Shared durable lifecycle + additive capacity"]

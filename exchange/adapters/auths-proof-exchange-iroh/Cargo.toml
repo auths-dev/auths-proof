@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
+publish = false
 description = "Iroh transport adapter for Auths proof exchange"
 
 [dependencies]
@@ -16,4 +17,3 @@ tokio.workspace = true
 
 [lints]
 workspace = true
-

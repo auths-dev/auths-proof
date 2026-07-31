@@ -226,11 +226,11 @@ dependencies = [
  "auths-proof-exchange-memory",
  "auths-proof-exchange-model",
  "auths-proof-exchange-port",
+ "auths-proof-sdk",
  "auths-raw-key",
  "auths-receipts",
  "auths-registries",
  "auths-runtime",
- "auths-sdk",
  "auths-signature",
  "ed25519-dalek 2.2.0",
  "iroh",
@@ -389,7 +389,7 @@ name = "auths-deployment"
 version = "0.1.0"
 dependencies = [
  "auths-enforcement",
- "auths-sdk",
+ "auths-proof-sdk",
  "thiserror 2.0.19",
 ]
 
@@ -437,7 +437,7 @@ name = "auths-enforcement"
 version = "0.1.0"
 dependencies = [
  "auths-profile-api",
- "auths-sdk",
+ "auths-proof-sdk",
  "thiserror 2.0.19",
 ]
 
@@ -494,7 +494,7 @@ dependencies = [
  "auths-lifecycle",
  "auths-model",
  "auths-profile-api",
- "auths-sdk",
+ "auths-proof-sdk",
  "base64ct",
  "hex",
  "proptest",
@@ -520,10 +520,10 @@ dependencies = [
  "auths-model",
  "auths-ports",
  "auths-profile-api",
+ "auths-proof-sdk",
  "auths-raw-key",
  "auths-registries",
  "auths-runtime",
- "auths-sdk",
  "auths-signature",
  "auths-stores",
  "axum",
@@ -558,7 +558,7 @@ dependencies = [
  "auths-lifecycle",
  "auths-model",
  "auths-profile-api",
- "auths-sdk",
+ "auths-proof-sdk",
  "auths-stores",
  "hex",
  "serde",
@@ -581,10 +581,10 @@ dependencies = [
  "auths-model",
  "auths-ports",
  "auths-profile-api",
+ "auths-proof-sdk",
  "auths-raw-key",
  "auths-registries",
  "auths-runtime",
- "auths-sdk",
  "auths-signature",
  "auths-stores",
  "axum",
@@ -708,7 +708,7 @@ dependencies = [
  "auths-lifecycle",
  "auths-model",
  "auths-profile-api",
- "auths-sdk",
+ "auths-proof-sdk",
  "auths-stores",
  "hex",
  "serde",
@@ -729,7 +729,7 @@ dependencies = [
  "auths-model",
  "auths-opentofu",
  "auths-profile-api",
- "auths-sdk",
+ "auths-proof-sdk",
  "auths-stores",
  "axum",
  "dotenvy",
@@ -775,7 +775,7 @@ dependencies = [
  "auths-lifecycle",
  "auths-model",
  "auths-profile-api",
- "auths-sdk",
+ "auths-proof-sdk",
  "auths-stores",
  "hex",
  "serde",
@@ -799,7 +799,7 @@ dependencies = [
  "auths-model",
  "auths-postgresql",
  "auths-profile-api",
- "auths-sdk",
+ "auths-proof-sdk",
  "auths-stores",
  "axum",
  "dotenvy",
@@ -1057,6 +1057,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "auths-proof-sdk"
+version = "0.1.0"
+dependencies = [
+ "auths-author",
+ "auths-codec",
+ "auths-custody",
+ "auths-did-keri",
+ "auths-did-key",
+ "auths-model",
+ "auths-ports",
+ "auths-profile-api",
+ "auths-profile-domains",
+ "auths-profile-mcp",
+ "auths-raw-key",
+ "auths-registries",
+ "auths-runtime",
+ "auths-signature",
+ "auths-testkit",
+ "auths-verifier",
+ "thiserror 2.0.19",
+]
+
+[[package]]
 name = "auths-proof-wasm"
 version = "0.1.0"
 dependencies = [
@@ -1083,10 +1106,10 @@ dependencies = [
  "auths-lifecycle",
  "auths-model",
  "auths-profile-api",
+ "auths-proof-sdk",
  "auths-raw-key",
  "auths-receipts",
  "auths-registries",
- "auths-sdk",
  "auths-signature",
  "auths-stores",
  "auths-verifier",
@@ -1111,11 +1134,11 @@ dependencies = [
  "auths-model",
  "auths-ports",
  "auths-profile-api",
+ "auths-proof-sdk",
  "auths-radicle",
  "auths-raw-key",
  "auths-registries",
  "auths-runtime",
- "auths-sdk",
  "auths-signature",
  "auths-stores",
  "axum",
@@ -1163,7 +1186,7 @@ dependencies = [
  "auths-lifecycle",
  "auths-model",
  "auths-profile-api",
- "auths-sdk",
+ "auths-proof-sdk",
  "auths-stores",
  "ed25519-dalek 2.2.0",
  "hex",
@@ -1192,11 +1215,11 @@ dependencies = [
  "auths-proof-exchange-iroh",
  "auths-proof-exchange-model",
  "auths-proof-exchange-port",
+ "auths-proof-sdk",
  "auths-raw-key",
  "auths-records-api",
  "auths-registries",
  "auths-runtime",
- "auths-sdk",
  "auths-signature",
  "auths-stores",
  "axum",
@@ -1259,29 +1282,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "auths-sdk"
-version = "0.1.0"
-dependencies = [
- "auths-author",
- "auths-codec",
- "auths-custody",
- "auths-did-keri",
- "auths-did-key",
- "auths-model",
- "auths-ports",
- "auths-profile-api",
- "auths-profile-domains",
- "auths-profile-mcp",
- "auths-raw-key",
- "auths-registries",
- "auths-runtime",
- "auths-signature",
- "auths-testkit",
- "auths-verifier",
- "thiserror 2.0.19",
-]
-
-[[package]]
 name = "auths-signature"
 version = "0.1.0"
 dependencies = [
@@ -1335,10 +1335,10 @@ dependencies = [
  "auths-model",
  "auths-ports",
  "auths-profile-api",
+ "auths-proof-sdk",
  "auths-raw-key",
  "auths-registries",
  "auths-runtime",
- "auths-sdk",
  "auths-signature",
  "ed25519-dalek 2.2.0",
  "hex",
@@ -1376,10 +1376,10 @@ dependencies = [
  "auths-model",
  "auths-ports",
  "auths-profile-api",
+ "auths-proof-sdk",
  "auths-raw-key",
  "auths-registries",
  "auths-runtime",
- "auths-sdk",
  "auths-signature",
  "auths-stripe",
  "axum",
@@ -1404,7 +1404,7 @@ name = "auths-stripe-payment-authorize-demo"
 version = "0.1.0"
 dependencies = [
  "auths-profile-api",
- "auths-sdk",
+ "auths-proof-sdk",
  "auths-stripe",
  "auths-stripe-payment-demo-common",
  "axum",
@@ -1425,7 +1425,7 @@ name = "auths-stripe-payment-cancel-demo"
 version = "0.1.0"
 dependencies = [
  "auths-profile-api",
- "auths-sdk",
+ "auths-proof-sdk",
  "auths-stripe",
  "auths-stripe-payment-demo-common",
  "axum",
@@ -1446,7 +1446,7 @@ name = "auths-stripe-payment-capture-demo"
 version = "0.1.0"
 dependencies = [
  "auths-profile-api",
- "auths-sdk",
+ "auths-proof-sdk",
  "auths-stripe",
  "auths-stripe-payment-demo-common",
  "axum",
@@ -1467,7 +1467,7 @@ name = "auths-stripe-payment-collect-demo"
 version = "0.1.0"
 dependencies = [
  "auths-profile-api",
- "auths-sdk",
+ "auths-proof-sdk",
  "auths-stripe",
  "auths-stripe-payment-demo-common",
  "axum",
@@ -1491,10 +1491,10 @@ dependencies = [
  "auths-codec",
  "auths-model",
  "auths-ports",
+ "auths-proof-sdk",
  "auths-raw-key",
  "auths-registries",
  "auths-runtime",
- "auths-sdk",
  "auths-signature",
  "auths-stripe",
  "ed25519-dalek 2.2.0",
@@ -1509,7 +1509,7 @@ name = "auths-stripe-payment-mandate-demo"
 version = "0.1.0"
 dependencies = [
  "auths-profile-api",
- "auths-sdk",
+ "auths-proof-sdk",
  "auths-stripe",
  "auths-stripe-payment-demo-common",
  "axum",
@@ -1546,7 +1546,7 @@ version = "0.1.0"
 dependencies = [
  "auths-model",
  "auths-profile-api",
- "auths-sdk",
+ "auths-proof-sdk",
  "auths-stripe",
  "auths-stripe-payment-demo-common",
  "axum",
@@ -1584,7 +1584,7 @@ version = "0.1.0"
 dependencies = [
  "auths-model",
  "auths-profile-api",
- "auths-sdk",
+ "auths-proof-sdk",
  "auths-stripe",
  "auths-stripe-payment-demo-common",
  "axum",
@@ -1605,7 +1605,7 @@ version = "0.1.0"
 dependencies = [
  "auths-model",
  "auths-profile-api",
- "auths-sdk",
+ "auths-proof-sdk",
  "auths-stripe",
  "auths-stripe-payment-demo-common",
  "axum",

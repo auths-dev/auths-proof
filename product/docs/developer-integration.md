@@ -19,8 +19,9 @@ than reuse the original request.
 
 ### Rust service integration
 
-Install `auths-sdk` and `auths-enforcement`. Configure immutable trust once,
-then supply audience, challenge, and evaluation time explicitly per request:
+Install `auths-proof-sdk`. The first release-candidate surface keeps the
+enforcement boundary inside that SDK; configure immutable trust once, then
+supply audience, challenge, and evaluation time explicitly per request:
 
 ```rust
 let context = TrustedContextBuilder::new(trust_anchors, assurance_policy)?
@@ -47,8 +48,8 @@ runtime supplies the same invariant with challenge exchange, receipts, and
 transport bindings.
 
 Safe grant planning and external key custody are available from the same
-package as `auths_sdk::authority` and `auths_sdk::custody`. The planner rejects
-delegation widening before any signing provider is invoked.
+package as `auths_proof_sdk::authority` and `auths_proof_sdk::custody`. The
+planner rejects delegation widening before any signing provider is invoked.
 
 ### TypeScript
 

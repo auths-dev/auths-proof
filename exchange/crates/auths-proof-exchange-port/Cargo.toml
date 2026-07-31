@@ -4,6 +4,8 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
+repository.workspace = true
+homepage.workspace = true
 description = "Semantic proof-exchange port and single-use V1 state machine"
 
 [dependencies]
@@ -12,4 +14,3 @@ async-trait.workspace = true
 
 [lints]
 workspace = true
-
