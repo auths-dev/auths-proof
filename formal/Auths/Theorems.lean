@@ -4,6 +4,7 @@ import Auths.Diversity
 import Auths.Product.Theorems
 import Auths.Product.Refinement
 import Auths.Lifecycle.Theorems
+import Auths.Lifecycle.Refinement
 import Auths.Refinement.Production
 
 namespace Auths
@@ -96,6 +97,11 @@ def theoremInventory : List Lean.Name :=
     `Auths.Lifecycle.configuration_mismatch_stops_reservation,
     `Auths.Lifecycle.configuration_mismatch_stops_credential,
     `Auths.Lifecycle.terminal_states_never_transition,
+    `Auths.Lifecycle.Refinement.translated_terminal_refines_rich,
+    `Auths.Lifecycle.Refinement.translated_transition_refines_rich,
+    `Auths.Lifecycle.Refinement.translated_exclusive_capacity_refines_rich,
+    `Auths.Lifecycle.Refinement.translated_additive_capacity_refines_rich,
+    `Auths.Lifecycle.Refinement.translated_replay_refines_rich,
     `Auths.all_commutative,
     `Auths.all_associative,
     `Auths.all_idempotent,

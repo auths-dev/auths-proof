@@ -23,6 +23,10 @@ source_files = [
   "product/policy/auths-bounded-policy/Cargo.toml",
   "product/policy/auths-bounded-policy/src/lib.rs",
   "product/policy/auths-bounded-policy/src/kernel.rs",
+  "product/runtime/auths-lifecycle/Cargo.toml",
+  "product/runtime/auths-lifecycle/src/lib.rs",
+  "product/runtime/auths-lifecycle/src/kernel.rs",
+  "product/runtime/auths-lifecycle/src/model.rs",
   "formal/algebra-contract-v1.toml",
   "formal/qualification/aeneas/qualification.toml",
   "formal/translation-toolchain.lock",
@@ -51,6 +55,9 @@ generated_files = [
   "formal/qualification/aeneas/generated/bounded_policy/Types.lean",
   "formal/qualification/aeneas/generated/bounded_policy/Funs.lean",
   "formal/qualification/aeneas/generated/bounded_policy/translation.json",
+  "formal/qualification/aeneas/generated/lifecycle/Types.lean",
+  "formal/qualification/aeneas/generated/lifecycle/Funs.lean",
+  "formal/qualification/aeneas/generated/lifecycle/translation.json",
 ]
 
 case_modules = [
@@ -58,6 +65,7 @@ case_modules = [
   "qualification.aeneas.cases.Algebra",
   "qualification.aeneas.cases.Authority",
   "qualification.aeneas.cases.BoundedPolicy",
+  "qualification.aeneas.cases.Lifecycle",
 ]
 
 [tools]
@@ -191,6 +199,20 @@ external_functions = 0
 opaque_local_functions = 0
 required_symbols = [
   "auths_algebra_kernel::generated::attenuation_checks_accept",
+]
+allowed_external_symbols = []
+
+[[translations]]
+crate_name = "auths_lifecycle"
+translation_json = "formal/qualification/aeneas/generated/lifecycle/translation.json"
+local_functions = 6
+external_functions = 0
+opaque_local_functions = 0
+required_symbols = [
+  "auths_lifecycle::kernel::transition_code",
+  "auths_lifecycle::kernel::additive_capacity_available",
+  "auths_lifecycle::kernel::exclusive_capacity_available",
+  "auths_lifecycle::kernel::replay_code",
 ]
 allowed_external_symbols = []
 

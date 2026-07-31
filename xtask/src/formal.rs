@@ -726,6 +726,7 @@ pub(crate) fn synchronize_formal_assurance_manifest(
         "formal/Auths/Product/Refinement.lean".to_owned(),
         "formal/Auths/Lifecycle/Semantics.lean".to_owned(),
         "formal/Auths/Lifecycle/Theorems.lean".to_owned(),
+        "formal/Auths/Lifecycle/Refinement.lean".to_owned(),
         "formal/Auths/Refinement/Production.lean".to_owned(),
         "formal/Auths/Composition.lean".to_owned(),
         "formal/Auths/Diversity.lean".to_owned(),
@@ -735,6 +736,8 @@ pub(crate) fn synchronize_formal_assurance_manifest(
         "formal/qualification/aeneas/generated/authority/Types.lean".to_owned(),
         "formal/qualification/aeneas/generated/bounded_policy/Funs.lean".to_owned(),
         "formal/qualification/aeneas/generated/bounded_policy/Types.lean".to_owned(),
+        "formal/qualification/aeneas/generated/lifecycle/Funs.lean".to_owned(),
+        "formal/qualification/aeneas/generated/lifecycle/Types.lean".to_owned(),
         "formal/qualification/aeneas/generated/model/Funs.lean".to_owned(),
         "formal/qualification/aeneas/generated/model/Types.lean".to_owned(),
         "formal/algebra-contract-v1.toml".to_owned(),
@@ -813,6 +816,22 @@ pub(crate) fn synchronize_formal_assurance_manifest(
             .clone_from(&source_closure_digest);
         claim.toolchain_lock_sha256 = toolchain_lock_digest.to_owned();
         claim.axioms.clone_from(&declaration.axioms);
+        if let Some((rust_symbol, property)) = lifecycle_refinement_metadata(&declaration.name) {
+            claim.claim_text = format!(
+                "Lean proves the mechanically translated shipping Rust lifecycle kernel refines the rich semantics for {property}."
+            );
+            claim.rust_symbols = vec![rust_symbol.to_owned()];
+            claim.evidence = vec![FormalEvidence {
+                kind: "lean-refinement".to_owned(),
+                artifact: "formal/Auths/Lifecycle/Refinement.lean".to_owned(),
+            }];
+            claim.scope = format!(
+                "The pinned Charon/Aeneas translation of `{rust_symbol}` is extensionally equivalent to the corresponding rich Lean V1 lifecycle semantics."
+            );
+            claim.residual_assumptions = vec![
+                "Lean's kernel, the pinned Rust/Charon/Aeneas/Lean toolchain, the qualified translation boundary, the listed foundational axioms, and the theorem premises are trusted.".to_owned(),
+            ];
+        }
         claims.push(claim);
     }
     if !existing.is_empty() {
@@ -832,6 +851,32 @@ pub(crate) fn synchronize_formal_assurance_manifest(
     );
     let _ = formal_root;
     Ok(())
+}
+
+fn lifecycle_refinement_metadata(declaration: &str) -> Option<(&'static str, &'static str)> {
+    match declaration {
+        "Auths.Lifecycle.Refinement.translated_terminal_refines_rich" => Some((
+            "auths_lifecycle::model::LifecycleState::is_terminal",
+            "terminal-state classification",
+        )),
+        "Auths.Lifecycle.Refinement.translated_transition_refines_rich" => Some((
+            "auths_lifecycle::kernel::transition_code",
+            "state transitions and their authorization gates",
+        )),
+        "Auths.Lifecycle.Refinement.translated_exclusive_capacity_refines_rich" => Some((
+            "auths_lifecycle::kernel::exclusive_capacity_available",
+            "exclusive capacity",
+        )),
+        "Auths.Lifecycle.Refinement.translated_additive_capacity_refines_rich" => Some((
+            "auths_lifecycle::kernel::additive_capacity_available",
+            "checked additive capacity",
+        )),
+        "Auths.Lifecycle.Refinement.translated_replay_refines_rich" => Some((
+            "auths_lifecycle::kernel::replay_code",
+            "replay classification",
+        )),
+        _ => None,
+    }
 }
 
 pub(crate) fn semantic_source_closure_digest(paths: &[String]) -> Result<String, String> {
