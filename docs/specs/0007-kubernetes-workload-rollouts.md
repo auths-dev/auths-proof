@@ -632,7 +632,128 @@ The specification is implemented when:
 13. the deployed frontend completes exact, denial, replay, and receipt flows against the deployed native backend; and
 14. browser-level end-to-end tests fail if frontend/backend wiring, CORS, readiness, interaction, or result rendering breaks.
 
-## 25. Deferred work
+## 25. Milestone 5 shared-policy and lifecycle cutover
+
+The implemented profile keeps its Kubernetes action, evidence, decision,
+verified command, credential, gateway, reconciliation, and receipt semantics.
+Its production orchestration uses the shared bounded-policy and lifecycle
+contracts from specifications 0025 and 0026.
+
+This is a prelaunch source cutover. There is one production execution path.
+The old claim-file schema is obsolete and must be rejected; local and CI
+environments start with empty shared lifecycle state. No legacy reader,
+state converter, dual write, compatibility switch, or runtime rollback path
+is permitted.
+
+### 25.1 Closed semantic identities
+
+The cutover fixes these identities:
+
+| Meaning | Identity |
+| --- | --- |
+| Profile | `auths.kubernetes.workload-rollout/1` |
+| Policy type | `auths.kubernetes.rollout-policy/1` |
+| Evaluator | `auths.kubernetes.workload-rollout.evaluate/1` |
+| Evaluator implementation | `auths-kubernetes/shared-lifecycle-production/1` |
+| Canonicalization | `rfc8785-sha256-v1` |
+| Configuration | `auths.kubernetes.verifier-configuration/1` |
+| Evidence | `auths.kubernetes.rollout-evidence/1` |
+| Evidence source | `kubernetes-api-deployment-read-dry-run/1` |
+| State snapshot | `auths.kubernetes.rollout-state-snapshot/1` |
+| Reservation intent | `auths.kubernetes.rollout-exclusive-intent/1` |
+| Reservation algebra | `auths.kubernetes.deployment-exclusive/1` |
+| Verified-command obligation | `auths.kubernetes.verified-rollout-command/1` |
+| Provider contract | `auths.kubernetes.server-side-apply/1` |
+
+Changing any decision boundary, exact-action meaning, evidence freshness rule,
+reservation scope, provider retry rule, or receipt claim requires a new
+semantic identity.
+
+### 25.2 Pure projection
+
+An authorized domain decision projects to the shared policy contract without
+erasing Kubernetes meaning:
+
+- the policy commitment is the canonical verifier-configuration commitment;
+- the state snapshot commits the exact Kubernetes evidence used by the
+  evaluator;
+- one exclusive reservation intent binds cluster audience, namespace name,
+  and Deployment name;
+- the exact namespace UID, Deployment UID, resource version, patch, and
+  dry-run result remain bound by the action and evidence commitments; and
+- one command-construction obligation binds the exact canonical action bytes.
+
+The original `evaluate` function remains a test-only semantic oracle. Frozen
+inputs must produce identical decision class, stable code, stage, action and
+evidence commitments, reservation scope, verified command, and domain receipt
+bytes through the production projection.
+
+### 25.3 Durable execution
+
+The production order is:
+
+```text
+domain decision
+  -> Auths proof verification
+  -> durable decision record
+  -> atomic exclusive reservation
+  -> durable exact execution intent
+  -> durable credential authorization
+  -> acquire Kubernetes credential
+  -> durable provider-attempt and call-entry records
+  -> submit the exact verified server-side-apply request
+  -> commit, release, or retain outcome-unknown
+  -> reconcile from fresh Kubernetes observation when required
+```
+
+The exclusive reservation prevents concurrent live workflows from mutating
+the same configured Deployment scope. A successful terminal rollout does not
+permanently monopolize the Deployment: later independently authorized
+workflows may reserve it after the earlier lifecycle is terminal.
+
+The provider retry class is `observe-before-retry`. A timeout after possible
+delivery transitions to `outcome_unknown`; capacity remains held and the
+request is not blindly resubmitted. Fresh reconciliation may conclude only
+exact effect or definite non-effect.
+
+Credential acquisition requires the sealed authorization derived from the
+newly durable lifecycle transition. The provider gateway requires the sealed
+provider-call authorization derived after attempt and call-entry persistence.
+Neither token can be constructed from untrusted request data.
+
+### 25.4 Receipt and state compatibility
+
+The existing Kubernetes decision, claim, API, and rollout receipt schemas
+remain the domain-authoritative public receipts. Shared lifecycle receipts add
+commitment and ordering evidence without changing those domain receipt bytes.
+
+The new persisted state is canonical shared lifecycle state. Startup must fail
+closed on malformed, non-canonical, oversized, unsupported, or obsolete claim
+state. The deployment procedure deletes disposable prelaunch
+`claims.json` state before starting the cut-over revision.
+
+### 25.5 Cutover acceptance
+
+The source cutover is complete only when:
+
+1. exact differential tests compare the reference evaluator with the
+   production projection;
+2. concurrent workflows for one Deployment have exactly one live
+   reservation winner;
+3. configuration mismatch and denial occur before lifecycle state,
+   credential acquisition, and provider I/O;
+4. credentials and provider calls are possible only through their sealed
+   durable-stage authorizations;
+5. replay cannot create a second provider attempt;
+6. definite pre-effect failure releases the reservation;
+7. ambiguous delivery retains the reservation until fresh reconciliation;
+8. crash-persistent state reopens canonically and rejects the obsolete claim
+   schema;
+9. public domain receipt bytes remain unchanged for frozen scenarios;
+10. the demo and live tests use the shared production path; and
+11. the old production claim store and duplicate orchestration are removed.
+
+## 26. Deferred work
 
 - StatefulSets, DaemonSets, Jobs, and custom resources;
 - workload creation and deletion;
