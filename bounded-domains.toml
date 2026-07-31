@@ -282,14 +282,14 @@ profiles = ["auths.demo.records.create/1", "auths.demo.records.read/1"]
 evaluator_entrypoint = "auths_records_api::evaluate_create|auths_records_api::evaluate_read"
 action_type = "auths_records_api::CreateRecordV1|auths_records_api::ReadRecordV1"
 policy_type = "auths_records_api::BoundedRecordApiPolicyV1"
-evidence_type = "canonical action presentation plus auths_records_api::Usage snapshot"
+evidence_type = "auths_records_api::RecordsPresentationV1 plus auths.records.pre-effect-state/1"
 configuration_type = "auths_records_api::RecordsApiVerifierConfigurationV1"
 decision_type = "auths_records_api::RecordsDecision"
-reservation_type = "auths_records_api::RecordsLedger atomic usage and replay transition"
-verified_command = "auths_records_api::VerifiedCreateRecordCommand|auths_records_api::VerifiedReadRecordCommand"
-provider_gateway = "auths_records_api::RecordsLedger"
-credential_scope = "no reusable API credential; presenter proof and sealed profile command"
-reconciliation = "definitive local ledger commit; HTTPS and Iroh delivery failures do not reinterpret committed effects"
+reservation_type = "auths_records_api::RecordsLifecycleProjectionV1 additive create-unit, created-bytes, or read-unit reservation"
+verified_command = "auths_records_api::SealedCreateRecordCommand|auths_records_api::SealedReadRecordCommand"
+provider_gateway = "auths_records_api::RecordsLedger sealed create/read boundary"
+credential_scope = "no reusable API credential; provider access requires ExecutionAuthorizationV1 and ProviderCallAuthorizationV1"
+reconciliation = "read-only exact completed-action lookup reconciles effect or canonical non-effect; unavailable evidence retains outcome-unknown capacity"
 receipt_types = ["DeliveryReceipt", "DecisionReceipt", "EffectReceipt", "ObservationReceipt", "ReceiptBundle"]
 fixture_dir = "product/fixtures/v1/records-api"
 scenarios = [
@@ -302,6 +302,8 @@ scenarios = [
   "concurrent-final-capacity",
   "replay",
   "definite-pre-effect-failure",
+  "outcome-unknown",
+  "reconciliation",
 ]
-not_applicable = { outcome-unknown = "The authoritative effect is one atomic local ledger transition; losing an HTTP or Iroh response does not make the durable ledger outcome unknowable.", reconciliation = "The ledger commit is definitive and replay returns committed state; transport redelivery is replay handling, not provider reconciliation." }
-scenario_evidence = { authorized = ["demos/rest-api-authorization/src/app.rs#exact_http_create_uses_real_auths_kernel_and_no_api_key"], exact-boundary = ["product/integrations/auths-records-api/src/ledger.rs#concurrent_final_unit_is_consumed_once"], boundary-plus-one = ["demos/rest-api-authorization/src/app.rs#oversized_customer_payload_is_a_policy_denial_not_a_malformed_action"], malformed-input = ["product/integrations/auths-records-api/src/action.rs#canonical_decoder_rejects_unknown_fields"], stale-evidence = ["product/integrations/auths-records-api/src/decision.rs#expired_action_denies_at_the_freshness_boundary"], configuration-mismatch = ["product/integrations/auths-records-api/src/decision.rs#configuration_regression_4096_vs_4097_denies"], concurrent-final-capacity = ["product/integrations/auths-records-api/src/ledger.rs#concurrent_final_unit_is_consumed_once"], replay = ["demos/rest-api-authorization/src/app.rs#iroh_executes_and_https_replay_cannot_duplicate_the_effect"], definite-pre-effect-failure = ["demos/rest-api-authorization/src/app.rs#one_changed_proof_byte_is_denied_before_storage"] }
+not_applicable = {}
+scenario_evidence = { authorized = ["demos/rest-api-authorization/src/app.rs#exact_http_create_uses_real_auths_kernel_and_no_api_key"], exact-boundary = ["product/integrations/auths-records-api/src/lifecycle.rs#concurrent_final_create_unit_has_one_reservation_winner", "product/integrations/auths-records-api/src/lifecycle.rs#concurrent_final_read_unit_has_one_reservation_winner"], boundary-plus-one = ["demos/rest-api-authorization/src/app.rs#oversized_customer_payload_is_a_policy_denial_not_a_malformed_action"], malformed-input = ["product/integrations/auths-records-api/src/action.rs#canonical_decoder_rejects_unknown_fields"], stale-evidence = ["product/integrations/auths-records-api/src/decision.rs#expired_action_denies_at_the_freshness_boundary"], configuration-mismatch = ["product/integrations/auths-records-api/src/decision.rs#configuration_regression_4096_vs_4097_denies"], concurrent-final-capacity = ["product/integrations/auths-records-api/src/lifecycle.rs#concurrent_final_create_unit_has_one_reservation_winner", "product/integrations/auths-records-api/src/lifecycle.rs#concurrent_final_read_unit_has_one_reservation_winner"], replay = ["demos/rest-api-authorization/src/app.rs#replay_gets_a_distinct_receipt_without_overwriting_authorization"], definite-pre-effect-failure = ["demos/rest-api-authorization/src/app.rs#one_changed_proof_byte_is_denied_before_storage"], outcome-unknown = ["demos/rest-api-authorization/src/app.rs#call_entry_failure_reconciles_without_provider_resubmission"], reconciliation = ["demos/rest-api-authorization/src/app.rs#call_entry_failure_reconciles_without_provider_resubmission"] }

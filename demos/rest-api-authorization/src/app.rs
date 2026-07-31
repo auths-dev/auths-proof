@@ -10,6 +10,8 @@ use std::{
 };
 
 use async_trait::async_trait;
+use auths_bounded_policy::{CommitmentDigest, UnitId};
+use auths_lifecycle::{StoreError, WorkflowId};
 use auths_proof_exchange_iroh::{IrohChannelConfig, IrohClientChannel, IrohServerChannel};
 use auths_proof_exchange_model::{
     AUTHS_PROTOCOL_V1, ActionChallenge, ActionResponse, ActionSubmission, ChallengeNonce,
@@ -24,10 +26,12 @@ use auths_records_api::{
     CustomerRecordV1, DeliveryAdapter, DeliveryReceipt, PersistentRecordsLedger,
     PresentationClaimsV1, READ_OPERATION, ReadField, ReadRecordProfile, ReadRecordV1,
     ReceiptBundle, RecordIdentifier, RecordsActionV1, RecordsApiVerifierConfigurationV1,
-    RecordsExecutionRequest, RecordsLedger, RecordsPresentationV1, RecordsRequestEnvelopeV1,
-    RecordsService, RecordsWorkflowOutcome, SdkRecordsProofVerifier, demo_configuration,
+    RecordsExecutionRequest, RecordsLedger, RecordsLifecycleRegistry, RecordsLifecycleStore,
+    RecordsPresentationV1, RecordsRequestEnvelopeV1, RecordsService, RecordsWorkflowOutcome,
+    SdkRecordsProofVerifier, demo_configuration,
 };
 use auths_sdk::{RequestContext, Verifier};
+use auths_stores::{LifecycleCapacityRuleV1, PersistentLifecycleStore};
 use axum::{
     Json, Router,
     body::Body,
@@ -103,6 +107,7 @@ pub struct AppState {
     config: AppConfig,
     executed_configuration: RecordsApiVerifierConfigurationV1,
     ledger: Arc<dyn RecordsLedger>,
+    lifecycles: Arc<DemoRecordsLifecycleRegistry>,
     sessions: Arc<Mutex<HashMap<String, Session>>>,
     iroh_target: Option<EndpointAddr>,
 }
@@ -178,6 +183,91 @@ pub enum StartupError {
     State,
 }
 
+struct DemoRecordsLifecycleStore {
+    inner: PersistentLifecycleStore,
+}
+
+impl auths_lifecycle::LifecycleStore for DemoRecordsLifecycleStore {
+    fn transact(
+        &self,
+        transaction: &auths_lifecycle::StoreTransactionV1,
+    ) -> Result<auths_lifecycle::StoredTransitionV1, StoreError> {
+        auths_lifecycle::LifecycleStore::transact(&self.inner, transaction)
+    }
+}
+
+impl RecordsLifecycleStore for DemoRecordsLifecycleStore {
+    fn load_records_lifecycle(
+        &self,
+        workflow: &WorkflowId,
+    ) -> Result<Option<auths_lifecycle::LifecycleRecordV1>, StoreError> {
+        self.inner.load(workflow)
+    }
+}
+
+struct DemoRecordsLifecycleRegistry {
+    directory: PathBuf,
+    stores: Mutex<HashMap<String, Arc<DemoRecordsLifecycleStore>>>,
+}
+
+impl DemoRecordsLifecycleRegistry {
+    fn new(directory: PathBuf) -> Self {
+        Self {
+            directory,
+            stores: Mutex::new(HashMap::new()),
+        }
+    }
+}
+
+impl RecordsLifecycleRegistry for DemoRecordsLifecycleRegistry {
+    fn for_policy(
+        &self,
+        policy: &BoundedRecordApiPolicyV1,
+    ) -> Result<Arc<dyn RecordsLifecycleStore>, StoreError> {
+        let policy_digest = policy.digest().map_err(|_| StoreError::Corrupt)?;
+        let scope_bytes: [u8; 32] = hex::decode(&policy_digest)
+            .map_err(|_| StoreError::Corrupt)?
+            .try_into()
+            .map_err(|_| StoreError::Corrupt)?;
+        let scope = CommitmentDigest::new(scope_bytes);
+        let mut stores = self.stores.lock().map_err(|_| StoreError::Unavailable)?;
+        if let Some(store) = stores.get(&policy_digest) {
+            let concrete = Arc::clone(store);
+            let store: Arc<dyn RecordsLifecycleStore> = concrete;
+            return Ok(store);
+        }
+        let store = Arc::new(DemoRecordsLifecycleStore {
+            inner: PersistentLifecycleStore::open(
+                self.directory.join(format!("{policy_digest}.lifecycle")),
+                vec![
+                    LifecycleCapacityRuleV1::Additive {
+                        scope_digest: scope,
+                        window_digest: None,
+                        unit: UnitId::parse("create-unit").map_err(|_| StoreError::Corrupt)?,
+                        ceiling: u64::from(policy.maximum_creates),
+                    },
+                    LifecycleCapacityRuleV1::Additive {
+                        scope_digest: scope,
+                        window_digest: None,
+                        unit: UnitId::parse("created-bytes").map_err(|_| StoreError::Corrupt)?,
+                        ceiling: policy.maximum_created_bytes,
+                    },
+                    LifecycleCapacityRuleV1::Additive {
+                        scope_digest: scope,
+                        window_digest: None,
+                        unit: UnitId::parse("read-unit").map_err(|_| StoreError::Corrupt)?,
+                        ceiling: u64::from(policy.maximum_reads),
+                    },
+                ],
+                4096,
+            )
+            .map_err(|_| StoreError::Corrupt)?,
+        });
+        stores.insert(policy_digest, Arc::clone(&store));
+        Ok(store)
+    }
+}
+
 /// Builds the HTTPS application with its persistent records ledger.
 ///
 /// # Errors
@@ -207,11 +297,15 @@ pub fn app_with_iroh(
     let ledger = Arc::new(
         PersistentRecordsLedger::open(&config.state_path).map_err(|_| StartupError::State)?,
     );
+    let lifecycles = Arc::new(DemoRecordsLifecycleRegistry::new(
+        config.state_path.with_extension("lifecycles"),
+    ));
     let allowed_origin = config.allowed_origin.clone();
     let state = AppState {
         config,
         executed_configuration,
         ledger,
+        lifecycles,
         sessions: Arc::new(Mutex::new(HashMap::new())),
         iroh_target,
     };
@@ -867,6 +961,7 @@ fn execute_session(
     let service = RecordsService::new(
         SdkRecordsProofVerifier::from_shared(Arc::clone(&session.verifier)),
         Arc::clone(&state.ledger),
+        Arc::clone(&state.lifecycles),
         state.executed_configuration.clone(),
     );
     let request = RecordsExecutionRequest {
@@ -1132,6 +1227,11 @@ mod tests {
     use super::*;
 
     fn test_app() -> (Router, TempDir) {
+        let (router, _, directory) = test_app_with_state();
+        (router, directory)
+    }
+
+    fn test_app_with_state() -> (Router, AppState, TempDir) {
         let directory = TempDir::new().unwrap();
         let config = AppConfig {
             bind: "127.0.0.1:0".parse().unwrap(),
@@ -1143,7 +1243,80 @@ mod tests {
             region: "test".into(),
             release: "test".into(),
         };
-        (app(config).unwrap(), directory)
+        let (router, state) = app_with_iroh(config, None).unwrap();
+        (router, state, directory)
+    }
+
+    struct FailAfterCreateLedger {
+        inner: Arc<dyn RecordsLedger>,
+        fail_create_once: Mutex<bool>,
+        fail_completed_once: Mutex<bool>,
+        create_calls: Mutex<u32>,
+    }
+
+    impl RecordsLedger for FailAfterCreateLedger {
+        fn create(
+            &self,
+            command: auths_records_api::SealedCreateRecordCommand,
+        ) -> Result<auths_records_api::CreateTransition, auths_records_api::RecordsError> {
+            *self.create_calls.lock().unwrap() += 1;
+            let result = self.inner.create(command)?;
+            let mut fail = self.fail_create_once.lock().unwrap();
+            if *fail {
+                *fail = false;
+                Err(auths_records_api::RecordsError::StateUnavailable)
+            } else {
+                Ok(result)
+            }
+        }
+
+        fn read(
+            &self,
+            command: auths_records_api::SealedReadRecordCommand,
+        ) -> Result<auths_records_api::ReadTransition, auths_records_api::RecordsError> {
+            self.inner.read(command)
+        }
+
+        fn completed(
+            &self,
+            action_digest: &str,
+        ) -> Result<
+            Option<auths_records_api::CompletedRecordsAction>,
+            auths_records_api::RecordsError,
+        > {
+            let mut fail = self.fail_completed_once.lock().unwrap();
+            if *fail {
+                *fail = false;
+                Err(auths_records_api::RecordsError::StateUnavailable)
+            } else {
+                self.inner.completed(action_digest)
+            }
+        }
+
+        fn append_receipt(
+            &self,
+            receipt: ReceiptBundle,
+        ) -> Result<(), auths_records_api::RecordsError> {
+            self.inner.append_receipt(receipt)
+        }
+
+        fn receipt(
+            &self,
+            receipt_id: &str,
+        ) -> Result<Option<ReceiptBundle>, auths_records_api::RecordsError> {
+            self.inner.receipt(receipt_id)
+        }
+
+        fn usage(
+            &self,
+            policy_digest: &str,
+        ) -> Result<auths_records_api::Usage, auths_records_api::RecordsError> {
+            self.inner.usage(policy_digest)
+        }
+
+        fn state_commitment(&self) -> Result<String, auths_records_api::RecordsError> {
+            self.inner.state_commitment()
+        }
     }
 
     async fn issue(router: &Router, experiment: &str) -> Value {
@@ -1257,8 +1430,9 @@ mod tests {
         );
         assert_eq!(
             outcome["receipt"]["decision"]["protected_storage_accessed"],
-            true
+            false
         );
+        assert_eq!(outcome["receipt"]["execution"], "executed");
     }
 
     #[tokio::test]
@@ -1362,9 +1536,13 @@ mod tests {
         let denied = execute_create(&router, &session).await;
         assert_eq!(
             denied["receipt"]["decision"]["decision"]["code"],
-            "create-budget-exhausted"
+            "authorized"
         );
-        assert!(denied["receipt"]["effect"].is_null());
+        assert_eq!(denied["receipt"]["execution"], "definite-non-effect");
+        assert_eq!(
+            denied["receipt"]["effect"]["code"],
+            "shared-create-capacity-exhausted"
+        );
     }
 
     #[tokio::test]
@@ -1381,9 +1559,13 @@ mod tests {
             .unwrap();
 
         assert_ne!(authorized_id, replay_id);
-        assert_eq!(replay["receipt"]["decision"]["decision"]["code"], "replay");
+        assert_eq!(
+            replay["receipt"]["decision"]["decision"]["code"],
+            "authorized"
+        );
+        assert_eq!(replay["receipt"]["execution"], "replay-effect");
 
-        for (id, expected_code) in [(authorized_id, "authorized"), (replay_id, "replay")] {
+        for id in [authorized_id, replay_id] {
             let response = router
                 .clone()
                 .oneshot(
@@ -1400,8 +1582,48 @@ mod tests {
                     .unwrap(),
             )
             .unwrap();
-            assert_eq!(receipt["decision"]["decision"]["code"], expected_code);
+            assert_eq!(receipt["decision"]["decision"]["code"], "authorized");
         }
+    }
+
+    #[tokio::test]
+    async fn call_entry_failure_reconciles_without_provider_resubmission() {
+        let (router, mut state, _directory) = test_app_with_state();
+        let session = issue(&router, "exact-create").await;
+        let fault = Arc::new(FailAfterCreateLedger {
+            inner: Arc::clone(&state.ledger),
+            fail_create_once: Mutex::new(true),
+            fail_completed_once: Mutex::new(true),
+            create_calls: Mutex::new(0),
+        });
+        let fault_ledger: Arc<dyn RecordsLedger> = fault.clone();
+        state.ledger = fault_ledger;
+        let session_id = session["session_id"].as_str().unwrap();
+
+        let first = with_session(&state, session_id, |session| {
+            execute_session(&state, session, DeliveryAdapter::Memory, "fault-injection")
+        })
+        .unwrap();
+        assert_eq!(
+            first.receipt.execution,
+            auths_records_api::ExecutionClassification::OutcomeUnknown
+        );
+        let competing = issue_with_source(&router, "exact-create", Some(session_id)).await;
+        let held = execute_create(&router, &competing).await;
+        assert_eq!(held["receipt"]["execution"], "definite-non-effect");
+        assert_eq!(
+            held["receipt"]["effect"]["code"],
+            "shared-create-capacity-exhausted"
+        );
+        let recovered = with_session(&state, session_id, |session| {
+            execute_session(&state, session, DeliveryAdapter::Memory, "restart")
+        })
+        .unwrap();
+        assert_eq!(
+            recovered.receipt.execution,
+            auths_records_api::ExecutionClassification::ReplayEffect
+        );
+        assert_eq!(*fault.create_calls.lock().unwrap(), 1);
     }
 
     #[tokio::test]

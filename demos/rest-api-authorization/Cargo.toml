@@ -12,7 +12,9 @@ publish = false
 [dependencies]
 async-trait.workspace = true
 auths-author.workspace = true
+auths-bounded-policy.workspace = true
 auths-codec.workspace = true
+auths-lifecycle.workspace = true
 auths-model.workspace = true
 auths-ports.workspace = true
 auths-profile-api.workspace = true
@@ -22,6 +24,7 @@ auths-registries.workspace = true
 auths-runtime.workspace = true
 auths-sdk.workspace = true
 auths-signature.workspace = true
+auths-stores.workspace = true
 auths-proof-exchange-iroh.workspace = true
 auths-proof-exchange-model.workspace = true
 auths-proof-exchange-port.workspace = true
