@@ -558,7 +558,110 @@ provider state, process interruption, restart, or public browser execution.
 17. Redacted release evidence identifies and proves the exact public frontend, native release, provider/backend observation, and source revision tested.
 18. Complete compliance claims and authoritative CI pass for that revision.
 
-## 21. Deferred work
+## 21. Milestone 5 shared-lifecycle cutover contract
+
+The Milestone 5 source cutover replaces the production claim machine in this
+vertical with the shared bounded-policy and durable-lifecycle kernels. It does
+not move OpenTofu, saved-plan, backend, provider, state, artifact, credential,
+observation, reconciliation, or receipt semantics into shared code.
+
+The closed identities for this semantic version are:
+
+| Concept | Identifier |
+| --- | --- |
+| profile | `auths.opentofu.saved-plan-apply/1` |
+| policy type | `auths.opentofu.saved-plan-policy/1` |
+| evaluator semantic | `auths.opentofu.saved-plan-apply.evaluate/1` |
+| implementation | `auths-opentofu/shared-lifecycle-production/1` |
+| configuration semantic | `auths.opentofu.verifier-configuration/1` |
+| evidence schema | `auths.opentofu.saved-plan-state-evidence/1` |
+| evidence source | `opentofu-backend-state-and-lock-read/1` |
+| state schema | `auths.opentofu.backend-state-snapshot/1` |
+| reservation intent | `auths.opentofu.backend-workspace-exclusive-intent/1` |
+| reservation algebra | `auths.opentofu.backend-workspace-state-exclusive/1` |
+| obligation schema | `auths.opentofu.verified-saved-plan-command/1` |
+| provider contract | `auths.opentofu.fixed-argv-saved-plan-apply/1` |
+| domain | `opentofu` |
+
+One authorized action projects to one exclusive reservation over the canonical
+tuple:
+
+```text
+(
+  executor audience,
+  backend identity,
+  workspace,
+  state lineage,
+  prior state serial
+)
+```
+
+The scope intentionally excludes the plan digest. Two different plans created
+from the same backend/workspace state must contend for the same reservation;
+giving each plan a separate scope would permit both to pass capacity checks
+against one prior state. The exact action, opaque plan, projection,
+configuration, dependency locks, module manifest, variables, and evidence
+remain committed separately by the policy input and verified command.
+
+The lifecycle workflow and execution identities are derived
+domain-separately from the exact action and policy commitments. Credential
+acquisition requires the durable execution authorization produced after
+decision persistence, reservation, and execution-intent persistence. The
+gateway receives only a sealed domain command containing that authorization;
+it never receives an unsealed action plus a boolean or claim flag.
+
+The durable progression is:
+
+```text
+decision
+  -> reservation
+  -> execution intent
+  -> provider attempt
+  -> provider call entry
+  -> committed | failed | outcome unknown
+  -> reconciliation observation
+  -> reconciled committed | reconciled not committed
+```
+
+Artifact resolution and digest verification remain domain-local and occur
+after reservation but before credentials. State freshness is rechecked after
+credential acquisition and before the provider-call entry. A definite
+pre-effect error releases the reservation and records failure. Any ambiguous
+error after the apply attempt begins records `outcome_unknown` and retains the
+reservation until reconciliation reaches a terminal conclusion.
+
+Reconciliation authority is a separate sealed command derived only from a
+durable `outcome_unknown` record. It may read backend state, provider object
+identity, and protected operation evidence, but it cannot submit the saved
+plan. Recovery after process restart loads the shared lifecycle record,
+constructs reconciliation authority, and observes the provider without
+reissuing `tofu apply`.
+
+Public claim, apply, and observation receipts remain OpenTofu projections of
+the shared lifecycle and provider evidence. Their unchanged versioned bytes
+remain differential oracles. The obsolete prelaunch claim-store format is
+rejected at startup; this cutover adds no legacy reader, dual write, migration,
+or compatibility shim.
+
+The cutover is accepted only when:
+
+1. all unchanged decision classes, stable codes, stages, verified command
+   commitments, and receipt bytes match the frozen reference fixtures;
+2. a changed action, plan, backend, workspace, state lineage, state serial,
+   configuration, or evidence cannot resume another workflow;
+3. concurrent plans from the same prior backend/workspace state permit at most
+   one provider effect;
+4. denial and artifact mismatch occur before credential release and provider
+   invocation;
+5. crash-before-effect, crash-after-possible-commit, restart, reconciliation,
+   replay, and corrupt or obsolete state tests pass;
+6. reconciliation never invokes the apply boundary;
+7. provider behavior, protected artifact handling, credentials, observation,
+   and canonical public receipts remain in the OpenTofu vertical; and
+8. the old production claim orchestration is removed after the shared path and
+   retained test-only oracle prove exact conformance.
+
+## 22. Deferred work
 
 - destroy and replacement profiles;
 - multiple workspaces or root modules;
