@@ -2,7 +2,7 @@
 
 ## Status
 
-All 11 decisions were approved by the repository owner on 2026-07-31. This
+All 12 decisions were approved by the repository owner on 2026-07-31. This
 document records policy approval only. It does not authorize an artifact
 publication, RC tag, package upload, claim publication, repository-setting
 change, secret upload, or external-review engagement.
@@ -15,6 +15,12 @@ requires these decisions before Phase 7 release implementation begins.
 The read-only
 [Phase 7 release readiness audit](PHASE_7_RELEASE_READINESS_AUDIT.md) maps each
 decision to the current repository and the implementation it blocks.
+
+[AP-SPEC-034](../specs/0034-auths-public-naming-consolidation.md) and
+[issue 54](https://github.com/auths-dev/auths-proof/issues/54) supersede the
+public-coordinate portion of `P7-OD-003` and all of `P7-OD-007`. Their original
+text remains below as decision history; `P7-OD-012` is the governing public
+naming record.
 
 The
 [Phase 7 owner decision guide](PHASE_7_OWNER_DECISION_GUIDE.md) explains the
@@ -32,15 +38,16 @@ or represent the Phase 7 entry gate as passed.
 | --- | --- | --- | --- | --- |
 | `P7-OD-001` | Release license | Keep `MIT OR Apache-2.0` through v1 | Exact license expression approved for RC package and release metadata | approved |
 | `P7-OD-002` | Inbound contribution policy | Choose DCO or CLA with counsel | Selected policy, responsible owner, and effective date | approved |
-| `P7-OD-003` | Artifact catalogue | Source archive, publishable crates, maintained bindings, WASM/native artifacts, assurance bundle | Exact in-scope and excluded release subjects | approved |
+| `P7-OD-003` | Artifact catalogue | Source archive, publishable crates, maintained bindings, WASM/native artifacts, assurance bundle | Exact in-scope and excluded release subjects | approved; coordinates amended by `P7-OD-012` |
 | `P7-OD-004` | Registry publication | Prepare all approved subjects; publish only to explicitly approved registries | Registry list and whether the first RC is staged, private, or public in each | approved |
 | `P7-OD-005` | Supply-chain target | SLSA Build L3 for the first RC | Approved target and any explicitly accepted limitation | approved |
 | `P7-OD-006` | SBOM baseline | SPDX JSON; retain CycloneDX only as additional evidence | Required SPDX version/profile and optional secondary formats | approved |
-| `P7-OD-007` | Tag convention | One immutable semver-compatible RC form | Exact tag pattern and initial ordinal policy | approved |
+| `P7-OD-007` | Tag convention | One immutable semver-compatible RC form | Exact tag pattern and initial ordinal policy | superseded by `P7-OD-012` |
 | `P7-OD-008` | Release approvers | At least one named human approver distinct from build identity | Named approver or approver role and protected-environment rule | approved |
 | `P7-OD-009` | Signing identity | GitHub artifact attestation backed by public Sigstore | Exact issuer, subject, workflow identity, and verification policy | approved |
 | `P7-OD-010` | Public claim approver | Named technical owner | Approver identity or role and approval-record location | approved |
 | `P7-OD-011` | Vulnerability and CRA ownership | Name a security contact and obtain counsel review when external EU distribution is in scope | Security contact, disclosure owner, distribution scope, and counsel decision or explicit not-yet-in-scope record | approved interim policy |
+| `P7-OD-012` | Public Auths identity | One Auths product identity across package coordinates, tags, artifacts, documentation, and the predecessor transition | Exact public map and first-RC identity | approved; execution blocked on AP-SPEC-034 |
 
 ## Approved records
 
@@ -72,6 +79,10 @@ conditions:
 ```
 
 ### `P7-OD-003`
+
+> **Historical coordinate record:** the catalogue-shape decision remains
+> approved, but the package names in this block were superseded by
+> `P7-OD-012` before publication or RC tagging.
 
 ```yaml
 decision_id: P7-OD-003
@@ -133,6 +144,9 @@ conditions:
 ```
 
 ### `P7-OD-007`
+
+> **Superseded:** no tag using this pattern was created. `P7-OD-012` replaces
+> it with `auths-v<semver>-rc.<positive-ordinal>`.
 
 ```yaml
 decision_id: P7-OD-007
@@ -204,6 +218,25 @@ evidence_or_advice: "../../SECURITY.md"
 conditions:
   - "External EU distribution requiring a legal role determination remains blocked pending qualified advice."
   - "The first RC is technical prerelease evidence, not a general-availability product."
+```
+
+### `P7-OD-012`
+
+```yaml
+decision_id: P7-OD-012
+status: approved
+decision: "Present the product as Auths. Use auths and auths-sdk on crates.io, @auths-dev/sdk on npm, auths on PyPI, and immutable tags matching auths-v<semver>-rc.<positive-ordinal>, beginning with auths-v1.0.0-rc.1. Retain auths-proof only for accurate proof-specific components and temporary repository identity."
+owner: repository-owner
+decided_at: 2026-07-31
+evidence_or_advice:
+  - "https://github.com/auths-dev/auths-proof/issues/54"
+  - "../../release/public-naming.toml"
+conditions:
+  - "AP-SPEC-034 is a hard gate before remaining AP-SPEC-032 release artifact, metadata, provenance, or tag-contract freeze work."
+  - "The auths crate is a thin consumer core facade over the bounded auths-proof component; the facade must not absorb provider or runtime behavior."
+  - "The predecessor 0.1.x coordinates are an intentional major-version transition, not a source-compatibility promise."
+  - "No deletion, yank, publication, owner change, repository rename, repository archive, tag, deployment, or DNS action is authorized by this record."
+  - "Registry custody, publication order, current documentation, predecessor notice, external website content, and hosted stale-name checks must pass before AP-SPEC-032 release evidence resumes."
 ```
 
 ## Auths-native release authorization boundary

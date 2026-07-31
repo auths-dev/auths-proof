@@ -10,6 +10,7 @@ completed both exit gates
 Alignment](../plans/POST_MILESTONE_6_TECHNICAL_AND_GO_TO_MARKET_ALIGNMENT.md)
 
 **Depends on:** [AP-SPEC-032](0032-reproducible-release-candidate-and-exact-assurance-claim.md),
+[AP-SPEC-034](0034-auths-public-naming-consolidation.md),
 one immutable and non-withdrawn release candidate, its exact assurance-claim
 bundle, and approved review ownership, budget, disclosure, and severity policy
 
@@ -276,7 +277,7 @@ and renders review status without editing findings:
 
 ```text
 +------------------------------------------------------------------+
-| Auths Phase 9 review · auths-proof-v1.0.0-rc.N                   |
+| Auths Phase 9 review · auths-v1.0.0-rc.N                         |
 +------------------------------------------------------------------+
 | Packet      verified · commit 8f62... · manifest 14ac...        |
 | Formal      complete · findings 0C 1H 3M 2L                     |
@@ -304,7 +305,7 @@ track: rust-protocol-security
 severity: high
 title: bounded non-sensitive title
 status: open
-rc_tag: auths-proof-v1.0.0-rc.N
+rc_tag: auths-v1.0.0-rc.N
 subject_digests:
   - sha256:...
 source_locations:

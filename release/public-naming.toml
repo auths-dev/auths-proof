@@ -1,0 +1,610 @@
+schema = "auths.public-naming/v1"
+snapshot_date = "2026-07-31"
+authority = "This file is the sole machine-readable authority for public Auths names and predecessor package dispositions."
+governing_issue = "https://github.com/auths-dev/auths-proof/issues/54"
+governing_spec = "docs/specs/0034-auths-public-naming-consolidation.md"
+product = "Auths"
+website = "https://auths.dev"
+first_rc_tag = "auths-v1.0.0-rc.1"
+
+[registry_evidence]
+crates_owner_id = 345389
+crates_owner = "bordumb"
+crates_snapshot = "https://crates.io/api/v1/crates?user_id=345389&page=1&per_page=100&sort=alpha"
+crates_policy = "https://doc.rust-lang.org/cargo/reference/publishing.html"
+npm_sdk = "https://registry.npmjs.org/@auths-dev%2fsdk"
+python_sdk = "https://pypi.org/pypi/auths/json"
+limitations = "Registry counters include automated and dependent-package downloads; they do not establish independent adoption. Reverse dependencies list published crates visible to crates.io and do not cover unpublished, Git, path, or vendored use."
+
+[[surfaces]]
+id = "product"
+kind = "product"
+current = "Auths Proof"
+target = "Auths"
+state = "replace"
+compatibility = "Prelaunch wording change; proof remains a mechanism, not the umbrella product."
+owner_pr = "AP34-PR3"
+
+[[surfaces]]
+id = "website"
+kind = "url"
+current = "https://auths.dev"
+target = "https://auths.dev"
+state = "continue-content-migration-required"
+compatibility = "The coordinate continues, but its predecessor-era package and repository links must agree with this inventory before the RC. DNS changes are separately authorized."
+owner_pr = "AP34-PR6"
+
+[[surfaces]]
+id = "repository-current"
+kind = "repository"
+current = "auths-dev/auths-proof"
+target = "auths-dev/auths-proof"
+state = "temporary-coordinate"
+compatibility = "Repository rename is excluded from issue 54 and requires a bounded migration. Product copy must call the project Auths."
+owner_pr = "DEFERRED-REPOSITORY-RENAME"
+
+[[surfaces]]
+id = "repository-predecessor"
+kind = "repository"
+current = "auths-dev/auths"
+target = "archived-predecessor"
+state = "retire"
+compatibility = "Add an accurate supersession notice after custody, Secure Enclave, storage, and signing ideas are migrated or explicitly deferred. Archival itself requires separate authorization."
+owner_pr = "AP34-PR5"
+
+[[surfaces]]
+id = "rust-core"
+kind = "cargo"
+current = "auths-proof"
+target = "auths"
+state = "new-public-facade"
+compatibility = "Add a thin consumer facade at auths; retain auths-proof as the bounded proof-protocol component. The existing crates.io auths coordinate continues through an intentional 1.0 major transition."
+owner_pr = "AP34-PR2"
+
+[[surfaces]]
+id = "rust-proof-component"
+kind = "cargo"
+current = "auths-proof"
+target = "auths-proof"
+state = "continue-bounded-component"
+compatibility = "The name remains accurate for the deterministic proof protocol and verifier facade, but is not presented as the product name."
+owner_pr = "AP34-PR2"
+
+[[surfaces]]
+id = "rust-sdk"
+kind = "cargo"
+current = "auths-proof-sdk"
+target = "auths-sdk"
+state = "replace-unpublished-local-name"
+compatibility = "auths-proof-sdk was never published from this implementation. The owned predecessor auths-sdk coordinate continues through an intentional 1.0 major transition."
+owner_pr = "AP34-PR2"
+
+[[surfaces]]
+id = "npm-sdk"
+kind = "npm"
+current = "@auths-dev/proof"
+target = "@auths-dev/sdk"
+state = "replace-unpublished-local-name"
+compatibility = "@auths-dev/proof is absent from npm. @auths-dev/sdk 0.1.16 is predecessor-owned and will continue only through separately authorized publication of the new major version."
+owner_pr = "AP34-PR3"
+
+[[surfaces]]
+id = "python-sdk"
+kind = "pypi"
+current = "auths-proof"
+target = "auths"
+state = "replace-unpublished-local-name"
+compatibility = "auths-proof is absent from PyPI. auths 0.1.16 is predecessor-owned and will continue only through separately authorized publication of the new major version."
+owner_pr = "AP34-PR3"
+
+[[surfaces]]
+id = "rc-tag"
+kind = "git-tag"
+current = "auths-proof-v<version>"
+target = "auths-v<version>"
+state = "replace"
+compatibility = "No RC tag has been issued; the first permitted form is auths-v1.0.0-rc.1. Tag creation remains separately authorized."
+owner_pr = "AP34-PR4"
+
+[[surfaces]]
+id = "release-evidence-artifact"
+kind = "github-artifact"
+current = "auths-proof-release-evidence-<run>-<attempt>"
+target = "auths-release-evidence-<run>-<attempt>"
+state = "replace"
+compatibility = "Workflow artifact locator only; no compatibility promise."
+owner_pr = "AP34-PR4"
+
+[[surfaces]]
+id = "source-archive"
+kind = "release-artifact"
+current = "unfrozen"
+target = "auths-<version>-source.tar.zst"
+state = "freeze-target"
+compatibility = "The filename and digest become immutable only for an approved candidate manifest."
+owner_pr = "AP34-PR4"
+
+[[surfaces]]
+id = "assurance-bundle"
+kind = "release-artifact"
+current = "unfrozen"
+target = "auths-<version>-assurance.tar.zst"
+state = "freeze-target"
+compatibility = "The filename and digest become immutable only for an approved candidate manifest."
+owner_pr = "AP34-PR4"
+
+[[surfaces]]
+id = "release-schema"
+kind = "schema"
+current = "auths.release-manifest/1"
+target = "auths.release-manifest/1"
+state = "continue"
+compatibility = "Already product-scoped rather than repository-scoped."
+owner_pr = "AP34-PR4"
+
+[[surfaces]]
+id = "github-attestation-subject"
+kind = "provenance"
+current = "repo:auths-dev@260513770/auths-proof@1310728509:environment:release-candidate"
+target = "repo:auths-dev@260513770/auths-proof@1310728509:environment:release-candidate"
+state = "temporary-repository-coordinate"
+compatibility = "The immutable GitHub repository identity must remain literal while the repository is named auths-proof. It is provenance identity, not product branding."
+owner_pr = "AP34-PR4"
+
+[[surfaces]]
+id = "rust-api-docs"
+kind = "url"
+current = "unpublished"
+target = "https://docs.rs/auths and https://docs.rs/auths-sdk"
+state = "freeze-target"
+compatibility = "Proof-component API documentation may also use https://docs.rs/auths-proof."
+owner_pr = "AP34-PR3"
+
+[[surfaces]]
+id = "internal-wasm-crate"
+kind = "cargo-private-build"
+current = "auths-proof-wasm"
+target = "auths-proof-wasm"
+state = "continue-bounded-component"
+compatibility = "Private Rust build boundary for proof verification; the public JavaScript artifact is @auths-dev/sdk."
+owner_pr = "AP34-PR3"
+
+[[surfaces]]
+id = "internal-python-crate"
+kind = "cargo-private-build"
+current = "auths-proof-python"
+target = "auths-proof-python"
+state = "continue-bounded-component"
+compatibility = "Private native proof-binding crate; the public Python distribution and import root are auths."
+owner_pr = "AP34-PR3"
+
+[[surfaces]]
+id = "proof-exchange-family"
+kind = "cargo"
+current = "auths-proof-exchange-*"
+target = "auths-proof-exchange-*"
+state = "continue-bounded-component"
+compatibility = "These names describe exchange of proof objects and are not the umbrella product identity. Only the model and port are in the first-RC dependency closure."
+owner_pr = "AP34-PR2"
+
+[[surfaces]]
+id = "container-images"
+kind = "oci"
+current = "ghcr.io/auths-dev/auths-*"
+target = "ghcr.io/auths-dev/auths-*"
+state = "continue"
+compatibility = "No core OCI image is in the first-RC catalogue. Existing Auths demo image names already conform."
+owner_pr = "AP34-PR4"
+
+[[surfaces]]
+id = "deployment-names"
+kind = "deployment"
+current = "auths-* Fly/Vercel applications; auths-proof-site and auths-proof-docs preview aliases"
+target = "auths-* applications with auths.dev/docs.auths.dev as user-facing product links"
+state = "continue-with-temporary-aliases"
+compatibility = "Do not rename deployments under this issue. Inventory the preview aliases and stop presenting them as the canonical product URL."
+owner_pr = "AP34-PR3"
+
+[[release_order]]
+tier = 0
+packages = ["auths-algebra-kernel", "auths-model", "auths-multikey", "auths-proof-exchange-model"]
+
+[[release_order]]
+tier = 1
+packages = ["auths-assurance", "auths-codec", "auths-composition", "auths-ports", "auths-proof-exchange-port"]
+
+[[release_order]]
+tier = 2
+packages = ["auths-authority", "auths-did-keri", "auths-did-key", "auths-raw-key", "auths-receipts", "auths-registries", "auths-signature"]
+
+[[release_order]]
+tier = 3
+packages = ["auths-author", "auths-verifier"]
+
+[[release_order]]
+tier = 4
+packages = ["auths-custody", "auths-proof", "auths-profile-api"]
+
+[[release_order]]
+tier = 5
+packages = ["auths-config", "auths-profile-domains", "auths-profile-mcp"]
+
+[[release_order]]
+tier = 6
+packages = ["auths-operations"]
+
+[[release_order]]
+tier = 7
+packages = ["auths-runtime"]
+
+[[release_order]]
+tier = 8
+packages = ["auths", "auths-sdk"]
+
+[[predecessor_crates]]
+name = "auths"
+owner = "bordumb"
+latest_version = "0.1.16"
+downloads_total = 218
+downloads_recent = 178
+reverse_dependencies = []
+classification = "Continue"
+replacement = ["auths"]
+deletion_eligible = false
+
+[[predecessor_crates]]
+name = "auths-anchor"
+owner = "bordumb"
+latest_version = "0.1.16"
+downloads_total = 96
+downloads_recent = 96
+reverse_dependencies = ["auths-cli", "auths-evidence", "auths-mcp-gateway", "auths-sdk", "auths-witness-node"]
+classification = "Retire"
+replacement = []
+deletion_eligible = false
+
+[[predecessor_crates]]
+name = "auths-api"
+owner = "bordumb"
+latest_version = "0.1.16"
+downloads_total = 186
+downloads_recent = 186
+reverse_dependencies = ["auths-mcp-server"]
+classification = "Retire"
+replacement = []
+deletion_eligible = false
+
+[[predecessor_crates]]
+name = "auths-cli"
+owner = "bordumb"
+latest_version = "0.1.16"
+downloads_total = 192
+downloads_recent = 177
+reverse_dependencies = []
+classification = "Retire"
+replacement = []
+deletion_eligible = false
+
+[[predecessor_crates]]
+name = "auths-core"
+owner = "bordumb"
+latest_version = "0.1.16"
+downloads_total = 1423
+downloads_recent = 1020
+reverse_dependencies = ["auths-api", "auths-id", "auths-infra-git", "auths-infra-http", "auths-infra-rekor", "auths-pairing-daemon", "auths-scim-server", "auths-sdk", "auths-storage", "auths-witness", "auths-witness-node"]
+classification = "Replace"
+replacement = ["auths", "auths-model", "auths-ports"]
+deletion_eligible = false
+
+[[predecessor_crates]]
+name = "auths-crypto"
+owner = "bordumb"
+latest_version = "0.1.16"
+downloads_total = 2234
+downloads_recent = 1618
+reverse_dependencies = ["auths-anchor", "auths-api", "auths-cli", "auths-core", "auths-evidence", "auths-id", "auths-infra-http", "auths-infra-rekor", "auths-keri", "auths-mcp-core", "auths-mcp-gateway", "auths-oidc-port", "auths-pairing-protocol", "auths-receipts", "auths-scim-server", "auths-sdk", "auths-storage", "auths-transparency", "auths-verifier", "auths-witness", "auths-witness-node"]
+classification = "Replace"
+replacement = ["auths-signature", "auths-multikey", "auths-raw-key"]
+deletion_eligible = false
+
+[[predecessor_crates]]
+name = "auths-evidence"
+owner = "bordumb"
+latest_version = "0.1.16"
+downloads_total = 134
+downloads_recent = 134
+reverse_dependencies = ["auths-mcp-gateway", "auths-receipts"]
+classification = "Replace"
+replacement = ["auths-assurance", "auths-registries"]
+deletion_eligible = false
+
+[[predecessor_crates]]
+name = "auths-id"
+owner = "bordumb"
+latest_version = "0.1.16"
+downloads_total = 1015
+downloads_recent = 752
+reverse_dependencies = ["auths-api", "auths-evidence", "auths-mcp-core", "auths-scim-server", "auths-sdk", "auths-storage"]
+classification = "Replace"
+replacement = ["auths-custody", "auths-did-key", "auths-did-keri"]
+deletion_eligible = false
+
+[[predecessor_crates]]
+name = "auths-index"
+owner = "bordumb"
+latest_version = "0.1.16"
+downloads_total = 656
+downloads_recent = 401
+reverse_dependencies = ["auths-cli", "auths-id", "auths-storage"]
+classification = "Replace"
+replacement = ["auths-stores"]
+deletion_eligible = false
+
+[[predecessor_crates]]
+name = "auths-infra-git"
+owner = "bordumb"
+latest_version = "0.1.16"
+downloads_total = 409
+downloads_recent = 290
+reverse_dependencies = ["auths-cli"]
+classification = "Retire"
+replacement = []
+deletion_eligible = false
+
+[[predecessor_crates]]
+name = "auths-infra-http"
+owner = "bordumb"
+latest_version = "0.1.16"
+downloads_total = 996
+downloads_recent = 747
+reverse_dependencies = ["auths-cli", "auths-id", "auths-sdk"]
+classification = "Retire"
+replacement = []
+deletion_eligible = false
+
+[[predecessor_crates]]
+name = "auths-infra-rekor"
+owner = "bordumb"
+latest_version = "0.1.16"
+downloads_total = 237
+downloads_recent = 237
+reverse_dependencies = ["auths-cli"]
+classification = "Retire"
+replacement = []
+deletion_eligible = false
+
+[[predecessor_crates]]
+name = "auths-jwt"
+owner = "bordumb"
+latest_version = "0.1.16"
+downloads_total = 368
+downloads_recent = 292
+reverse_dependencies = ["auths-mcp-server"]
+classification = "Retire"
+replacement = []
+deletion_eligible = false
+
+[[predecessor_crates]]
+name = "auths-keri"
+owner = "bordumb"
+latest_version = "0.1.16"
+downloads_total = 1326
+downloads_recent = 1231
+reverse_dependencies = ["auths-anchor", "auths-cli", "auths-core", "auths-evidence", "auths-id", "auths-index", "auths-infra-git", "auths-infra-http", "auths-jwt", "auths-mcp-core", "auths-mcp-gateway", "auths-pairing-daemon", "auths-pairing-protocol", "auths-sdk", "auths-storage", "auths-transparency", "auths-verifier", "auths-witness-node"]
+classification = "Replace"
+replacement = ["auths-did-keri"]
+deletion_eligible = false
+
+[[predecessor_crates]]
+name = "auths-mcp-core"
+owner = "bordumb"
+latest_version = "0.1.16"
+downloads_total = 226
+downloads_recent = 226
+reverse_dependencies = ["auths-evidence", "auths-mcp-gateway", "auths-receipts"]
+classification = "Replace"
+replacement = ["auths-profile-mcp", "auths-runtime"]
+deletion_eligible = false
+
+[[predecessor_crates]]
+name = "auths-mcp-gateway"
+owner = "bordumb"
+latest_version = "0.1.16"
+downloads_total = 140
+downloads_recent = 140
+reverse_dependencies = []
+classification = "Retire"
+replacement = []
+deletion_eligible = false
+
+[[predecessor_crates]]
+name = "auths-mcp-server"
+owner = "bordumb"
+latest_version = "0.1.16"
+downloads_total = 220
+downloads_recent = 182
+reverse_dependencies = []
+classification = "Retire"
+replacement = []
+deletion_eligible = false
+
+[[predecessor_crates]]
+name = "auths-oidc-port"
+owner = "bordumb"
+latest_version = "0.1.16"
+downloads_total = 839
+downloads_recent = 772
+reverse_dependencies = ["auths-infra-http", "auths-sdk"]
+classification = "Retire"
+replacement = []
+deletion_eligible = false
+
+[[predecessor_crates]]
+name = "auths-pairing-daemon"
+owner = "bordumb"
+latest_version = "0.1.16"
+downloads_total = 337
+downloads_recent = 295
+reverse_dependencies = ["auths-cli", "auths-sdk"]
+classification = "Retire"
+replacement = []
+deletion_eligible = false
+
+[[predecessor_crates]]
+name = "auths-pairing-protocol"
+owner = "bordumb"
+latest_version = "0.1.16"
+downloads_total = 1349
+downloads_recent = 1078
+reverse_dependencies = ["auths-cli", "auths-core", "auths-infra-http", "auths-pairing-daemon"]
+classification = "Retire"
+replacement = []
+deletion_eligible = false
+
+[[predecessor_crates]]
+name = "auths-policy"
+owner = "bordumb"
+latest_version = "0.1.16"
+downloads_total = 1164
+downloads_recent = 833
+reverse_dependencies = ["auths-api", "auths-cli", "auths-id", "auths-sdk"]
+classification = "Replace"
+replacement = ["auths-authority", "auths-composition", "auths-bounded-policy"]
+deletion_eligible = false
+
+[[predecessor_crates]]
+name = "auths-receipts"
+owner = "bordumb"
+latest_version = "0.1.16"
+downloads_total = 79
+downloads_recent = 79
+reverse_dependencies = []
+classification = "Continue"
+replacement = ["auths-receipts"]
+deletion_eligible = false
+
+[[predecessor_crates]]
+name = "auths-rp"
+owner = "bordumb"
+latest_version = "0.1.16"
+downloads_total = 629
+downloads_recent = 629
+reverse_dependencies = ["auths-api", "auths-cli", "auths-mcp-server", "auths-sdk"]
+classification = "Replace"
+replacement = ["auths-proof-exchange-model", "auths-proof-exchange-port"]
+deletion_eligible = false
+
+[[predecessor_crates]]
+name = "auths-scim"
+owner = "bordumb"
+latest_version = "0.1.16"
+downloads_total = 303
+downloads_recent = 303
+reverse_dependencies = ["auths-scim-server"]
+classification = "Retire"
+replacement = []
+deletion_eligible = false
+
+[[predecessor_crates]]
+name = "auths-scim-server"
+owner = "bordumb"
+latest_version = "0.1.16"
+downloads_total = 236
+downloads_recent = 236
+reverse_dependencies = ["auths-cli"]
+classification = "Retire"
+replacement = []
+deletion_eligible = false
+
+[[predecessor_crates]]
+name = "auths-sdk"
+owner = "bordumb"
+latest_version = "0.1.16"
+downloads_total = 788
+downloads_recent = 631
+reverse_dependencies = ["auths", "auths-api", "auths-cli", "auths-evidence", "auths-infra-git", "auths-mcp-core", "auths-mcp-gateway", "auths-mcp-server", "auths-scim-server", "auths-witness-node"]
+classification = "Continue"
+replacement = ["auths-sdk"]
+deletion_eligible = false
+
+[[predecessor_crates]]
+name = "auths-storage"
+owner = "bordumb"
+latest_version = "0.1.16"
+downloads_total = 732
+downloads_recent = 564
+reverse_dependencies = ["auths-api", "auths-sdk"]
+classification = "Replace"
+replacement = ["auths-custody", "auths-stores"]
+deletion_eligible = false
+
+[[predecessor_crates]]
+name = "auths-telemetry"
+owner = "bordumb"
+latest_version = "0.1.16"
+downloads_total = 1027
+downloads_recent = 749
+reverse_dependencies = ["auths-cli", "auths-mcp-gateway", "auths-mcp-server", "auths-sdk"]
+classification = "Retire"
+replacement = []
+deletion_eligible = false
+
+[[predecessor_crates]]
+name = "auths-transparency"
+owner = "bordumb"
+latest_version = "0.1.16"
+downloads_total = 997
+downloads_recent = 955
+reverse_dependencies = ["auths-anchor", "auths-cli", "auths-core", "auths-infra-rekor", "auths-sdk", "auths-witness-node"]
+classification = "Retire"
+replacement = []
+deletion_eligible = false
+
+[[predecessor_crates]]
+name = "auths-utils"
+owner = "bordumb"
+latest_version = "0.1.16"
+downloads_total = 902
+downloads_recent = 791
+reverse_dependencies = ["auths-cli", "auths-id"]
+classification = "Retire"
+replacement = []
+deletion_eligible = false
+
+[[predecessor_crates]]
+name = "auths-verifier"
+owner = "bordumb"
+latest_version = "0.1.16"
+downloads_total = 1938
+downloads_recent = 1384
+reverse_dependencies = ["auths", "auths-anchor", "auths-api", "auths-cli", "auths-core", "auths-evidence", "auths-id", "auths-index", "auths-infra-git", "auths-infra-http", "auths-infra-rekor", "auths-mcp-core", "auths-mcp-server", "auths-policy", "auths-rp", "auths-scim", "auths-scim-server", "auths-sdk", "auths-storage", "auths-transparency", "auths-witness-node"]
+classification = "Continue"
+replacement = ["auths-verifier"]
+deletion_eligible = false
+
+[[predecessor_crates]]
+name = "auths-witness"
+owner = "bordumb"
+latest_version = "0.1.12"
+downloads_total = 131
+downloads_recent = 131
+reverse_dependencies = []
+classification = "Retire"
+replacement = []
+deletion_eligible = false
+
+[[predecessor_crates]]
+name = "auths-witness-node"
+owner = "bordumb"
+latest_version = "0.1.16"
+downloads_total = 134
+downloads_recent = 134
+reverse_dependencies = ["auths-cli"]
+classification = "Retire"
+replacement = []
+deletion_eligible = false
+
+[deletion_policy]
+default_eligible = false
+reason = "Every predecessor coordinate in this inventory has at least one published version. crates.io publication is permanent: versions cannot be overwritten or deleted, and yanking does not delete code or free the name. No Delete and reclaim classification is valid."
+destructive_actions_authorized = false

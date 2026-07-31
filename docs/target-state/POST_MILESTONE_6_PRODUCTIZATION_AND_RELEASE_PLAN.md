@@ -22,14 +22,16 @@ program is complete:
 - Milestone 6 optimizes only measured bottlenecks while proving equivalence to
   the reference evaluators.
 
-At that point, Auths Proof should stop behaving primarily like a research
-project accumulating demonstrations. It should become a releasable,
-independently reviewable platform for bounded machine authority.
+At that point, Auths should stop behaving primarily like a research project
+accumulating demonstrations. It should become a releasable, independently
+reviewable platform for bounded machine authority. The proof-specific kernel
+may continue to use the `auths-proof` component name.
 
 The required sequence is:
 
 ```text
 Milestone 6 complete
+  -> AP-SPEC-034 Auths naming consolidation
   -> reproducible release candidate
   -> exact assurance claim
   -> independent review
@@ -116,7 +118,7 @@ meaning requires an explicit new version.
 Create a release candidate tag such as:
 
 ```text
-auths-proof-v1.0.0-rc.1
+auths-v1.0.0-rc.1
 ```
 
 The tag must be generated from a clean checkout after all checks and artifact
@@ -609,6 +611,7 @@ This post-Milestone 6 program is complete when:
 - the public v1 release is reproducible and auditable;
 - new domains can be added without changing core or weakening boundaries.
 
-At that point, Auths Proof is no longer primarily a collection of impressive
-proofs and demonstrations. It is a credible execution substrate for bounded
-machine authority.
+At that point, Auths is no longer primarily a collection of impressive proofs
+and demonstrations. It is a credible execution substrate for bounded machine
+authority. `auths-proof` remains the accurate name of its bounded proof
+protocol component, not the umbrella product.
