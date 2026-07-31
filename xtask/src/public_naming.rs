@@ -238,10 +238,7 @@ fn validate_surfaces(surfaces: &[NamingSurface]) -> Result<(), String> {
             "auths-release-evidence-<run>-<attempt>",
         ),
         ("source-archive", "auths-<version>-source.tar.zst"),
-        (
-            "assurance-bundle",
-            "auths-<version>-assurance.tar.zst",
-        ),
+        ("assurance-bundle", "auths-<version>-assurance.tar.zst"),
         ("release-schema", "auths.release-manifest/1"),
         ("release-evidence-schema", "auths.release-evidence/1"),
         ("platform-artifact-schema", "auths.platform/1"),
@@ -270,7 +267,10 @@ fn validate_surfaces(surfaces: &[NamingSurface]) -> Result<(), String> {
             || surface.compatibility.trim().is_empty()
             || surface.owner_pr.trim().is_empty()
         {
-            return Err(format!("public naming surface {} is incomplete", surface.id));
+            return Err(format!(
+                "public naming surface {} is incomplete",
+                surface.id
+            ));
         }
         if actual
             .insert(surface.id.as_str(), surface.target.as_str())
@@ -351,7 +351,11 @@ fn validate_predecessors(inventory: &NamingInventory) -> Result<(), String> {
         }
     }
     if actual != expected {
-        return Err(naming_set_drift("predecessor crate inventory", &expected, &actual));
+        return Err(naming_set_drift(
+            "predecessor crate inventory",
+            &expected,
+            &actual,
+        ));
     }
     Ok(())
 }
@@ -376,7 +380,9 @@ fn validate_release_order(tiers: &[ReleaseTier]) -> Result<(), String> {
                 .insert(package.clone(), release_tier.tier)
                 .is_some()
             {
-                return Err(format!("package appears in multiple release tiers: {package}"));
+                return Err(format!(
+                    "package appears in multiple release tiers: {package}"
+                ));
             }
         }
     }
@@ -399,11 +405,17 @@ fn validate_release_order(tiers: &[ReleaseTier]) -> Result<(), String> {
         .collect::<Result<BTreeSet<_>, _>>()?;
     let actual = tier_by_package.keys().cloned().collect::<BTreeSet<_>>();
     if actual != expected {
-        return Err(naming_set_drift("public Rust release order", &expected, &actual));
+        return Err(naming_set_drift(
+            "public Rust release order",
+            &expected,
+            &actual,
+        ));
     }
     for root_name in ["auths", "auths-sdk"] {
         if tier_by_package.get(root_name) != Some(&8) {
-            return Err(format!("public Rust root is not in final release tier: {root_name}"));
+            return Err(format!(
+                "public Rust root is not in final release tier: {root_name}"
+            ));
         }
     }
 
@@ -495,7 +507,11 @@ fn validate_stale_names(allowances: &[StaleNameAllowance]) -> Result<(), String>
         return Err("git ls-files failed while checking public names".to_owned());
     }
     let mut contents = BTreeMap::new();
-    for bytes in output.stdout.split(|byte| *byte == 0).filter(|path| !path.is_empty()) {
+    for bytes in output
+        .stdout
+        .split(|byte| *byte == 0)
+        .filter(|path| !path.is_empty())
+    {
         let path = String::from_utf8(bytes.to_vec())
             .map_err(|error| format!("tracked path is not UTF-8: {error}"))?;
         contents.insert(
@@ -640,11 +656,7 @@ fn validate_current_coordinates() -> Result<(), String> {
     Ok(())
 }
 
-fn naming_set_drift(
-    label: &str,
-    expected: &BTreeSet<String>,
-    actual: &BTreeSet<String>,
-) -> String {
+fn naming_set_drift(label: &str, expected: &BTreeSet<String>, actual: &BTreeSet<String>) -> String {
     let missing = expected.difference(actual).cloned().collect::<Vec<_>>();
     let extra = actual.difference(expected).cloned().collect::<Vec<_>>();
     format!("{label} drifted; missing={missing:?}, extra={extra:?}")
@@ -665,8 +677,7 @@ mod tests {
                 _ => token.as_bytes().to_vec(),
             };
             let contents = BTreeMap::from([("README.md".to_owned(), bytes)]);
-            let error =
-                validate_stale_contents(&contents, &[]).expect_err("stale name must fail");
+            let error = validate_stale_contents(&contents, &[]).expect_err("stale name must fail");
             assert!(error.contains("forbidden stale public name"));
         }
     }

@@ -510,11 +510,8 @@ mod tests {
 
     #[test]
     fn release_tag_rejects_repository_prefix() {
-        let error = validate_release_tag(
-            concat!("auths-proof", "-v1.0.0-rc.1"),
-            "1.0.0-rc.1",
-        )
-        .expect_err("repository-scoped release tag must fail");
+        let error = validate_release_tag(concat!("auths-proof", "-v1.0.0-rc.1"), "1.0.0-rc.1")
+            .expect_err("repository-scoped release tag must fail");
         assert!(error.contains("expected auths-v1.0.0-rc.1"));
     }
 
