@@ -82,17 +82,22 @@ At the reviewed baseline:
   bundle.
 
 The count of publishable packages is a repository fact, not approval to publish
-all 60. `P7-OD-003` and `P7-OD-004` must define the actual catalogue and
-registry actions.
+all 60. `P7-OD-003` selects `auths-proof` and the renamed
+`auths-proof-sdk` as the supported Rust roots, their generated
+normal-dependency closure, the npm and PyPI bindings, the source archive, and
+the assurance bundle. The current local `auths-sdk` package name must change
+before metadata freeze because crates.io already contains the superseded
+project's package under that coordinate. `P7-OD-004` requires preparation and
+verification before a separately authorized publication event.
 
 ## AP-SPEC-032 gap matrix
 
 | Requirement | Current repository evidence | Gap or decision |
 | --- | --- | --- |
-| Owner-approved release boundary | Current dual-license metadata and recommendations in the alignment plan | All 11 decisions remain unresolved in the owner register |
+| Owner-approved release boundary | All 11 decisions are approved on the documentation-only specification branch | Decision record is not yet on `main`; approval does not itself establish the remaining Phase 7 entry evidence |
 | Immutable semantic-freeze inventory | `platform.json`, protocol fixtures, architecture/compliance inventories, bounded-domain and formal manifests | No single schema classifies frozen meaning, frozen bytes, release metadata, and owning paths |
 | Drift enforcement | Fixture, architecture, compliance, source-closure, formal, profile, and result-code checks exist | No release-wide rule rejects changed meaning under an unchanged semantic identity |
-| Complete artifact catalogue | Cargo metadata and package smoke tests enumerate build outputs | No owner-approved catalogue or explicit exclusion list |
+| Complete artifact catalogue | Owner approved the lean SDK-first roots, current 27-crate normal-dependency closure, binding subjects, source, assurance bundle, and explicit deferrals | No machine-readable candidate catalogue or CI-enforced closure/exclusion inventory |
 | Content-addressed release manifest | Per-file checksums and custom provenance subjects exist | No AP-SPEC-032 release manifest binding source, semantic freeze, all subjects, evidence, and reproducibility class |
 | SPDX SBOM | CycloneDX 1.5 is generated and validated | No SPDX JSON baseline or unambiguous SPDX relationship coverage for every approved subject |
 | Signed hosted provenance | Custom unsigned `provenance.json` records GitHub context | Workflow has only `contents: read`; no OIDC `id-token`, artifact-attestation permission, signature, or hosted-build provenance verification |
@@ -100,7 +105,7 @@ registry actions.
 | Evidence ordering | `release-check` emits evidence; the workflow then runs pinned Aeneas reproduction | Post-check formal output is uploaded but is not necessarily a subject of the earlier release manifest/checksum graph |
 | Prepare before tag | Workflow supports dispatch and tag events | Tag push currently starts the build; verified subjects are not staged before tag creation |
 | No-rebuild promotion | No registry publication currently occurs | No protected promotion job that downloads subjects by digest and proves no build step ran |
-| RC tag contract | `release_check()` requires `GITHUB_REF_NAME == v<Cargo version>` for `v*` tags | A semver RC tag such as `auths-proof-v1.0.0-rc.1` or `v1.0.0-rc.1` is not supported by the existing equality rule; exact convention is unresolved |
+| RC tag contract | Owner approved `auths-proof-v<semver>-rc.<positive-ordinal>`, beginning with `auths-proof-v1.0.0-rc.1` | The existing `GITHUB_REF_NAME == v<Cargo version>` rule does not implement the approved convention |
 | Durable evidence bundle | GitHub workflow artifact retained for 90 days | No immutable public bundle, release attachment, OCI artifact, or offline verification package |
 | Exact assurance-claim registry | Formal assurance manifest and prose assurance model exist | No registry entry binds every public claim to release subjects, evidence, assumptions, exclusions, and compatibility |
 | Claim synchronization | Formal manifest validation and documentation checks exist | No inventory of public claim locations or CI rule rejecting unregistered/stale wording |
@@ -143,7 +148,7 @@ single build. AP-SPEC-032 extends this discipline to every approved release
 subject. Two isolated preparation runs must start from fresh checkouts and
 empty output directories and compare results by the declared class.
 
-## Decision-to-implementation dependencies
+## Approved decision-to-implementation constraints
 
 | Decision | Implementation it blocks |
 | --- | --- |
@@ -159,7 +164,7 @@ empty output directories and compare results by the declared class.
 | `P7-OD-010` claim approver | Phase 8 approval record and claim-publication gate |
 | `P7-OD-011` vulnerability/CRA ownership | public RC distribution, security contact, withdrawal and reporting process |
 
-## Bounded follow-up PRs after owner approval
+## Bounded follow-up PRs after the full entry gate
 
 The following are plans, not authorization:
 
@@ -189,5 +194,6 @@ and internal provenance. The missing work is primarily release-subject
 selection, semantic freeze, signed provenance, SPDX coverage, isolated
 reproduction, immutable staging/promotion, and exact claim binding.
 
-No implementation PR may begin until the owner register resolves the decisions
-required by AP-SPEC-032.
+No implementation PR may begin until the approved decision record is on
+`main` and the other AP-SPEC-032 Phase 7 entry conditions have terminal
+evidence. The current documentation branch does not establish that gate.
