@@ -28,11 +28,11 @@
       "auths-proof",
       "auths-proof-exchange-model",
       "auths-proof-exchange-port",
-      "auths-sdk",
       "auths-raw-key",
       "auths-receipts",
       "auths-registries",
       "auths-runtime",
+      "auths-sdk",
       "auths-signature",
       "auths-verifier"
     ],
