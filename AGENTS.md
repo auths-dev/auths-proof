@@ -15,6 +15,38 @@ coupling. Existing abstractions are not permission to bypass that review.
 `xtask` remain authoritative if the target-state document ever conflicts with
 executable repository policy.
 
+## Prelaunch: prefer clean breaks over compatibility machinery
+
+Auths-proof is prelaunch. It has zero external users and no production state
+that must survive a refactor. Broad—even “violent”—refactors are therefore
+allowed when they produce a simpler, safer, more coherent architecture.
+
+Do not preserve an inferior design merely to maintain compatibility with
+superseded prelaunch code or disposable local state. Unless the user explicitly
+changes this status, do not add:
+
+- legacy decoders or old-schema readers;
+- compatibility shims or deprecated aliases;
+- dual-read or dual-write paths;
+- state migration or re-signing machinery;
+- deprecation windows;
+- runtime switches between old and new implementations; or
+- rollback formats that keep a second production path alive.
+
+Make a direct source cutover to one authoritative implementation. Reject
+obsolete persisted state and require developers or CI to start from clean
+disposable state. Remove superseded production code in the same bounded change
+once semantic equivalence is demonstrated.
+
+This permission is not permission for sloppy refactors. Specifications,
+canonical fixtures, semantic identities, formal claims, domain boundaries,
+hard limits, security invariants, and executable evidence must be updated
+atomically. Reference evaluators and frozen fixtures may remain as test-only
+oracles; they must not become compatibility paths. Preserve PostgreSQL
+transaction rollback, provider reconciliation, deployment recovery, and
+security rollback detection where those are current domain semantics rather
+than backward-compatibility obligations.
+
 ## The decision is already made
 
 `auths-proof` is intentionally one monorepo. It consolidates the maintained
