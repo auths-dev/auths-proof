@@ -2,7 +2,7 @@
 
 This demo shows a different way to let software use an API. Instead of giving
 the caller a reusable credential and trusting it to stay within broad
-permissions, Auths Proof lets the caller carry authorization for one precisely
+permissions, Auths lets the caller carry authorization for one precisely
 described action.
 
 The distinction matters most for AI agents. An agent can be allowed to perform
@@ -53,9 +53,9 @@ That becomes a serious problem with agents:
 The result is an awkward choice: give the agent a powerful reusable secret, or
 keep a human in the loop for every API call.
 
-## What Auths Proof changes
+## What Auths changes
 
-Auths Proof moves the important authorization decision before the protected
+Auths moves the important authorization decision before the protected
 effect. A proof describes bounded authority, and a short-lived presentation
 binds that authority to an exact canonical action and execution context.
 
@@ -98,7 +98,7 @@ This produces a much smaller failure boundary:
 | Only the demo's `Auths-Proof` header | It is insufficient without the matching session, presentation, and exact request. |
 | The demo's complete request envelope before use | They may race to perform that one exact action during its short validity window. Atomic replay protection prevents a second effect. |
 
-The last row is important. Auths Proof does not replace TLS, and the current
+The last row is important. Auths does not replace TLS, and the current
 demo is not yet immune to theft of the complete ready-to-submit request. Its
 present claim is narrower: it demonstrates exact-action authorization,
 configuration binding, bounded validity, transport independence, replay

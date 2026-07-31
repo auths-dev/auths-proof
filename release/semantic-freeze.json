@@ -599,9 +599,13 @@
         "package-versions",
         "publishable-closure",
         "binding-names",
+        "artifact-names",
+        "registry-dispositions",
+        "publication-order",
         "toolchains"
       ],
       "owners": [
+        ".github/workflows/release.yml",
         "Cargo.lock",
         "Cargo.toml",
         "architecture.toml",
@@ -637,12 +641,17 @@
         "product/receipts/auths-receipts/Cargo.toml",
         "product/runtime/auths-runtime/Cargo.toml",
         "product/sdk/auths-sdk/Cargo.toml",
+        "release/public-naming.toml",
         "rust-toolchain.toml",
         "xtask/src/architecture.rs",
+        "xtask/src/checks.rs",
         "xtask/src/fixtures.rs",
+        "xtask/src/main.rs",
+        "xtask/src/public_naming.rs",
+        "xtask/src/release.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "3027f279e679e14de04f6b9390597e112803202a3f27fa397021ad6601ff69c6"
+      "sha256": "6d401d063da0b6167c7c0c4c13ff0124fe296ea6f28fe23e5de4f2109c303676"
     }
   ]
 }

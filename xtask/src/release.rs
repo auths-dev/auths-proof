@@ -13,14 +13,12 @@ pub(crate) fn release_check() -> Result<(), String> {
             return Err("release checks require a clean CI worktree".to_owned());
         }
     }
-    if let Ok(tag) = env::var("GITHUB_REF_NAME")
-        && tag.starts_with('v')
-        && tag != format!("v{}", env!("CARGO_PKG_VERSION"))
-    {
-        return Err(format!(
-            "release tag {tag} does not match workspace version v{}",
-            env!("CARGO_PKG_VERSION")
-        ));
+    let is_tag_ref = env::var("GITHUB_REF_TYPE").is_ok_and(|value| value == "tag")
+        || env::var("GITHUB_REF").is_ok_and(|value| value.starts_with("refs/tags/"));
+    if is_tag_ref {
+        let tag = env::var("GITHUB_REF_NAME")
+            .map_err(|_| "tagged release is missing GITHUB_REF_NAME".to_owned())?;
+        validate_release_tag(&tag, env!("CARGO_PKG_VERSION"))?;
     }
     ci()?;
     cargo(&["test", "--workspace", "--no-default-features"])?;
@@ -161,7 +159,7 @@ pub(crate) fn release_evidence() -> Result<(), String> {
         })
         .collect();
     let provenance = serde_json::to_vec_pretty(&json!({
-        "schema": "auths-proof-release-evidence/v1",
+        "schema": "auths.release-evidence/1",
         "source": {
             "commit": String::from_utf8_lossy(&commit.stdout).trim(),
             "repository": env::var("GITHUB_REPOSITORY").ok(),
@@ -365,7 +363,7 @@ pub(crate) fn platform_artifact(output: &Path) -> Result<(), String> {
     let commit = command_output_in("git", &["rev-parse", "HEAD"], &root(), None)?;
     let generated = json!({
         "schemaVersion": 2,
-        "artifactSchema": "auths-proof-platform/v1",
+        "artifactSchema": "auths.platform/1",
         "source": {
             "repository": "auths-dev/auths-proof",
             "commit": commit.trim(),
@@ -463,7 +461,7 @@ pub(crate) fn validate_release_evidence(
             .map_err(|error| format!("could not read generated provenance: {error}"))?,
     )
     .map_err(|error| format!("generated provenance is not valid JSON: {error}"))?;
-    if provenance["schema"] != "auths-proof-release-evidence/v1"
+    if provenance["schema"] != "auths.release-evidence/1"
         || provenance["subjects"]
             .as_array()
             .is_none_or(|subjects| subjects.len() != checksums.len() - 2)
@@ -488,4 +486,42 @@ pub(crate) fn validate_release_evidence(
         }
     }
     Ok(())
+}
+
+fn validate_release_tag(tag: &str, version: &str) -> Result<(), String> {
+    let expected = format!("auths-v{version}");
+    if tag != expected {
+        return Err(format!(
+            "release tag {tag} does not match workspace version; expected {expected}"
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn release_tag_matches_workspace_version() {
+        validate_release_tag("auths-v1.0.0-rc.1", "1.0.0-rc.1")
+            .expect("product-scoped release tag should pass");
+    }
+
+    #[test]
+    fn release_tag_rejects_repository_prefix() {
+        let error = validate_release_tag(
+            concat!("auths-proof", "-v1.0.0-rc.1"),
+            "1.0.0-rc.1",
+        )
+        .expect_err("repository-scoped release tag must fail");
+        assert!(error.contains("expected auths-v1.0.0-rc.1"));
+    }
+
+    #[test]
+    fn release_tag_rejects_wrong_version() {
+        let error = validate_release_tag("auths-v1.0.0-rc.2", "1.0.0-rc.1")
+            .expect_err("wrong release version must fail");
+        assert!(error.contains("expected auths-v1.0.0-rc.1"));
+    }
 }
