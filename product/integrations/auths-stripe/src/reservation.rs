@@ -14,6 +14,12 @@ use std::{
 use serde::{Deserialize, Serialize};
 use tempfile::NamedTempFile;
 
+use auths_lifecycle::{
+    LifecycleRecordV1, LifecycleStore, StoreError, StoreTransactionV1, StoredTransitionV1,
+    TransitionCommandV1, TransitionDisposition, WorkflowId, apply_transition, decode_record,
+    encode_record,
+};
+
 use crate::{
     bounded::{
         AggregateBudgetSnapshot, AggregateBudgetUsage, RefundReservationIntent,
@@ -24,7 +30,7 @@ use crate::{
 };
 
 const RESERVATION_SCHEMA: &str = "auths.stripe.bounded-reservation/1";
-const STATE_SCHEMA: &str = "auths.stripe.bounded-reservation-state/1";
+const STATE_SCHEMA: &str = "auths.stripe.bounded-reservation-state/2";
 const MAX_STATE_BYTES: usize = 32 * 1024 * 1024;
 const MAX_RECORDS: usize = 16_384;
 
@@ -263,6 +269,14 @@ impl RefundReservationLease {
     pub const fn reservation_id(&self) -> &DigestHex {
         &self.reservation_id
     }
+
+    pub(crate) fn from_record(record: &RefundReservationRecord) -> Self {
+        Self {
+            workflow_id: record.workflow_id.clone(),
+            reservation_id: record.reservation_id.clone(),
+            action_digest: record.action_digest.clone(),
+        }
+    }
 }
 
 /// Atomic reservation outcome.
@@ -365,6 +379,113 @@ pub trait RefundReservationStore: Send + Sync {
     fn get(&self, workflow_id: &str) -> Result<Option<RefundReservationRecord>, ReservationError>;
 }
 
+/// Domain mutation committed atomically with one shared lifecycle transition.
+pub enum RefundLifecycleMutation<'a> {
+    /// No Stripe-local record changes at this edge.
+    None,
+    /// Acquire the exact Stripe aggregate reservation.
+    Reserve {
+        /// Immutable policy used to validate the transactional capacity view.
+        policy: &'a StripeBoundedRefundPolicyV1,
+        /// Complete Stripe reservation input.
+        request: Box<ReserveRefundRequest>,
+    },
+    /// Commit an exact Stripe Refund result.
+    Commit {
+        /// Existing exact reservation authority.
+        lease: &'a RefundReservationLease,
+        /// Stripe Refund returned by the provider.
+        refund_id: &'a RefundId,
+        /// Exact normalized provider result commitment.
+        result_digest: &'a DigestHex,
+        /// Explicit transition time.
+        now: u64,
+    },
+    /// Release held Stripe capacity after definite non-effect.
+    Release {
+        /// Existing exact reservation authority.
+        lease: &'a RefundReservationLease,
+        /// Explicit transition time.
+        now: u64,
+    },
+    /// Retain Stripe capacity after ambiguous provider delivery.
+    OutcomeUnknown {
+        /// Existing exact reservation authority.
+        lease: &'a RefundReservationLease,
+        /// Explicit transition time.
+        now: u64,
+    },
+    /// Resolve an ambiguous Stripe outcome from fresh provider evidence.
+    Reconcile {
+        /// Exact workflow identity.
+        workflow_id: &'a str,
+        /// Exact action commitment.
+        action_digest: &'a DigestHex,
+        /// Domain-classified reconciliation result.
+        outcome: ReconciledRefundOutcome,
+        /// Explicit transition time.
+        now: u64,
+    },
+}
+
+/// Stripe store extension that persists the shared lifecycle and domain
+/// reservation view under one lock and one canonical file replacement.
+pub trait RefundLifecycleStore: RefundReservationStore {
+    /// Atomically applies the shared transition and matching Stripe mutation.
+    ///
+    /// # Errors
+    ///
+    /// Returns a closed shared store failure without persisting either half
+    /// when revision, capacity, transition, encoding, or domain state fails.
+    fn transact_refund_lifecycle(
+        &self,
+        transaction: &StoreTransactionV1,
+        mutation: RefundLifecycleMutation<'_>,
+    ) -> Result<StoredTransitionV1, StoreError>;
+
+    /// Reads one validated shared lifecycle record.
+    ///
+    /// # Errors
+    ///
+    /// Returns a closed shared store failure for unavailable or corrupt state.
+    fn load_refund_lifecycle(
+        &self,
+        workflow: &WorkflowId,
+    ) -> Result<Option<LifecycleRecordV1>, StoreError>;
+}
+
+/// One-use adapter that binds a shared transaction to its matching Stripe
+/// mutation. It exists so callers must pass the combined transaction through
+/// [`auths_lifecycle::execute_store_transaction`] and receive its sealed,
+/// store-validated result.
+pub struct RefundLifecycleTransaction<'a, S: ?Sized> {
+    store: &'a S,
+    mutation: Mutex<Option<RefundLifecycleMutation<'a>>>,
+}
+
+impl<'a, S: RefundLifecycleStore + ?Sized> RefundLifecycleTransaction<'a, S> {
+    /// Binds one shared command to exactly one domain mutation.
+    #[must_use]
+    pub const fn new(store: &'a S, mutation: RefundLifecycleMutation<'a>) -> Self {
+        Self {
+            store,
+            mutation: Mutex::new(Some(mutation)),
+        }
+    }
+}
+
+impl<S: RefundLifecycleStore + ?Sized> LifecycleStore for RefundLifecycleTransaction<'_, S> {
+    fn transact(&self, transaction: &StoreTransactionV1) -> Result<StoredTransitionV1, StoreError> {
+        let mutation = self
+            .mutation
+            .lock()
+            .map_err(|_| StoreError::Unavailable)?
+            .take()
+            .ok_or(StoreError::Conflict)?;
+        self.store.transact_refund_lifecycle(transaction, mutation)
+    }
+}
+
 impl<T: RefundReservationStore + ?Sized> RefundReservationStore for Arc<T> {
     fn snapshot(
         &self,
@@ -420,6 +541,23 @@ impl<T: RefundReservationStore + ?Sized> RefundReservationStore for Arc<T> {
     }
 }
 
+impl<T: RefundLifecycleStore + ?Sized> RefundLifecycleStore for Arc<T> {
+    fn transact_refund_lifecycle(
+        &self,
+        transaction: &StoreTransactionV1,
+        mutation: RefundLifecycleMutation<'_>,
+    ) -> Result<StoredTransitionV1, StoreError> {
+        (**self).transact_refund_lifecycle(transaction, mutation)
+    }
+
+    fn load_refund_lifecycle(
+        &self,
+        workflow: &WorkflowId,
+    ) -> Result<Option<LifecycleRecordV1>, StoreError> {
+        (**self).load_refund_lifecycle(workflow)
+    }
+}
+
 /// Provider-backed reconciliation result.
 pub enum ReconciledRefundOutcome {
     /// Stripe created the exact refund.
@@ -434,9 +572,16 @@ pub enum ReconciledRefundOutcome {
 }
 
 /// Process-safe reservation store for tests and embedded deployments.
-#[derive(Default)]
 pub struct InMemoryRefundReservationStore {
-    records: Mutex<BTreeMap<String, RefundReservationRecord>>,
+    database: Mutex<ReservationDatabase>,
+}
+
+impl Default for InMemoryRefundReservationStore {
+    fn default() -> Self {
+        Self {
+            database: Mutex::new(ReservationDatabase::empty()),
+        }
+    }
 }
 
 impl InMemoryRefundReservationStore {
@@ -445,8 +590,9 @@ impl InMemoryRefundReservationStore {
     /// This operational projection does not expose lease material.
     #[must_use]
     pub fn active_reservation_count(&self) -> usize {
-        self.records.lock().map_or(0, |records| {
-            records
+        self.database.lock().map_or(0, |database| {
+            database
+                .records
                 .values()
                 .filter(|record| {
                     matches!(
@@ -469,18 +615,18 @@ impl RefundReservationStore for InMemoryRefundReservationStore {
         account: &StripeAccountId,
         now: u64,
     ) -> Result<AggregateBudgetSnapshot, ReservationError> {
-        let records = self
-            .records
+        let database = self
+            .database
             .lock()
             .map_err(|_| ReservationError::Unavailable)?;
-        snapshot_in(&records, policy, account, now)
+        snapshot_in(&database.records, policy, account, now)
     }
 
     fn reserve(&self, request: ReserveRefundRequest) -> ReserveRefundResult {
-        let Ok(mut records) = self.records.lock() else {
+        let Ok(mut database) = self.database.lock() else {
             return ReserveRefundResult::Unavailable;
         };
-        reserve_in(&mut records, request)
+        reserve_in(&mut database.records, request)
     }
 
     fn commit(
@@ -490,11 +636,11 @@ impl RefundReservationStore for InMemoryRefundReservationStore {
         result_digest: &DigestHex,
         now: u64,
     ) -> Result<RefundReservationRecord, ReservationError> {
-        let mut records = self
-            .records
+        let mut database = self
+            .database
             .lock()
             .map_err(|_| ReservationError::Unavailable)?;
-        commit_in(&mut records, lease, refund_id, result_digest, now)
+        commit_in(&mut database.records, lease, refund_id, result_digest, now)
     }
 
     fn release(
@@ -502,11 +648,16 @@ impl RefundReservationStore for InMemoryRefundReservationStore {
         lease: &RefundReservationLease,
         now: u64,
     ) -> Result<RefundReservationRecord, ReservationError> {
-        let mut records = self
-            .records
+        let mut database = self
+            .database
             .lock()
             .map_err(|_| ReservationError::Unavailable)?;
-        transition_in(&mut records, lease, RefundReservationState::Released, now)
+        transition_in(
+            &mut database.records,
+            lease,
+            RefundReservationState::Released,
+            now,
+        )
     }
 
     fn mark_outcome_unknown(
@@ -514,12 +665,12 @@ impl RefundReservationStore for InMemoryRefundReservationStore {
         lease: &RefundReservationLease,
         now: u64,
     ) -> Result<RefundReservationRecord, ReservationError> {
-        let mut records = self
-            .records
+        let mut database = self
+            .database
             .lock()
             .map_err(|_| ReservationError::Unavailable)?;
         transition_in(
-            &mut records,
+            &mut database.records,
             lease,
             RefundReservationState::OutcomeUnknown,
             now,
@@ -533,18 +684,46 @@ impl RefundReservationStore for InMemoryRefundReservationStore {
         outcome: ReconciledRefundOutcome,
         now: u64,
     ) -> Result<RefundReservationRecord, ReservationError> {
-        let mut records = self
-            .records
+        let mut database = self
+            .database
             .lock()
             .map_err(|_| ReservationError::Unavailable)?;
-        reconcile_in(&mut records, workflow_id, action_digest, outcome, now)
+        reconcile_in(
+            &mut database.records,
+            workflow_id,
+            action_digest,
+            outcome,
+            now,
+        )
     }
 
     fn get(&self, workflow_id: &str) -> Result<Option<RefundReservationRecord>, ReservationError> {
-        self.records
+        self.database
             .lock()
-            .map(|records| records.get(workflow_id).cloned())
+            .map(|database| database.records.get(workflow_id).cloned())
             .map_err(|_| ReservationError::Unavailable)
+    }
+}
+
+impl RefundLifecycleStore for InMemoryRefundReservationStore {
+    fn transact_refund_lifecycle(
+        &self,
+        transaction: &StoreTransactionV1,
+        mutation: RefundLifecycleMutation<'_>,
+    ) -> Result<StoredTransitionV1, StoreError> {
+        let mut database = self.database.lock().map_err(|_| StoreError::Unavailable)?;
+        let mut next = database.clone();
+        let stored = transact_lifecycle_in(&mut next, transaction, mutation)?;
+        *database = next;
+        Ok(stored)
+    }
+
+    fn load_refund_lifecycle(
+        &self,
+        workflow: &WorkflowId,
+    ) -> Result<Option<LifecycleRecordV1>, StoreError> {
+        let database = self.database.lock().map_err(|_| StoreError::Unavailable)?;
+        decode_lifecycle_record(&database.lifecycle_records, workflow)
     }
 }
 
@@ -553,6 +732,22 @@ impl RefundReservationStore for InMemoryRefundReservationStore {
 struct ReservationStateFile {
     schema: String,
     records: BTreeMap<String, RefundReservationRecord>,
+    lifecycle_records: BTreeMap<String, Vec<u8>>,
+}
+
+#[derive(Clone)]
+struct ReservationDatabase {
+    records: BTreeMap<String, RefundReservationRecord>,
+    lifecycle_records: BTreeMap<String, Vec<u8>>,
+}
+
+impl ReservationDatabase {
+    fn empty() -> Self {
+        Self {
+            records: BTreeMap::new(),
+            lifecycle_records: BTreeMap::new(),
+        }
+    }
 }
 
 /// Crash-persistent, cross-process locked Stripe refund budget store.
@@ -578,32 +773,35 @@ impl PersistentRefundReservationStore {
             lock_path,
             process_lock: Mutex::new(()),
         };
-        store.with_locked_records(|_| Ok(()))?;
+        store.with_locked_database(|_| Ok(()))?;
         Ok(store)
     }
 
-    fn with_locked_records<T>(
+    fn with_locked_database<T, E>(
         &self,
-        operation: impl FnOnce(
-            &mut BTreeMap<String, RefundReservationRecord>,
-        ) -> Result<T, ReservationError>,
-    ) -> Result<T, ReservationError> {
+        operation: impl FnOnce(&mut ReservationDatabase) -> Result<T, E>,
+    ) -> Result<T, E>
+    where
+        E: From<ReservationError>,
+    {
         let _process_guard = self
             .process_lock
             .lock()
-            .map_err(|_| ReservationError::Unavailable)?;
+            .map_err(|_| E::from(ReservationError::Unavailable))?;
         let lock = OpenOptions::new()
             .create(true)
             .truncate(false)
             .read(true)
             .write(true)
             .open(&self.lock_path)
-            .map_err(|_| ReservationError::Unavailable)?;
-        lock.lock().map_err(|_| ReservationError::Unavailable)?;
-        let mut records = load_records(&self.path)?;
-        let output = operation(&mut records)?;
-        persist_records(&self.path, &records)?;
-        lock.unlock().map_err(|_| ReservationError::Unavailable)?;
+            .map_err(|_| E::from(ReservationError::Unavailable))?;
+        lock.lock()
+            .map_err(|_| E::from(ReservationError::Unavailable))?;
+        let mut database = load_database(&self.path).map_err(E::from)?;
+        let output = operation(&mut database)?;
+        persist_database(&self.path, &database).map_err(E::from)?;
+        lock.unlock()
+            .map_err(|_| E::from(ReservationError::Unavailable))?;
         Ok(output)
     }
 }
@@ -615,12 +813,14 @@ impl RefundReservationStore for PersistentRefundReservationStore {
         account: &StripeAccountId,
         now: u64,
     ) -> Result<AggregateBudgetSnapshot, ReservationError> {
-        self.with_locked_records(|records| snapshot_in(records, policy, account, now))
+        self.with_locked_database(|database| snapshot_in(&database.records, policy, account, now))
     }
 
     fn reserve(&self, request: ReserveRefundRequest) -> ReserveRefundResult {
-        self.with_locked_records(|records| Ok(reserve_in(records, request)))
-            .unwrap_or(ReserveRefundResult::Unavailable)
+        self.with_locked_database(|database| {
+            Ok::<_, ReservationError>(reserve_in(&mut database.records, request))
+        })
+        .unwrap_or(ReserveRefundResult::Unavailable)
     }
 
     fn commit(
@@ -630,7 +830,9 @@ impl RefundReservationStore for PersistentRefundReservationStore {
         result_digest: &DigestHex,
         now: u64,
     ) -> Result<RefundReservationRecord, ReservationError> {
-        self.with_locked_records(|records| commit_in(records, lease, refund_id, result_digest, now))
+        self.with_locked_database(|database| {
+            commit_in(&mut database.records, lease, refund_id, result_digest, now)
+        })
     }
 
     fn release(
@@ -638,8 +840,13 @@ impl RefundReservationStore for PersistentRefundReservationStore {
         lease: &RefundReservationLease,
         now: u64,
     ) -> Result<RefundReservationRecord, ReservationError> {
-        self.with_locked_records(|records| {
-            transition_in(records, lease, RefundReservationState::Released, now)
+        self.with_locked_database(|database| {
+            transition_in(
+                &mut database.records,
+                lease,
+                RefundReservationState::Released,
+                now,
+            )
         })
     }
 
@@ -648,8 +855,13 @@ impl RefundReservationStore for PersistentRefundReservationStore {
         lease: &RefundReservationLease,
         now: u64,
     ) -> Result<RefundReservationRecord, ReservationError> {
-        self.with_locked_records(|records| {
-            transition_in(records, lease, RefundReservationState::OutcomeUnknown, now)
+        self.with_locked_database(|database| {
+            transition_in(
+                &mut database.records,
+                lease,
+                RefundReservationState::OutcomeUnknown,
+                now,
+            )
         })
     }
 
@@ -660,21 +872,238 @@ impl RefundReservationStore for PersistentRefundReservationStore {
         outcome: ReconciledRefundOutcome,
         now: u64,
     ) -> Result<RefundReservationRecord, ReservationError> {
-        self.with_locked_records(|records| {
-            reconcile_in(records, workflow_id, action_digest, outcome, now)
+        self.with_locked_database(|database| {
+            reconcile_in(
+                &mut database.records,
+                workflow_id,
+                action_digest,
+                outcome,
+                now,
+            )
         })
     }
 
     fn get(&self, workflow_id: &str) -> Result<Option<RefundReservationRecord>, ReservationError> {
-        self.with_locked_records(|records| Ok(records.get(workflow_id).cloned()))
+        self.with_locked_database(|database| Ok(database.records.get(workflow_id).cloned()))
     }
 }
 
-fn load_records(
-    path: &Path,
-) -> Result<BTreeMap<String, RefundReservationRecord>, ReservationError> {
+impl RefundLifecycleStore for PersistentRefundReservationStore {
+    fn transact_refund_lifecycle(
+        &self,
+        transaction: &StoreTransactionV1,
+        mutation: RefundLifecycleMutation<'_>,
+    ) -> Result<StoredTransitionV1, StoreError> {
+        self.with_locked_database(|database| transact_lifecycle_in(database, transaction, mutation))
+    }
+
+    fn load_refund_lifecycle(
+        &self,
+        workflow: &WorkflowId,
+    ) -> Result<Option<LifecycleRecordV1>, StoreError> {
+        self.with_locked_database(|database| {
+            decode_lifecycle_record(&database.lifecycle_records, workflow)
+        })
+    }
+}
+
+fn transact_lifecycle_in(
+    database: &mut ReservationDatabase,
+    transaction: &StoreTransactionV1,
+    mutation: RefundLifecycleMutation<'_>,
+) -> Result<StoredTransitionV1, StoreError> {
+    let current = decode_lifecycle_record(&database.lifecycle_records, &transaction.workflow_id)?;
+    if current.as_ref().map(LifecycleRecordV1::revision) != transaction.expected_revision {
+        return Err(StoreError::Conflict);
+    }
+    if current.is_none() && database.lifecycle_records.len() >= MAX_RECORDS {
+        return Err(StoreError::LimitExceeded);
+    }
+    apply_domain_mutation(database, transaction, mutation)?;
+    let result = apply_transition(current.as_ref(), &transaction.command, &transaction.context)
+        .map_err(|error| StoreError::Rejected(error.failure))?;
+    if result.disposition == TransitionDisposition::Applied {
+        let encoded = encode_record(&result.record).map_err(|_| StoreError::Corrupt)?;
+        database
+            .lifecycle_records
+            .insert(transaction.workflow_id.as_str().into(), encoded);
+    }
+    Ok(StoredTransitionV1::acknowledged(
+        result.record,
+        result.disposition,
+    ))
+}
+
+fn apply_domain_mutation(
+    database: &mut ReservationDatabase,
+    transaction: &StoreTransactionV1,
+    mutation: RefundLifecycleMutation<'_>,
+) -> Result<(), StoreError> {
+    match mutation {
+        RefundLifecycleMutation::None => {
+            if matches!(
+                transaction.command,
+                TransitionCommandV1::Reserve
+                    | TransitionCommandV1::Commit { .. }
+                    | TransitionCommandV1::Release { .. }
+                    | TransitionCommandV1::MarkOutcomeUnknown { .. }
+                    | TransitionCommandV1::Reconcile { .. }
+            ) {
+                return Err(StoreError::Corrupt);
+            }
+        }
+        RefundLifecycleMutation::Reserve { policy, request } => {
+            reserve_lifecycle_in(database, transaction, policy, *request)?;
+        }
+        RefundLifecycleMutation::Commit {
+            lease,
+            refund_id,
+            result_digest,
+            now,
+        } => {
+            let TransitionCommandV1::Commit {
+                result_digest: expected,
+                ..
+            } = &transaction.command
+            else {
+                return Err(StoreError::Corrupt);
+            };
+            if expected.bytes() != shared_digest(result_digest)?.as_bytes() {
+                return Err(StoreError::Corrupt);
+            }
+            commit_in(&mut database.records, lease, refund_id, result_digest, now)
+                .map_err(map_reservation_error)?;
+        }
+        RefundLifecycleMutation::Release { lease, now } => {
+            if !matches!(transaction.command, TransitionCommandV1::Release { .. }) {
+                return Err(StoreError::Corrupt);
+            }
+            transition_in(
+                &mut database.records,
+                lease,
+                RefundReservationState::Released,
+                now,
+            )
+            .map_err(map_reservation_error)?;
+        }
+        RefundLifecycleMutation::OutcomeUnknown { lease, now } => {
+            if !matches!(
+                transaction.command,
+                TransitionCommandV1::MarkOutcomeUnknown { .. }
+            ) {
+                return Err(StoreError::Corrupt);
+            }
+            transition_in(
+                &mut database.records,
+                lease,
+                RefundReservationState::OutcomeUnknown,
+                now,
+            )
+            .map_err(map_reservation_error)?;
+        }
+        RefundLifecycleMutation::Reconcile {
+            workflow_id,
+            action_digest,
+            outcome,
+            now,
+        } => {
+            let TransitionCommandV1::Reconcile { observation, .. } = &transaction.command else {
+                return Err(StoreError::Corrupt);
+            };
+            let conclusion_matches = matches!(
+                (&outcome, observation.conclusion),
+                (
+                    ReconciledRefundOutcome::Committed { .. },
+                    auths_lifecycle::EffectConclusion::Effect
+                ) | (
+                    ReconciledRefundOutcome::Released,
+                    auths_lifecycle::EffectConclusion::NonEffect
+                )
+            );
+            if workflow_id != transaction.workflow_id.as_str() || !conclusion_matches {
+                return Err(StoreError::Corrupt);
+            }
+            reconcile_in(
+                &mut database.records,
+                workflow_id,
+                action_digest,
+                outcome,
+                now,
+            )
+            .map_err(map_reservation_error)?;
+        }
+    }
+    Ok(())
+}
+
+fn reserve_lifecycle_in(
+    database: &mut ReservationDatabase,
+    transaction: &StoreTransactionV1,
+    policy: &StripeBoundedRefundPolicyV1,
+    request: ReserveRefundRequest,
+) -> Result<(), StoreError> {
+    if !matches!(transaction.command, TransitionCommandV1::Reserve)
+        || request.workflow_id != transaction.workflow_id.as_str()
+    {
+        return Err(StoreError::Corrupt);
+    }
+    let snapshot = snapshot_in(
+        &database.records,
+        policy,
+        &request.stripe_account_id,
+        request.now,
+    )
+    .map_err(map_reservation_error)?;
+    let expected_capacity = crate::lifecycle::project_capacity_snapshot(
+        request.stripe_account_id.as_str(),
+        &request.intents,
+        &snapshot,
+    )
+    .map_err(|_| StoreError::Corrupt)?;
+    if transaction.context.capacity != expected_capacity {
+        return Err(StoreError::Corrupt);
+    }
+    match reserve_in(&mut database.records, request) {
+        ReserveRefundResult::Reserved { .. } => Ok(()),
+        ReserveRefundResult::Replay(_) | ReserveRefundResult::Conflict(_) => {
+            Err(StoreError::Conflict)
+        }
+        ReserveRefundResult::CapacityExceeded { .. } => Err(StoreError::Rejected(
+            auths_lifecycle::LifecycleFailure::CapacityExceeded,
+        )),
+        ReserveRefundResult::Unavailable => Err(StoreError::Unavailable),
+    }
+}
+
+fn shared_digest(value: &DigestHex) -> Result<auths_bounded_policy::CommitmentDigest, StoreError> {
+    let decoded = hex::decode(value.as_str()).map_err(|_| StoreError::Corrupt)?;
+    let bytes: [u8; 32] = decoded.try_into().map_err(|_| StoreError::Corrupt)?;
+    Ok(auths_bounded_policy::CommitmentDigest::new(bytes))
+}
+
+fn decode_lifecycle_record(
+    records: &BTreeMap<String, Vec<u8>>,
+    workflow: &WorkflowId,
+) -> Result<Option<LifecycleRecordV1>, StoreError> {
+    records
+        .get(workflow.as_str())
+        .map(|bytes| decode_record(bytes).map_err(|_| StoreError::Corrupt))
+        .transpose()
+}
+
+fn map_reservation_error(error: ReservationError) -> StoreError {
+    match error {
+        ReservationError::Unavailable => StoreError::Unavailable,
+        ReservationError::Corrupt => StoreError::Corrupt,
+        ReservationError::Missing
+        | ReservationError::Conflict
+        | ReservationError::InvalidTransition => StoreError::Conflict,
+    }
+}
+
+fn load_database(path: &Path) -> Result<ReservationDatabase, ReservationError> {
     if !path.exists() {
-        return Ok(BTreeMap::new());
+        return Ok(ReservationDatabase::empty());
     }
     let bytes = fs::read(path).map_err(|_| ReservationError::Unavailable)?;
     if bytes.len() > MAX_STATE_BYTES {
@@ -682,29 +1111,44 @@ fn load_records(
     }
     let state: ReservationStateFile =
         serde_json::from_slice(&bytes).map_err(|_| ReservationError::Corrupt)?;
+    validate_database_state(&state, &bytes)?;
+    Ok(ReservationDatabase {
+        records: state.records,
+        lifecycle_records: state.lifecycle_records,
+    })
+}
+
+fn validate_database_state(
+    state: &ReservationStateFile,
+    canonical_bytes: &[u8],
+) -> Result<(), ReservationError> {
     if state.schema != STATE_SCHEMA
         || state.records.len() > MAX_RECORDS
-        || canonical_json(&state).map_err(|_| ReservationError::Corrupt)? != bytes
+        || state.lifecycle_records.len() > MAX_RECORDS
+        || canonical_json(state).map_err(|_| ReservationError::Corrupt)? != canonical_bytes
         || state
             .records
             .iter()
             .any(|(workflow, record)| workflow != &record.workflow_id || !valid_record(record))
+        || state.lifecycle_records.iter().any(|(workflow, bytes)| {
+            auths_lifecycle::WorkflowId::parse(workflow).is_err()
+                || auths_lifecycle::decode_record(bytes).is_err()
+        })
     {
-        return Err(ReservationError::Corrupt);
+        Err(ReservationError::Corrupt)
+    } else {
+        Ok(())
     }
-    Ok(state.records)
 }
 
-fn persist_records(
-    path: &Path,
-    records: &BTreeMap<String, RefundReservationRecord>,
-) -> Result<(), ReservationError> {
-    if records.len() > MAX_RECORDS {
+fn persist_database(path: &Path, database: &ReservationDatabase) -> Result<(), ReservationError> {
+    if database.records.len() > MAX_RECORDS || database.lifecycle_records.len() > MAX_RECORDS {
         return Err(ReservationError::Unavailable);
     }
     let state = ReservationStateFile {
         schema: STATE_SCHEMA.into(),
-        records: records.clone(),
+        records: database.records.clone(),
+        lifecycle_records: database.lifecycle_records.clone(),
     };
     let bytes = canonical_json(&state).map_err(|_| ReservationError::Corrupt)?;
     if bytes.len() > MAX_STATE_BYTES {
@@ -1069,6 +1513,12 @@ pub enum ReservationError {
     InvalidTransition,
 }
 
+impl From<ReservationError> for StoreError {
+    fn from(error: ReservationError) -> Self {
+        map_reservation_error(error)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
@@ -1077,9 +1527,16 @@ mod tests {
     use crate::{
         bounded::{BoundedEvaluationContext, RefundDenominator, evaluate_bounded_refund},
         canonical::canonical_digest,
+        lifecycle::{
+            StripeLifecycleDecisionBindings, StripeLifecycleProjectionInput,
+            project_refund_lifecycle,
+        },
         test_support::{
             NOW, bounded_action, bounded_configuration, bounded_policy, configuration, evidence,
         },
+    };
+    use auths_lifecycle::{
+        LifecycleState, StoreTransactionV1, TransitionCommandV1, execute_store_transaction,
     };
 
     fn request(
@@ -1141,6 +1598,100 @@ mod tests {
             idempotency_key_digest: sha256(action.idempotency_key().as_bytes()),
             now: NOW,
         }
+    }
+
+    #[test]
+    fn shared_reservation_and_stripe_capacity_commit_atomically() {
+        let store = InMemoryRefundReservationStore::default();
+        let exact = configuration(2_000);
+        let evidence = evidence(2_000, 0);
+        let policy = bounded_policy(
+            &evidence,
+            2_000,
+            10_000,
+            RefundDenominator::OriginalChargeAmount,
+            1_000,
+        );
+        let workflow = "bounded-lifecycle-atomic-01";
+        let action = bounded_action(&exact, &policy, &evidence, 1_000, workflow);
+        let bounded = bounded_configuration(&policy);
+        let snapshot = store
+            .snapshot(&policy, evidence.stripe_account_id(), NOW)
+            .unwrap();
+        let decision = evaluate_bounded_refund(&BoundedEvaluationContext {
+            policy: &policy,
+            action: &action,
+            evidence: &evidence,
+            aggregate_snapshot: &snapshot,
+            required_exact_configuration: &exact,
+            executed_exact_configuration: &exact,
+            required_bounded_configuration: &bounded,
+            executed_bounded_configuration: &bounded,
+            request_audience: exact.executor_audience(),
+            now: NOW,
+        });
+        let projection = project_refund_lifecycle(&StripeLifecycleProjectionInput {
+            action: &action,
+            policy: &policy,
+            evidence: &evidence,
+            aggregate_snapshot: &snapshot,
+            decision: &decision,
+            required_configuration: &bounded,
+            executed_configuration: &bounded,
+            verifier_time: NOW,
+        })
+        .unwrap();
+        let context = projection.transition_context(NOW);
+        let workflow_id = projection.workflow_id.clone();
+        let decision_digest = sha256(b"stripe-domain-decision");
+        let decision_input = projection
+            .into_decision_input(&StripeLifecycleDecisionBindings {
+                core_authorization_digest: &sha256(b"stripe-core-authorization"),
+                decision_receipt_digest: &decision_digest,
+                domain_decision_receipt_digest: &decision_digest,
+                implementation_build_digest: &sha256(b"stripe-test-build"),
+                expires_at: action.expires_at(),
+            })
+            .unwrap();
+        let recorded = execute_store_transaction(
+            &RefundLifecycleTransaction::new(&store, RefundLifecycleMutation::None),
+            &StoreTransactionV1 {
+                workflow_id: workflow_id.clone(),
+                expected_revision: None,
+                command: TransitionCommandV1::RecordDecision(Box::new(decision_input)),
+                context: context.clone(),
+            },
+        )
+        .unwrap();
+        assert_eq!(recorded.record().state(), LifecycleState::DecisionRecorded);
+
+        let reserved = execute_store_transaction(
+            &RefundLifecycleTransaction::new(
+                &store,
+                RefundLifecycleMutation::Reserve {
+                    policy: &policy,
+                    request: Box::new(request_for_policy(
+                        &store, workflow, 1_000, &evidence, &exact, &policy,
+                    )),
+                },
+            ),
+            &StoreTransactionV1 {
+                workflow_id: workflow_id.clone(),
+                expected_revision: Some(recorded.record().revision()),
+                command: TransitionCommandV1::Reserve,
+                context,
+            },
+        )
+        .unwrap();
+
+        assert_eq!(reserved.record().state(), LifecycleState::Reserved);
+        let domain = store.get(workflow).unwrap().unwrap();
+        assert_eq!(domain.state(), RefundReservationState::Reserved);
+        assert_eq!(domain.action_digest(), &action.digest().unwrap());
+        assert_eq!(
+            store.load_refund_lifecycle(&workflow_id).unwrap().unwrap(),
+            *reserved.record()
+        );
     }
 
     #[test]
@@ -1287,6 +1838,21 @@ mod tests {
             reconciled.state(),
             RefundReservationState::ReconciledReleased
         );
+    }
+
+    #[test]
+    fn obsolete_prelaunch_state_is_rejected_instead_of_migrated() {
+        let temporary = tempfile::tempdir().unwrap();
+        let path = temporary.path().join("bounded-reservations.json");
+        fs::write(
+            &path,
+            br#"{"records":{},"schema":"auths.stripe.bounded-reservation-state/1"}"#,
+        )
+        .unwrap();
+        assert!(matches!(
+            PersistentRefundReservationStore::open(&path),
+            Err(ReservationError::Corrupt)
+        ));
     }
 
     #[test]

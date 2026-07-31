@@ -1,9 +1,9 @@
 use std::{env, io::Read as _, time::Duration};
 
 use auths_stripe::{
-    ChargeId, CredentialProvider, Currency, ExactRefundActionV1, Money, PaymentIntentId, PortError,
-    RefundEvidenceInput, RefundEvidenceV1, RefundId, RefundResult, StripeAccountId,
-    StripeCredential, StripeGateway, VerifiedRefundCommand,
+    ChargeId, CredentialProvider, Currency, ExactRefundActionV1, LifecycleRefundCredentialProvider,
+    Money, PaymentIntentId, PortError, RefundEvidenceInput, RefundEvidenceV1, RefundId,
+    RefundResult, StripeAccountId, StripeCredential, StripeGateway,
     canonical::{canonical_json, sha256},
 };
 use reqwest::{
@@ -18,7 +18,9 @@ const MAX_RESPONSE_BYTES: u64 = 512 * 1024;
 const FIXTURE_AMOUNT_MINOR: u64 = 2_000;
 
 /// Stripe behavior required by the demo in addition to the protected product ports.
-pub trait DemoStripeEnvironment: CredentialProvider + StripeGateway {
+pub trait DemoStripeEnvironment:
+    CredentialProvider + LifecycleRefundCredentialProvider + StripeGateway
+{
     /// Creates a fresh real test payment and returns normalized evidence.
     ///
     /// # Errors
@@ -391,10 +393,20 @@ impl CredentialProvider for LiveStripeEnvironment {
     }
 }
 
+impl LifecycleRefundCredentialProvider for LiveStripeEnvironment {
+    fn credential_after_authorization(
+        &self,
+        _: &auths_stripe::ExecutionAuthorizationV1,
+        account: &StripeAccountId,
+    ) -> Result<StripeCredential, PortError> {
+        CredentialProvider::credential(self, account)
+    }
+}
+
 impl StripeGateway for LiveStripeEnvironment {
     fn create_refund(
         &self,
-        command: &VerifiedRefundCommand,
+        command: &dyn auths_stripe::RefundExecutionCommand,
         credential: &StripeCredential,
         now: u64,
     ) -> Result<RefundResult, PortError> {

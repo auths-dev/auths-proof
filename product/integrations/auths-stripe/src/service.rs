@@ -306,6 +306,9 @@ pub enum ServiceError {
     /// Durable claim state failed.
     #[error("durable refund claim state is unavailable")]
     ClaimState,
+    /// Shared durable lifecycle state failed closed.
+    #[error("durable refund lifecycle failed: {0:?}")]
+    Lifecycle(auths_lifecycle::StoreError),
     /// Stripe output differed from the exact action.
     #[error("Stripe response did not match the exact refund")]
     ProviderMismatch,
@@ -397,7 +400,7 @@ mod tests {
     impl StripeGateway for ForbiddenEffects {
         fn create_refund(
             &self,
-            _: &VerifiedRefundCommand,
+            _: &dyn crate::RefundExecutionCommand,
             _: &StripeCredential,
             _: u64,
         ) -> Result<RefundResult, PortError> {

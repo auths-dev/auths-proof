@@ -10,6 +10,8 @@ description = "Exact, replay-safe Auths authorization for Stripe domain effects"
 fixture-support = []
 
 [dependencies]
+auths-bounded-policy.workspace = true
+auths-lifecycle.workspace = true
 auths-model.workspace = true
 auths-profile-api.workspace = true
 auths-sdk.workspace = true

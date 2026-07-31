@@ -1299,7 +1299,9 @@ name = "auths-stripe"
 version = "0.1.0"
 dependencies = [
  "auths-author",
+ "auths-bounded-policy",
  "auths-codec",
+ "auths-lifecycle",
  "auths-model",
  "auths-ports",
  "auths-profile-api",

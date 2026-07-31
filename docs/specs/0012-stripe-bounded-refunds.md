@@ -605,16 +605,16 @@ Every profile is an independent implementation and release gate. No profile
 may be marked implemented from another profile's fixture, frontend, provider
 effect, deployment, or receipt evidence.
 
-## 25. Milestone 5 shared-lifecycle migration
+## 25. Milestone 5 shared-lifecycle cutover
 
-The exact-refund profile is the first production migration to
-`auths.product.reservation-execution-contract/1`. This migration reuses only
+The exact-refund profile is the first direct production cutover to
+`auths.product.reservation-execution-contract/1`. This cutover reuses only
 the shared lifecycle mechanism defined by specification 0026. Stripe continues
 to own refund policy, action and evidence schemas, arithmetic, provider
 requests, credential scope, idempotency, reconciliation interpretation, stable
 domain codes, and every canonical Stripe receipt payload.
 
-### 25.1 Immutable migration inputs and outputs
+### 25.1 Immutable cutover inputs and outputs
 
 The Stripe adapter projects one already-eligible bounded-refund decision into:
 
@@ -716,7 +716,7 @@ concurrent last-unit reservation, crash at every durable boundary, denial
 before credentials, recovery from outcome unknown, live Stripe test-mode
 behavior, browser E2E, inline receipt JSON, and the dedicated receipt page.
 
-The migration is complete only when the shared lifecycle path is the sole
+The cutover is complete only when the shared lifecycle path is the sole
 production path for this semantic version, the reference evaluator is
 test-only, compliance points to the Stripe fixtures and shared lifecycle
 evidence, and the PR is merged independently before any other domain begins.
