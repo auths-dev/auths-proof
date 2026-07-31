@@ -1,0 +1,174 @@
+{
+  "aeneas_version": "3a8586f",
+  "charon_version": "0.1.225",
+  "crate": "auths_lifecycle",
+  "functions": [
+    {
+      "def_id": 4,
+      "lean_name": "auths_lifecycle.model.LifecycleState.is_terminal",
+      "lean_file": "qualification/aeneas/generated/lifecycle/Funs.lean",
+      "rust_name": "auths_lifecycle::model::{auths_lifecycle::model::LifecycleState}::is_terminal",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-lifecycle/src/model.rs",
+        "begin_line": 45,
+        "end_line": 50
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 5,
+      "lean_name": "auths_lifecycle.kernel.reconciliation_code",
+      "lean_file": "qualification/aeneas/generated/lifecycle/Funs.lean",
+      "rust_name": "auths_lifecycle::kernel::reconciliation_code",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-lifecycle/src/kernel.rs",
+        "begin_line": 276,
+        "end_line": 284
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 0,
+      "lean_name": "auths_lifecycle.kernel.transition_code",
+      "lean_file": "qualification/aeneas/generated/lifecycle/Funs.lean",
+      "rust_name": "auths_lifecycle::kernel::transition_code",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-lifecycle/src/kernel.rs",
+        "begin_line": 122,
+        "end_line": 274
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 1,
+      "lean_name": "auths_lifecycle.kernel.additive_capacity_available",
+      "lean_file": "qualification/aeneas/generated/lifecycle/Funs.lean",
+      "rust_name": "auths_lifecycle::kernel::additive_capacity_available",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-lifecycle/src/kernel.rs",
+        "begin_line": 288,
+        "end_line": 304
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 2,
+      "lean_name": "auths_lifecycle.kernel.exclusive_capacity_available",
+      "lean_file": "qualification/aeneas/generated/lifecycle/Funs.lean",
+      "rust_name": "auths_lifecycle::kernel::exclusive_capacity_available",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-lifecycle/src/kernel.rs",
+        "begin_line": 308,
+        "end_line": 313
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 3,
+      "lean_name": "auths_lifecycle.kernel.replay_code",
+      "lean_file": "qualification/aeneas/generated/lifecycle/Funs.lean",
+      "rust_name": "auths_lifecycle::kernel::replay_code",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-lifecycle/src/kernel.rs",
+        "begin_line": 328,
+        "end_line": 336
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    }
+  ],
+  "types": [
+    {
+      "def_id": 2,
+      "lean_name": "auths_lifecycle.kernel.OperationCode",
+      "lean_file": "qualification/aeneas/generated/lifecycle/Types.lean",
+      "rust_name": "auths_lifecycle::kernel::OperationCode",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-lifecycle/src/kernel.rs",
+        "begin_line": 11,
+        "end_line": 36
+      }
+    },
+    {
+      "def_id": 3,
+      "lean_name": "auths_lifecycle.kernel.TransitionGates",
+      "lean_file": "qualification/aeneas/generated/lifecycle/Types.lean",
+      "rust_name": "auths_lifecycle::kernel::TransitionGates",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-lifecycle/src/kernel.rs",
+        "begin_line": 43,
+        "end_line": 74
+      }
+    },
+    {
+      "def_id": 1,
+      "lean_name": "auths_lifecycle.model.LifecycleState",
+      "lean_file": "qualification/aeneas/generated/lifecycle/Types.lean",
+      "rust_name": "auths_lifecycle::model::LifecycleState",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-lifecycle/src/model.rs",
+        "begin_line": 21,
+        "end_line": 40
+      }
+    },
+    {
+      "def_id": 4,
+      "lean_name": "auths_lifecycle.kernel.KernelCode",
+      "lean_file": "qualification/aeneas/generated/lifecycle/Types.lean",
+      "rust_name": "auths_lifecycle::kernel::KernelCode",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-lifecycle/src/kernel.rs",
+        "begin_line": 78,
+        "end_line": 115
+      }
+    },
+    {
+      "def_id": 5,
+      "lean_name": "auths_lifecycle.kernel.ReplayCode",
+      "lean_file": "qualification/aeneas/generated/lifecycle/Types.lean",
+      "rust_name": "auths_lifecycle::kernel::ReplayCode",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-lifecycle/src/kernel.rs",
+        "begin_line": 317,
+        "end_line": 324
+      }
+    }
+  ],
+  "globals": [],
+  "trait_decls": [],
+  "trait_impls": []
+}

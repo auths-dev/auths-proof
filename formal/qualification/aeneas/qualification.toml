@@ -205,7 +205,7 @@ allowed_external_symbols = []
 [[translations]]
 crate_name = "auths_lifecycle"
 translation_json = "formal/qualification/aeneas/generated/lifecycle/translation.json"
-local_functions = 0
+local_functions = 6
 external_functions = 0
 opaque_local_functions = 0
 required_symbols = [
