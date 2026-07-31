@@ -1994,3 +1994,137 @@ for any later canonical branch transition.
 
 Receipts preserve why the action was authorized and exactly what happened.
 ```
+
+## 39. Milestone 5 shared-lifecycle cutover contract
+
+The Milestone 5 source cutover replaces the production `WorkflowStore` claim
+machine with the shared bounded-policy and durable-lifecycle kernels. It does
+not move Radicle identity, Git object inspection, collaborative-object
+semantics, synchronized local evidence, signer custody, publication,
+announcement, propagation observation, reconciliation interpretation, stable
+domain codes, or public receipt meaning into shared code.
+
+The exact patch-open effect has these closed shared-contract identities:
+
+| Concept | Identifier |
+| --- | --- |
+| shared profile | `auths.radicle.issue-address/1` |
+| policy type | `auths.radicle.issue-address-grant/1` |
+| evaluator semantic | `auths.radicle.issue-address.evaluate/1` |
+| implementation | `auths-radicle/shared-lifecycle-production/1` |
+| configuration semantic | `auths.radicle.verifier-configuration/1` |
+| evidence schema | `auths.radicle.repository-issue-evidence/1` |
+| evidence source | `radicle-synchronized-local-view/1` |
+| state schema | `auths.radicle.patch-publication-snapshot/1` |
+| workflow-budget intent | `auths.radicle.workflow-publication-budget-intent/1` |
+| exact-action intent | `auths.radicle.exact-action-claim-intent/1` |
+| reservation algebra | `auths.radicle.patch-open-exclusive-composite/1` |
+| obligation schema | `auths.radicle.verified-open-patch-command/1` |
+| provider contract | `auths.radicle.local-patch-publication/1` |
+| domain | `radicle` |
+
+One authorized patch action projects to two atomic exclusive reservations:
+
+```text
+(
+  executor audience,
+  workflow ID,
+  publication budget ordinal
+)
+
+(
+  executor audience,
+  exact action digest
+)
+```
+
+The first reservation conserves the one-publication workflow budget even when
+two different candidate actions race. The second makes the exact action claim
+unique for the executor audience. The exact RID, issue, identity revision,
+canonical base, candidate and metadata digests, signer DID, configuration, and
+fresh evidence remain committed separately by the policy input and sealed
+provider command. Neither scope is widened into a generic repository lock or
+global Radicle claim.
+
+The migrated production path records, in order:
+
+```text
+domain decision receipt
+  -> shared decision
+  -> atomic reservation set
+  -> domain recovery record
+  -> execution intent
+  -> signer credential authorization
+  -> fresh critical Radicle evidence
+  -> provider attempt
+  -> provider-call entry
+  -> committed | failed before effect | outcome unknown
+  -> reconciliation observation
+  -> reconciled committed | still outcome unknown
+```
+
+The signer boundary remains Radicle-owned. It may accept only durable
+`ExecutionAuthorizationV1` for the exact execution intent. The local
+publication adapter may accept only an operation-specific sealed
+`VerifiedOpenPatchCommand` containing durable
+`ProviderCallAuthorizationV1`. Neither boundary accepts an unsealed action, a
+generic claim token, a boolean authorization result, arbitrary Git ref input,
+or a generic Radicle command.
+
+Identity revision, canonical base, issue state, signer DID, executor node, and
+required synchronization facts are observed again after signer authorization
+and immediately before provider-call entry. Any mismatch stops before
+publication and releases both reservations through a durable failed-before-
+effect transition.
+
+An error after provider-call entry is conservatively
+`publication-unknown` unless the adapter proves that no signer or writable
+storage mutation began. Outcome unknown retains both reservations and cannot
+be retried. Reconciliation is authorized only from the durable unknown record
+and may inspect exact local signed refs and collaborative objects. Exactly one
+matching local publication commits the lifecycle without calling the writer.
+No match or multiple matches remains `publication-ambiguous` and retains the
+reservations, preserving the existing Radicle safety rule. Reconciliation
+cannot publish, announce, or retry a patch.
+
+Local publication is the shared lifecycle effect boundary. Announcement and
+independent replication remain domain-owned post-commit stages. A replay of a
+committed local publication returns the original execution result and may
+resume only pending announcement or observation. It never invokes
+`open_patch` again. Announcement failure or observer unavailability does not
+reverse or release a committed publication.
+
+The domain recovery record binds the exact action, candidate submission and
+inspected facts, planning evidence, decision receipt, and shared workflow
+identity. It carries no authority by itself. Restart must revalidate every
+commitment against the shared lifecycle record before it may reconcile or
+resume post-commit propagation.
+
+Auths-proof is prelaunch and has no production Radicle workflow state. The
+prior workflow-store JSON is therefore obsolete and rejected at startup.
+There is no legacy reader, state migration, dual write, compatibility shim,
+runtime rollback path, or second production execution path. The prior pure
+evaluator remains only as the semantic oracle used for differential
+qualification.
+
+The cutover is accepted only when:
+
+1. all unchanged decisions, stable codes, exact commands, workflow stages,
+   and canonical receipt bytes match the frozen reference fixtures;
+2. concurrent different actions for one workflow ordinal permit at most one
+   publication, and concurrent exact actions permit at most one publication;
+3. configuration mismatch, containment denial, stale evidence, and fresh-
+   evidence drift stop before signer access and provider invocation;
+4. crash before provider-call entry releases safely, while crash after
+   possible publication becomes durable outcome unknown;
+5. restart plus an exact local observation commits without a second
+   publication, while absent or conflicting observations remain ambiguous;
+6. exact replay performs no signer, writer, or duplicate receipt mutation;
+7. post-commit announcement and propagation can resume without repeating
+   local publication;
+8. corrupt or obsolete persisted state is rejected;
+9. candidate inspection, Radicle evidence, signer custody, publication,
+   announcement, observation, reconciliation, and public receipts remain in
+   the Radicle vertical; and
+10. the old production claim orchestration is removed after exact
+    differential and live behavior pass.
