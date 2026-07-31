@@ -1178,3 +1178,181 @@ Relevant standards for later adapter design include HTTP Semantics
 (RFC 9110), JSON Canonicalization Scheme (RFC 8785), HTTP Message Signatures
 (RFC 9421), and Digest Fields (RFC 9530). Their use does not replace the Auths
 proof or make transport semantics part of the core authority model.
+
+## 30. Milestone 5 direct source cutover
+
+The Milestone 5 Records API cutover replaces the original combined
+`RecordsLedger` orchestration with the shared bounded-policy commitment and
+durable lifecycle mechanisms. It does not move records, disclosure, HTTPS, or
+Iroh meaning into a shared package.
+
+This is a prelaunch source cutover. There are no users or production records.
+The implementation MUST NOT add a legacy reader, converter, dual write,
+compatibility shim, deprecation path, or runtime rollback format.
+
+### 30.1 Profile and transport boundary
+
+Create and read remain separate profiles:
+
+```text
+CreateRecordV1
+  -> records create evaluator
+  -> shared commitment projection
+  -> verified create command
+  -> records create provider contract
+
+ReadRecordV1
+  -> records read evaluator
+  -> shared commitment projection
+  -> verified read command
+  -> records disclosure provider contract
+```
+
+The two profiles retain separate actions, evaluator entry points, obligations,
+provider commands, effect outcomes, and receipt payloads. They share only the
+closed records policy carrier, canonical commitment leaves, and already
+qualified lifecycle mechanisms.
+
+HTTPS, Iroh, memory, and file delivery continue to normalize into the same
+records envelope before the profile boundary. Transport identity MUST NOT
+select a lifecycle store, reservation namespace, workflow identity, or retry
+identity. The same policy and exact action use the same lifecycle state across
+all delivery adapters.
+
+### 30.2 Shared commitment projection
+
+An eligible domain decision projects into:
+
+- the exact profile, action, policy, evidence, state, evaluator, required
+  configuration, and executed implementation commitments;
+- profile-owned reservation intents;
+- one profile-owned exact-command obligation;
+- a workflow identity derived from the profile, exact action digest, and
+  policy digest; and
+- one records-domain reservation algebra identity.
+
+The create profile emits:
+
+1. an additive create-unit intent of one unit under the policy digest; and
+2. an additive created-byte intent equal to the canonical customer-value byte
+   count under the same policy digest.
+
+The read profile emits one additive read-unit intent of one unit under the
+policy digest.
+
+Actual disclosed bytes remain records-domain effect semantics. They are known
+only after an authorized protected projection is constructed, so the records
+store atomically checks and accounts for the exact disclosed byte count. A
+disclosure-byte denial is a definite non-effect and releases the shared
+read-unit reservation. The shared package does not learn record fields,
+projection bytes, or disclosure policy.
+
+Reservation intents MUST be canonically ordered by intent identity before
+constructing bounded outputs. A lifecycle store is selected by policy digest
+and configured with the exact additive ceilings committed by that policy.
+Different actions under one policy therefore contend on the same durable
+capacity, while different transports cannot create another budget namespace.
+
+### 30.3 Required durable order
+
+For both profiles, production execution is:
+
+```text
+configuration equality
+  -> pure records decision
+  -> presentation verification
+  -> exact Auths verification
+  -> immutable domain decision receipt
+  -> shared decision record
+  -> atomic shared reservation
+  -> exact execution intent
+  -> credential authorization
+  -> attempt start
+  -> provider-call entry
+  -> sealed profile command
+  -> one atomic records-store effect
+  -> durable domain effect evidence
+  -> shared commit
+  -> observation and delivery result
+```
+
+No protected record read, mutation, or records-store credential is available
+before the execution authorization seal. The provider adapter accepts only a
+profile-specific command containing the exact Auths authorization,
+`ExecutionAuthorizationV1`, and `ProviderCallAuthorizationV1`. It rejects a
+wrong provider contract, workflow, execution, request digest, revision order,
+or action binding before touching records.
+
+The original pure create and read evaluators remain executable qualification
+oracles. The original combined production orchestration and raw-action
+provider entry points are removed in the same PR.
+
+### 30.4 Crash, replay, and reconciliation
+
+The local records transaction atomically persists either:
+
+- the exact completed create effect;
+- the exact completed disclosure and projection; or
+- no effect.
+
+The transaction is keyed by exact action digest. A committed lifecycle replay
+returns the stored effect without a second insert or disclosure.
+
+If the process stops after provider-call entry, restart MUST query the exact
+domain execution ledger:
+
+- one canonical matching completed action reconciles to effect and commits;
+- canonical proof that no completed action exists reconciles to non-effect and
+  releases capacity; and
+- unavailable, corrupt, or contradictory state remains inconclusive and holds
+  capacity as outcome-unknown.
+
+Neither HTTPS response loss nor Iroh acknowledgement loss authorizes provider
+resubmission. Reconciliation is read-only with respect to protected records.
+
+### 30.5 Receipt and persisted-state cutover
+
+The immutable decision receipt is written before reservation and always
+reports `protected_storage_accessed = false`. Later protected access is
+reported only by a profile-specific effect or non-effect receipt. Replay is an
+execution classification and MUST NOT rewrite an authorized policy decision
+as denied.
+
+The direct cutover reserves:
+
+```text
+claim_and_replay_schema = "auths.records.shared-lifecycle/1"
+records_store_schema    = "auths.records-store/2"
+receipt_schema          = "auths.records-receipt/2"
+lifecycle_state         = "auths.records.lifecycle-state/1"
+domain_ledger_state     = "auths.records-ledger-state/2"
+```
+
+Receipt V2 adds the shared workflow and reservation commitments needed to
+audit the ordered cutover. It keeps delivery evidence separate from decision,
+effect, and observation evidence. The schema change is intentional because
+the original receipt could be finalized only after protected access and
+conflated replay with denial.
+
+Existing `auths.records-ledger/1` bytes are obsolete disposable prelaunch
+state. Opening them MUST fail closed without changing or deleting the file.
+Local development, demos, and CI start the V2 records and lifecycle stores
+from empty state.
+
+### 30.6 Cutover evidence
+
+The cutover is complete only when:
+
+- create and read both use the shared lifecycle production path;
+- exact domain reference decisions still match the frozen fixtures;
+- configuration mismatch and proof denial stop before any lifecycle or
+  protected-store mutation;
+- final create and read units have one concurrent winner;
+- cross-transport replay produces one effect or disclosure;
+- crash after call entry reconciles from the exact domain ledger without
+  resubmission;
+- unavailable reconciliation evidence retains outcome-unknown capacity;
+- obsolete V1 state is rejected rather than migrated;
+- generated fixtures, domain inventory, compliance claims, and architecture
+  snapshots identify the V2 cutover; and
+- authoritative CI passes on the exact revision.
