@@ -651,7 +651,7 @@
         "xtask/src/release.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "6d401d063da0b6167c7c0c4c13ff0124fe296ea6f28fe23e5de4f2109c303676"
+      "sha256": "67362efa0f7a75d86c50011f2917e927672769bcdd0da48b3ba3be4fc2e85681"
     }
   ]
 }

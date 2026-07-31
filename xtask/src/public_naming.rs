@@ -564,8 +564,8 @@ fn stale_name_occurs(bytes: &[u8], token: &str) -> bool {
             let commands = [
                 concat!("cargo add ", "auths-proof"),
                 concat!("pip install ", "auths-proof"),
-                concat!("npm install ", "@auths-dev/proof"),
-                concat!("npm add ", "@auths-dev/proof"),
+                concat!("npm install ", "@auths-dev", "/proof"),
+                concat!("npm add ", "@auths-dev", "/proof"),
             ];
             commands.iter().any(|command| {
                 bytes
