@@ -42,9 +42,11 @@ Implemented profile contracts:
 - `auths.supply-chain/1`;
 - `auths.edge/1`.
 
-Supported developer surfaces:
+Implemented developer surfaces (only the semantic-freeze inventory determines
+the release-candidate publication set):
 
-- `auths-sdk`: trusted-context, verification, issuance, and custody facade;
+- `auths-proof-sdk`: trusted-context, verification, issuance, and custody
+  facade selected for the first public Rust surface;
 - `auths-enforcement`: HTTP, gRPC, CI, MCP, and service-local enforcement
   entry points;
 - `auths-deployment`: replay- and blast-radius-safe deployment execution;

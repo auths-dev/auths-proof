@@ -1,0 +1,646 @@
+{
+  "schema": "auths.semantic-freeze/1",
+  "freezeVersion": 1,
+  "publicSurface": {
+    "rustRoots": [
+      "auths-proof",
+      "auths-proof-sdk"
+    ],
+    "rustPublishableClosure": [
+      "auths-algebra-kernel",
+      "auths-assurance",
+      "auths-author",
+      "auths-authority",
+      "auths-codec",
+      "auths-composition",
+      "auths-config",
+      "auths-custody",
+      "auths-did-keri",
+      "auths-did-key",
+      "auths-model",
+      "auths-multikey",
+      "auths-operations",
+      "auths-ports",
+      "auths-profile-api",
+      "auths-profile-domains",
+      "auths-profile-mcp",
+      "auths-proof",
+      "auths-proof-exchange-model",
+      "auths-proof-exchange-port",
+      "auths-proof-sdk",
+      "auths-raw-key",
+      "auths-receipts",
+      "auths-registries",
+      "auths-runtime",
+      "auths-signature",
+      "auths-verifier"
+    ],
+    "releaseArtifactFamilies": [
+      "source-archive",
+      "rust-crates",
+      "npm:@auths-dev/proof",
+      "pypi:auths-proof",
+      "assurance-bundle"
+    ],
+    "deferredSurfaceIssue": "https://github.com/auths-dev/auths-proof/issues/51"
+  },
+  "entries": [
+    {
+      "id": "auths.core.protocol",
+      "version": 1,
+      "classification": "frozen-meaning",
+      "categories": [
+        "protocol-versions",
+        "canonicalization",
+        "decision-codes",
+        "denial-codes",
+        "indeterminate-codes"
+      ],
+      "owners": [
+        "core/crates/auths-codec/src",
+        "core/crates/auths-model/src",
+        "core/crates/auths-verifier/src",
+        "core/spec/v1"
+      ],
+      "sha256": "d1c4804a5b20837f5d9760810d1c8740d914c94a8390c26cc7552abf9b5bdb71"
+    },
+    {
+      "id": "auths.frozen-bytes/architecture/dependency-graph.json",
+      "version": 1,
+      "classification": "frozen-bytes",
+      "categories": [
+        "canonical-generated-evidence"
+      ],
+      "owners": [
+        "architecture/dependency-graph.json"
+      ],
+      "sha256": "29d91ceab86672bdb36ce699063fdee15f89bd1227a21cf1d9f227d8e4e9369f"
+    },
+    {
+      "id": "auths.frozen-bytes/bounded-domains.toml",
+      "version": 1,
+      "classification": "frozen-bytes",
+      "categories": [
+        "canonical-generated-evidence"
+      ],
+      "owners": [
+        "bounded-domains.toml"
+      ],
+      "sha256": "ab98e4334825befa277754c61b0aa3981737f94bb4002378e59944c9870a6c0f"
+    },
+    {
+      "id": "auths.frozen-bytes/core/conformance/v1/manifest.json",
+      "version": 1,
+      "classification": "frozen-bytes",
+      "categories": [
+        "canonical-generated-evidence"
+      ],
+      "owners": [
+        "core/conformance/v1/manifest.json"
+      ],
+      "sha256": "b4084b9a0abee6ad937564afccf1ae6745d0ffc8bce11eb1c984b04c01011c1d"
+    },
+    {
+      "id": "auths.frozen-bytes/core/explanations/v1/fact-inventory.json",
+      "version": 1,
+      "classification": "frozen-bytes",
+      "categories": [
+        "canonical-generated-evidence"
+      ],
+      "owners": [
+        "core/explanations/v1/fact-inventory.json"
+      ],
+      "sha256": "9229bee508acde9e58b7932cdedb500586f9171f3f855f3af0eb959f08decb3e"
+    },
+    {
+      "id": "auths.frozen-bytes/core/fixtures/v1/manifest.json",
+      "version": 1,
+      "classification": "frozen-bytes",
+      "categories": [
+        "canonical-generated-evidence"
+      ],
+      "owners": [
+        "core/fixtures/v1/manifest.json"
+      ],
+      "sha256": "4baf2e0edd4580c9fe9bb766e70a118131069e811ab3a7638df0094f3842dba4"
+    },
+    {
+      "id": "auths.frozen-bytes/core/formal-vectors/v1/manifest.json",
+      "version": 1,
+      "classification": "frozen-bytes",
+      "categories": [
+        "canonical-generated-evidence"
+      ],
+      "owners": [
+        "core/formal-vectors/v1/manifest.json"
+      ],
+      "sha256": "810a236c0051d71a40e3e3fb5afd200cd44a3ce93e79121b1c2ed9a0d7a21aa7"
+    },
+    {
+      "id": "auths.frozen-bytes/demos/benchmarks/profiles/release.toml",
+      "version": 1,
+      "classification": "frozen-bytes",
+      "categories": [
+        "canonical-generated-evidence"
+      ],
+      "owners": [
+        "demos/benchmarks/profiles/release.toml"
+      ],
+      "sha256": "b7ffa1d3f31dff132383eb5846ba33596d4df8256e0cca2bb96307bc6c3d8a46"
+    },
+    {
+      "id": "auths.frozen-bytes/formal/assurance-manifest-v1.toml",
+      "version": 1,
+      "classification": "frozen-bytes",
+      "categories": [
+        "canonical-generated-evidence"
+      ],
+      "owners": [
+        "formal/assurance-manifest-v1.toml"
+      ],
+      "sha256": "93a913e2bca5362e59b50a3314abb546ae8ad7dd36691b97a2000af131258d03"
+    },
+    {
+      "id": "auths.frozen-bytes/formal/qualification/aeneas/generated",
+      "version": 1,
+      "classification": "frozen-bytes",
+      "categories": [
+        "canonical-generated-evidence"
+      ],
+      "owners": [
+        "formal/qualification/aeneas/generated"
+      ],
+      "sha256": "1f7a81121e57479f6aaa5ad853d9f1c750e162a8a09ef49d766be821a115d579"
+    },
+    {
+      "id": "auths.frozen-bytes/formal/qualification/aeneas/qualification.toml",
+      "version": 1,
+      "classification": "frozen-bytes",
+      "categories": [
+        "canonical-generated-evidence"
+      ],
+      "owners": [
+        "formal/qualification/aeneas/qualification.toml"
+      ],
+      "sha256": "9b2c4e18a78d57f32c556125bd7afbb0df07e96f14b2476cbb75d94600616820"
+    },
+    {
+      "id": "auths.frozen-bytes/formal/qualification/aeneas/source-closure.json",
+      "version": 1,
+      "classification": "frozen-bytes",
+      "categories": [
+        "canonical-generated-evidence"
+      ],
+      "owners": [
+        "formal/qualification/aeneas/source-closure.json"
+      ],
+      "sha256": "90d29e1ad717faacf3a1108a0a682578be341692fd2ec8a472c136174179fa32"
+    },
+    {
+      "id": "auths.frozen-bytes/product/fixtures/v1/bounded-policy/manifest.json",
+      "version": 1,
+      "classification": "frozen-bytes",
+      "categories": [
+        "canonical-generated-evidence"
+      ],
+      "owners": [
+        "product/fixtures/v1/bounded-policy/manifest.json"
+      ],
+      "sha256": "7ea9054107afccae87c2e0e917f25eb41769f95166b068445d78792824377c6f"
+    },
+    {
+      "id": "auths.frozen-bytes/product/fixtures/v1/github/manifest.json",
+      "version": 1,
+      "classification": "frozen-bytes",
+      "categories": [
+        "canonical-generated-evidence"
+      ],
+      "owners": [
+        "product/fixtures/v1/github/manifest.json"
+      ],
+      "sha256": "d5f73768102f002131c94b9f4f445385b1324e5cacb6d67c93225250b37afce8"
+    },
+    {
+      "id": "auths.frozen-bytes/product/fixtures/v1/kubernetes/manifest.json",
+      "version": 1,
+      "classification": "frozen-bytes",
+      "categories": [
+        "canonical-generated-evidence"
+      ],
+      "owners": [
+        "product/fixtures/v1/kubernetes/manifest.json"
+      ],
+      "sha256": "4a7f6f7a4ff27623ec6ef1cd3a174b5fcdd6b12284c5e1d0bf4838c44422a91a"
+    },
+    {
+      "id": "auths.frozen-bytes/product/fixtures/v1/lifecycle/manifest.json",
+      "version": 1,
+      "classification": "frozen-bytes",
+      "categories": [
+        "canonical-generated-evidence"
+      ],
+      "owners": [
+        "product/fixtures/v1/lifecycle/manifest.json"
+      ],
+      "sha256": "263c24af6e9fbe8c03b447238ca44fc49b445dfc1ed23cbefb34fa42fa158eac"
+    },
+    {
+      "id": "auths.frozen-bytes/product/fixtures/v1/opentofu/manifest.json",
+      "version": 1,
+      "classification": "frozen-bytes",
+      "categories": [
+        "canonical-generated-evidence"
+      ],
+      "owners": [
+        "product/fixtures/v1/opentofu/manifest.json"
+      ],
+      "sha256": "9703c708f4a2369d6ed642e54eb32f91800f06ffe60300d4fb560e01c45b1562"
+    },
+    {
+      "id": "auths.frozen-bytes/product/fixtures/v1/postgresql/manifest.json",
+      "version": 1,
+      "classification": "frozen-bytes",
+      "categories": [
+        "canonical-generated-evidence"
+      ],
+      "owners": [
+        "product/fixtures/v1/postgresql/manifest.json"
+      ],
+      "sha256": "76a17b803ad99e37eee110d956c37b6d94878fac8d08cf36156ab4de3a8794c6"
+    },
+    {
+      "id": "auths.frozen-bytes/product/fixtures/v1/radicle/manifest.json",
+      "version": 1,
+      "classification": "frozen-bytes",
+      "categories": [
+        "canonical-generated-evidence"
+      ],
+      "owners": [
+        "product/fixtures/v1/radicle/manifest.json"
+      ],
+      "sha256": "301c07962e7fe7e8847a8bbe0ca664e6aaeea65221e8eb5093a70d0688078533"
+    },
+    {
+      "id": "auths.frozen-bytes/product/fixtures/v1/records-api/manifest.json",
+      "version": 1,
+      "classification": "frozen-bytes",
+      "categories": [
+        "canonical-generated-evidence"
+      ],
+      "owners": [
+        "product/fixtures/v1/records-api/manifest.json"
+      ],
+      "sha256": "28a95d1a948a0dea0f45b9c387437905cca6ebc7c748652878f528a19a9c109b"
+    },
+    {
+      "id": "auths.frozen-bytes/product/fixtures/v1/stripe/manifest.json",
+      "version": 1,
+      "classification": "frozen-bytes",
+      "categories": [
+        "canonical-generated-evidence"
+      ],
+      "owners": [
+        "product/fixtures/v1/stripe/manifest.json"
+      ],
+      "sha256": "ce6e1f24fab76a208fbffc125d7701b9f0fe30f901565621d4499531f48df848"
+    },
+    {
+      "id": "auths.frozen-bytes/product/integrations/auths-stripe/fixtures/connect-transfer/v1/manifest.sha256.json",
+      "version": 1,
+      "classification": "frozen-bytes",
+      "categories": [
+        "canonical-generated-evidence"
+      ],
+      "owners": [
+        "product/integrations/auths-stripe/fixtures/connect-transfer/v1/manifest.sha256.json"
+      ],
+      "sha256": "f944750f40de9976b975eb60f2c6732045ea601df588e87b39583e57f3fe0f67"
+    },
+    {
+      "id": "auths.frozen-bytes/product/integrations/auths-stripe/fixtures/merchant-authorize/v1/manifest.sha256.json",
+      "version": 1,
+      "classification": "frozen-bytes",
+      "categories": [
+        "canonical-generated-evidence"
+      ],
+      "owners": [
+        "product/integrations/auths-stripe/fixtures/merchant-authorize/v1/manifest.sha256.json"
+      ],
+      "sha256": "eed9269994e703e1df3ff58129628775ecd800530a9efcd22a1cf59e66263f7b"
+    },
+    {
+      "id": "auths.frozen-bytes/product/integrations/auths-stripe/fixtures/merchant-cancel/v1/manifest.sha256.json",
+      "version": 1,
+      "classification": "frozen-bytes",
+      "categories": [
+        "canonical-generated-evidence"
+      ],
+      "owners": [
+        "product/integrations/auths-stripe/fixtures/merchant-cancel/v1/manifest.sha256.json"
+      ],
+      "sha256": "cfc2104216c1a26cc3f0f85ec97bbe3dc575f8584731aeb27910823f1f74d3f9"
+    },
+    {
+      "id": "auths.frozen-bytes/product/integrations/auths-stripe/fixtures/merchant-capture/v1/manifest.sha256.json",
+      "version": 1,
+      "classification": "frozen-bytes",
+      "categories": [
+        "canonical-generated-evidence"
+      ],
+      "owners": [
+        "product/integrations/auths-stripe/fixtures/merchant-capture/v1/manifest.sha256.json"
+      ],
+      "sha256": "ee0e556e3dbf8c4746eac924dc78326b25e76a880f0595bc22ed56c23a475c20"
+    },
+    {
+      "id": "auths.frozen-bytes/product/integrations/auths-stripe/fixtures/merchant-collect/v1/manifest.sha256.json",
+      "version": 1,
+      "classification": "frozen-bytes",
+      "categories": [
+        "canonical-generated-evidence"
+      ],
+      "owners": [
+        "product/integrations/auths-stripe/fixtures/merchant-collect/v1/manifest.sha256.json"
+      ],
+      "sha256": "aa54e81dcb7f860feb6290b3816c2d6713be9592ba0b84e3e456df175f50bff0"
+    },
+    {
+      "id": "auths.frozen-bytes/product/integrations/auths-stripe/fixtures/payment-mandate/v1/manifest.sha256.json",
+      "version": 1,
+      "classification": "frozen-bytes",
+      "categories": [
+        "canonical-generated-evidence"
+      ],
+      "owners": [
+        "product/integrations/auths-stripe/fixtures/payment-mandate/v1/manifest.sha256.json"
+      ],
+      "sha256": "633536298bf7087bd1292ec3f35f835b9b60d5363139903e7f1a984344d17318"
+    },
+    {
+      "id": "auths.frozen-bytes/product/integrations/auths-stripe/fixtures/payout/v1/manifest.sha256.json",
+      "version": 1,
+      "classification": "frozen-bytes",
+      "categories": [
+        "canonical-generated-evidence"
+      ],
+      "owners": [
+        "product/integrations/auths-stripe/fixtures/payout/v1/manifest.sha256.json"
+      ],
+      "sha256": "ba5bc84535b01c5a53ad40ad2cf40eed7a36042e27fb81c1845e0198fb2012c2"
+    },
+    {
+      "id": "auths.frozen-bytes/product/integrations/auths-stripe/fixtures/purchase-authorization/v1/manifest.sha256.json",
+      "version": 1,
+      "classification": "frozen-bytes",
+      "categories": [
+        "canonical-generated-evidence"
+      ],
+      "owners": [
+        "product/integrations/auths-stripe/fixtures/purchase-authorization/v1/manifest.sha256.json"
+      ],
+      "sha256": "1c1dedad5b3acc19d3ec3c4c93301fef2bd9f9260b2373b9b109b54229d9ac58"
+    },
+    {
+      "id": "auths.frozen-bytes/product/integrations/auths-stripe/fixtures/subscription-cancel/v1/manifest.sha256.json",
+      "version": 1,
+      "classification": "frozen-bytes",
+      "categories": [
+        "canonical-generated-evidence"
+      ],
+      "owners": [
+        "product/integrations/auths-stripe/fixtures/subscription-cancel/v1/manifest.sha256.json"
+      ],
+      "sha256": "a75c08a7ce1ca3df7b61e6db6918ed2a98aae7529f7c2a60c2cede9ca6cd1a74"
+    },
+    {
+      "id": "auths.frozen-bytes/product/integrations/auths-stripe/fixtures/subscription-create/v1/manifest.sha256.json",
+      "version": 1,
+      "classification": "frozen-bytes",
+      "categories": [
+        "canonical-generated-evidence"
+      ],
+      "owners": [
+        "product/integrations/auths-stripe/fixtures/subscription-create/v1/manifest.sha256.json"
+      ],
+      "sha256": "fb143c5deea2ec39a7f37f406b3086bb3a448da42449048b5f6505a2a40104c1"
+    },
+    {
+      "id": "auths.frozen-bytes/product/integrations/auths-stripe/fixtures/subscription-modify/v1/manifest.sha256.json",
+      "version": 1,
+      "classification": "frozen-bytes",
+      "categories": [
+        "canonical-generated-evidence"
+      ],
+      "owners": [
+        "product/integrations/auths-stripe/fixtures/subscription-modify/v1/manifest.sha256.json"
+      ],
+      "sha256": "bbc575037f692a674b0d6a134f1f0560e5c55be05d1c6045a1f07f3c50e611f5"
+    },
+    {
+      "id": "auths.frozen-bytes/product/integrations/auths-stripe/fixtures/v1/manifest.sha256.json",
+      "version": 1,
+      "classification": "frozen-bytes",
+      "categories": [
+        "canonical-generated-evidence"
+      ],
+      "owners": [
+        "product/integrations/auths-stripe/fixtures/v1/manifest.sha256.json"
+      ],
+      "sha256": "dde33d6a7078afd172e43b100bfd96871719871562bca0f325c3c8cf229c005f"
+    },
+    {
+      "id": "auths.portable-abi-bindings",
+      "version": 1,
+      "classification": "frozen-meaning",
+      "categories": [
+        "portable-abi",
+        "binding-contracts"
+      ],
+      "owners": [
+        "bindings/python/src",
+        "bindings/typescript/src",
+        "core/crates/auths-model/src/lib.rs",
+        "core/spec/v1/auths-proof.cddl"
+      ],
+      "sha256": "226bd2a55b50e19abda62e28f393b23f57f2b1a2f78d14ae947c3c252d74178e"
+    },
+    {
+      "id": "auths.product.bounded-domains",
+      "version": 1,
+      "classification": "frozen-meaning",
+      "categories": [
+        "bounded-domain-inventory",
+        "exact-action-profiles",
+        "domain-evaluators",
+        "domain-lifecycle-transitions",
+        "domain-credential-scopes",
+        "domain-provider-gateways",
+        "domain-receipt-meanings"
+      ],
+      "owners": [
+        "bounded-domains.toml",
+        "product/integrations/auths-github/src",
+        "product/integrations/auths-kubernetes/src",
+        "product/integrations/auths-opentofu/src",
+        "product/integrations/auths-postgresql/src",
+        "product/integrations/auths-radicle/src",
+        "product/integrations/auths-records-api/src",
+        "product/integrations/auths-stripe/src"
+      ],
+      "sha256": "6eaaa15b11d1cd9f4826c91582c1c02f22e596645ac8d1927e3663957199a5c9"
+    },
+    {
+      "id": "auths.product.bounded-policy",
+      "version": 1,
+      "classification": "frozen-meaning",
+      "categories": [
+        "policy-semantic-ids",
+        "evaluator-semantic-ids",
+        "optimized-evaluator-semantic-ids"
+      ],
+      "owners": [
+        "product/fixtures/v1/bounded-policy/registry.toml",
+        "product/policy/auths-bounded-policy/src"
+      ],
+      "sha256": "3c9c768053d86461db1122a3a048c8e882ecbf95c0fd0e2fa46ac5436a422bc6"
+    },
+    {
+      "id": "auths.product.configuration-commitments",
+      "version": 1,
+      "classification": "frozen-meaning",
+      "categories": [
+        "required-configuration-commitments",
+        "executed-configuration-commitments"
+      ],
+      "owners": [
+        "product/policy/auths-bounded-policy/src/commitment.rs",
+        "product/policy/auths-bounded-policy/src/receipt.rs"
+      ],
+      "sha256": "04ccf138a489ad9bdffdf2fe31d2c8a2b27166d2580fcd1ec36c7a57b3e2401e"
+    },
+    {
+      "id": "auths.product.lifecycle",
+      "version": 1,
+      "classification": "frozen-meaning",
+      "categories": [
+        "reservation-state",
+        "claim-state",
+        "execution-state",
+        "reconciliation-state",
+        "lifecycle-codes"
+      ],
+      "owners": [
+        "product/fixtures/v1/lifecycle/registry.toml",
+        "product/runtime/auths-lifecycle/src",
+        "product/stores/auths-stores/migrations/postgres_lifecycle_v1.sql",
+        "product/stores/auths-stores/src/lifecycle.rs"
+      ],
+      "sha256": "9d6eaa653aa1ca363b0c1cf00788812541e1405d72e689d9a723ce24ba49164b"
+    },
+    {
+      "id": "auths.product.public-sdk-contract",
+      "version": 1,
+      "classification": "frozen-meaning",
+      "categories": [
+        "rust-sdk-contract",
+        "exact-action-profiles",
+        "custody-boundary",
+        "runtime-boundary"
+      ],
+      "owners": [
+        "compliance.toml",
+        "product/integrations/auths-custody/src",
+        "product/profiles/auths-profile-api/src",
+        "product/profiles/auths-profile-domains/src",
+        "product/profiles/auths-profile-mcp/src",
+        "product/runtime/auths-runtime/src",
+        "product/sdk/auths-sdk/src"
+      ],
+      "sha256": "cd75175c48f91cb599af0591217a96bd3d0eac54b52389ab01a5f2d54afb0094"
+    },
+    {
+      "id": "auths.product.receipts",
+      "version": 1,
+      "classification": "frozen-meaning",
+      "categories": [
+        "receipt-schemas",
+        "receipt-commitment-meanings"
+      ],
+      "owners": [
+        "product/receipts/auths-receipts/src",
+        "product/spec/v1/receipts.md"
+      ],
+      "sha256": "fba4bebc2859a5ddb85bf5622e06f86c72d5d5676508e48cda84a5b608733e84"
+    },
+    {
+      "id": "auths.release.benchmark-contract",
+      "version": 1,
+      "classification": "frozen-meaning",
+      "categories": [
+        "benchmark-definition",
+        "accepted-baseline"
+      ],
+      "owners": [
+        "demos/benchmarks/auths-bench-model/src",
+        "demos/benchmarks/profiles/release.toml",
+        "docs/research/domains/0004-seven-domain-bounded-authorization-performance-baseline.md",
+        "xtask/src/benchmark.rs",
+        "xtask/src/bounded_benchmark.rs"
+      ],
+      "sha256": "5ab1724d756feff29bdd2a64c01063dd769aee3fe16a1d0e5ff090c41cac22ba"
+    },
+    {
+      "id": "auths.release.public-surface",
+      "version": 1,
+      "classification": "release-metadata",
+      "categories": [
+        "package-names",
+        "package-versions",
+        "publishable-closure",
+        "binding-names",
+        "toolchains"
+      ],
+      "owners": [
+        "Cargo.lock",
+        "Cargo.toml",
+        "architecture.toml",
+        "bindings/python/pyproject.toml",
+        "bindings/typescript/package-lock.json",
+        "bindings/typescript/package.json",
+        "core/adapters/auths-did-keri/Cargo.toml",
+        "core/adapters/auths-did-key/Cargo.toml",
+        "core/adapters/auths-raw-key/Cargo.toml",
+        "core/crates/auths-algebra-kernel/Cargo.toml",
+        "core/crates/auths-assurance/Cargo.toml",
+        "core/crates/auths-author/Cargo.toml",
+        "core/crates/auths-authority/Cargo.toml",
+        "core/crates/auths-codec/Cargo.toml",
+        "core/crates/auths-composition/Cargo.toml",
+        "core/crates/auths-model/Cargo.toml",
+        "core/crates/auths-multikey/Cargo.toml",
+        "core/crates/auths-ports/Cargo.toml",
+        "core/crates/auths-proof/Cargo.toml",
+        "core/crates/auths-registries/Cargo.toml",
+        "core/crates/auths-signature/Cargo.toml",
+        "core/crates/auths-verifier/Cargo.toml",
+        "docs/plans/PHASE_7_RELEASE_OWNER_DECISIONS.md",
+        "exchange/crates/auths-proof-exchange-model/Cargo.toml",
+        "exchange/crates/auths-proof-exchange-port/Cargo.toml",
+        "product/config/auths-config/Cargo.toml",
+        "product/integrations/auths-custody/Cargo.toml",
+        "product/operations/auths-operations/Cargo.toml",
+        "product/profiles/auths-profile-api/Cargo.toml",
+        "product/profiles/auths-profile-domains/Cargo.toml",
+        "product/profiles/auths-profile-mcp/Cargo.toml",
+        "product/receipts/auths-receipts/Cargo.toml",
+        "product/runtime/auths-runtime/Cargo.toml",
+        "product/sdk/auths-sdk/Cargo.toml",
+        "rust-toolchain.toml",
+        "xtask/src/architecture.rs",
+        "xtask/src/fixtures.rs",
+        "xtask/src/semantic_freeze.rs"
+      ],
+      "sha256": "9f90d0025a03e87ff91df60c11e677a94fc602fbc9064c7900e71fadc1814f79"
+    }
+  ]
+}

@@ -4,6 +4,8 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
+repository.workspace = true
+homepage.workspace = true
 description = "Validated semantic types for Auths proof exchange"
 
 [features]
@@ -12,4 +14,3 @@ std = []
 
 [lints]
 workspace = true
-

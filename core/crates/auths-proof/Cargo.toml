@@ -27,7 +27,7 @@ auths-verifier.workspace = true
 auths-ports = { workspace = true, features = ["std"] }
 auths-raw-key = { workspace = true, features = ["std"] }
 auths-signature = { workspace = true, features = ["std"] }
-auths-testkit.workspace = true
+auths-testkit = { path = "../../testkit/auths-testkit" }
 
 [lints]
 workspace = true

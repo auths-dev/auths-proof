@@ -322,7 +322,7 @@ cargo xtask compliance
 cargo xtask wire
 ```
 
-Format changed Rust with `cargo fmt --all`. Before handoff, run:
+Format changed Rust with `cargo fmt --all`. The authoritative repository gate is:
 
 ```text
 cargo xtask ci
@@ -334,6 +334,20 @@ exchange and product conformance, fixtures, compatibility matrix, bindings,
 package smoke tests, release evidence, fuzz smoke tests, WASM, and compliance
 evidence.
 
+### GitHub-first verification policy
+
+Use GitHub CI as the single default verification run. Push the bounded change
+to its PR without first running local build, test, lint, formal, package, fuzz,
+or secret-scanning gates. Running the same expensive suite locally and then in
+GitHub duplicates work without removing the required hosted gate.
+
+If GitHub CI fails, inspect the hosted failure first. Reproduce only the
+specific failing check locally when that is useful for diagnosis, then push the
+fix and let GitHub CI verify it again. Run local checks before the first push
+only when the user explicitly requests them or when a repository-local result
+is required to construct the change. Never report an unrun local check as
+passing; cite the successful GitHub run as the merge evidence.
+
 CI separately enforces dependency policy and secret scanning. Release work must
 also pass `cargo xtask release-check`.
 
@@ -341,17 +355,17 @@ Do not claim completion because a narrow crate test passed when the change
 affects wire compatibility, another language, a layer boundary, or generated
 evidence. Report exactly which checks ran and any checks that could not run.
 
-### Mandatory pre-commit secret scan and correction
+### Secret scan and correction
 
-Before every commit, stage only the intended changes and scan that exact staged
-diff:
+GitHub CI's full-history Gitleaks job is the required merge gate. If that job
+fails, or if the user explicitly requests a local pre-commit scan, stage only
+the intended changes and scan that exact staged diff:
 
 ```text
 gitleaks git --pre-commit --staged --redact --no-banner
 ```
 
-Use gitleaks `v8.28.0`, matching `.github/workflows/ci.yml`. Do not create the
-commit until this scan passes.
+Use gitleaks `v8.28.0`, matching `.github/workflows/ci.yml`.
 
 If the staged scan reports a finding:
 
@@ -365,14 +379,14 @@ If the staged scan reports a finding:
    fingerprint-specific `.gitleaksignore` entry;
 5. never add a broad path, rule, regex, or file allowlist.
 
-After the local commits are complete, also run CI's full-history command:
+CI runs the full-history command:
 
 ```text
 gitleaks git --redact --no-banner
 ```
 
-This second scan verifies commit-specific fingerprints and full CI parity. It
-is not a substitute for correcting staged content before the commit.
+This scan verifies commit-specific fingerprints. A local staged scan, when one
+is run, is not a substitute for correcting staged content before the commit.
 
 ## Change discipline for agents
 

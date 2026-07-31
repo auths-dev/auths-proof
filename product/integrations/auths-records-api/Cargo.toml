@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
+publish = false
 description = "Transport-neutral, bounded Auths authorization for a typed records API"
 repository.workspace = true
 homepage.workspace = true
