@@ -550,9 +550,12 @@ dependencies = [
 name = "auths-kubernetes"
 version = "0.1.0"
 dependencies = [
+ "auths-bounded-policy",
+ "auths-lifecycle",
  "auths-model",
  "auths-profile-api",
  "auths-sdk",
+ "auths-stores",
  "hex",
  "serde",
  "serde_json",
@@ -570,6 +573,7 @@ dependencies = [
  "auths-author",
  "auths-codec",
  "auths-kubernetes",
+ "auths-lifecycle",
  "auths-model",
  "auths-ports",
  "auths-profile-api",
@@ -578,6 +582,7 @@ dependencies = [
  "auths-runtime",
  "auths-sdk",
  "auths-signature",
+ "auths-stores",
  "axum",
  "dotenvy",
  "ed25519-dalek 2.2.0",

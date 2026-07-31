@@ -9,14 +9,19 @@ use std::{
 };
 
 use auths_kubernetes::{
-    ClaimStore, DecisionClass, DecisionCode, ExecuteRolloutRequest, ImageDigestRef, KubernetesName,
-    KubernetesReceipt, KubernetesRolloutProfile, KubernetesVerifierConfiguration,
-    KubernetesWorkloadRolloutV1, PersistentClaimStore, PortError, ReceiptSink, RolloutService,
-    SdkProofVerifier, ServiceDependencies, SystemClock, WorkflowOutcome,
+    DecisionClass, DecisionCode, ExecuteRolloutRequest, ImageDigestRef, KubernetesLifecycleStore,
+    KubernetesName, KubernetesReceipt, KubernetesRolloutProfile, KubernetesVerifierConfiguration,
+    KubernetesWorkloadRolloutV1, PortError, ReceiptSink, RolloutService, SdkProofVerifier,
+    ServiceDependencies, SystemClock, WorkflowOutcome,
     canonical::{canonical_json, sha256},
     receipts::decision_receipt,
 };
+use auths_lifecycle::{
+    LifecycleRecordV1, LifecycleStore, StoreError, StoreTransactionV1, StoredTransitionV1,
+    WorkflowId,
+};
 use auths_profile_api::ActionProfile as _;
+use auths_stores::{LifecycleCapacityRuleV1, PersistentLifecycleStore};
 use axum::{
     Json, Router,
     extract::{Path as AxumPath, State},
@@ -95,12 +100,17 @@ impl AppConfig {
 
     #[cfg(test)]
     fn for_test(state_directory: PathBuf) -> Self {
+        Self::for_test_with_backend(state_directory, KubernetesBackend::fixture())
+    }
+
+    #[cfg(test)]
+    fn for_test_with_backend(state_directory: PathBuf, backend: KubernetesBackend) -> Self {
         Self {
             allowed_origin: HeaderValue::from_static("https://demo.example"),
             region: "test".into(),
             release: "test".into(),
             state_directory: state_directory.into(),
-            backend: KubernetesBackend::fixture(),
+            backend,
         }
     }
 }
@@ -115,7 +125,7 @@ fn required_env(name: &str) -> Result<String, StartupError> {
 #[derive(Clone)]
 struct AppState {
     config: AppConfig,
-    claim_store: Arc<dyn ClaimStore>,
+    lifecycle_store: Arc<dyn KubernetesLifecycleStore>,
     receipt_sink: Arc<dyn ReceiptSink>,
     sessions: Arc<Mutex<HashMap<String, Session>>>,
 }
@@ -147,20 +157,27 @@ struct ExecuteRequest {
 /// initialized.
 pub fn app(config: AppConfig) -> Result<Router, StartupError> {
     fs::create_dir_all(config.state_directory.as_ref()).map_err(|_| StartupError::State)?;
+    if config.state_directory.join("claims.json").exists() {
+        return Err(StartupError::ObsoleteState);
+    }
     let receipt_sink = Arc::new(
         JsonlReceiptSink::new(config.state_directory.join("receipts.jsonl"))
             .map_err(|_| StartupError::State)?,
     );
-    let claim_store = Arc::new(
-        PersistentClaimStore::open(config.state_directory.join("claims.json"))
+    let lifecycle_rule = config
+        .backend
+        .lifecycle_capacity_rule()
+        .map_err(|_| StartupError::Kubernetes)?;
+    let lifecycle_store = Arc::new(
+        DemoLifecycleStore::open(config.state_directory.join("lifecycle.bin"), lifecycle_rule)
             .map_err(|_| StartupError::State)?,
     );
-    Ok(app_with_dependencies(config, claim_store, receipt_sink))
+    Ok(app_with_dependencies(config, lifecycle_store, receipt_sink))
 }
 
 fn app_with_dependencies(
     config: AppConfig,
-    claim_store: Arc<dyn ClaimStore>,
+    lifecycle_store: Arc<dyn KubernetesLifecycleStore>,
     receipt_sink: Arc<dyn ReceiptSink>,
 ) -> Router {
     let cors = CorsLayer::new()
@@ -169,7 +186,7 @@ fn app_with_dependencies(
         .allow_headers([CONTENT_TYPE]);
     let state = AppState {
         config,
-        claim_store,
+        lifecycle_store,
         receipt_sink,
         sessions: Arc::new(Mutex::new(HashMap::new())),
     };
@@ -332,14 +349,14 @@ async fn execute(
         ExecutionMaterials::ProfileDenied { code, detail } => denied_result(&code, &detail),
         ExecutionMaterials::Service(materials) => {
             let backend = Arc::new(state.config.backend.clone());
-            let claim_store = Arc::clone(&state.claim_store);
+            let lifecycle_store = Arc::clone(&state.lifecycle_store);
             let receipt_sink = Arc::clone(&state.receipt_sink);
             tokio::task::spawn_blocking(move || {
                 let service = RolloutService::new(ServiceDependencies {
                     proof_verifier: materials.proof_verifier,
                     credential_provider: Arc::clone(&backend),
                     kubernetes_gateway: backend,
-                    claim_store,
+                    lifecycle_store,
                     receipt_sink,
                     clock: SystemClock,
                     executed_configuration: materials.executed_configuration,
@@ -721,6 +738,25 @@ fn workflow_result(outcome: WorkflowOutcome) -> Value {
             "kubernetes_called": false,
             "claim": record,
         }),
+        WorkflowOutcome::OutcomeUnknown { record } => json!({
+            "decision": {
+                "class": "indeterminate",
+                "code": "execution-outcome-unknown",
+                "stage": "reconciliation",
+                "detail": "Kubernetes may have received the exact request; fresh observation is required"
+            },
+            "entered_executor": true,
+            "credential_requested": true,
+            "kubernetes_called": true,
+            "claim": record,
+            "stages": [
+                {"name": "authorized", "status": "proven"},
+                {"name": "claimed", "status": "durable"},
+                {"name": "credential", "status": "requested-after-claim"},
+                {"name": "provider", "status": "outcome-unknown"},
+                {"name": "reconciliation", "status": "required"}
+            ],
+        }),
         WorkflowOutcome::Executed {
             decision,
             execution,
@@ -787,6 +823,36 @@ fn unix_time() -> Result<u64, std::time::SystemTimeError> {
         .map(|duration| duration.as_secs())
 }
 
+struct DemoLifecycleStore {
+    inner: PersistentLifecycleStore,
+}
+
+impl DemoLifecycleStore {
+    fn open(
+        path: PathBuf,
+        rule: LifecycleCapacityRuleV1,
+    ) -> Result<Self, auths_stores::LifecycleStoreConfigurationError> {
+        Ok(Self {
+            inner: PersistentLifecycleStore::open(path, vec![rule], 16_384)?,
+        })
+    }
+}
+
+impl LifecycleStore for DemoLifecycleStore {
+    fn transact(&self, transaction: &StoreTransactionV1) -> Result<StoredTransitionV1, StoreError> {
+        self.inner.transact(transaction)
+    }
+}
+
+impl KubernetesLifecycleStore for DemoLifecycleStore {
+    fn load_kubernetes_lifecycle(
+        &self,
+        workflow: &WorkflowId,
+    ) -> Result<Option<LifecycleRecordV1>, StoreError> {
+        self.inner.load(workflow)
+    }
+}
+
 struct JsonlReceiptSink {
     path: PathBuf,
     lock: StdMutex<()>,
@@ -827,6 +893,8 @@ pub enum StartupError {
     Kubernetes,
     #[error("durable Kubernetes demo state is unavailable")]
     State,
+    #[error("obsolete prelaunch claims.json state must be deleted before startup")]
+    ObsoleteState,
 }
 
 #[derive(Debug)]
@@ -960,5 +1028,124 @@ mod tests {
         .await;
         assert_eq!(receipt["session_id"], session);
         assert!(receipt["required_configuration"].is_object());
+    }
+
+    #[tokio::test]
+    async fn concurrent_duplicate_rollouts_call_kubernetes_exactly_once() {
+        let directory = TempDir::new().unwrap();
+        let path = directory.keep();
+        let backend = KubernetesBackend::fixture();
+        let app = app(AppConfig::for_test_with_backend(path, backend.clone())).unwrap();
+        let created = json_request(
+            &app,
+            Request::post("/api/v1/sessions")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+        let session = created["session_id"].as_str().unwrap();
+        let first = json_request(
+            &app,
+            Request::post(format!("/api/v1/sessions/{session}/execute"))
+                .header(CONTENT_TYPE, "application/json")
+                .body(Body::from(r#"{"variant":"exact"}"#))
+                .unwrap(),
+        );
+        let second = json_request(
+            &app,
+            Request::post(format!("/api/v1/sessions/{session}/execute"))
+                .header(CONTENT_TYPE, "application/json")
+                .body(Body::from(r#"{"variant":"exact"}"#))
+                .unwrap(),
+        );
+
+        let (first, second) = tokio::join!(first, second);
+        let results = [&first["result"], &second["result"]];
+        assert_eq!(
+            results
+                .iter()
+                .filter(|result| result["kubernetes_called"] == true)
+                .count(),
+            1
+        );
+        assert_eq!(
+            results
+                .iter()
+                .filter(|result| result["decision"]["code"] == "already-claimed")
+                .count(),
+            1
+        );
+        assert_eq!(backend.fixture_apply_calls(), 1);
+    }
+
+    #[tokio::test]
+    async fn ambiguous_apply_reconciles_without_a_second_provider_call() {
+        let directory = TempDir::new().unwrap();
+        let path = directory.keep();
+        let backend = KubernetesBackend::fixture_with_ambiguous_apply(true);
+        let app = app(AppConfig::for_test_with_backend(path, backend.clone())).unwrap();
+        let created = json_request(
+            &app,
+            Request::post("/api/v1/sessions")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+        let session = created["session_id"].as_str().unwrap();
+
+        let executed = json_request(
+            &app,
+            Request::post(format!("/api/v1/sessions/{session}/execute"))
+                .header(CONTENT_TYPE, "application/json")
+                .body(Body::from(r#"{"variant":"exact"}"#))
+                .unwrap(),
+        )
+        .await;
+
+        assert_eq!(executed["result"]["decision"]["code"], "authorized");
+        assert_eq!(executed["result"]["rollout_converged"], true);
+        assert_eq!(backend.fixture_apply_calls(), 1);
+    }
+
+    #[tokio::test]
+    async fn unresolved_ambiguous_apply_remains_outcome_unknown() {
+        let directory = TempDir::new().unwrap();
+        let path = directory.keep();
+        let backend = KubernetesBackend::fixture_with_ambiguous_apply(false);
+        let app = app(AppConfig::for_test_with_backend(path, backend.clone())).unwrap();
+        let created = json_request(
+            &app,
+            Request::post("/api/v1/sessions")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+        let session = created["session_id"].as_str().unwrap();
+
+        let unknown = json_request(
+            &app,
+            Request::post(format!("/api/v1/sessions/{session}/execute"))
+                .header(CONTENT_TYPE, "application/json")
+                .body(Body::from(r#"{"variant":"exact"}"#))
+                .unwrap(),
+        )
+        .await;
+
+        assert_eq!(
+            unknown["result"]["decision"]["code"],
+            "execution-outcome-unknown"
+        );
+        assert_eq!(unknown["result"]["claim"]["stage"], "outcome-unknown");
+        assert_eq!(backend.fixture_apply_calls(), 1);
+    }
+
+    #[test]
+    fn obsolete_prelaunch_claim_state_is_rejected_instead_of_migrated() {
+        let directory = TempDir::new().unwrap();
+        fs::write(directory.path().join("claims.json"), b"{}").unwrap();
+
+        let result = app(AppConfig::for_test(directory.path().to_path_buf()));
+
+        assert!(matches!(result, Err(StartupError::ObsoleteState)));
     }
 }

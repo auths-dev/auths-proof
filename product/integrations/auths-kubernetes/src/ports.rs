@@ -7,6 +7,7 @@
 
 use std::sync::Arc;
 
+use auths_lifecycle::ExecutionAuthorizationV1;
 use auths_model::CanonicalAction;
 use auths_sdk::{Authorized, RequestContext};
 
@@ -62,8 +63,9 @@ pub trait ProofVerifier: Send + Sync {
 
 /// Protected mutation-credential broker.
 pub trait CredentialProvider: Send + Sync {
-    fn mutation_credential(
+    fn credential_after_authorization(
         &self,
+        authorization: &ExecutionAuthorizationV1,
         action: &KubernetesWorkloadRolloutV1,
     ) -> Result<KubernetesCredential, PortError>;
 }
@@ -107,11 +109,12 @@ impl<T: ProofVerifier + ?Sized> ProofVerifier for Arc<T> {
     }
 }
 impl<T: CredentialProvider + ?Sized> CredentialProvider for Arc<T> {
-    fn mutation_credential(
+    fn credential_after_authorization(
         &self,
+        authorization: &ExecutionAuthorizationV1,
         action: &KubernetesWorkloadRolloutV1,
     ) -> Result<KubernetesCredential, PortError> {
-        (**self).mutation_credential(action)
+        (**self).credential_after_authorization(authorization, action)
     }
 }
 impl<T: KubernetesGateway + ?Sized> KubernetesGateway for Arc<T> {

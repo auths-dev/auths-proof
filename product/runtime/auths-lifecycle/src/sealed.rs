@@ -1,6 +1,6 @@
 //! Store acknowledgement and stage-sealed side-effect boundaries.
 
-use alloc::vec::Vec;
+use alloc::{sync::Arc, vec::Vec};
 
 use crate::{
     ExecutionId, ExecutionIntentDigest, LifecycleEventKind, LifecycleId, LifecycleRecordV1,
@@ -68,6 +68,12 @@ pub trait LifecycleStore {
     /// Returns [`StoreError`] when state is unavailable, conflicting,
     /// malformed, over limit, or cannot be durably acknowledged.
     fn transact(&self, transaction: &StoreTransactionV1) -> Result<StoredTransitionV1, StoreError>;
+}
+
+impl<T: LifecycleStore + ?Sized> LifecycleStore for Arc<T> {
+    fn transact(&self, transaction: &StoreTransactionV1) -> Result<StoredTransitionV1, StoreError> {
+        (**self).transact(transaction)
+    }
 }
 
 /// Validated durable transition returned by the shared boundary.

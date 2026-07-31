@@ -692,9 +692,9 @@ security_state = ["deployment-rollout-claim", "kubernetes-mutation-credential", 
 
 [packages.auths-kubernetes.claims]
 core-api-consumer = ["product/integrations/auths-kubernetes/src/profile.rs#profile_binds_exact_deployment_uid_and_one_effect_budget"]
-profile-contract = ["product/integrations/auths-kubernetes/src/decision.rs#exact_rollout_is_authorized"]
-runtime-enforcement-boundary = ["product/integrations/auths-kubernetes/src/service.rs#configuration_mismatch_never_verifies_claims_or_reads_mutation_credential"]
-stateful-replay-budget-component = ["product/integrations/auths-kubernetes/src/claim.rs#concurrent_claims_have_exactly_one_winner"]
+profile-contract = ["product/integrations/auths-kubernetes/src/decision.rs#exact_rollout_is_authorized", "product/integrations/auths-kubernetes/src/lifecycle.rs#authorized_reference_decision_projects_exact_commitments", "product/integrations/auths-kubernetes/src/lifecycle.rs#denial_cannot_be_projected_as_eligible"]
+runtime-enforcement-boundary = ["product/integrations/auths-kubernetes/src/lifecycle.rs#decision_reserve_path_refines_reference_authorization", "product/integrations/auths-kubernetes/src/service.rs#configuration_mismatch_never_verifies_persists_or_reads_credential"]
+stateful-replay-budget-component = ["demos/kubernetes-rollout/src/app.rs#ambiguous_apply_reconciles_without_a_second_provider_call", "demos/kubernetes-rollout/src/app.rs#concurrent_duplicate_rollouts_call_kubernetes_exactly_once", "demos/kubernetes-rollout/src/app.rs#obsolete_prelaunch_claim_state_is_rejected_instead_of_migrated", "demos/kubernetes-rollout/src/app.rs#unresolved_ambiguous_apply_remains_outcome_unknown"]
 
 [packages.auths-kubernetes-demo]
 kind = "cargo"
@@ -714,7 +714,7 @@ security_state = ["deployment-rollout-claim", "expiring-session", "kubernetes-mu
 [packages.auths-kubernetes-demo.claims]
 demo-conformance-fixture = ["demos/kubernetes-rollout/src/fixture.rs#exact_rollout_is_authorized_by_real_auths_kernel"]
 runtime-enforcement-boundary = ["demos/kubernetes-rollout/src/app.rs#exact_denial_replay_and_receipts_cross_the_http_boundary"]
-stateful-replay-budget-component = ["demos/kubernetes-rollout/src/app.rs#exact_denial_replay_and_receipts_cross_the_http_boundary"]
+stateful-replay-budget-component = ["demos/kubernetes-rollout/src/app.rs#ambiguous_apply_reconciles_without_a_second_provider_call", "demos/kubernetes-rollout/src/app.rs#concurrent_duplicate_rollouts_call_kubernetes_exactly_once", "demos/kubernetes-rollout/src/app.rs#exact_denial_replay_and_receipts_cross_the_http_boundary", "demos/kubernetes-rollout/src/app.rs#unresolved_ambiguous_apply_remains_outcome_unknown"]
 
 [packages.auths-opentofu]
 kind = "cargo"
