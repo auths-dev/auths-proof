@@ -544,7 +544,150 @@ PostgreSQL, transaction, crash, reconciliation, or public browser gate.
 17. Redacted release evidence identifies and proves the exact public frontend, native release, database state transition, and source revision tested.
 18. Complete compliance claims and authoritative CI pass for that revision.
 
-## 21. Deferred work
+## 21. Milestone 5 shared-policy and lifecycle cutover
+
+The implemented profile keeps ownership of PostgreSQL identifiers, typed
+values, catalog evidence, the pure decision, compiled SQL, transaction and
+ledger behavior, credential scope, reconciliation, stable codes, and receipt
+payloads. Its production orchestration uses the shared bounded-policy and
+lifecycle contracts from specifications 0025 and 0026.
+
+This is a prelaunch source cutover to one production path. The former
+`claims.json` schema is obsolete and must be rejected. Local and CI
+environments start with empty shared lifecycle state. No legacy reader, state
+converter, dual write, compatibility switch, or runtime rollback path is
+permitted.
+
+### 21.1 Closed semantic identities
+
+The cutover fixes these identities:
+
+| Meaning | Identity |
+| --- | --- |
+| Profile | `auths.postgresql.bounded-update/1` |
+| Policy type | `auths.postgresql.bounded-update-policy/1` |
+| Evaluator | `auths.postgresql.bounded-update.evaluate/1` |
+| Evaluator implementation | `auths-postgresql/shared-lifecycle-production/1` |
+| Canonicalization | `rfc8785-sha256-v1` |
+| Configuration | `auths.postgresql.verifier-configuration/1` |
+| Evidence | `auths.postgresql.catalog-row-evidence/1` |
+| Evidence source | `postgresql-catalog-row-read/1` |
+| State snapshot | `auths.postgresql.transaction-state-snapshot/1` |
+| Reservation intent | `auths.postgresql.row-set-exclusive-intent/1` |
+| Reservation algebra | `auths.postgresql.relation-tenant-row-set-exclusive/1` |
+| Verified-command obligation | `auths.postgresql.verified-bounded-update-command/1` |
+| Provider contract | `auths.postgresql.serializable-ledger-update/1` |
+
+Changing any policy boundary, typed-action meaning, evidence freshness rule,
+reservation scope, transaction retry rule, ambiguous-commit interpretation,
+or receipt claim requires a new semantic identity.
+
+### 21.2 Pure projection and reservation scope
+
+An authorized PostgreSQL decision projects into the shared bounded-policy
+contract without erasing database meaning:
+
+- the policy commitment is the canonical required verifier-configuration
+  commitment;
+- the state snapshot commits the exact catalog and row evidence evaluated;
+- one exclusive reservation commits database audience, database name,
+  relation OID, tenant commitment, and canonical row-set digest;
+- the exact typed assignments, before and after commitments, compiled
+  statement-template digest, and transaction configuration remain bound by
+  the domain action and evidence commitments; and
+- one command-construction obligation binds the exact canonical action bytes.
+
+The shared exclusive reservation prevents a duplicate workflow from entering
+the same committed relation, tenant, and row-set scope concurrently. It does
+not pretend to implement relational predicate overlap. Partially overlapping
+row sets remain PostgreSQL domain semantics: serializable execution, row
+locks, exact before-state checks, and the protected ledger make one stale or
+roll back safely.
+
+The existing `evaluate` function remains the test-only semantic oracle.
+Frozen inputs must produce identical decision class, stable code, stage,
+action and evidence commitments, reservation scope, verified command, and
+domain receipt bytes through the production projection.
+
+### 21.3 Durable transaction execution
+
+The production order is:
+
+```text
+domain decision
+  -> Auths proof verification
+  -> durable decision record
+  -> atomic exclusive row-set reservation
+  -> durable exact execution intent
+  -> durable credential authorization
+  -> acquire least-privilege PostgreSQL credential
+  -> durable provider-attempt and call-entry records
+  -> run the exact serializable transaction and protected ledger write
+  -> commit, release, or retain outcome-unknown
+  -> reconcile from the protected ledger using a fresh connection
+```
+
+The provider retry class is `observe-before-retry`. A definite failure before
+possible commit releases the shared reservation. A disconnect after possible
+delivery transitions to `outcome_unknown`; the reservation remains held and
+the update is never blindly resubmitted. Fresh ledger reconciliation may
+conclude only exact committed effect, definite non-effect, or unresolved
+outcome.
+
+Credential acquisition requires the sealed authorization derived from the
+newly durable lifecycle transition. The transaction gateway requires the
+sealed provider-call authorization derived after attempt and call-entry
+persistence. Neither authorization can be constructed from untrusted request
+data.
+
+PostgreSQL transaction rollback and the in-database execution ledger remain
+domain-authoritative safety mechanisms. The shared lifecycle neither replaces
+the ledger nor claims that an external database is atomic with the lifecycle
+store.
+
+### 21.4 Receipts, replay, and obsolete state
+
+The existing decision, claim, transaction, observation, denial, and replay
+receipt schemas remain the domain-authoritative public receipts. Shared
+lifecycle receipts add commitment and ordering evidence without changing the
+frozen domain receipt bytes.
+
+Exact replay projects the durable shared lifecycle record into the existing
+claim receipt. A lifecycle in `outcome_unknown` is not replay permission: it
+may only enter the domain reconciliation path for the original verified
+command and protected ledger identity.
+
+The canonical shared lifecycle record is the sole production workflow state.
+Startup fails closed for malformed, non-canonical, oversized, unsupported, or
+obsolete claim state. Deployment deletes disposable prelaunch `claims.json`
+state before starting the cut-over revision.
+
+### 21.5 Cutover acceptance
+
+The source cutover is complete only when:
+
+1. exact differential tests compare the reference evaluator with the
+   production projection;
+2. concurrent workflows for one relation, tenant, and row-set scope have
+   exactly one live shared reservation winner;
+3. configuration mismatch and denial occur before lifecycle persistence,
+   credential acquisition, transaction creation, or ledger access;
+4. credentials and transaction entry are possible only through their sealed
+   durable-stage authorizations;
+5. replay cannot create a second transaction or ledger effect;
+6. definite pre-commit failure releases the shared reservation while the
+   PostgreSQL transaction rolls back mutation and ledger state;
+7. ambiguous commit retains the reservation until fresh protected-ledger
+   reconciliation;
+8. committed and reconciled results bind exact cardinality and authorized
+   after-state commitments before the lifecycle commits;
+9. crash-persistent state reopens canonically and rejects the obsolete claim
+   schema;
+10. public domain receipt bytes remain unchanged for frozen scenarios;
+11. the demo and live tests use the shared production path; and
+12. the old production claim store and duplicate orchestration are removed.
+
+## 22. Deferred work
 
 - inserts and deletes;
 - cross-table transactions;
