@@ -175,8 +175,10 @@ pub(crate) fn benchmark(args: Vec<String>) -> Result<(), String> {
             println!("benchmark artifact verified: {}", result.display());
             Ok(())
         }
-        _ => {
-            Err("usage: cargo xtask bench <prepare|run|report|compare|verify-artifact>".to_owned())
-        }
+        "bounded" => run_bounded_benchmark(&profile),
+        _ => Err(
+            "usage: cargo xtask bench <prepare|run|report|compare|verify-artifact|bounded>"
+                .to_owned(),
+        ),
     }
 }
