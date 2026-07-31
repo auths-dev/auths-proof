@@ -1,7 +1,8 @@
 # AP-SPEC-032: Reproducible release candidate and exact assurance claim
 
-**Status:** Specified — execution requires approved owner decisions and
-separate Phase 7 and Phase 8 pull requests
+**Status:** Specified — owner-decision subgate approved; execution still
+requires the remaining Phase 7 entry evidence and separate Phase 7 and Phase 8
+pull requests
 
 **Governs:** Phase 7 and Phase 8 of the
 [Post-Milestone 6 Productization and Release Plan](../target-state/POST_MILESTONE_6_PRODUCTIZATION_AND_RELEASE_PLAN.md)
@@ -148,7 +149,7 @@ An unresolved recommendation in that register is not approval.
 | Inbound contribution policy | DCO or CLA selected with counsel | Public contributor recruitment |
 | Artifact catalogue | Source, publishable crates, maintained bindings, WASM/native artifacts, assurance bundle | Release workflow implementation |
 | Registry publication | Prepare all subjects; publish only to approved registries | Any external package publication |
-| Supply-chain target | SLSA Build L2 for the first RC | Provenance contract implementation |
+| Supply-chain target | SLSA 1.2 Build Level 3 for every first-RC subject; no Level 2 fallback | Provenance contract implementation |
 | SBOM baseline | SPDX JSON; CycloneDX MAY be retained as an additional format | Evidence-schema freeze |
 | Tag convention | One immutable semver-compatible RC form | Release-tooling implementation |
 | Release approvers | At least one named human approver distinct from the build identity | Protected release environment |
@@ -328,6 +329,34 @@ Any `provenance-only` subject requires a named limitation in the release notes
 and Phase 8 claim registry.
 
 ## 9. Phase 7: prepare and promote
+
+### 9.0 Separate build integrity from release authority
+
+The release program has two related but non-interchangeable trust paths:
+
+```text
+hardened hosted builder -- SLSA/Sigstore --> exact artifact digest
+
+repository owner -- bounded Auths action --> exact promotion authority
+```
+
+SLSA/Sigstore evidence identifies the builder, workflow, inputs, and exact
+artifact subjects. An Auths proof or receipt MAY additionally establish that a
+repository owner authorized one exact promotion action over a candidate
+commit, release-manifest digest, tag, destination registry set, and expiry.
+
+An Auths-native release authorization MUST NOT replace, relabel, or weaken the
+required SLSA 1.2 Build Level 3 provenance, Sigstore artifact attestation,
+SPDX SBOM, reproducibility comparison, or protected human approval. The Auths
+protocol and SDK remain independent of GitHub, OIDC, Sigstore, and hosted
+verification services.
+
+For the first RC, an Auths authorization checked by code built from the same
+candidate is defense-in-depth only and MUST NOT be its sole authority gate. A
+later RC MAY make the check mandatory when verification uses a previously
+reviewed, digest-pinned Auths verifier or another independently qualified
+non-circular bootstrap. Any Auths denial is terminal for the same inputs; an
+operator or agent MUST NOT turn retry into additional authority.
 
 ### 9.1 Preparation
 
