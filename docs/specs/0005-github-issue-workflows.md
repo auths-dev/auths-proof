@@ -1447,7 +1447,142 @@ The MVP is complete only when:
 - browser smoke tests;
 - production receipt and PR links.
 
-## 26. Deferred work
+## 26. Milestone 5 shared-lifecycle cutover contract
+
+The Milestone 5 source cutover replaces the production workflow-claim machine
+with the shared bounded-policy and durable-lifecycle kernels. It does not move
+GitHub repository identity, Git object semantics, candidate inspection,
+workflow composition, provider commands, credentials, observation,
+reconciliation, or public receipt meaning into shared code.
+
+The public `auths.github.issue-address/1` workflow remains a domain-owned
+composition of two separately authorized effects. Each effect has its own
+closed shared-contract identity:
+
+| Concept | Branch publication | Draft pull request |
+| --- | --- | --- |
+| shared profile | `auths.github.issue-address.branch-publish/1` | `auths.github.issue-address.pull-request-open-draft/1` |
+| policy type | `auths.github.issue-workflow-grant/1` | `auths.github.issue-workflow-grant/1` |
+| evaluator semantic | `auths.github.branch-publish.evaluate/1` | `auths.github.pull-request-open-draft.evaluate/1` |
+| state schema | `auths.github.branch-ref-snapshot/1` | `auths.github.pull-request-set-snapshot/1` |
+| reservation intent | `auths.github.branch-ref-exclusive-intent/1` | `auths.github.pull-request-head-exclusive-intent/1` |
+| reservation algebra | `auths.github.branch-ref-exclusive/1` | `auths.github.pull-request-head-exclusive/1` |
+| obligation schema | `auths.github.verified-branch-publish-command/1` | `auths.github.verified-draft-pull-request-command/1` |
+| provider contract | `auths.github.fixed-refspec-branch-publish/1` | `auths.github.rest-draft-pull-request-create/1` |
+
+The identities shared by both effects are:
+
+| Concept | Identifier |
+| --- | --- |
+| implementation | `auths-github/shared-lifecycle-production/1` |
+| configuration semantic | `auths.github.verifier-configuration/1` |
+| evidence schema | `auths.github.repository-evidence/1` |
+| evidence source | `github-read-api/1` |
+| domain | `github` |
+
+One authorized branch action projects to an exclusive reservation over the
+canonical tuple:
+
+```text
+(
+  executor audience,
+  repository node identity,
+  target ref,
+  expected target state = absent
+)
+```
+
+The scope intentionally excludes the candidate revision and candidate bundle.
+Two different candidate revisions proposed for the same repository ref must
+contend for the same reservation instead of both evaluating against the absent
+ref. The candidate revision, tree, bundle, change set, policy, configuration,
+and fresh evidence remain committed separately by the policy input and sealed
+provider command.
+
+One authorized draft-pull-request action projects to an exclusive reservation
+over the canonical tuple:
+
+```text
+(
+  executor audience,
+  repository node identity,
+  base ref,
+  head ref,
+  expected matching pull-request count = 0
+)
+```
+
+The scope intentionally excludes title and body. Different proposed PR
+metadata for the same repository/base/head tuple must contend for one creation
+effect. Exact title, body digest, issue, branch execution receipt, policy,
+configuration, and fresh evidence remain committed separately.
+
+Lifecycle and execution identities are derived with explicit operation
+separation. A branch record cannot authorize a pull-request call, and a
+pull-request record cannot authorize a Git push. Domain orchestration may begin
+the pull-request decision only after the exact branch lifecycle is durably
+committed and its unchanged execution-receipt digest is bound into the PR
+action. Each operation then follows:
+
+```text
+decision
+  -> reservation
+  -> execution intent
+  -> credential authorization
+  -> fresh critical GitHub read
+  -> provider call entry
+  -> committed | failed | outcome unknown
+  -> reconciliation observation
+  -> reconciled committed | reconciled not committed
+```
+
+The credential broker receives only durable execution authorization produced
+after decision, reservation, and execution-intent persistence. Git transport
+or the GitHub REST adapter receives only an operation-specific sealed command
+containing durable provider-call authorization. It never receives an unsealed
+action plus a boolean, generic claim, or operation dispatch payload.
+
+A definite error before provider-call entry releases the reservation and
+records failure. Any error after Git push or pull-request creation may have
+begun records `outcome_unknown` and retains the reservation. Reconciliation
+authority is derived only from that durable unknown record. Branch
+reconciliation may read the exact remote ref; PR reconciliation may query the
+exact repository/base/head identity. Neither reconciliation command can create
+or retry an effect. A conclusive absent observation releases the reservation;
+an exact observed postcondition commits it; ambiguous or conflicting
+observations remain non-terminal and operator-visible.
+
+The domain-owned workflow view continues to expose `Authorized`,
+`CandidateAccepted`, branch progression, pull-request progression, and terminal
+states by projecting the two shared lifecycle records plus candidate
+acceptance. Public decision and execution receipts remain GitHub-shaped
+projections and retain their unchanged versioned bytes. The prior prelaunch
+workflow-store JSON is obsolete and rejected at startup; this cutover adds no
+legacy reader, state migration, dual write, compatibility shim, or runtime
+rollback path.
+
+The cutover is accepted only when:
+
+1. all unchanged decisions, stable codes, exact commands, workflow stages, and
+   receipt bytes match the frozen reference fixtures;
+2. a changed workflow, operation, repository, ref, revision, candidate,
+   configuration, evidence, title, body, or branch receipt cannot resume
+   another execution;
+3. concurrent proposals for one branch-ref scope or one PR-head scope permit
+   at most one provider effect;
+4. configuration mismatch, containment denial, and stale evidence stop before
+   credential acquisition and provider invocation;
+5. the pull-request effect cannot begin before exact branch commitment;
+6. crash-before-effect, crash-after-possible-commit, restart, reconciliation,
+   replay, and corrupt or obsolete state tests pass for both operations;
+7. reconciliation never invokes Git push or PR creation;
+8. Git object validation, GitHub evidence, provider adapters, credentials,
+   workflow composition, and canonical public receipts remain in the GitHub
+   vertical; and
+9. the old production claim orchestration is removed after the shared path and
+   retained test-only oracle prove exact conformance.
+
+## 27. Deferred work
 
 After the MVP proves its claim, later versions may add:
 
