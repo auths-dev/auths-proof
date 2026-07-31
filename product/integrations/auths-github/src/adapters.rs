@@ -23,7 +23,7 @@ use serde_json::json;
 use crate::{
     candidate::{CandidateSubmission, GitCandidateInspector, QuarantinedCandidate},
     evidence::{IssueEvidence, PullRequestEvidence, RefEvidence, RepositoryEvidence},
-    executor::{VerifiedOpenDraftPullRequest, VerifiedPublishBranch},
+    executor::{VerifiedOpenDraftPullRequestCommand, VerifiedPublishBranchCommand},
     ports::{
         CandidateInspector, Clock, ClockError, CredentialError, CredentialProvider,
         GitHubReadError, GitHubReadPort, GitHubWriteError, GitHubWritePort, ReceiptError,
@@ -360,6 +360,7 @@ impl GitHubAppCredentialProvider {
 impl CredentialProvider for GitHubAppCredentialProvider {
     fn installation_credential(
         &self,
+        _authorization: &auths_lifecycle::ExecutionAuthorizationV1,
         repository: &RepositoryResource,
         operation: GitHubOperation,
     ) -> Result<ScopedCredential, CredentialError> {
@@ -567,7 +568,7 @@ impl GitHubReadPort for GitHubRestClient {
 impl GitHubWritePort for GitHubRestClient {
     fn publish_branch(
         &self,
-        command: &VerifiedPublishBranch,
+        command: &VerifiedPublishBranchCommand,
         candidate: &QuarantinedCandidate,
         credential: &ScopedCredential,
     ) -> Result<PublishedBranch, GitHubWriteError> {
@@ -649,7 +650,7 @@ impl GitHubWritePort for GitHubRestClient {
 
     fn open_draft_pull_request(
         &self,
-        command: &VerifiedOpenDraftPullRequest,
+        command: &VerifiedOpenDraftPullRequestCommand,
         credential: &ScopedCredential,
     ) -> Result<OpenedPullRequest, GitHubWriteError> {
         if command.repository() != &self.repository {

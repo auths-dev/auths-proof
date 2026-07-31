@@ -120,6 +120,8 @@ pub enum ObservedGitHubState {
 pub enum ExecutionResult {
     /// Exact postcondition observed.
     Succeeded,
+    /// Fresh reconciliation proved that the exact effect did not occur.
+    NotApplied,
     /// GitHub explicitly rejected the operation.
     GitHubRejected,
     /// Outcome cannot be proven and reconciliation is required.

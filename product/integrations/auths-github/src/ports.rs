@@ -7,12 +7,13 @@
 
 use std::{fmt, sync::Arc};
 
+use auths_lifecycle::ExecutionAuthorizationV1;
 use auths_sdk::Authorized;
 
 use crate::{
     candidate::{CandidateError, CandidateSubmission, QuarantinedCandidate},
     evidence::{IssueEvidence, PullRequestEvidence, RefEvidence, RepositoryEvidence},
-    executor::{VerifiedOpenDraftPullRequest, VerifiedPublishBranch},
+    executor::{VerifiedOpenDraftPullRequestCommand, VerifiedPublishBranchCommand},
     profile::GitHubCommand,
     receipts::{GitHubReceipt, OpenedPullRequest, PublishedBranch},
     types::{
@@ -60,14 +61,14 @@ pub trait GitHubWritePort: Send + Sync {
     /// Pushes the exact candidate SHA to the exact absent derived branch.
     fn publish_branch(
         &self,
-        command: &VerifiedPublishBranch,
+        command: &VerifiedPublishBranchCommand,
         candidate: &QuarantinedCandidate,
         credential: &ScopedCredential,
     ) -> Result<PublishedBranch, GitHubWriteError>;
     /// Opens the exact deterministic draft pull request.
     fn open_draft_pull_request(
         &self,
-        command: &VerifiedOpenDraftPullRequest,
+        command: &VerifiedOpenDraftPullRequestCommand,
         credential: &ScopedCredential,
     ) -> Result<OpenedPullRequest, GitHubWriteError>;
 }
@@ -77,6 +78,7 @@ pub trait CredentialProvider: Send + Sync {
     /// Mints one short-lived repository-scoped installation credential.
     fn installation_credential(
         &self,
+        authorization: &ExecutionAuthorizationV1,
         repository: &RepositoryResource,
         operation: GitHubOperation,
     ) -> Result<ScopedCredential, CredentialError>;
@@ -161,7 +163,7 @@ impl<T: GitHubReadPort + ?Sized> GitHubReadPort for Arc<T> {
 impl<T: GitHubWritePort + ?Sized> GitHubWritePort for Arc<T> {
     fn publish_branch(
         &self,
-        command: &VerifiedPublishBranch,
+        command: &VerifiedPublishBranchCommand,
         candidate: &QuarantinedCandidate,
         credential: &ScopedCredential,
     ) -> Result<PublishedBranch, GitHubWriteError> {
@@ -170,7 +172,7 @@ impl<T: GitHubWritePort + ?Sized> GitHubWritePort for Arc<T> {
 
     fn open_draft_pull_request(
         &self,
-        command: &VerifiedOpenDraftPullRequest,
+        command: &VerifiedOpenDraftPullRequestCommand,
         credential: &ScopedCredential,
     ) -> Result<OpenedPullRequest, GitHubWriteError> {
         (**self).open_draft_pull_request(command, credential)
@@ -180,10 +182,11 @@ impl<T: GitHubWritePort + ?Sized> GitHubWritePort for Arc<T> {
 impl<T: CredentialProvider + ?Sized> CredentialProvider for Arc<T> {
     fn installation_credential(
         &self,
+        authorization: &ExecutionAuthorizationV1,
         repository: &RepositoryResource,
         operation: GitHubOperation,
     ) -> Result<ScopedCredential, CredentialError> {
-        (**self).installation_credential(repository, operation)
+        (**self).installation_credential(authorization, repository, operation)
     }
 }
 

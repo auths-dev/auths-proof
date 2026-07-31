@@ -1,11 +1,26 @@
 //! End-to-end orchestration for one exact GitHub issue workflow.
 
+use auths_bounded_policy::{CommitmentDigest, EvidenceSourceId, VerifierTime};
+use auths_lifecycle::{
+    DomainReceiptDigest, DurableTransitionV1, EffectConclusion, ExecutionAuthorizationV1,
+    ExecutionIntentV1, LifecycleFailure, LifecycleRecordV1, LifecycleState, ObservationDigest,
+    ProviderConditionDigest, ProviderContractId, ProviderRequestDigest, ProviderResultDigest,
+    ProviderRetryClass, ReconciliationId, ReconciliationObservationV1, StoreError,
+    StoreTransactionV1, TransitionCommandV1, TransitionContextV1, TransitionDisposition,
+    WorkflowId as SharedWorkflowId, execute_store_transaction,
+};
+
 use crate::{
     candidate::{CandidateError, CandidateSubmission, QuarantinedCandidate},
     canonical::sha256,
     containment::{Decision, DecisionClass, DecisionCode, EvaluationContext, evaluate},
     evidence::GitHubEvidence,
     executor::{VerifiedOpenDraftPullRequest, VerifiedPublishBranch},
+    lifecycle::{
+        BRANCH_PROVIDER_CONTRACT_ID, EVIDENCE_SOURCE_ID, GitHubLifecycleDecisionBindings,
+        GitHubLifecycleProjectionInput, GitHubLifecycleRegistry, GitHubRecoveryRecordV1,
+        PULL_REQUEST_PROVIDER_CONTRACT_ID,
+    },
     ports::{
         CandidateInspector, Clock, CredentialProvider, ExactActionAuthorizer, GitHubReadError,
         GitHubReadPort, GitHubWriteError, GitHubWritePort, ReceiptSink,
@@ -18,7 +33,7 @@ use crate::{
         ExactGitHubAction, GitHubOperation, OpenDraftPullRequestAction, PublishBranchAction,
         VerifierConfiguration, WorkflowGrant,
     },
-    workflow::{ClaimRecord, ClaimResult, ExecutionClaim, WorkflowStage, WorkflowStore},
+    workflow::WorkflowStage,
 };
 
 /// Hostile candidate plus the fixed human workflow.
@@ -39,8 +54,8 @@ pub struct ServiceDependencies<I, G, A, W, C, R, S, T> {
     pub github_read: G,
     /// Executor-owned exact child-proof authorizer.
     pub action_authorizer: A,
-    /// Durable effect claims.
-    pub workflow_store: W,
+    /// Durable operation-specific shared lifecycle stores.
+    pub lifecycle_registry: W,
     /// GitHub App credential broker.
     pub credential_provider: C,
     /// Only GitHub mutation boundary.
@@ -67,7 +82,7 @@ where
     I: CandidateInspector,
     G: GitHubReadPort,
     A: ExactActionAuthorizer,
-    W: WorkflowStore,
+    W: GitHubLifecycleRegistry,
     C: CredentialProvider,
     R: GitHubWritePort,
     S: ReceiptSink,
@@ -142,39 +157,6 @@ where
             );
         }
 
-        let initial_state = self
-            .dependencies
-            .workflow_store
-            .initialize(request.workflow_grant.workflow_id())
-            .map_err(|_| ServiceError::WorkflowState)?;
-        if initial_state.stage == WorkflowStage::Completed {
-            let receipt_digest = initial_state
-                .pull_request_claim
-                .as_ref()
-                .and_then(|claim| claim.execution_receipt_digest.clone())
-                .ok_or(ServiceError::WorkflowState)?;
-            return Ok(WorkflowOutcome::Replay {
-                operation: GitHubOperation::OpenDraftPullRequest,
-                receipt_digest,
-            });
-        }
-        if matches!(
-            initial_state.stage,
-            WorkflowStage::BranchClaimed
-                | WorkflowStage::BranchReconciliationRequired
-                | WorkflowStage::PullRequestClaimed
-                | WorkflowStage::PullRequestReconciliationRequired
-        ) {
-            let operation = if matches!(
-                initial_state.stage,
-                WorkflowStage::BranchClaimed | WorkflowStage::BranchReconciliationRequired
-            ) {
-                GitHubOperation::PublishBranch
-            } else {
-                GitHubOperation::OpenDraftPullRequest
-            };
-            return Ok(WorkflowOutcome::ReconciliationRequired { operation });
-        }
         let candidate = match self.dependencies.candidate_inspector.inspect(
             &request.candidate,
             request.workflow_grant.candidate_policy(),
@@ -191,176 +173,252 @@ where
                 );
             }
         };
-        self.dependencies
-            .workflow_store
-            .accept_candidate(request.workflow_grant.workflow_id())
-            .map_err(|_| ServiceError::WorkflowState)?;
-
-        if initial_state.stage == WorkflowStage::BranchPublished {
-            let branch_claim = initial_state
-                .branch_claim
-                .as_ref()
-                .filter(|claim| claim.execution_receipt_digest.is_some())
-                .ok_or(ServiceError::WorkflowState)?;
-            let evidence =
-                self.acquire_evidence(&request.workflow_grant, candidate.evidence(), now)?;
-            if evidence.target.revision.as_ref() != Some(candidate.evidence().candidate_revision())
-            {
+        let branch_evidence =
+            self.acquire_evidence(&request.workflow_grant, candidate.evidence(), now)?;
+        let recovered_branch = match self.recover_branch(&request, &candidate, &branch_evidence)? {
+            BranchRecoveryResult::Absent => None,
+            BranchRecoveryResult::Completed(recovered) => Some((
+                recovered.branch,
+                recovered.execution_receipt_digest,
+                recovered.action_digest,
+                None,
+            )),
+            BranchRecoveryResult::ReconciliationRequired => {
                 return Ok(WorkflowOutcome::ReconciliationRequired {
                     operation: GitHubOperation::PublishBranch,
                 });
             }
-            let published_branch = PublishedBranch {
-                repository_id: request.workflow_grant.repository().repository_id(),
-                branch_ref: request
-                    .workflow_grant
-                    .target_ref()
-                    .map_err(|_| ServiceError::InvalidGrant)?,
-                head_revision: candidate.evidence().candidate_revision().clone(),
-            };
-            return self.continue_after_branch(
+        };
+        let (
+            published_branch,
+            branch_execution_receipt_digest,
+            branch_action_digest,
+            fresh_branch_receipts,
+        ) = if let Some(recovered) = recovered_branch {
+            recovered
+        } else {
+            let branch_action = derive_publish_branch_action(
+                &request.workflow_grant,
+                &request.required_configuration,
+                &branch_evidence,
+            )?;
+            let branch_result = self.authorize_action(
                 &request.workflow_grant,
                 &request.required_configuration,
                 &candidate,
-                published_branch,
-                branch_claim
-                    .execution_receipt_digest
-                    .clone()
-                    .ok_or(ServiceError::WorkflowState)?,
-                &branch_claim.action_digest,
-            );
-        }
-
-        let branch_evidence =
-            self.acquire_evidence(&request.workflow_grant, candidate.evidence(), now)?;
-        let branch_action = derive_publish_branch_action(
-            &request.workflow_grant,
-            &request.required_configuration,
-            &branch_evidence,
-        )?;
-        let branch_result = self.authorize_action(
-            &request.workflow_grant,
-            &request.required_configuration,
-            &candidate,
-            &branch_evidence,
-            ExactGitHubAction::PublishBranch(branch_action),
-            now,
-        )?;
-        let AuthorizedAction {
-            action: branch_action,
-            proof: branch_proof,
-            decision: branch_decision,
-            decision_digest: branch_decision_digest,
-        } = match branch_result {
-            AuthorizationResult::Authorized(authorized) => *authorized,
-            AuthorizationResult::Rejected(receipt) => {
-                return Ok(WorkflowOutcome::Rejected { receipt });
-            }
-        };
-        let branch_action_digest = branch_action
-            .digest()
-            .map_err(|_| ServiceError::Canonicalization)?;
-        let branch_claim = match self.dependencies.workflow_store.claim(
-            request.workflow_grant.workflow_id(),
-            &branch_action,
-            &branch_decision_digest,
-            now,
-        ) {
-            ClaimResult::Claimed(claim) => claim,
-            ClaimResult::Replay(receipt_digest) => {
-                return Ok(WorkflowOutcome::Replay {
-                    operation: GitHubOperation::PublishBranch,
-                    receipt_digest,
-                });
-            }
-            ClaimResult::ReconciliationRequired(_) => {
-                return Ok(WorkflowOutcome::ReconciliationRequired {
-                    operation: GitHubOperation::PublishBranch,
-                });
-            }
-            ClaimResult::BudgetExhausted(_) => {
-                return Ok(WorkflowOutcome::Rejected {
-                    receipt: Box::new(
-                        self.append_budget_denial(
-                            &request.workflow_grant,
-                            &request.required_configuration,
-                            Some(branch_action_digest),
-                            Some(
-                                branch_evidence
-                                    .digest()
-                                    .map_err(|_| ServiceError::Canonicalization)?,
-                            ),
-                            DecisionCode::BranchBudgetExhausted,
+                &branch_evidence,
+                ExactGitHubAction::PublishBranch(branch_action),
+                now,
+            )?;
+            let AuthorizedAction {
+                action: branch_action,
+                proof: branch_proof,
+                decision: branch_decision,
+                decision_digest: branch_decision_digest,
+            } = match branch_result {
+                AuthorizationResult::Authorized(authorized) => *authorized,
+                AuthorizationResult::Rejected(receipt) => {
+                    return Ok(WorkflowOutcome::Rejected { receipt });
+                }
+            };
+            let branch_action_digest = branch_action
+                .digest()
+                .map_err(|_| ServiceError::Canonicalization)?;
+            let branch_lifecycle_start = begin_lifecycle(
+                &self.dependencies.lifecycle_registry,
+                &request.workflow_grant,
+                &branch_action,
+                &branch_evidence,
+                &request.required_configuration,
+                &self.dependencies.executed_configuration,
+                &branch_decision,
+                &branch_proof,
+                &branch_decision_digest,
+                now,
+            )?;
+            match branch_lifecycle_start {
+                LifecycleStartResult::Started(start) => {
+                    let mut branch_lifecycle = *start;
+                    let branch_credential = self
+                        .dependencies
+                        .credential_provider
+                        .installation_credential(
+                            branch_lifecycle
+                                .execution_authorization
+                                .as_ref()
+                                .ok_or(ServiceError::ClaimState)?,
+                            request.workflow_grant.repository(),
+                            GitHubOperation::PublishBranch,
+                        )
+                        .map_err(|_| ServiceError::Credential)?;
+                    let branch_preparation = VerifiedPublishBranch::new(
+                        branch_proof.authorized,
+                        branch_lifecycle
+                            .execution_authorization
+                            .take()
+                            .ok_or(ServiceError::ClaimState)?,
+                    )
+                    .map_err(|_| ServiceError::SealedCommand)?;
+                    let fresh_branch_evidence =
+                        self.acquire_evidence(&request.workflow_grant, candidate.evidence(), now)?;
+                    if fresh_branch_evidence.target.revision.is_some()
+                        || fresh_branch_evidence
+                            .digest()
+                            .map_err(|_| ServiceError::Canonicalization)?
+                            != branch_evidence
+                                .digest()
+                                .map_err(|_| ServiceError::Canonicalization)?
+                    {
+                        release_lifecycle(
+                            &branch_lifecycle.store,
+                            &branch_lifecycle.workflow_id,
+                            branch_lifecycle.credential_stage.record().revision(),
+                            branch_lifecycle.context,
+                            &branch_action_digest,
                             now,
-                        )?,
-                    ),
-                });
+                        )?;
+                        return Ok(WorkflowOutcome::ReconciliationRequired {
+                            operation: GitHubOperation::PublishBranch,
+                        });
+                    }
+                    let branch_attempt = lifecycle_transition(
+                        &branch_lifecycle.store,
+                        &branch_lifecycle.workflow_id,
+                        branch_lifecycle.credential_stage.record().revision(),
+                        TransitionCommandV1::StartAttempt,
+                        branch_lifecycle.context.clone(),
+                    )?;
+                    let branch_call_entry = lifecycle_transition(
+                        &branch_lifecycle.store,
+                        &branch_lifecycle.workflow_id,
+                        branch_attempt.record().revision(),
+                        TransitionCommandV1::MarkProviderCallEntered,
+                        branch_lifecycle.context.clone(),
+                    )?;
+                    let branch_call_authorization =
+                        auths_lifecycle::ProviderCallAuthorizationV1::from_durable(
+                            &branch_call_entry,
+                        )
+                        .map_err(|_| ServiceError::ClaimState)?;
+                    let branch_command =
+                        branch_preparation.authorize_provider_call(branch_call_authorization);
+                    let published_branch = match self.dependencies.github_write.publish_branch(
+                        &branch_command,
+                        &candidate,
+                        &branch_credential,
+                    ) {
+                        Ok(branch) => branch,
+                        Err(error) => {
+                            return self.execution_failure(
+                                &request.workflow_grant,
+                                &branch_lifecycle,
+                                &branch_call_entry,
+                                GitHubOperation::PublishBranch,
+                                branch_decision_digest,
+                                &branch_action_digest,
+                                WorkflowStage::CandidateAccepted,
+                                error,
+                                now,
+                            );
+                        }
+                    };
+                    if published_branch.repository_id
+                        != request.workflow_grant.repository().repository_id()
+                        || published_branch.branch_ref != *branch_command.target_ref()
+                        || published_branch.head_revision != *branch_command.candidate_revision()
+                    {
+                        mark_unknown_lifecycle(
+                            &branch_lifecycle.store,
+                            &branch_lifecycle.workflow_id,
+                            branch_call_entry.record().revision(),
+                            branch_lifecycle.context,
+                            &branch_action_digest,
+                            now,
+                        )?;
+                        return Ok(WorkflowOutcome::ReconciliationRequired {
+                            operation: GitHubOperation::PublishBranch,
+                        });
+                    }
+                    let branch_execution = GitHubExecutionReceipt {
+                        schema: self
+                            .dependencies
+                            .executed_configuration
+                            .receipt_schema()
+                            .into(),
+                        decision_receipt_digest: branch_decision_digest,
+                        action_digest: branch_action_digest.clone(),
+                        claim_id: branch_lifecycle.claim_id.clone(),
+                        expected_prior_state: WorkflowStage::CandidateAccepted,
+                        operation: GitHubOperation::PublishBranch,
+                        observed_state: Some(ObservedGitHubState::Branch(published_branch.clone())),
+                        repository_id: request.workflow_grant.repository().repository_id(),
+                        result: ExecutionResult::Succeeded,
+                        executed_at: now,
+                        reconciliation_history: Vec::new(),
+                    };
+                    let receipt_digest = self.append_execution(&branch_execution)?;
+                    commit_lifecycle(
+                        &branch_lifecycle.store,
+                        &branch_lifecycle.workflow_id,
+                        branch_call_entry.record().revision(),
+                        branch_lifecycle.context,
+                        &receipt_digest,
+                        &branch_action_digest,
+                    )?;
+                    (
+                        published_branch,
+                        receipt_digest,
+                        branch_action_digest,
+                        Some((branch_decision, branch_execution)),
+                    )
+                }
+                LifecycleStartResult::Replay(receipt_digest) => {
+                    if branch_evidence.target.revision.as_ref()
+                        != Some(candidate.evidence().candidate_revision())
+                    {
+                        return Ok(WorkflowOutcome::ReconciliationRequired {
+                            operation: GitHubOperation::PublishBranch,
+                        });
+                    }
+                    (
+                        PublishedBranch {
+                            repository_id: request.workflow_grant.repository().repository_id(),
+                            branch_ref: request
+                                .workflow_grant
+                                .target_ref()
+                                .map_err(|_| ServiceError::InvalidGrant)?,
+                            head_revision: candidate.evidence().candidate_revision().clone(),
+                        },
+                        receipt_digest,
+                        branch_action_digest,
+                        None,
+                    )
+                }
+                LifecycleStartResult::ReconciliationRequired => {
+                    return Ok(WorkflowOutcome::ReconciliationRequired {
+                        operation: GitHubOperation::PublishBranch,
+                    });
+                }
+                LifecycleStartResult::Conflict => {
+                    return Ok(WorkflowOutcome::Rejected {
+                        receipt: Box::new(
+                            self.append_budget_denial(
+                                &request.workflow_grant,
+                                &request.required_configuration,
+                                Some(branch_action_digest),
+                                Some(
+                                    branch_evidence
+                                        .digest()
+                                        .map_err(|_| ServiceError::Canonicalization)?,
+                                ),
+                                DecisionCode::BranchBudgetExhausted,
+                                now,
+                            )?,
+                        ),
+                    });
+                }
             }
-            ClaimResult::Unavailable => return Err(ServiceError::WorkflowState),
         };
-        let branch_command =
-            VerifiedPublishBranch::new(branch_proof.authorized, branch_claim.clone())
-                .map_err(|_| ServiceError::SealedCommand)?;
-        let branch_credential = self
-            .dependencies
-            .credential_provider
-            .installation_credential(
-                request.workflow_grant.repository(),
-                GitHubOperation::PublishBranch,
-            )
-            .map_err(|_| ServiceError::Credential)?;
-        let published_branch = match self.dependencies.github_write.publish_branch(
-            &branch_command,
-            &candidate,
-            &branch_credential,
-        ) {
-            Ok(branch) => branch,
-            Err(error) => {
-                return self.execution_failure(
-                    &request.workflow_grant,
-                    &branch_claim,
-                    branch_decision_digest,
-                    branch_action_digest,
-                    WorkflowStage::CandidateAccepted,
-                    error,
-                    now,
-                );
-            }
-        };
-        if published_branch.repository_id != request.workflow_grant.repository().repository_id()
-            || published_branch.branch_ref != *branch_command.target_ref()
-            || published_branch.head_revision != *branch_command.candidate_revision()
-        {
-            self.dependencies
-                .workflow_store
-                .require_reconciliation(&branch_claim, now)
-                .map_err(|_| ServiceError::WorkflowState)?;
-            return Ok(WorkflowOutcome::ReconciliationRequired {
-                operation: GitHubOperation::PublishBranch,
-            });
-        }
-        let branch_execution = GitHubExecutionReceipt {
-            schema: self
-                .dependencies
-                .executed_configuration
-                .receipt_schema()
-                .into(),
-            decision_receipt_digest: branch_decision_digest,
-            action_digest: branch_action_digest,
-            claim_id: branch_claim.claim_id().clone(),
-            expected_prior_state: WorkflowStage::CandidateAccepted,
-            operation: GitHubOperation::PublishBranch,
-            observed_state: Some(ObservedGitHubState::Branch(published_branch.clone())),
-            repository_id: request.workflow_grant.repository().repository_id(),
-            result: ExecutionResult::Succeeded,
-            executed_at: now,
-            reconciliation_history: Vec::new(),
-        };
-        let branch_execution_digest = self.append_execution(&branch_execution)?;
-        self.dependencies
-            .workflow_store
-            .complete(&branch_claim, &branch_execution_digest, now)
-            .map_err(|_| ServiceError::WorkflowState)?;
 
         let pr_now = self
             .dependencies
@@ -372,14 +430,34 @@ where
         let exact_body = deterministic_pull_request_body(
             &request.workflow_grant,
             candidate.evidence().candidate_revision(),
-            &branch_execution.action_digest,
+            &branch_action_digest,
             &self.dependencies.receipt_view_base_url,
         );
+        match self.recover_pull_request(
+            &request,
+            &candidate,
+            &pull_request_evidence,
+            &branch_execution_receipt_digest,
+            &exact_body,
+        )? {
+            PullRequestRecoveryResult::Absent => {}
+            PullRequestRecoveryResult::Replay(receipt_digest) => {
+                return Ok(WorkflowOutcome::Replay {
+                    operation: GitHubOperation::OpenDraftPullRequest,
+                    receipt_digest,
+                });
+            }
+            PullRequestRecoveryResult::ReconciliationRequired => {
+                return Ok(WorkflowOutcome::ReconciliationRequired {
+                    operation: GitHubOperation::OpenDraftPullRequest,
+                });
+            }
+        }
         let pull_request_action = derive_open_pull_request_action(
             &request.workflow_grant,
             &request.required_configuration,
             &pull_request_evidence,
-            &branch_execution_digest,
+            &branch_execution_receipt_digest,
             &exact_body,
         )?;
         let pull_request_result = self.authorize_action(
@@ -398,36 +476,49 @@ where
         } = match pull_request_result {
             AuthorizationResult::Authorized(authorized) => *authorized,
             AuthorizationResult::Rejected(receipt) => {
-                return Ok(WorkflowOutcome::Partial {
-                    branch: published_branch,
-                    branch_decision: Box::new(branch_decision),
-                    branch_execution: Box::new(branch_execution),
-                    pull_request_decision: Some(receipt),
+                return Ok(match fresh_branch_receipts {
+                    Some((branch_decision, branch_execution)) => WorkflowOutcome::Partial {
+                        branch: published_branch,
+                        branch_decision: Box::new(branch_decision),
+                        branch_execution: Box::new(branch_execution),
+                        pull_request_decision: Some(receipt),
+                    },
+                    None => WorkflowOutcome::ResumedPartial {
+                        branch: published_branch,
+                        branch_execution_receipt_digest,
+                        pull_request_decision: receipt,
+                    },
                 });
             }
         };
         let pull_request_action_digest = pull_request_action
             .digest()
             .map_err(|_| ServiceError::Canonicalization)?;
-        let pull_request_claim = match self.dependencies.workflow_store.claim(
-            request.workflow_grant.workflow_id(),
+        let mut pull_request_lifecycle = match begin_lifecycle(
+            &self.dependencies.lifecycle_registry,
+            &request.workflow_grant,
             &pull_request_action,
+            &pull_request_evidence,
+            &request.required_configuration,
+            &self.dependencies.executed_configuration,
+            &pull_request_decision,
+            &pull_request_proof,
             &pull_request_decision_digest,
             pr_now,
-        ) {
-            ClaimResult::Claimed(claim) => claim,
-            ClaimResult::Replay(receipt_digest) => {
+        )? {
+            LifecycleStartResult::Started(start) => *start,
+            LifecycleStartResult::Replay(receipt_digest) => {
                 return Ok(WorkflowOutcome::Replay {
                     operation: GitHubOperation::OpenDraftPullRequest,
                     receipt_digest,
                 });
             }
-            ClaimResult::ReconciliationRequired(_) => {
+            LifecycleStartResult::ReconciliationRequired => {
                 return Ok(WorkflowOutcome::ReconciliationRequired {
                     operation: GitHubOperation::OpenDraftPullRequest,
                 });
             }
-            ClaimResult::BudgetExhausted(_) => {
+            LifecycleStartResult::Conflict => {
                 let receipt = self.append_budget_denial(
                     &request.workflow_grant,
                     &request.required_configuration,
@@ -440,29 +531,81 @@ where
                     DecisionCode::PullRequestBudgetExhausted,
                     pr_now,
                 )?;
-                return Ok(WorkflowOutcome::Partial {
-                    branch: published_branch,
-                    branch_decision: Box::new(branch_decision),
-                    branch_execution: Box::new(branch_execution),
-                    pull_request_decision: Some(Box::new(receipt)),
+                return Ok(match fresh_branch_receipts {
+                    Some((branch_decision, branch_execution)) => WorkflowOutcome::Partial {
+                        branch: published_branch,
+                        branch_decision: Box::new(branch_decision),
+                        branch_execution: Box::new(branch_execution),
+                        pull_request_decision: Some(Box::new(receipt)),
+                    },
+                    None => WorkflowOutcome::ResumedPartial {
+                        branch: published_branch,
+                        branch_execution_receipt_digest,
+                        pull_request_decision: Box::new(receipt),
+                    },
                 });
             }
-            ClaimResult::Unavailable => return Err(ServiceError::WorkflowState),
         };
-        let pull_request_command = VerifiedOpenDraftPullRequest::new(
-            pull_request_proof.authorized,
-            pull_request_claim.clone(),
-            exact_body,
-        )
-        .map_err(|_| ServiceError::SealedCommand)?;
         let pull_request_credential = self
             .dependencies
             .credential_provider
             .installation_credential(
+                pull_request_lifecycle
+                    .execution_authorization
+                    .as_ref()
+                    .ok_or(ServiceError::ClaimState)?,
                 request.workflow_grant.repository(),
                 GitHubOperation::OpenDraftPullRequest,
             )
             .map_err(|_| ServiceError::Credential)?;
+        let pull_request_preparation = VerifiedOpenDraftPullRequest::new(
+            pull_request_proof.authorized,
+            pull_request_lifecycle
+                .execution_authorization
+                .take()
+                .ok_or(ServiceError::ClaimState)?,
+            exact_body,
+        )
+        .map_err(|_| ServiceError::SealedCommand)?;
+        let fresh_pull_request_evidence =
+            self.acquire_evidence(&request.workflow_grant, candidate.evidence(), pr_now)?;
+        if fresh_pull_request_evidence.target.revision
+            != Some(candidate.evidence().candidate_revision().clone())
+            || !fresh_pull_request_evidence
+                .matching_pull_requests
+                .is_empty()
+        {
+            release_lifecycle(
+                &pull_request_lifecycle.store,
+                &pull_request_lifecycle.workflow_id,
+                pull_request_lifecycle.credential_stage.record().revision(),
+                pull_request_lifecycle.context,
+                &pull_request_action_digest,
+                pr_now,
+            )?;
+            return Ok(WorkflowOutcome::ReconciliationRequired {
+                operation: GitHubOperation::OpenDraftPullRequest,
+            });
+        }
+        let pull_request_attempt = lifecycle_transition(
+            &pull_request_lifecycle.store,
+            &pull_request_lifecycle.workflow_id,
+            pull_request_lifecycle.credential_stage.record().revision(),
+            TransitionCommandV1::StartAttempt,
+            pull_request_lifecycle.context.clone(),
+        )?;
+        let pull_request_call_entry = lifecycle_transition(
+            &pull_request_lifecycle.store,
+            &pull_request_lifecycle.workflow_id,
+            pull_request_attempt.record().revision(),
+            TransitionCommandV1::MarkProviderCallEntered,
+            pull_request_lifecycle.context.clone(),
+        )?;
+        let pull_request_call_authorization =
+            auths_lifecycle::ProviderCallAuthorizationV1::from_durable(&pull_request_call_entry)
+                .map_err(|_| ServiceError::ClaimState)?;
+        let pull_request_command =
+            pull_request_preparation.authorize_provider_call(pull_request_call_authorization);
         let opened_pull_request = match self
             .dependencies
             .github_write
@@ -472,9 +615,11 @@ where
             Err(error) => {
                 return self.execution_failure(
                     &request.workflow_grant,
-                    &pull_request_claim,
+                    &pull_request_lifecycle,
+                    &pull_request_call_entry,
+                    GitHubOperation::OpenDraftPullRequest,
                     pull_request_decision_digest,
-                    pull_request_action_digest,
+                    &pull_request_action_digest,
                     WorkflowStage::BranchPublished,
                     error,
                     pr_now,
@@ -490,10 +635,14 @@ where
                     .map_err(|_| ServiceError::InvalidGrant)?
             || opened_pull_request.head_revision != *candidate.evidence().candidate_revision()
         {
-            self.dependencies
-                .workflow_store
-                .require_reconciliation(&pull_request_claim, pr_now)
-                .map_err(|_| ServiceError::WorkflowState)?;
+            mark_unknown_lifecycle(
+                &pull_request_lifecycle.store,
+                &pull_request_lifecycle.workflow_id,
+                pull_request_call_entry.record().revision(),
+                pull_request_lifecycle.context,
+                &pull_request_action_digest,
+                pr_now,
+            )?;
             return Ok(WorkflowOutcome::ReconciliationRequired {
                 operation: GitHubOperation::OpenDraftPullRequest,
             });
@@ -505,8 +654,8 @@ where
                 .receipt_schema()
                 .into(),
             decision_receipt_digest: pull_request_decision_digest,
-            action_digest: pull_request_action_digest,
-            claim_id: pull_request_claim.claim_id().clone(),
+            action_digest: pull_request_action_digest.clone(),
+            claim_id: pull_request_lifecycle.claim_id.clone(),
             expected_prior_state: WorkflowStage::BranchPublished,
             operation: GitHubOperation::OpenDraftPullRequest,
             observed_state: Some(ObservedGitHubState::PullRequest(
@@ -518,18 +667,167 @@ where
             reconciliation_history: Vec::new(),
         };
         let pull_request_execution_digest = self.append_execution(&pull_request_execution)?;
-        self.dependencies
-            .workflow_store
-            .complete(&pull_request_claim, &pull_request_execution_digest, pr_now)
-            .map_err(|_| ServiceError::WorkflowState)?;
-        Ok(WorkflowOutcome::Completed {
-            branch: published_branch,
-            pull_request: opened_pull_request,
-            branch_decision: Box::new(branch_decision),
-            branch_execution: Box::new(branch_execution),
-            pull_request_decision: Box::new(pull_request_decision),
-            pull_request_execution: Box::new(pull_request_execution),
+        commit_lifecycle(
+            &pull_request_lifecycle.store,
+            &pull_request_lifecycle.workflow_id,
+            pull_request_call_entry.record().revision(),
+            pull_request_lifecycle.context,
+            &pull_request_execution_digest,
+            &pull_request_action_digest,
+        )?;
+        Ok(match fresh_branch_receipts {
+            Some((branch_decision, branch_execution)) => WorkflowOutcome::Completed {
+                branch: published_branch,
+                pull_request: opened_pull_request,
+                branch_decision: Box::new(branch_decision),
+                branch_execution: Box::new(branch_execution),
+                pull_request_decision: Box::new(pull_request_decision),
+                pull_request_execution: Box::new(pull_request_execution),
+            },
+            None => WorkflowOutcome::ResumedCompleted {
+                branch: published_branch,
+                pull_request: opened_pull_request,
+                branch_execution_receipt_digest,
+                pull_request_decision: Box::new(pull_request_decision),
+                pull_request_execution: Box::new(pull_request_execution),
+            },
         })
+    }
+
+    fn recover_branch(
+        &self,
+        request: &ExecuteWorkflowRequest,
+        candidate: &QuarantinedCandidate,
+        evidence: &GitHubEvidence,
+    ) -> Result<BranchRecoveryResult, ServiceError> {
+        let Some(recovery) = self.dependencies.lifecycle_registry.load_recovery(
+            request.workflow_grant.workflow_id(),
+            GitHubOperation::PublishBranch,
+        )?
+        else {
+            return Ok(BranchRecoveryResult::Absent);
+        };
+        recovery
+            .validate()
+            .map_err(|_| ServiceError::WorkflowState)?;
+        if !recovery_action_matches(
+            &recovery.exact_action,
+            &request.workflow_grant,
+            &request.required_configuration,
+            candidate,
+        )? {
+            return Err(ServiceError::WorkflowState);
+        }
+        let ExactGitHubAction::PublishBranch(action) = &recovery.exact_action else {
+            return Err(ServiceError::WorkflowState);
+        };
+        let store = self
+            .dependencies
+            .lifecycle_registry
+            .for_action(&recovery.exact_action)?;
+        let workflow_id = SharedWorkflowId::parse(&recovery.shared_workflow_id)
+            .map_err(|_| ServiceError::WorkflowState)?;
+        let record = store
+            .load_github_lifecycle(&workflow_id)?
+            .ok_or(ServiceError::WorkflowState)?;
+        if !matches!(
+            record.state(),
+            LifecycleState::Committed | LifecycleState::ReconciledCommitted
+        ) {
+            return Ok(BranchRecoveryResult::ReconciliationRequired);
+        }
+        let action_digest = recovery
+            .exact_action
+            .digest()
+            .map_err(|_| ServiceError::Canonicalization)?;
+        if record.decision_input().commitments.exact_action_digest() != commitment(&action_digest)?
+            || evidence.target.revision.as_ref() != Some(&action.candidate_revision)
+        {
+            return Ok(BranchRecoveryResult::ReconciliationRequired);
+        }
+        Ok(BranchRecoveryResult::Completed(RecoveredBranch {
+            branch: PublishedBranch {
+                repository_id: action.repository.repository_id(),
+                branch_ref: action.target_ref.clone(),
+                head_revision: action.candidate_revision.clone(),
+            },
+            execution_receipt_digest: domain_receipt_digest(&record)?,
+            action_digest,
+        }))
+    }
+
+    fn recover_pull_request(
+        &self,
+        request: &ExecuteWorkflowRequest,
+        candidate: &QuarantinedCandidate,
+        evidence: &GitHubEvidence,
+        branch_execution_receipt_digest: &crate::types::DigestHex,
+        exact_body: &str,
+    ) -> Result<PullRequestRecoveryResult, ServiceError> {
+        let Some(recovery) = self.dependencies.lifecycle_registry.load_recovery(
+            request.workflow_grant.workflow_id(),
+            GitHubOperation::OpenDraftPullRequest,
+        )?
+        else {
+            return Ok(PullRequestRecoveryResult::Absent);
+        };
+        recovery
+            .validate()
+            .map_err(|_| ServiceError::WorkflowState)?;
+        if !recovery_action_matches(
+            &recovery.exact_action,
+            &request.workflow_grant,
+            &request.required_configuration,
+            candidate,
+        )? {
+            return Err(ServiceError::WorkflowState);
+        }
+        let ExactGitHubAction::OpenDraftPullRequest(action) = &recovery.exact_action else {
+            return Err(ServiceError::WorkflowState);
+        };
+        if action.branch_execution_receipt_digest != *branch_execution_receipt_digest
+            || action.exact_body_digest != sha256(exact_body.as_bytes())
+        {
+            return Err(ServiceError::WorkflowState);
+        }
+        let store = self
+            .dependencies
+            .lifecycle_registry
+            .for_action(&recovery.exact_action)?;
+        let workflow_id = SharedWorkflowId::parse(&recovery.shared_workflow_id)
+            .map_err(|_| ServiceError::WorkflowState)?;
+        let record = store
+            .load_github_lifecycle(&workflow_id)?
+            .ok_or(ServiceError::WorkflowState)?;
+        if !matches!(
+            record.state(),
+            LifecycleState::Committed | LifecycleState::ReconciledCommitted
+        ) {
+            return Ok(PullRequestRecoveryResult::ReconciliationRequired);
+        }
+        let action_digest = recovery
+            .exact_action
+            .digest()
+            .map_err(|_| ServiceError::Canonicalization)?;
+        if record.decision_input().commitments.exact_action_digest() != commitment(&action_digest)?
+        {
+            return Err(ServiceError::WorkflowState);
+        }
+        let mut exact = evidence
+            .matching_pull_requests
+            .iter()
+            .filter(|pull_request| {
+                pull_request.base_ref == action.base_ref
+                    && pull_request.head_ref == action.head_ref
+                    && pull_request.head_revision == action.head_revision
+                    && pull_request.draft == action.draft
+            });
+        if exact.next().is_none() || exact.next().is_some() {
+            return Ok(PullRequestRecoveryResult::ReconciliationRequired);
+        }
+        Ok(PullRequestRecoveryResult::Replay(domain_receipt_digest(
+            &record,
+        )?))
     }
 
     /// Reconciles an already claimed effect from fresh GitHub postconditions.
@@ -576,37 +874,6 @@ where
                 now,
             );
         }
-        let state = self
-            .dependencies
-            .workflow_store
-            .load(request.workflow_grant.workflow_id())
-            .map_err(|_| ServiceError::WorkflowState)?
-            .ok_or(ServiceError::WorkflowState)?;
-        let operation = match state.stage {
-            WorkflowStage::BranchClaimed | WorkflowStage::BranchReconciliationRequired => {
-                GitHubOperation::PublishBranch
-            }
-            WorkflowStage::PullRequestClaimed
-            | WorkflowStage::PullRequestReconciliationRequired => {
-                GitHubOperation::OpenDraftPullRequest
-            }
-            WorkflowStage::Completed => {
-                let receipt_digest = state
-                    .pull_request_claim
-                    .as_ref()
-                    .and_then(|claim| claim.execution_receipt_digest.clone())
-                    .ok_or(ServiceError::WorkflowState)?;
-                return Ok(WorkflowOutcome::Replay {
-                    operation: GitHubOperation::OpenDraftPullRequest,
-                    receipt_digest,
-                });
-            }
-            _ => return Err(ServiceError::WorkflowState),
-        };
-        let record = state
-            .claim(operation)
-            .cloned()
-            .ok_or(ServiceError::WorkflowState)?;
         let candidate = self
             .dependencies
             .candidate_inspector
@@ -616,8 +883,50 @@ where
                 request.workflow_grant.object_format(),
             )
             .map_err(ServiceError::Candidate)?;
+        let mut selected = None;
+        for operation in [
+            GitHubOperation::PublishBranch,
+            GitHubOperation::OpenDraftPullRequest,
+        ] {
+            let Some(recovery) = self
+                .dependencies
+                .lifecycle_registry
+                .load_recovery(request.workflow_grant.workflow_id(), operation)?
+            else {
+                continue;
+            };
+            recovery
+                .validate()
+                .map_err(|_| ServiceError::WorkflowState)?;
+            let store = self
+                .dependencies
+                .lifecycle_registry
+                .for_action(&recovery.exact_action)?;
+            let workflow_id = SharedWorkflowId::parse(&recovery.shared_workflow_id)
+                .map_err(|_| ServiceError::WorkflowState)?;
+            let record = store
+                .load_github_lifecycle(&workflow_id)?
+                .ok_or(ServiceError::WorkflowState)?;
+            if record.state() == LifecycleState::OutcomeUnknown {
+                selected = Some((recovery, store, record));
+                break;
+            }
+            if matches!(
+                record.state(),
+                LifecycleState::DecisionRecorded
+                    | LifecycleState::Reserved
+                    | LifecycleState::ExecutionIntentRecorded
+                    | LifecycleState::Executing
+            ) {
+                return Ok(WorkflowOutcome::ReconciliationRequired { operation });
+            }
+        }
+        let Some((recovery, store, record)) = selected else {
+            return Err(ServiceError::WorkflowState);
+        };
+        let operation = recovery.operation;
         if !recovery_action_matches(
-            &record,
+            &recovery.exact_action,
             &request.workflow_grant,
             &request.required_configuration,
             &candidate,
@@ -625,17 +934,20 @@ where
             return Err(ServiceError::WorkflowState);
         }
         let evidence = self.acquire_evidence(&request.workflow_grant, candidate.evidence(), now)?;
-        let observed_state = match &record.exact_action {
-            ExactGitHubAction::PublishBranch(action) => {
-                if evidence.target.revision.as_ref() != Some(&action.candidate_revision) {
+        let observed_state = match &recovery.exact_action {
+            ExactGitHubAction::PublishBranch(action) => match evidence.target.revision.as_ref() {
+                Some(revision) if revision == &action.candidate_revision => {
+                    Some(ObservedGitHubState::Branch(PublishedBranch {
+                        repository_id: action.repository.repository_id(),
+                        branch_ref: action.target_ref.clone(),
+                        head_revision: action.candidate_revision.clone(),
+                    }))
+                }
+                None => None,
+                Some(_) => {
                     return Ok(WorkflowOutcome::ReconciliationRequired { operation });
                 }
-                ObservedGitHubState::Branch(PublishedBranch {
-                    repository_id: action.repository.repository_id(),
-                    branch_ref: action.target_ref.clone(),
-                    head_revision: action.candidate_revision.clone(),
-                })
-            }
+            },
             ExactGitHubAction::OpenDraftPullRequest(action) => {
                 let mut exact = evidence
                     .matching_pull_requests
@@ -646,218 +958,69 @@ where
                             && pull_request.head_revision == action.head_revision
                             && pull_request.draft == action.draft
                     });
-                let Some(pull_request) = exact.next() else {
-                    return Ok(WorkflowOutcome::ReconciliationRequired { operation });
-                };
+                let pull_request = exact.next();
                 if exact.next().is_some() {
                     return Ok(WorkflowOutcome::ReconciliationRequired { operation });
                 }
-                ObservedGitHubState::PullRequest(pull_request.clone().into())
+                pull_request.map(|pull_request| {
+                    ObservedGitHubState::PullRequest(pull_request.clone().into())
+                })
             }
         };
-        let claim =
-            ExecutionClaim::from_record(request.workflow_grant.workflow_id().clone(), &record)
-                .map_err(|_| ServiceError::WorkflowState)?;
+        let result = if observed_state.is_some() {
+            ExecutionResult::Succeeded
+        } else {
+            ExecutionResult::NotApplied
+        };
         let execution = GitHubExecutionReceipt {
             schema: self
                 .dependencies
                 .executed_configuration
                 .receipt_schema()
                 .into(),
-            decision_receipt_digest: record.decision_receipt_digest,
-            action_digest: record.action_digest,
-            claim_id: record.claim_id,
+            decision_receipt_digest: recovery.decision_receipt_digest,
+            action_digest: recovery
+                .exact_action
+                .digest()
+                .map_err(|_| ServiceError::Canonicalization)?,
+            claim_id: recovery.claim_id,
             expected_prior_state: match operation {
                 GitHubOperation::PublishBranch => WorkflowStage::CandidateAccepted,
                 GitHubOperation::OpenDraftPullRequest => WorkflowStage::BranchPublished,
             },
             operation,
-            observed_state: Some(observed_state.clone()),
+            observed_state: observed_state.clone(),
             repository_id: request.workflow_grant.repository().repository_id(),
-            result: ExecutionResult::Succeeded,
+            result,
             executed_at: now,
             reconciliation_history: vec![ReconciliationEntry {
-                result: ExecutionResult::Succeeded,
+                result,
                 observed_at: now,
             }],
         };
         let receipt_digest = self.append_execution(&execution)?;
-        self.dependencies
-            .workflow_store
-            .complete(&claim, &receipt_digest, now)
-            .map_err(|_| ServiceError::WorkflowState)?;
-        Ok(WorkflowOutcome::Reconciled {
-            operation,
-            observed_state,
-            receipt: Box::new(execution),
-        })
-    }
-
-    #[allow(
-        clippy::too_many_arguments,
-        clippy::too_many_lines,
-        reason = "recovery continuation keeps the separately claimed PR effect ordering explicit"
-    )]
-    fn continue_after_branch(
-        &self,
-        grant: &WorkflowGrant,
-        required_configuration: &VerifierConfiguration,
-        candidate: &QuarantinedCandidate,
-        published_branch: PublishedBranch,
-        branch_execution_receipt_digest: crate::types::DigestHex,
-        branch_action_digest: &crate::types::DigestHex,
-    ) -> Result<WorkflowOutcome, ServiceError> {
-        let now = self
-            .dependencies
-            .clock
-            .now()
-            .map_err(|_| ServiceError::Clock)?;
-        let evidence = self.acquire_evidence(grant, candidate.evidence(), now)?;
-        let exact_body = deterministic_pull_request_body(
-            grant,
-            candidate.evidence().candidate_revision(),
-            branch_action_digest,
-            &self.dependencies.receipt_view_base_url,
-        );
-        let action = derive_open_pull_request_action(
-            grant,
-            required_configuration,
-            &evidence,
-            &branch_execution_receipt_digest,
-            &exact_body,
-        )?;
-        let result = self.authorize_action(
-            grant,
-            required_configuration,
-            candidate,
-            &evidence,
-            ExactGitHubAction::OpenDraftPullRequest(action),
+        reconcile_lifecycle(
+            &store,
+            &record,
+            context_from_record(&record, now)?,
+            &receipt_digest,
+            if observed_state.is_some() {
+                EffectConclusion::Effect
+            } else {
+                EffectConclusion::NonEffect
+            },
             now,
         )?;
-        let AuthorizedAction {
-            action,
-            proof,
-            decision,
-            decision_digest,
-        } = match result {
-            AuthorizationResult::Authorized(authorized) => *authorized,
-            AuthorizationResult::Rejected(receipt) => {
-                return Ok(WorkflowOutcome::ResumedPartial {
-                    branch: published_branch,
-                    branch_execution_receipt_digest,
-                    pull_request_decision: receipt,
-                });
-            }
-        };
-        let action_digest = action
-            .digest()
-            .map_err(|_| ServiceError::Canonicalization)?;
-        let claim = match self.dependencies.workflow_store.claim(
-            grant.workflow_id(),
-            &action,
-            &decision_digest,
-            now,
-        ) {
-            ClaimResult::Claimed(claim) => claim,
-            ClaimResult::Replay(receipt_digest) => {
-                return Ok(WorkflowOutcome::Replay {
-                    operation: GitHubOperation::OpenDraftPullRequest,
-                    receipt_digest,
-                });
-            }
-            ClaimResult::ReconciliationRequired(_) => {
-                return Ok(WorkflowOutcome::ReconciliationRequired {
-                    operation: GitHubOperation::OpenDraftPullRequest,
-                });
-            }
-            ClaimResult::BudgetExhausted(_) => {
-                let denial = self.append_budget_denial(
-                    grant,
-                    required_configuration,
-                    Some(action_digest),
-                    Some(
-                        evidence
-                            .digest()
-                            .map_err(|_| ServiceError::Canonicalization)?,
-                    ),
-                    DecisionCode::PullRequestBudgetExhausted,
-                    now,
-                )?;
-                return Ok(WorkflowOutcome::ResumedPartial {
-                    branch: published_branch,
-                    branch_execution_receipt_digest,
-                    pull_request_decision: Box::new(denial),
-                });
-            }
-            ClaimResult::Unavailable => return Err(ServiceError::WorkflowState),
-        };
-        let command =
-            VerifiedOpenDraftPullRequest::new(proof.authorized, claim.clone(), exact_body)
-                .map_err(|_| ServiceError::SealedCommand)?;
-        let credential = self
-            .dependencies
-            .credential_provider
-            .installation_credential(grant.repository(), GitHubOperation::OpenDraftPullRequest)
-            .map_err(|_| ServiceError::Credential)?;
-        let opened = match self
-            .dependencies
-            .github_write
-            .open_draft_pull_request(&command, &credential)
-        {
-            Ok(opened) => opened,
-            Err(error) => {
-                return self.execution_failure(
-                    grant,
-                    &claim,
-                    decision_digest,
-                    action_digest,
-                    WorkflowStage::BranchPublished,
-                    error,
-                    now,
-                );
-            }
-        };
-        if !opened.draft
-            || opened.base_ref != *grant.base_ref()
-            || opened.head_ref != grant.target_ref().map_err(|_| ServiceError::InvalidGrant)?
-            || opened.head_revision != *candidate.evidence().candidate_revision()
-        {
-            self.dependencies
-                .workflow_store
-                .require_reconciliation(&claim, now)
-                .map_err(|_| ServiceError::WorkflowState)?;
-            return Ok(WorkflowOutcome::ReconciliationRequired {
-                operation: GitHubOperation::OpenDraftPullRequest,
-            });
-        }
-        let execution = GitHubExecutionReceipt {
-            schema: self
-                .dependencies
-                .executed_configuration
-                .receipt_schema()
-                .into(),
-            decision_receipt_digest: decision_digest,
-            action_digest,
-            claim_id: claim.claim_id().clone(),
-            expected_prior_state: WorkflowStage::BranchPublished,
-            operation: GitHubOperation::OpenDraftPullRequest,
-            observed_state: Some(ObservedGitHubState::PullRequest(opened.clone())),
-            repository_id: grant.repository().repository_id(),
-            result: ExecutionResult::Succeeded,
-            executed_at: now,
-            reconciliation_history: Vec::new(),
-        };
-        let execution_digest = self.append_execution(&execution)?;
-        self.dependencies
-            .workflow_store
-            .complete(&claim, &execution_digest, now)
-            .map_err(|_| ServiceError::WorkflowState)?;
-        Ok(WorkflowOutcome::ResumedCompleted {
-            branch: published_branch,
-            pull_request: opened,
-            branch_execution_receipt_digest,
-            pull_request_decision: Box::new(decision),
-            pull_request_execution: Box::new(execution),
+        Ok(match observed_state {
+            Some(observed_state) => WorkflowOutcome::Reconciled {
+                operation,
+                observed_state,
+                receipt: Box::new(execution),
+            },
+            None => WorkflowOutcome::ReconciledNonEffect {
+                operation,
+                receipt: Box::new(execution),
+            },
         })
     }
 
@@ -1121,9 +1284,11 @@ where
     fn execution_failure(
         &self,
         grant: &WorkflowGrant,
-        claim: &crate::workflow::ExecutionClaim,
+        lifecycle: &LifecycleStart,
+        call_entry: &DurableTransitionV1,
+        operation: GitHubOperation,
         decision_digest: crate::types::DigestHex,
-        action_digest: crate::types::DigestHex,
+        action_digest: &crate::types::DigestHex,
         prior_state: WorkflowStage,
         error: GitHubWriteError,
         now: u64,
@@ -1141,23 +1306,30 @@ where
                 .receipt_schema()
                 .into(),
             decision_receipt_digest: decision_digest,
-            action_digest,
-            claim_id: claim.claim_id().clone(),
+            action_digest: action_digest.clone(),
+            claim_id: lifecycle.claim_id.clone(),
             expected_prior_state: prior_state,
-            operation: claim.operation(),
+            operation,
             observed_state: None,
             repository_id: grant.repository().repository_id(),
             result,
             executed_at: now,
             reconciliation_history: Vec::new(),
         };
-        self.append_execution(&execution)?;
-        self.dependencies
-            .workflow_store
-            .require_reconciliation(claim, now)
-            .map_err(|_| ServiceError::WorkflowState)?;
+        let failure_receipt_digest = self.append_execution(&execution)?;
+        lifecycle_transition(
+            &lifecycle.store,
+            &lifecycle.workflow_id,
+            call_entry.record().revision(),
+            TransitionCommandV1::MarkOutcomeUnknown {
+                domain_receipt_digest: DomainReceiptDigest::new(digest_bytes(
+                    &failure_receipt_digest,
+                )?),
+            },
+            lifecycle.context.clone(),
+        )?;
         Ok(WorkflowOutcome::ExecutionFailed {
-            operation: claim.operation(),
+            operation,
             receipt: Box::new(execution),
         })
     }
@@ -1173,6 +1345,422 @@ struct AuthorizedAction {
 enum AuthorizationResult {
     Authorized(Box<AuthorizedAction>),
     Rejected(Box<GitHubDecisionReceipt>),
+}
+
+struct LifecycleStart {
+    store: std::sync::Arc<dyn crate::lifecycle::GitHubLifecycleStore>,
+    workflow_id: SharedWorkflowId,
+    context: TransitionContextV1,
+    credential_stage: DurableTransitionV1,
+    execution_authorization: Option<ExecutionAuthorizationV1>,
+    claim_id: crate::types::DigestHex,
+}
+
+enum LifecycleStartResult {
+    Started(Box<LifecycleStart>),
+    Replay(crate::types::DigestHex),
+    ReconciliationRequired,
+    Conflict,
+}
+
+struct RecoveredBranch {
+    branch: PublishedBranch,
+    execution_receipt_digest: crate::types::DigestHex,
+    action_digest: crate::types::DigestHex,
+}
+
+enum BranchRecoveryResult {
+    Absent,
+    Completed(RecoveredBranch),
+    ReconciliationRequired,
+}
+
+enum PullRequestRecoveryResult {
+    Absent,
+    Replay(crate::types::DigestHex),
+    ReconciliationRequired,
+}
+
+#[allow(
+    clippy::too_many_arguments,
+    clippy::too_many_lines,
+    reason = "security-relevant lifecycle projection and staged persistence remain explicit and linear"
+)]
+fn begin_lifecycle(
+    registry: &impl GitHubLifecycleRegistry,
+    grant: &WorkflowGrant,
+    action: &ExactGitHubAction,
+    evidence: &GitHubEvidence,
+    required_configuration: &VerifierConfiguration,
+    executed_configuration: &VerifierConfiguration,
+    decision: &GitHubDecisionReceipt,
+    proof: &crate::ports::ProofAuthorization,
+    decision_digest: &crate::types::DigestHex,
+    now: u64,
+) -> Result<LifecycleStartResult, ServiceError> {
+    let projection = GitHubLifecycleProjectionInput {
+        grant,
+        action,
+        evidence,
+        required_configuration,
+        executed_configuration,
+        decision: &decision.product_decision,
+        verifier_time: now,
+    }
+    .project()
+    .map_err(|_| ServiceError::Projection)?;
+    let workflow_id = projection.workflow_id.clone();
+    let context = projection.transition_context(now);
+    let store = registry.for_action(action)?;
+    let action_digest = action
+        .digest()
+        .map_err(|_| ServiceError::Canonicalization)?;
+    let recovery = GitHubRecoveryRecordV1 {
+        schema: "auths.github.recovery-record/1".into(),
+        workflow_id: action.workflow_id().clone(),
+        operation: action.operation(),
+        shared_workflow_id: workflow_id.as_str().into(),
+        exact_action: action.clone(),
+        planning_evidence: evidence.clone(),
+        decision_receipt_digest: decision_digest.clone(),
+        claim_id: claim_id(action, &action_digest),
+    };
+    recovery.validate().map_err(|_| ServiceError::Projection)?;
+    if let Some(existing) = registry.load_recovery(action.workflow_id(), action.operation())? {
+        if existing != recovery {
+            return Ok(LifecycleStartResult::Conflict);
+        }
+    } else {
+        registry.persist_recovery(&recovery)?;
+    }
+    if let Some(existing) = store.load_github_lifecycle(&workflow_id)? {
+        if existing.decision_input().commitments.exact_action_digest()
+            != commitment(&action_digest)?
+        {
+            return Ok(LifecycleStartResult::Conflict);
+        }
+        return classify_existing_lifecycle(&existing);
+    }
+    let decision_input = projection
+        .into_decision_input(&GitHubLifecycleDecisionBindings {
+            core_authorization_digest: &core_authorization_digest(proof),
+            decision_receipt_digest: decision_digest,
+            implementation_build_digest: &implementation_build_digest(),
+            expires_at: match action {
+                ExactGitHubAction::PublishBranch(action) => action.expires_at,
+                ExactGitHubAction::OpenDraftPullRequest(action) => action.expires_at,
+            },
+        })
+        .map_err(|_| ServiceError::Projection)?;
+    let recorded = match execute_store_transaction(
+        &store,
+        &StoreTransactionV1 {
+            workflow_id: workflow_id.clone(),
+            expected_revision: None,
+            command: TransitionCommandV1::RecordDecision(Box::new(decision_input)),
+            context: context.clone(),
+        },
+    ) {
+        Ok(recorded) => recorded,
+        Err(StoreError::Conflict | StoreError::Rejected(LifecycleFailure::Conflict)) => {
+            return store.load_github_lifecycle(&workflow_id)?.as_ref().map_or(
+                Ok(LifecycleStartResult::Conflict),
+                classify_existing_lifecycle,
+            );
+        }
+        Err(error) => return Err(ServiceError::Lifecycle(error)),
+    };
+    if recorded.disposition() == TransitionDisposition::ExactReplay {
+        return classify_existing_lifecycle(recorded.record());
+    }
+    let reserved = match lifecycle_transition(
+        &store,
+        &workflow_id,
+        recorded.record().revision(),
+        TransitionCommandV1::Reserve,
+        context.clone(),
+    ) {
+        Ok(reserved) => reserved,
+        Err(ServiceError::Lifecycle(
+            StoreError::Conflict
+            | StoreError::Rejected(LifecycleFailure::Conflict | LifecycleFailure::CapacityExceeded),
+        )) => return Ok(LifecycleStartResult::Conflict),
+        Err(error) => return Err(error),
+    };
+    let provider_contract = match action.operation() {
+        GitHubOperation::PublishBranch => BRANCH_PROVIDER_CONTRACT_ID,
+        GitHubOperation::OpenDraftPullRequest => PULL_REQUEST_PROVIDER_CONTRACT_ID,
+    };
+    let evidence_digest = evidence
+        .digest()
+        .map_err(|_| ServiceError::Canonicalization)?;
+    let execution_intent = ExecutionIntentV1::new(
+        commitment(&action_digest)?,
+        ProviderRequestDigest::new(digest_bytes(&action_digest)?),
+        ProviderConditionDigest::new(digest_bytes(&evidence_digest)?),
+        ProviderContractId::parse(provider_contract).map_err(|_| ServiceError::Projection)?,
+        ProviderRetryClass::ObserveBeforeRetry,
+    );
+    let intent_recorded = lifecycle_transition(
+        &store,
+        &workflow_id,
+        reserved.record().revision(),
+        TransitionCommandV1::RecordExecutionIntent(execution_intent),
+        context.clone(),
+    )?;
+    let credential_stage = lifecycle_transition(
+        &store,
+        &workflow_id,
+        intent_recorded.record().revision(),
+        TransitionCommandV1::AuthorizeCredential,
+        context.clone(),
+    )?;
+    let execution_authorization = ExecutionAuthorizationV1::from_durable(&credential_stage)
+        .map_err(|_| ServiceError::ClaimState)?;
+    Ok(LifecycleStartResult::Started(Box::new(LifecycleStart {
+        store,
+        workflow_id,
+        context,
+        credential_stage,
+        execution_authorization: Some(execution_authorization),
+        claim_id: recovery.claim_id,
+    })))
+}
+
+fn classify_existing_lifecycle(
+    existing: &LifecycleRecordV1,
+) -> Result<LifecycleStartResult, ServiceError> {
+    match existing.state() {
+        LifecycleState::Committed | LifecycleState::ReconciledCommitted => Ok(
+            LifecycleStartResult::Replay(domain_receipt_digest(existing)?),
+        ),
+        LifecycleState::OutcomeUnknown
+        | LifecycleState::DecisionRecorded
+        | LifecycleState::Reserved
+        | LifecycleState::ExecutionIntentRecorded
+        | LifecycleState::Executing => Ok(LifecycleStartResult::ReconciliationRequired),
+        LifecycleState::Released | LifecycleState::ReconciledReleased => {
+            Ok(LifecycleStartResult::Conflict)
+        }
+    }
+}
+
+fn domain_receipt_digest(
+    record: &LifecycleRecordV1,
+) -> Result<crate::types::DigestHex, ServiceError> {
+    record
+        .receipts()
+        .iter()
+        .rev()
+        .find_map(|receipt| receipt.domain_receipt_digest)
+        .map(|digest| crate::types::DigestHex::from_digest_bytes(*digest.bytes()))
+        .ok_or(ServiceError::ClaimState)
+}
+
+fn lifecycle_transition(
+    store: &std::sync::Arc<dyn crate::lifecycle::GitHubLifecycleStore>,
+    workflow_id: &SharedWorkflowId,
+    revision: u64,
+    command: TransitionCommandV1,
+    context: TransitionContextV1,
+) -> Result<DurableTransitionV1, ServiceError> {
+    execute_store_transaction(
+        store,
+        &StoreTransactionV1 {
+            workflow_id: workflow_id.clone(),
+            expected_revision: Some(revision),
+            command,
+            context,
+        },
+    )
+    .map_err(ServiceError::Lifecycle)
+}
+
+fn release_lifecycle(
+    store: &std::sync::Arc<dyn crate::lifecycle::GitHubLifecycleStore>,
+    workflow_id: &SharedWorkflowId,
+    revision: u64,
+    context: TransitionContextV1,
+    action_digest: &crate::types::DigestHex,
+    now: u64,
+) -> Result<DurableTransitionV1, ServiceError> {
+    let event = lifecycle_event_digest(b"github-definite-non-effect", action_digest, now);
+    lifecycle_transition(
+        store,
+        workflow_id,
+        revision,
+        TransitionCommandV1::Release {
+            result_digest: ProviderResultDigest::new(digest_bytes(&event)?),
+            domain_receipt_digest: DomainReceiptDigest::new(digest_bytes(&event)?),
+            conclusion: EffectConclusion::NonEffect,
+        },
+        context,
+    )
+}
+
+fn mark_unknown_lifecycle(
+    store: &std::sync::Arc<dyn crate::lifecycle::GitHubLifecycleStore>,
+    workflow_id: &SharedWorkflowId,
+    revision: u64,
+    context: TransitionContextV1,
+    action_digest: &crate::types::DigestHex,
+    now: u64,
+) -> Result<DurableTransitionV1, ServiceError> {
+    let event = lifecycle_event_digest(b"github-provider-outcome-unknown", action_digest, now);
+    lifecycle_transition(
+        store,
+        workflow_id,
+        revision,
+        TransitionCommandV1::MarkOutcomeUnknown {
+            domain_receipt_digest: DomainReceiptDigest::new(digest_bytes(&event)?),
+        },
+        context,
+    )
+}
+
+fn commit_lifecycle(
+    store: &std::sync::Arc<dyn crate::lifecycle::GitHubLifecycleStore>,
+    workflow_id: &SharedWorkflowId,
+    revision: u64,
+    context: TransitionContextV1,
+    execution_receipt_digest: &crate::types::DigestHex,
+    result_digest: &crate::types::DigestHex,
+) -> Result<DurableTransitionV1, ServiceError> {
+    lifecycle_transition(
+        store,
+        workflow_id,
+        revision,
+        TransitionCommandV1::Commit {
+            result_digest: ProviderResultDigest::new(digest_bytes(result_digest)?),
+            domain_receipt_digest: DomainReceiptDigest::new(digest_bytes(
+                execution_receipt_digest,
+            )?),
+        },
+        context,
+    )
+}
+
+fn reconcile_lifecycle(
+    store: &std::sync::Arc<dyn crate::lifecycle::GitHubLifecycleStore>,
+    unknown: &LifecycleRecordV1,
+    context: TransitionContextV1,
+    domain_receipt_digest: &crate::types::DigestHex,
+    conclusion: EffectConclusion,
+    now: u64,
+) -> Result<DurableTransitionV1, ServiceError> {
+    let intent = unknown.execution_intent().ok_or(ServiceError::ClaimState)?;
+    let reconciliation_digest =
+        lifecycle_event_digest(b"github-reconciliation", domain_receipt_digest, now);
+    let observation = ReconciliationObservationV1::new(
+        ReconciliationId::parse(reconciliation_digest.as_str())
+            .map_err(|_| ServiceError::Projection)?,
+        EvidenceSourceId::parse(EVIDENCE_SOURCE_ID).map_err(|_| ServiceError::Projection)?,
+        VerifierTime::from_unix_seconds(now),
+        VerifierTime::from_unix_seconds(now.checked_add(30).ok_or(ServiceError::Canonicalization)?),
+        ObservationDigest::new(digest_bytes(domain_receipt_digest)?),
+        conclusion,
+        intent.provider_request_digest(),
+    );
+    lifecycle_transition(
+        store,
+        unknown.workflow_id(),
+        unknown.revision(),
+        TransitionCommandV1::Reconcile {
+            observation,
+            domain_receipt_digest: DomainReceiptDigest::new(digest_bytes(domain_receipt_digest)?),
+        },
+        context,
+    )
+}
+
+fn context_from_record(
+    record: &LifecycleRecordV1,
+    now: u64,
+) -> Result<TransitionContextV1, ServiceError> {
+    let capacity = auths_lifecycle::CapacitySnapshotV1::new(
+        record
+            .reservations()
+            .iter()
+            .map(|entry| auths_lifecycle::CapacityEntryV1::Exclusive {
+                scope_digest: entry.request().scope_digest(),
+                window_digest: entry.request().window_digest(),
+                live_owner: Some(entry.request().reservation_id().clone()),
+            })
+            .collect(),
+    )
+    .map_err(|_| ServiceError::Projection)?;
+    Ok(TransitionContextV1 {
+        verifier_time: VerifierTime::from_unix_seconds(now),
+        executed_configuration: record
+            .decision_input()
+            .commitments
+            .executed_configuration()
+            .clone(),
+        revocation: auths_lifecycle::RevocationSnapshotV1 {
+            revoked: false,
+            snapshot_digest: commitment(
+                &crate::canonical::canonical_digest(&(
+                    "auths.github.revocation-not-configured/1",
+                    record.workflow_id().as_str(),
+                ))
+                .map_err(|_| ServiceError::Canonicalization)?,
+            )?,
+        },
+        capacity,
+    })
+}
+
+fn lifecycle_event_digest(
+    domain: &[u8],
+    digest: &crate::types::DigestHex,
+    now: u64,
+) -> crate::types::DigestHex {
+    let mut bytes = Vec::with_capacity(domain.len() + 72);
+    bytes.extend_from_slice(domain);
+    bytes.extend_from_slice(digest.as_str().as_bytes());
+    bytes.extend_from_slice(&now.to_be_bytes());
+    sha256(&bytes)
+}
+
+fn core_authorization_digest(proof: &crate::ports::ProofAuthorization) -> crate::types::DigestHex {
+    let mut bytes = Vec::with_capacity(128);
+    bytes.extend_from_slice(proof.proof_digest.as_str().as_bytes());
+    bytes.extend_from_slice(proof.context_digest.as_str().as_bytes());
+    sha256(&bytes)
+}
+
+fn implementation_build_digest() -> crate::types::DigestHex {
+    sha256(
+        option_env!("AUTHS_BUILD_COMMIT")
+            .unwrap_or(env!("CARGO_PKG_VERSION"))
+            .as_bytes(),
+    )
+}
+
+fn claim_id(
+    action: &ExactGitHubAction,
+    action_digest: &crate::types::DigestHex,
+) -> crate::types::DigestHex {
+    sha256(
+        format!(
+            "auths-github-claim-v1\0{}\0{:?}\0{}",
+            action.workflow_id(),
+            action.operation(),
+            action_digest
+        )
+        .as_bytes(),
+    )
+}
+
+fn commitment(value: &crate::types::DigestHex) -> Result<CommitmentDigest, ServiceError> {
+    Ok(CommitmentDigest::new(digest_bytes(value)?))
+}
+
+fn digest_bytes(value: &crate::types::DigestHex) -> Result<[u8; 32], ServiceError> {
+    hex::decode(value.as_str())
+        .map_err(|_| ServiceError::Canonicalization)?
+        .try_into()
+        .map_err(|_| ServiceError::Canonicalization)
 }
 
 /// Derives the exact branch action from trusted candidate and fresh GitHub facts.
@@ -1292,18 +1880,13 @@ fn decision_from_candidate_error(error: CandidateError) -> Decision {
 }
 
 fn recovery_action_matches(
-    record: &ClaimRecord,
+    exact_action: &ExactGitHubAction,
     grant: &WorkflowGrant,
     required_configuration: &VerifierConfiguration,
     candidate: &QuarantinedCandidate,
 ) -> Result<bool, ServiceError> {
-    if record
-        .exact_action
-        .digest()
-        .map_err(|_| ServiceError::Canonicalization)?
-        != record.action_digest
-        || record.exact_action.workflow_id() != grant.workflow_id()
-        || record.exact_action.repository() != grant.repository()
+    if exact_action.workflow_id() != grant.workflow_id()
+        || exact_action.repository() != grant.repository()
     {
         return Ok(false);
     }
@@ -1313,7 +1896,7 @@ fn recovery_action_matches(
         .map_err(|_| ServiceError::Canonicalization)?;
     let target_ref = grant.target_ref().map_err(|_| ServiceError::InvalidGrant)?;
     let candidate = candidate.evidence();
-    Ok(match &record.exact_action {
+    Ok(match exact_action {
         ExactGitHubAction::PublishBranch(action) => {
             action.workflow_grant_digest == grant_digest
                 && action.repository == *grant.repository()
@@ -1412,6 +1995,14 @@ pub enum WorkflowOutcome {
         /// Recovery execution receipt.
         receipt: Box<GitHubExecutionReceipt>,
     },
+    /// Fresh provider evidence proved that a claimed effect did not occur and
+    /// the exclusive reservation was released.
+    ReconciledNonEffect {
+        /// Reconciled effect category.
+        operation: GitHubOperation,
+        /// Recovery execution receipt.
+        receipt: Box<GitHubExecutionReceipt>,
+    },
     /// Exact completed action returned its existing receipt.
     Replay {
         /// Effect category.
@@ -1460,6 +2051,15 @@ pub enum ServiceError {
     /// Durable workflow state unavailable.
     #[error("GitHub workflow state unavailable")]
     WorkflowState,
+    /// Shared lifecycle projection failed closed.
+    #[error("GitHub lifecycle projection failed")]
+    Projection,
+    /// Shared lifecycle state or stage is invalid.
+    #[error("GitHub lifecycle stage is not authorized")]
+    ClaimState,
+    /// Shared lifecycle persistence failed.
+    #[error("GitHub lifecycle store failed")]
+    Lifecycle(StoreError),
     /// Sealed Auths command invariant failed.
     #[error("verified GitHub command mismatch")]
     SealedCommand,
@@ -1469,4 +2069,10 @@ pub enum ServiceError {
     /// Signed receipt unavailable.
     #[error("GitHub receipt unavailable")]
     Receipt,
+}
+
+impl From<StoreError> for ServiceError {
+    fn from(error: StoreError) -> Self {
+        Self::Lifecycle(error)
+    }
 }

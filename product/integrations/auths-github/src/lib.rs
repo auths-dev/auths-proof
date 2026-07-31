@@ -12,6 +12,7 @@ pub mod canonical;
 pub mod containment;
 pub mod evidence;
 pub mod executor;
+pub mod lifecycle;
 pub mod policy;
 pub mod ports;
 pub mod profile;
@@ -30,7 +31,10 @@ pub use containment::{Decision, DecisionClass, DecisionCode, EvaluationContext, 
 pub use evidence::{
     GitHubEvidence, IssueEvidence, PullRequestEvidence, RefEvidence, RepositoryEvidence,
 };
-pub use executor::{VerifiedOpenDraftPullRequest, VerifiedPublishBranch};
+pub use executor::{
+    VerifiedOpenDraftPullRequest, VerifiedOpenDraftPullRequestCommand, VerifiedPublishBranch,
+    VerifiedPublishBranchCommand,
+};
 pub use profile::{GitHubCommand, GitHubIssueProfile};
 pub use receipts::{
     GitHubDecisionReceipt, GitHubExecutionReceipt, GitHubReceipt, OpenedPullRequest,

@@ -186,12 +186,15 @@ digraph auths_architecture {
   "auths-formal-refinement" -> "auths-authority" [label="normal"];
   "auths-formal-refinement" -> "auths-composition" [label="normal"];
   "auths-formal-refinement" -> "auths-model" [label="normal"];
+  "auths-github" -> "auths-bounded-policy" [label="normal"];
+  "auths-github" -> "auths-lifecycle" [label="normal"];
   "auths-github" -> "auths-model" [label="normal"];
   "auths-github" -> "auths-profile-api" [label="normal"];
   "auths-github" -> "auths-sdk" [label="normal"];
   "auths-github-demo" -> "auths-author" [label="normal"];
   "auths-github-demo" -> "auths-codec" [label="normal"];
   "auths-github-demo" -> "auths-github" [label="normal"];
+  "auths-github-demo" -> "auths-lifecycle" [label="normal"];
   "auths-github-demo" -> "auths-model" [label="normal"];
   "auths-github-demo" -> "auths-ports" [label="normal"];
   "auths-github-demo" -> "auths-profile-api" [label="normal"];
@@ -200,6 +203,7 @@ digraph auths_architecture {
   "auths-github-demo" -> "auths-runtime" [label="normal"];
   "auths-github-demo" -> "auths-sdk" [label="normal"];
   "auths-github-demo" -> "auths-signature" [label="normal"];
+  "auths-github-demo" -> "auths-stores" [label="normal"];
   "auths-hsm-attested" -> "auths-model" [label="normal"];
   "auths-hsm-attested" -> "auths-ports" [label="normal"];
   "auths-kubernetes" -> "auths-bounded-policy" [label="normal"];
