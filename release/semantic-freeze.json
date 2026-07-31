@@ -28,11 +28,11 @@
       "auths-proof",
       "auths-proof-exchange-model",
       "auths-proof-exchange-port",
-      "auths-sdk",
       "auths-raw-key",
       "auths-receipts",
       "auths-registries",
       "auths-runtime",
+      "auths-sdk",
       "auths-signature",
       "auths-verifier"
     ],
@@ -195,7 +195,7 @@
       "owners": [
         "formal/qualification/aeneas/source-closure.json"
       ],
-      "sha256": "90d29e1ad717faacf3a1108a0a682578be341692fd2ec8a472c136174179fa32"
+      "sha256": "e5cff50a89968d3bcb7d775b07286df04d5a6dc673357b1ea3c34d1f7ef8b7e9"
     },
     {
       "id": "auths.frozen-bytes/product/fixtures/v1/bounded-policy/manifest.json",
