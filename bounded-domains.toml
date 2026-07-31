@@ -245,8 +245,8 @@ policy_type = "auths_postgresql::PostgresUpdateIntentV1"
 evidence_type = "auths_postgresql::PostgresEvidenceV1"
 configuration_type = "auths_postgresql::PostgresVerifierConfigurationV1"
 decision_type = "auths_postgresql::Decision"
-reservation_type = "auths_postgresql::ClaimRecord+execution-ledger-row"
-verified_command = "auths_postgresql::VerifiedPostgresUpdate"
+reservation_type = "auths_lifecycle::LifecycleRecordV1+postgresql-execution-ledger-row"
+verified_command = "auths_postgresql::VerifiedBoundedUpdateCommand"
 provider_gateway = "auths_postgresql::TransactionGateway"
 credential_scope = "role/schema/table-scoped PostgreSQL credential"
 reconciliation = "auths_postgresql::TransactionGateway::reconcile"
@@ -266,7 +266,7 @@ scenarios = [
   "reconciliation",
 ]
 not_applicable = {}
-scenario_evidence = { authorized = ["product/integrations/auths-postgresql/src/decision.rs#exact_fixture_authorizes"], exact-boundary = ["product/integrations/auths-postgresql/src/test_support.rs#fixture_uses_serializable_and_exact_three_rows"], boundary-plus-one = ["product/integrations/auths-postgresql/src/decision.rs#maximum_rows_mismatch_denies_before_effects"], malformed-input = ["product/integrations/auths-postgresql/src/action.rs#duplicate_assignment_is_malformed_not_normalized"], stale-evidence = ["product/integrations/auths-postgresql/src/decision.rs#changed_before_value_denies"], configuration-mismatch = ["demos/postgresql-data-change/src/postgres.rs#configuration_mismatch_precedes_claim_credential_and_transaction"], concurrent-final-capacity = ["product/integrations/auths-postgresql/src/claim.rs#only_one_claim_wins"], replay = ["product/integrations/auths-postgresql/src/claim.rs#committed_claim_is_replay"], definite-pre-effect-failure = ["demos/postgresql-data-change/tests/live-database.mjs#live_privilege_rls_boundary_and_lock_contract"], outcome-unknown = ["product/integrations/auths-postgresql/src/claim.rs#outcome_unknown_resumes_with_the_original_claim_id"], reconciliation = ["demos/postgresql-data-change/tests/live-recovery.mjs#live_durable_rollback_restart_reconcile_contract"] }
+scenario_evidence = { authorized = ["product/integrations/auths-postgresql/src/decision.rs#exact_fixture_authorizes"], exact-boundary = ["product/integrations/auths-postgresql/src/test_support.rs#fixture_uses_serializable_and_exact_three_rows"], boundary-plus-one = ["product/integrations/auths-postgresql/src/decision.rs#maximum_rows_mismatch_denies_before_effects"], malformed-input = ["product/integrations/auths-postgresql/src/action.rs#duplicate_assignment_is_malformed_not_normalized"], stale-evidence = ["product/integrations/auths-postgresql/src/decision.rs#changed_before_value_denies"], configuration-mismatch = ["demos/postgresql-data-change/src/postgres.rs#configuration_mismatch_precedes_claim_credential_and_transaction"], concurrent-final-capacity = ["demos/postgresql-data-change/src/postgres.rs#concurrent_final_row_set_capacity_has_one_database_effect"], replay = ["demos/postgresql-data-change/src/postgres.rs#exact_transition_commits_once_and_replay_never_reissues"], definite-pre-effect-failure = ["demos/postgresql-data-change/tests/live-database.mjs#live_privilege_rls_boundary_and_lock_contract"], outcome-unknown = ["demos/postgresql-data-change/src/postgres.rs#unknown_commit_reconciles_after_restart_without_resubmission"], reconciliation = ["demos/postgresql-data-change/src/postgres.rs#unknown_commit_reconciles_after_restart_without_resubmission", "demos/postgresql-data-change/tests/live-recovery.mjs#live_durable_rollback_restart_reconcile_contract"] }
 
 [[domains]]
 id = "records-api"

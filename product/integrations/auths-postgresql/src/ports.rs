@@ -3,13 +3,20 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use auths_lifecycle::ExecutionAuthorizationV1;
 use auths_model::CanonicalAction;
 use auths_sdk::{Authorized, RequestContext};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    action::PostgresBoundedUpdateV1, executor::VerifiedBoundedUpdateCommand,
-    profile::PostgresUpdateCommand, receipts::PostgresReceipt, schema::DigestHex,
+    action::PostgresBoundedUpdateV1,
+    executor::{
+        PostgresReconciliationAuthorizationV1, VerifiedBoundedUpdateCommand,
+        VerifiedPostgresReconciliationCommand,
+    },
+    profile::PostgresUpdateCommand,
+    receipts::PostgresReceipt,
+    schema::DigestHex,
 };
 
 /// Secret connection material; it is never serializable or printable.
@@ -51,10 +58,19 @@ pub trait ProofVerifier: Send + Sync {
     ) -> Result<ProofDecision, PortError>;
 }
 
-/// Credential broker invoked only after successful verification and claim.
+/// Credential broker invoked only through durable stage-sealed authority.
 pub trait CredentialProvider: Send + Sync {
-    fn mutation_credential(
+    fn credential_after_authorization(
         &self,
+        authorization: &ExecutionAuthorizationV1,
+        action: &PostgresBoundedUpdateV1,
+    ) -> Result<PostgresCredential, PortError>;
+
+    /// Acquires the same least-privilege credential solely for protected
+    /// ledger reconciliation of an existing outcome-unknown execution.
+    fn reconciliation_credential(
+        &self,
+        authorization: &PostgresReconciliationAuthorizationV1,
         action: &PostgresBoundedUpdateV1,
     ) -> Result<PostgresCredential, PortError>;
 }
@@ -94,7 +110,7 @@ pub trait TransactionGateway: Send + Sync {
 
     async fn reconcile(
         &self,
-        command: &VerifiedBoundedUpdateCommand,
+        command: &VerifiedPostgresReconciliationCommand,
         credential: &PostgresCredential,
     ) -> Result<Reconciliation, PortError>;
 }
@@ -144,11 +160,20 @@ impl<T: ProofVerifier + ?Sized> ProofVerifier for Arc<T> {
 }
 
 impl<T: CredentialProvider + ?Sized> CredentialProvider for Arc<T> {
-    fn mutation_credential(
+    fn credential_after_authorization(
         &self,
+        authorization: &ExecutionAuthorizationV1,
         action: &PostgresBoundedUpdateV1,
     ) -> Result<PostgresCredential, PortError> {
-        (**self).mutation_credential(action)
+        (**self).credential_after_authorization(authorization, action)
+    }
+
+    fn reconciliation_credential(
+        &self,
+        authorization: &PostgresReconciliationAuthorizationV1,
+        action: &PostgresBoundedUpdateV1,
+    ) -> Result<PostgresCredential, PortError> {
+        (**self).reconciliation_credential(authorization, action)
     }
 }
 
@@ -165,7 +190,7 @@ impl<T: TransactionGateway + ?Sized> TransactionGateway for Arc<T> {
 
     async fn reconcile(
         &self,
-        command: &VerifiedBoundedUpdateCommand,
+        command: &VerifiedPostgresReconciliationCommand,
         credential: &PostgresCredential,
     ) -> Result<Reconciliation, PortError> {
         (**self).reconcile(command, credential).await
