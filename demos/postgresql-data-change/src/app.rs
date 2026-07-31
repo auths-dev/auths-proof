@@ -12,11 +12,10 @@ use std::{
 };
 
 use auths_postgresql::{
-    BoundedUpdateService, ClaimStore, ExecuteBoundedUpdateRequest, FixedClock, MemoryClaimStore,
-    MemoryReceiptSink, PersistentClaimStore, PortError, PostgresBoundedUpdateV1,
-    PostgresEvidenceV1, PostgresReceipt, PostgresVerifierConfigurationV1, ReceiptSink,
-    SdkProofVerifier, ServiceDependencies, WorkflowOutcome, canonical::canonical_json,
-    test_support::Fixture,
+    BoundedUpdateService, ExecuteBoundedUpdateRequest, FixedClock, MemoryReceiptSink, PortError,
+    PostgresBoundedUpdateV1, PostgresEvidenceV1, PostgresLifecycleStore, PostgresReceipt,
+    PostgresVerifierConfigurationV1, ReceiptSink, SdkProofVerifier, ServiceDependencies,
+    WorkflowOutcome, canonical::canonical_json, reservation_scope_digest, test_support::Fixture,
 };
 use axum::{
     Json, Router,
@@ -143,9 +142,72 @@ impl AppConfig {
 #[derive(Clone)]
 struct AppState {
     config: AppConfig,
-    claims: Arc<dyn ClaimStore>,
+    lifecycles: Arc<PostgresLifecycleRegistry>,
     durable_receipts: Arc<dyn ReceiptSink>,
     sessions: Arc<Mutex<HashMap<String, Session>>>,
+}
+
+struct DemoPostgresLifecycleStore {
+    inner: auths_stores::PersistentLifecycleStore,
+}
+
+impl auths_lifecycle::LifecycleStore for DemoPostgresLifecycleStore {
+    fn transact(
+        &self,
+        transaction: &auths_lifecycle::StoreTransactionV1,
+    ) -> Result<auths_lifecycle::StoredTransitionV1, auths_lifecycle::StoreError> {
+        self.inner.transact(transaction)
+    }
+}
+
+impl PostgresLifecycleStore for DemoPostgresLifecycleStore {
+    fn load_postgres_lifecycle(
+        &self,
+        workflow: &auths_lifecycle::WorkflowId,
+    ) -> Result<Option<auths_lifecycle::LifecycleRecordV1>, auths_lifecycle::StoreError> {
+        self.inner.load(workflow)
+    }
+}
+
+struct PostgresLifecycleRegistry {
+    directory: PathBuf,
+    stores: Mutex<HashMap<String, Arc<DemoPostgresLifecycleStore>>>,
+}
+
+impl PostgresLifecycleRegistry {
+    fn new(directory: PathBuf) -> Result<Self, StartupError> {
+        fs::create_dir_all(&directory).map_err(|_| StartupError::State)?;
+        Ok(Self {
+            directory,
+            stores: Mutex::new(HashMap::new()),
+        })
+    }
+
+    fn for_action(
+        &self,
+        action: &PostgresBoundedUpdateV1,
+    ) -> Result<Arc<DemoPostgresLifecycleStore>, PortError> {
+        let scope = reservation_scope_digest(action).map_err(|_| PortError::Persistence)?;
+        let scope_hex = hex::encode(scope.as_bytes());
+        let mut stores = self.stores.lock().map_err(|_| PortError::Persistence)?;
+        if let Some(store) = stores.get(&scope_hex) {
+            return Ok(Arc::clone(store));
+        }
+        let store = Arc::new(DemoPostgresLifecycleStore {
+            inner: auths_stores::PersistentLifecycleStore::open(
+                self.directory.join(format!("{scope_hex}.lifecycle")),
+                vec![auths_stores::LifecycleCapacityRuleV1::Exclusive {
+                    scope_digest: scope,
+                    window_digest: None,
+                    retain_after_commit: false,
+                }],
+                4096,
+            )
+            .map_err(|_| PortError::Persistence)?,
+        });
+        stores.insert(scope_hex, Arc::clone(&store));
+        Ok(store)
+    }
 }
 
 struct Session {
@@ -188,14 +250,12 @@ struct ExecuteRequest {
 /// Builds the production API router.
 pub fn app(config: AppConfig) -> Result<Router, StartupError> {
     fs::create_dir_all(config.state_directory.as_ref()).map_err(|_| StartupError::State)?;
-    let claims: Arc<dyn ClaimStore> = if matches!(config.backend, BackendSettings::Fixture) {
-        Arc::new(MemoryClaimStore::default())
-    } else {
-        Arc::new(
-            PersistentClaimStore::open(config.state_directory.join("claims.json"))
-                .map_err(|_| StartupError::State)?,
-        )
-    };
+    if config.state_directory.join("claims.json").exists() {
+        return Err(StartupError::State);
+    }
+    let lifecycles = Arc::new(PostgresLifecycleRegistry::new(
+        config.state_directory.join("lifecycle"),
+    )?);
     let durable_receipts = Arc::new(
         JsonlReceiptSink::new(config.state_directory.join("receipts.jsonl"))
             .map_err(|_| StartupError::State)?,
@@ -216,7 +276,7 @@ pub fn app(config: AppConfig) -> Result<Router, StartupError> {
         .route("/api/v1/receipts/{session_id}", get(receipt))
         .with_state(AppState {
             config,
-            claims,
+            lifecycles,
             durable_receipts,
             sessions: Arc::new(Mutex::new(sessions)),
         })
@@ -418,11 +478,15 @@ async fn execute(
         durable: Arc::clone(&state.durable_receipts),
         fault: state.config.receipt_fault,
     };
+    let lifecycle_store = state
+        .lifecycles
+        .for_action(&variant.action)
+        .map_err(ApiError::port)?;
     let service = BoundedUpdateService::new(ServiceDependencies {
         proof_verifier: verifier,
         credential_provider: Arc::clone(&backend),
         transaction_gateway: Arc::clone(&backend),
-        claim_store: Arc::clone(&state.claims),
+        lifecycle_store,
         receipt_sink: sink,
         clock: FixedClock(now),
         executed_configuration: variant.executed_configuration.clone(),
@@ -483,6 +547,23 @@ async fn execute(
             "database_effect": "not-attempted",
             "credential_acquired": false,
             "transaction_started": false,
+            "rows_before": initial_rows,
+            "rows_after": rows_after,
+            "claim_receipt": record,
+            "receipt_url": format!("/api/v1/receipts/{session_id}"),
+            "receipt_page": format!("/receipts/{session_id}"),
+        }),
+        Ok(WorkflowOutcome::OutcomeUnknown { record }) => json!({
+            "schema": API_SCHEMA,
+            "session_id": session_id,
+            "variant": request.variant,
+            "state": "indeterminate",
+            "stable_code": "execution-outcome-unknown",
+            "stage": "reconciliation",
+            "claim_state": record.stage,
+            "database_effect": "reconcile-required",
+            "credential_acquired": backend.credential_calls() > credential_calls_before,
+            "transaction_started": backend.transaction_calls() > transaction_calls_before,
             "rows_before": initial_rows,
             "rows_after": rows_after,
             "claim_receipt": record,
@@ -970,5 +1051,16 @@ mod tests {
         let encoded = serde_json::to_string(&receipt).unwrap();
         assert!(!encoded.contains("tenant-demo"));
         assert!(!encoded.contains("00000000-0000-0000-0000-000000000001"));
+    }
+
+    #[test]
+    fn obsolete_prelaunch_claim_state_is_rejected() {
+        let directory = tempfile::tempdir().unwrap();
+        std::fs::write(directory.path().join("claims.json"), b"{}").unwrap();
+
+        assert!(matches!(
+            app(AppConfig::for_test(directory.path().into())),
+            Err(StartupError::State)
+        ));
     }
 }

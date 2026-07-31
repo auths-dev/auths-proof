@@ -1,21 +1,15 @@
-//! Durable at-most-once claim state before credential acquisition.
+//! PostgreSQL-facing projection of the shared durable lifecycle.
+//!
+//! The public claim receipt stays domain-shaped. It is derived from a
+//! store-acknowledged shared lifecycle record and is never an independent
+//! source of execution authority.
 
-use std::{
-    collections::BTreeMap,
-    fs,
-    io::Write as _,
-    path::PathBuf,
-    sync::{Arc, Mutex},
-};
-
+use auths_lifecycle::{LifecycleRecordV1, LifecycleState};
 use serde::{Deserialize, Serialize};
-use tempfile::NamedTempFile;
 
-use crate::{canonical::canonical_json, schema::DigestHex};
+use crate::schema::DigestHex;
 
-const MAX_STATE_BYTES: usize = 16 * 1024 * 1024;
-
-/// Durable workflow stage.
+/// PostgreSQL claim stage exposed in the existing domain receipt schema.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum ClaimStage {
@@ -31,7 +25,7 @@ pub enum ClaimStage {
     Failed,
 }
 
-/// Receipt-safe claim record.
+/// Claim receipt projected from one canonical shared lifecycle record.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ClaimRecord {
@@ -42,325 +36,124 @@ pub struct ClaimRecord {
     pub updated_at: u64,
 }
 
-/// Capability held only by the successful claimant.
-#[derive(Clone, Debug)]
-pub struct ClaimLease {
-    pub(crate) action_digest: DigestHex,
-    pub(crate) claim_id: String,
-}
-
-/// Atomic claim result.
-#[derive(Clone, Debug)]
-pub enum ClaimResult {
-    Claimed(ClaimLease),
-    /// A prior commit had an ambiguous transport outcome and may only be
-    /// reconciled through the execution ledger.
-    Resume(ClaimLease),
-    Replay(ClaimRecord),
-    Conflict(ClaimRecord),
-    Unavailable,
-}
-
-/// Durable claim boundary.
-pub trait ClaimStore: Send + Sync {
-    fn claim(&self, action_digest: &DigestHex, now: u64) -> ClaimResult;
-    fn record_stage(
-        &self,
-        lease: &ClaimLease,
+impl ClaimRecord {
+    /// Projects one explicit PostgreSQL stage from durable shared state.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ClaimProjectionError`] when the shared record has no durable
+    /// event history.
+    pub fn from_lifecycle(
+        record: &LifecycleRecordV1,
         stage: ClaimStage,
-        now: u64,
-    ) -> Result<ClaimRecord, ClaimError>;
-    fn get(&self, action_digest: &DigestHex) -> Result<Option<ClaimRecord>, ClaimError>;
-}
-
-impl<T: ClaimStore + ?Sized> ClaimStore for Arc<T> {
-    fn claim(&self, action_digest: &DigestHex, now: u64) -> ClaimResult {
-        (**self).claim(action_digest, now)
-    }
-
-    fn record_stage(
-        &self,
-        lease: &ClaimLease,
-        stage: ClaimStage,
-        now: u64,
-    ) -> Result<ClaimRecord, ClaimError> {
-        (**self).record_stage(lease, stage, now)
-    }
-
-    fn get(&self, action_digest: &DigestHex) -> Result<Option<ClaimRecord>, ClaimError> {
-        (**self).get(action_digest)
-    }
-}
-
-/// Thread-safe deterministic store.
-#[derive(Clone, Default)]
-pub struct MemoryClaimStore {
-    records: Arc<Mutex<BTreeMap<DigestHex, ClaimRecord>>>,
-}
-
-impl ClaimStore for MemoryClaimStore {
-    fn claim(&self, action_digest: &DigestHex, now: u64) -> ClaimResult {
-        let Ok(mut records) = self.records.lock() else {
-            return ClaimResult::Unavailable;
-        };
-        claim_in(&mut records, action_digest, now)
-    }
-
-    fn record_stage(
-        &self,
-        lease: &ClaimLease,
-        stage: ClaimStage,
-        now: u64,
-    ) -> Result<ClaimRecord, ClaimError> {
-        let mut records = self.records.lock().map_err(|_| ClaimError::Unavailable)?;
-        record_stage_in(&mut records, lease, stage, now)
-    }
-
-    fn get(&self, action_digest: &DigestHex) -> Result<Option<ClaimRecord>, ClaimError> {
-        self.records
-            .lock()
-            .map(|records| records.get(action_digest).cloned())
-            .map_err(|_| ClaimError::Unavailable)
-    }
-}
-
-/// Crash-persistent store using canonical JSON and atomic replacement.
-pub struct PersistentClaimStore {
-    path: PathBuf,
-    records: Mutex<BTreeMap<DigestHex, ClaimRecord>>,
-}
-
-impl PersistentClaimStore {
-    pub fn open(path: impl Into<PathBuf>) -> Result<Self, ClaimError> {
-        let path = path.into();
-        let records = if path.exists() {
-            let bytes = fs::read(&path).map_err(|_| ClaimError::Unavailable)?;
-            if bytes.len() > MAX_STATE_BYTES {
-                return Err(ClaimError::Corrupt);
-            }
-            let records: BTreeMap<DigestHex, ClaimRecord> =
-                serde_json::from_slice(&bytes).map_err(|_| ClaimError::Corrupt)?;
-            if canonical_json(&records).map_err(|_| ClaimError::Corrupt)? != bytes {
-                return Err(ClaimError::Corrupt);
-            }
-            records
-        } else {
-            BTreeMap::new()
-        };
+    ) -> Result<Self, ClaimProjectionError> {
+        let first = record
+            .events()
+            .first()
+            .ok_or(ClaimProjectionError::MissingEvent)?;
+        let last = record
+            .events()
+            .last()
+            .ok_or(ClaimProjectionError::MissingEvent)?;
         Ok(Self {
-            path,
-            records: Mutex::new(records),
+            action_digest: DigestHex::from_bytes(
+                *record
+                    .decision_input()
+                    .commitments
+                    .exact_action_digest()
+                    .as_bytes(),
+            ),
+            claim_id: record.execution_id().as_str().into(),
+            stage,
+            claimed_at: first.verifier_time.unix_seconds(),
+            updated_at: last.verifier_time.unix_seconds(),
         })
     }
 
-    fn mutate<T>(
-        &self,
-        operation: impl FnOnce(&mut BTreeMap<DigestHex, ClaimRecord>) -> Result<T, ClaimError>,
-    ) -> Result<T, ClaimError> {
-        let mut records = self.records.lock().map_err(|_| ClaimError::Unavailable)?;
-        let mut candidate = records.clone();
-        let result = operation(&mut candidate)?;
-        let bytes = canonical_json(&candidate).map_err(|_| ClaimError::Corrupt)?;
-        if bytes.len() > MAX_STATE_BYTES {
-            return Err(ClaimError::Unavailable);
-        }
-        let parent = self.path.parent().ok_or(ClaimError::Unavailable)?;
-        fs::create_dir_all(parent).map_err(|_| ClaimError::Unavailable)?;
-        let mut temporary = NamedTempFile::new_in(parent).map_err(|_| ClaimError::Unavailable)?;
-        temporary
-            .write_all(&bytes)
-            .and_then(|()| temporary.as_file().sync_all())
-            .map_err(|_| ClaimError::Unavailable)?;
-        temporary
-            .persist(&self.path)
-            .map_err(|_| ClaimError::Unavailable)?;
-        *records = candidate;
-        Ok(result)
-    }
-}
-
-impl ClaimStore for PersistentClaimStore {
-    fn claim(&self, action_digest: &DigestHex, now: u64) -> ClaimResult {
-        self.mutate(|records| Ok(claim_in(records, action_digest, now)))
-            .unwrap_or(ClaimResult::Unavailable)
-    }
-
-    fn record_stage(
-        &self,
-        lease: &ClaimLease,
-        stage: ClaimStage,
-        now: u64,
-    ) -> Result<ClaimRecord, ClaimError> {
-        self.mutate(|records| record_stage_in(records, lease, stage, now))
-    }
-
-    fn get(&self, action_digest: &DigestHex) -> Result<Option<ClaimRecord>, ClaimError> {
-        self.records
-            .lock()
-            .map(|records| records.get(action_digest).cloned())
-            .map_err(|_| ClaimError::Unavailable)
-    }
-}
-
-fn claim_in(
-    records: &mut BTreeMap<DigestHex, ClaimRecord>,
-    action_digest: &DigestHex,
-    now: u64,
-) -> ClaimResult {
-    if let Some(record) = records.get(action_digest) {
-        return if record.stage == ClaimStage::OutcomeUnknown {
-            ClaimResult::Resume(ClaimLease {
-                action_digest: action_digest.clone(),
-                claim_id: record.claim_id.clone(),
-            })
-        } else if matches!(
-            record.stage,
-            ClaimStage::MutationCommitted | ClaimStage::Observed | ClaimStage::Reconciled
-        ) {
-            ClaimResult::Replay(record.clone())
-        } else {
-            ClaimResult::Conflict(record.clone())
+    /// Projects the most truthful public claim stage for replay or conflict.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ClaimProjectionError`] for an invalid shared record.
+    pub fn replay(record: &LifecycleRecordV1) -> Result<Self, ClaimProjectionError> {
+        let stage = match record.state() {
+            LifecycleState::DecisionRecorded | LifecycleState::Reserved => ClaimStage::Claimed,
+            LifecycleState::ExecutionIntentRecorded => {
+                if record.credential_authorized() {
+                    ClaimStage::CredentialAcquired
+                } else {
+                    ClaimStage::Claimed
+                }
+            }
+            LifecycleState::Executing => ClaimStage::TransactionStarted,
+            LifecycleState::Committed => ClaimStage::Observed,
+            LifecycleState::ReconciledCommitted => ClaimStage::Reconciled,
+            LifecycleState::OutcomeUnknown => ClaimStage::OutcomeUnknown,
+            LifecycleState::Released | LifecycleState::ReconciledReleased => ClaimStage::Failed,
         };
+        Self::from_lifecycle(record, stage)
     }
-    let claim_id = format!("claim-{}", &action_digest.as_str()[..24]);
-    records.insert(
-        action_digest.clone(),
-        ClaimRecord {
-            action_digest: action_digest.clone(),
-            claim_id: claim_id.clone(),
-            stage: ClaimStage::Claimed,
-            claimed_at: now,
-            updated_at: now,
-        },
-    );
-    ClaimResult::Claimed(ClaimLease {
-        action_digest: action_digest.clone(),
-        claim_id,
-    })
 }
 
-fn record_stage_in(
-    records: &mut BTreeMap<DigestHex, ClaimRecord>,
-    lease: &ClaimLease,
-    stage: ClaimStage,
-    now: u64,
-) -> Result<ClaimRecord, ClaimError> {
-    let record = records
-        .get_mut(&lease.action_digest)
-        .ok_or(ClaimError::LeaseMismatch)?;
-    if record.claim_id != lease.claim_id {
-        return Err(ClaimError::LeaseMismatch);
-    }
-    if now < record.updated_at || !transition_allowed(record.stage, stage) {
-        return Err(ClaimError::InvalidTransition);
-    }
-    record.stage = stage;
-    record.updated_at = now;
-    Ok(record.clone())
-}
-
-const fn transition_allowed(current: ClaimStage, next: ClaimStage) -> bool {
-    current as u8 == next as u8
-        || matches!(
-            (current, next),
-            (
-                ClaimStage::Claimed,
-                ClaimStage::CredentialAcquired | ClaimStage::Failed
-            ) | (
-                ClaimStage::CredentialAcquired,
-                ClaimStage::TransactionStarted | ClaimStage::Failed
-            ) | (
-                ClaimStage::TransactionStarted,
-                ClaimStage::LedgerReserved
-                    | ClaimStage::MutationCommitted
-                    | ClaimStage::OutcomeUnknown
-                    | ClaimStage::Failed
-            ) | (
-                ClaimStage::LedgerReserved,
-                ClaimStage::RowsLocked | ClaimStage::Failed
-            ) | (
-                ClaimStage::RowsLocked,
-                ClaimStage::MutationCommitted | ClaimStage::OutcomeUnknown | ClaimStage::Failed
-            ) | (
-                ClaimStage::OutcomeUnknown,
-                ClaimStage::Reconciled | ClaimStage::Failed
-            ) | (
-                ClaimStage::MutationCommitted | ClaimStage::Reconciled,
-                ClaimStage::Observed
-            )
-        )
-}
-
-/// Closed claim persistence failure.
+/// Invalid domain projection of shared lifecycle state.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
-pub enum ClaimError {
-    #[error("claim store unavailable")]
-    Unavailable,
-    #[error("claim store corrupt")]
-    Corrupt,
-    #[error("claim lease mismatch")]
-    LeaseMismatch,
-    #[error("claim stage transition is not monotonic")]
-    InvalidTransition,
+pub enum ClaimProjectionError {
+    #[error("shared PostgreSQL lifecycle record has no durable events")]
+    MissingEvent,
 }
 
 #[cfg(test)]
 mod tests {
+    use auths_lifecycle::{TransitionCommandV1, apply_transition};
+
     use super::*;
-    use crate::canonical::sha256;
+    use crate::{
+        lifecycle::{PostgresLifecycleDecisionBindings, PostgresLifecycleProjectionInput},
+        receipts::decision_receipt,
+        test_support::{NOW, fixture},
+    };
 
     #[test]
-    fn only_one_claim_wins() {
-        let store = MemoryClaimStore::default();
-        let digest = sha256(b"action");
-        assert!(matches!(store.claim(&digest, 1), ClaimResult::Claimed(_)));
-        assert!(matches!(store.claim(&digest, 2), ClaimResult::Conflict(_)));
-    }
+    fn claim_receipt_is_derived_from_shared_record() {
+        let fixture = fixture();
+        let decision = decision_receipt(
+            &fixture.action,
+            &fixture.evidence,
+            &fixture.configuration,
+            &fixture.configuration,
+            fixture.configuration.executor_audience(),
+            NOW,
+        )
+        .unwrap();
+        let projection = PostgresLifecycleProjectionInput {
+            action: &fixture.action,
+            evidence: &fixture.evidence,
+            required_configuration: &fixture.configuration,
+            executed_configuration: &fixture.configuration,
+            decision: &decision.decision,
+            verifier_time: NOW,
+        }
+        .project()
+        .unwrap();
+        let context = projection.transition_context(NOW);
+        let input = projection
+            .into_decision_input(&PostgresLifecycleDecisionBindings {
+                core_authorization_digest: &crate::canonical::sha256(b"core"),
+                decision_receipt_digest: &decision.digest().unwrap(),
+                implementation_build_digest: &crate::canonical::sha256(b"build"),
+                expires_at: fixture.action.intent.expires_at,
+            })
+            .unwrap();
+        let recorded = apply_transition(
+            None,
+            &TransitionCommandV1::RecordDecision(Box::new(input)),
+            &context,
+        )
+        .unwrap();
+        let claim = ClaimRecord::from_lifecycle(&recorded.record, ClaimStage::Claimed).unwrap();
 
-    #[test]
-    fn committed_claim_is_replay() {
-        let store = MemoryClaimStore::default();
-        let digest = sha256(b"action");
-        let ClaimResult::Claimed(lease) = store.claim(&digest, 1) else {
-            panic!("first claimant must win")
-        };
-        store
-            .record_stage(&lease, ClaimStage::CredentialAcquired, 2)
-            .unwrap();
-        store
-            .record_stage(&lease, ClaimStage::TransactionStarted, 3)
-            .unwrap();
-        store
-            .record_stage(&lease, ClaimStage::MutationCommitted, 4)
-            .unwrap();
-        assert!(matches!(store.claim(&digest, 5), ClaimResult::Replay(_)));
-    }
-
-    #[test]
-    fn outcome_unknown_resumes_with_the_original_claim_id() {
-        let store = MemoryClaimStore::default();
-        let digest = sha256(b"ambiguous-action");
-        let ClaimResult::Claimed(lease) = store.claim(&digest, 1) else {
-            panic!("first claim must win")
-        };
-        let claim_id = lease.claim_id.clone();
-        store
-            .record_stage(&lease, ClaimStage::CredentialAcquired, 2)
-            .unwrap();
-        store
-            .record_stage(&lease, ClaimStage::TransactionStarted, 3)
-            .unwrap();
-        store
-            .record_stage(&lease, ClaimStage::OutcomeUnknown, 4)
-            .unwrap();
-        let ClaimResult::Resume(resumed) = store.claim(&digest, 5) else {
-            panic!("ambiguous claim must resume")
-        };
-        assert_eq!(resumed.claim_id, claim_id);
-        assert_eq!(
-            store.record_stage(&resumed, ClaimStage::CredentialAcquired, 6),
-            Err(ClaimError::InvalidTransition)
-        );
-        assert!(matches!(store.claim(&digest, 7), ClaimResult::Resume(_)));
+        assert_eq!(claim.action_digest, fixture.action.digest().unwrap());
+        assert_eq!(claim.claimed_at, NOW);
+        assert_eq!(claim.claim_id, recorded.record.execution_id().as_str());
     }
 }

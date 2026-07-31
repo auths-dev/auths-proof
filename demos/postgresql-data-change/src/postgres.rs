@@ -13,7 +13,8 @@ use async_trait::async_trait;
 use auths_postgresql::{
     CredentialProvider, DigestHex, NamedValueV1, ObservedRowV1, PortError, PostgresCredential,
     PostgresEvidenceV1, Reconciliation, TransactionGateway, TransactionResult, TypedValueV1,
-    VerifiedBoundedUpdateCommand, canonical::canonical_digest,
+    VerifiedBoundedUpdateCommand, VerifiedPostgresReconciliationCommand,
+    canonical::canonical_digest,
 };
 use rustls::{ClientConfig, RootCertStore};
 use rustls_pki_types::{CertificateDer, pem::PemObject as _};
@@ -25,6 +26,40 @@ use tokio_postgres::{
 use tokio_postgres_rustls::MakeRustlsConnect;
 
 const MAX_SERIALIZATION_RETRIES: usize = 3;
+
+trait BoundedUpdateCommandView {
+    fn action(&self) -> &auths_postgresql::PostgresBoundedUpdateV1;
+    fn evidence(&self) -> &PostgresEvidenceV1;
+    fn compiled(&self) -> &auths_postgresql::CompiledBoundedUpdate;
+}
+
+impl BoundedUpdateCommandView for VerifiedBoundedUpdateCommand {
+    fn action(&self) -> &auths_postgresql::PostgresBoundedUpdateV1 {
+        self.action()
+    }
+
+    fn evidence(&self) -> &PostgresEvidenceV1 {
+        self.evidence()
+    }
+
+    fn compiled(&self) -> &auths_postgresql::CompiledBoundedUpdate {
+        self.compiled()
+    }
+}
+
+impl BoundedUpdateCommandView for VerifiedPostgresReconciliationCommand {
+    fn action(&self) -> &auths_postgresql::PostgresBoundedUpdateV1 {
+        self.action()
+    }
+
+    fn evidence(&self) -> &PostgresEvidenceV1 {
+        self.evidence()
+    }
+
+    fn compiled(&self) -> &auths_postgresql::CompiledBoundedUpdate {
+        self.compiled()
+    }
+}
 
 /// Startup-controlled fault points used by the live recovery suite.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -95,7 +130,7 @@ enum BackendMode {
     },
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 struct FixtureState {
     evidence: Option<PostgresEvidenceV1>,
     ledger: BTreeMap<DigestHex, TransactionResult>,
@@ -248,8 +283,18 @@ impl PostgresBackend {
 }
 
 impl CredentialProvider for PostgresBackend {
-    fn mutation_credential(
+    fn credential_after_authorization(
         &self,
+        _: &auths_lifecycle::ExecutionAuthorizationV1,
+        _: &auths_postgresql::PostgresBoundedUpdateV1,
+    ) -> Result<PostgresCredential, PortError> {
+        self.credential_calls.fetch_add(1, Ordering::SeqCst);
+        PostgresCredential::new(self.credential.0.clone())
+    }
+
+    fn reconciliation_credential(
+        &self,
+        _: &auths_postgresql::PostgresReconciliationAuthorizationV1,
         _: &auths_postgresql::PostgresBoundedUpdateV1,
     ) -> Result<PostgresCredential, PortError> {
         self.credential_calls.fetch_add(1, Ordering::SeqCst);
@@ -274,7 +319,9 @@ impl TransactionGateway for PostgresBackend {
             return Err(PortError::DatabaseExecution);
         }
         match &self.mode {
-            BackendMode::Fixture { state } => execute_fixture(state, command, now),
+            BackendMode::Fixture { state } => {
+                execute_fixture(state, command, now, fault, &self.fault)
+            }
             BackendMode::Live { .. } => {
                 for attempt in 0..MAX_SERIALIZATION_RETRIES {
                     match execute_live(command, credential, now, fault, &self.fault).await {
@@ -299,7 +346,7 @@ impl TransactionGateway for PostgresBackend {
 
     async fn reconcile(
         &self,
-        command: &VerifiedBoundedUpdateCommand,
+        command: &VerifiedPostgresReconciliationCommand,
         credential: &PostgresCredential,
     ) -> Result<Reconciliation, PortError> {
         if PostgresFault::from_code(
@@ -332,6 +379,8 @@ fn execute_fixture(
     state: &Mutex<FixtureState>,
     command: &VerifiedBoundedUpdateCommand,
     now: u64,
+    fault: PostgresFault,
+    fault_state: &AtomicU8,
 ) -> Result<TransactionResult, PortError> {
     let action = command.action();
     let action_digest = action.digest().map_err(|_| PortError::DatabaseExecution)?;
@@ -339,7 +388,11 @@ fn execute_fixture(
     if state.ledger.contains_key(&action_digest) {
         return Err(PortError::DatabaseExecution);
     }
-    let current = state
+    if fault == PostgresFault::StatementTimeout {
+        return Err(PortError::DatabaseExecution);
+    }
+    let mut candidate = state.clone();
+    let current = candidate
         .evidence
         .as_mut()
         .ok_or(PortError::DatabaseExecution)?;
@@ -380,8 +433,29 @@ fn execute_fixture(
         committed_at: now.saturating_add(1),
         reconciled: false,
     };
-    state.ledger.insert(action_digest, result.clone());
-    Ok(result)
+    candidate.ledger.insert(action_digest, result.clone());
+    if matches!(
+        fault,
+        PostgresFault::AfterUpdateRollback | PostgresFault::BeforeCommitUnknown
+    ) {
+        return Err(if fault == PostgresFault::BeforeCommitUnknown {
+            PortError::OutcomeUnknown
+        } else {
+            PortError::DatabaseExecution
+        });
+    }
+    *state = candidate;
+    if matches!(
+        fault,
+        PostgresFault::AfterCommitUnknown | PostgresFault::AfterCommitUnreconciled
+    ) {
+        if fault == PostgresFault::AfterCommitUnreconciled {
+            fault_state.store(PostgresFault::ReconcileUnavailable.code(), Ordering::SeqCst);
+        }
+        Err(PortError::OutcomeUnknown)
+    } else {
+        Ok(result)
+    }
 }
 
 async fn connect(credential: &PostgresCredential) -> Result<Client, PortError> {
@@ -761,7 +835,7 @@ fn validate_locked_rows(
 }
 
 fn validate_updated_rows(
-    command: &VerifiedBoundedUpdateCommand,
+    command: &impl BoundedUpdateCommandView,
     rows: &[Row],
 ) -> Result<(), PortError> {
     if rows.len()
@@ -816,7 +890,7 @@ fn compare_row_value(row: &Row, expected: &NamedValueV1) -> Result<(), PortError
 }
 
 async fn reconcile_live(
-    command: &VerifiedBoundedUpdateCommand,
+    command: &impl BoundedUpdateCommandView,
     credential: &PostgresCredential,
 ) -> Result<Reconciliation, PortError> {
     let Ok(client) = connect(credential).await else {
@@ -872,7 +946,7 @@ async fn readback_live(
 
 async fn readback_with_client(
     client: &Client,
-    command: &VerifiedBoundedUpdateCommand,
+    command: &impl BoundedUpdateCommandView,
 ) -> Result<DigestHex, PortError> {
     let tenant = command
         .action()
@@ -1184,25 +1258,64 @@ mod tests {
     use std::sync::Arc;
 
     use auths_postgresql::{
-        BoundedUpdateService, ClaimStore as _, ExecuteBoundedUpdateRequest, FixedClock,
-        MemoryClaimStore, MemoryReceiptSink, SdkProofVerifier, ServiceDependencies,
-        WorkflowOutcome,
+        BoundedUpdateService, ExecuteBoundedUpdateRequest, FixedClock, MemoryReceiptSink,
+        PostgresLifecycleStore, SdkProofVerifier, ServiceDependencies, WorkflowOutcome,
+        reservation_scope_digest,
     };
 
     use super::*;
     use crate::fixture::demo_fixture;
+
+    struct TestStore {
+        inner: auths_stores::InMemoryLifecycleStore,
+    }
+
+    impl TestStore {
+        fn new(action: &auths_postgresql::PostgresBoundedUpdateV1) -> Self {
+            Self {
+                inner: auths_stores::InMemoryLifecycleStore::new(
+                    vec![auths_stores::LifecycleCapacityRuleV1::Exclusive {
+                        scope_digest: reservation_scope_digest(action).unwrap(),
+                        window_digest: None,
+                        retain_after_commit: false,
+                    }],
+                    128,
+                )
+                .unwrap(),
+            }
+        }
+    }
+
+    impl auths_lifecycle::LifecycleStore for TestStore {
+        fn transact(
+            &self,
+            transaction: &auths_lifecycle::StoreTransactionV1,
+        ) -> Result<auths_lifecycle::StoredTransitionV1, auths_lifecycle::StoreError> {
+            self.inner.transact(transaction)
+        }
+    }
+
+    impl PostgresLifecycleStore for TestStore {
+        fn load_postgres_lifecycle(
+            &self,
+            workflow: &auths_lifecycle::WorkflowId,
+        ) -> Result<Option<auths_lifecycle::LifecycleRecordV1>, auths_lifecycle::StoreError>
+        {
+            self.inner.load(workflow)
+        }
+    }
 
     #[tokio::test]
     async fn exact_transition_commits_once_and_replay_never_reissues() {
         let now = auths_postgresql::test_support::NOW;
         let demo = demo_fixture(now, [9; 32]);
         let backend = Arc::new(PostgresBackend::fixture(demo.product.evidence.clone()));
-        let claims = Arc::new(MemoryClaimStore::default());
+        let lifecycles = Arc::new(TestStore::new(&demo.product.action));
         let service = BoundedUpdateService::new(ServiceDependencies {
             proof_verifier: SdkProofVerifier::new(demo.auths.verifier),
             credential_provider: Arc::clone(&backend),
             transaction_gateway: Arc::clone(&backend),
-            claim_store: Arc::clone(&claims),
+            lifecycle_store: Arc::clone(&lifecycles),
             receipt_sink: MemoryReceiptSink::default(),
             clock: FixedClock(now),
             executed_configuration: demo.product.configuration.clone(),
@@ -1226,8 +1339,92 @@ mod tests {
         ));
         assert_eq!(backend.credential_calls(), 1);
         assert_eq!(backend.transaction_calls(), 1);
-        let digest = demo.product.action.digest().unwrap();
-        assert!(claims.get(&digest).unwrap().is_some());
+        let workflow =
+            auths_lifecycle::WorkflowId::parse(&demo.product.action.intent.nonce).unwrap();
+        assert!(
+            lifecycles
+                .load_postgres_lifecycle(&workflow)
+                .unwrap()
+                .is_some()
+        );
+    }
+
+    #[tokio::test]
+    async fn concurrent_final_row_set_capacity_has_one_database_effect() {
+        let now = auths_postgresql::test_support::NOW;
+        let demo = demo_fixture(now, [11; 32]);
+        let backend = Arc::new(PostgresBackend::fixture(demo.product.evidence.clone()));
+        let lifecycles = Arc::new(TestStore::new(&demo.product.action));
+        let service = BoundedUpdateService::new(ServiceDependencies {
+            proof_verifier: SdkProofVerifier::new(demo.auths.verifier),
+            credential_provider: Arc::clone(&backend),
+            transaction_gateway: Arc::clone(&backend),
+            lifecycle_store: Arc::clone(&lifecycles),
+            receipt_sink: MemoryReceiptSink::default(),
+            clock: FixedClock(now),
+            executed_configuration: demo.product.configuration.clone(),
+        });
+        let request = || ExecuteBoundedUpdateRequest {
+            action: demo.product.action.clone(),
+            evidence: demo.product.evidence.clone(),
+            required_configuration: demo.product.configuration.clone(),
+            proof: demo.auths.proof.clone(),
+            auths_request: demo.auths.request.clone(),
+        };
+
+        let (left, right) = tokio::join!(service.execute(request()), service.execute(request()));
+        let outcomes = [left.unwrap(), right.unwrap()];
+        assert_eq!(
+            outcomes
+                .iter()
+                .filter(|outcome| matches!(outcome, WorkflowOutcome::Executed { .. }))
+                .count(),
+            1
+        );
+        assert_eq!(backend.credential_calls(), 1);
+        assert_eq!(backend.transaction_calls(), 1);
+    }
+
+    #[tokio::test]
+    async fn unknown_commit_reconciles_after_restart_without_resubmission() {
+        let now = auths_postgresql::test_support::NOW;
+        let demo = demo_fixture(now, [12; 32]);
+        let backend = Arc::new(PostgresBackend::fixture(demo.product.evidence.clone()));
+        backend.set_fault(PostgresFault::AfterCommitUnreconciled);
+        let lifecycles = Arc::new(TestStore::new(&demo.product.action));
+        let service = BoundedUpdateService::new(ServiceDependencies {
+            proof_verifier: SdkProofVerifier::new(demo.auths.verifier),
+            credential_provider: Arc::clone(&backend),
+            transaction_gateway: Arc::clone(&backend),
+            lifecycle_store: Arc::clone(&lifecycles),
+            receipt_sink: MemoryReceiptSink::default(),
+            clock: FixedClock(now),
+            executed_configuration: demo.product.configuration.clone(),
+        });
+        let request = || ExecuteBoundedUpdateRequest {
+            action: demo.product.action.clone(),
+            evidence: demo.product.evidence.clone(),
+            required_configuration: demo.product.configuration.clone(),
+            proof: demo.auths.proof.clone(),
+            auths_request: demo.auths.request.clone(),
+        };
+
+        assert!(matches!(
+            service.execute(request()).await.unwrap(),
+            WorkflowOutcome::OutcomeUnknown { .. }
+        ));
+        assert_eq!(backend.transaction_calls(), 1);
+        let recovered = service.execute(request()).await.unwrap();
+        let WorkflowOutcome::Executed { transaction, .. } = recovered else {
+            panic!("durable outcome-unknown must reconcile from the ledger")
+        };
+        assert!(transaction.reconciled);
+        assert_eq!(backend.transaction_calls(), 1);
+        assert!(matches!(
+            service.execute(request()).await.unwrap(),
+            WorkflowOutcome::Replay { .. }
+        ));
+        assert_eq!(backend.transaction_calls(), 1);
     }
 
     #[tokio::test]
@@ -1241,12 +1438,12 @@ mod tests {
             .unwrap()
             .clone();
         let backend = Arc::new(PostgresBackend::fixture(variant.evidence.clone()));
-        let claims = Arc::new(MemoryClaimStore::default());
+        let lifecycles = Arc::new(TestStore::new(&variant.action));
         let service = BoundedUpdateService::new(ServiceDependencies {
             proof_verifier: SdkProofVerifier::new(demo.auths.verifier),
             credential_provider: Arc::clone(&backend),
             transaction_gateway: Arc::clone(&backend),
-            claim_store: Arc::clone(&claims),
+            lifecycle_store: Arc::clone(&lifecycles),
             receipt_sink: MemoryReceiptSink::default(),
             clock: FixedClock(now),
             executed_configuration: variant.executed_configuration.clone(),
@@ -1267,9 +1464,10 @@ mod tests {
         assert_eq!(receipt.decision.code, "verifier-configuration-mismatch");
         assert_eq!(backend.credential_calls(), 0);
         assert_eq!(backend.transaction_calls(), 0);
+        let workflow = auths_lifecycle::WorkflowId::parse(&variant.action.intent.nonce).unwrap();
         assert!(
-            claims
-                .get(&variant.action.digest().unwrap())
+            lifecycles
+                .load_postgres_lifecycle(&workflow)
                 .unwrap()
                 .is_none()
         );

@@ -83,17 +83,20 @@ both URLs have been tested together.
 
 ## Retention and shutdown
 
-Claims and JSONL receipts live below `AUTHS_POSTGRESQL_STATE_DIR` on the
-encrypted volume. Receipts contain commitments rather than tenant, key, or
-column values. Retain claims at least through the database ledger reconciliation
-window.
+Shared lifecycle records and JSONL receipts live below
+`AUTHS_POSTGRESQL_STATE_DIR` on the encrypted volume. Receipts contain
+commitments rather than tenant, key, or column values. Retain outcome-unknown
+lifecycle records at least through the database ledger reconciliation window.
+The obsolete prelaunch `claims.json` file must be removed before deploying the
+cut-over revision; startup rejects it rather than migrating it.
 
 During an incident:
 
 1. revoke or rotate the executor credential;
 2. stop the native machines;
-3. preserve claims, receipts, and the database ledger;
+3. preserve lifecycle records, receipts, and the database ledger;
 4. reconcile every `outcome-unknown` action by digest;
 5. reset synthetic data only after reconciliation.
 
-Never delete a claim or ledger entry merely to make a retry succeed.
+Never delete a lifecycle record or ledger entry merely to make a retry
+succeed.

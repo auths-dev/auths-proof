@@ -762,9 +762,12 @@ name = "auths-postgresql"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "auths-bounded-policy",
+ "auths-lifecycle",
  "auths-model",
  "auths-profile-api",
  "auths-sdk",
+ "auths-stores",
  "hex",
  "serde",
  "serde_json",
@@ -783,10 +786,12 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "auths-apps-testkit",
+ "auths-lifecycle",
  "auths-model",
  "auths-postgresql",
  "auths-profile-api",
  "auths-sdk",
+ "auths-stores",
  "axum",
  "dotenvy",
  "getrandom 0.3.4",

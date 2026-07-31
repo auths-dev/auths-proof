@@ -1,25 +1,43 @@
-//! Linear verify-claim-credential-transaction-observe orchestration.
+//! Linear shared-lifecycle orchestration for one exact PostgreSQL update.
 
+use std::{future::Future, pin::Pin, sync::Arc};
+
+use auths_bounded_policy::{CommitmentDigest, EvidenceSourceId, VerifierTime};
+use auths_lifecycle::{
+    DomainReceiptDigest, DurableTransitionV1, EffectConclusion, ExecutionAuthorizationV1,
+    ExecutionIntentV1, LifecycleFailure, LifecycleRecordV1, LifecycleState, LifecycleStore,
+    ObservationDigest, ProviderConditionDigest, ProviderContractId, ProviderRequestDigest,
+    ProviderResultDigest, ProviderRetryClass, ReconciliationId, ReconciliationObservationV1,
+    StoreError, StoreTransactionV1, TransitionCommandV1, TransitionContextV1,
+    TransitionDisposition, WorkflowId, execute_store_transaction,
+};
 use auths_profile_api::ActionProfile as _;
-use auths_sdk::RequestContext;
+use auths_sdk::{Authorized, RequestContext};
 
 use crate::{
     action::PostgresBoundedUpdateV1,
-    claim::{ClaimRecord, ClaimResult, ClaimStage, ClaimStore},
-    compiler::compile_statement,
+    claim::{ClaimRecord, ClaimStage},
+    compiler::{CompiledBoundedUpdate, compile_statement},
     decision::DecisionClass,
     evidence::PostgresEvidenceV1,
-    executor::VerifiedBoundedUpdateCommand,
-    ports::{
-        Clock, CredentialProvider, PortError, ProofDecision, ProofVerifier, ReceiptSink,
-        Reconciliation, TransactionGateway, TransactionResult,
+    executor::{
+        PostgresReconciliationAuthorizationV1, VerifiedBoundedUpdateCommand,
+        VerifiedPostgresReconciliationCommand,
     },
-    profile::PostgresBoundedUpdateProfile,
+    lifecycle::{
+        EVIDENCE_SOURCE_ID, PROVIDER_CONTRACT_ID, PostgresLifecycleDecisionBindings,
+        PostgresLifecycleProjectionInput,
+    },
+    ports::{
+        Clock, CredentialProvider, PortError, PostgresCredential, ProofDecision, ProofVerifier,
+        ReceiptSink, Reconciliation, TransactionGateway, TransactionResult,
+    },
+    profile::{PostgresBoundedUpdateProfile, PostgresUpdateCommand},
     receipts::{
         DecisionReceipt, ObservationReceipt, PostgresReceipt, TransactionReceipt, decision_receipt,
         observation_receipt, transaction_receipt,
     },
-    schema::{PostgresVerifierConfigurationV1, ValidationError},
+    schema::{DigestHex, PostgresVerifierConfigurationV1, ValidationError},
 };
 
 /// Hostile request plus protected evidence and an Auths proof.
@@ -31,12 +49,34 @@ pub struct ExecuteBoundedUpdateRequest {
     pub auths_request: RequestContext,
 }
 
-/// Explicit dependencies make effect ordering auditable.
+/// Lifecycle store plus the read required for exact replay and recovery.
+pub trait PostgresLifecycleStore: LifecycleStore + Send + Sync {
+    /// Loads one validated immutable shared lifecycle record.
+    ///
+    /// # Errors
+    ///
+    /// Returns a closed store error for unavailable or corrupt state.
+    fn load_postgres_lifecycle(
+        &self,
+        workflow: &WorkflowId,
+    ) -> Result<Option<LifecycleRecordV1>, StoreError>;
+}
+
+impl<T: PostgresLifecycleStore + ?Sized> PostgresLifecycleStore for Arc<T> {
+    fn load_postgres_lifecycle(
+        &self,
+        workflow: &WorkflowId,
+    ) -> Result<Option<LifecycleRecordV1>, StoreError> {
+        (**self).load_postgres_lifecycle(workflow)
+    }
+}
+
+/// Explicit dependencies make durable and effect ordering auditable.
 pub struct ServiceDependencies<V, C, G, W, R, T> {
     pub proof_verifier: V,
     pub credential_provider: C,
     pub transaction_gateway: G,
-    pub claim_store: W,
+    pub lifecycle_store: W,
     pub receipt_sink: R,
     pub clock: T,
     pub executed_configuration: PostgresVerifierConfigurationV1,
@@ -52,7 +92,7 @@ where
     V: ProofVerifier,
     C: CredentialProvider,
     G: TransactionGateway,
-    W: ClaimStore,
+    W: PostgresLifecycleStore,
     R: ReceiptSink,
     T: Clock,
 {
@@ -61,9 +101,25 @@ where
         Self { dependencies }
     }
 
-    /// Executes one action. Credentials are requested only after policy,
-    /// Auths proof, and durable claim have all succeeded.
-    pub async fn execute(
+    /// Executes one exact update through durable shared lifecycle stages.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ServiceError`] when verification, persistence, credentials,
+    /// canonicalization, transaction execution, or reconciliation cannot be
+    /// classified safely.
+    pub fn execute(
+        &self,
+        request: ExecuteBoundedUpdateRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<WorkflowOutcome, ServiceError>> + Send + '_>> {
+        Box::pin(self.execute_inner(request))
+    }
+
+    #[allow(
+        clippy::too_many_lines,
+        reason = "security-relevant durable, credential, transaction, and receipt ordering stays linear"
+    )]
+    async fn execute_inner(
         &self,
         request: ExecuteBoundedUpdateRequest,
     ) -> Result<WorkflowOutcome, ServiceError> {
@@ -121,69 +177,306 @@ where
         self.append(&PostgresReceipt::Decision(Box::new(decision.clone())))?;
 
         let action_digest = request.action.digest()?;
-        let (lease, resume) = match self.dependencies.claim_store.claim(&action_digest, now) {
-            ClaimResult::Claimed(lease) => (lease, false),
-            ClaimResult::Resume(lease) => (lease, true),
-            ClaimResult::Replay(record) => return Ok(WorkflowOutcome::Replay { record }),
-            ClaimResult::Conflict(record) => return Ok(WorkflowOutcome::Conflict { record }),
-            ClaimResult::Unavailable => return Err(ServiceError::ClaimState),
-        };
-        if !resume {
-            self.record(&lease, ClaimStage::Claimed, now)?;
-        }
-
-        let credential = self
-            .dependencies
-            .credential_provider
-            .mutation_credential(&request.action)?;
-        if !resume {
-            self.record(&lease, ClaimStage::CredentialAcquired, now)?;
-        }
+        let workflow_id = WorkflowId::parse(&request.action.intent.nonce)
+            .map_err(|_| ServiceError::Projection)?;
         let compiled = compile_statement(
             &request.action.intent,
             &self.dependencies.executed_configuration,
         )?;
-        let command =
-            VerifiedBoundedUpdateCommand::new(authorized, request.evidence, compiled, lease);
-        let result = if resume {
-            self.reconcile_outcome(&command, &credential, now).await?
-        } else {
-            self.record(command.lease(), ClaimStage::TransactionStarted, now)?;
-            match self
-                .dependencies
-                .transaction_gateway
-                .execute(&command, &credential, now)
-                .await
-            {
-                Ok(result) => result,
-                Err(PortError::OutcomeUnknown) => {
-                    self.record(command.lease(), ClaimStage::OutcomeUnknown, now)?;
-                    self.reconcile_outcome(&command, &credential, now).await?
-                }
-                Err(error) => {
-                    self.record(command.lease(), ClaimStage::Failed, now)?;
-                    return Err(ServiceError::Port(error));
-                }
+        if let Some(existing) = self
+            .dependencies
+            .lifecycle_store
+            .load_postgres_lifecycle(&workflow_id)
+            .map_err(ServiceError::Lifecycle)?
+        {
+            return self
+                .resume_or_replay(
+                    decision,
+                    authorized,
+                    request.evidence,
+                    compiled,
+                    existing,
+                    now,
+                )
+                .await;
+        }
+
+        let projection = PostgresLifecycleProjectionInput {
+            action: &request.action,
+            evidence: &request.evidence,
+            required_configuration: &request.required_configuration,
+            executed_configuration: &self.dependencies.executed_configuration,
+            decision: &decision.decision,
+            verifier_time: now,
+        }
+        .project()
+        .map_err(|_| ServiceError::Projection)?;
+        let context = projection.transition_context(now);
+        let decision_digest = decision.digest()?;
+        let decision_input = projection
+            .into_decision_input(&PostgresLifecycleDecisionBindings {
+                core_authorization_digest: &core_authorization_digest(&authorized),
+                decision_receipt_digest: &decision_digest,
+                implementation_build_digest: &implementation_build_digest(),
+                expires_at: request.action.intent.expires_at,
+            })
+            .map_err(|_| ServiceError::Projection)?;
+        let recorded = match execute_store_transaction(
+            &self.dependencies.lifecycle_store,
+            &StoreTransactionV1 {
+                workflow_id: workflow_id.clone(),
+                expected_revision: None,
+                command: TransitionCommandV1::RecordDecision(Box::new(decision_input)),
+                context: context.clone(),
+            },
+        ) {
+            Ok(recorded) => recorded,
+            Err(StoreError::Conflict | StoreError::Rejected(LifecycleFailure::Conflict)) => {
+                return self.concurrent_conflict(&workflow_id, &action_digest);
+            }
+            Err(error) => return Err(ServiceError::Lifecycle(error)),
+        };
+        if recorded.disposition() == TransitionDisposition::ExactReplay {
+            return self.concurrent_conflict(&workflow_id, &action_digest);
+        }
+        self.append_claim(recorded.record(), ClaimStage::Claimed)?;
+
+        let reserved = lifecycle_transition(
+            &self.dependencies.lifecycle_store,
+            &workflow_id,
+            recorded.record().revision(),
+            TransitionCommandV1::Reserve,
+            context.clone(),
+        )?;
+        let compiled_digest = canonical_digest(&compiled)?;
+        let evidence_digest = request.evidence.digest()?;
+        let execution_intent = ExecutionIntentV1::new(
+            commitment(&action_digest)?,
+            ProviderRequestDigest::new(digest_bytes(&compiled_digest)?),
+            ProviderConditionDigest::new(digest_bytes(&evidence_digest)?),
+            ProviderContractId::parse(PROVIDER_CONTRACT_ID)
+                .map_err(|_| ServiceError::Projection)?,
+            ProviderRetryClass::ObserveBeforeRetry,
+        );
+        let intent_recorded = lifecycle_transition(
+            &self.dependencies.lifecycle_store,
+            &workflow_id,
+            reserved.record().revision(),
+            TransitionCommandV1::RecordExecutionIntent(execution_intent),
+            context.clone(),
+        )?;
+        let credential_stage = lifecycle_transition(
+            &self.dependencies.lifecycle_store,
+            &workflow_id,
+            intent_recorded.record().revision(),
+            TransitionCommandV1::AuthorizeCredential,
+            context.clone(),
+        )?;
+        let credential_authorization = ExecutionAuthorizationV1::from_durable(&credential_stage)
+            .map_err(|_| ServiceError::ClaimState)?;
+        let credential = match self
+            .dependencies
+            .credential_provider
+            .credential_after_authorization(&credential_authorization, &request.action)
+        {
+            Ok(credential) => credential,
+            Err(error) => {
+                let released = release_lifecycle(
+                    &self.dependencies.lifecycle_store,
+                    &workflow_id,
+                    credential_stage.record().revision(),
+                    context,
+                    &action_digest,
+                    now,
+                )?;
+                self.append_claim(released.record(), ClaimStage::Failed)?;
+                return Err(ServiceError::Port(error));
             }
         };
-        validate_result(command.action(), &result)?;
-        self.record(
-            command.lease(),
-            if result.reconciled {
-                ClaimStage::Reconciled
-            } else {
-                ClaimStage::MutationCommitted
-            },
-            result.committed_at,
+        self.append_claim(credential_stage.record(), ClaimStage::CredentialAcquired)?;
+        let attempt = lifecycle_transition(
+            &self.dependencies.lifecycle_store,
+            &workflow_id,
+            credential_stage.record().revision(),
+            TransitionCommandV1::StartAttempt,
+            context.clone(),
         )?;
-        self.record(command.lease(), ClaimStage::Observed, result.committed_at)?;
+        let call_entry = lifecycle_transition(
+            &self.dependencies.lifecycle_store,
+            &workflow_id,
+            attempt.record().revision(),
+            TransitionCommandV1::MarkProviderCallEntered,
+            context.clone(),
+        )?;
+        let call_authorization =
+            auths_lifecycle::ProviderCallAuthorizationV1::from_durable(&call_entry)
+                .map_err(|_| ServiceError::ClaimState)?;
+        self.append_claim(call_entry.record(), ClaimStage::TransactionStarted)?;
+        let command = VerifiedBoundedUpdateCommand::new(
+            authorized,
+            request.evidence,
+            compiled,
+            call_authorization,
+        );
+        match self
+            .dependencies
+            .transaction_gateway
+            .execute(&command, &credential, now)
+            .await
+        {
+            Ok(result) if validate_result(command.action(), &result).is_ok() => {
+                self.finish_committed(decision, command.action(), result, &call_entry, context)
+            }
+            Ok(_) | Err(PortError::OutcomeUnknown) => {
+                let unknown = mark_unknown_lifecycle(
+                    &self.dependencies.lifecycle_store,
+                    &workflow_id,
+                    call_entry.record().revision(),
+                    context.clone(),
+                    &action_digest,
+                    now,
+                )?;
+                self.append_claim(unknown.record(), ClaimStage::OutcomeUnknown)?;
+                let reconciliation_authorization =
+                    PostgresReconciliationAuthorizationV1::from_record(unknown.record())
+                        .map_err(|_| ServiceError::ClaimState)?;
+                let reconciliation = command.into_reconciliation(reconciliation_authorization);
+                self.reconcile_unknown(
+                    decision,
+                    reconciliation,
+                    credential,
+                    unknown.record(),
+                    context,
+                    now,
+                )
+                .await
+            }
+            Err(error) => {
+                let released = release_lifecycle(
+                    &self.dependencies.lifecycle_store,
+                    &workflow_id,
+                    call_entry.record().revision(),
+                    context,
+                    &action_digest,
+                    now,
+                )?;
+                self.append_claim(released.record(), ClaimStage::Failed)?;
+                Err(ServiceError::Port(error))
+            }
+        }
+    }
+
+    async fn resume_or_replay(
+        &self,
+        decision: DecisionReceipt,
+        authorized: Authorized<PostgresUpdateCommand>,
+        evidence: PostgresEvidenceV1,
+        compiled: CompiledBoundedUpdate,
+        existing: LifecycleRecordV1,
+        now: u64,
+    ) -> Result<WorkflowOutcome, ServiceError> {
+        let action_digest = authorized.command().action().digest()?;
+        if existing.decision_input().commitments.exact_action_digest()
+            != commitment(&action_digest)?
+        {
+            return Ok(WorkflowOutcome::Conflict {
+                record: ClaimRecord::replay(&existing).map_err(|_| ServiceError::ClaimState)?,
+            });
+        }
+        if existing.state() != LifecycleState::OutcomeUnknown {
+            return Ok(WorkflowOutcome::Replay {
+                record: ClaimRecord::replay(&existing).map_err(|_| ServiceError::ClaimState)?,
+            });
+        }
+        let authorization = PostgresReconciliationAuthorizationV1::from_record(&existing)
+            .map_err(|_| ServiceError::ClaimState)?;
+        let credential = self
+            .dependencies
+            .credential_provider
+            .reconciliation_credential(&authorization, authorized.command().action())?;
+        let command = VerifiedPostgresReconciliationCommand::new(
+            authorized,
+            evidence,
+            compiled,
+            authorization,
+        );
+        let context = context_from_record(&existing, now)?;
+        self.reconcile_unknown(decision, command, credential, &existing, context, now)
+            .await
+    }
+
+    async fn reconcile_unknown(
+        &self,
+        decision: DecisionReceipt,
+        command: VerifiedPostgresReconciliationCommand,
+        credential: PostgresCredential,
+        unknown: &LifecycleRecordV1,
+        context: TransitionContextV1,
+        now: u64,
+    ) -> Result<WorkflowOutcome, ServiceError> {
+        match self
+            .dependencies
+            .transaction_gateway
+            .reconcile(&command, &credential)
+            .await?
+        {
+            Reconciliation::Committed(mut result)
+                if validate_result(command.action(), &result).is_ok() =>
+            {
+                result.reconciled = true;
+                self.finish_reconciled(decision, command.action(), result, unknown, context, now)
+            }
+            Reconciliation::Committed(_) | Reconciliation::Unavailable => {
+                Ok(WorkflowOutcome::OutcomeUnknown {
+                    record: ClaimRecord::from_lifecycle(unknown, ClaimStage::OutcomeUnknown)
+                        .map_err(|_| ServiceError::ClaimState)?,
+                })
+            }
+            Reconciliation::NotCommitted => {
+                let reconciled = reconcile_lifecycle(
+                    &self.dependencies.lifecycle_store,
+                    unknown,
+                    context,
+                    EffectConclusion::NonEffect,
+                    &canonical_digest(&("postgresql-ledger-not-committed", now))?,
+                    &canonical_digest(&("postgresql-ledger-not-committed", now))?,
+                    now,
+                )?;
+                self.append_claim(reconciled.record(), ClaimStage::Failed)?;
+                Err(ServiceError::NotCommitted)
+            }
+        }
+    }
+
+    fn finish_committed(
+        &self,
+        decision: DecisionReceipt,
+        action: &PostgresBoundedUpdateV1,
+        result: TransactionResult,
+        call_entry: &DurableTransitionV1,
+        context: TransitionContextV1,
+    ) -> Result<WorkflowOutcome, ServiceError> {
         let transaction = transaction_receipt(
             decision.digest()?,
-            command.action(),
-            command.claim_id(),
+            action,
+            call_entry.record().execution_id().as_str(),
             &result,
         )?;
-        let observation = observation_receipt(command.action(), &result);
+        let observation = observation_receipt(action, &result);
+        let transaction_digest = canonical_digest(&transaction)?;
+        let result_digest = canonical_digest(&result)?;
+        let committed = lifecycle_transition(
+            &self.dependencies.lifecycle_store,
+            call_entry.record().workflow_id(),
+            call_entry.record().revision(),
+            TransitionCommandV1::Commit {
+                result_digest: ProviderResultDigest::new(digest_bytes(&result_digest)?),
+                domain_receipt_digest: DomainReceiptDigest::new(digest_bytes(&transaction_digest)?),
+            },
+            context,
+        )?;
+        self.append_claim(committed.record(), ClaimStage::MutationCommitted)?;
+        self.append_claim(committed.record(), ClaimStage::Observed)?;
         self.append(&PostgresReceipt::Transaction(Box::new(transaction.clone())))?;
         self.append(&PostgresReceipt::Observation(observation.clone()))?;
         Ok(WorkflowOutcome::Executed {
@@ -194,48 +487,223 @@ where
         })
     }
 
+    fn finish_reconciled(
+        &self,
+        decision: DecisionReceipt,
+        action: &PostgresBoundedUpdateV1,
+        result: TransactionResult,
+        unknown: &LifecycleRecordV1,
+        context: TransitionContextV1,
+        now: u64,
+    ) -> Result<WorkflowOutcome, ServiceError> {
+        let transaction = transaction_receipt(
+            decision.digest()?,
+            action,
+            unknown.execution_id().as_str(),
+            &result,
+        )?;
+        let observation = observation_receipt(action, &result);
+        let transaction_digest = canonical_digest(&transaction)?;
+        let result_digest = canonical_digest(&result)?;
+        let reconciled = reconcile_lifecycle(
+            &self.dependencies.lifecycle_store,
+            unknown,
+            context,
+            EffectConclusion::Effect,
+            &result_digest,
+            &transaction_digest,
+            now,
+        )?;
+        if reconciled
+            .record()
+            .receipts()
+            .last()
+            .and_then(|receipt| receipt.domain_receipt_digest)
+            != Some(DomainReceiptDigest::new(digest_bytes(&transaction_digest)?))
+        {
+            return Err(ServiceError::ClaimState);
+        }
+        self.append_claim(reconciled.record(), ClaimStage::Reconciled)?;
+        self.append_claim(reconciled.record(), ClaimStage::Observed)?;
+        self.append(&PostgresReceipt::Transaction(Box::new(transaction.clone())))?;
+        self.append(&PostgresReceipt::Observation(observation.clone()))?;
+        Ok(WorkflowOutcome::Executed {
+            decision: Box::new(decision),
+            transaction: Box::new(transaction),
+            observation,
+            result: Box::new(result),
+        })
+    }
+
+    fn concurrent_conflict(
+        &self,
+        workflow_id: &WorkflowId,
+        action_digest: &DigestHex,
+    ) -> Result<WorkflowOutcome, ServiceError> {
+        let existing = self
+            .dependencies
+            .lifecycle_store
+            .load_postgres_lifecycle(workflow_id)
+            .map_err(ServiceError::Lifecycle)?
+            .ok_or(ServiceError::ClaimState)?;
+        let record = ClaimRecord::replay(&existing).map_err(|_| ServiceError::ClaimState)?;
+        if existing.decision_input().commitments.exact_action_digest() == commitment(action_digest)?
+            && matches!(
+                existing.state(),
+                LifecycleState::Committed | LifecycleState::ReconciledCommitted
+            )
+        {
+            Ok(WorkflowOutcome::Replay { record })
+        } else {
+            Ok(WorkflowOutcome::Conflict { record })
+        }
+    }
+
+    fn append_claim(
+        &self,
+        record: &LifecycleRecordV1,
+        stage: ClaimStage,
+    ) -> Result<(), ServiceError> {
+        let receipt =
+            ClaimRecord::from_lifecycle(record, stage).map_err(|_| ServiceError::ClaimState)?;
+        self.append(&PostgresReceipt::Claim(receipt))
+    }
+
     fn append(&self, receipt: &PostgresReceipt) -> Result<(), ServiceError> {
         self.dependencies.receipt_sink.append(receipt)?;
         Ok(())
     }
+}
 
-    async fn reconcile_outcome(
-        &self,
-        command: &VerifiedBoundedUpdateCommand,
-        credential: &crate::ports::PostgresCredential,
-        now: u64,
-    ) -> Result<TransactionResult, ServiceError> {
-        match self
-            .dependencies
-            .transaction_gateway
-            .reconcile(command, credential)
-            .await?
-        {
-            Reconciliation::Committed(mut result) => {
-                result.reconciled = true;
-                Ok(result)
-            }
-            Reconciliation::NotCommitted => {
-                self.record(command.lease(), ClaimStage::Failed, now)?;
-                Err(ServiceError::NotCommitted)
-            }
-            Reconciliation::Unavailable => Err(ServiceError::OutcomeUnknown),
-        }
-    }
+fn lifecycle_transition(
+    store: &impl LifecycleStore,
+    workflow_id: &WorkflowId,
+    revision: u64,
+    command: TransitionCommandV1,
+    context: TransitionContextV1,
+) -> Result<DurableTransitionV1, ServiceError> {
+    execute_store_transaction(
+        store,
+        &StoreTransactionV1 {
+            workflow_id: workflow_id.clone(),
+            expected_revision: Some(revision),
+            command,
+            context,
+        },
+    )
+    .map_err(ServiceError::Lifecycle)
+}
 
-    fn record(
-        &self,
-        lease: &crate::claim::ClaimLease,
-        stage: ClaimStage,
-        now: u64,
-    ) -> Result<(), ServiceError> {
-        let record = self
-            .dependencies
-            .claim_store
-            .record_stage(lease, stage, now)
-            .map_err(|_| ServiceError::ClaimState)?;
-        self.append(&PostgresReceipt::Claim(record))
-    }
+fn release_lifecycle(
+    store: &impl LifecycleStore,
+    workflow_id: &WorkflowId,
+    revision: u64,
+    context: TransitionContextV1,
+    action_digest: &DigestHex,
+    now: u64,
+) -> Result<DurableTransitionV1, ServiceError> {
+    let event = lifecycle_event_digest(b"postgresql-definite-non-effect", action_digest, now);
+    lifecycle_transition(
+        store,
+        workflow_id,
+        revision,
+        TransitionCommandV1::Release {
+            result_digest: ProviderResultDigest::new(digest_bytes(&event)?),
+            domain_receipt_digest: DomainReceiptDigest::new(digest_bytes(&event)?),
+            conclusion: EffectConclusion::NonEffect,
+        },
+        context,
+    )
+}
+
+fn mark_unknown_lifecycle(
+    store: &impl LifecycleStore,
+    workflow_id: &WorkflowId,
+    revision: u64,
+    context: TransitionContextV1,
+    action_digest: &DigestHex,
+    now: u64,
+) -> Result<DurableTransitionV1, ServiceError> {
+    let event = lifecycle_event_digest(b"postgresql-commit-outcome-unknown", action_digest, now);
+    lifecycle_transition(
+        store,
+        workflow_id,
+        revision,
+        TransitionCommandV1::MarkOutcomeUnknown {
+            domain_receipt_digest: DomainReceiptDigest::new(digest_bytes(&event)?),
+        },
+        context,
+    )
+}
+
+fn reconcile_lifecycle(
+    store: &impl LifecycleStore,
+    unknown: &LifecycleRecordV1,
+    context: TransitionContextV1,
+    conclusion: EffectConclusion,
+    result_digest: &DigestHex,
+    domain_receipt_digest: &DigestHex,
+    now: u64,
+) -> Result<DurableTransitionV1, ServiceError> {
+    let intent = unknown.execution_intent().ok_or(ServiceError::ClaimState)?;
+    let reconciliation_digest =
+        lifecycle_event_digest(b"postgresql-ledger-reconciliation", result_digest, now);
+    let observation = ReconciliationObservationV1::new(
+        ReconciliationId::parse(reconciliation_digest.as_str())
+            .map_err(|_| ServiceError::Projection)?,
+        EvidenceSourceId::parse(EVIDENCE_SOURCE_ID).map_err(|_| ServiceError::Projection)?,
+        VerifierTime::from_unix_seconds(now),
+        VerifierTime::from_unix_seconds(
+            now.checked_add(300).ok_or(ServiceError::Canonicalization)?,
+        ),
+        ObservationDigest::new(digest_bytes(result_digest)?),
+        conclusion,
+        intent.provider_request_digest(),
+    );
+    lifecycle_transition(
+        store,
+        unknown.workflow_id(),
+        unknown.revision(),
+        TransitionCommandV1::Reconcile {
+            observation,
+            domain_receipt_digest: DomainReceiptDigest::new(digest_bytes(domain_receipt_digest)?),
+        },
+        context,
+    )
+}
+
+fn context_from_record(
+    record: &LifecycleRecordV1,
+    now: u64,
+) -> Result<TransitionContextV1, ServiceError> {
+    let capacity = auths_lifecycle::CapacitySnapshotV1::new(
+        record
+            .reservations()
+            .iter()
+            .map(|entry| auths_lifecycle::CapacityEntryV1::Exclusive {
+                scope_digest: entry.request().scope_digest(),
+                window_digest: entry.request().window_digest(),
+                live_owner: Some(entry.request().reservation_id().clone()),
+            })
+            .collect(),
+    )
+    .map_err(|_| ServiceError::Projection)?;
+    Ok(TransitionContextV1 {
+        verifier_time: VerifierTime::from_unix_seconds(now),
+        executed_configuration: record
+            .decision_input()
+            .commitments
+            .executed_configuration()
+            .clone(),
+        revocation: auths_lifecycle::RevocationSnapshotV1 {
+            revoked: false,
+            snapshot_digest: commitment(&canonical_digest(&(
+                "auths.postgresql.revocation-not-configured/1",
+                record.workflow_id().as_str(),
+            ))?)?,
+        },
+        capacity,
+    })
 }
 
 fn validate_result(
@@ -253,6 +721,44 @@ fn validate_result(
     Ok(())
 }
 
+fn core_authorization_digest(authorized: &Authorized<PostgresUpdateCommand>) -> DigestHex {
+    let mut bytes = Vec::with_capacity(64);
+    bytes.extend_from_slice(authorized.verified().proof_digest().as_bytes());
+    bytes.extend_from_slice(authorized.verified().context_digest().as_bytes());
+    crate::canonical::sha256(&bytes)
+}
+
+fn implementation_build_digest() -> DigestHex {
+    crate::canonical::sha256(
+        option_env!("AUTHS_BUILD_COMMIT")
+            .unwrap_or(env!("CARGO_PKG_VERSION"))
+            .as_bytes(),
+    )
+}
+
+fn lifecycle_event_digest(domain: &[u8], digest: &DigestHex, now: u64) -> DigestHex {
+    let mut bytes = Vec::with_capacity(domain.len() + 72);
+    bytes.extend_from_slice(domain);
+    bytes.extend_from_slice(digest.as_str().as_bytes());
+    bytes.extend_from_slice(&now.to_be_bytes());
+    crate::canonical::sha256(&bytes)
+}
+
+fn canonical_digest<T: serde::Serialize>(value: &T) -> Result<DigestHex, ServiceError> {
+    crate::canonical::canonical_digest(value).map_err(|_| ServiceError::Canonicalization)
+}
+
+fn digest_bytes(value: &DigestHex) -> Result<[u8; 32], ServiceError> {
+    hex::decode(value.as_str())
+        .map_err(|_| ServiceError::Canonicalization)?
+        .try_into()
+        .map_err(|_| ServiceError::Canonicalization)
+}
+
+fn commitment(value: &DigestHex) -> Result<CommitmentDigest, ServiceError> {
+    Ok(CommitmentDigest::new(digest_bytes(value)?))
+}
+
 /// Complete workflow outcome.
 pub enum WorkflowOutcome {
     Rejected {
@@ -262,6 +768,9 @@ pub enum WorkflowOutcome {
         record: ClaimRecord,
     },
     Conflict {
+        record: ClaimRecord,
+    },
+    OutcomeUnknown {
         record: ClaimRecord,
     },
     Executed {
@@ -275,10 +784,16 @@ pub enum WorkflowOutcome {
 /// Closed service failure.
 #[derive(Debug, thiserror::Error)]
 pub enum ServiceError {
+    #[error("PostgreSQL canonicalization failed")]
+    Canonicalization,
     #[error("PostgreSQL profile failed")]
     Profile,
-    #[error("claim state failed")]
+    #[error("PostgreSQL lifecycle projection failed")]
+    Projection,
+    #[error("shared lifecycle state failed")]
     ClaimState,
+    #[error("shared lifecycle store failed: {0:?}")]
+    Lifecycle(StoreError),
     #[error("database outcome is unknown")]
     OutcomeUnknown,
     #[error("ledger proves the transaction did not commit")]
