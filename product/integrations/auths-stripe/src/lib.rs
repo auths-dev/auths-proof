@@ -17,6 +17,7 @@ pub mod connect;
 pub mod decision;
 pub mod executor;
 pub mod issuing;
+pub mod lifecycle;
 pub mod mandate;
 pub mod merchant;
 pub mod ports;
@@ -33,6 +34,7 @@ pub mod types;
 pub mod test_support;
 
 pub use adapters::{SdkProofVerifier, SystemClock};
+pub use auths_lifecycle::ExecutionAuthorizationV1;
 pub use bounded::{
     AggregateBudgetSnapshot, AggregateBudgetUsage, AggregateRefundBudget, BOUNDED_CANONICALIZATION,
     BOUNDED_EVALUATOR_ID, BOUNDED_EVALUATOR_VERSION, BOUNDED_POLICY_TYPE, BOUNDED_POLICY_VERSION,
@@ -45,7 +47,7 @@ pub use bounded::{
 };
 pub use bounded_service::{
     BoundedRefundService, BoundedServiceDependencies, BoundedWorkflowOutcome,
-    ExecuteBoundedRefundRequest,
+    ExecuteBoundedRefundRequest, reconcile_bounded_refund,
 };
 pub use claim::{
     ClaimLease, ClaimRecord, ClaimResult, ClaimStage, ClaimStore, InMemoryClaimStore,
@@ -53,20 +55,24 @@ pub use claim::{
 };
 pub use connect::*;
 pub use decision::{Decision, DecisionClass, DecisionCode, EvaluationContext, evaluate};
-pub use executor::VerifiedRefundCommand;
+pub use executor::{LifecycleVerifiedRefundCommand, RefundExecutionCommand, VerifiedRefundCommand};
 pub use issuing::*;
+pub use lifecycle::{
+    StripeLifecycleDecisionBindings, StripeLifecycleProjectionError,
+    StripeLifecycleProjectionInput, StripeLifecycleProjectionV1, project_refund_lifecycle,
+};
 pub use mandate::*;
 pub use merchant::*;
 pub use ports::{
     Clock, ConnectTransferCredential, ConnectTransferCredentialScope, CredentialProvider,
-    PaymentAuthorizeCredential, PaymentAuthorizeCredentialScope, PaymentCancelCredential,
-    PaymentCancelCredentialScope, PaymentCaptureCredential, PaymentCaptureCredentialScope,
-    PaymentCollectCredential, PaymentCollectCredentialScope, PaymentMandateCredential,
-    PaymentMandateCredentialScope, PayoutCredential, PayoutCredentialScope, PortError,
-    ProofDecision, ProofVerifier, PurchaseAuthorizationCredential,
-    PurchaseAuthorizationCredentialScope, ReceiptSink, RefundCredentialScope, StripeCredential,
-    StripeGateway, StripeRefundCredential, SubscriptionCancelCredential,
-    SubscriptionCancelCredentialScope, SubscriptionCreateCredential,
+    LifecycleRefundCredentialProvider, PaymentAuthorizeCredential, PaymentAuthorizeCredentialScope,
+    PaymentCancelCredential, PaymentCancelCredentialScope, PaymentCaptureCredential,
+    PaymentCaptureCredentialScope, PaymentCollectCredential, PaymentCollectCredentialScope,
+    PaymentMandateCredential, PaymentMandateCredentialScope, PayoutCredential,
+    PayoutCredentialScope, PortError, ProofDecision, ProofVerifier,
+    PurchaseAuthorizationCredential, PurchaseAuthorizationCredentialScope, ReceiptSink,
+    RefundCredentialScope, StripeCredential, StripeGateway, StripeRefundCredential,
+    SubscriptionCancelCredential, SubscriptionCancelCredentialScope, SubscriptionCreateCredential,
     SubscriptionCreateCredentialScope, SubscriptionModifyCredential,
     SubscriptionModifyCredentialScope,
 };
@@ -77,6 +83,7 @@ pub use receipts::{
 };
 pub use reservation::{
     InMemoryRefundReservationStore, PersistentRefundReservationStore, ReconciledRefundOutcome,
+    RefundLifecycleMutation, RefundLifecycleStore, RefundLifecycleTransaction,
     RefundReservationLease, RefundReservationRecord, RefundReservationState,
     RefundReservationStore, ReservationError, ReserveRefundRequest, ReserveRefundResult,
 };

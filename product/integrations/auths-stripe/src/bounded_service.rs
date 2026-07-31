@@ -1,28 +1,42 @@
 //! Protected execution path for one exact refund inside configured bounds.
 
+use auths_bounded_policy::{CommitmentDigest, EvidenceSourceId, VerifierTime};
+use auths_lifecycle::{
+    CapacitySnapshotV1, DomainReceiptDigest, DurableTransitionV1, EffectConclusion,
+    ExecutionAuthorizationV1, ExecutionIntentV1, LifecycleFailure, LifecycleState,
+    ObservationDigest, ProviderCallAuthorizationV1, ProviderConditionDigest, ProviderContractId,
+    ProviderRequestDigest, ProviderResultDigest, ProviderRetryClass, ReconciliationId,
+    ReconciliationObservationV1, RevocationSnapshotV1, StoreError, StoreTransactionV1,
+    TransitionCommandV1, TransitionContextV1, TransitionDisposition, WorkflowId,
+    execute_store_transaction,
+};
 use auths_profile_api::ActionProfile as _;
-use auths_sdk::RequestContext;
+use auths_sdk::{Authorized, RequestContext};
 
 use crate::{
     bounded::{
         BoundedDecisionClass, BoundedEvaluationContext, BoundedRefundDecision,
-        StripeBoundedEvaluatorConfigurationV1, StripeBoundedRefundPolicyV1,
-        evaluate_bounded_refund,
+        BoundedRefundEligibility, StripeBoundedEvaluatorConfigurationV1,
+        StripeBoundedRefundPolicyV1, evaluate_bounded_refund,
     },
     canonical::{canonical_digest, sha256},
-    claim::{ClaimResult, ClaimStage, ClaimStore},
-    executor::VerifiedRefundCommand,
-    ports::{
-        Clock, CredentialProvider, PortError, ProofDecision, ProofVerifier, ReceiptSink,
-        RefundCredentialScope, StripeGateway,
+    executor::LifecycleVerifiedRefundCommand,
+    lifecycle::{
+        StripeLifecycleDecisionBindings, StripeLifecycleProjectionInput, project_refund_lifecycle,
     },
-    profile::StripeRefundProfile,
+    ports::{
+        Clock, LifecycleRefundCredentialProvider, PortError, ProofDecision, ProofVerifier,
+        ReceiptSink, StripeGateway,
+    },
+    profile::{StripeRefundCommand, StripeRefundProfile},
     receipts::{
         BoundedDecisionReceipt, BoundedDecisionReceiptInput, ExecutionReceipt, ReservationReceipt,
         StripeReceipt, execution_receipt,
     },
     reservation::{
-        RefundReservationRecord, RefundReservationStore, ReserveRefundRequest, ReserveRefundResult,
+        ReconciledRefundOutcome, RefundLifecycleMutation, RefundLifecycleStore,
+        RefundLifecycleTransaction, RefundReservationLease, RefundReservationRecord,
+        RefundReservationStore, ReserveRefundRequest,
     },
     service::ServiceError,
     types::{ExactRefundActionV1, RefundEvidenceV1, RefundResult, StripeVerifierConfiguration},
@@ -47,16 +61,14 @@ pub struct ExecuteBoundedRefundRequest {
 }
 
 /// Explicit dependencies keep policy, persistence, credentials, and effects auditable.
-pub struct BoundedServiceDependencies<V, C, G, W, B, R, T> {
+pub struct BoundedServiceDependencies<V, C, G, B, R, T> {
     /// Auths kernel adapter.
     pub proof_verifier: V,
     /// Mutation credential broker.
     pub credential_provider: C,
     /// Only Stripe write adapter.
     pub stripe_gateway: G,
-    /// Exact-action replay claim.
-    pub claim_store: W,
-    /// Stripe-local aggregate reservation state.
+    /// Atomic shared lifecycle and Stripe-local aggregate reservation state.
     pub reservation_store: B,
     /// Append-only receipt sink.
     pub receipt_sink: R,
@@ -69,23 +81,22 @@ pub struct BoundedServiceDependencies<V, C, G, W, B, R, T> {
 }
 
 /// Complete bounded Stripe refund service.
-pub struct BoundedRefundService<V, C, G, W, B, R, T> {
-    dependencies: BoundedServiceDependencies<V, C, G, W, B, R, T>,
+pub struct BoundedRefundService<V, C, G, B, R, T> {
+    dependencies: BoundedServiceDependencies<V, C, G, B, R, T>,
 }
 
-impl<V, C, G, W, B, R, T> BoundedRefundService<V, C, G, W, B, R, T>
+impl<V, C, G, B, R, T> BoundedRefundService<V, C, G, B, R, T>
 where
     V: ProofVerifier,
-    C: CredentialProvider<RefundCredentialScope>,
+    C: LifecycleRefundCredentialProvider,
     G: StripeGateway,
-    W: ClaimStore,
-    B: RefundReservationStore,
+    B: RefundLifecycleStore,
     R: ReceiptSink<StripeReceipt>,
     T: Clock,
 {
     /// Constructs the service from explicit trusted dependencies.
     #[must_use]
-    pub const fn new(dependencies: BoundedServiceDependencies<V, C, G, W, B, R, T>) -> Self {
+    pub const fn new(dependencies: BoundedServiceDependencies<V, C, G, B, R, T>) -> Self {
         Self { dependencies }
     }
 
@@ -141,7 +152,7 @@ where
             action_digest: action_digest.clone(),
             evidence: request.evidence.clone(),
             evidence_digest: evidence_digest.clone(),
-            aggregate_before,
+            aggregate_before: aggregate_before.clone(),
             required_exact_configuration: request.required_exact_configuration.clone(),
             executed_exact_configuration: self.dependencies.executed_exact_configuration.clone(),
             required_bounded_configuration: request.required_bounded_configuration.clone(),
@@ -204,6 +215,52 @@ where
             }
         };
 
+        let requested_workflow =
+            WorkflowId::parse(request.action.workflow_id()).map_err(|_| ServiceError::Profile)?;
+        if let Some(existing) = self
+            .dependencies
+            .reservation_store
+            .load_refund_lifecycle(&requested_workflow)
+            .map_err(store_failure)?
+            && matches!(
+                existing.state(),
+                LifecycleState::Executing
+                    | LifecycleState::OutcomeUnknown
+                    | LifecycleState::Committed
+                    | LifecycleState::Released
+                    | LifecycleState::ReconciledCommitted
+                    | LifecycleState::ReconciledReleased
+            )
+        {
+            let reservation = self
+                .dependencies
+                .reservation_store
+                .get(request.action.workflow_id())
+                .map_err(|_| ServiceError::ClaimState)?
+                .ok_or(ServiceError::ClaimState)?;
+            return if existing.decision_input().commitments.exact_action_digest()
+                == commitment(&action_digest)?
+            {
+                Ok(BoundedWorkflowOutcome::Replay { reservation })
+            } else {
+                Ok(BoundedWorkflowOutcome::Conflict { reservation })
+            };
+        }
+
+        let projection = project_refund_lifecycle(&StripeLifecycleProjectionInput {
+            action: &request.action,
+            policy: &request.policy,
+            evidence: &request.evidence,
+            aggregate_snapshot: &aggregate_before,
+            decision: &bounded_decision,
+            required_configuration: &request.required_bounded_configuration,
+            executed_configuration: &self.dependencies.executed_bounded_configuration,
+            verifier_time: now,
+        })
+        .map_err(|_| ServiceError::Profile)?;
+        let lifecycle_context = projection.transition_context(now);
+        let core_authorization_digest = core_authorization_digest(&authorized);
+
         // The decision receipt is durable before aggregate reservation.
         self.append(&StripeReceipt::BoundedDecision(Box::new(
             decision_receipt.clone(),
@@ -211,6 +268,48 @@ where
         let decision_receipt_digest = decision_receipt
             .digest()
             .map_err(|_| ServiceError::Canonicalization)?;
+        let workflow_id = projection.workflow_id.clone();
+        let implementation_build_digest = implementation_build_digest();
+        let decision_input = projection
+            .into_decision_input(&StripeLifecycleDecisionBindings {
+                core_authorization_digest: &core_authorization_digest,
+                decision_receipt_digest: &decision_receipt_digest,
+                domain_decision_receipt_digest: &decision_receipt_digest,
+                implementation_build_digest: &implementation_build_digest,
+                expires_at: request.action.expires_at(),
+            })
+            .map_err(|_| ServiceError::Profile)?;
+        let existing_lifecycle = self
+            .dependencies
+            .reservation_store
+            .load_refund_lifecycle(&workflow_id)
+            .map_err(store_failure)?;
+        let recorded = execute_store_transaction(
+            &RefundLifecycleTransaction::new(
+                &self.dependencies.reservation_store,
+                RefundLifecycleMutation::None,
+            ),
+            &StoreTransactionV1 {
+                workflow_id: workflow_id.clone(),
+                expected_revision: existing_lifecycle
+                    .as_ref()
+                    .map(auths_lifecycle::LifecycleRecordV1::revision),
+                command: TransitionCommandV1::RecordDecision(Box::new(decision_input)),
+                context: lifecycle_context.clone(),
+            },
+        )
+        .map_err(store_failure)?;
+        if recorded.disposition() == TransitionDisposition::ExactReplay
+            && recorded.record().state() != LifecycleState::DecisionRecorded
+        {
+            let reservation = self
+                .dependencies
+                .reservation_store
+                .get(request.action.workflow_id())
+                .map_err(|_| ServiceError::ClaimState)?
+                .ok_or(ServiceError::ClaimState)?;
+            return Ok(BoundedWorkflowOutcome::Replay { reservation });
+        }
         let eligibility = bounded_decision
             .eligibility
             .as_ref()
@@ -224,50 +323,80 @@ where
             .executed_bounded_configuration
             .digest()
             .map_err(|_| ServiceError::Canonicalization)?;
-        let reservation = self
-            .dependencies
-            .reservation_store
-            .reserve(ReserveRefundRequest {
-                workflow_id: request.action.workflow_id().into(),
-                action_digest: action_digest.clone(),
-                decision_receipt_digest: decision_receipt_digest.clone(),
-                policy_digest,
-                evaluator_semantic_id: request.policy.evaluator_semantic_id().into(),
-                evaluator_semantic_version: request.policy.evaluator_semantic_version(),
-                evidence_digest,
-                required_configuration_digest: required_bounded_digest,
-                executed_configuration_digest: executed_bounded_digest,
-                stripe_account_id: request.action.stripe_account_id().clone(),
-                currency: request.action.amount().currency().clone(),
-                amount_minor: request.action.amount().amount_minor(),
-                intents: eligibility.reservations.clone(),
-                idempotency_key_digest: sha256(request.action.idempotency_key().as_bytes()),
-                now,
-            });
-        let (reservation_lease, reserved_record) = match reservation {
-            ReserveRefundResult::Reserved { lease, record } => (lease, record),
-            ReserveRefundResult::Replay(record) => {
-                return Ok(BoundedWorkflowOutcome::Replay {
-                    reservation: record,
-                });
-            }
-            ReserveRefundResult::Conflict(record) => {
-                return Ok(BoundedWorkflowOutcome::Conflict {
-                    reservation: record,
-                });
-            }
-            ReserveRefundResult::CapacityExceeded {
-                budget_id,
-                available_minor,
-            } => {
+        let reserve_request = ReserveRefundRequest {
+            workflow_id: request.action.workflow_id().into(),
+            action_digest: action_digest.clone(),
+            decision_receipt_digest: decision_receipt_digest.clone(),
+            policy_digest,
+            evaluator_semantic_id: request.policy.evaluator_semantic_id().into(),
+            evaluator_semantic_version: request.policy.evaluator_semantic_version(),
+            evidence_digest: evidence_digest.clone(),
+            required_configuration_digest: required_bounded_digest,
+            executed_configuration_digest: executed_bounded_digest,
+            stripe_account_id: request.action.stripe_account_id().clone(),
+            currency: request.action.amount().currency().clone(),
+            amount_minor: request.action.amount().amount_minor(),
+            intents: eligibility.reservations.clone(),
+            idempotency_key_digest: sha256(request.action.idempotency_key().as_bytes()),
+            now,
+        };
+        let reserved = execute_store_transaction(
+            &RefundLifecycleTransaction::new(
+                &self.dependencies.reservation_store,
+                RefundLifecycleMutation::Reserve {
+                    policy: &request.policy,
+                    request: Box::new(reserve_request),
+                },
+            ),
+            &StoreTransactionV1 {
+                workflow_id: workflow_id.clone(),
+                expected_revision: Some(recorded.record().revision()),
+                command: TransitionCommandV1::Reserve,
+                context: lifecycle_context.clone(),
+            },
+        );
+        let reserved = match reserved {
+            Ok(reserved) => reserved,
+            Err(StoreError::Rejected(LifecycleFailure::CapacityExceeded)) => {
+                let (budget_id, available_minor) = changed_capacity(
+                    &self.dependencies.reservation_store,
+                    &request.policy,
+                    &request.action,
+                    eligibility,
+                    now,
+                )?;
                 return Ok(BoundedWorkflowOutcome::CapacityChanged {
                     decision: bounded_decision,
                     budget_id,
                     available_minor,
                 });
             }
-            ReserveRefundResult::Unavailable => return Err(ServiceError::ClaimState),
+            Err(StoreError::Conflict) => {
+                let existing = self
+                    .dependencies
+                    .reservation_store
+                    .get(request.action.workflow_id())
+                    .map_err(|_| ServiceError::ClaimState)?
+                    .ok_or(ServiceError::ClaimState)?;
+                return if existing.action_digest() == &action_digest {
+                    Ok(BoundedWorkflowOutcome::Replay {
+                        reservation: existing,
+                    })
+                } else {
+                    Ok(BoundedWorkflowOutcome::Conflict {
+                        reservation: existing,
+                    })
+                };
+            }
+            Err(error) => return Err(store_failure(error)),
         };
+        let reserved_record = self
+            .dependencies
+            .reservation_store
+            .get(request.action.workflow_id())
+            .map_err(|_| ServiceError::ClaimState)?
+            .ok_or(ServiceError::ClaimState)?;
+        let reservation_lease = RefundReservationLease::from_record(&reserved_record);
         self.append(&StripeReceipt::Reservation(Box::new(ReservationReceipt {
             schema: "auths.stripe.bounded-reservation-receipt/1".into(),
             decision_receipt_digest: decision_receipt_digest.clone(),
@@ -277,60 +406,76 @@ where
             recorded_at: now,
         })))?;
 
-        let claim_lease = match self.dependencies.claim_store.claim(
-            request.action.workflow_id(),
-            &action_digest,
-            now,
-        ) {
-            ClaimResult::Claimed(lease) => lease,
-            ClaimResult::Replay(_) => {
-                self.dependencies
-                    .reservation_store
-                    .release(&reservation_lease, now)
-                    .map_err(|_| ServiceError::ClaimState)?;
-                return Ok(BoundedWorkflowOutcome::Replay {
-                    reservation: reserved_record,
-                });
-            }
-            ClaimResult::Conflict(_) => {
-                self.dependencies
-                    .reservation_store
-                    .release(&reservation_lease, now)
-                    .map_err(|_| ServiceError::ClaimState)?;
-                return Ok(BoundedWorkflowOutcome::Conflict {
-                    reservation: reserved_record,
-                });
-            }
-            ClaimResult::Unavailable => {
-                self.dependencies
-                    .reservation_store
-                    .release(&reservation_lease, now)
-                    .map_err(|_| ServiceError::ClaimState)?;
-                return Err(ServiceError::ClaimState);
-            }
-        };
+        let execution_intent = ExecutionIntentV1::new(
+            commitment(&action_digest)?,
+            ProviderRequestDigest::new(digest_bytes(&action_digest)?),
+            ProviderConditionDigest::new(digest_bytes(&evidence_digest)?),
+            ProviderContractId::parse("auths.stripe.refund-create/1")
+                .map_err(|_| ServiceError::Profile)?,
+            ProviderRetryClass::ExactIdempotent,
+        );
+        let intent_recorded = lifecycle_transition(
+            &self.dependencies.reservation_store,
+            &workflow_id,
+            reserved.record().revision(),
+            TransitionCommandV1::RecordExecutionIntent(execution_intent),
+            lifecycle_context.clone(),
+            RefundLifecycleMutation::None,
+        )?;
+        let credential_stage = lifecycle_transition(
+            &self.dependencies.reservation_store,
+            &workflow_id,
+            intent_recorded.record().revision(),
+            TransitionCommandV1::AuthorizeCredential,
+            lifecycle_context.clone(),
+            RefundLifecycleMutation::None,
+        )?;
+        let credential_authorization = ExecutionAuthorizationV1::from_durable(&credential_stage)
+            .map_err(|_| ServiceError::ClaimState)?;
 
-        // Credential acquisition is deliberately after decision persistence,
-        // aggregate reservation, and exact-action claim.
+        // Credential acquisition is type-gated by the newly durable shared
+        // lifecycle authorization.
         let credential = match self
             .dependencies
             .credential_provider
-            .credential(request.action.stripe_account_id())
-        {
+            .credential_after_authorization(
+                &credential_authorization,
+                request.action.stripe_account_id(),
+            ) {
             Ok(credential) => credential,
             Err(error) => {
-                self.dependencies
-                    .claim_store
-                    .record_stage(&claim_lease, ClaimStage::Failed, now)
-                    .map_err(|_| ServiceError::ClaimState)?;
-                self.dependencies
-                    .reservation_store
-                    .release(&reservation_lease, now)
-                    .map_err(|_| ServiceError::ClaimState)?;
+                release_lifecycle(
+                    &self.dependencies.reservation_store,
+                    &workflow_id,
+                    credential_stage.record().revision(),
+                    lifecycle_context.clone(),
+                    &reservation_lease,
+                    &action_digest,
+                    now,
+                )?;
                 return Err(ServiceError::Port(error));
             }
         };
-        let command = VerifiedRefundCommand::new(authorized, request.evidence, claim_lease);
+        let attempt = lifecycle_transition(
+            &self.dependencies.reservation_store,
+            &workflow_id,
+            credential_stage.record().revision(),
+            TransitionCommandV1::StartAttempt,
+            lifecycle_context.clone(),
+            RefundLifecycleMutation::None,
+        )?;
+        let call_entry = lifecycle_transition(
+            &self.dependencies.reservation_store,
+            &workflow_id,
+            attempt.record().revision(),
+            TransitionCommandV1::MarkProviderCallEntered,
+            lifecycle_context.clone(),
+            RefundLifecycleMutation::None,
+        )?;
+        let call_authorization = ProviderCallAuthorizationV1::from_durable(&call_entry)
+            .map_err(|_| ServiceError::ClaimState)?;
+        let command =
+            LifecycleVerifiedRefundCommand::new(authorized, request.evidence, call_authorization);
         let result =
             match self
                 .dependencies
@@ -339,15 +484,15 @@ where
             {
                 Ok(result) => result,
                 Err(PortError::OutcomeUnknown) => {
-                    self.dependencies
-                        .claim_store
-                        .record_stage(command.lease(), ClaimStage::OutcomeUnknown, now)
-                        .map_err(|_| ServiceError::ClaimState)?;
-                    let reservation = self
-                        .dependencies
-                        .reservation_store
-                        .mark_outcome_unknown(&reservation_lease, now)
-                        .map_err(|_| ServiceError::ClaimState)?;
+                    let reservation = mark_unknown_lifecycle(
+                        &self.dependencies.reservation_store,
+                        &workflow_id,
+                        call_entry.record().revision(),
+                        lifecycle_context.clone(),
+                        &reservation_lease,
+                        &action_digest,
+                        now,
+                    )?;
                     self.append(&StripeReceipt::Reservation(Box::new(ReservationReceipt {
                         schema: "auths.stripe.bounded-reservation-receipt/1".into(),
                         decision_receipt_digest,
@@ -359,27 +504,28 @@ where
                     return Ok(BoundedWorkflowOutcome::OutcomeUnknown { reservation });
                 }
                 Err(error) => {
-                    self.dependencies
-                        .claim_store
-                        .record_stage(command.lease(), ClaimStage::Failed, now)
-                        .map_err(|_| ServiceError::ClaimState)?;
-                    self.dependencies
-                        .reservation_store
-                        .release(&reservation_lease, now)
-                        .map_err(|_| ServiceError::ClaimState)?;
+                    release_lifecycle(
+                        &self.dependencies.reservation_store,
+                        &workflow_id,
+                        call_entry.record().revision(),
+                        lifecycle_context.clone(),
+                        &reservation_lease,
+                        &action_digest,
+                        now,
+                    )?;
                     return Err(ServiceError::Port(error));
                 }
             };
         if validate_result(command.action(), &result).is_err() {
-            self.dependencies
-                .claim_store
-                .record_stage(command.lease(), ClaimStage::OutcomeUnknown, now)
-                .map_err(|_| ServiceError::ClaimState)?;
-            let reservation = self
-                .dependencies
-                .reservation_store
-                .mark_outcome_unknown(&reservation_lease, now)
-                .map_err(|_| ServiceError::ClaimState)?;
+            let reservation = mark_unknown_lifecycle(
+                &self.dependencies.reservation_store,
+                &workflow_id,
+                call_entry.record().revision(),
+                lifecycle_context.clone(),
+                &reservation_lease,
+                &action_digest,
+                now,
+            )?;
             self.append(&StripeReceipt::Reservation(Box::new(ReservationReceipt {
                 schema: "auths.stripe.bounded-reservation-receipt/1".into(),
                 decision_receipt_digest,
@@ -392,15 +538,6 @@ where
         }
         let result_digest =
             canonical_digest(&result).map_err(|_| ServiceError::Canonicalization)?;
-        self.dependencies
-            .claim_store
-            .record_provider_result(command.lease(), &result.refund_id, &result_digest, now)
-            .map_err(|_| ServiceError::ClaimState)?;
-        let committed = self
-            .dependencies
-            .reservation_store
-            .commit(&reservation_lease, &result.refund_id, &result_digest, now)
-            .map_err(|_| ServiceError::ClaimState)?;
         let execution = execution_receipt(
             self.dependencies
                 .executed_exact_configuration
@@ -410,6 +547,31 @@ where
             &result,
         )
         .map_err(|_| ServiceError::Canonicalization)?;
+        let execution_digest = execution
+            .digest()
+            .map_err(|_| ServiceError::Canonicalization)?;
+        lifecycle_transition(
+            &self.dependencies.reservation_store,
+            &workflow_id,
+            call_entry.record().revision(),
+            TransitionCommandV1::Commit {
+                result_digest: ProviderResultDigest::new(digest_bytes(&result_digest)?),
+                domain_receipt_digest: DomainReceiptDigest::new(digest_bytes(&execution_digest)?),
+            },
+            lifecycle_context,
+            RefundLifecycleMutation::Commit {
+                lease: &reservation_lease,
+                refund_id: &result.refund_id,
+                result_digest: &result_digest,
+                now,
+            },
+        )?;
+        let committed = self
+            .dependencies
+            .reservation_store
+            .get(request.action.workflow_id())
+            .map_err(|_| ServiceError::ClaimState)?
+            .ok_or(ServiceError::ClaimState)?;
         self.append(&StripeReceipt::Execution(Box::new(execution.clone())))?;
         self.append(&StripeReceipt::Reservation(Box::new(ReservationReceipt {
             schema: "auths.stripe.bounded-reservation-receipt/1".into(),
@@ -433,6 +595,230 @@ where
             .append(receipt)
             .map_err(ServiceError::from)
     }
+}
+
+/// Atomically reconciles one ambiguous Stripe refund in both the shared
+/// lifecycle and Stripe aggregate-capacity views.
+///
+/// # Errors
+///
+/// Fails closed for a missing/non-ambiguous workflow, malformed identifiers,
+/// stale arithmetic, or any non-durable shared/domain transition.
+pub fn reconcile_bounded_refund(
+    store: &impl RefundLifecycleStore,
+    workflow: &str,
+    action_digest: &crate::types::DigestHex,
+    outcome: ReconciledRefundOutcome,
+    now: u64,
+) -> Result<RefundReservationRecord, ServiceError> {
+    let workflow_id = WorkflowId::parse(workflow).map_err(|_| ServiceError::Profile)?;
+    let lifecycle = store
+        .load_refund_lifecycle(&workflow_id)
+        .map_err(store_failure)?
+        .ok_or(ServiceError::ClaimState)?;
+    let provider_request_digest = lifecycle
+        .execution_intent()
+        .map(ExecutionIntentV1::provider_request_digest)
+        .ok_or(ServiceError::ClaimState)?;
+    let conclusion = match &outcome {
+        ReconciledRefundOutcome::Committed { .. } => EffectConclusion::Effect,
+        ReconciledRefundOutcome::Released => EffectConclusion::NonEffect,
+    };
+    let event = lifecycle_event_digest(b"stripe-refund-reconciliation", action_digest, now);
+    let reconciliation_id =
+        ReconciliationId::parse(event.as_str()).map_err(|_| ServiceError::Canonicalization)?;
+    let observation = ReconciliationObservationV1::new(
+        reconciliation_id,
+        EvidenceSourceId::parse("stripe-api-refund-list/1").map_err(|_| ServiceError::Profile)?,
+        VerifierTime::from_unix_seconds(now),
+        VerifierTime::from_unix_seconds(
+            now.checked_add(300).ok_or(ServiceError::Canonicalization)?,
+        ),
+        ObservationDigest::new(digest_bytes(&event)?),
+        conclusion,
+        provider_request_digest,
+    );
+    let context = TransitionContextV1 {
+        verifier_time: VerifierTime::from_unix_seconds(now),
+        executed_configuration: lifecycle
+            .decision_input()
+            .commitments
+            .executed_configuration()
+            .clone(),
+        revocation: RevocationSnapshotV1 {
+            revoked: false,
+            snapshot_digest: commitment(&sha256(b"auths.stripe.revocation-not-configured/1"))?,
+        },
+        capacity: CapacitySnapshotV1::new(Vec::new()).map_err(|_| ServiceError::Profile)?,
+    };
+    lifecycle_transition(
+        store,
+        &workflow_id,
+        lifecycle.revision(),
+        TransitionCommandV1::Reconcile {
+            observation,
+            domain_receipt_digest: DomainReceiptDigest::new(digest_bytes(&event)?),
+        },
+        context,
+        RefundLifecycleMutation::Reconcile {
+            workflow_id: workflow,
+            action_digest,
+            outcome,
+            now,
+        },
+    )?;
+    store
+        .get(workflow)
+        .map_err(|_| ServiceError::ClaimState)?
+        .ok_or(ServiceError::ClaimState)
+}
+
+fn lifecycle_transition(
+    store: &impl RefundLifecycleStore,
+    workflow_id: &WorkflowId,
+    revision: u64,
+    command: TransitionCommandV1,
+    context: TransitionContextV1,
+    mutation: RefundLifecycleMutation<'_>,
+) -> Result<DurableTransitionV1, ServiceError> {
+    execute_store_transaction(
+        &RefundLifecycleTransaction::new(store, mutation),
+        &StoreTransactionV1 {
+            workflow_id: workflow_id.clone(),
+            expected_revision: Some(revision),
+            command,
+            context,
+        },
+    )
+    .map_err(store_failure)
+}
+
+fn release_lifecycle(
+    store: &impl RefundLifecycleStore,
+    workflow_id: &WorkflowId,
+    revision: u64,
+    context: TransitionContextV1,
+    lease: &RefundReservationLease,
+    action_digest: &crate::types::DigestHex,
+    now: u64,
+) -> Result<(), ServiceError> {
+    let event = lifecycle_event_digest(b"stripe-definite-non-effect", action_digest, now);
+    lifecycle_transition(
+        store,
+        workflow_id,
+        revision,
+        TransitionCommandV1::Release {
+            result_digest: ProviderResultDigest::new(digest_bytes(&event)?),
+            domain_receipt_digest: DomainReceiptDigest::new(digest_bytes(&event)?),
+            conclusion: EffectConclusion::NonEffect,
+        },
+        context,
+        RefundLifecycleMutation::Release { lease, now },
+    )?;
+    Ok(())
+}
+
+fn mark_unknown_lifecycle(
+    store: &impl RefundLifecycleStore,
+    workflow_id: &WorkflowId,
+    revision: u64,
+    context: TransitionContextV1,
+    lease: &RefundReservationLease,
+    action_digest: &crate::types::DigestHex,
+    now: u64,
+) -> Result<RefundReservationRecord, ServiceError> {
+    let event = lifecycle_event_digest(b"stripe-provider-outcome-unknown", action_digest, now);
+    lifecycle_transition(
+        store,
+        workflow_id,
+        revision,
+        TransitionCommandV1::MarkOutcomeUnknown {
+            domain_receipt_digest: DomainReceiptDigest::new(digest_bytes(&event)?),
+        },
+        context,
+        RefundLifecycleMutation::OutcomeUnknown { lease, now },
+    )?;
+    store
+        .get(workflow_id.as_str())
+        .map_err(|_| ServiceError::ClaimState)?
+        .ok_or(ServiceError::ClaimState)
+}
+
+fn changed_capacity(
+    store: &impl RefundReservationStore,
+    policy: &StripeBoundedRefundPolicyV1,
+    action: &ExactRefundActionV1,
+    eligibility: &BoundedRefundEligibility,
+    now: u64,
+) -> Result<(String, u64), ServiceError> {
+    let snapshot = store
+        .snapshot(policy, action.stripe_account_id(), now)
+        .map_err(|_| ServiceError::ClaimState)?;
+    for intent in &eligibility.reservations {
+        let usage = snapshot
+            .usages
+            .iter()
+            .find(|usage| usage.budget_id == intent.budget_id && usage.window == intent.window);
+        let used = usage.map_or(Ok(0), |usage| {
+            usage
+                .committed_minor
+                .checked_add(usage.reserved_minor)
+                .and_then(|value| value.checked_add(usage.outcome_unknown_minor))
+                .ok_or(ServiceError::ClaimState)
+        })?;
+        let available = intent
+            .limit_minor
+            .checked_sub(used)
+            .ok_or(ServiceError::ClaimState)?;
+        if intent.amount_minor > available {
+            return Ok((intent.budget_id.clone(), available));
+        }
+    }
+    Err(ServiceError::ClaimState)
+}
+
+fn core_authorization_digest(
+    authorized: &Authorized<StripeRefundCommand>,
+) -> crate::types::DigestHex {
+    let mut bytes = Vec::with_capacity(64);
+    bytes.extend_from_slice(authorized.verified().proof_digest().as_bytes());
+    bytes.extend_from_slice(authorized.verified().context_digest().as_bytes());
+    sha256(&bytes)
+}
+
+fn implementation_build_digest() -> crate::types::DigestHex {
+    sha256(
+        option_env!("AUTHS_BUILD_COMMIT")
+            .unwrap_or(env!("CARGO_PKG_VERSION"))
+            .as_bytes(),
+    )
+}
+
+fn lifecycle_event_digest(
+    domain: &[u8],
+    action_digest: &crate::types::DigestHex,
+    now: u64,
+) -> crate::types::DigestHex {
+    let mut bytes = Vec::with_capacity(domain.len() + 72);
+    bytes.extend_from_slice(domain);
+    bytes.extend_from_slice(action_digest.as_str().as_bytes());
+    bytes.extend_from_slice(&now.to_be_bytes());
+    sha256(&bytes)
+}
+
+fn digest_bytes(value: &crate::types::DigestHex) -> Result<[u8; 32], ServiceError> {
+    hex::decode(value.as_str())
+        .map_err(|_| ServiceError::Canonicalization)?
+        .try_into()
+        .map_err(|_| ServiceError::Canonicalization)
+}
+
+fn commitment(value: &crate::types::DigestHex) -> Result<CommitmentDigest, ServiceError> {
+    Ok(CommitmentDigest::new(digest_bytes(value)?))
+}
+
+fn store_failure(error: StoreError) -> ServiceError {
+    ServiceError::Lifecycle(error)
 }
 
 fn validate_result(

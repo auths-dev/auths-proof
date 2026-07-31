@@ -17,6 +17,20 @@ written for agents implementing the work and defines:
 This plan does not authorize an agent to begin with a generic policy engine,
 provider interface, workflow runtime, or reservation state machine.
 
+### Prelaunch cutover rule
+
+Auths-proof currently has no users or production state. In this plan,
+“migration” means a source-level move to the new authoritative path; it does
+not mean compatibility with disposable prelaunch state or APIs.
+
+Do not build legacy state readers, dual writes, old-schema adapters,
+compatibility shims, deprecation windows, or runtime rollback switches. Each
+domain cuts over directly, CI starts from empty state, and developers delete
+obsolete local demo state. Preserve old pure evaluators only as test-only
+semantic oracles where they add assurance. PostgreSQL transaction rollback and
+provider-effect reconciliation remain domain semantics, not compatibility
+mechanisms.
+
 ## Governing documents
 
 Read all of the following before planning or changing code:
@@ -85,13 +99,13 @@ their live-effect and recovery jobs pass on that same baseline.
 ```text
 Clean, green baseline
   -> status and evidence audit
-  -> freeze seven-domain migration oracles
+  -> freeze seven-domain conformance oracles
   -> write the semantic inventory
   -> classify every candidate
   -> specify and freeze the closed contract
   -> Milestone 3: pure bounded-policy semantics
   -> Milestone 4: mutable reservation/execution semantics
-  -> Milestone 5: one-domain-at-a-time migration
+  -> Milestone 5: one-domain-at-a-time source cutover
   -> Milestone 6: measured, equivalence-proven optimization
   -> post-Milestone 6 productization
 ```
@@ -179,12 +193,12 @@ An upstream provider SDK or API type must terminate at its domain adapter. A
 shared package must not import Stripe, GitHub, Radicle, Kubernetes, OpenTofu,
 PostgreSQL, or other provider SDK types. If a change in one provider requires a
 change in an unrelated domain or in the formal core, treat that as evidence of
-an invalid abstraction and stop the migration.
+an invalid abstraction and stop the source cutover.
 
 ### Permanent role of demos
 
 The individual demos remain after consolidation. They become permanent
-downstream compatibility laboratories that prove shared changes still work
+downstream regression laboratories that prove shared changes still work
 against complete domain workflows.
 
 Every maintained demo must continue exercising:
@@ -204,7 +218,8 @@ packages must never depend on demo code.
 
 ### Reference versus production implementations
 
-During a Milestone 5 migration, retain both the original and migrated paths:
+During a Milestone 5 source cutover, retain the original evaluator only in
+tests while comparing it with the new path:
 
 ```text
 frozen canonical input
@@ -220,17 +235,17 @@ The original pure evaluator remains available as a test-only reference until
 the relevant semantic version is retired. Preserve its frozen fixtures and
 smallest regression seeds.
 
-Do not keep two complete production execution pipelines indefinitely. Permanent
-duplicate production paths create ambiguous authority, divergent security
-fixes, and unclear operational state. Remove duplicate production orchestration
-only after exact differential conformance, live domain tests, state
-migration/rollback tests, and the complete repository suite pass.
+Do not keep two complete production execution pipelines. Duplicate production
+paths create ambiguous authority, divergent security fixes, and unclear
+operational state. Cut the demo over to the new path in the same PR after exact
+differential conformance, live domain tests, obsolete-state rejection, and the
+complete repository suite pass.
 
 The intended steady state is:
 
 - one authoritative production path;
 - one deliberately simple test-only reference evaluator where useful;
-- frozen migration oracles;
+- frozen conformance oracles;
 - permanent domain profiles, provider adapters, reconciliation, receipts, and
   demos.
 
@@ -282,7 +297,7 @@ further:
 1. **Readiness and oracle PR**
    - status audit;
    - machine-readable seven-domain inventory shell;
-   - domain-specific migration fixtures;
+   - domain-specific conformance fixtures;
    - fixture generation and validation;
    - baseline measurements;
    - no shared semantic implementation.
@@ -291,7 +306,7 @@ further:
    - candidate classifications;
    - abstraction case files;
    - the closed bounded-policy specification;
-   - proposed evaluator and compatibility identities;
+   - proposed evaluator and semantic identities;
    - no production implementation of the proposed contract.
 3. **Milestone 3 PR or narrowly ordered PR series**
    - pure deterministic bounded-policy semantics;
@@ -301,8 +316,8 @@ further:
    - reservation and execution state semantics;
    - formalization and model-based testing;
    - storage mechanisms only after the transition contract is fixed.
-5. **Milestone 5 migration PRs**
-   - one domain per PR, in the prescribed migration order;
+5. **Milestone 5 cutover PRs**
+   - one domain per PR, in the prescribed cutover order;
    - GitHub and Radicle may share a final coordinated PR only if the approved
      contract explicitly treats them as a composition and independent
      differential evidence is retained.
@@ -347,7 +362,7 @@ Every PR must state:
 - exact validation run;
 - CI phases expected to run and why;
 - formal-assurance impact;
-- compatibility and rollback plan;
+- prelaunch cutover and obsolete-state rejection plan;
 - known residual assumptions.
 
 “Tests pass” is not sufficient. Link each security claim to the specific
@@ -359,7 +374,7 @@ fixture, theorem, property, model check, or live test that supports it.
 
 - policy meaning, policy schema, or evaluator identity;
 - canonical action, evidence, configuration, or receipt meaning;
-- wire bytes, persisted state, fixture identity, or compatibility behavior;
+- wire bytes, persisted state, or fixture identity;
 - denial, indeterminate, reconciliation, or stable-code semantics;
 - reservation keys, capacity units, lifecycle transitions, expiry, release,
   commitment, or outcome-unknown behavior;
@@ -370,14 +385,14 @@ fixture, theorem, property, model check, or live test that supports it.
   closure;
 - a new production crate, shared semantic abstraction, or architectural
   dependency direction;
-- a migration that could change decisions, commands, receipt bytes, or
+- a source cutover that could change decisions, commands, receipt bytes, or
   persisted state;
 - a performance representation that could change evaluation order, work
   limits, canonical output, or observable results.
 
 For these tasks, write or amend the specification before production code. The
 specification must define the inputs, outputs, hard limits, failure behavior,
-versioning, acceptance tests, and compatibility rules. Commit the specification
+versioning, acceptance tests, and prelaunch cutover rules. Commit the specification
 first on the branch so the implementation diff can be reviewed against a fixed
 contract.
 
@@ -385,7 +400,7 @@ Use a separate specification-only PR when:
 
 - the decision introduces a new shared semantic abstraction;
 - persisted or canonical meaning will be frozen;
-- more than one domain must migrate to the contract;
+- more than one domain must cut over to the contract;
 - formal claims or trusted boundaries materially change;
 - reasonable reviewers could approve the problem but disagree about the
   semantic design.
@@ -466,7 +481,7 @@ API:
 - `xtask` rejects status/inventory drift;
 - the audit contains no unresolved “probably implemented” conclusions.
 
-## Step 2: freeze seven-domain migration oracles
+## Step 2: freeze seven-domain conformance oracles
 
 ### Required oracle scenarios
 
@@ -505,7 +520,7 @@ Fixtures must include:
   canonical bytes.
 - Keep domain-specific fixtures domain-specific.
 - Do not normalize divergent receipt fields into a universal demo receipt.
-- Preserve old implementations as the fixture oracle until migration
+- Preserve old implementations as the fixture oracle until cutover
   differential tests pass.
 
 ### Done means
@@ -590,7 +605,8 @@ Write a numbered specification before implementation. It must define:
 - reservations and obligations as pure evaluator outputs, without mutable
   storage behavior;
 - required/executed evaluator and configuration equality;
-- compatibility, dual-version operation, and deprecation;
+- prelaunch source cutover, obsolete-state rejection, and the explicit absence
+  of dual-version operation or deprecation machinery;
 - domain-owned extension points that do not permit arbitrary callbacks,
   operation tags, or optional-field unions;
 - exact conformance, differential, mutation, property, fuzz, Kani, and Lean
@@ -610,7 +626,7 @@ Create an abstraction case file for every non-trivial shared semantic surface.
   disclosure meaning and delivery adapters remain domain-owned;
 - a future eighth-domain holdout is reserved without speculating about its
   vocabulary;
-- evaluator and compatibility identities are reserved without silently
+- evaluator and semantic identities are reserved without silently
   changing existing versions;
 - reviewers can reject any candidate abstraction without invalidating the
   frozen verticals.
@@ -711,7 +727,13 @@ ordering.
 - all required formal, model, crash, concurrency, and CI evidence passes;
 - the PR is merged to `main`.
 
-## Step 7: implement Milestone 5 — extraction and migration
+## Step 7: implement Milestone 5 — extraction and direct source cutover
+
+The historical milestone name used “migration.” Because auths-proof is
+prelaunch, that term does not authorize data migration, API compatibility,
+dual writes, legacy readers, or rollback formats. It means replacing one
+source-level production path with another after semantic conformance is
+proved.
 
 ### Required order
 
@@ -723,11 +745,11 @@ ordering.
 6. Radicle;
 7. records API create/read as a transport-neutral composition.
 
-Use one branch and PR per migration. A migration specification or amendment is
-required before coding if persisted state, receipt meaning, evaluator identity,
-or compatibility behavior changes.
+Use one branch and PR per source cutover. A specification or amendment is
+required before coding if persisted state, receipt meaning, or evaluator
+identity changes.
 
-### Migration rules
+### Cutover rules
 
 - retain the old implementation as an executable oracle;
 - run old and new paths against the same frozen fixtures;
@@ -735,36 +757,36 @@ or compatibility behavior changes.
   reservations, obligations, verified commands, transitions, and receipt bytes
   when versions are unchanged;
 - add the smallest regression fixture for every mismatch;
-- test rollback to the old path before deleting it;
+- reject obsolete persisted state instead of adding a legacy reader;
 - do not widen the abstraction to force a domain to fit;
 - if a domain does not fit, prefer composition or retain domain-local
   semantics.
 - keep the domain package, provider adapter, reconciliation, canonical receipt
-  payloads, provider contract tests, and end-to-end demo after migration;
+  payloads, provider contract tests, and end-to-end demo after cutover;
 - preserve the old pure evaluator as a test-only reference where it remains
   necessary to qualify the semantic version;
-- remove duplicate production orchestration only after equivalence, live
-  behavior, state migration, and rollback are proved.
+- remove duplicate production orchestration in the same PR after equivalence
+  and live behavior are proved.
 
 ### Done means for each domain
 
 - differential conformance is exact for all unchanged versioned behavior;
-- state migration and rollback are tested;
+- obsolete or corrupt state is rejected and CI starts from empty state;
 - live effect, denial-before-credential, concurrency, crash, replay,
   outcome-unknown, reconciliation, frontend, and receipt tests pass;
 - compliance claims point to the migrated evidence;
 - the old path is removed only after equivalence passes;
-- the domain migration PR is merged independently.
+- the domain cutover PR is merged independently.
 
 ### Done means for Milestone 5
 
-- all seven migrations are merged in the prescribed order;
+- all seven cutovers are merged in the prescribed order;
 - no shared API contains unrelated operation dispatch, arbitrary provider
   payloads, or semantically meaningful optional-field unions;
 - shared product packages import no provider SDK or domain execution types;
 - each domain retains its own actions, evidence, verified commands, gateway,
   credential scope, reconciliation, and receipt claims;
-- every domain demo remains a dependency-aware downstream compatibility suite
+- every domain demo remains a dependency-aware downstream regression suite
   over the authoritative production path;
 - there is one production execution path per migrated semantic version, with
   reference evaluators and frozen oracles retained for qualification rather
@@ -781,7 +803,7 @@ or compatibility behavior changes.
 Do not begin optimization until:
 
 - reference semantics are frozen;
-- all seven migrations pass differential conformance;
+- all seven cutovers pass differential conformance;
 - exact benchmark fixtures and baseline revision exist;
 - profiling identifies a concrete bottleneck.
 
@@ -804,7 +826,7 @@ content-addressed caching, or bounded request-local interning.
 - the measured improvement is reproducible and material;
 - no durability, freshness, validation, credential, or receipt ordering is
   weakened;
-- rollback is possible;
+- the code change remains independently revertible before release;
 - the optimization PR is merged independently.
 
 ### Done means for Milestone 6
@@ -823,8 +845,8 @@ After Milestone 6, follow
 ### Done means
 
 - one clean `main` revision contains the completed formal and bounded program;
-- semantic identities, fixtures, persisted states, receipts, and compatibility
-  guarantees are frozen for a release candidate;
+- semantic identities, fixtures, persisted states, receipts, and declared
+  first-release guarantees are frozen for a release candidate;
 - the exact assurance claim is written;
 - independent formal, Rust/protocol, and stateful-execution review can begin;
 - the platform can be consumed without depending on demo code.
@@ -837,7 +859,7 @@ Stop implementation and escalate in the PR when:
 - two domains disagree on supposedly shared semantics;
 - a proposed shared type requires unrelated operation tags, callbacks, or
   optional fields;
-- migration changes a decision, reservation, command, transition, or receipt
+- a source cutover changes a decision, reservation, command, transition, or receipt
   unexpectedly;
 - formal semantics cannot be mechanically connected to the shipping predicate;
 - a provider's ambiguous outcome cannot be represented without premature
@@ -852,8 +874,8 @@ Stop implementation and escalate in the PR when:
 - an upstream change in one provider would require changing an unrelated
   domain or the formal core without a new, approved cross-domain abstraction
   case;
-- migration would delete the only reference evaluator, fixture oracle,
-  rollback path, or end-to-end domain compatibility test.
+- a source cutover would delete the only reference evaluator, fixture oracle,
+  or end-to-end domain regression test.
 
 Do not “temporarily” bypass these conditions. Record the blocker, preserve the
 smallest reproducer, and amend the specification or architecture explicitly.
@@ -872,7 +894,8 @@ A step is done only when:
 6. architecture and compliance inventories are current;
 7. focused tests and all dependency-required CI phases pass;
 8. generated artifacts show no unexplained drift;
-9. compatibility, migration, rollback, and residual assumptions are documented;
+9. cutover behavior, obsolete-state rejection, and residual assumptions are
+   documented without unneeded compatibility or rollback machinery;
 10. the PR is reviewed and merged into `main`;
 11. a clean checkout of the merged revision reproduces the required evidence.
 

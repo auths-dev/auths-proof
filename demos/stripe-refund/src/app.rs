@@ -11,13 +11,14 @@ use std::{
 use auths_stripe::{
     AggregateBudgetSnapshot, AggregateRefundBudget, BoundedDecisionClass, BoundedEvaluationContext,
     BoundedRefundService, BoundedServiceDependencies, BoundedWorkflowOutcome,
-    CONFIGURED_POLICY_PROVENANCE, ClaimStore, ConnectScope, Currency, ExactRefundActionInput,
-    ExactRefundActionV1, ExecuteBoundedRefundRequest, Money, PersistentClaimStore,
-    PersistentRefundReservationStore, ReceiptSink, ReconciledRefundOutcome, RefundBudgetWindow,
-    RefundDenominator, RefundReservationStore, RelativeRefundLimit, ReservationReceipt,
+    CONFIGURED_POLICY_PROVENANCE, ConnectScope, Currency, ExactRefundActionInput,
+    ExactRefundActionV1, ExecuteBoundedRefundRequest, Money, PersistentRefundReservationStore,
+    ReceiptSink, ReconciledRefundOutcome, RefundBudgetWindow, RefundDenominator,
+    RefundLifecycleStore, RefundReservationStore, RelativeRefundLimit, ReservationReceipt,
     SdkProofVerifier, StripeBoundedEvaluatorConfigurationV1, StripeBoundedRefundPolicyInput,
     StripeBoundedRefundPolicyV1, StripeReceipt, StripeVerifierConfiguration,
     StripeVerifierConfigurationInput, SystemClock, evaluate_bounded_refund,
+    reconcile_bounded_refund,
 };
 use axum::{
     Json, Router,
@@ -111,8 +112,7 @@ impl AppConfig {
 struct AppState {
     config: AppConfig,
     environment: Arc<dyn DemoStripeEnvironment>,
-    claim_store: Arc<dyn ClaimStore>,
-    reservation_store: Arc<dyn RefundReservationStore>,
+    reservation_store: Arc<dyn RefundLifecycleStore>,
     receipt_sink: Arc<dyn ReceiptSink<StripeReceipt>>,
     sessions: Arc<Mutex<HashMap<String, Session>>>,
 }
@@ -153,10 +153,6 @@ struct ExecuteRequest {
 pub fn app(config: AppConfig) -> Result<Router, StartupError> {
     let environment =
         Arc::new(LiveStripeEnvironment::from_environment().map_err(|_| StartupError::Stripe)?);
-    let claim_store = Arc::new(
-        PersistentClaimStore::open(config.state_directory.join("claims.json"))
-            .map_err(|_| StartupError::State)?,
-    );
     let receipt_sink = Arc::new(
         JsonlReceiptSink::new(config.state_directory.join("receipts.jsonl"))
             .map_err(|_| StartupError::State)?,
@@ -170,7 +166,6 @@ pub fn app(config: AppConfig) -> Result<Router, StartupError> {
     Ok(app_with_stores(
         config,
         environment,
-        claim_store,
         reservation_store,
         receipt_sink,
     ))
@@ -180,24 +175,21 @@ pub fn app(config: AppConfig) -> Result<Router, StartupError> {
 pub fn app_with_environment(
     config: AppConfig,
     environment: Arc<dyn DemoStripeEnvironment>,
-    claim_store: Arc<dyn ClaimStore>,
     receipt_sink: Arc<dyn ReceiptSink<StripeReceipt>>,
 ) -> Router {
     app_with_stores(
         config,
         environment,
-        claim_store,
         Arc::new(auths_stripe::InMemoryRefundReservationStore::default()),
         receipt_sink,
     )
 }
 
-/// Builds the API with explicit exact-claim and aggregate-reservation stores.
+/// Builds the API with an explicit atomic lifecycle/reservation store.
 pub fn app_with_stores(
     config: AppConfig,
     environment: Arc<dyn DemoStripeEnvironment>,
-    claim_store: Arc<dyn ClaimStore>,
-    reservation_store: Arc<dyn RefundReservationStore>,
+    reservation_store: Arc<dyn RefundLifecycleStore>,
     receipt_sink: Arc<dyn ReceiptSink<StripeReceipt>>,
 ) -> Router {
     let cors = CorsLayer::new()
@@ -207,7 +199,6 @@ pub fn app_with_stores(
     let state = AppState {
         config,
         environment,
-        claim_store,
         reservation_store,
         receipt_sink,
         sessions: Arc::new(Mutex::new(HashMap::new())),
@@ -416,7 +407,6 @@ async fn execute(
         execution_materials(session, &request.variant, &session_id, now)?
     };
     let environment = Arc::clone(&state.environment);
-    let claim_store = Arc::clone(&state.claim_store);
     let reservation_store = Arc::clone(&state.reservation_store);
     let receipt_sink = Arc::clone(&state.receipt_sink);
     let result = tokio::task::spawn_blocking(move || {
@@ -424,7 +414,6 @@ async fn execute(
             proof_verifier: materials.proof_verifier,
             credential_provider: Arc::clone(&environment),
             stripe_gateway: environment,
-            claim_store,
             reservation_store,
             receipt_sink,
             clock: SystemClock,
@@ -535,21 +524,20 @@ async fn reconcile(
     } else {
         ReconciledRefundOutcome::Released
     };
-    let record = state
-        .reservation_store
-        .reconcile(
-            action.workflow_id(),
-            &action.digest().map_err(|_| ApiError::internal())?,
-            outcome,
-            now,
+    let record = reconcile_bounded_refund(
+        &state.reservation_store,
+        action.workflow_id(),
+        &action.digest().map_err(|_| ApiError::internal())?,
+        outcome,
+        now,
+    )
+    .map_err(|_| {
+        ApiError::new(
+            StatusCode::CONFLICT,
+            "bounded-reconciliation-required",
+            "only an outcome-unknown exact refund can be reconciled",
         )
-        .map_err(|_| {
-            ApiError::new(
-                StatusCode::CONFLICT,
-                "bounded-reconciliation-required",
-                "only an outcome-unknown exact refund can be reconciled",
-            )
-        })?;
+    })?;
     state
         .receipt_sink
         .append(&StripeReceipt::Reservation(Box::new(ReservationReceipt {
@@ -1321,9 +1309,9 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     use auths_stripe::{
-        ChargeId, CredentialProvider, InMemoryClaimStore, InMemoryRefundReservationStore,
-        PaymentIntentId, PortError, RefundEvidenceInput, RefundEvidenceV1, RefundId, RefundResult,
-        StripeAccountId, StripeCredential, StripeGateway, VerifiedRefundCommand, canonical::sha256,
+        ChargeId, CredentialProvider, InMemoryRefundReservationStore, PaymentIntentId, PortError,
+        RefundEvidenceInput, RefundEvidenceV1, RefundId, RefundResult, StripeAccountId,
+        StripeCredential, StripeGateway, canonical::sha256,
     };
     use axum::{
         body::{Body, to_bytes},
@@ -1433,10 +1421,20 @@ mod tests {
         }
     }
 
+    impl auths_stripe::LifecycleRefundCredentialProvider for FakeStripe {
+        fn credential_after_authorization(
+            &self,
+            _: &auths_stripe::ExecutionAuthorizationV1,
+            account: &StripeAccountId,
+        ) -> Result<StripeCredential, PortError> {
+            CredentialProvider::credential(self, account)
+        }
+    }
+
     impl StripeGateway for FakeStripe {
         fn create_refund(
             &self,
-            command: &VerifiedRefundCommand,
+            command: &dyn auths_stripe::RefundExecutionCommand,
             _: &StripeCredential,
             now: u64,
         ) -> Result<RefundResult, PortError> {
@@ -1494,7 +1492,6 @@ mod tests {
         app_with_stores(
             AppConfig::for_test(path),
             stripe,
-            Arc::new(InMemoryClaimStore::default()),
             reservation_store,
             Arc::new(MemoryReceipts::default()),
         )
@@ -1537,8 +1534,14 @@ mod tests {
                 )
                 .await
                 .unwrap();
-            assert_eq!(response.status(), StatusCode::OK);
+            let status = response.status();
             let body = to_bytes(response.into_body(), 128 * 1024).await.unwrap();
+            assert_eq!(
+                status,
+                StatusCode::OK,
+                "unexpected response: {}",
+                String::from_utf8_lossy(&body)
+            );
             let value: Value = serde_json::from_slice(&body).unwrap();
             assert_eq!(value["decision"]["code"], expected_code);
         }

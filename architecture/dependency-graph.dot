@@ -433,7 +433,9 @@ digraph auths_architecture {
   "auths-stores" -> "auths-receipts" [label="normal"];
   "auths-stores" -> "auths-runtime" [label="normal"];
   "auths-stripe" -> "auths-author" [label="dev"];
+  "auths-stripe" -> "auths-bounded-policy" [label="normal"];
   "auths-stripe" -> "auths-codec" [label="dev"];
+  "auths-stripe" -> "auths-lifecycle" [label="normal"];
   "auths-stripe" -> "auths-model" [label="normal"];
   "auths-stripe" -> "auths-ports" [label="dev"];
   "auths-stripe" -> "auths-profile-api" [label="normal"];

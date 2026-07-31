@@ -604,3 +604,119 @@ or receipt semantics.
 Every profile is an independent implementation and release gate. No profile
 may be marked implemented from another profile's fixture, frontend, provider
 effect, deployment, or receipt evidence.
+
+## 25. Milestone 5 shared-lifecycle cutover
+
+The exact-refund profile is the first direct production cutover to
+`auths.product.reservation-execution-contract/1`. This cutover reuses only
+the shared lifecycle mechanism defined by specification 0026. Stripe continues
+to own refund policy, action and evidence schemas, arithmetic, provider
+requests, credential scope, idempotency, reconciliation interpretation, stable
+domain codes, and every canonical Stripe receipt payload.
+
+### 25.1 Immutable cutover inputs and outputs
+
+The Stripe adapter projects one already-eligible bounded-refund decision into:
+
+- complete `EvaluationCommitmentsV1` values for the exact action, configured
+  policy, Stripe evidence, aggregate snapshot, required configuration, and
+  executed configuration;
+- one shared additive reservation commitment for every Stripe refund-budget
+  intent, using an explicit minor-unit currency identity;
+- a derived `ReservationSetV1` under the Stripe refund reservation algebra;
+- one `DecisionInputV1` bound to the existing workflow, executor audience,
+  decision receipt, and domain receipt; and
+- an `ExecutionIntentV1` that commits the verified refund command, exact Stripe
+  request, idempotency-key digest, provider contract, and retry class.
+
+The shared runtime outputs lifecycle state, revisions, hash-linked lifecycle
+receipt envelopes, and sealed execution authorization. It never outputs or
+interprets Stripe action fields, money, Charge/PaymentIntent relationships,
+Stripe requests, credentials, Refund objects, or reconciliation conclusions.
+
+### 25.2 Hard limits and failures
+
+The projection inherits all hard limits from specifications 0025 and 0026,
+including 32 reservation intents, 64 KiB of bounded canonical outputs, 16
+provider attempts, 32 reconciliation observations, 128 lifecycle events, and
+256 KiB canonical lifecycle records. Stripe's stricter eight-budget limit
+continues to apply first.
+
+Malformed identifiers, digests, canonical payload lengths, non-positive
+reservation amounts, incomplete intent bindings, or unrepresentable Stripe
+inputs fail closed before lifecycle persistence. Shared lifecycle failures map
+to existing Stripe public results without inventing a second domain decision
+vocabulary:
+
+- exact replay maps to `bounded-replay`;
+- different commitments under one workflow map to
+  `bounded-reservation-conflict`;
+- atomic capacity failure maps to `bounded-aggregate-budget-exceeded`;
+- configuration mismatch remains `bounded-configuration-mismatch`;
+- ambiguous provider delivery remains
+  `bounded-execution-outcome-unknown`; and
+- unavailable, corrupt, over-limit, or dishonest store acknowledgements remain
+  closed state failures.
+
+No shared error may imply that Stripe accepted, rejected, or reconciled a
+request. Those conclusions require Stripe-owned evidence.
+
+### 25.3 Ordering and credential boundary
+
+The migrated production path durably records, in order:
+
+1. the existing canonical Stripe bounded decision receipt;
+2. the shared decision record;
+3. the atomic reservation set;
+4. the exact execution intent;
+5. credential authorization;
+6. the provider attempt;
+7. provider-call entry immediately before Stripe I/O; and
+8. a committed, released, outcome-unknown, or reconciled conclusion.
+
+Stripe credentials are obtainable only from
+`ExecutionAuthorizationV1::from_durable`. Provider I/O is permitted only from
+`ProviderCallAuthorizationV1::from_durable`. A caller cannot construct either
+authorization from an unevaluated decision, an in-memory transition, or an
+unacknowledged store result.
+
+### 25.4 Prelaunch cutover
+
+Auths-proof has no users or production state at this milestone. The shared
+lifecycle path therefore replaces the demo-local production path directly.
+There is no legacy state reader, dual write, compatibility shim, rollback
+format, or promise that obsolete receipt bytes remain accepted.
+
+The authoritative state schema starts at the shared-lifecycle version and
+rejects every other schema. Developers must delete disposable local demo state
+before running the new build. CI always starts from an empty state directory.
+This is intentionally safer than carrying unneeded compatibility code into the
+first release.
+
+The old pure evaluator may remain as a test-only semantic oracle. The old
+claim/reservation orchestration is removed from the bounded demo production
+path rather than retained behind a runtime switch.
+
+### 25.5 Differential acceptance
+
+For every frozen Stripe fixture and every generated boundary/mutation case,
+the reference evaluator and new production path must agree on:
+
+- decision class, stable code, and stage;
+- checked arithmetic and aggregate availability;
+- reservation identities, amounts, scopes, and windows;
+- verified refund command and exact provider request commitments;
+- replay, conflict, concurrency, crash, and unknown-outcome behavior;
+- credential and Stripe-call ordering;
+- reconciliation conclusion; and
+- domain conclusions and receipt claims for the currently declared schema.
+
+Tests must additionally prove rejection of obsolete or corrupt state,
+concurrent last-unit reservation, crash at every durable boundary, denial
+before credentials, recovery from outcome unknown, live Stripe test-mode
+behavior, browser E2E, inline receipt JSON, and the dedicated receipt page.
+
+The cutover is complete only when the shared lifecycle path is the sole
+production path for this semantic version, the reference evaluator is
+test-only, compliance points to the Stripe fixtures and shared lifecycle
+evidence, and the PR is merged independently before any other domain begins.

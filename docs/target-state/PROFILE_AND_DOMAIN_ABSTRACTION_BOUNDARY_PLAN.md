@@ -14,6 +14,17 @@ The governing rule is:
 > Build complete vertical semantics first. Extract shared mechanisms only
 > after independent implementations prove that their contracts are identical.
 
+Auths-proof is prelaunch and has no users or production state. Until that
+changes, architectural “migration” means a direct source cutover to one
+authoritative implementation. Do not add legacy readers, dual writes,
+compatibility shims, deprecation windows, state converters, runtime rollback
+paths, or obsolete API support. Reject obsolete disposable state and start
+local and CI environments from empty state.
+
+This does not relax canonical exactness, semantic identities, fixtures, or
+differential tests. Those protect the correctness of the current contract; they
+do not create a promise to accept superseded prelaunch formats.
+
 This is not an argument against reuse. It is a process for ensuring that reuse
 preserves exact authorization, state, effect, and receipt meaning instead of
 merely reducing similar-looking code.
@@ -209,9 +220,10 @@ Promotion additionally requires:
 - a written cross-domain comparison;
 - exact input, output, error, limit, and state contracts;
 - differential tests against every existing implementation;
-- migration without decision, command, or receipt drift;
+- direct source cutover without decision, command, or receipt drift;
 - benchmarks showing that the abstraction does not impose unbounded work;
-- a rollback path retaining the vertical reference implementations.
+- test-only vertical reference evaluators and fixtures retained as semantic
+  oracles.
 
 A smaller promotion requires an ADR explaining why the behavior is already a
 domain-independent primitive rather than inferred commonality.
@@ -427,7 +439,8 @@ records:
 6. Versioning and compatibility rules.
 7. Formal and executable invariants.
 8. Reference fixtures and differential tests.
-9. State migration and rollback plan.
+9. Prelaunch cutover plan, including obsolete-state rejection and confirmation
+   that no compatibility or runtime rollback machinery is being added.
 10. Performance measurements.
 11. Why composition of smaller primitives is insufficient.
 12. The code that will remain domain- or profile-owned.
@@ -638,10 +651,10 @@ Before creating shared code, answer:
 7. Can every consumer retain its exact denial codes and receipt claims?
 8. Are reference fixtures and differential tests available?
 9. Is the candidate in the lowest valid architectural layer?
-10. What evidence proves migration preserves behavior?
+10. What evidence proves the source cutover preserves current semantics?
 11. What formal claims become stronger or weaker?
-12. Can the extraction be rolled back without changing persisted state or wire
-    meaning?
+12. Can the source change be independently reverted before release without
+    inventing a second runtime path?
 
 If these questions do not have concrete answers, keep the code vertical.
 
@@ -653,7 +666,7 @@ A semantic abstraction requires:
 2. an explicit owning layer and package;
 3. inventory and compliance updates;
 4. architecture dependency review;
-5. differential fixtures and migration tests;
+5. differential fixtures and source-cutover tests;
 6. formal-assurance impact review;
 7. performance evidence;
 8. one atomic PR containing consumers and enforcement.
@@ -674,7 +687,7 @@ This boundary is working when:
 - every exact effect has a profile-owned typed path;
 - domain inventories and compliance evidence agree;
 - abstractions are supported by several completed verticals;
-- migrations preserve exact decisions, commands, state, and receipts;
+- source cutovers preserve exact decisions, commands, state, and receipts;
 - formal claims refer to shipping predicates and stable semantics;
 - shared code becomes smaller and more precise rather than more configurable;
 - agents can add domains without either copying the entire platform or

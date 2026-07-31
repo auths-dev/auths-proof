@@ -1,11 +1,12 @@
 //! Narrow shared mechanism ports for exact Stripe execution.
 
+use auths_lifecycle::ExecutionAuthorizationV1;
 use auths_model::CanonicalAction;
 use auths_sdk::{Authorized, RequestContext};
 use std::{marker::PhantomData, sync::Arc};
 
 use crate::{
-    executor::VerifiedRefundCommand,
+    executor::RefundExecutionCommand,
     profile::StripeRefundCommand,
     types::{RefundResult, StripeAccountId},
 };
@@ -309,6 +310,22 @@ pub trait CredentialProvider<S = RefundCredentialScope>: Send + Sync {
     fn credential(&self, account: &StripeAccountId) -> Result<StripeCredential<S>, PortError>;
 }
 
+/// Refund credential broker that requires a newly durable shared lifecycle
+/// authorization token.
+pub trait LifecycleRefundCredentialProvider: Send + Sync {
+    /// Returns the exact refund credential only for the durably authorized
+    /// workflow and account.
+    ///
+    /// # Errors
+    ///
+    /// Returns a closed configuration or availability failure.
+    fn credential_after_authorization(
+        &self,
+        authorization: &ExecutionAuthorizationV1,
+        account: &StripeAccountId,
+    ) -> Result<StripeRefundCredential, PortError>;
+}
+
 /// Only Stripe refund write boundary.
 pub trait StripeGateway: Send + Sync {
     /// Creates the exact verified refund using the exact idempotency key.
@@ -319,7 +336,7 @@ pub trait StripeGateway: Send + Sync {
     /// be reconciled without generating a new idempotency key.
     fn create_refund(
         &self,
-        command: &VerifiedRefundCommand,
+        command: &dyn RefundExecutionCommand,
         credential: &StripeRefundCredential,
         now: u64,
     ) -> Result<RefundResult, PortError>;
@@ -365,10 +382,20 @@ where
     }
 }
 
+impl<T: LifecycleRefundCredentialProvider + ?Sized> LifecycleRefundCredentialProvider for Arc<T> {
+    fn credential_after_authorization(
+        &self,
+        authorization: &ExecutionAuthorizationV1,
+        account: &StripeAccountId,
+    ) -> Result<StripeRefundCredential, PortError> {
+        (**self).credential_after_authorization(authorization, account)
+    }
+}
+
 impl<T: StripeGateway + ?Sized> StripeGateway for Arc<T> {
     fn create_refund(
         &self,
-        command: &VerifiedRefundCommand,
+        command: &dyn RefundExecutionCommand,
         credential: &StripeRefundCredential,
         now: u64,
     ) -> Result<RefundResult, PortError> {
