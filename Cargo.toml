@@ -4,6 +4,7 @@ members = [
     "demos/offline-verification",
     "bindings/wasm/auths-proof-wasm",
     "bindings/python",
+    "core/crates/auths",
     "core/crates/auths-proof",
     "core/crates/auths-model",
     "core/crates/auths-codec",
@@ -107,6 +108,7 @@ repository = "https://github.com/auths-dev/auths-proof"
 homepage = "https://github.com/auths-dev/auths-proof"
 
 [workspace.dependencies]
+auths = { version = "0.1.0", path = "core/crates/auths", default-features = false }
 auths-model = { version = "0.1.0", path = "core/crates/auths-model", default-features = false }
 auths-codec = { version = "0.1.0", path = "core/crates/auths-codec", default-features = false }
 auths-ports = { version = "0.1.0", path = "core/crates/auths-ports", default-features = false }
@@ -152,7 +154,7 @@ auths-stores = { version = "0.1.0", path = "product/stores/auths-stores" }
 auths-config = { version = "0.1.0", path = "product/config/auths-config" }
 auths-cache = { version = "0.1.0", path = "product/cache/auths-cache" }
 auths-operations = { version = "0.1.0", path = "product/operations/auths-operations" }
-auths-sdk = { package = "auths-proof-sdk", version = "0.1.0", path = "product/sdk/auths-sdk" }
+auths-sdk = { version = "0.1.0", path = "product/sdk/auths-sdk" }
 auths-profile-kit = { version = "0.1.0", path = "product/sdk/auths-profile-kit" }
 auths-bounded-policy = { version = "0.1.0", path = "product/policy/auths-bounded-policy", default-features = false }
 auths-enforcement = { version = "0.1.0", path = "product/integrations/auths-enforcement" }

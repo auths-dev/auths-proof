@@ -2,6 +2,11 @@
   "schema": 1,
   "packages": [
     {
+      "name": "auths",
+      "layer": "core",
+      "path": "core/crates/auths"
+    },
+    {
       "name": "auths-algebra-kernel",
       "layer": "core",
       "path": "core/crates/auths-algebra-kernel"
@@ -317,11 +322,6 @@
       "path": "bindings/python"
     },
     {
-      "name": "auths-proof-sdk",
-      "layer": "product",
-      "path": "product/sdk/auths-sdk"
-    },
-    {
       "name": "auths-proof-wasm",
       "layer": "bindings",
       "path": "bindings/wasm/auths-proof-wasm"
@@ -370,6 +370,11 @@
       "name": "auths-runtime",
       "layer": "product",
       "path": "product/runtime/auths-runtime"
+    },
+    {
+      "name": "auths-sdk",
+      "layer": "product",
+      "path": "product/sdk/auths-sdk"
     },
     {
       "name": "auths-signature",
@@ -478,6 +483,18 @@
     }
   ],
   "dependencies": [
+    {
+      "source": "auths",
+      "source_layer": "core",
+      "target": "auths-proof",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
     {
       "source": "auths-apps-testkit",
       "source_layer": "demos",
@@ -637,18 +654,6 @@
     {
       "source": "auths-apps-testkit",
       "source_layer": "demos",
-      "target": "auths-proof-sdk",
-      "target_layer": "product",
-      "scope": "internal",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": true,
-      "features": []
-    },
-    {
-      "source": "auths-apps-testkit",
-      "source_layer": "demos",
       "target": "auths-raw-key",
       "target_layer": "core",
       "scope": "internal",
@@ -686,6 +691,18 @@
       "source": "auths-apps-testkit",
       "source_layer": "demos",
       "target": "auths-runtime",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-apps-testkit",
+      "source_layer": "demos",
+      "target": "auths-sdk",
       "target_layer": "product",
       "scope": "internal",
       "kind": "normal",
@@ -1594,7 +1611,7 @@
     {
       "source": "auths-deployment",
       "source_layer": "product",
-      "target": "auths-proof-sdk",
+      "target": "auths-sdk",
       "target_layer": "product",
       "scope": "internal",
       "kind": "normal",
@@ -1911,7 +1928,7 @@
     {
       "source": "auths-enforcement",
       "source_layer": "product",
-      "target": "auths-proof-sdk",
+      "target": "auths-sdk",
       "target_layer": "product",
       "scope": "internal",
       "kind": "normal",
@@ -2351,7 +2368,7 @@
     {
       "source": "auths-github",
       "source_layer": "product",
-      "target": "auths-proof-sdk",
+      "target": "auths-sdk",
       "target_layer": "product",
       "scope": "internal",
       "kind": "normal",
@@ -2605,18 +2622,6 @@
     {
       "source": "auths-github-demo",
       "source_layer": "demos",
-      "target": "auths-proof-sdk",
-      "target_layer": "product",
-      "scope": "internal",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": true,
-      "features": []
-    },
-    {
-      "source": "auths-github-demo",
-      "source_layer": "demos",
       "target": "auths-raw-key",
       "target_layer": "core",
       "scope": "internal",
@@ -2642,6 +2647,18 @@
       "source": "auths-github-demo",
       "source_layer": "demos",
       "target": "auths-runtime",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-github-demo",
+      "source_layer": "demos",
+      "target": "auths-sdk",
       "target_layer": "product",
       "scope": "internal",
       "kind": "normal",
@@ -2942,7 +2959,7 @@
     {
       "source": "auths-kubernetes",
       "source_layer": "product",
-      "target": "auths-proof-sdk",
+      "target": "auths-sdk",
       "target_layer": "product",
       "scope": "internal",
       "kind": "normal",
@@ -3152,18 +3169,6 @@
     {
       "source": "auths-kubernetes-demo",
       "source_layer": "demos",
-      "target": "auths-proof-sdk",
-      "target_layer": "product",
-      "scope": "internal",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": true,
-      "features": []
-    },
-    {
-      "source": "auths-kubernetes-demo",
-      "source_layer": "demos",
       "target": "auths-raw-key",
       "target_layer": "core",
       "scope": "internal",
@@ -3189,6 +3194,18 @@
       "source": "auths-kubernetes-demo",
       "source_layer": "demos",
       "target": "auths-runtime",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-kubernetes-demo",
+      "source_layer": "demos",
+      "target": "auths-sdk",
       "target_layer": "product",
       "scope": "internal",
       "kind": "normal",
@@ -4109,7 +4126,7 @@
     {
       "source": "auths-opentofu",
       "source_layer": "product",
-      "target": "auths-proof-sdk",
+      "target": "auths-sdk",
       "target_layer": "product",
       "scope": "internal",
       "kind": "normal",
@@ -4295,7 +4312,7 @@
     {
       "source": "auths-opentofu-demo",
       "source_layer": "demos",
-      "target": "auths-proof-sdk",
+      "target": "auths-sdk",
       "target_layer": "product",
       "scope": "internal",
       "kind": "normal",
@@ -4680,7 +4697,7 @@
     {
       "source": "auths-postgresql",
       "source_layer": "product",
-      "target": "auths-proof-sdk",
+      "target": "auths-sdk",
       "target_layer": "product",
       "scope": "internal",
       "kind": "normal",
@@ -4904,7 +4921,7 @@
     {
       "source": "auths-postgresql-demo",
       "source_layer": "demos",
-      "target": "auths-proof-sdk",
+      "target": "auths-sdk",
       "target_layer": "product",
       "scope": "internal",
       "kind": "normal",
@@ -6686,212 +6703,6 @@
       ]
     },
     {
-      "source": "auths-proof-sdk",
-      "source_layer": "product",
-      "target": "auths-author",
-      "target_layer": "core",
-      "scope": "internal",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": false,
-      "features": []
-    },
-    {
-      "source": "auths-proof-sdk",
-      "source_layer": "product",
-      "target": "auths-codec",
-      "target_layer": "core",
-      "scope": "internal",
-      "kind": "dev",
-      "target_condition": null,
-      "optional": false,
-      "default_features": false,
-      "features": []
-    },
-    {
-      "source": "auths-proof-sdk",
-      "source_layer": "product",
-      "target": "auths-custody",
-      "target_layer": "product",
-      "scope": "internal",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": true,
-      "features": []
-    },
-    {
-      "source": "auths-proof-sdk",
-      "source_layer": "product",
-      "target": "auths-did-keri",
-      "target_layer": "core",
-      "scope": "internal",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": false,
-      "features": [
-        "std"
-      ]
-    },
-    {
-      "source": "auths-proof-sdk",
-      "source_layer": "product",
-      "target": "auths-did-key",
-      "target_layer": "core",
-      "scope": "internal",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": false,
-      "features": []
-    },
-    {
-      "source": "auths-proof-sdk",
-      "source_layer": "product",
-      "target": "auths-model",
-      "target_layer": "core",
-      "scope": "internal",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": false,
-      "features": []
-    },
-    {
-      "source": "auths-proof-sdk",
-      "source_layer": "product",
-      "target": "auths-ports",
-      "target_layer": "core",
-      "scope": "internal",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": false,
-      "features": []
-    },
-    {
-      "source": "auths-proof-sdk",
-      "source_layer": "product",
-      "target": "auths-profile-api",
-      "target_layer": "product",
-      "scope": "internal",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": true,
-      "features": []
-    },
-    {
-      "source": "auths-proof-sdk",
-      "source_layer": "product",
-      "target": "auths-profile-domains",
-      "target_layer": "product",
-      "scope": "internal",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": true,
-      "features": []
-    },
-    {
-      "source": "auths-proof-sdk",
-      "source_layer": "product",
-      "target": "auths-profile-mcp",
-      "target_layer": "product",
-      "scope": "internal",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": true,
-      "features": []
-    },
-    {
-      "source": "auths-proof-sdk",
-      "source_layer": "product",
-      "target": "auths-raw-key",
-      "target_layer": "core",
-      "scope": "internal",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": false,
-      "features": []
-    },
-    {
-      "source": "auths-proof-sdk",
-      "source_layer": "product",
-      "target": "auths-registries",
-      "target_layer": "core",
-      "scope": "internal",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": false,
-      "features": []
-    },
-    {
-      "source": "auths-proof-sdk",
-      "source_layer": "product",
-      "target": "auths-runtime",
-      "target_layer": "product",
-      "scope": "internal",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": true,
-      "features": []
-    },
-    {
-      "source": "auths-proof-sdk",
-      "source_layer": "product",
-      "target": "auths-signature",
-      "target_layer": "core",
-      "scope": "internal",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": false,
-      "features": []
-    },
-    {
-      "source": "auths-proof-sdk",
-      "source_layer": "product",
-      "target": "auths-testkit",
-      "target_layer": "core",
-      "scope": "internal",
-      "kind": "dev",
-      "target_condition": null,
-      "optional": false,
-      "default_features": true,
-      "features": []
-    },
-    {
-      "source": "auths-proof-sdk",
-      "source_layer": "product",
-      "target": "auths-verifier",
-      "target_layer": "core",
-      "scope": "internal",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": false,
-      "features": []
-    },
-    {
-      "source": "auths-proof-sdk",
-      "source_layer": "product",
-      "target": "thiserror",
-      "target_layer": null,
-      "scope": "external",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": false,
-      "features": []
-    },
-    {
       "source": "auths-proof-wasm",
       "source_layer": "bindings",
       "target": "auths-codec",
@@ -7098,18 +6909,6 @@
     {
       "source": "auths-radicle",
       "source_layer": "product",
-      "target": "auths-proof-sdk",
-      "target_layer": "product",
-      "scope": "internal",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": true,
-      "features": []
-    },
-    {
-      "source": "auths-radicle",
-      "source_layer": "product",
       "target": "auths-raw-key",
       "target_layer": "core",
       "scope": "internal",
@@ -7141,6 +6940,18 @@
       "target_condition": null,
       "optional": false,
       "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-radicle",
+      "source_layer": "product",
+      "target": "auths-sdk",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
       "features": []
     },
     {
@@ -7370,18 +7181,6 @@
     {
       "source": "auths-radicle-demo",
       "source_layer": "demos",
-      "target": "auths-proof-sdk",
-      "target_layer": "product",
-      "scope": "internal",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": true,
-      "features": []
-    },
-    {
-      "source": "auths-radicle-demo",
-      "source_layer": "demos",
       "target": "auths-radicle",
       "target_layer": "product",
       "scope": "internal",
@@ -7419,6 +7218,18 @@
       "source": "auths-radicle-demo",
       "source_layer": "demos",
       "target": "auths-runtime",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-radicle-demo",
+      "source_layer": "demos",
+      "target": "auths-sdk",
       "target_layer": "product",
       "scope": "internal",
       "kind": "normal",
@@ -7809,7 +7620,7 @@
     {
       "source": "auths-records-api",
       "source_layer": "product",
-      "target": "auths-proof-sdk",
+      "target": "auths-sdk",
       "target_layer": "product",
       "scope": "internal",
       "kind": "normal",
@@ -8093,18 +7904,6 @@
     {
       "source": "auths-records-demo",
       "source_layer": "demos",
-      "target": "auths-proof-sdk",
-      "target_layer": "product",
-      "scope": "internal",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": true,
-      "features": []
-    },
-    {
-      "source": "auths-records-demo",
-      "source_layer": "demos",
       "target": "auths-raw-key",
       "target_layer": "core",
       "scope": "internal",
@@ -8142,6 +7941,18 @@
       "source": "auths-records-demo",
       "source_layer": "demos",
       "target": "auths-runtime",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-records-demo",
+      "source_layer": "demos",
+      "target": "auths-sdk",
       "target_layer": "product",
       "scope": "internal",
       "kind": "normal",
@@ -8675,6 +8486,212 @@
       "features": []
     },
     {
+      "source": "auths-sdk",
+      "source_layer": "product",
+      "target": "auths-author",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-sdk",
+      "source_layer": "product",
+      "target": "auths-codec",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-sdk",
+      "source_layer": "product",
+      "target": "auths-custody",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-sdk",
+      "source_layer": "product",
+      "target": "auths-did-keri",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "std"
+      ]
+    },
+    {
+      "source": "auths-sdk",
+      "source_layer": "product",
+      "target": "auths-did-key",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-sdk",
+      "source_layer": "product",
+      "target": "auths-model",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-sdk",
+      "source_layer": "product",
+      "target": "auths-ports",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-sdk",
+      "source_layer": "product",
+      "target": "auths-profile-api",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-sdk",
+      "source_layer": "product",
+      "target": "auths-profile-domains",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-sdk",
+      "source_layer": "product",
+      "target": "auths-profile-mcp",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-sdk",
+      "source_layer": "product",
+      "target": "auths-raw-key",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-sdk",
+      "source_layer": "product",
+      "target": "auths-registries",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-sdk",
+      "source_layer": "product",
+      "target": "auths-runtime",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-sdk",
+      "source_layer": "product",
+      "target": "auths-signature",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-sdk",
+      "source_layer": "product",
+      "target": "auths-testkit",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-sdk",
+      "source_layer": "product",
+      "target": "auths-verifier",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-sdk",
+      "source_layer": "product",
+      "target": "thiserror",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
       "source": "auths-signature",
       "source_layer": "core",
       "target": "auths-model",
@@ -9092,18 +9109,6 @@
     {
       "source": "auths-stripe",
       "source_layer": "product",
-      "target": "auths-proof-sdk",
-      "target_layer": "product",
-      "scope": "internal",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": true,
-      "features": []
-    },
-    {
-      "source": "auths-stripe",
-      "source_layer": "product",
       "target": "auths-raw-key",
       "target_layer": "core",
       "scope": "internal",
@@ -9132,6 +9137,18 @@
       "target_layer": "product",
       "scope": "internal",
       "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-stripe",
+      "source_layer": "product",
+      "target": "auths-sdk",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
       "target_condition": null,
       "optional": false,
       "default_features": true,
@@ -9467,18 +9484,6 @@
     {
       "source": "auths-stripe-demo",
       "source_layer": "demos",
-      "target": "auths-proof-sdk",
-      "target_layer": "product",
-      "scope": "internal",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": true,
-      "features": []
-    },
-    {
-      "source": "auths-stripe-demo",
-      "source_layer": "demos",
       "target": "auths-raw-key",
       "target_layer": "core",
       "scope": "internal",
@@ -9504,6 +9509,18 @@
       "source": "auths-stripe-demo",
       "source_layer": "demos",
       "target": "auths-runtime",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-stripe-demo",
+      "source_layer": "demos",
+      "target": "auths-sdk",
       "target_layer": "product",
       "scope": "internal",
       "kind": "normal",
@@ -9756,7 +9773,7 @@
     {
       "source": "auths-stripe-payment-authorize-demo",
       "source_layer": "demos",
-      "target": "auths-proof-sdk",
+      "target": "auths-sdk",
       "target_layer": "product",
       "scope": "internal",
       "kind": "normal",
@@ -9959,7 +9976,7 @@
     {
       "source": "auths-stripe-payment-cancel-demo",
       "source_layer": "demos",
-      "target": "auths-proof-sdk",
+      "target": "auths-sdk",
       "target_layer": "product",
       "scope": "internal",
       "kind": "normal",
@@ -10162,7 +10179,7 @@
     {
       "source": "auths-stripe-payment-capture-demo",
       "source_layer": "demos",
-      "target": "auths-proof-sdk",
+      "target": "auths-sdk",
       "target_layer": "product",
       "scope": "internal",
       "kind": "normal",
@@ -10365,7 +10382,7 @@
     {
       "source": "auths-stripe-payment-collect-demo",
       "source_layer": "demos",
-      "target": "auths-proof-sdk",
+      "target": "auths-sdk",
       "target_layer": "product",
       "scope": "internal",
       "kind": "normal",
@@ -10604,18 +10621,6 @@
     {
       "source": "auths-stripe-payment-demo-common",
       "source_layer": "demos",
-      "target": "auths-proof-sdk",
-      "target_layer": "product",
-      "scope": "internal",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": true,
-      "features": []
-    },
-    {
-      "source": "auths-stripe-payment-demo-common",
-      "source_layer": "demos",
       "target": "auths-raw-key",
       "target_layer": "core",
       "scope": "internal",
@@ -10641,6 +10646,18 @@
       "source": "auths-stripe-payment-demo-common",
       "source_layer": "demos",
       "target": "auths-runtime",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-stripe-payment-demo-common",
+      "source_layer": "demos",
+      "target": "auths-sdk",
       "target_layer": "product",
       "scope": "internal",
       "kind": "normal",
@@ -10760,7 +10777,7 @@
     {
       "source": "auths-stripe-payment-mandate-demo",
       "source_layer": "demos",
-      "target": "auths-proof-sdk",
+      "target": "auths-sdk",
       "target_layer": "product",
       "scope": "internal",
       "kind": "normal",
@@ -11102,7 +11119,7 @@
     {
       "source": "auths-stripe-purchase-authorization-demo",
       "source_layer": "demos",
-      "target": "auths-proof-sdk",
+      "target": "auths-sdk",
       "target_layer": "product",
       "scope": "internal",
       "kind": "normal",
@@ -11452,7 +11469,7 @@
     {
       "source": "auths-stripe-subscription-create-demo",
       "source_layer": "demos",
-      "target": "auths-proof-sdk",
+      "target": "auths-sdk",
       "target_layer": "product",
       "scope": "internal",
       "kind": "normal",
@@ -11651,7 +11668,7 @@
     {
       "source": "auths-stripe-subscription-modify-demo",
       "source_layer": "demos",
-      "target": "auths-proof-sdk",
+      "target": "auths-sdk",
       "target_layer": "product",
       "scope": "internal",
       "kind": "normal",

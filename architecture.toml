@@ -59,6 +59,7 @@ core_default_feature_exceptions = ["libfuzzer-sys", "rcgen"]
 approved_build_scripts = []
 approved_native_dependencies = []
 no_std_packages = [
+  "auths",
   "auths-algebra-kernel",
   "auths-assurance",
   "auths-author",
@@ -169,7 +170,8 @@ auths-receipts = "product"
 auths-registries = "core"
 auths-resolver-did-web = "product"
 auths-runtime = "product"
-auths-proof-sdk = "product"
+auths = "core"
+auths-sdk = "product"
 auths-signature = "core"
 auths-spiffe-x509 = "core"
 auths-stores = "product"

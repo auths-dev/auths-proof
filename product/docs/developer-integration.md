@@ -19,7 +19,7 @@ than reuse the original request.
 
 ### Rust service integration
 
-Install `auths-proof-sdk`. The first release-candidate surface keeps the
+Install `auths-sdk`. The first release-candidate surface keeps the
 enforcement boundary inside that SDK; configure immutable trust once, then
 supply audience, challenge, and evaluation time explicitly per request:
 

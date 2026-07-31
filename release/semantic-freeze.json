@@ -3,10 +3,11 @@
   "freezeVersion": 1,
   "publicSurface": {
     "rustRoots": [
-      "auths-proof",
-      "auths-proof-sdk"
+      "auths",
+      "auths-sdk"
     ],
     "rustPublishableClosure": [
+      "auths",
       "auths-algebra-kernel",
       "auths-assurance",
       "auths-author",
@@ -27,11 +28,11 @@
       "auths-proof",
       "auths-proof-exchange-model",
       "auths-proof-exchange-port",
-      "auths-proof-sdk",
       "auths-raw-key",
       "auths-receipts",
       "auths-registries",
       "auths-runtime",
+      "auths-sdk",
       "auths-signature",
       "auths-verifier"
     ],
@@ -74,7 +75,7 @@
       "owners": [
         "architecture/dependency-graph.json"
       ],
-      "sha256": "29d91ceab86672bdb36ce699063fdee15f89bd1227a21cf1d9f227d8e4e9369f"
+      "sha256": "649aed89578030bcb91ec32e3db99222b820c3e678556b2da9ddceeb1a5fcd06"
     },
     {
       "id": "auths.frozen-bytes/bounded-domains.toml",
@@ -556,7 +557,7 @@
         "product/runtime/auths-runtime/src",
         "product/sdk/auths-sdk/src"
       ],
-      "sha256": "cd75175c48f91cb599af0591217a96bd3d0eac54b52389ab01a5f2d54afb0094"
+      "sha256": "19b85bb27c04faeaf812338079a3b2d03d1b6a33dc74e8a34e4f8ed7b239db22"
     },
     {
       "id": "auths.product.receipts",
@@ -623,6 +624,7 @@
         "core/crates/auths-registries/Cargo.toml",
         "core/crates/auths-signature/Cargo.toml",
         "core/crates/auths-verifier/Cargo.toml",
+        "core/crates/auths/Cargo.toml",
         "docs/plans/PHASE_7_RELEASE_OWNER_DECISIONS.md",
         "exchange/crates/auths-proof-exchange-model/Cargo.toml",
         "exchange/crates/auths-proof-exchange-port/Cargo.toml",
@@ -640,7 +642,7 @@
         "xtask/src/fixtures.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "3b50ecb1e6644e61ecabab462977aa65e4807114c7fc268eb6d06b410e1c08cc"
+      "sha256": "19a743b6ceb21c3815fc598ac4414989da9a3e7f78c8cf1d4cb0cb5afaab9101"
     }
   ]
 }

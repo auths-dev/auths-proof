@@ -12,7 +12,7 @@ the AP-SPEC-033 Phase 9 exit gate
 Alignment](../plans/POST_MILESTONE_6_TECHNICAL_AND_GO_TO_MARKET_ALIGNMENT.md)
 
 **Depends on:** AP-SPEC-032, AP-SPEC-033, the reviewed release candidate and
-assurance claim, the `auths-proof-sdk` Rust package, `auths-proof-wasm`,
+assurance claim, the `auths-sdk` Rust package, `auths-proof-wasm`,
 `auths-profile-mcp`, and the reviewed canonical corpus
 
 **Scope:** An explicitly labeled, cross-platform TypeScript developer preview
@@ -76,7 +76,7 @@ The implementation begins from these maintained surfaces:
 
 - `bindings/typescript` publishes `@auths-dev/proof`;
 - `auths-proof-wasm` exposes the supported portable verification boundary;
-- `auths-proof-sdk` owns the embedded Rust verifier and product-facing profile
+- `auths-sdk` owns the embedded Rust verifier and product-facing profile
   decoding;
 - `auths-author` creates external signing requests without owning private keys;
 - `auths-custody` defines transaction-bound external signing;
