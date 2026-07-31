@@ -44,17 +44,17 @@ demo_package = "auths-github-demo"
 demo_path = "demos/github-issue"
 spec = "docs/specs/0005-github-issue-workflows.md"
 status = "implemented"
-profiles = ["auths.github.issue-address/1"]
+profiles = ["auths.github.issue-address.branch-publish/1", "auths.github.issue-address.pull-request-open-draft/1"]
 evaluator_entrypoint = "auths_github::containment::evaluate"
 action_type = "auths_github::ExactGitHubAction"
 policy_type = "auths_github::WorkflowGrant"
 evidence_type = "auths_github::GitHubEvidence"
 configuration_type = "auths_github::VerifierConfiguration"
 decision_type = "auths_github::Decision"
-reservation_type = "auths_github::workflow::ExecutionClaim"
-verified_command = "auths_github::VerifiedPublishBranch|auths_github::VerifiedOpenDraftPullRequest"
+reservation_type = "auths_lifecycle::LifecycleRecordV1"
+verified_command = "auths_github::VerifiedPublishBranchCommand|auths_github::VerifiedOpenDraftPullRequestCommand"
 provider_gateway = "auths_github::ports::GitHubWritePort"
-credential_scope = "auths_github::ports::ScopedCredential+GitHubOperation"
+credential_scope = "auths_lifecycle::ExecutionAuthorizationV1+auths_github::ports::ScopedCredential+GitHubOperation"
 reconciliation = "auths_github::GitHubIssueWorkflowService::reconcile"
 receipt_types = ["GitHubDecisionReceipt", "GitHubExecutionReceipt", "SignedGitHubReceipt"]
 fixture_dir = "product/fixtures/v1/github"
@@ -72,7 +72,7 @@ scenarios = [
   "reconciliation",
 ]
 not_applicable = {}
-scenario_evidence = { authorized = ["demos/github-issue/src/tests.rs#exact_flow_uses_real_auths_kernel_and_replay_mutates_nothing"], exact-boundary = ["product/integrations/auths-github/src/profile.rs#profile_derives_exact_resource_and_one_effect_budget"], boundary-plus-one = ["demos/github-issue/src/tests.rs#every_negative_demo_variant_is_a_native_denial_before_credentials"], malformed-input = ["product/integrations/auths-github/src/candidate.rs#fixed_seventeen_byte_malformed_bundle_is_rejected"], stale-evidence = ["demos/github-issue/src/tests.rs#every_negative_demo_variant_is_a_native_denial_before_credentials"], configuration-mismatch = ["demos/github-issue/src/tests.rs#required_and_executed_configuration_mismatch_is_visible_and_never_gets_a_credential"], concurrent-final-capacity = ["product/integrations/auths-github/src/workflow.rs#concurrent_duplicate_claims_have_one_winner"], replay = ["product/integrations/auths-github/src/workflow.rs#replay_returns_original_receipt"], definite-pre-effect-failure = ["demos/github-issue/src/tests.rs#every_negative_demo_variant_is_a_native_denial_before_credentials"], outcome-unknown = ["demos/github-issue/src/tests.rs#crash_after_branch_publication_reconciles_without_a_second_push"], reconciliation = ["demos/github-issue/src/tests.rs#crash_after_pr_creation_reconciles_without_a_second_pr"] }
+scenario_evidence = { authorized = ["demos/github-issue/src/tests.rs#exact_flow_uses_real_auths_kernel_and_replay_mutates_nothing"], exact-boundary = ["product/integrations/auths-github/src/profile.rs#profile_derives_exact_resource_and_one_effect_budget"], boundary-plus-one = ["demos/github-issue/src/tests.rs#every_negative_demo_variant_is_a_native_denial_before_credentials"], malformed-input = ["product/integrations/auths-github/src/candidate.rs#fixed_seventeen_byte_malformed_bundle_is_rejected"], stale-evidence = ["demos/github-issue/src/tests.rs#every_negative_demo_variant_is_a_native_denial_before_credentials"], configuration-mismatch = ["demos/github-issue/src/tests.rs#required_and_executed_configuration_mismatch_is_visible_and_never_gets_a_credential"], concurrent-final-capacity = ["demos/github-issue/src/tests.rs#concurrent_workflows_for_one_branch_scope_have_one_provider_winner"], replay = ["demos/github-issue/src/tests.rs#exact_flow_uses_real_auths_kernel_and_replay_mutates_nothing"], definite-pre-effect-failure = ["demos/github-issue/src/tests.rs#every_negative_demo_variant_is_a_native_denial_before_credentials"], outcome-unknown = ["demos/github-issue/src/tests.rs#crash_after_branch_publication_reconciles_without_a_second_push"], reconciliation = ["demos/github-issue/src/tests.rs#crash_after_pr_creation_reconciles_without_a_second_pr", "demos/github-issue/src/tests.rs#conclusive_non_effect_releases_scope_for_a_new_workflow"] }
 
 [[domains]]
 id = "radicle"

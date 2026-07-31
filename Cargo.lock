@@ -490,6 +490,8 @@ dependencies = [
 name = "auths-github"
 version = "0.1.0"
 dependencies = [
+ "auths-bounded-policy",
+ "auths-lifecycle",
  "auths-model",
  "auths-profile-api",
  "auths-sdk",
@@ -514,6 +516,7 @@ dependencies = [
  "auths-author",
  "auths-codec",
  "auths-github",
+ "auths-lifecycle",
  "auths-model",
  "auths-ports",
  "auths-profile-api",
@@ -522,6 +525,7 @@ dependencies = [
  "auths-runtime",
  "auths-sdk",
  "auths-signature",
+ "auths-stores",
  "axum",
  "ed25519-dalek 2.2.0",
  "getrandom 0.3.4",

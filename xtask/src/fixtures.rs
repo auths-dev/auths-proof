@@ -242,20 +242,50 @@ migration_status = "reference-only"
 domain_id = "github"
 owning_package = "auths-github"
 layer = "product"
-profile_id = "auths.github.issue-address/1"
-policy_type_id = "auths.github.workflow-grant/1"
-evaluator_semantic_id = "auths.github.issue-address.evaluate/1"
-implementation_id = "auths-github/reference-pre-migration"
+profile_id = "auths.github.issue-address.branch-publish/1"
+policy_type_id = "auths.github.issue-workflow-grant/1"
+evaluator_semantic_id = "auths.github.branch-publish.evaluate/1"
+implementation_id = "auths-github/shared-lifecycle-production/1"
 canonicalization_id = "rfc8785-sha256-v1"
 rust_symbol = "auths_github::containment::evaluate"
 lean_artifact = "Auths.Product.fixed_context_tightening"
 action_schema = "auths_github::ExactGitHubAction"
 policy_schema = "auths_github::WorkflowGrant"
 evidence_schema = "auths_github::GitHubEvidence"
-state_schema = "auths_github::CandidateEvidence"
+state_schema = "auths.github.branch-ref-snapshot/1"
 result_schema = "auths_github::Decision"
-intent_schema = "auths_github::workflow::ExecutionClaim"
-obligation_schema = "auths_github::VerifiedPublishBranch"
+intent_schema = "auths.github.branch-ref-exclusive-intent/1"
+obligation_schema = "auths_github::VerifiedPublishBranchCommand"
+receipt_schema = "auths_github::GitHubDecisionReceipt"
+stable_code_source = "product/integrations/auths-github/src/containment.rs"
+stable_stage_source = "product/integrations/auths-github/src/containment.rs"
+hard_limit_source = "product/integrations/auths-github/src/profile.rs"
+fixture_manifest = "product/fixtures/v1/github/manifest.json"
+mutation_corpus = "product/fixtures/v1/github"
+fuzz_target = "product/policy/auths-bounded-policy/fuzz/fuzz_targets/target_bounded_policy.rs"
+kani_harnesses = "auths_bounded_policy::kernel::proof_configuration_match_total"
+property_tests = "product/integrations/auths-github/src/containment.rs"
+reference_evaluator = "auths_github::containment::evaluate"
+migration_status = "reference-only"
+
+[[evaluators]]
+domain_id = "github"
+owning_package = "auths-github"
+layer = "product"
+profile_id = "auths.github.issue-address.pull-request-open-draft/1"
+policy_type_id = "auths.github.issue-workflow-grant/1"
+evaluator_semantic_id = "auths.github.pull-request-open-draft.evaluate/1"
+implementation_id = "auths-github/shared-lifecycle-production/1"
+canonicalization_id = "rfc8785-sha256-v1"
+rust_symbol = "auths_github::containment::evaluate"
+lean_artifact = "Auths.Product.fixed_context_tightening"
+action_schema = "auths_github::ExactGitHubAction"
+policy_schema = "auths_github::WorkflowGrant"
+evidence_schema = "auths_github::GitHubEvidence"
+state_schema = "auths.github.pull-request-set-snapshot/1"
+result_schema = "auths_github::Decision"
+intent_schema = "auths.github.pull-request-head-exclusive-intent/1"
+obligation_schema = "auths_github::VerifiedOpenDraftPullRequestCommand"
 receipt_schema = "auths_github::GitHubDecisionReceipt"
 stable_code_source = "product/integrations/auths-github/src/containment.rs"
 stable_stage_source = "product/integrations/auths-github/src/containment.rs"
@@ -529,7 +559,10 @@ pub(crate) fn github_product_fixtures() -> Result<BTreeMap<PathBuf, Vec<u8>>, St
     ]);
     insert_bounded_fixture_manifest(
         "github",
-        &["auths.github.issue-address/1"],
+        &[
+            "auths.github.issue-address.branch-publish/1",
+            "auths.github.issue-address.pull-request-open-draft/1",
+        ],
         bounded_scenarios("github"),
         &mut files,
     )?;

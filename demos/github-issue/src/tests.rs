@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     fs,
     path::Path,
     process::Command,
@@ -16,14 +17,22 @@ use auths_github::{
     VerifierConfiguration, VerifierConfigurationInput, WorkflowOutcome,
     adapters::InMemoryReceiptSink,
     candidate::QuarantinedCandidate,
-    executor::{VerifiedOpenDraftPullRequest, VerifiedPublishBranch},
+    executor::{VerifiedOpenDraftPullRequestCommand, VerifiedPublishBranchCommand},
+    lifecycle::{
+        GitHubLifecycleRegistry, GitHubLifecycleStore, GitHubRecoveryRecordV1,
+        reservation_scope_digest,
+    },
     ports::{
         Clock, ClockError, CredentialError, CredentialProvider, GitHubReadError, GitHubReadPort,
         GitHubWriteError, GitHubWritePort, ScopedCredential,
     },
     receipts::PublishedBranch,
-    workflow::InMemoryWorkflowStore,
 };
+use auths_lifecycle::{
+    ExecutionAuthorizationV1, LifecycleRecordV1, LifecycleStore, StoreError, StoreTransactionV1,
+    StoredTransitionV1,
+};
+use auths_stores::{InMemoryLifecycleStore, LifecycleCapacityRuleV1};
 
 use crate::{
     EphemeralAuthsAuthorizer,
@@ -36,7 +45,7 @@ type TestService = GitHubIssueWorkflowService<
     Arc<GitCandidateInspector>,
     Arc<FakeGitHub>,
     Arc<EphemeralAuthsAuthorizer>,
-    Arc<InMemoryWorkflowStore>,
+    Arc<TestLifecycleRegistry>,
     Arc<CountingCredentials>,
     Arc<FakeGitHub>,
     Arc<InMemoryReceiptSink>,
@@ -175,7 +184,10 @@ fn crash_after_branch_publication_reconciles_without_a_second_push() {
     assert_eq!(fixture.github.branch_writes.load(Ordering::SeqCst), 1);
     assert_eq!(fixture.github.pull_writes.load(Ordering::SeqCst), 0);
 
-    let recovered = service.reconcile(fixture.request()).unwrap();
+    let recovered = fixture
+        .service(fixture.configuration.clone())
+        .reconcile(fixture.request())
+        .unwrap();
     assert!(matches!(
         recovered,
         WorkflowOutcome::Reconciled {
@@ -186,7 +198,10 @@ fn crash_after_branch_publication_reconciles_without_a_second_push() {
     assert_eq!(fixture.github.branch_writes.load(Ordering::SeqCst), 1);
     assert_eq!(fixture.credentials.calls.load(Ordering::SeqCst), 1);
 
-    let resumed = service.execute(fixture.request()).unwrap();
+    let resumed = fixture
+        .service(fixture.configuration.clone())
+        .execute(fixture.request())
+        .unwrap();
     assert!(matches!(resumed, WorkflowOutcome::ResumedCompleted { .. }));
     assert_eq!(fixture.github.branch_writes.load(Ordering::SeqCst), 1);
     assert_eq!(fixture.github.pull_writes.load(Ordering::SeqCst), 1);
@@ -213,7 +228,10 @@ fn crash_after_pr_creation_reconciles_without_a_second_pr() {
     assert_eq!(fixture.github.branch_writes.load(Ordering::SeqCst), 1);
     assert_eq!(fixture.github.pull_writes.load(Ordering::SeqCst), 1);
 
-    let recovered = service.reconcile(fixture.request()).unwrap();
+    let recovered = fixture
+        .service(fixture.configuration.clone())
+        .reconcile(fixture.request())
+        .unwrap();
     assert!(matches!(
         recovered,
         WorkflowOutcome::Reconciled {
@@ -225,7 +243,10 @@ fn crash_after_pr_creation_reconciles_without_a_second_pr() {
     assert_eq!(fixture.github.pull_writes.load(Ordering::SeqCst), 1);
     assert_eq!(fixture.credentials.calls.load(Ordering::SeqCst), 2);
 
-    let replay = service.execute(fixture.request()).unwrap();
+    let replay = fixture
+        .service(fixture.configuration.clone())
+        .execute(fixture.request())
+        .unwrap();
     assert!(matches!(
         replay,
         WorkflowOutcome::Replay {
@@ -233,6 +254,76 @@ fn crash_after_pr_creation_reconciles_without_a_second_pr() {
             ..
         }
     ));
+    assert_eq!(fixture.github.pull_writes.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn concurrent_workflows_for_one_branch_scope_have_one_provider_winner() {
+    let fixture = Fixture::new();
+    let first_workflow = auths_github::WorkflowId::parse("workflow-1234567890").unwrap();
+    let second_workflow = auths_github::WorkflowId::parse("workflow-1234567899").unwrap();
+    let first_request = fixture.request_for_workflow(&first_workflow);
+    let second_request = fixture.request_for_workflow(&second_workflow);
+    assert_eq!(
+        first_request.workflow_grant.target_ref().unwrap(),
+        second_request.workflow_grant.target_ref().unwrap()
+    );
+
+    let first_service = fixture.service(fixture.configuration.clone());
+    let second_service = fixture.service(fixture.configuration.clone());
+    let first = std::thread::spawn(move || first_service.execute(first_request).unwrap());
+    let second = std::thread::spawn(move || second_service.execute(second_request).unwrap());
+    let outcomes = [first.join().unwrap(), second.join().unwrap()];
+
+    assert_eq!(
+        outcomes
+            .iter()
+            .filter(|outcome| matches!(outcome, WorkflowOutcome::Completed { .. }))
+            .count(),
+        1
+    );
+    assert_eq!(fixture.github.branch_writes.load(Ordering::SeqCst), 1);
+    assert_eq!(fixture.github.pull_writes.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn conclusive_non_effect_releases_scope_for_a_new_workflow() {
+    let fixture = Fixture::new();
+    fixture
+        .github
+        .branch_ambiguous_without_effect_once
+        .store(true, Ordering::SeqCst);
+    let first = fixture
+        .service(fixture.configuration.clone())
+        .execute(fixture.request())
+        .unwrap();
+    assert!(matches!(
+        first,
+        WorkflowOutcome::ExecutionFailed {
+            operation: GitHubOperation::PublishBranch,
+            ..
+        }
+    ));
+
+    let reconciled = fixture
+        .service(fixture.configuration.clone())
+        .reconcile(fixture.request())
+        .unwrap();
+    assert!(matches!(
+        reconciled,
+        WorkflowOutcome::ReconciledNonEffect {
+            operation: GitHubOperation::PublishBranch,
+            ..
+        }
+    ));
+
+    let replacement = auths_github::WorkflowId::parse("workflow-1234567899").unwrap();
+    let completed = fixture
+        .service(fixture.configuration.clone())
+        .execute(fixture.request_for_workflow(&replacement))
+        .unwrap();
+    assert!(matches!(completed, WorkflowOutcome::Completed { .. }));
+    assert_eq!(fixture.github.branch_writes.load(Ordering::SeqCst), 2);
     assert_eq!(fixture.github.pull_writes.load(Ordering::SeqCst), 1);
 }
 
@@ -245,7 +336,7 @@ struct Fixture {
     configuration: VerifierConfiguration,
     github: Arc<FakeGitHub>,
     credentials: Arc<CountingCredentials>,
-    store: Arc<InMemoryWorkflowStore>,
+    lifecycle_registry: Arc<TestLifecycleRegistry>,
     receipts: Arc<InMemoryReceiptSink>,
 }
 
@@ -286,13 +377,41 @@ impl Fixture {
             configuration,
             github,
             credentials: Arc::new(CountingCredentials::default()),
-            store: Arc::new(InMemoryWorkflowStore::default()),
+            lifecycle_registry: Arc::new(TestLifecycleRegistry::default()),
             receipts: Arc::new(InMemoryReceiptSink::default()),
         }
     }
 
     fn request(&self) -> ExecuteWorkflowRequest {
         self.request_with_variant(DemoVariant::Exact)
+    }
+
+    fn request_for_workflow(
+        &self,
+        workflow_id: &auths_github::WorkflowId,
+    ) -> ExecuteWorkflowRequest {
+        let grant = workflow_grant(
+            workflow_id.clone(),
+            self.repository.clone(),
+            self.issue.clone(),
+            RefName::parse("main").unwrap(),
+            self.base.clone(),
+            self.configuration.clone(),
+            NOW,
+        )
+        .unwrap();
+        ExecuteWorkflowRequest {
+            workflow_grant: grant,
+            required_configuration: self.configuration.clone(),
+            candidate: build_candidate(
+                Path::new("/usr/bin/git"),
+                self.source.path().to_str().unwrap(),
+                &self.base,
+                workflow_id,
+                DemoVariant::Exact,
+            )
+            .unwrap(),
+        }
     }
 
     fn request_with_variant(&self, variant: DemoVariant) -> ExecuteWorkflowRequest {
@@ -331,7 +450,7 @@ impl Fixture {
             action_authorizer: Arc::new(EphemeralAuthsAuthorizer::new(
                 [0x51; 32], [0x53; 32], [0x52; 32],
             )),
-            workflow_store: Arc::clone(&self.store),
+            lifecycle_registry: Arc::clone(&self.lifecycle_registry),
             credential_provider: Arc::clone(&self.credentials),
             github_write: Arc::clone(&self.github),
             receipt_sink: Arc::clone(&self.receipts),
@@ -353,6 +472,7 @@ struct FakeGitHub {
     branch_writes: AtomicUsize,
     pull_writes: AtomicUsize,
     branch_ambiguous_once: AtomicBool,
+    branch_ambiguous_without_effect_once: AtomicBool,
     pull_ambiguous_once: AtomicBool,
     repository_changed: AtomicBool,
     issue_changed: AtomicBool,
@@ -370,6 +490,7 @@ impl FakeGitHub {
             branch_writes: AtomicUsize::new(0),
             pull_writes: AtomicUsize::new(0),
             branch_ambiguous_once: AtomicBool::new(false),
+            branch_ambiguous_without_effect_once: AtomicBool::new(false),
             pull_ambiguous_once: AtomicBool::new(false),
             repository_changed: AtomicBool::new(false),
             issue_changed: AtomicBool::new(false),
@@ -485,7 +606,7 @@ impl GitHubReadPort for FakeGitHub {
 impl GitHubWritePort for FakeGitHub {
     fn publish_branch(
         &self,
-        command: &VerifiedPublishBranch,
+        command: &VerifiedPublishBranchCommand,
         candidate: &QuarantinedCandidate,
         _credential: &ScopedCredential,
     ) -> Result<PublishedBranch, GitHubWriteError> {
@@ -493,6 +614,12 @@ impl GitHubWritePort for FakeGitHub {
             return Err(GitHubWriteError::PostconditionMismatch);
         }
         self.branch_writes.fetch_add(1, Ordering::SeqCst);
+        if self
+            .branch_ambiguous_without_effect_once
+            .swap(false, Ordering::SeqCst)
+        {
+            return Err(GitHubWriteError::Ambiguous);
+        }
         *self.target.lock().map_err(|_| GitHubWriteError::Adapter)? = Some((
             command.target_ref().clone(),
             command.candidate_revision().clone(),
@@ -509,7 +636,7 @@ impl GitHubWritePort for FakeGitHub {
 
     fn open_draft_pull_request(
         &self,
-        command: &VerifiedOpenDraftPullRequest,
+        command: &VerifiedOpenDraftPullRequestCommand,
         _credential: &ScopedCredential,
     ) -> Result<OpenedPullRequest, GitHubWriteError> {
         self.pull_writes.fetch_add(1, Ordering::SeqCst);
@@ -542,12 +669,103 @@ struct CountingCredentials {
 impl CredentialProvider for CountingCredentials {
     fn installation_credential(
         &self,
+        _authorization: &ExecutionAuthorizationV1,
         _repository: &RepositoryResource,
         _operation: GitHubOperation,
     ) -> Result<ScopedCredential, CredentialError> {
         self.calls.fetch_add(1, Ordering::SeqCst);
         ScopedCredential::from_secret(b"short-lived-test-token".to_vec())
     }
+}
+
+struct TestLifecycleStore {
+    inner: InMemoryLifecycleStore,
+}
+
+impl LifecycleStore for TestLifecycleStore {
+    fn transact(&self, transaction: &StoreTransactionV1) -> Result<StoredTransitionV1, StoreError> {
+        self.inner.transact(transaction)
+    }
+}
+
+impl GitHubLifecycleStore for TestLifecycleStore {
+    fn load_github_lifecycle(
+        &self,
+        workflow: &auths_lifecycle::WorkflowId,
+    ) -> Result<Option<LifecycleRecordV1>, StoreError> {
+        self.inner.load(workflow)
+    }
+}
+
+#[derive(Default)]
+struct TestLifecycleRegistry {
+    stores: Mutex<HashMap<String, Arc<TestLifecycleStore>>>,
+    recovery: Mutex<HashMap<(String, &'static str), GitHubRecoveryRecordV1>>,
+}
+
+impl GitHubLifecycleRegistry for TestLifecycleRegistry {
+    fn for_action(
+        &self,
+        action: &auths_github::ExactGitHubAction,
+    ) -> Result<Arc<dyn GitHubLifecycleStore>, StoreError> {
+        let scope = reservation_scope_digest(action).map_err(|_| StoreError::Corrupt)?;
+        let key = hex::encode(scope.as_bytes());
+        let mut stores = self.stores.lock().map_err(|_| StoreError::Unavailable)?;
+        if let Some(store) = stores.get(&key) {
+            let concrete = Arc::clone(store);
+            let store: Arc<dyn GitHubLifecycleStore> = concrete;
+            return Ok(store);
+        }
+        let store = Arc::new(TestLifecycleStore {
+            inner: InMemoryLifecycleStore::new(
+                vec![LifecycleCapacityRuleV1::Exclusive {
+                    scope_digest: scope,
+                    window_digest: None,
+                    retain_after_commit: true,
+                }],
+                2_048,
+            )
+            .map_err(|_| StoreError::Corrupt)?,
+        });
+        stores.insert(key, Arc::clone(&store));
+        Ok(store)
+    }
+
+    fn persist_recovery(&self, record: &GitHubRecoveryRecordV1) -> Result<(), StoreError> {
+        record.validate().map_err(|_| StoreError::Corrupt)?;
+        let key = recovery_key(&record.workflow_id, record.operation);
+        let mut recovery = self.recovery.lock().map_err(|_| StoreError::Unavailable)?;
+        match recovery.get(&key) {
+            Some(existing) if existing == record => Ok(()),
+            Some(_) => Err(StoreError::Conflict),
+            None => {
+                recovery.insert(key, record.clone());
+                Ok(())
+            }
+        }
+    }
+
+    fn load_recovery(
+        &self,
+        workflow_id: &auths_github::WorkflowId,
+        operation: GitHubOperation,
+    ) -> Result<Option<GitHubRecoveryRecordV1>, StoreError> {
+        self.recovery
+            .lock()
+            .map_err(|_| StoreError::Unavailable)
+            .map(|records| records.get(&recovery_key(workflow_id, operation)).cloned())
+    }
+}
+
+fn recovery_key(
+    workflow_id: &auths_github::WorkflowId,
+    operation: GitHubOperation,
+) -> (String, &'static str) {
+    let operation = match operation {
+        GitHubOperation::PublishBranch => "branch",
+        GitHubOperation::OpenDraftPullRequest => "pull-request",
+    };
+    (workflow_id.as_str().to_owned(), operation)
 }
 
 #[derive(Clone, Copy)]

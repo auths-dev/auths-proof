@@ -327,15 +327,15 @@ wire_objects = ["CanonicalAction", "VerifiedAction"]
 fixture_suites = ["product/fixtures/v1/github"]
 principal_families = []
 signature_families = []
-profiles = ["auths.github.issue-address/1"]
+profiles = ["auths.github.issue-address.branch-publish/1", "auths.github.issue-address.pull-request-open-draft/1"]
 transports = ["git-bundle", "github-rest"]
 configuration_inputs = ["candidate-inspector", "executed-verifier-configuration", "github-adapter", "repository-automation-policy", "required-verifier-configuration"]
-security_state = ["branch-claim", "github-app-credential", "pull-request-claim", "signed-receipt-log", "workflow-store"]
+security_state = ["branch-exclusive-lifecycle", "domain-recovery-record", "github-app-credential", "pull-request-exclusive-lifecycle", "signed-receipt-log"]
 
 [packages.auths-github.claims]
 core-api-consumer = ["product/integrations/auths-github/src/profile.rs#profile_derives_exact_resource_and_one_effect_budget"]
 profile-contract = ["product/integrations/auths-github/src/profile.rs#every_security_relevant_branch_field_changes_the_action_digest"]
-stateful-replay-budget-component = ["product/integrations/auths-github/src/workflow.rs#concurrent_duplicate_claims_have_one_winner"]
+stateful-replay-budget-component = ["demos/github-issue/src/tests.rs#concurrent_workflows_for_one_branch_scope_have_one_provider_winner"]
 
 [packages.auths-github-demo]
 kind = "cargo"
@@ -347,10 +347,10 @@ wire_objects = ["CanonicalAction", "ProofBundle", "VerifierContext"]
 fixture_suites = ["product/fixtures/v1", "product/fixtures/v1/github"]
 principal_families = ["raw-key-v1"]
 signature_families = ["ed25519-v1"]
-profiles = ["auths.github.issue-address/1"]
+profiles = ["auths.github.issue-address.branch-publish/1", "auths.github.issue-address.pull-request-open-draft/1"]
 transports = ["git-bundle", "https", "github-rest"]
 configuration_inputs = ["executed-verifier-configuration", "github-app-installation", "repository-automation-policy", "required-verifier-configuration"]
-security_state = ["branch-claim", "expiring-session", "pull-request-claim", "receipt-sink", "workflow-store"]
+security_state = ["branch-exclusive-lifecycle", "domain-recovery-record", "expiring-session", "pull-request-exclusive-lifecycle", "receipt-sink"]
 
 [packages.auths-github-demo.claims]
 demo-conformance-fixture = ["demos/github-issue/src/tests.rs#exact_flow_uses_real_auths_kernel_and_replay_mutates_nothing"]
@@ -359,9 +359,11 @@ runtime-enforcement-boundary = [
     "demos/github-issue/src/tests.rs#every_negative_demo_variant_is_a_native_denial_before_credentials",
 ]
 stateful-replay-budget-component = [
+    "demos/github-issue/src/tests.rs#concurrent_workflows_for_one_branch_scope_have_one_provider_winner",
     "demos/github-issue/src/tests.rs#exact_flow_uses_real_auths_kernel_and_replay_mutates_nothing",
     "demos/github-issue/src/tests.rs#crash_after_branch_publication_reconciles_without_a_second_push",
     "demos/github-issue/src/tests.rs#crash_after_pr_creation_reconciles_without_a_second_pr",
+    "demos/github-issue/src/tests.rs#conclusive_non_effect_releases_scope_for_a_new_workflow",
 ]
 
 [packages.auths-radicle]

@@ -1,5 +1,5 @@
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, HashMap},
     env, fs,
     net::SocketAddr,
     path::PathBuf,
@@ -16,8 +16,11 @@ use auths_github::{
     adapters::{
         Ed25519JsonlReceiptSink, GitHubAppCredentialProvider, GitHubRestClient, SystemClock,
     },
+    lifecycle::{
+        GitHubLifecycleRegistry, GitHubLifecycleStore, GitHubRecoveryRecordV1,
+        reservation_scope_digest,
+    },
     ports::{GitHubReadError, GitHubReadPort},
-    workflow::PersistentWorkflowStore,
 };
 use axum::{
     Json, Router,
@@ -50,7 +53,7 @@ type LiveWorkflowService = GitHubIssueWorkflowService<
     Arc<GitCandidateInspector>,
     Arc<VariantGitHubRead>,
     Arc<EphemeralAuthsAuthorizer>,
-    Arc<PersistentWorkflowStore>,
+    Arc<DemoGitHubLifecycleRegistry>,
     Arc<GitHubAppCredentialProvider>,
     Arc<GitHubRestClient>,
     Arc<Ed25519JsonlReceiptSink>,
@@ -136,7 +139,7 @@ pub struct AppConfig {
     executor_identity: Arc<str>,
     github: Arc<GitHubRestClient>,
     credential_provider: Arc<GitHubAppCredentialProvider>,
-    workflow_store: Arc<PersistentWorkflowStore>,
+    lifecycle_registry: Arc<DemoGitHubLifecycleRegistry>,
     receipt_sink: Arc<Ed25519JsonlReceiptSink>,
     quota_path: PathBuf,
 }
@@ -230,8 +233,9 @@ impl AppConfig {
             return Err(StartupError);
         }
         fs::create_dir_all(&data_directory).map_err(|_| StartupError)?;
-        let workflow_store = Arc::new(
-            PersistentWorkflowStore::open(data_directory.join("workflows.json"), MAX_SESSIONS)
+        reject_obsolete_workflow_state(&data_directory)?;
+        let lifecycle_registry = Arc::new(
+            DemoGitHubLifecycleRegistry::new(data_directory.join("lifecycles"))
                 .map_err(|_| StartupError)?,
         );
         let receipt_seed = decode_seed(&required("AUTHS_GITHUB_RECEIPT_SEED")?)?;
@@ -259,10 +263,179 @@ impl AppConfig {
             executor_identity: executor_identity.into(),
             github,
             credential_provider,
-            workflow_store,
+            lifecycle_registry,
             receipt_sink,
             quota_path: data_directory.join("publication-quota.json"),
         })
+    }
+}
+
+fn reject_obsolete_workflow_state(data_directory: &std::path::Path) -> Result<(), StartupError> {
+    if data_directory.join("workflows.json").exists() {
+        Err(StartupError)
+    } else {
+        Ok(())
+    }
+}
+
+struct DemoGitHubLifecycleStore {
+    inner: auths_stores::PersistentLifecycleStore,
+}
+
+#[cfg(test)]
+mod lifecycle_startup_tests {
+    use super::*;
+
+    #[test]
+    fn obsolete_workflow_store_is_rejected_instead_of_migrated() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::write(directory.path().join("workflows.json"), b"{}").unwrap();
+
+        assert!(reject_obsolete_workflow_state(directory.path()).is_err());
+        assert!(directory.path().join("workflows.json").exists());
+    }
+}
+
+impl auths_lifecycle::LifecycleStore for DemoGitHubLifecycleStore {
+    fn transact(
+        &self,
+        transaction: &auths_lifecycle::StoreTransactionV1,
+    ) -> Result<auths_lifecycle::StoredTransitionV1, auths_lifecycle::StoreError> {
+        self.inner.transact(transaction)
+    }
+}
+
+impl GitHubLifecycleStore for DemoGitHubLifecycleStore {
+    fn load_github_lifecycle(
+        &self,
+        workflow: &auths_lifecycle::WorkflowId,
+    ) -> Result<Option<auths_lifecycle::LifecycleRecordV1>, auths_lifecycle::StoreError> {
+        self.inner.load(workflow)
+    }
+}
+
+struct DemoGitHubLifecycleRegistry {
+    directory: PathBuf,
+    stores: StdMutex<HashMap<String, Arc<DemoGitHubLifecycleStore>>>,
+    recovery_lock: StdMutex<()>,
+}
+
+impl DemoGitHubLifecycleRegistry {
+    fn new(directory: PathBuf) -> Result<Self, auths_lifecycle::StoreError> {
+        fs::create_dir_all(directory.join("recovery"))
+            .map_err(|_| auths_lifecycle::StoreError::Unavailable)?;
+        Ok(Self {
+            directory,
+            stores: StdMutex::new(HashMap::new()),
+            recovery_lock: StdMutex::new(()),
+        })
+    }
+
+    fn recovery_path(
+        &self,
+        workflow_id: &WorkflowId,
+        operation: auths_github::GitHubOperation,
+    ) -> PathBuf {
+        let operation = match operation {
+            auths_github::GitHubOperation::PublishBranch => "branch",
+            auths_github::GitHubOperation::OpenDraftPullRequest => "pull-request",
+        };
+        self.directory
+            .join("recovery")
+            .join(format!("{}-{operation}.json", workflow_id.as_str()))
+    }
+}
+
+impl GitHubLifecycleRegistry for DemoGitHubLifecycleRegistry {
+    fn for_action(
+        &self,
+        action: &auths_github::ExactGitHubAction,
+    ) -> Result<Arc<dyn GitHubLifecycleStore>, auths_lifecycle::StoreError> {
+        let scope =
+            reservation_scope_digest(action).map_err(|_| auths_lifecycle::StoreError::Corrupt)?;
+        let scope_hex = hex::encode(scope.as_bytes());
+        let mut stores = self
+            .stores
+            .lock()
+            .map_err(|_| auths_lifecycle::StoreError::Unavailable)?;
+        if let Some(store) = stores.get(&scope_hex) {
+            let concrete = Arc::clone(store);
+            let store: Arc<dyn GitHubLifecycleStore> = concrete;
+            return Ok(store);
+        }
+        let store = Arc::new(DemoGitHubLifecycleStore {
+            inner: auths_stores::PersistentLifecycleStore::open(
+                self.directory.join(format!("{scope_hex}.lifecycle")),
+                vec![auths_stores::LifecycleCapacityRuleV1::Exclusive {
+                    scope_digest: scope,
+                    window_digest: None,
+                    retain_after_commit: true,
+                }],
+                MAX_SESSIONS,
+            )
+            .map_err(|_| auths_lifecycle::StoreError::Corrupt)?,
+        });
+        stores.insert(scope_hex, Arc::clone(&store));
+        Ok(store)
+    }
+
+    fn persist_recovery(
+        &self,
+        record: &GitHubRecoveryRecordV1,
+    ) -> Result<(), auths_lifecycle::StoreError> {
+        record
+            .validate()
+            .map_err(|_| auths_lifecycle::StoreError::Corrupt)?;
+        let _guard = self
+            .recovery_lock
+            .lock()
+            .map_err(|_| auths_lifecycle::StoreError::Unavailable)?;
+        let path = self.recovery_path(&record.workflow_id, record.operation);
+        let bytes = serde_json::to_vec(record).map_err(|_| auths_lifecycle::StoreError::Corrupt)?;
+        if path.exists() {
+            let existing = fs::read(&path).map_err(|_| auths_lifecycle::StoreError::Unavailable)?;
+            return if existing == bytes {
+                Ok(())
+            } else {
+                Err(auths_lifecycle::StoreError::Conflict)
+            };
+        }
+        let temporary = path.with_extension("json.tmp");
+        let mut file = fs::OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .open(&temporary)
+            .map_err(|_| auths_lifecycle::StoreError::Unavailable)?;
+        std::io::Write::write_all(&mut file, &bytes)
+            .map_err(|_| auths_lifecycle::StoreError::Unavailable)?;
+        file.sync_all()
+            .map_err(|_| auths_lifecycle::StoreError::Unavailable)?;
+        fs::rename(&temporary, &path).map_err(|_| auths_lifecycle::StoreError::Unavailable)
+    }
+
+    fn load_recovery(
+        &self,
+        workflow_id: &WorkflowId,
+        operation: auths_github::GitHubOperation,
+    ) -> Result<Option<GitHubRecoveryRecordV1>, auths_lifecycle::StoreError> {
+        let _guard = self
+            .recovery_lock
+            .lock()
+            .map_err(|_| auths_lifecycle::StoreError::Unavailable)?;
+        let path = self.recovery_path(workflow_id, operation);
+        if !path.exists() {
+            return Ok(None);
+        }
+        let bytes = fs::read(path).map_err(|_| auths_lifecycle::StoreError::Unavailable)?;
+        let record: GitHubRecoveryRecordV1 =
+            serde_json::from_slice(&bytes).map_err(|_| auths_lifecycle::StoreError::Corrupt)?;
+        record
+            .validate()
+            .map_err(|_| auths_lifecycle::StoreError::Corrupt)?;
+        if serde_json::to_vec(&record).map_err(|_| auths_lifecycle::StoreError::Corrupt)? != bytes {
+            return Err(auths_lifecycle::StoreError::Corrupt);
+        }
+        Ok(Some(record))
     }
 }
 
@@ -617,7 +790,7 @@ fn live_workflow_service(
             base_ref: state.config.base_ref.clone(),
         }),
         action_authorizer: authorizer,
-        workflow_store: Arc::clone(&state.config.workflow_store),
+        lifecycle_registry: Arc::clone(&state.config.lifecycle_registry),
         credential_provider: Arc::clone(&state.config.credential_provider),
         github_write: Arc::clone(&state.config.github),
         receipt_sink: Arc::clone(&state.config.receipt_sink),
@@ -939,6 +1112,22 @@ fn outcome_projection(session_id: &str, outcome: WorkflowOutcome) -> (Value, Vec
                     "operation": operation,
                     "status": "reconciled-without-repeat",
                     "observed_state": observed_state,
+                },
+            }),
+            vec![json!({"type": "reconciliation-execution", "receipt": receipt})],
+            true,
+        ),
+        WorkflowOutcome::ReconciledNonEffect { operation, receipt } => (
+            json!({
+                "schema": API_SCHEMA,
+                "session_id": session_id,
+                "entered_executor": true,
+                "credential_requests": 0,
+                "mutations": 0,
+                "decision": {"class": "authorized", "code": "reconciled-non-effect"},
+                "execution": {
+                    "operation": operation,
+                    "status": "reconciled-non-effect",
                 },
             }),
             vec![json!({"type": "reconciliation-execution", "receipt": receipt})],
