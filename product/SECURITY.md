@@ -1,7 +1,7 @@
 # Security Policy
 
-`auths-proof-apps` `0.1.x` is pre-audit software. Do not use it as the sole
-production authorization control.
+Auths `0.1.x` is pre-audit software. Do not use it as the sole production
+authorization control.
 
 Report vulnerabilities privately through the repository host's Security
 Advisory feature. Include the affected commit, exact canonical MCP body and

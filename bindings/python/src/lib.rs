@@ -21,7 +21,7 @@ fn verify_v1<'py>(
     Ok(PyBytes::new(py, &result))
 }
 
-/// Installs the private native extension consumed by `auths_proof`.
+/// Installs the private native extension consumed by `auths`.
 #[pymodule]
 fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(verify_v1, module)?)?;

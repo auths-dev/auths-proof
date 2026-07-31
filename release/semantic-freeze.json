@@ -39,8 +39,8 @@
     "releaseArtifactFamilies": [
       "source-archive",
       "rust-crates",
-      "npm:@auths-dev/proof",
-      "pypi:auths-proof",
+      "npm:@auths-dev/sdk",
+      "pypi:auths",
       "assurance-bundle"
     ],
     "deferredSurfaceIssue": "https://github.com/auths-dev/auths-proof/issues/51"
@@ -195,7 +195,7 @@
       "owners": [
         "formal/qualification/aeneas/source-closure.json"
       ],
-      "sha256": "90d29e1ad717faacf3a1108a0a682578be341692fd2ec8a472c136174179fa32"
+      "sha256": "e5cff50a89968d3bcb7d775b07286df04d5a6dc673357b1ea3c34d1f7ef8b7e9"
     },
     {
       "id": "auths.frozen-bytes/product/fixtures/v1/bounded-policy/manifest.json",
@@ -463,7 +463,7 @@
         "core/crates/auths-model/src/lib.rs",
         "core/spec/v1/auths-proof.cddl"
       ],
-      "sha256": "226bd2a55b50e19abda62e28f393b23f57f2b1a2f78d14ae947c3c252d74178e"
+      "sha256": "1aabde5ffc962ad49cad364f87094e76760c494afb52d2827fe4fe897801ce24"
     },
     {
       "id": "auths.product.bounded-domains",
@@ -557,7 +557,7 @@
         "product/runtime/auths-runtime/src",
         "product/sdk/auths-sdk/src"
       ],
-      "sha256": "19b85bb27c04faeaf812338079a3b2d03d1b6a33dc74e8a34e4f8ed7b239db22"
+      "sha256": "01102b281c3920c475f3be84c73a5aef1d567853bf1cf8dbfde75a1d9c3c5772"
     },
     {
       "id": "auths.product.receipts",
@@ -642,7 +642,7 @@
         "xtask/src/fixtures.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "19a743b6ceb21c3815fc598ac4414989da9a3e7f78c8cf1d4cb0cb5afaab9101"
+      "sha256": "3027f279e679e14de04f6b9390597e112803202a3f27fa397021ad6601ff69c6"
     }
   ]
 }

@@ -3,9 +3,9 @@ requires = ["maturin>=1.9,<2"]
 build-backend = "maturin"
 
 [project]
-name = "auths-proof"
+name = "auths"
 version = "0.1.0"
-description = "Embedded offline verification for Auths Proof Protocol V1"
+description = "Embedded Auths SDK with offline proof verification"
 readme = "README.md"
 requires-python = ">=3.9"
 license = "MIT OR Apache-2.0"
@@ -17,6 +17,6 @@ classifiers = [
 
 [tool.maturin]
 manifest-path = "Cargo.toml"
-module-name = "auths_proof._native"
+module-name = "auths._native"
 python-source = "python"
 features = ["pyo3/abi3-py39"]

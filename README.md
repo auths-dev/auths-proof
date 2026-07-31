@@ -1,6 +1,8 @@
-# auths-proof
+# Auths
 
-The strictly offline reference kernel for Auths Proof Protocol V1.
+Auths is an open protocol and SDK for proof-carrying, bounded machine
+authority. The `auths-proof` component is its strictly offline reference
+kernel for Auths Proof Protocol V1.
 
 > Auths owns authority. Adapters establish bounded facts.
 
@@ -40,7 +42,9 @@ attachment input, and resource limit is an explicit immutable verifier input.
 
 Target packages:
 
-- `auths-proof`: supported embedded Rust facade and actionable results;
+- `auths`: supported consumer-facing Rust core facade;
+- `auths-sdk`: idiomatic embedded authorization SDK;
+- `auths-proof`: bounded proof-protocol component and actionable results;
 - `auths-proof-wasm`: prebuildable three-input WebAssembly boundary;
 - `auths-model`: validated V1 protocol and context types;
 - `auths-codec`: constrained deterministic CBOR and domain-separated IDs;
@@ -84,9 +88,10 @@ Canonical `.cbor` files are generated only through:
 cargo xtask wire --update
 ```
 
-Networking and transports belong to `auths-proof-exchange`. Profiles, live
-resolvers, runtime state, receipts, execution, custody, independent
-implementations, and Auths Lab belong to `auths-proof-apps`.
+Networking and transports belong to the `auths-proof-exchange` components.
+Profiles, live resolvers, runtime state, receipts, execution, custody,
+independent implementations, and Auths Lab remain outside the offline proof
+kernel in the workspace's product and demo layers.
 
 This repository is prelaunch and pre-audit. Passing corpus, fuzz-smoke, and
 WASM equivalence gates is not an independent security review.

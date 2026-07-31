@@ -48,16 +48,16 @@ runtime supplies the same invariant with challenge exchange, receipts, and
 transport bindings.
 
 Safe grant planning and external key custody are available from the same
-package as `auths_proof_sdk::authority` and `auths_proof_sdk::custody`. The
+package as `auths_sdk::authority` and `auths_sdk::custody`. The
 planner rejects delegation widening before any signing provider is invoked.
 
 ### TypeScript
 
-Install `@auths-dev/proof`. Published packages include compiled JavaScript,
+Install `@auths-dev/sdk`. The prepared package includes compiled JavaScript,
 declarations, and precompiled WASM:
 
 ```typescript
-import { loadAuths } from "@auths-dev/proof";
+import { loadAuths } from "@auths-dev/sdk";
 
 const auths = await loadAuths();
 const result = auths.verify(proof, canonicalAction, trustedContext);
@@ -70,10 +70,10 @@ if (result.kind === "authorized") {
 
 ### Python
 
-Install the `auths-proof` wheel:
+Install the `auths` wheel:
 
 ```python
-from auths_proof import verify
+from auths import verify
 
 result = verify(proof_cbor, canonical_action_cbor, trusted_context_cbor)
 if result.kind == "authorized":
@@ -139,9 +139,6 @@ go test ./...
 Treat corpus disagreement, an unknown critical identifier, or an unavailable
 replay/budget store as a fail-closed release blocker.
 
-This repository's GitHub workflows also check out the private
-`auths-dev/auths-proof` and `auths-dev/auths-proof-exchange` repositories.
-Configure an `AUTHS_READ_TOKEN` Actions secret with read-only Contents access
-to those sibling repositories to enable the cross-repository jobs. Until that
-credential exists, a visible preflight succeeds and those jobs are explicitly
-skipped; they are never reported as having run.
+This repository's GitHub workflows run the cross-language corpus against the
+workspace's Rust, TypeScript, Python, and Go surfaces. A skipped implementation
+is reported as skipped; it is never represented as having run.

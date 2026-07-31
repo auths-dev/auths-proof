@@ -1,7 +1,7 @@
-# auths-proof-apps
+# Auths product layer
 
-Effectful applications and control-plane components for Auths Proof Protocol
-V1.
+Effectful applications and control-plane components for Auths. These build on
+the bounded Auths Proof Protocol V1 kernel.
 
 Start with the [developer integration guide](docs/developer-integration.md)
 for the Rust, TypeScript/WASM, Python, and pure-Go package surfaces.
@@ -51,8 +51,8 @@ the release-candidate publication set):
   entry points;
 - `auths-deployment`: replay- and blast-radius-safe deployment execution;
 - `auths-profile-kit`: deterministic fixtures and hostile-input scaffolding;
-- `@auths-dev/proof`: precompiled WASM with an idiomatic TypeScript API;
-- `auths-proof`: stable-ABI Python wheels;
+- `@auths-dev/sdk`: precompiled WASM with an idiomatic TypeScript API;
+- `auths`: stable-ABI Python wheels;
 - `auths.dev/independent-verifier/auths`: independent pure-Go verifier.
 
 The MCP reference runtime emits content-addressed canonical decision receipts

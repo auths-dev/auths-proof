@@ -482,8 +482,8 @@ fn rust_surface() -> Result<RustSurface, String> {
             release_artifact_families: vec![
                 "source-archive".to_owned(),
                 "rust-crates".to_owned(),
-                "npm:@auths-dev/proof".to_owned(),
-                "pypi:auths-proof".to_owned(),
+                "npm:@auths-dev/sdk".to_owned(),
+                "pypi:auths".to_owned(),
                 "assurance-bundle".to_owned(),
             ],
             deferred_surface_issue: "https://github.com/auths-dev/auths-proof/issues/51".to_owned(),
