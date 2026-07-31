@@ -680,31 +680,27 @@ Stripe credentials are obtainable only from
 authorization from an unevaluated decision, an in-memory transition, or an
 unacknowledged store result.
 
-### 25.4 Compatibility and state migration
+### 25.4 Prelaunch cutover
 
-All existing V1 Stripe canonical action, policy, evidence, configuration,
-decision, execution, reservation, observation, and receipt bytes remain
-unchanged. The shared lifecycle record is an additional independently
-versioned persistence and receipt envelope; it is not inserted into an
-existing Stripe receipt payload.
+Auths-proof has no users or production state at this milestone. The shared
+lifecycle path therefore replaces the demo-local production path directly.
+There is no legacy state reader, dual write, compatibility shim, rollback
+format, or promise that obsolete receipt bytes remain accepted.
 
-Existing `auths.stripe.bounded-reservation-state/1` files are migrated
-deterministically before the shared path becomes authoritative. Migration must
-be all-or-nothing, preserve every held or committed unit, reject ambiguous or
-invalid legacy records, and record the exact source-state digest. Rollback is
-permitted only while the legacy source remains an exact read-only mirror of
-the authoritative shared record. The old evaluator and reservation logic
-remain test-only executable oracles until differential qualification passes;
-they are not a second production execution path.
+The authoritative state schema starts at the shared-lifecycle version and
+rejects every other schema. Developers must delete disposable local demo state
+before running the new build. CI always starts from an empty state directory.
+This is intentionally safer than carrying unneeded compatibility code into the
+first release.
 
-The migration must be idempotent. Reopening migrated state cannot create a new
-reservation, release held capacity, change a terminal conclusion, or alter a
-canonical Stripe receipt.
+The old pure evaluator may remain as a test-only semantic oracle. The old
+claim/reservation orchestration is removed from the bounded demo production
+path rather than retained behind a runtime switch.
 
 ### 25.5 Differential acceptance
 
 For every frozen Stripe fixture and every generated boundary/mutation case,
-the reference and migrated paths must agree exactly on:
+the reference evaluator and new production path must agree on:
 
 - decision class, stable code, and stage;
 - checked arithmetic and aggregate availability;
@@ -713,16 +709,14 @@ the reference and migrated paths must agree exactly on:
 - replay, conflict, concurrency, crash, and unknown-outcome behavior;
 - credential and Stripe-call ordering;
 - reconciliation conclusion; and
-- canonical Stripe receipt bytes.
+- domain conclusions and receipt claims for the currently declared schema.
 
-Tests must additionally prove legacy-state import, repeated import, rollback
-before cutover, rejection of corrupt/partial legacy state, concurrent last-unit
-reservation, crash at every durable boundary, denial before credentials,
-recovery from outcome unknown, live Stripe test-mode behavior, browser E2E,
-inline receipt JSON, and the dedicated receipt page.
+Tests must additionally prove rejection of obsolete or corrupt state,
+concurrent last-unit reservation, crash at every durable boundary, denial
+before credentials, recovery from outcome unknown, live Stripe test-mode
+behavior, browser E2E, inline receipt JSON, and the dedicated receipt page.
 
 The migration is complete only when the shared lifecycle path is the sole
-production path for this semantic version, the legacy path is retained only as
-an executable differential oracle, compliance points to both the unchanged
-Stripe fixtures and shared lifecycle evidence, and the migration PR is merged
-independently before any other domain migration begins.
+production path for this semantic version, the reference evaluator is
+test-only, compliance points to the Stripe fixtures and shared lifecycle
+evidence, and the PR is merged independently before any other domain begins.

@@ -17,6 +17,20 @@ written for agents implementing the work and defines:
 This plan does not authorize an agent to begin with a generic policy engine,
 provider interface, workflow runtime, or reservation state machine.
 
+### Prelaunch cutover rule
+
+Auths-proof currently has no users or production state. In this plan,
+“migration” means a source-level move to the new authoritative path; it does
+not mean compatibility with disposable prelaunch state or APIs.
+
+Do not build legacy state readers, dual writes, old-schema adapters,
+compatibility shims, deprecation windows, or runtime rollback switches. Each
+domain cuts over directly, CI starts from empty state, and developers delete
+obsolete local demo state. Preserve old pure evaluators only as test-only
+semantic oracles where they add assurance. PostgreSQL transaction rollback and
+provider-effect reconciliation remain domain semantics, not compatibility
+mechanisms.
+
 ## Governing documents
 
 Read all of the following before planning or changing code:
@@ -204,7 +218,8 @@ packages must never depend on demo code.
 
 ### Reference versus production implementations
 
-During a Milestone 5 migration, retain both the original and migrated paths:
+During a Milestone 5 source cutover, retain the original evaluator only in
+tests while comparing it with the new path:
 
 ```text
 frozen canonical input
@@ -220,11 +235,11 @@ The original pure evaluator remains available as a test-only reference until
 the relevant semantic version is retired. Preserve its frozen fixtures and
 smallest regression seeds.
 
-Do not keep two complete production execution pipelines indefinitely. Permanent
-duplicate production paths create ambiguous authority, divergent security
-fixes, and unclear operational state. Remove duplicate production orchestration
-only after exact differential conformance, live domain tests, state
-migration/rollback tests, and the complete repository suite pass.
+Do not keep two complete production execution pipelines. Duplicate production
+paths create ambiguous authority, divergent security fixes, and unclear
+operational state. Cut the demo over to the new path in the same PR after exact
+differential conformance, live domain tests, obsolete-state rejection, and the
+complete repository suite pass.
 
 The intended steady state is:
 
@@ -347,7 +362,7 @@ Every PR must state:
 - exact validation run;
 - CI phases expected to run and why;
 - formal-assurance impact;
-- compatibility and rollback plan;
+- prelaunch cutover and obsolete-state rejection plan;
 - known residual assumptions.
 
 “Tests pass” is not sufficient. Link each security claim to the specific
@@ -359,7 +374,7 @@ fixture, theorem, property, model check, or live test that supports it.
 
 - policy meaning, policy schema, or evaluator identity;
 - canonical action, evidence, configuration, or receipt meaning;
-- wire bytes, persisted state, fixture identity, or compatibility behavior;
+- wire bytes, persisted state, or fixture identity;
 - denial, indeterminate, reconciliation, or stable-code semantics;
 - reservation keys, capacity units, lifecycle transitions, expiry, release,
   commitment, or outcome-unknown behavior;
@@ -723,9 +738,9 @@ ordering.
 6. Radicle;
 7. records API create/read as a transport-neutral composition.
 
-Use one branch and PR per migration. A migration specification or amendment is
-required before coding if persisted state, receipt meaning, evaluator identity,
-or compatibility behavior changes.
+Use one branch and PR per source cutover. A specification or amendment is
+required before coding if persisted state, receipt meaning, or evaluator
+identity changes.
 
 ### Migration rules
 
@@ -735,7 +750,7 @@ or compatibility behavior changes.
   reservations, obligations, verified commands, transitions, and receipt bytes
   when versions are unchanged;
 - add the smallest regression fixture for every mismatch;
-- test rollback to the old path before deleting it;
+- reject obsolete persisted state instead of adding a legacy reader;
 - do not widen the abstraction to force a domain to fit;
 - if a domain does not fit, prefer composition or retain domain-local
   semantics.
@@ -743,13 +758,13 @@ or compatibility behavior changes.
   payloads, provider contract tests, and end-to-end demo after migration;
 - preserve the old pure evaluator as a test-only reference where it remains
   necessary to qualify the semantic version;
-- remove duplicate production orchestration only after equivalence, live
-  behavior, state migration, and rollback are proved.
+- remove duplicate production orchestration in the same PR after equivalence
+  and live behavior are proved.
 
 ### Done means for each domain
 
 - differential conformance is exact for all unchanged versioned behavior;
-- state migration and rollback are tested;
+- obsolete or corrupt state is rejected and CI starts from empty state;
 - live effect, denial-before-credential, concurrency, crash, replay,
   outcome-unknown, reconciliation, frontend, and receipt tests pass;
 - compliance claims point to the migrated evidence;
