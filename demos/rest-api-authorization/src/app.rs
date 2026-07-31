@@ -1675,7 +1675,11 @@ mod tests {
         );
 
         let replay = execute_create(&router, &session).await;
-        assert_eq!(replay["receipt"]["decision"]["decision"]["code"], "replay");
+        assert_eq!(
+            replay["receipt"]["decision"]["decision"]["code"],
+            "authorized"
+        );
+        assert_eq!(replay["receipt"]["execution"], "replay-effect");
         endpoint.close().await;
         server.abort();
     }
