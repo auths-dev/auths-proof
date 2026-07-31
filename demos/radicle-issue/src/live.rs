@@ -15,7 +15,7 @@ use auths_radicle::{
     },
     candidate::GitCandidateInspector,
     ports::EvidenceSource as _,
-    workflow::{PersistentWorkflowStore, WorkflowStage},
+    workflow::WorkflowStage,
 };
 use axum::{
     Json, Router,
@@ -33,6 +33,7 @@ use crate::{
     AppConfig, AuthorizationFixture, DeploymentMetadata, HttpPropagationObserver, RunningNode,
     app::variant_projection,
     fixture::authorization_fixture_with_seeds,
+    lifecycle::DemoRadicleLifecycleRegistry,
     scenario::{DemoVariant, live_configuration, live_grant, live_submission},
     storage_repository,
 };
@@ -419,8 +420,13 @@ fn execute_exact(deployment: &LiveDeployment, session_id: &str) -> Result<Value,
         candidate_inspector: inspector,
         evidence_source,
         proof_verifier: SdkProofVerifier::new(verifier),
-        workflow_store: PersistentWorkflowStore::open(
+        workflow_store: DemoRadicleLifecycleRegistry::open(
             deployment
+                .node
+                .configuration
+                .rad_home
+                .join("auths-lifecycle"),
+            &deployment
                 .node
                 .configuration
                 .rad_home
@@ -505,6 +511,11 @@ fn execute_exact(deployment: &LiveDeployment, session_id: &str) -> Result<Value,
             StatusCode::CONFLICT,
             "workflow-action-conflict",
             "the workflow identifier is already bound to different exact bytes",
+        )),
+        WorkflowOutcome::ReconciliationRequired { .. } => Err(LiveApiError::new(
+            StatusCode::CONFLICT,
+            "publication-reconciliation-required",
+            "local publication may have occurred and requires read-only reconciliation",
         )),
         WorkflowOutcome::Rejected { receipt } => Ok(json!({
             "schema": API_SCHEMA,

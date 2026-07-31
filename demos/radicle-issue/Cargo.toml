@@ -10,6 +10,7 @@ publish = false
 [dependencies]
 auths-author.workspace = true
 auths-codec.workspace = true
+auths-lifecycle.workspace = true
 auths-model.workspace = true
 auths-ports.workspace = true
 auths-profile-api.workspace = true
@@ -19,6 +20,7 @@ auths-registries.workspace = true
 auths-runtime.workspace = true
 auths-sdk.workspace = true
 auths-signature.workspace = true
+auths-stores.workspace = true
 axum.workspace = true
 ed25519-dalek.workspace = true
 getrandom.workspace = true

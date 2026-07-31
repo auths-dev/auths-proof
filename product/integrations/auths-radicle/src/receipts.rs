@@ -7,7 +7,6 @@ use crate::{
     containment::{Decision, DecisionClass},
     executor::LocalPublication,
     types::{DigestHex, GitOid, NodeId, OpenPatchActionV1, VerifierConfiguration, WorkflowId},
-    workflow::ExecutionLease,
 };
 
 /// Product decision receipt emitted even when Auths verification is not run.
@@ -71,18 +70,19 @@ pub struct RadicleExecutionReceipt {
 }
 
 impl RadicleExecutionReceipt {
-    /// Constructs a receipt around a sealed lease and the actual local result.
+    /// Constructs a receipt around a shared lifecycle claim and the actual
+    /// local result.
     #[must_use]
     pub fn new(
         schema: impl Into<String>,
         decision_receipt_digest: DigestHex,
-        lease: &ExecutionLease,
+        execution_claim_digest: DigestHex,
         publication: LocalPublication,
     ) -> Self {
         Self {
             schema: schema.into(),
             decision_receipt_digest,
-            execution_lease_digest: lease.lease_digest().clone(),
+            execution_lease_digest: execution_claim_digest,
             publication,
         }
     }

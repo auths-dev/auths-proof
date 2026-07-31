@@ -379,13 +379,17 @@ signature_families = []
 profiles = ["auths.radicle.issue-address/1"]
 transports = ["git-bundle", "radicle-gossip"]
 configuration_inputs = ["candidate-inspector", "executed-verifier-configuration", "observation-peers", "radicle-adapter", "required-verifier-configuration"]
-security_state = ["execution-lease", "radicle-receipt-log", "workflow-store"]
+security_state = ["domain-recovery-record", "exact-action-exclusive-lifecycle", "radicle-receipt-log", "workflow-publication-exclusive-lifecycle"]
 
 [packages.auths-radicle.claims]
 core-api-consumer = ["product/integrations/auths-radicle/src/profile.rs#profile_derives_exact_resource_and_one_write_budget"]
 profile-contract = ["product/integrations/auths-radicle/src/containment.rs#exact_vertical_constraints_authorize"]
 runtime-enforcement-boundary = ["product/integrations/auths-radicle/src/service.rs#configuration_mismatch_never_reaches_candidate_evidence_auths_signer_or_writer"]
-stateful-replay-budget-component = ["product/integrations/auths-radicle/src/workflow.rs#concurrent_duplicate_claims_execute_exactly_once"]
+stateful-replay-budget-component = [
+    "product/integrations/auths-radicle/src/lifecycle.rs#different_actions_for_one_workflow_have_one_concurrent_reservation_winner",
+    "product/integrations/auths-radicle/src/adapters.rs#canonical_receipt_append_is_idempotent_for_crash_recovery",
+    "product/integrations/auths-radicle/src/adapters.rs#exact_local_patch_reconciliation_is_read_only_and_closed",
+]
 
 [packages.auths-radicle-demo]
 kind = "cargo"
@@ -400,12 +404,15 @@ signature_families = ["ed25519-v1"]
 profiles = ["auths.radicle.issue-address/1"]
 transports = ["git-bundle", "https", "radicle-gossip"]
 configuration_inputs = ["executed-verifier-configuration", "observation-peers", "required-verifier-configuration"]
-security_state = ["execution-lease", "expiring-session", "receipt-sink", "workflow-store"]
+security_state = ["domain-recovery-record", "expiring-session", "receipt-sink", "shared-lifecycle-store"]
 
 [packages.auths-radicle-demo.claims]
 demo-conformance-fixture = ["demos/radicle-issue/src/scenario.rs#human_delegation_authorizes_the_exact_agent_action_in_real_auths_kernel"]
 runtime-enforcement-boundary = ["demos/radicle-issue/src/app.rs#denied_variant_never_enters_executor"]
-stateful-replay-budget-component = ["demos/radicle-issue/src/app.rs#exact_execution_succeeds_once_and_replay_fails_closed"]
+stateful-replay-budget-component = [
+    "demos/radicle-issue/src/app.rs#exact_execution_succeeds_once_and_replay_fails_closed",
+    "demos/radicle-issue/src/lifecycle.rs#obsolete_prelaunch_workflow_state_is_rejected_not_migrated",
+]
 
 [packages.auths-stripe]
 kind = "cargo"

@@ -2050,9 +2050,9 @@ The migrated production path records, in order:
 
 ```text
 domain decision receipt
+  -> domain recovery record
   -> shared decision
   -> atomic reservation set
-  -> domain recovery record
   -> execution intent
   -> signer credential authorization
   -> fresh critical Radicle evidence
@@ -2094,9 +2094,10 @@ resume only pending announcement or observation. It never invokes
 `open_patch` again. Announcement failure or observer unavailability does not
 reverse or release a committed publication.
 
-The domain recovery record binds the exact action, candidate submission and
-inspected facts, planning evidence, decision receipt, and shared workflow
-identity. It carries no authority by itself. Restart must revalidate every
+The domain recovery record binds the exact action, candidate commitments and
+inspected facts, planning evidence, decision receipt, claim, and shared
+workflow identity. It is durably staged before shared state can retain
+capacity, but carries no authority by itself. Restart must revalidate every
 commitment against the shared lifecycle record before it may reconcile or
 resume post-commit propagation.
 

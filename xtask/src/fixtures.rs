@@ -395,17 +395,17 @@ layer = "product"
 profile_id = "auths.radicle.issue-address/1"
 policy_type_id = "auths.radicle.issue-address-grant/1"
 evaluator_semantic_id = "auths.radicle.issue-address.evaluate/1"
-implementation_id = "auths-radicle/reference-pre-migration"
+implementation_id = "auths-radicle/shared-lifecycle-production/1"
 canonicalization_id = "rfc8785-sha256-v1"
 rust_symbol = "auths_radicle::containment::evaluate"
 lean_artifact = "Auths.Product.fixed_context_tightening"
 action_schema = "auths_radicle::OpenPatchActionV1"
 policy_schema = "auths_radicle::IssueAddressGrantV1"
 evidence_schema = "auths_radicle::RadicleEvidenceV1"
-state_schema = "auths_radicle::CandidateFacts"
+state_schema = "auths.radicle.patch-publication-snapshot/1"
 result_schema = "auths_radicle::Decision"
-intent_schema = "auths_radicle::workflow::ExecutionLease"
-obligation_schema = "auths_radicle::VerifiedOpenPatchCommand"
+intent_schema = "auths.radicle.patch-open-exclusive-composite/1"
+obligation_schema = "auths.radicle.verified-open-patch-command/1"
 receipt_schema = "auths_radicle::RadicleDecisionReceipt"
 stable_code_source = "product/integrations/auths-radicle/src/containment.rs"
 stable_stage_source = "product/integrations/auths-radicle/src/containment.rs"
@@ -1240,9 +1240,7 @@ fn bounded_scenarios(domain: &str) -> BTreeMap<String, Value> {
     names
         .into_iter()
         .filter(|scenario| {
-            !((domain == "radicle" && *scenario == "outcome-unknown")
-                || (domain == "records-api"
-                    && matches!(*scenario, "outcome-unknown" | "reconciliation")))
+            !(domain == "records-api" && matches!(*scenario, "outcome-unknown" | "reconciliation"))
         })
         .map(|scenario| {
             (

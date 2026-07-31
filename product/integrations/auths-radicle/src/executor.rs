@@ -2,16 +2,19 @@
 
 use std::path::Path;
 
+use auths_lifecycle::{ExecutionAuthorizationV1, ProviderCallAuthorizationV1};
 use auths_sdk::Authorized;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     candidate::InspectedCandidate,
+    canonical::sha256,
+    lifecycle::PROVIDER_CONTRACT_ID,
     profile::RadiclePatchCommand,
+    types::DigestHex,
     types::{
         CandidateSubmission, CobId, GitOid, NodeId, RadicleDid, RadicleEvidenceV1, Rid, WorkflowId,
     },
-    workflow::ExecutionLease,
 };
 
 /// Executor input constructible only after containment, Auths verification,
@@ -21,7 +24,9 @@ pub struct VerifiedOpenPatchCommand {
     candidate: InspectedCandidate,
     submission: CandidateSubmission,
     evidence: RadicleEvidenceV1,
-    lease: ExecutionLease,
+    execution_authorization: ExecutionAuthorizationV1,
+    provider_call_authorization: ProviderCallAuthorizationV1,
+    claim_id: DigestHex,
 }
 
 impl VerifiedOpenPatchCommand {
@@ -30,14 +35,18 @@ impl VerifiedOpenPatchCommand {
         candidate: InspectedCandidate,
         submission: CandidateSubmission,
         evidence: RadicleEvidenceV1,
-        lease: ExecutionLease,
+        execution_authorization: ExecutionAuthorizationV1,
+        provider_call_authorization: ProviderCallAuthorizationV1,
+        claim_id: DigestHex,
     ) -> Self {
         Self {
             authorized,
             candidate,
             submission,
             evidence,
-            lease,
+            execution_authorization,
+            provider_call_authorization,
+            claim_id,
         }
     }
 
@@ -122,10 +131,42 @@ impl VerifiedOpenPatchCommand {
         self.evidence.default_branch()
     }
 
-    /// Returns the durable execution lease.
+    /// Returns the durable shared-lifecycle claim commitment.
     #[must_use]
-    pub const fn lease(&self) -> &ExecutionLease {
-        &self.lease
+    pub const fn claim_id(&self) -> &DigestHex {
+        &self.claim_id
+    }
+
+    /// Validates that both sealed lifecycle stages authorize this same call.
+    #[must_use]
+    pub fn lifecycle_authorization_matches(&self) -> bool {
+        let Ok(action_digest) = self.authorized.command().action().digest() else {
+            return false;
+        };
+        let Some(action_digest_bytes) = hex::decode(action_digest.as_str())
+            .ok()
+            .and_then(|bytes| <[u8; 32]>::try_from(bytes).ok())
+        else {
+            return false;
+        };
+        let mut claim_material = Vec::with_capacity(160);
+        claim_material.extend_from_slice(b"AUTHS-RADICLE-CLAIM\x00\x01");
+        claim_material.extend_from_slice(self.workflow_id().as_str().as_bytes());
+        claim_material.extend_from_slice(action_digest.as_str().as_bytes());
+        self.execution_authorization.provider_contract_id().as_str() == PROVIDER_CONTRACT_ID
+            && self.execution_authorization.workflow_id()
+                == self.provider_call_authorization.workflow_id()
+            && self.execution_authorization.execution_id()
+                == self.provider_call_authorization.execution_id()
+            && self.execution_authorization.provider_request_digest()
+                == self.provider_call_authorization.provider_request_digest()
+            && self
+                .execution_authorization
+                .provider_request_digest()
+                .bytes()
+                == &action_digest_bytes
+            && self.provider_call_authorization.revision() > self.execution_authorization.revision()
+            && self.claim_id == sha256(&claim_material)
     }
 
     pub(crate) fn into_materials(self) -> ExecutionMaterials {
@@ -133,7 +174,9 @@ impl VerifiedOpenPatchCommand {
             authorized: self.authorized,
             candidate: self.candidate,
             evidence: self.evidence,
-            lease: self.lease,
+            execution_authorization: self.execution_authorization,
+            provider_call_authorization: self.provider_call_authorization,
+            claim_id: self.claim_id,
         }
     }
 }
@@ -142,7 +185,9 @@ pub(crate) struct ExecutionMaterials {
     pub authorized: Authorized<RadiclePatchCommand>,
     pub candidate: InspectedCandidate,
     pub evidence: RadicleEvidenceV1,
-    pub lease: ExecutionLease,
+    pub execution_authorization: ExecutionAuthorizationV1,
+    pub provider_call_authorization: ProviderCallAuthorizationV1,
+    pub claim_id: DigestHex,
 }
 
 /// Result proven immediately after the local Radicle write boundary.
