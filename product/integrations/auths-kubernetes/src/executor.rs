@@ -1,9 +1,9 @@
 //! Verified command wrapper for the Kubernetes mutation boundary.
 
+use auths_lifecycle::ProviderCallAuthorizationV1;
 use auths_sdk::Authorized;
 
 use crate::{
-    claim::ClaimLease,
     profile::KubernetesRolloutCommand,
     types::{KubernetesEvidenceV1, KubernetesWorkloadRolloutV1},
 };
@@ -12,19 +12,19 @@ use crate::{
 pub struct VerifiedRolloutCommand {
     authorized: Authorized<KubernetesRolloutCommand>,
     evidence: KubernetesEvidenceV1,
-    lease: ClaimLease,
+    provider_authorization: ProviderCallAuthorizationV1,
 }
 
 impl VerifiedRolloutCommand {
     pub(crate) const fn new(
         authorized: Authorized<KubernetesRolloutCommand>,
         evidence: KubernetesEvidenceV1,
-        lease: ClaimLease,
+        provider_authorization: ProviderCallAuthorizationV1,
     ) -> Self {
         Self {
             authorized,
             evidence,
-            lease,
+            provider_authorization,
         }
     }
 
@@ -37,7 +37,7 @@ impl VerifiedRolloutCommand {
         &self.evidence
     }
     #[must_use]
-    pub(crate) const fn lease(&self) -> &ClaimLease {
-        &self.lease
+    pub const fn provider_authorization(&self) -> &ProviderCallAuthorizationV1 {
+        &self.provider_authorization
     }
 }

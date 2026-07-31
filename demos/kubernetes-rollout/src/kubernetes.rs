@@ -2,7 +2,10 @@ use std::{
     collections::BTreeMap,
     io::Read as _,
     str,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
     thread,
     time::Duration,
 };
@@ -14,7 +17,11 @@ use auths_kubernetes::{
     KubernetesVerifierConfigurationInput, KubernetesWorkloadRolloutInput,
     KubernetesWorkloadRolloutV1, PortError, VerifiedRolloutCommand,
     canonical::{canonical_json, sha256},
+    lifecycle::PROVIDER_CONTRACT_ID,
+    reservation_scope_digest,
 };
+use auths_lifecycle::ExecutionAuthorizationV1;
+use auths_stores::LifecycleCapacityRuleV1;
 use reqwest::{
     Certificate, Method,
     blocking::{Client, Response},
@@ -57,6 +64,25 @@ impl KubernetesBackend {
         Self::Fixture(Arc::new(FixtureKubernetes::default()))
     }
 
+    #[cfg(test)]
+    #[must_use]
+    pub fn fixture_with_ambiguous_apply(reconcile_effect: bool) -> Self {
+        Self::Fixture(Arc::new(FixtureKubernetes {
+            apply_calls: AtomicUsize::new(0),
+            outcome_unknown_on_apply: true,
+            reconcile_effect,
+        }))
+    }
+
+    #[cfg(test)]
+    #[must_use]
+    pub fn fixture_apply_calls(&self) -> usize {
+        match self {
+            Self::Fixture(fixture) => fixture.apply_calls.load(Ordering::SeqCst),
+            Self::Live(_) => 0,
+        }
+    }
+
     /// Acquires and canonicalizes fresh evidence for one workflow.
     ///
     /// # Errors
@@ -90,16 +116,45 @@ impl KubernetesBackend {
             Self::Fixture(_) => "deterministic-fixture",
         }
     }
+
+    /// Returns the one closed exclusive-capacity rule for the configured
+    /// Deployment target.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BackendError`] when the fixed scope cannot be committed.
+    pub fn lifecycle_capacity_rule(&self) -> Result<LifecycleCapacityRuleV1, BackendError> {
+        let scope_digest = match self {
+            Self::Live(live) => {
+                reservation_scope_digest(&live.cluster_audience, &live.namespace, &live.deployment)
+            }
+            Self::Fixture(_) => {
+                let fixture = auths_kubernetes::test_support::fixture();
+                reservation_scope_digest(
+                    fixture.action.cluster_audience(),
+                    fixture.action.namespace_name(),
+                    fixture.action.resource_name(),
+                )
+            }
+        }
+        .map_err(|_| BackendError::Canonicalization)?;
+        Ok(LifecycleCapacityRuleV1::Exclusive {
+            scope_digest,
+            window_digest: None,
+            retain_after_commit: false,
+        })
+    }
 }
 
 impl CredentialProvider for KubernetesBackend {
-    fn mutation_credential(
+    fn credential_after_authorization(
         &self,
+        authorization: &ExecutionAuthorizationV1,
         action: &KubernetesWorkloadRolloutV1,
     ) -> Result<KubernetesCredential, PortError> {
         match self {
-            Self::Live(live) => live.mutation_credential(action),
-            Self::Fixture(fixture) => fixture.mutation_credential(action),
+            Self::Live(live) => live.credential_after_authorization(authorization, action),
+            Self::Fixture(fixture) => fixture.credential_after_authorization(authorization, action),
         }
     }
 }
@@ -431,10 +486,12 @@ impl LiveKubernetes {
 }
 
 impl CredentialProvider for LiveKubernetes {
-    fn mutation_credential(
+    fn credential_after_authorization(
         &self,
+        authorization: &ExecutionAuthorizationV1,
         action: &KubernetesWorkloadRolloutV1,
     ) -> Result<KubernetesCredential, PortError> {
+        validate_credential_authorization(authorization, action)?;
         if action.cluster_audience() != self.cluster_audience
             || action.namespace_name() != &self.namespace
             || action.resource_name() != &self.deployment
@@ -681,13 +738,17 @@ fn verifier_configuration(
 
 /// Deterministic adapter used only by unit and browser smoke tests.
 pub struct FixtureKubernetes {
-    executed: Mutex<bool>,
+    apply_calls: AtomicUsize,
+    outcome_unknown_on_apply: bool,
+    reconcile_effect: bool,
 }
 
 impl Default for FixtureKubernetes {
     fn default() -> Self {
         Self {
-            executed: Mutex::new(false),
+            apply_calls: AtomicUsize::new(0),
+            outcome_unknown_on_apply: false,
+            reconcile_effect: true,
         }
     }
 }
@@ -721,10 +782,12 @@ impl FixtureKubernetes {
 }
 
 impl CredentialProvider for FixtureKubernetes {
-    fn mutation_credential(
+    fn credential_after_authorization(
         &self,
-        _: &KubernetesWorkloadRolloutV1,
+        authorization: &ExecutionAuthorizationV1,
+        action: &KubernetesWorkloadRolloutV1,
     ) -> Result<KubernetesCredential, PortError> {
+        validate_credential_authorization(authorization, action)?;
         KubernetesCredential::new("fixture-kubernetes-token")
     }
 }
@@ -736,33 +799,59 @@ impl KubernetesGateway for FixtureKubernetes {
         _: &KubernetesCredential,
         now: u64,
     ) -> Result<KubernetesRolloutResult, PortError> {
-        *self.executed.lock().map_err(|_| PortError::Persistence)? = true;
-        let action = command.action();
-        Ok(KubernetesRolloutResult {
-            resource_uid: action.resource_uid().clone(),
-            resource_version: "43".into(),
-            generation: 8,
-            observed_generation: 8,
-            requested_replicas: action.projection().requested_replicas,
-            updated_replicas: action.projection().requested_replicas,
-            available_replicas: action.projection().requested_replicas,
-            image: action.projection().requested_image_digest.clone(),
-            api_accepted: true,
-            persisted_verified: true,
-            rollout_converged: true,
-            audit_id: Some("fixture-audit-id".into()),
-            observed_at: now,
-        })
+        self.apply_calls.fetch_add(1, Ordering::SeqCst);
+        if self.outcome_unknown_on_apply {
+            return Err(PortError::OutcomeUnknown);
+        }
+        Ok(fixture_result(command.action(), now))
     }
 
     fn reconcile(
         &self,
         command: &VerifiedRolloutCommand,
-        credential: &KubernetesCredential,
+        _: &KubernetesCredential,
         now: u64,
     ) -> Result<KubernetesRolloutResult, PortError> {
-        self.apply_and_observe(command, credential, now)
+        if !self.reconcile_effect {
+            return Err(PortError::OutcomeUnknown);
+        }
+        Ok(fixture_result(command.action(), now))
     }
+}
+
+fn fixture_result(action: &KubernetesWorkloadRolloutV1, now: u64) -> KubernetesRolloutResult {
+    KubernetesRolloutResult {
+        resource_uid: action.resource_uid().clone(),
+        resource_version: "43".into(),
+        generation: 8,
+        observed_generation: 8,
+        requested_replicas: action.projection().requested_replicas,
+        updated_replicas: action.projection().requested_replicas,
+        available_replicas: action.projection().requested_replicas,
+        image: action.projection().requested_image_digest.clone(),
+        api_accepted: true,
+        persisted_verified: true,
+        rollout_converged: true,
+        audit_id: Some("fixture-audit-id".into()),
+        observed_at: now,
+    }
+}
+
+fn validate_credential_authorization(
+    authorization: &ExecutionAuthorizationV1,
+    action: &KubernetesWorkloadRolloutV1,
+) -> Result<(), PortError> {
+    let patch_digest: [u8; 32] = hex::decode(action.patch_digest().as_str())
+        .map_err(|_| PortError::InvalidConfiguration)?
+        .try_into()
+        .map_err(|_| PortError::InvalidConfiguration)?;
+    if authorization.workflow_id().as_str() != action.workflow_id()
+        || authorization.provider_contract_id().as_str() != PROVIDER_CONTRACT_ID
+        || authorization.provider_request_digest().bytes() != &patch_digest
+    {
+        return Err(PortError::InvalidConfiguration);
+    }
+    Ok(())
 }
 
 /// Closed preparation/configuration error.

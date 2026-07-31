@@ -1,21 +1,15 @@
-//! Atomic at-most-once claim state for irreversible rollouts.
+//! Kubernetes-facing projection of the shared durable lifecycle.
+//!
+//! The public claim receipt stays domain-shaped. It is derived from a
+//! store-acknowledged shared lifecycle record and is never an independent
+//! source of execution authority.
 
-use std::{
-    collections::BTreeMap,
-    fs,
-    io::Write as _,
-    path::PathBuf,
-    sync::{Arc, Mutex},
-};
-
+use auths_lifecycle::{LifecycleRecordV1, LifecycleState};
 use serde::{Deserialize, Serialize};
-use tempfile::NamedTempFile;
 
-use crate::{canonical::canonical_json, types::DigestHex};
+use crate::types::DigestHex;
 
-const MAX_STATE_BYTES: usize = 16 * 1024 * 1024;
-
-/// Durable claim stage.
+/// Kubernetes claim stage exposed in the existing domain receipt schema.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum ClaimStage {
@@ -28,7 +22,7 @@ pub enum ClaimStage {
     Failed,
 }
 
-/// Claim record safe for receipts.
+/// Claim receipt projected from one canonical shared lifecycle record.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ClaimRecord {
@@ -39,300 +33,129 @@ pub struct ClaimRecord {
     pub updated_at: u64,
 }
 
-/// Capability held only by the winning claimant.
-#[derive(Clone, Debug)]
-pub struct ClaimLease {
-    pub(crate) workflow_id: String,
-    pub(crate) action_digest: DigestHex,
-}
-
-/// Atomic claim outcome.
-pub enum ClaimResult {
-    Claimed(ClaimLease),
-    Replay(ClaimRecord),
-    Conflict(ClaimRecord),
-    Unavailable,
-}
-
-/// Durable claim store boundary.
-pub trait ClaimStore: Send + Sync {
-    fn claim(&self, workflow_id: &str, action_digest: &DigestHex, now: u64) -> ClaimResult;
-
-    /// Advances a lease held by the unique winning claimant.
+impl ClaimRecord {
+    /// Projects one explicit Kubernetes stage from durable shared state.
     ///
     /// # Errors
     ///
-    /// Returns [`ClaimError`] when durable state is unavailable, the lease no
-    /// longer matches, or the requested transition would move backward.
-    fn record_stage(
-        &self,
-        lease: &ClaimLease,
+    /// Returns [`ClaimProjectionError`] when the shared record lacks a
+    /// canonical event history or contains an invalid action commitment.
+    pub fn from_lifecycle(
+        record: &LifecycleRecordV1,
         stage: ClaimStage,
-        now: u64,
-    ) -> Result<ClaimRecord, ClaimError>;
-}
-
-impl<T: ClaimStore + ?Sized> ClaimStore for Arc<T> {
-    fn claim(&self, workflow_id: &str, action_digest: &DigestHex, now: u64) -> ClaimResult {
-        (**self).claim(workflow_id, action_digest, now)
-    }
-
-    fn record_stage(
-        &self,
-        lease: &ClaimLease,
-        stage: ClaimStage,
-        now: u64,
-    ) -> Result<ClaimRecord, ClaimError> {
-        (**self).record_stage(lease, stage, now)
-    }
-}
-
-/// Thread-safe deterministic claim store used by tests and demo adapters.
-#[derive(Clone, Default)]
-pub struct MemoryClaimStore {
-    records: Arc<Mutex<BTreeMap<String, ClaimRecord>>>,
-}
-
-impl ClaimStore for MemoryClaimStore {
-    fn claim(&self, workflow_id: &str, action_digest: &DigestHex, now: u64) -> ClaimResult {
-        let Ok(mut records) = self.records.lock() else {
-            return ClaimResult::Unavailable;
-        };
-        if let Some(record) = records.get(workflow_id) {
-            return if &record.action_digest == action_digest {
-                ClaimResult::Replay(record.clone())
-            } else {
-                ClaimResult::Conflict(record.clone())
-            };
-        }
-        records.insert(
-            workflow_id.into(),
-            ClaimRecord {
-                workflow_id: workflow_id.into(),
-                action_digest: action_digest.clone(),
-                stage: ClaimStage::Claimed,
-                claimed_at: now,
-                updated_at: now,
-            },
+    ) -> Result<Self, ClaimProjectionError> {
+        let first = record
+            .events()
+            .first()
+            .ok_or(ClaimProjectionError::MissingEvent)?;
+        let last = record
+            .events()
+            .last()
+            .ok_or(ClaimProjectionError::MissingEvent)?;
+        let action_digest = DigestHex::from_digest_bytes(
+            *record
+                .decision_input()
+                .commitments
+                .exact_action_digest()
+                .as_bytes(),
         );
-        ClaimResult::Claimed(ClaimLease {
-            workflow_id: workflow_id.into(),
-            action_digest: action_digest.clone(),
+        Ok(Self {
+            workflow_id: record.workflow_id().as_str().into(),
+            action_digest,
+            stage,
+            claimed_at: first.verifier_time.unix_seconds(),
+            updated_at: last.verifier_time.unix_seconds(),
         })
     }
 
-    fn record_stage(
-        &self,
-        lease: &ClaimLease,
-        stage: ClaimStage,
-        now: u64,
-    ) -> Result<ClaimRecord, ClaimError> {
-        let mut records = self.records.lock().map_err(|_| ClaimError::Unavailable)?;
-        let record = records
-            .get_mut(&lease.workflow_id)
-            .ok_or(ClaimError::LeaseMismatch)?;
-        if record.action_digest != lease.action_digest {
-            return Err(ClaimError::LeaseMismatch);
-        }
-        record.stage = stage;
-        record.updated_at = now;
-        Ok(record.clone())
-    }
-}
-
-/// Crash-persistent single-process claim store.
-///
-/// The complete bounded map is written to a temporary file, synced, and
-/// atomically renamed before the in-memory view advances.
-pub struct PersistentClaimStore {
-    path: PathBuf,
-    records: Mutex<BTreeMap<String, ClaimRecord>>,
-}
-
-impl PersistentClaimStore {
-    /// Opens a canonical claim file or creates an empty store.
+    /// Projects the most truthful public claim stage for a replay.
     ///
     /// # Errors
     ///
-    /// Rejects unreadable, malformed, non-canonical, or oversized state.
-    pub fn open(path: impl Into<PathBuf>) -> Result<Self, ClaimError> {
-        let path = path.into();
-        let records = if path.exists() {
-            let bytes = fs::read(&path).map_err(|_| ClaimError::Unavailable)?;
-            if bytes.len() > MAX_STATE_BYTES {
-                return Err(ClaimError::Corrupt);
+    /// Returns [`ClaimProjectionError`] for an invalid shared record.
+    pub fn replay(record: &LifecycleRecordV1) -> Result<Self, ClaimProjectionError> {
+        let stage = match record.state() {
+            LifecycleState::DecisionRecorded | LifecycleState::Reserved => ClaimStage::Claimed,
+            LifecycleState::ExecutionIntentRecorded => {
+                if record.credential_authorized() {
+                    ClaimStage::CredentialAcquired
+                } else {
+                    ClaimStage::Claimed
+                }
             }
-            let records: BTreeMap<String, ClaimRecord> =
-                serde_json::from_slice(&bytes).map_err(|_| ClaimError::Corrupt)?;
-            if canonical_json(&records).map_err(|_| ClaimError::Corrupt)? != bytes {
-                return Err(ClaimError::Corrupt);
+            LifecycleState::Executing => ClaimStage::CredentialAcquired,
+            LifecycleState::Committed | LifecycleState::ReconciledCommitted => {
+                ClaimStage::RolloutConverged
             }
-            records
-        } else {
-            BTreeMap::new()
+            LifecycleState::OutcomeUnknown => ClaimStage::OutcomeUnknown,
+            LifecycleState::Released | LifecycleState::ReconciledReleased => ClaimStage::Failed,
         };
-        Ok(Self {
-            path,
-            records: Mutex::new(records),
-        })
-    }
-
-    fn mutate<T>(
-        &self,
-        operation: impl FnOnce(&mut BTreeMap<String, ClaimRecord>) -> Result<T, ClaimError>,
-    ) -> Result<T, ClaimError> {
-        let mut records = self.records.lock().map_err(|_| ClaimError::Unavailable)?;
-        let mut candidate = records.clone();
-        let output = operation(&mut candidate)?;
-        let bytes = canonical_json(&candidate).map_err(|_| ClaimError::Corrupt)?;
-        if bytes.len() > MAX_STATE_BYTES {
-            return Err(ClaimError::Unavailable);
-        }
-        let parent = self.path.parent().ok_or(ClaimError::Unavailable)?;
-        fs::create_dir_all(parent).map_err(|_| ClaimError::Unavailable)?;
-        let mut temporary = NamedTempFile::new_in(parent).map_err(|_| ClaimError::Unavailable)?;
-        temporary
-            .write_all(&bytes)
-            .and_then(|()| temporary.as_file().sync_all())
-            .map_err(|_| ClaimError::Unavailable)?;
-        temporary
-            .persist(&self.path)
-            .map_err(|_| ClaimError::Unavailable)?;
-        *records = candidate;
-        Ok(output)
+        Self::from_lifecycle(record, stage)
     }
 }
 
-impl ClaimStore for PersistentClaimStore {
-    fn claim(&self, workflow_id: &str, action_digest: &DigestHex, now: u64) -> ClaimResult {
-        self.mutate(|records| Ok(claim_in(records, workflow_id, action_digest, now)))
-            .unwrap_or(ClaimResult::Unavailable)
-    }
-
-    fn record_stage(
-        &self,
-        lease: &ClaimLease,
-        stage: ClaimStage,
-        now: u64,
-    ) -> Result<ClaimRecord, ClaimError> {
-        self.mutate(|records| record_stage_in(records, lease, stage, now))
-    }
-}
-
-fn claim_in(
-    records: &mut BTreeMap<String, ClaimRecord>,
-    workflow_id: &str,
-    action_digest: &DigestHex,
-    now: u64,
-) -> ClaimResult {
-    if workflow_id.is_empty() || workflow_id.len() > 256 {
-        return ClaimResult::Unavailable;
-    }
-    if let Some(record) = records.get(workflow_id) {
-        return if &record.action_digest == action_digest {
-            ClaimResult::Replay(record.clone())
-        } else {
-            ClaimResult::Conflict(record.clone())
-        };
-    }
-    records.insert(
-        workflow_id.into(),
-        ClaimRecord {
-            workflow_id: workflow_id.into(),
-            action_digest: action_digest.clone(),
-            stage: ClaimStage::Claimed,
-            claimed_at: now,
-            updated_at: now,
-        },
-    );
-    ClaimResult::Claimed(ClaimLease {
-        workflow_id: workflow_id.into(),
-        action_digest: action_digest.clone(),
-    })
-}
-
-fn record_stage_in(
-    records: &mut BTreeMap<String, ClaimRecord>,
-    lease: &ClaimLease,
-    stage: ClaimStage,
-    now: u64,
-) -> Result<ClaimRecord, ClaimError> {
-    let record = records
-        .get_mut(&lease.workflow_id)
-        .ok_or(ClaimError::LeaseMismatch)?;
-    if record.action_digest != lease.action_digest || now < record.updated_at {
-        return Err(ClaimError::LeaseMismatch);
-    }
-    record.stage = stage;
-    record.updated_at = now;
-    Ok(record.clone())
-}
-
-/// Closed claim failure.
+/// Invalid domain projection of shared lifecycle state.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
-pub enum ClaimError {
-    #[error("Kubernetes claim store is unavailable")]
-    Unavailable,
-    #[error("Kubernetes claim lease does not match durable state")]
-    LeaseMismatch,
-    #[error("Kubernetes claim state is corrupt")]
-    Corrupt,
+pub enum ClaimProjectionError {
+    #[error("shared Kubernetes lifecycle record has no durable events")]
+    MissingEvent,
 }
 
 #[cfg(test)]
 mod tests {
-    use std::{sync::Barrier, thread};
+    use auths_lifecycle::{
+        LifecycleState, TransitionCommandV1, TransitionDisposition, apply_transition,
+    };
 
     use super::*;
-    use crate::canonical::sha256;
+    use crate::{
+        lifecycle::{KubernetesLifecycleDecisionBindings, KubernetesLifecycleProjectionInput},
+        receipts::decision_receipt,
+        test_support::{NOW, fixture},
+    };
 
     #[test]
-    fn concurrent_claims_have_exactly_one_winner() {
-        let store = MemoryClaimStore::default();
-        let barrier = Arc::new(Barrier::new(9));
-        let mut handles = Vec::new();
-        for _ in 0..8 {
-            let store = store.clone();
-            let barrier = Arc::clone(&barrier);
-            handles.push(thread::spawn(move || {
-                barrier.wait();
-                matches!(
-                    store.claim("workflow", &sha256(b"action"), 10),
-                    ClaimResult::Claimed(_)
-                )
-            }));
+    fn claim_receipt_is_derived_from_shared_record() {
+        let fixture = fixture();
+        let decision = decision_receipt(
+            &fixture.action,
+            &fixture.evidence,
+            &fixture.configuration,
+            &fixture.configuration,
+            fixture.configuration.executor_audience(),
+            NOW,
+        )
+        .unwrap();
+        let projection = KubernetesLifecycleProjectionInput {
+            action: &fixture.action,
+            evidence: &fixture.evidence,
+            required_configuration: &fixture.configuration,
+            executed_configuration: &fixture.configuration,
+            decision: &decision.decision,
+            verifier_time: NOW,
         }
-        barrier.wait();
-        let winners = handles
-            .into_iter()
-            .filter_map(|handle| handle.join().ok())
-            .filter(|won| *won)
-            .count();
-        assert_eq!(winners, 1);
-    }
-
-    #[test]
-    fn persistent_claim_survives_reopen() {
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("claims.json");
-        let digest = sha256(b"action");
-        let ClaimResult::Claimed(lease) = PersistentClaimStore::open(&path)
-            .unwrap()
-            .claim("workflow", &digest, 10)
-        else {
-            panic!("first claimant must win");
-        };
-        let store = PersistentClaimStore::open(&path).unwrap();
-        assert!(matches!(
-            store.claim("workflow", &digest, 11),
-            ClaimResult::Replay(_)
-        ));
-        assert_eq!(
-            store
-                .record_stage(&lease, ClaimStage::ApiAccepted, 12)
-                .unwrap()
-                .stage,
-            ClaimStage::ApiAccepted
-        );
+        .project()
+        .unwrap();
+        let context = projection.transition_context(NOW);
+        let input = projection
+            .into_decision_input(&KubernetesLifecycleDecisionBindings {
+                core_authorization_digest: &crate::canonical::sha256(b"core"),
+                decision_receipt_digest: &decision.digest().unwrap(),
+                implementation_build_digest: &crate::canonical::sha256(b"build"),
+                expires_at: fixture.action.expires_at(),
+            })
+            .unwrap();
+        let recorded = apply_transition(
+            None,
+            &TransitionCommandV1::RecordDecision(Box::new(input)),
+            &context,
+        )
+        .unwrap();
+        assert_eq!(recorded.disposition, TransitionDisposition::Applied);
+        assert_eq!(recorded.record.state(), LifecycleState::DecisionRecorded);
+        let claim = ClaimRecord::from_lifecycle(&recorded.record, ClaimStage::Claimed).unwrap();
+        assert_eq!(claim.workflow_id, fixture.action.workflow_id());
+        assert_eq!(claim.action_digest, fixture.action.digest().unwrap());
+        assert_eq!(claim.claimed_at, NOW);
     }
 }
