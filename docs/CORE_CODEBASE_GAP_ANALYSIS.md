@@ -1,4 +1,4 @@
-# Auths Proof Core Codebase Gap Analysis
+# Auths Core Codebase Gap Analysis
 
 **Status:** Implementation-tracked protocol, security, and engineering audit
 **Date:** 26 July 2026

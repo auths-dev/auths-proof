@@ -1,4 +1,4 @@
-# Auths Proof Repository Contract
+# Auths Repository Contract
 
 This file is the canonical instruction set for agents working anywhere in this
 repository. Read it before changing code, manifests, fixtures, generated

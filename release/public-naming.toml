@@ -143,6 +143,24 @@ compatibility = "Already product-scoped rather than repository-scoped."
 owner_pr = "AP34-PR4"
 
 [[surfaces]]
+id = "release-evidence-schema"
+kind = "schema"
+current = "auths-proof-release-evidence/v1"
+target = "auths.release-evidence/1"
+state = "replace"
+compatibility = "No release candidate has been published with the repository-scoped schema identifier."
+owner_pr = "AP34-PR4"
+
+[[surfaces]]
+id = "platform-artifact-schema"
+kind = "schema"
+current = "auths-proof-platform/v1"
+target = "auths.platform/1"
+state = "replace"
+compatibility = "No release candidate has been published with the repository-scoped schema identifier."
+owner_pr = "AP34-PR4"
+
+[[surfaces]]
 id = "github-attestation-subject"
 kind = "provenance"
 current = "repo:auths-dev@260513770/auths-proof@1310728509:environment:release-candidate"
@@ -608,3 +626,143 @@ deletion_eligible = false
 default_eligible = false
 reason = "Every predecessor coordinate in this inventory has at least one published version. crates.io publication is permanent: versions cannot be overwritten or deleted, and yanking does not delete code or free the name. No Delete and reclaim classification is valid."
 destructive_actions_authorized = false
+
+[[stale_name_allowances]]
+path = "docs/plans/PHASE_7_RELEASE_OWNER_DECISIONS.md"
+token = "auths-proof-sdk"
+reason = "The superseded P7-OD-003 record is preserved verbatim and visibly marked historical."
+
+[[stale_name_allowances]]
+path = "docs/plans/PHASE_7_RELEASE_READINESS_AUDIT.md"
+token = "auths-proof-sdk"
+reason = "The dated readiness audit preserves and visibly labels its reviewed historical baseline."
+
+[[stale_name_allowances]]
+path = "docs/specs/0032-reproducible-release-candidate-and-exact-assurance-claim.md"
+token = "auths-proof-sdk"
+reason = "AP-SPEC-032 names the forbidden predecessor coordinate in a normative rejection rule."
+
+[[stale_name_allowances]]
+path = "docs/specs/0034-auths-public-naming-consolidation.md"
+token = "auths-proof-sdk"
+reason = "AP-SPEC-034 explains and rejects the superseded coordinate."
+
+[[stale_name_allowances]]
+path = "release/public-naming.toml"
+token = "auths-proof-sdk"
+reason = "The authoritative migration record must name its source coordinate."
+
+[[stale_name_allowances]]
+path = "docs/plans/AUTHS_PUBLIC_NAMING_MIGRATION.md"
+token = "@auths-dev/proof"
+reason = "The evidence snapshot records that the superseded coordinate is absent from npm."
+
+[[stale_name_allowances]]
+path = "docs/plans/PHASE_7_OWNER_DECISION_GUIDE.md"
+token = "@auths-dev/proof"
+reason = "The decision guide is visibly marked as a historical aid."
+
+[[stale_name_allowances]]
+path = "docs/plans/PHASE_7_RELEASE_OWNER_DECISIONS.md"
+token = "@auths-dev/proof"
+reason = "The superseded P7-OD-003 record is preserved verbatim and visibly marked historical."
+
+[[stale_name_allowances]]
+path = "docs/plans/PHASE_7_RELEASE_READINESS_AUDIT.md"
+token = "@auths-dev/proof"
+reason = "The dated readiness audit preserves and visibly labels its reviewed historical baseline."
+
+[[stale_name_allowances]]
+path = "docs/specs/0032-reproducible-release-candidate-and-exact-assurance-claim.md"
+token = "@auths-dev/proof"
+reason = "AP-SPEC-032 names the forbidden predecessor coordinate in a normative rejection rule."
+
+[[stale_name_allowances]]
+path = "docs/specs/0034-auths-public-naming-consolidation.md"
+token = "@auths-dev/proof"
+reason = "AP-SPEC-034 explains and rejects the superseded coordinate."
+
+[[stale_name_allowances]]
+path = "release/public-naming.toml"
+token = "@auths-dev/proof"
+reason = "The authoritative migration record must name its source coordinate."
+
+[[stale_name_allowances]]
+path = "docs/specs/0034-auths-public-naming-consolidation.md"
+token = "pypi:auths-proof"
+reason = "AP-SPEC-034 names the forbidden artifact identity in a normative rejection rule."
+
+[[stale_name_allowances]]
+path = "release/public-naming.toml"
+token = "pypi:auths-proof"
+reason = "The authoritative exception inventory must name the forbidden token it governs."
+
+[[stale_name_allowances]]
+path = "docs/plans/PHASE_7_OWNER_DECISION_GUIDE.md"
+token = "auths-proof-v1.0.0"
+reason = "The decision guide is visibly marked as a historical aid."
+
+[[stale_name_allowances]]
+path = "docs/plans/PHASE_7_RELEASE_OWNER_DECISIONS.md"
+token = "auths-proof-v1.0.0"
+reason = "The superseded P7-OD-007 record is preserved verbatim and visibly marked superseded."
+
+[[stale_name_allowances]]
+path = "docs/plans/PHASE_7_RELEASE_READINESS_AUDIT.md"
+token = "auths-proof-v1.0.0"
+reason = "The dated readiness audit preserves and visibly labels its reviewed historical baseline."
+
+[[stale_name_allowances]]
+path = "release/public-naming.toml"
+token = "auths-proof-v1.0.0"
+reason = "The authoritative exception inventory must name the forbidden token it governs."
+
+[[stale_name_allowances]]
+path = "docs/plans/PHASE_7_RELEASE_OWNER_DECISIONS.md"
+token = "auths-proof-v<"
+reason = "The superseded P7-OD-007 record is preserved verbatim and visibly marked superseded."
+
+[[stale_name_allowances]]
+path = "docs/plans/PHASE_7_RELEASE_READINESS_AUDIT.md"
+token = "auths-proof-v<"
+reason = "The dated readiness audit preserves and visibly labels its reviewed historical baseline."
+
+[[stale_name_allowances]]
+path = "release/public-naming.toml"
+token = "auths-proof-v<"
+reason = "The authoritative migration record must name its source tag pattern."
+
+[[stale_name_allowances]]
+path = "docs/specs/0032-reproducible-release-candidate-and-exact-assurance-claim.md"
+token = "auths-proof-v*"
+reason = "AP-SPEC-032 names the forbidden predecessor tag pattern in a normative rejection rule."
+
+[[stale_name_allowances]]
+path = "docs/plans/PHASE_7_RELEASE_READINESS_AUDIT.md"
+token = "auths-proof-v*"
+reason = "The dated readiness audit preserves and visibly labels its reviewed historical baseline."
+
+[[stale_name_allowances]]
+path = "release/public-naming.toml"
+token = "auths-proof-v*"
+reason = "The authoritative exception inventory must name the forbidden token it governs."
+
+[[stale_name_allowances]]
+path = "release/public-naming.toml"
+token = "auths-proof-release-evidence-"
+reason = "The authoritative migration record must name its source artifact pattern."
+
+[[stale_name_allowances]]
+path = "release/public-naming.toml"
+token = "auths-proof-release-evidence/v1"
+reason = "The authoritative migration record must name its source evidence schema."
+
+[[stale_name_allowances]]
+path = "release/public-naming.toml"
+token = "auths-proof-platform/v1"
+reason = "The authoritative migration record must name its source platform schema."
+
+[[stale_name_allowances]]
+path = "docs/target-state/BUSINESS_MODEL.md"
+token = "heading:Auths Proof product"
+reason = "The target-state business model uses Auths Proof as the historical name of the open protocol layer, not the current umbrella product."

@@ -2,7 +2,7 @@ name: Release candidate
 
 on:
   push:
-    tags: ["v*"]
+    tags: ["auths-v*"]
   workflow_dispatch:
 
 permissions:
@@ -86,7 +86,7 @@ jobs:
         if: ${{ always() && steps.release_check.outcome == 'success' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: auths-proof-release-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          name: auths-release-evidence-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             target/package/*.crate
             target/release-evidence/

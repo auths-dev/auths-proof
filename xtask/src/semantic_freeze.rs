@@ -288,6 +288,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
 
     let mut release_owners = rust_surface.package_manifests;
     release_owners.extend([
+        ".github/workflows/release.yml".to_owned(),
         "Cargo.toml".to_owned(),
         "Cargo.lock".to_owned(),
         "rust-toolchain.toml".to_owned(),
@@ -296,8 +297,13 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         "bindings/python/pyproject.toml".to_owned(),
         "architecture.toml".to_owned(),
         "docs/plans/PHASE_7_RELEASE_OWNER_DECISIONS.md".to_owned(),
+        "release/public-naming.toml".to_owned(),
         "xtask/src/architecture.rs".to_owned(),
+        "xtask/src/checks.rs".to_owned(),
         "xtask/src/fixtures.rs".to_owned(),
+        "xtask/src/main.rs".to_owned(),
+        "xtask/src/public_naming.rs".to_owned(),
+        "xtask/src/release.rs".to_owned(),
         "xtask/src/semantic_freeze.rs".to_owned(),
     ]);
     entries.push(freeze_entry(
@@ -309,6 +315,9 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
             "package-versions",
             "publishable-closure",
             "binding-names",
+            "artifact-names",
+            "registry-dispositions",
+            "publication-order",
             "toolchains",
         ],
         release_owners,

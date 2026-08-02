@@ -12,6 +12,7 @@ pub(crate) fn ci_authoritative() -> Result<(), String> {
     format_all()?;
     arch(false)?;
     semantic_freeze(false)?;
+    public_naming()?;
     repository_hygiene()?;
     cargo(&["check", "--workspace", "--all-targets", "--all-features"])?;
     cargo(&["test", "--workspace", "--all-features"])?;
