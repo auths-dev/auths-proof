@@ -1,6 +1,6 @@
 {
   "schema": "auths.semantic-freeze/1",
-  "freezeVersion": 6,
+  "freezeVersion": 8,
   "publicSurface": {
     "rustRoots": [
       "auths",
@@ -187,7 +187,7 @@
     },
     {
       "id": "auths.frozen-bytes/formal/qualification/aeneas/source-closure.json",
-      "version": 3,
+      "version": 5,
       "classification": "frozen-bytes",
       "categories": [
         "canonical-generated-evidence"
@@ -195,7 +195,7 @@
       "owners": [
         "formal/qualification/aeneas/source-closure.json"
       ],
-      "sha256": "1052d40783cebde489b67f53bf6d91a394dac4021348e7a1022ef290e5e7a939"
+      "sha256": "c43a63873e89bb539affd6b0e24644b61ae9c7d62d1a5f687d4d1a118e100755"
     },
     {
       "id": "auths.frozen-bytes/product/fixtures/v1/bounded-policy/manifest.json",
@@ -521,7 +521,7 @@
     },
     {
       "id": "auths.product.lifecycle",
-      "version": 1,
+      "version": 3,
       "classification": "frozen-meaning",
       "categories": [
         "reservation-state",
@@ -536,7 +536,7 @@
         "product/stores/auths-stores/migrations/postgres_lifecycle_v1.sql",
         "product/stores/auths-stores/src/lifecycle.rs"
       ],
-      "sha256": "9d6eaa653aa1ca363b0c1cf00788812541e1405d72e689d9a723ce24ba49164b"
+      "sha256": "c3eab8ae6b9e9ce3ff8974e8b17e2b8db7c49f1627a2ef886748727cba8aa6a4"
     },
     {
       "id": "auths.product.public-sdk-contract",
@@ -592,7 +592,7 @@
     },
     {
       "id": "auths.release.public-surface",
-      "version": 6,
+      "version": 8,
       "classification": "release-metadata",
       "categories": [
         "package-names",
@@ -659,7 +659,7 @@
         "xtask/src/release_control.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "517b8d5479480bab20e6ca73d533d48b6521344cd85b35704ffa2aebf648eec8"
+      "sha256": "23af939d2c03e962407ed0049d7ce2aee2b4bfde4fc50c60a7213f68868c5429"
     }
   ]
 }
