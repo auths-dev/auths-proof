@@ -26,10 +26,26 @@ pub(crate) fn ci_authoritative() -> Result<(), String> {
         "-D",
         "warnings",
     ])?;
+    release_documentation()?;
     core_boundary()?;
     workspace_msrv()?;
     platform_artifact(&root().join("target/release-evidence/platform.json"))?;
     fuzz_smoke()
+}
+
+pub(crate) fn release_documentation() -> Result<(), String> {
+    let status = Command::new("cargo")
+        .args(["doc", "--workspace", "--all-features", "--no-deps"])
+        .env("RUSTDOCFLAGS", "-D warnings")
+        .current_dir(root())
+        .status()
+        .map_err(|error| format!("could not build release documentation: {error}"))?;
+    if status.success() {
+        println!("release documentation passed");
+        Ok(())
+    } else {
+        Err(format!("documentation build failed with {status}"))
+    }
 }
 
 pub(crate) fn ci_compliance() -> Result<(), String> {

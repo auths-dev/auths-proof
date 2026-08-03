@@ -21,11 +21,11 @@ pub use arithmetic::{
     ArithmeticError, BasisPoints, RoundingDirection, UnitQuantity, checked_basis_points,
 };
 pub use commitment::{
-    ConfigurationCommitmentV1, ConfigurationMatch, EvaluationCommitmentsV1, PolicyCommitmentV1,
-    configuration_match,
+    CommitmentError, ConfigurationCommitmentV1, ConfigurationMatch, EvaluationCommitmentsV1,
+    PolicyCommitmentV1, configuration_match,
 };
 pub use eligibility::{
-    BoundedOutputs, EligibilityV1, ObligationClass, ObligationCommitmentV1,
+    BoundedOutputs, EligibilityV1, ObligationClass, ObligationCommitmentV1, OutputError,
     ReservationIntentCommitmentV1, ReservationKind, ValidationWork,
 };
 pub use identifier::{
