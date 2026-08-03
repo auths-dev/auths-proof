@@ -100,7 +100,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.1.0"
+version = "1.0.0-rc.1"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 rust-version = "1.91"
@@ -108,83 +108,83 @@ repository = "https://github.com/auths-dev/auths-proof"
 homepage = "https://auths.dev"
 
 [workspace.dependencies]
-auths = { version = "0.1.0", path = "core/crates/auths", default-features = false }
-auths-model = { version = "0.1.0", path = "core/crates/auths-model", default-features = false }
-auths-codec = { version = "0.1.0", path = "core/crates/auths-codec", default-features = false }
-auths-ports = { version = "0.1.0", path = "core/crates/auths-ports", default-features = false }
-auths-registries = { version = "0.1.0", path = "core/crates/auths-registries", default-features = false }
-auths-signature = { version = "0.1.0", path = "core/crates/auths-signature", default-features = false }
-auths-algebra-kernel = { version = "0.1.0", path = "core/crates/auths-algebra-kernel", default-features = false }
-auths-authority = { version = "0.1.0", path = "core/crates/auths-authority", default-features = false }
-auths-composition = { version = "0.1.0", path = "core/crates/auths-composition", default-features = false }
-auths-formal-refinement = { version = "0.1.0", path = "core/crates/auths-formal-refinement" }
-auths-assurance = { version = "0.1.0", path = "core/crates/auths-assurance", default-features = false }
-auths-verifier = { version = "0.1.0", path = "core/crates/auths-verifier", default-features = false }
-auths-author = { version = "0.1.0", path = "core/crates/auths-author", default-features = false }
-auths-multikey = { version = "0.1.0", path = "core/crates/auths-multikey", default-features = false }
-auths-testkit = { version = "0.1.0", path = "core/testkit/auths-testkit" }
-auths-proof = { version = "0.1.0", path = "core/crates/auths-proof", default-features = false }
-auths-proof-wasm = { version = "0.1.0", path = "bindings/wasm/auths-proof-wasm" }
-auths-raw-key = { version = "0.1.0", path = "core/adapters/auths-raw-key", default-features = false }
-auths-did-key = { version = "0.1.0", path = "core/adapters/auths-did-key", default-features = false }
-auths-did-keri = { version = "0.1.0", path = "core/adapters/auths-did-keri", default-features = false }
-auths-did-web = { version = "0.1.0", path = "core/adapters/auths-did-web", default-features = false }
-auths-webauthn = { version = "0.1.0", path = "core/adapters/auths-webauthn", default-features = false }
-auths-hsm-attested = { version = "0.1.0", path = "core/adapters/auths-hsm-attested", default-features = false }
-auths-spiffe-x509 = { version = "0.1.0", path = "core/adapters/auths-spiffe-x509", default-features = false }
-auths-proof-exchange = { version = "0.1.0", path = "exchange/crates/auths-proof-exchange" }
-auths-proof-exchange-model = { version = "0.1.0", path = "exchange/crates/auths-proof-exchange-model" }
-auths-proof-exchange-codec = { version = "0.1.0", path = "exchange/crates/auths-proof-exchange-codec" }
-auths-proof-exchange-port = { version = "0.1.0", path = "exchange/crates/auths-proof-exchange-port" }
-auths-proof-exchange-framing = { version = "0.1.0", path = "exchange/crates/auths-proof-exchange-framing" }
-auths-proof-exchange-memory = { version = "0.1.0", path = "exchange/adapters/auths-proof-exchange-memory" }
-auths-proof-exchange-iroh = { version = "0.1.0", path = "exchange/adapters/auths-proof-exchange-iroh" }
-auths-proof-exchange-tcp = { version = "0.1.0", path = "exchange/adapters/auths-proof-exchange-tcp" }
-auths-proof-exchange-unix = { version = "0.1.0", path = "exchange/adapters/auths-proof-exchange-unix" }
-auths-proof-exchange-file = { version = "0.1.0", path = "exchange/adapters/auths-proof-exchange-file" }
-auths-proof-exchange-https = { version = "0.1.0", path = "exchange/adapters/auths-proof-exchange-https" }
-auths-proof-exchange-testkit = { version = "0.1.0", path = "exchange/testkit/auths-proof-exchange-testkit" }
-auths-profile-mcp = { version = "0.1.0", path = "product/profiles/auths-profile-mcp" }
-auths-profile-api = { version = "0.1.0", path = "product/profiles/auths-profile-api" }
-auths-profile-domains = { version = "0.1.0", path = "product/profiles/auths-profile-domains" }
-auths-lifecycle = { version = "0.1.0", path = "product/runtime/auths-lifecycle", default-features = false }
-auths-runtime = { version = "0.1.0", path = "product/runtime/auths-runtime" }
-auths-receipts = { version = "0.1.0", path = "product/receipts/auths-receipts" }
-auths-stores = { version = "0.1.0", path = "product/stores/auths-stores" }
-auths-config = { version = "0.1.0", path = "product/config/auths-config" }
-auths-cache = { version = "0.1.0", path = "product/cache/auths-cache" }
-auths-operations = { version = "0.1.0", path = "product/operations/auths-operations" }
-auths-sdk = { version = "0.1.0", path = "product/sdk/auths-sdk" }
-auths-profile-kit = { version = "0.1.0", path = "product/sdk/auths-profile-kit" }
-auths-bounded-policy = { version = "0.1.0", path = "product/policy/auths-bounded-policy", default-features = false }
-auths-enforcement = { version = "0.1.0", path = "product/integrations/auths-enforcement" }
-auths-deployment = { version = "0.1.0", path = "product/integrations/auths-deployment" }
-auths-resolver-did-web = { version = "0.1.0", path = "product/integrations/auths-resolver-did-web" }
-auths-evidence-assemblers = { version = "0.1.0", path = "product/integrations/auths-evidence-assemblers" }
-auths-custody = { version = "0.1.0", path = "product/integrations/auths-custody" }
-auths-radicle = { version = "0.1.0", path = "product/integrations/auths-radicle" }
-auths-github = { version = "0.1.0", path = "product/integrations/auths-github" }
-auths-stripe = { version = "0.1.0", path = "product/integrations/auths-stripe" }
-auths-stripe-payment-demo-common = { version = "0.1.0", path = "demos/stripe-payment-common" }
-auths-stripe-payment-authorize-demo = { version = "0.1.0", path = "demos/stripe-payment-authorize" }
-auths-stripe-payment-cancel-demo = { version = "0.1.0", path = "demos/stripe-payment-cancel" }
-auths-stripe-payment-capture-demo = { version = "0.1.0", path = "demos/stripe-payment-capture" }
-auths-stripe-payment-collect-demo = { version = "0.1.0", path = "demos/stripe-payment-collect" }
-auths-stripe-payment-mandate-demo = { version = "0.1.0", path = "demos/stripe-payment-mandate" }
-auths-stripe-subscription-create-demo = { version = "0.1.0", path = "demos/stripe-subscription-create" }
-auths-stripe-subscription-modify-demo = { version = "0.1.0", path = "demos/stripe-subscription-modify" }
-auths-stripe-subscription-cancel-demo = { version = "0.1.0", path = "demos/stripe-subscription-cancel" }
-auths-stripe-purchase-authorization-demo = { version = "0.1.0", path = "demos/stripe-purchase-authorization" }
-auths-stripe-connect-transfer-demo = { version = "0.1.0", path = "demos/stripe-connect-transfer" }
-auths-stripe-payout-demo = { version = "0.1.0", path = "demos/stripe-payout" }
-auths-kubernetes = { version = "0.1.0", path = "product/integrations/auths-kubernetes" }
-auths-opentofu = { version = "0.1.0", path = "product/integrations/auths-opentofu" }
-auths-postgresql = { version = "0.1.0", path = "product/integrations/auths-postgresql" }
-auths-records-api = { version = "0.1.0", path = "product/integrations/auths-records-api" }
-auths-apps-testkit = { version = "0.1.0", path = "demos/testkit/auths-apps-testkit" }
-auths-live-lab = { version = "0.1.0", path = "demos/live-lab" }
-auths-lab-matrix = { version = "0.1.0", path = "demos/matrix/auths-lab-matrix" }
-auths-bench-model = { version = "0.1.0", path = "demos/benchmarks/auths-bench-model" }
+auths = { version = "1.0.0-rc.1", path = "core/crates/auths", default-features = false }
+auths-model = { version = "1.0.0-rc.1", path = "core/crates/auths-model", default-features = false }
+auths-codec = { version = "1.0.0-rc.1", path = "core/crates/auths-codec", default-features = false }
+auths-ports = { version = "1.0.0-rc.1", path = "core/crates/auths-ports", default-features = false }
+auths-registries = { version = "1.0.0-rc.1", path = "core/crates/auths-registries", default-features = false }
+auths-signature = { version = "1.0.0-rc.1", path = "core/crates/auths-signature", default-features = false }
+auths-algebra-kernel = { version = "1.0.0-rc.1", path = "core/crates/auths-algebra-kernel", default-features = false }
+auths-authority = { version = "1.0.0-rc.1", path = "core/crates/auths-authority", default-features = false }
+auths-composition = { version = "1.0.0-rc.1", path = "core/crates/auths-composition", default-features = false }
+auths-formal-refinement = { version = "1.0.0-rc.1", path = "core/crates/auths-formal-refinement" }
+auths-assurance = { version = "1.0.0-rc.1", path = "core/crates/auths-assurance", default-features = false }
+auths-verifier = { version = "1.0.0-rc.1", path = "core/crates/auths-verifier", default-features = false }
+auths-author = { version = "1.0.0-rc.1", path = "core/crates/auths-author", default-features = false }
+auths-multikey = { version = "1.0.0-rc.1", path = "core/crates/auths-multikey", default-features = false }
+auths-testkit = { version = "1.0.0-rc.1", path = "core/testkit/auths-testkit" }
+auths-proof = { version = "1.0.0-rc.1", path = "core/crates/auths-proof", default-features = false }
+auths-proof-wasm = { version = "1.0.0-rc.1", path = "bindings/wasm/auths-proof-wasm" }
+auths-raw-key = { version = "1.0.0-rc.1", path = "core/adapters/auths-raw-key", default-features = false }
+auths-did-key = { version = "1.0.0-rc.1", path = "core/adapters/auths-did-key", default-features = false }
+auths-did-keri = { version = "1.0.0-rc.1", path = "core/adapters/auths-did-keri", default-features = false }
+auths-did-web = { version = "1.0.0-rc.1", path = "core/adapters/auths-did-web", default-features = false }
+auths-webauthn = { version = "1.0.0-rc.1", path = "core/adapters/auths-webauthn", default-features = false }
+auths-hsm-attested = { version = "1.0.0-rc.1", path = "core/adapters/auths-hsm-attested", default-features = false }
+auths-spiffe-x509 = { version = "1.0.0-rc.1", path = "core/adapters/auths-spiffe-x509", default-features = false }
+auths-proof-exchange = { version = "1.0.0-rc.1", path = "exchange/crates/auths-proof-exchange" }
+auths-proof-exchange-model = { version = "1.0.0-rc.1", path = "exchange/crates/auths-proof-exchange-model" }
+auths-proof-exchange-codec = { version = "1.0.0-rc.1", path = "exchange/crates/auths-proof-exchange-codec" }
+auths-proof-exchange-port = { version = "1.0.0-rc.1", path = "exchange/crates/auths-proof-exchange-port" }
+auths-proof-exchange-framing = { version = "1.0.0-rc.1", path = "exchange/crates/auths-proof-exchange-framing" }
+auths-proof-exchange-memory = { version = "1.0.0-rc.1", path = "exchange/adapters/auths-proof-exchange-memory" }
+auths-proof-exchange-iroh = { version = "1.0.0-rc.1", path = "exchange/adapters/auths-proof-exchange-iroh" }
+auths-proof-exchange-tcp = { version = "1.0.0-rc.1", path = "exchange/adapters/auths-proof-exchange-tcp" }
+auths-proof-exchange-unix = { version = "1.0.0-rc.1", path = "exchange/adapters/auths-proof-exchange-unix" }
+auths-proof-exchange-file = { version = "1.0.0-rc.1", path = "exchange/adapters/auths-proof-exchange-file" }
+auths-proof-exchange-https = { version = "1.0.0-rc.1", path = "exchange/adapters/auths-proof-exchange-https" }
+auths-proof-exchange-testkit = { version = "1.0.0-rc.1", path = "exchange/testkit/auths-proof-exchange-testkit" }
+auths-profile-mcp = { version = "1.0.0-rc.1", path = "product/profiles/auths-profile-mcp" }
+auths-profile-api = { version = "1.0.0-rc.1", path = "product/profiles/auths-profile-api" }
+auths-profile-domains = { version = "1.0.0-rc.1", path = "product/profiles/auths-profile-domains" }
+auths-lifecycle = { version = "1.0.0-rc.1", path = "product/runtime/auths-lifecycle", default-features = false }
+auths-runtime = { version = "1.0.0-rc.1", path = "product/runtime/auths-runtime" }
+auths-receipts = { version = "1.0.0-rc.1", path = "product/receipts/auths-receipts" }
+auths-stores = { version = "1.0.0-rc.1", path = "product/stores/auths-stores" }
+auths-config = { version = "1.0.0-rc.1", path = "product/config/auths-config" }
+auths-cache = { version = "1.0.0-rc.1", path = "product/cache/auths-cache" }
+auths-operations = { version = "1.0.0-rc.1", path = "product/operations/auths-operations" }
+auths-sdk = { version = "1.0.0-rc.1", path = "product/sdk/auths-sdk" }
+auths-profile-kit = { version = "1.0.0-rc.1", path = "product/sdk/auths-profile-kit" }
+auths-bounded-policy = { version = "1.0.0-rc.1", path = "product/policy/auths-bounded-policy", default-features = false }
+auths-enforcement = { version = "1.0.0-rc.1", path = "product/integrations/auths-enforcement" }
+auths-deployment = { version = "1.0.0-rc.1", path = "product/integrations/auths-deployment" }
+auths-resolver-did-web = { version = "1.0.0-rc.1", path = "product/integrations/auths-resolver-did-web" }
+auths-evidence-assemblers = { version = "1.0.0-rc.1", path = "product/integrations/auths-evidence-assemblers" }
+auths-custody = { version = "1.0.0-rc.1", path = "product/integrations/auths-custody" }
+auths-radicle = { version = "1.0.0-rc.1", path = "product/integrations/auths-radicle" }
+auths-github = { version = "1.0.0-rc.1", path = "product/integrations/auths-github" }
+auths-stripe = { version = "1.0.0-rc.1", path = "product/integrations/auths-stripe" }
+auths-stripe-payment-demo-common = { version = "1.0.0-rc.1", path = "demos/stripe-payment-common" }
+auths-stripe-payment-authorize-demo = { version = "1.0.0-rc.1", path = "demos/stripe-payment-authorize" }
+auths-stripe-payment-cancel-demo = { version = "1.0.0-rc.1", path = "demos/stripe-payment-cancel" }
+auths-stripe-payment-capture-demo = { version = "1.0.0-rc.1", path = "demos/stripe-payment-capture" }
+auths-stripe-payment-collect-demo = { version = "1.0.0-rc.1", path = "demos/stripe-payment-collect" }
+auths-stripe-payment-mandate-demo = { version = "1.0.0-rc.1", path = "demos/stripe-payment-mandate" }
+auths-stripe-subscription-create-demo = { version = "1.0.0-rc.1", path = "demos/stripe-subscription-create" }
+auths-stripe-subscription-modify-demo = { version = "1.0.0-rc.1", path = "demos/stripe-subscription-modify" }
+auths-stripe-subscription-cancel-demo = { version = "1.0.0-rc.1", path = "demos/stripe-subscription-cancel" }
+auths-stripe-purchase-authorization-demo = { version = "1.0.0-rc.1", path = "demos/stripe-purchase-authorization" }
+auths-stripe-connect-transfer-demo = { version = "1.0.0-rc.1", path = "demos/stripe-connect-transfer" }
+auths-stripe-payout-demo = { version = "1.0.0-rc.1", path = "demos/stripe-payout" }
+auths-kubernetes = { version = "1.0.0-rc.1", path = "product/integrations/auths-kubernetes" }
+auths-opentofu = { version = "1.0.0-rc.1", path = "product/integrations/auths-opentofu" }
+auths-postgresql = { version = "1.0.0-rc.1", path = "product/integrations/auths-postgresql" }
+auths-records-api = { version = "1.0.0-rc.1", path = "product/integrations/auths-records-api" }
+auths-apps-testkit = { version = "1.0.0-rc.1", path = "demos/testkit/auths-apps-testkit" }
+auths-live-lab = { version = "1.0.0-rc.1", path = "demos/live-lab" }
+auths-lab-matrix = { version = "1.0.0-rc.1", path = "demos/matrix/auths-lab-matrix" }
+auths-bench-model = { version = "1.0.0-rc.1", path = "demos/benchmarks/auths-bench-model" }
 async-trait = "0.1.91"
 axum = "0.8.9"
 dotenvy = "0.15.7"

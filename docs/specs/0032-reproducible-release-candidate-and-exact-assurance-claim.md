@@ -1,8 +1,9 @@
 # AP-SPEC-032: Reproducible release candidate and exact assurance claim
 
-**Status:** Specified — owner-decision subgate approved; remaining execution is
-blocked on AP-SPEC-034 public naming consolidation, the remaining Phase 7 entry
-evidence, and separate Phase 7 and Phase 8 pull requests
+**Status:** In progress — AP-SPEC-034 and AP32-PR1 through AP32-PR4 are
+complete; AP32-PR5 repository-local candidate closure is proposed, while real
+hosted preparation, SLSA 1.2 Build Level 3 assessment, exact-manifest
+authorization, RC promotion, and the Phase 8 exact-claim PR remain gated
 
 **Governs:** Phase 7 and Phase 8 of the
 [Post-Milestone 6 Productization and Release Plan](../target-state/POST_MILESTONE_6_PRODUCTIZATION_AND_RELEASE_PLAN.md)

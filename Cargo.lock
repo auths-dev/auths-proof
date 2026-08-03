@@ -207,18 +207,18 @@ checksum = "1505bd5d3d116872e7271a6d4e16d81d0c8570876c8de68093a09ac269d8aac0"
 
 [[package]]
 name = "auths"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-proof",
 ]
 
 [[package]]
 name = "auths-algebra-kernel"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 
 [[package]]
 name = "auths-apps-testkit"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "async-trait",
  "auths-author",
@@ -247,14 +247,14 @@ dependencies = [
 
 [[package]]
 name = "auths-assurance"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-model",
 ]
 
 [[package]]
 name = "auths-author"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-authority",
  "auths-codec",
@@ -263,7 +263,7 @@ dependencies = [
 
 [[package]]
 name = "auths-authority"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-algebra-kernel",
  "auths-model",
@@ -271,7 +271,7 @@ dependencies = [
 
 [[package]]
 name = "auths-bench-model"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-codec",
  "auths-model",
@@ -283,7 +283,7 @@ dependencies = [
 
 [[package]]
 name = "auths-bench-native"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-bench-model",
  "auths-codec",
@@ -305,7 +305,7 @@ dependencies = [
 
 [[package]]
 name = "auths-bench-wasm"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-bench-model",
  "js-sys",
@@ -316,14 +316,14 @@ dependencies = [
 
 [[package]]
 name = "auths-bounded-policy"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "proptest",
 ]
 
 [[package]]
 name = "auths-bounded-policy-fuzz"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-bounded-policy",
  "libfuzzer-sys",
@@ -331,7 +331,7 @@ dependencies = [
 
 [[package]]
 name = "auths-cache"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-model",
  "auths-verifier",
@@ -340,7 +340,7 @@ dependencies = [
 
 [[package]]
 name = "auths-ci-plan"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "hex",
  "serde",
@@ -351,7 +351,7 @@ dependencies = [
 
 [[package]]
 name = "auths-codec"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-model",
  "minicbor",
@@ -361,7 +361,7 @@ dependencies = [
 
 [[package]]
 name = "auths-composition"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-algebra-kernel",
  "auths-model",
@@ -370,7 +370,7 @@ dependencies = [
 
 [[package]]
 name = "auths-config"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-codec",
  "auths-model",
@@ -382,7 +382,7 @@ dependencies = [
 
 [[package]]
 name = "auths-custody"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-author",
  "auths-model",
@@ -393,7 +393,7 @@ dependencies = [
 
 [[package]]
 name = "auths-deployment"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-enforcement",
  "auths-sdk",
@@ -402,7 +402,7 @@ dependencies = [
 
 [[package]]
 name = "auths-did-keri"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-codec",
  "auths-model",
@@ -417,7 +417,7 @@ dependencies = [
 
 [[package]]
 name = "auths-did-key"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-codec",
  "auths-model",
@@ -428,7 +428,7 @@ dependencies = [
 
 [[package]]
 name = "auths-did-web"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-codec",
  "auths-model",
@@ -441,7 +441,7 @@ dependencies = [
 
 [[package]]
 name = "auths-enforcement"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-profile-api",
  "auths-sdk",
@@ -450,7 +450,7 @@ dependencies = [
 
 [[package]]
 name = "auths-evidence-assemblers"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-codec",
  "auths-hsm-attested",
@@ -462,7 +462,7 @@ dependencies = [
 
 [[package]]
 name = "auths-explain"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-codec",
  "auths-did-keri",
@@ -483,7 +483,7 @@ dependencies = [
 
 [[package]]
 name = "auths-formal-refinement"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-algebra-kernel",
  "auths-authority",
@@ -495,7 +495,7 @@ dependencies = [
 
 [[package]]
 name = "auths-github"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-bounded-policy",
  "auths-lifecycle",
@@ -518,7 +518,7 @@ dependencies = [
 
 [[package]]
 name = "auths-github-demo"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-author",
  "auths-codec",
@@ -547,7 +547,7 @@ dependencies = [
 
 [[package]]
 name = "auths-hsm-attested"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-model",
  "auths-ports",
@@ -559,7 +559,7 @@ dependencies = [
 
 [[package]]
 name = "auths-kubernetes"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-bounded-policy",
  "auths-lifecycle",
@@ -579,7 +579,7 @@ dependencies = [
 
 [[package]]
 name = "auths-kubernetes-demo"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-author",
  "auths-codec",
@@ -611,14 +611,14 @@ dependencies = [
 
 [[package]]
 name = "auths-lab-matrix"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "sha2 0.10.9",
 ]
 
 [[package]]
 name = "auths-lab-wasm-bench"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-codec",
  "auths-ports",
@@ -634,7 +634,7 @@ dependencies = [
 
 [[package]]
 name = "auths-lifecycle"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-bounded-policy",
  "postcard",
@@ -645,7 +645,7 @@ dependencies = [
 
 [[package]]
 name = "auths-live-lab"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-apps-testkit",
  "auths-codec",
@@ -660,7 +660,7 @@ dependencies = [
 
 [[package]]
 name = "auths-live-service"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-apps-testkit",
  "auths-live-lab",
@@ -681,7 +681,7 @@ dependencies = [
 
 [[package]]
 name = "auths-mcp-demo"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-apps-testkit",
  "auths-proof-exchange-model",
@@ -692,7 +692,7 @@ dependencies = [
 
 [[package]]
 name = "auths-model"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "proptest",
  "subtle",
@@ -700,7 +700,7 @@ dependencies = [
 
 [[package]]
 name = "auths-multikey"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "bs58",
  "ed25519-dalek 2.2.0",
@@ -709,7 +709,7 @@ dependencies = [
 
 [[package]]
 name = "auths-opentofu"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-bounded-policy",
  "auths-lifecycle",
@@ -729,7 +729,7 @@ dependencies = [
 
 [[package]]
 name = "auths-opentofu-demo"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-apps-testkit",
  "auths-lifecycle",
@@ -753,7 +753,7 @@ dependencies = [
 
 [[package]]
 name = "auths-operations"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-codec",
  "auths-config",
@@ -767,7 +767,7 @@ dependencies = [
 
 [[package]]
 name = "auths-ports"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-model",
  "sha2 0.10.9",
@@ -775,7 +775,7 @@ dependencies = [
 
 [[package]]
 name = "auths-postgresql"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "async-trait",
  "auths-bounded-policy",
@@ -798,7 +798,7 @@ dependencies = [
 
 [[package]]
 name = "auths-postgresql-demo"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "async-trait",
  "auths-apps-testkit",
@@ -829,7 +829,7 @@ dependencies = [
 
 [[package]]
 name = "auths-profile-api"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-model",
  "auths-verifier",
@@ -837,7 +837,7 @@ dependencies = [
 
 [[package]]
 name = "auths-profile-domains"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-model",
  "auths-profile-api",
@@ -851,7 +851,7 @@ dependencies = [
 
 [[package]]
 name = "auths-profile-kit"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-codec",
  "auths-model",
@@ -866,7 +866,7 @@ dependencies = [
 
 [[package]]
 name = "auths-profile-mcp"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-model",
  "auths-profile-api",
@@ -881,7 +881,7 @@ dependencies = [
 
 [[package]]
 name = "auths-proof"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-codec",
  "auths-model",
@@ -895,7 +895,7 @@ dependencies = [
 
 [[package]]
 name = "auths-proof-exchange"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-proof-exchange-file",
  "auths-proof-exchange-https",
@@ -909,7 +909,7 @@ dependencies = [
 
 [[package]]
 name = "auths-proof-exchange-codec"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-proof-exchange-model",
  "minicbor",
@@ -918,7 +918,7 @@ dependencies = [
 
 [[package]]
 name = "auths-proof-exchange-file"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-proof-exchange-codec",
  "auths-proof-exchange-model",
@@ -929,7 +929,7 @@ dependencies = [
 
 [[package]]
 name = "auths-proof-exchange-framing"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "async-trait",
  "auths-proof-exchange-codec",
@@ -940,7 +940,7 @@ dependencies = [
 
 [[package]]
 name = "auths-proof-exchange-https"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "async-trait",
  "auths-proof-exchange-codec",
@@ -951,7 +951,7 @@ dependencies = [
 
 [[package]]
 name = "auths-proof-exchange-iroh"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "async-trait",
  "auths-proof-exchange-codec",
@@ -963,7 +963,7 @@ dependencies = [
 
 [[package]]
 name = "auths-proof-exchange-memory"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "async-trait",
  "auths-proof-exchange-model",
@@ -973,11 +973,11 @@ dependencies = [
 
 [[package]]
 name = "auths-proof-exchange-model"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 
 [[package]]
 name = "auths-proof-exchange-port"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "async-trait",
  "auths-proof-exchange-model",
@@ -985,7 +985,7 @@ dependencies = [
 
 [[package]]
 name = "auths-proof-exchange-tcp"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-proof-exchange-framing",
  "auths-proof-exchange-model",
@@ -994,7 +994,7 @@ dependencies = [
 
 [[package]]
 name = "auths-proof-exchange-testkit"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "async-trait",
  "auths-proof-exchange-codec",
@@ -1014,7 +1014,7 @@ dependencies = [
 
 [[package]]
 name = "auths-proof-exchange-unix"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-proof-exchange-framing",
  "auths-proof-exchange-model",
@@ -1023,7 +1023,7 @@ dependencies = [
 
 [[package]]
 name = "auths-proof-fuzz"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-codec",
  "auths-composition",
@@ -1045,7 +1045,7 @@ dependencies = [
 
 [[package]]
 name = "auths-proof-offline-example"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-codec",
  "auths-ports",
@@ -1057,7 +1057,7 @@ dependencies = [
 
 [[package]]
 name = "auths-proof-python"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-proof-wasm",
  "pyo3",
@@ -1065,7 +1065,7 @@ dependencies = [
 
 [[package]]
 name = "auths-proof-wasm"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-codec",
  "auths-did-keri",
@@ -1082,7 +1082,7 @@ dependencies = [
 
 [[package]]
 name = "auths-radicle"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-author",
  "auths-bounded-policy",
@@ -1110,7 +1110,7 @@ dependencies = [
 
 [[package]]
 name = "auths-radicle-demo"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-author",
  "auths-codec",
@@ -1143,7 +1143,7 @@ dependencies = [
 
 [[package]]
 name = "auths-raw-key"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-model",
  "auths-ports",
@@ -1154,7 +1154,7 @@ dependencies = [
 
 [[package]]
 name = "auths-receipts"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-model",
  "auths-ports",
@@ -1164,7 +1164,7 @@ dependencies = [
 
 [[package]]
 name = "auths-records-api"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-bounded-policy",
  "auths-lifecycle",
@@ -1186,7 +1186,7 @@ dependencies = [
 
 [[package]]
 name = "auths-records-demo"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "async-trait",
  "auths-author",
@@ -1225,7 +1225,7 @@ dependencies = [
 
 [[package]]
 name = "auths-registries"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-model",
  "auths-ports",
@@ -1234,7 +1234,7 @@ dependencies = [
 
 [[package]]
 name = "auths-resolver-did-web"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-codec",
  "auths-did-web",
@@ -1246,7 +1246,7 @@ dependencies = [
 
 [[package]]
 name = "auths-runtime"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "async-trait",
  "auths-codec",
@@ -1267,7 +1267,7 @@ dependencies = [
 
 [[package]]
 name = "auths-sdk"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-author",
  "auths-codec",
@@ -1290,7 +1290,7 @@ dependencies = [
 
 [[package]]
 name = "auths-signature"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-model",
  "auths-ports",
@@ -1300,7 +1300,7 @@ dependencies = [
 
 [[package]]
 name = "auths-spiffe-x509"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-model",
  "auths-ports",
@@ -1316,7 +1316,7 @@ dependencies = [
 
 [[package]]
 name = "auths-stores"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-bounded-policy",
  "auths-lifecycle",
@@ -1333,7 +1333,7 @@ dependencies = [
 
 [[package]]
 name = "auths-stripe"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-author",
  "auths-bounded-policy",
@@ -1361,7 +1361,7 @@ dependencies = [
 
 [[package]]
 name = "auths-stripe-connect-transfer-demo"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-stripe",
  "axum",
@@ -1376,7 +1376,7 @@ dependencies = [
 
 [[package]]
 name = "auths-stripe-demo"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-author",
  "auths-codec",
@@ -1408,7 +1408,7 @@ dependencies = [
 
 [[package]]
 name = "auths-stripe-payment-authorize-demo"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-profile-api",
  "auths-sdk",
@@ -1429,7 +1429,7 @@ dependencies = [
 
 [[package]]
 name = "auths-stripe-payment-cancel-demo"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-profile-api",
  "auths-sdk",
@@ -1450,7 +1450,7 @@ dependencies = [
 
 [[package]]
 name = "auths-stripe-payment-capture-demo"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-profile-api",
  "auths-sdk",
@@ -1471,7 +1471,7 @@ dependencies = [
 
 [[package]]
 name = "auths-stripe-payment-collect-demo"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-profile-api",
  "auths-sdk",
@@ -1492,7 +1492,7 @@ dependencies = [
 
 [[package]]
 name = "auths-stripe-payment-demo-common"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-author",
  "auths-codec",
@@ -1513,7 +1513,7 @@ dependencies = [
 
 [[package]]
 name = "auths-stripe-payment-mandate-demo"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-profile-api",
  "auths-sdk",
@@ -1534,7 +1534,7 @@ dependencies = [
 
 [[package]]
 name = "auths-stripe-payout-demo"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-stripe",
  "axum",
@@ -1549,7 +1549,7 @@ dependencies = [
 
 [[package]]
 name = "auths-stripe-purchase-authorization-demo"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-model",
  "auths-profile-api",
@@ -1572,7 +1572,7 @@ dependencies = [
 
 [[package]]
 name = "auths-stripe-subscription-cancel-demo"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-stripe",
  "axum",
@@ -1587,7 +1587,7 @@ dependencies = [
 
 [[package]]
 name = "auths-stripe-subscription-create-demo"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-model",
  "auths-profile-api",
@@ -1608,7 +1608,7 @@ dependencies = [
 
 [[package]]
 name = "auths-stripe-subscription-modify-demo"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-model",
  "auths-profile-api",
@@ -1629,7 +1629,7 @@ dependencies = [
 
 [[package]]
 name = "auths-testkit"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-author",
  "auths-codec",
@@ -1657,7 +1657,7 @@ dependencies = [
 
 [[package]]
 name = "auths-verifier"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-assurance",
  "auths-authority",
@@ -1680,7 +1680,7 @@ dependencies = [
 
 [[package]]
 name = "auths-webauthn"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-model",
  "auths-ports",
@@ -6782,7 +6782,7 @@ dependencies = [
 
 [[package]]
 name = "xtask"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 dependencies = [
  "auths-apps-testkit",
  "auths-bench-model",

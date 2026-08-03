@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "auths"
-version = "0.1.0"
+version = "1.0.0rc1"
 description = "Embedded Auths SDK with offline proof verification"
 readme = "README.md"
 requires-python = ">=3.9"
