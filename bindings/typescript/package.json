@@ -1,6 +1,6 @@
 {
   "name": "@auths-dev/sdk",
-  "version": "0.1.0",
+  "version": "1.0.0-rc.1",
   "description": "Embedded Auths SDK for browser and Node",
   "type": "module",
   "exports": {

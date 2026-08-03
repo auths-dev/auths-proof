@@ -287,14 +287,17 @@ advice.
 Owner-decision subgate: PASSED
 Approved owner decisions: 11
 Unresolved owner decisions: 0
-Phase 7 entry: BLOCKED pending merge and entry-revision evidence
-Release implementation permitted on this unmerged decision branch: no
+AP-SPEC-034 naming gate: PASSED
+AP32-PR1 through AP32-PR4: MERGED
+AP32-PR5 repository-local candidate closure: PROPOSED
+Hosted preparation entry: BLOCKED pending explicitly authorized GitHub setting changes and exact merged-revision evidence
 Artifact publication permitted: no
 RC tag creation permitted: no
 Phase 8 claim publication permitted: no
 ```
 
-The owner-decision subgate does not establish the remaining Phase 7 entry
-conditions. Release implementation begins in a separate bounded PR only after
-this decision record is on `main` and the candidate entry revision has real,
-terminal evidence for the other AP-SPEC-032 Section 5 conditions.
+The owner-decision subgate does not establish the remaining Phase 7 gates.
+Repository-local preparation and promotion controls are implemented, but no
+setting change, hosted preparation, SLSA assessment, manifest approval, tag,
+or publication is implied. The current repository-local closure and remaining
+evidence are recorded in `release/CANDIDATE_CLOSURE.md`.

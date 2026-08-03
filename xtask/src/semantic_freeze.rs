@@ -4,7 +4,7 @@ use crate::*;
 
 const INVENTORY_PATH: &str = "release/semantic-freeze.json";
 const INVENTORY_SCHEMA: &str = "auths.semantic-freeze/1";
-const FREEZE_VERSION: u64 = 3;
+const FREEZE_VERSION: u64 = 4;
 const PUBLIC_RUST_ROOTS: [&str; 2] = ["auths", "auths-sdk"];
 const PUBLIC_RUST_CLOSURE: [&str; 28] = [
     "auths",
@@ -277,10 +277,10 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
     ];
 
     for (id, path) in frozen_byte_inventories()? {
-        let version = if path == "architecture/dependency-graph.json" {
-            2
-        } else {
-            1
+        let version = match path.as_str() {
+            "architecture/dependency-graph.json"
+            | "formal/qualification/aeneas/source-closure.json" => 2,
+            _ => 1,
         };
         entries.push(freeze_entry(
             &id,
@@ -305,6 +305,8 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         "docs/plans/PHASE_7_RELEASE_OWNER_DECISIONS.md".to_owned(),
         "release/public-naming.toml".to_owned(),
         "release/RELEASE_CONTROL.md".to_owned(),
+        "release/CANDIDATE_CLOSURE.md".to_owned(),
+        "release/RELEASE_CANDIDATE_NOTES.md".to_owned(),
         "release/release-manifest.contract-fixture.json".to_owned(),
         "release/release-manifest.schema.json".to_owned(),
         "release/release-subjects.toml".to_owned(),
@@ -319,7 +321,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
     ]);
     entries.push(freeze_entry(
         "auths.release.public-surface",
-        3,
+        4,
         FreezeClassification::ReleaseMetadata,
         &[
             "package-names",

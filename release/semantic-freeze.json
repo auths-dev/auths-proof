@@ -1,6 +1,6 @@
 {
   "schema": "auths.semantic-freeze/1",
-  "freezeVersion": 3,
+  "freezeVersion": 4,
   "publicSurface": {
     "rustRoots": [
       "auths",
@@ -187,7 +187,7 @@
     },
     {
       "id": "auths.frozen-bytes/formal/qualification/aeneas/source-closure.json",
-      "version": 1,
+      "version": 2,
       "classification": "frozen-bytes",
       "categories": [
         "canonical-generated-evidence"
@@ -195,7 +195,7 @@
       "owners": [
         "formal/qualification/aeneas/source-closure.json"
       ],
-      "sha256": "e5cff50a89968d3bcb7d775b07286df04d5a6dc673357b1ea3c34d1f7ef8b7e9"
+      "sha256": "27c7aedef636d079fe1552179a3de0eb72411b048fc3c79cbfaeff750010db0d"
     },
     {
       "id": "auths.frozen-bytes/product/fixtures/v1/bounded-policy/manifest.json",
@@ -592,7 +592,7 @@
     },
     {
       "id": "auths.release.public-surface",
-      "version": 3,
+      "version": 4,
       "classification": "release-metadata",
       "categories": [
         "package-names",
@@ -642,6 +642,8 @@
         "product/receipts/auths-receipts/Cargo.toml",
         "product/runtime/auths-runtime/Cargo.toml",
         "product/sdk/auths-sdk/Cargo.toml",
+        "release/CANDIDATE_CLOSURE.md",
+        "release/RELEASE_CANDIDATE_NOTES.md",
         "release/RELEASE_CONTROL.md",
         "release/public-naming.toml",
         "release/release-manifest.contract-fixture.json",
@@ -657,7 +659,7 @@
         "xtask/src/release_control.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "ca3d413ba2c22053c8eea12c2f41e10fca43faf6f320dd00e15933fc1c4ce3a0"
+      "sha256": "e01b51b3ef9d14e8749606fa621f12ef9bccdcbe470944a78ff20dd7f99c7f4f"
     }
   ]
 }

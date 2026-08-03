@@ -44,9 +44,11 @@ auto-detection are not accepted by the V1 adapter profiles.
 
 ## Stability status
 
-The crates are version `0.1.0`, prelaunch, and pre-audit. Until the launch
-candidate is explicitly frozen, the V1 label and checked-in corpus are
-provisional and may be replaced directly; there is no legacy decode promise.
-After freeze, the recorded API/wire baseline becomes the compatibility floor.
-External review remains a launch requirement and is not implied by corpus or
-CI success.
+The Rust and TypeScript packages are version `1.0.0-rc.1`; the equivalent
+Python distribution version is `1.0.0rc1`. They remain prelaunch, pre-audit
+release-candidate inputs. The semantic-freeze inventory records the exact V1
+meaning and checked-in corpus proposed for the candidate. An incompatible
+prelaunch correction requires a new semantic identity and RC ordinal; it does
+not create a legacy decode or migration promise. External review remains a
+launch requirement and is not implied by corpus, CI, preparation, provenance,
+or reproducibility success.

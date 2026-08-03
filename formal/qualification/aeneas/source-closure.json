@@ -1,15 +1,15 @@
 {
   "schema": "auths-proof-translation-source-closure/v2",
-  "digest": "deeaa08cb05e8b456b3f72dc0d01d281bb59815006db6ac4e04aa79f3abdfc08",
+  "digest": "9ae39095d7640648221d7eff5d4bd9b10260f45a0c9eb30331e3c60b6f422bb4",
   "files": [
     {
       "path": "Cargo.lock",
-      "sha256": "653b676eda207882d21e790326349ac0dd50b68f37ca4be5d6b49c0ee8890676",
+      "sha256": "5e15049f4f52dfecccc1b99bc62f9049e0d28846a2a7c695909fd740b31a2c1d",
       "normalization": "translated-cargo-closure-v1"
     },
     {
       "path": "Cargo.toml",
-      "sha256": "ad7c0b5266d3a37a722e952c8c2f4ee8971119364667c9a580b3f14dcd1a08e9",
+      "sha256": "9b81b88782ac8b8ec24ad72ec2889f3b66a9c69938960109cea7772f026dcc19",
       "normalization": "translated-cargo-closure-v1"
     },
     {
