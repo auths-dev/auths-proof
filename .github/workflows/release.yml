@@ -56,10 +56,13 @@ jobs:
         env:
           CANDIDATE_COMMIT: ${{ inputs.candidate_commit }}
           CANDIDATE_TAG: ${{ inputs.candidate_tag }}
+          DISPATCH_REF: ${{ github.ref }}
+          DISPATCH_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           [[ "$(git rev-parse HEAD)" == "$CANDIDATE_COMMIT" ]]
-          [[ "$CANDIDATE_COMMIT" == "$(git rev-parse origin/main)" ]]
+          [[ "$DISPATCH_REF" == "refs/heads/main" ]]
+          [[ "$CANDIDATE_COMMIT" == "$DISPATCH_SHA" ]]
           [[ -z "$(git status --porcelain)" ]]
           [[ "$CANDIDATE_TAG" == "auths-v$(sed -n 's/^version = "\([^"]*\)"/\1/p' Cargo.toml | head -1)" ]]
       - name: Refuse absent or unprotected release environment
