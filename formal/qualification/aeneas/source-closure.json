@@ -1,6 +1,6 @@
 {
   "schema": "auths-proof-translation-source-closure/v2",
-  "digest": "577cce65e8a62560003869578cde748cc73b2011e6580bd287fd1335579ea8d0",
+  "digest": "e615e035f3dc8cd0a840563ca0919265820fb6f3801d8e3b8309422ae0fc9b82",
   "files": [
     {
       "path": "Cargo.lock",
@@ -74,7 +74,7 @@
     },
     {
       "path": "product/runtime/auths-lifecycle/src/lib.rs",
-      "sha256": "30293d2929df024085baaf03bac9e6e87a78fabbf650f548bf9db294097f8f9a"
+      "sha256": "f09f1a8f4925fff3b2e59e08a895911e62e8ce5dd4aced312d7cd8b551376960"
     },
     {
       "path": "product/runtime/auths-lifecycle/src/model.rs",
