@@ -644,36 +644,48 @@ fn validate_translation_reports(root: &Path, qualification: &Qualification) -> R
 fn validate_workflow_gates(root: &Path) -> Result<(), String> {
     let ci = fs::read_to_string(root.join(".github/workflows/ci.yml"))
         .map_err(|error| format!("could not read hosted CI workflow: {error}"))?;
+    validate_gate_source(
+        "hosted CI",
+        &ci,
+        &[
+            "leanprover/lean-action@",
+            "kani-verifier --version 0.67.0",
+            "cargo xtask ci authoritative",
+            "cargo xtask ci formal-translation",
+            "cargo xtask ci compliance",
+            "target/formal/",
+        ],
+    )?;
+
     let release = fs::read_to_string(root.join(".github/workflows/release.yml"))
         .map_err(|error| format!("could not read release workflow: {error}"))?;
-    for (label, source, needles) in [
-        (
-            "hosted CI",
-            ci.as_str(),
-            &[
-                "leanprover/lean-action@",
-                "kani-verifier --version 0.67.0",
-                "cargo xtask ci authoritative",
-                "cargo xtask ci formal-translation",
-                "cargo xtask ci compliance",
-                "target/formal/",
-            ][..],
-        ),
-        (
-            "release CI",
-            release.as_str(),
-            &[
-                "leanprover/lean-action@",
-                "kani-verifier --version 0.67.0",
-                "cargo xtask release-check",
-                "cargo xtask formal qualify aeneas",
-            ][..],
-        ),
-    ] {
-        for needle in needles {
-            if !source.contains(needle) {
-                return Err(format!("{label} omits required formal gate `{needle}`"));
-            }
+    let builder = fs::read_to_string(root.join(".github/workflows/release-builder.yml"))
+        .map_err(|error| format!("could not read reusable release builder: {error}"))?;
+    validate_release_workflow_gates(&release, &builder)
+}
+
+fn validate_release_workflow_gates(orchestration: &str, builder: &str) -> Result<(), String> {
+    validate_gate_source(
+        "release orchestration",
+        orchestration,
+        &["uses: ./.github/workflows/release-builder.yml"],
+    )?;
+    validate_gate_source(
+        "reusable release builder",
+        builder,
+        &[
+            "leanprover/lean-action@",
+            "kani-verifier --version 0.67.0",
+            "cargo xtask release-check",
+            "cargo xtask formal qualify aeneas",
+        ],
+    )
+}
+
+fn validate_gate_source(label: &str, source: &str, needles: &[&str]) -> Result<(), String> {
+    for needle in needles {
+        if !source.contains(needle) {
+            return Err(format!("{label} omits required formal gate `{needle}`"));
         }
     }
     Ok(())
@@ -1227,4 +1239,37 @@ fn format_command_failure(arguments: &[String], directory: &Path, output: &Outpu
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const BUILDER_GATES: &str = "leanprover/lean-action@\nkani-verifier --version 0.67.0\ncargo xtask release-check\ncargo xtask formal qualify aeneas\n";
+
+    #[test]
+    fn reusable_release_builder_owns_formal_gates() {
+        validate_release_workflow_gates(
+            "uses: ./.github/workflows/release-builder.yml\n",
+            BUILDER_GATES,
+        )
+        .expect("reusable builder gates must satisfy release policy");
+    }
+
+    #[test]
+    fn orchestration_must_call_the_reviewed_builder() {
+        let error = validate_release_workflow_gates("workflow_dispatch:\n", BUILDER_GATES)
+            .expect_err("missing reusable builder call must fail");
+        assert!(error.contains("release orchestration omits required formal gate"));
+    }
+
+    #[test]
+    fn reusable_builder_cannot_omit_formal_gate() {
+        let error = validate_release_workflow_gates(
+            "uses: ./.github/workflows/release-builder.yml\n",
+            "cargo xtask release-check\n",
+        )
+        .expect_err("incomplete reusable builder must fail");
+        assert!(error.contains("reusable release builder omits required formal gate"));
+    }
 }
