@@ -142,9 +142,6 @@ pub(crate) fn release_check() -> Result<(), String> {
         validate_release_tag(&tag, env!("CARGO_PKG_VERSION"))?;
     }
     ci()?;
-    cargo(&["test", "--workspace", "--no-default-features"])?;
-    wire(false)?;
-    package_check()?;
     release_evidence()?;
     println!("release checks passed");
     Ok(())
@@ -787,7 +784,11 @@ fn write_deterministic_archive(
     for (relative, mode) in files {
         let bytes = fs::read(root().join(relative))
             .map_err(|error| format!("could not read archive input {relative}: {error}"))?;
-        let mut header = tar::Header::new_gnu();
+        // UStar keeps the path prefix in its dedicated 155-byte field. The
+        // GNU header layout reuses that field and therefore rejects otherwise
+        // valid repository paths once the release archive prefix pushes them
+        // beyond the 100-byte name field.
+        let mut header = tar::Header::new_ustar();
         header
             .set_path(Path::new(prefix).join(relative))
             .map_err(|error| format!("could not encode archive path {relative}: {error}"))?;
@@ -1760,7 +1761,14 @@ mod tests {
     fn release_archive_encoding_is_deterministic() {
         let first = root().join("target/release-archive-determinism-a.tar.zst");
         let second = root().join("target/release-archive-determinism-b.tar.zst");
-        let files = BTreeMap::from([("Cargo.toml".to_owned(), 0o644)]);
+        let files = BTreeMap::from([
+            ("Cargo.toml".to_owned(), 0o644),
+            (
+                "core/fixtures/v1/indeterminate/accepted-extension-without-handler.action.cbor"
+                    .to_owned(),
+                0o644,
+            ),
+        ]);
         write_deterministic_archive(&first, "auths-test", &files, 1)
             .expect("first deterministic archive");
         write_deterministic_archive(&second, "auths-test", &files, 1)

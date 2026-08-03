@@ -1,5 +1,54 @@
 # Phase 7 release readiness audit
 
+## Current deterministic preflight audit (2026-08-03)
+
+The current reusable release builder was audited from candidate validation
+through artifact upload after a preparation run exposed a nondeterministic
+OpenTofu concurrency-test failure. The production runtime had failed closed:
+one competing action executed and the other observed changed state. The test
+incorrectly assumed the loser could only receive a replay or conflict outcome.
+It now accepts the typed `StateChanged` outcome and repeats the synchronized
+race 32 times while proving that exactly one provider effect occurs.
+
+The audit also found that `release-check` used to run two deterministic gates
+only after the ordinary pull-request suite: workspace tests with default
+features disabled and canonical wire verification. Both now run through
+`release_preflight()` inside authoritative CI. `release-check` calls that same
+path through `ci()` and no longer repeats those gates or the package check.
+This makes the pull request, local release check, and hosted release builder
+share one implementation rather than three command lists that can drift.
+
+The end-to-end local audit then found a second late-only defect in release
+evidence assembly: the deterministic source archive used a GNU tar header whose
+single 100-byte name field could not encode a canonical fixture path after the
+release prefix was added. The archive now uses the UStar prefix field, and its
+determinism test includes the exact formerly failing fixture path. A complete
+local `cargo xtask release-check` subsequently passed and generated validated
+inputs for 28 crate archives and 33 total release subjects.
+
+### Current gate map
+
+| Builder stage | Pull-request or repository-local prevention | Why it remains in preparation |
+| --- | --- | --- |
+| Candidate commit, tag shape, repository IDs, clean checkout | Release workflow contract validation and release-control tests | The real commit, ref, and hosted repository context exist only at runtime |
+| Environment-bound OIDC subject | Pinned workflow text is checked by `release-contract` | A genuine GitHub OIDC token cannot be reproduced safely in local or pull-request CI |
+| Production source closure | Formal-translation CI checks the committed closure before tool setup | Rechecked against the exact candidate before expensive formal work |
+| Authoritative Rust checks | Authoritative CI runs format, architecture, semantic freeze, naming, repository policy, all-target/all-feature check, tests, Clippy, Rustdoc, MSRV, platform, and fuzz smoke | The isolated builder must verify the exact candidate independently |
+| Release compilation profiles | Authoritative CI now runs all workspace tests with no default features and canonical wire verification through `release_preflight()` | Rechecked through the same function in `release-check` |
+| Formal properties and exact translation | Formal-translation CI runs Lean, Kani, source-closure validation, and exact Aeneas/Charon reproduction twice | The builder reproduces the exact translation with its pinned tools and preserves candidate evidence |
+| Compliance and package subjects | Compliance CI runs ABI, exchange/product/profile/domain/matrix/binding/package/WASM/live-demo checks and emits its report | Candidate packages and compliance evidence are regenerated from the isolated checkout |
+| Dependency and secret policy | Dedicated CI phases run pinned cargo-deny and gitleaks | cargo-deny is rechecked with the builder's pinned release toolchain; secret scanning is source-history policy rather than an artifact-generation step |
+| Release-evidence generation | Schema, catalogue, workflow, archive, manifest, checksum, and adversarial validator tests run in ordinary CI | Final evidence assembly consumes formal, compliance, package, platform, and exact-commit outputs produced together in the isolated builder |
+| SLSA attestation and verification | Workflow contract tests pin the action, subject set, repository, issuer constraints, signer workflow, and digest checks | Signing, transparency data, and verification require the real protected environment and GitHub identity |
+| Manifest finalization and immutable upload | Release-control tests reject subject drift and rebuilding during promotion | Attestation bundle paths, hosted digests, and artifact IDs exist only in the preparation run |
+
+The remaining preparation-only work is deliberately limited to checks that
+need the actual protected GitHub identity or the complete set of exact outputs
+from one isolated build. A pull request must now fail before merge for either
+Rust feature profile, wire drift, the stressed OpenTofu race contract, package
+construction, formal drift, documentation warnings, dependency policy, or the
+other deterministic gates enumerated above.
+
 ## Status and reviewed baseline
 
 Historical read-only repository audit for AP-SPEC-032. It records the baseline
