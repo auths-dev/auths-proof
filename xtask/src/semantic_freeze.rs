@@ -277,10 +277,10 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
     ];
 
     for (id, path) in frozen_byte_inventories()? {
-        let version = if path == "architecture/dependency-graph.json" {
-            2
-        } else {
-            1
+        let version = match path.as_str() {
+            "architecture/dependency-graph.json"
+            | "formal/qualification/aeneas/source-closure.json" => 2,
+            _ => 1,
         };
         entries.push(freeze_entry(
             &id,

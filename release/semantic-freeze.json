@@ -187,7 +187,7 @@
     },
     {
       "id": "auths.frozen-bytes/formal/qualification/aeneas/source-closure.json",
-      "version": 1,
+      "version": 2,
       "classification": "frozen-bytes",
       "categories": [
         "canonical-generated-evidence"
@@ -195,7 +195,7 @@
       "owners": [
         "formal/qualification/aeneas/source-closure.json"
       ],
-      "sha256": "e5cff50a89968d3bcb7d775b07286df04d5a6dc673357b1ea3c34d1f7ef8b7e9"
+      "sha256": "27c7aedef636d079fe1552179a3de0eb72411b048fc3c79cbfaeff750010db0d"
     },
     {
       "id": "auths.frozen-bytes/product/fixtures/v1/bounded-policy/manifest.json",
@@ -659,7 +659,7 @@
         "xtask/src/release_control.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "fc26875c18b0c29edfa0addf648a9e5380b66cecaef8e0668b3f1f7be027ae50"
+      "sha256": "e01b51b3ef9d14e8749606fa621f12ef9bccdcbe470944a78ff20dd7f99c7f4f"
     }
   ]
 }
