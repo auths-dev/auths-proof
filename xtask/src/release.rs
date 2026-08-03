@@ -2,6 +2,57 @@
 
 use crate::*;
 
+const RELEASE_MANIFEST_SCHEMA: &str = "auths.release-manifest/1";
+const RELEASE_MANIFEST_INPUT_SCHEMA: &str = "auths.release-manifest-input/1";
+const RELEASE_SUBJECTS_SCHEMA: &str = "auths.release-subjects/1";
+const RELEASE_REPOSITORY: &str = "auths-dev/auths-proof";
+const REPRODUCIBILITY_CLASSES: [&str; 4] = [
+    "byte-identical",
+    "deterministic-evidence",
+    "platform-reproducible",
+    "provenance-only",
+];
+
+#[derive(Debug, Deserialize)]
+struct ReleaseSubjectCatalogue {
+    schema: String,
+    manifest_schema: String,
+    product: String,
+    repository: String,
+    first_rc_tag: String,
+    policy: String,
+    families: Vec<ReleaseSubjectFamily>,
+    excluded: Vec<ReleaseSubjectExclusion>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ReleaseSubjectFamily {
+    id: String,
+    coordinate: String,
+    media_type: String,
+    reproducibility: String,
+    producer: String,
+    publication: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct ReleaseSubjectExclusion {
+    id: String,
+    reason: String,
+}
+
+pub(crate) fn release_contract() -> Result<(), String> {
+    validate_release_contract_sources()?;
+    let fixture: Value = serde_json::from_slice(
+        &fs::read(root().join("release/release-manifest.contract-fixture.json"))
+            .map_err(|error| format!("could not read release-manifest fixture: {error}"))?,
+    )
+    .map_err(|error| format!("release-manifest fixture is not valid JSON: {error}"))?;
+    validate_release_manifest_value(&fixture)?;
+    println!("release-manifest schema and subject catalogue passed");
+    Ok(())
+}
+
 pub(crate) fn release_check() -> Result<(), String> {
     if env::var_os("CI").is_some() {
         let status = Command::new("git")
@@ -39,6 +90,7 @@ pub(crate) fn release_check() -> Result<(), String> {
 }
 
 pub(crate) fn release_evidence() -> Result<(), String> {
+    validate_release_contract_sources()?;
     let metadata = Command::new("cargo")
         .args(["metadata", "--format-version", "1", "--locked"])
         .current_dir(root())
@@ -88,7 +140,7 @@ pub(crate) fn release_evidence() -> Result<(), String> {
         .iter()
         .filter_map(Value::as_str)
         .collect();
-    let mut package_checksums = BTreeMap::new();
+    let mut subject_checksums = BTreeMap::new();
     for package in packages.iter().filter(|package| {
         package["id"]
             .as_str()
@@ -103,12 +155,29 @@ pub(crate) fn release_evidence() -> Result<(), String> {
             .ok_or("workspace package has no version")?;
         let relative = format!("target/package/{name}-{version}.crate");
         let digest = sha256_file(&root().join(&relative))?;
-        package_checksums.insert(relative, digest);
+        subject_checksums.insert(relative, digest);
     }
-    if package_checksums.is_empty() {
+    if subject_checksums.is_empty() {
         return Err("release packaging produced no crate archives".to_owned());
     }
-    let crate_archive_count = package_checksums.len();
+    let crate_archive_count = subject_checksums.len();
+    insert_single_artifact(
+        &mut subject_checksums,
+        "target/npm-package",
+        "tgz",
+        "npm SDK archive",
+    )?;
+    insert_single_artifact(
+        &mut subject_checksums,
+        "target/python-wheels",
+        "whl",
+        "Python SDK wheel",
+    )?;
+    let wasm_relative = "bindings/typescript/wasm/auths_proof_wasm_bg.wasm";
+    subject_checksums.insert(
+        wasm_relative.to_owned(),
+        sha256_file(&root().join(wasm_relative))?,
+    );
     let commit = Command::new("git")
         .args(["rev-parse", "HEAD"])
         .current_dir(root())
@@ -124,13 +193,18 @@ pub(crate) fn release_evidence() -> Result<(), String> {
     if !toolchain.status.success() {
         return Err("could not identify Rust toolchain".to_owned());
     }
-    let manifest = fs::read(root().join("core/fixtures/v1/manifest.json"))
+    let fixture_manifest = fs::read(root().join("core/fixtures/v1/manifest.json"))
         .map_err(|error| format!("could not read corpus manifest: {error}"))?;
     let evidence = root().join("target/release-evidence");
+    if evidence.exists() {
+        fs::remove_dir_all(&evidence)
+            .map_err(|error| format!("could not clear release evidence directory: {error}"))?;
+    }
     fs::create_dir_all(&evidence)
         .map_err(|error| format!("could not create release evidence directory: {error}"))?;
     let platform_path = evidence.join("platform.json");
     platform_artifact(&platform_path)?;
+    let mut evidence_checksums = BTreeMap::new();
     for relative in [
         "target/release-evidence/platform.json",
         "target/release-evidence/platform.sha256",
@@ -138,31 +212,58 @@ pub(crate) fn release_evidence() -> Result<(), String> {
         "target/compliance/report.json",
         "target/compliance/summary.txt",
     ] {
-        package_checksums.insert(relative.to_owned(), sha256_file(&root().join(relative))?);
+        evidence_checksums.insert(relative.to_owned(), sha256_file(&root().join(relative))?);
     }
-    let sbom = serde_json::to_vec_pretty(&json!({
+    let cyclone_dx = serde_json::to_vec_pretty(&json!({
         "bomFormat": "CycloneDX",
         "specVersion": "1.5",
         "version": 1,
         "components": components,
     }))
-    .map_err(|error| format!("could not encode SBOM: {error}"))?;
-    let sbom_path = evidence.join("sbom.cdx.json");
-    fs::write(&sbom_path, &sbom).map_err(|error| format!("could not write SBOM: {error}"))?;
-    let subjects: Vec<_> = package_checksums
+    .map_err(|error| format!("could not encode supplementary CycloneDX SBOM: {error}"))?;
+    let cyclone_dx_path = evidence.join("sbom.cdx.json");
+    fs::write(&cyclone_dx_path, &cyclone_dx)
+        .map_err(|error| format!("could not write supplementary CycloneDX SBOM: {error}"))?;
+    evidence_checksums.insert(
+        "target/release-evidence/sbom.cdx.json".to_owned(),
+        hex::encode(Sha256::digest(&cyclone_dx)),
+    );
+
+    let commit = String::from_utf8_lossy(&commit.stdout).trim().to_owned();
+    let subject_records = subject_checksums
         .iter()
-        .map(|(name, digest)| {
-            json!({
-                "name": name,
-                "digest": { "sha256": digest },
-            })
-        })
-        .collect();
-    let provenance = serde_json::to_vec_pretty(&json!({
-        "schema": "auths.release-evidence/1",
+        .map(|(name, digest)| release_subject_record(name, digest))
+        .collect::<Result<Vec<_>, _>>()?;
+    let spdx = generate_spdx(&metadata_value, &subject_records, &commit)?;
+    let spdx_bytes = pretty_json(&spdx, "SPDX 2.3 SBOM")?;
+    fs::write(evidence.join("sbom.spdx.json"), &spdx_bytes)
+        .map_err(|error| format!("could not write SPDX 2.3 SBOM: {error}"))?;
+    evidence_checksums.insert(
+        "target/release-evidence/sbom.spdx.json".to_owned(),
+        hex::encode(Sha256::digest(&spdx_bytes)),
+    );
+
+    let attestation_subjects = subject_checksums
+        .iter()
+        .map(|(name, digest)| format!("{digest}  {name}\n"))
+        .collect::<String>();
+    fs::write(
+        evidence.join("attestation-subjects.txt"),
+        &attestation_subjects,
+    )
+    .map_err(|error| format!("could not write attestation subject set: {error}"))?;
+    evidence_checksums.insert(
+        "target/release-evidence/attestation-subjects.txt".to_owned(),
+        hex::encode(Sha256::digest(attestation_subjects.as_bytes())),
+    );
+
+    let build_record = json!({
+        "schema": "auths.build-record/1",
+        "attestationStatus": "not-attested",
+        "limitation": "This deterministic record is an input to hosted attestation. It is not signed provenance and does not establish SLSA Build Level 3.",
         "source": {
-            "commit": String::from_utf8_lossy(&commit.stdout).trim(),
-            "repository": env::var("GITHUB_REPOSITORY").ok(),
+            "commit": commit,
+            "repository": RELEASE_REPOSITORY,
             "ref": env::var("GITHUB_REF").ok(),
         },
         "build": {
@@ -172,40 +273,395 @@ pub(crate) fn release_evidence() -> Result<(), String> {
             "workflow_run_attempt": env::var("GITHUB_RUN_ATTEMPT").ok(),
         },
         "inputs": {
-            "corpus_manifest_sha256": hex::encode(Sha256::digest(manifest)),
+            "corpus_manifest_sha256": hex::encode(Sha256::digest(fixture_manifest)),
             "wire_schema": "core/spec/v1/auths-proof.cddl",
             "configuration_commitments": [
                 "PortableVerificationResult.required_configuration",
                 "PortableVerificationResult.local_configuration",
             ],
         },
-        "subjects": subjects,
-    }))
-    .map_err(|error| format!("could not encode provenance: {error}"))?;
-    let provenance_path = evidence.join("provenance.json");
-    fs::write(&provenance_path, &provenance)
-        .map_err(|error| format!("could not write provenance: {error}"))?;
-    let mut checksums = package_checksums;
-    checksums.insert(
-        "target/release-evidence/sbom.cdx.json".to_owned(),
-        hex::encode(Sha256::digest(&sbom)),
+        "subjects": &subject_records,
+    });
+    let build_record_bytes = pretty_json(&build_record, "unsigned build record")?;
+    fs::write(evidence.join("build-record.json"), &build_record_bytes)
+        .map_err(|error| format!("could not write unsigned build record: {error}"))?;
+    evidence_checksums.insert(
+        "target/release-evidence/build-record.json".to_owned(),
+        hex::encode(Sha256::digest(&build_record_bytes)),
     );
-    checksums.insert(
-        "target/release-evidence/provenance.json".to_owned(),
-        hex::encode(Sha256::digest(&provenance)),
+
+    let semantic_freeze_path = "release/semantic-freeze.json";
+    let manifest_input = json!({
+        "schema": RELEASE_MANIFEST_INPUT_SCHEMA,
+        "targetSchema": RELEASE_MANIFEST_SCHEMA,
+        "release": {
+            "tag": format!("auths-v{}", env!("CARGO_PKG_VERSION")),
+            "status": "preparation-input",
+        },
+        "source": {
+            "repository": RELEASE_REPOSITORY,
+            "commit": commit,
+        },
+        "semanticFreeze": {
+            "path": semantic_freeze_path,
+            "sha256": sha256_file(&root().join(semantic_freeze_path))?,
+        },
+        "subjects": &subject_records,
+        "evidenceInputs": evidence_checksums.iter().map(|(path, sha256)| json!({
+            "path": path,
+            "sha256": sha256,
+        })).collect::<Vec<_>>(),
+        "requiredBeforeFinalManifest": [
+            "signed hosted-build provenance whose subjects exactly equal attestation-subjects.txt",
+            "SLSA 1.2 Build Level 3 assessment for every subject",
+            "second isolated preparation and reproducibility comparison",
+            "source archive and assurance bundle digests",
+        ],
+    });
+    let manifest_input_bytes = pretty_json(&manifest_input, "release-manifest input")?;
+    fs::write(
+        evidence.join("release-manifest.input.json"),
+        &manifest_input_bytes,
+    )
+    .map_err(|error| format!("could not write release-manifest input: {error}"))?;
+    evidence_checksums.insert(
+        "target/release-evidence/release-manifest.input.json".to_owned(),
+        hex::encode(Sha256::digest(&manifest_input_bytes)),
     );
+
+    let mut checksums = subject_checksums.clone();
+    checksums.extend(evidence_checksums);
     let checksum_manifest = checksums
         .iter()
         .map(|(path, digest)| format!("{digest}  {path}\n"))
         .collect::<String>();
     fs::write(evidence.join("SHA256SUMS"), checksum_manifest)
         .map_err(|error| format!("could not write release checksums: {error}"))?;
-    validate_release_evidence(&evidence, &checksums)?;
+    validate_release_evidence(&evidence, &subject_checksums, &checksums)?;
     println!(
-        "generated and validated release evidence for {} crate archives",
-        crate_archive_count
+        "generated release-manifest inputs and validated release evidence for {crate_archive_count} crate archives and {} total subjects; no signed provenance or final candidate manifest was emitted",
+        subject_checksums.len()
     );
     Ok(())
+}
+
+fn validate_release_contract_sources() -> Result<(), String> {
+    let schema: Value = serde_json::from_slice(
+        &fs::read(root().join("release/release-manifest.schema.json"))
+            .map_err(|error| format!("could not read release-manifest schema: {error}"))?,
+    )
+    .map_err(|error| format!("release-manifest schema is not valid JSON: {error}"))?;
+    if schema["$schema"] != "https://json-schema.org/draft/2020-12/schema"
+        || schema["properties"]["schema"]["const"] != RELEASE_MANIFEST_SCHEMA
+        || schema["properties"]["release"]["properties"]["status"]["const"] != "release-candidate"
+    {
+        return Err("release-manifest schema identity or release status drifted".to_owned());
+    }
+
+    let catalogue: ReleaseSubjectCatalogue = toml::from_str(
+        &fs::read_to_string(root().join("release/release-subjects.toml"))
+            .map_err(|error| format!("could not read release subject catalogue: {error}"))?,
+    )
+    .map_err(|error| format!("could not parse release subject catalogue: {error}"))?;
+    validate_release_subject_catalogue(&catalogue)
+}
+
+fn validate_release_subject_catalogue(catalogue: &ReleaseSubjectCatalogue) -> Result<(), String> {
+    if catalogue.schema != RELEASE_SUBJECTS_SCHEMA
+        || catalogue.manifest_schema != RELEASE_MANIFEST_SCHEMA
+        || catalogue.product != "Auths"
+        || catalogue.repository != RELEASE_REPOSITORY
+        || catalogue.first_rc_tag != "auths-v1.0.0-rc.1"
+        || catalogue.policy.trim().is_empty()
+    {
+        return Err("release subject catalogue authority drifted".to_owned());
+    }
+    let expected = BTreeSet::from([
+        "assurance-bundle",
+        "python-sdk",
+        "rust-crates",
+        "source-archive",
+        "typescript-sdk",
+        "wasm-module",
+    ]);
+    let mut actual = BTreeSet::new();
+    for family in &catalogue.families {
+        if !actual.insert(family.id.as_str()) {
+            return Err(format!("duplicate release subject family: {}", family.id));
+        }
+        if !REPRODUCIBILITY_CLASSES.contains(&family.reproducibility.as_str()) {
+            return Err(format!(
+                "unsupported reproducibility class for {}: {}",
+                family.id, family.reproducibility
+            ));
+        }
+        if [
+            family.coordinate.as_str(),
+            family.media_type.as_str(),
+            family.producer.as_str(),
+            family.publication.as_str(),
+        ]
+        .iter()
+        .any(|value| value.trim().is_empty())
+        {
+            return Err(format!(
+                "release subject family {} is incomplete",
+                family.id
+            ));
+        }
+    }
+    if actual != expected {
+        return Err(format!(
+            "release subject family set drifted; expected {expected:?}, got {actual:?}"
+        ));
+    }
+    let mut exclusions = BTreeSet::new();
+    for exclusion in &catalogue.excluded {
+        if exclusion.id.trim().is_empty()
+            || exclusion.reason.trim().is_empty()
+            || !exclusions.insert(exclusion.id.as_str())
+        {
+            return Err("release subject exclusion is incomplete or duplicated".to_owned());
+        }
+    }
+    if exclusions.is_empty() {
+        return Err("release subject catalogue has no explicit exclusions".to_owned());
+    }
+    Ok(())
+}
+
+fn insert_single_artifact(
+    checksums: &mut BTreeMap<String, String>,
+    relative_directory: &str,
+    extension: &str,
+    label: &str,
+) -> Result<(), String> {
+    let directory = root().join(relative_directory);
+    let mut matches = fs::read_dir(&directory)
+        .map_err(|error| {
+            format!(
+                "could not list {label} directory {}: {error}",
+                directory.display()
+            )
+        })?
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .filter(|path| path.extension().and_then(|value| value.to_str()) == Some(extension))
+        .collect::<Vec<_>>();
+    matches.sort();
+    if matches.len() != 1 {
+        return Err(format!(
+            "expected exactly one {label} in {}, found {}",
+            directory.display(),
+            matches.len()
+        ));
+    }
+    let relative = matches[0]
+        .strip_prefix(root())
+        .map_err(|_| format!("{label} escaped repository root"))?;
+    let relative = path_text(relative)?;
+    checksums.insert(relative.to_owned(), sha256_file(&matches[0])?);
+    Ok(())
+}
+
+fn release_subject_record(name: &str, sha256: &str) -> Result<Value, String> {
+    validate_safe_relative_path(name)?;
+    validate_sha256(sha256)?;
+    let path = root().join(name);
+    let size = fs::metadata(&path)
+        .map_err(|error| format!("could not inspect release subject {name}: {error}"))?
+        .len();
+    if size == 0 {
+        return Err(format!("release subject is empty: {name}"));
+    }
+    let (media_type, reproducibility, platform) = if name.ends_with(".crate") {
+        ("application/vnd.rust.crate", "byte-identical", None)
+    } else if name.ends_with(".tgz") {
+        ("application/gzip", "byte-identical", None)
+    } else if name.ends_with(".whl") {
+        (
+            "application/vnd.python.wheel",
+            "platform-reproducible",
+            Some(format!("{}-{}", env::consts::OS, env::consts::ARCH)),
+        )
+    } else if name.ends_with(".wasm") {
+        (
+            "application/wasm",
+            "platform-reproducible",
+            Some("wasm32-unknown-unknown".to_owned()),
+        )
+    } else {
+        return Err(format!(
+            "release subject has no approved media type: {name}"
+        ));
+    };
+    let mut record = json!({
+        "name": name,
+        "mediaType": media_type,
+        "size": size,
+        "sha256": sha256,
+        "reproducibility": reproducibility,
+    });
+    if let Some(platform) = platform {
+        record["platform"] = Value::String(platform);
+    }
+    Ok(record)
+}
+
+fn generate_spdx(metadata: &Value, subjects: &[Value], commit: &str) -> Result<Value, String> {
+    let packages = metadata["packages"]
+        .as_array()
+        .ok_or("cargo metadata has no packages for SPDX generation")?;
+    let workspace_members: BTreeSet<_> = metadata["workspace_members"]
+        .as_array()
+        .ok_or("cargo metadata has no workspace members for SPDX generation")?
+        .iter()
+        .filter_map(Value::as_str)
+        .collect();
+    let mut package_ids = BTreeMap::new();
+    let mut spdx_packages = Vec::new();
+    for package in packages {
+        let id = package["id"].as_str().ok_or("Cargo package has no id")?;
+        let name = package["name"]
+            .as_str()
+            .ok_or("Cargo package has no name")?;
+        let version = package["version"]
+            .as_str()
+            .ok_or("Cargo package has no version")?;
+        let spdx_id = format!(
+            "SPDXRef-Package-{}-{}",
+            sanitize_spdx(name),
+            &hex::encode(Sha256::digest(id.as_bytes()))[..12]
+        );
+        package_ids.insert(id, spdx_id.clone());
+        let license = package["license"].as_str().unwrap_or("NOASSERTION");
+        spdx_packages.push(json!({
+            "SPDXID": spdx_id,
+            "name": name,
+            "versionInfo": version,
+            "downloadLocation": "NOASSERTION",
+            "filesAnalyzed": false,
+            "licenseConcluded": "NOASSERTION",
+            "licenseDeclared": license,
+            "copyrightText": "NOASSERTION",
+            "externalRefs": [{
+                "referenceCategory": "PACKAGE-MANAGER",
+                "referenceType": "purl",
+                "referenceLocator": format!("pkg:cargo/{name}@{version}"),
+            }],
+        }));
+    }
+    spdx_packages.sort_by(|left, right| left["SPDXID"].as_str().cmp(&right["SPDXID"].as_str()));
+
+    let mut files = Vec::new();
+    let mut relationships = BTreeSet::new();
+    for subject in subjects {
+        let name = subject["name"]
+            .as_str()
+            .ok_or("release subject has no name")?;
+        let digest = subject["sha256"]
+            .as_str()
+            .ok_or("release subject has no SHA-256")?;
+        let file_id = format!("SPDXRef-Artifact-{}-{}", sanitize_spdx(name), &digest[..12]);
+        files.push(json!({
+            "SPDXID": file_id,
+            "fileName": name,
+            "checksums": [{ "algorithm": "SHA256", "checksumValue": digest }],
+            "licenseConcluded": "NOASSERTION",
+            "copyrightText": "NOASSERTION",
+        }));
+        relationships.insert(format!("SPDXRef-DOCUMENT\tDESCRIBES\t{file_id}"));
+    }
+    files.sort_by(|left, right| left["fileName"].as_str().cmp(&right["fileName"].as_str()));
+
+    if let Some(nodes) = metadata["resolve"]["nodes"].as_array() {
+        for node in nodes {
+            let Some(from) = node["id"].as_str().and_then(|id| package_ids.get(id)) else {
+                continue;
+            };
+            if workspace_members.contains(node["id"].as_str().unwrap_or_default()) {
+                relationships.insert(format!("SPDXRef-DOCUMENT\tDESCRIBES\t{from}"));
+            }
+            if let Some(dependencies) = node["dependencies"].as_array() {
+                for dependency in dependencies.iter().filter_map(Value::as_str) {
+                    if let Some(to) = package_ids.get(dependency) {
+                        relationships.insert(format!("{from}\tDEPENDS_ON\t{to}"));
+                    }
+                }
+            }
+        }
+    }
+    let relationships = relationships
+        .into_iter()
+        .map(|line| {
+            let mut parts = line.split('\t');
+            json!({
+                "spdxElementId": parts.next().unwrap_or_default(),
+                "relationshipType": parts.next().unwrap_or_default(),
+                "relatedSpdxElement": parts.next().unwrap_or_default(),
+            })
+        })
+        .collect::<Vec<_>>();
+    let created = git_commit_timestamp()?;
+    Ok(json!({
+        "spdxVersion": "SPDX-2.3",
+        "dataLicense": "CC0-1.0",
+        "SPDXID": "SPDXRef-DOCUMENT",
+        "name": format!("auths-{}-release-inputs", env!("CARGO_PKG_VERSION")),
+        "documentNamespace": format!("https://auths.dev/spdx/{commit}"),
+        "creationInfo": {
+            "created": created,
+            "creators": [format!("Tool: auths-xtask/{}", env!("CARGO_PKG_VERSION"))],
+        },
+        "packages": spdx_packages,
+        "files": files,
+        "relationships": relationships,
+    }))
+}
+
+fn git_commit_timestamp() -> Result<String, String> {
+    let output = Command::new("git")
+        .args([
+            "show",
+            "-s",
+            "--format=%cd",
+            "--date=format-local:%Y-%m-%dT%H:%M:%SZ",
+            "HEAD",
+        ])
+        .env("TZ", "UTC")
+        .current_dir(root())
+        .output()
+        .map_err(|error| format!("could not read commit timestamp: {error}"))?;
+    if !output.status.success() {
+        return Err("could not read commit timestamp".to_owned());
+    }
+    let timestamp = String::from_utf8_lossy(&output.stdout).trim().to_owned();
+    if timestamp.len() != 20 || !timestamp.ends_with('Z') {
+        return Err(format!(
+            "commit timestamp is not normalized UTC: {timestamp}"
+        ));
+    }
+    Ok(timestamp)
+}
+
+fn sanitize_spdx(value: &str) -> String {
+    value
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() || matches!(character, '.' | '-') {
+                character
+            } else {
+                '-'
+            }
+        })
+        .collect()
+}
+
+fn pretty_json(value: &Value, label: &str) -> Result<Vec<u8>, String> {
+    let mut bytes = serde_json::to_vec_pretty(value)
+        .map_err(|error| format!("could not encode {label}: {error}"))?;
+    bytes.push(b'\n');
+    Ok(bytes)
 }
 
 pub(crate) fn platform_artifact(output: &Path) -> Result<(), String> {
@@ -442,32 +898,113 @@ pub(crate) fn sha256_file(path: &Path) -> Result<String, String> {
 
 pub(crate) fn validate_release_evidence(
     evidence: &Path,
+    subjects: &BTreeMap<String, String>,
     checksums: &BTreeMap<String, String>,
 ) -> Result<(), String> {
-    let sbom: Value = serde_json::from_slice(
+    let spdx: Value = serde_json::from_slice(
+        &fs::read(evidence.join("sbom.spdx.json"))
+            .map_err(|error| format!("could not read generated SPDX SBOM: {error}"))?,
+    )
+    .map_err(|error| format!("generated SPDX SBOM is not valid JSON: {error}"))?;
+    if spdx["spdxVersion"] != "SPDX-2.3"
+        || spdx["dataLicense"] != "CC0-1.0"
+        || spdx["SPDXID"] != "SPDXRef-DOCUMENT"
+        || spdx["packages"].as_array().is_none_or(Vec::is_empty)
+        || spdx["relationships"].as_array().is_none_or(Vec::is_empty)
+    {
+        return Err("generated SPDX 2.3 SBOM is incomplete".to_owned());
+    }
+    validate_spdx_package_metadata(&spdx)?;
+    let spdx_subjects = spdx["files"]
+        .as_array()
+        .ok_or("generated SPDX SBOM has no subject files")?
+        .iter()
+        .map(|file| {
+            let name = file["fileName"]
+                .as_str()
+                .ok_or("SPDX subject file has no fileName")?;
+            let digest = file["checksums"]
+                .as_array()
+                .and_then(|checksums| {
+                    checksums
+                        .iter()
+                        .find(|checksum| checksum["algorithm"] == "SHA256")
+                })
+                .and_then(|checksum| checksum["checksumValue"].as_str())
+                .ok_or("SPDX subject file has no SHA256 checksum")?;
+            Ok((name.to_owned(), digest.to_owned()))
+        })
+        .collect::<Result<BTreeMap<_, _>, String>>()?;
+    validate_subject_coverage("SPDX", &spdx_subjects, subjects)?;
+
+    let cyclone_dx: Value = serde_json::from_slice(
         &fs::read(evidence.join("sbom.cdx.json"))
-            .map_err(|error| format!("could not read generated SBOM: {error}"))?,
+            .map_err(|error| format!("could not read supplementary CycloneDX SBOM: {error}"))?,
     )
-    .map_err(|error| format!("generated SBOM is not valid JSON: {error}"))?;
-    if sbom["bomFormat"] != "CycloneDX"
-        || sbom["specVersion"] != "1.5"
-        || sbom["version"] != 1
-        || sbom["components"].as_array().is_none_or(Vec::is_empty)
-    {
-        return Err("generated SBOM is incomplete".to_owned());
-    }
-    let provenance: Value = serde_json::from_slice(
-        &fs::read(evidence.join("provenance.json"))
-            .map_err(|error| format!("could not read generated provenance: {error}"))?,
-    )
-    .map_err(|error| format!("generated provenance is not valid JSON: {error}"))?;
-    if provenance["schema"] != "auths.release-evidence/1"
-        || provenance["subjects"]
+    .map_err(|error| format!("supplementary CycloneDX SBOM is not valid JSON: {error}"))?;
+    if cyclone_dx["bomFormat"] != "CycloneDX"
+        || cyclone_dx["specVersion"] != "1.5"
+        || cyclone_dx["components"]
             .as_array()
-            .is_none_or(|subjects| subjects.len() != checksums.len() - 2)
+            .is_none_or(Vec::is_empty)
     {
-        return Err("generated provenance is incomplete".to_owned());
+        return Err("supplementary CycloneDX SBOM is incomplete".to_owned());
     }
+
+    let build_record: Value = serde_json::from_slice(
+        &fs::read(evidence.join("build-record.json"))
+            .map_err(|error| format!("could not read unsigned build record: {error}"))?,
+    )
+    .map_err(|error| format!("unsigned build record is not valid JSON: {error}"))?;
+    if build_record["schema"] != "auths.build-record/1"
+        || build_record["attestationStatus"] != "not-attested"
+        || build_record["limitation"]
+            .as_str()
+            .is_none_or(|limitation| !limitation.contains("not signed provenance"))
+        || validate_subject_coverage(
+            "unsigned build record",
+            &subject_map(&build_record)?,
+            subjects,
+        )
+        .is_err()
+    {
+        return Err("unsigned build record is incomplete or overclaims provenance".to_owned());
+    }
+
+    let manifest_input: Value = serde_json::from_slice(
+        &fs::read(evidence.join("release-manifest.input.json"))
+            .map_err(|error| format!("could not read release-manifest input: {error}"))?,
+    )
+    .map_err(|error| format!("release-manifest input is not valid JSON: {error}"))?;
+    if manifest_input["schema"] != RELEASE_MANIFEST_INPUT_SCHEMA
+        || manifest_input["targetSchema"] != RELEASE_MANIFEST_SCHEMA
+        || manifest_input["release"]["status"] != "preparation-input"
+        || manifest_input["source"]["repository"] != RELEASE_REPOSITORY
+        || validate_subject_coverage(
+            "release-manifest input",
+            &subject_map(&manifest_input)?,
+            subjects,
+        )
+        .is_err()
+        || manifest_input["requiredBeforeFinalManifest"]
+            .as_array()
+            .is_none_or(|requirements| requirements.len() < 4)
+    {
+        return Err(
+            "release-manifest input is incomplete or claims candidate completion".to_owned(),
+        );
+    }
+
+    let expected_attestation_subjects = subjects
+        .iter()
+        .map(|(name, digest)| format!("{digest}  {name}\n"))
+        .collect::<String>();
+    let actual_attestation_subjects = fs::read_to_string(evidence.join("attestation-subjects.txt"))
+        .map_err(|error| format!("could not read attestation subject set: {error}"))?;
+    if actual_attestation_subjects != expected_attestation_subjects {
+        return Err("hosted-attestation subject set differs from release subjects".to_owned());
+    }
+
     let expected_manifest = checksums
         .iter()
         .map(|(path, digest)| format!("{digest}  {path}\n"))
@@ -488,6 +1025,185 @@ pub(crate) fn validate_release_evidence(
     Ok(())
 }
 
+fn subject_map(document: &Value) -> Result<BTreeMap<String, String>, String> {
+    document["subjects"]
+        .as_array()
+        .ok_or("release document has no subjects")?
+        .iter()
+        .map(|subject| {
+            let name = subject["name"]
+                .as_str()
+                .ok_or("release subject has no name")?;
+            let digest = subject["sha256"]
+                .as_str()
+                .or_else(|| subject["digest"]["sha256"].as_str())
+                .ok_or("release subject has no SHA-256")?;
+            Ok((name.to_owned(), digest.to_owned()))
+        })
+        .collect()
+}
+
+fn validate_subject_coverage(
+    label: &str,
+    actual: &BTreeMap<String, String>,
+    expected: &BTreeMap<String, String>,
+) -> Result<(), String> {
+    if actual != expected {
+        return Err(format!(
+            "{label} subject coverage differs from release subjects"
+        ));
+    }
+    Ok(())
+}
+
+fn validate_spdx_package_metadata(spdx: &Value) -> Result<(), String> {
+    for package in spdx["packages"]
+        .as_array()
+        .ok_or("SPDX document has no packages")?
+    {
+        let name = package["name"].as_str().ok_or("SPDX package has no name")?;
+        if package["versionInfo"].as_str().is_none_or(str::is_empty)
+            || package["licenseDeclared"]
+                .as_str()
+                .is_none_or(|license| license.is_empty() || license == "NOASSERTION")
+            || package["externalRefs"].as_array().is_none_or(Vec::is_empty)
+        {
+            return Err(format!("SPDX package metadata is incomplete: {name}"));
+        }
+    }
+    Ok(())
+}
+
+fn validate_release_manifest_value(manifest: &Value) -> Result<(), String> {
+    if manifest["schema"] != RELEASE_MANIFEST_SCHEMA {
+        return Err("unknown release-manifest schema".to_owned());
+    }
+    let tag = manifest["release"]["tag"]
+        .as_str()
+        .ok_or("release manifest has no tag")?;
+    validate_release_candidate_tag(tag)?;
+    if manifest["release"]["status"] != "release-candidate" {
+        return Err("release manifest is not explicitly a release candidate".to_owned());
+    }
+    if manifest["source"]["repository"] != RELEASE_REPOSITORY {
+        return Err("release manifest repository identity differs".to_owned());
+    }
+    validate_full_commit(
+        manifest["source"]["commit"]
+            .as_str()
+            .ok_or("release manifest has no source commit")?,
+    )?;
+    validate_digest_reference(&manifest["semanticFreeze"])?;
+
+    let subjects = manifest["subjects"]
+        .as_array()
+        .ok_or("release manifest has no subjects")?;
+    if subjects.is_empty() {
+        return Err("release manifest has no subjects".to_owned());
+    }
+    let mut names = BTreeSet::new();
+    for subject in subjects {
+        let name = subject["name"]
+            .as_str()
+            .ok_or("release subject has no name")?;
+        validate_safe_relative_path(name)?;
+        if !names.insert(name) {
+            return Err(format!("duplicate release subject name: {name}"));
+        }
+        if subject["mediaType"].as_str().is_none_or(str::is_empty)
+            || subject["size"].as_u64().is_none_or(|size| size == 0)
+        {
+            return Err(format!("release subject metadata is incomplete: {name}"));
+        }
+        validate_sha256(
+            subject["sha256"]
+                .as_str()
+                .ok_or("release subject has no SHA-256")?,
+        )?;
+        let reproducibility = subject["reproducibility"]
+            .as_str()
+            .ok_or("release subject has no reproducibility class")?;
+        if !REPRODUCIBILITY_CLASSES.contains(&reproducibility) {
+            return Err(format!(
+                "unsupported release subject reproducibility class: {reproducibility}"
+            ));
+        }
+        if reproducibility == "provenance-only"
+            && subject["limitation"].as_str().is_none_or(str::is_empty)
+        {
+            return Err(format!(
+                "provenance-only subject has no named limitation: {name}"
+            ));
+        }
+    }
+    let evidence = &manifest["evidence"];
+    for field in ["spdx", "provenance", "conformance", "benchmarks"] {
+        let references = evidence[field]
+            .as_array()
+            .ok_or_else(|| format!("release manifest evidence has no {field} array"))?;
+        if references.is_empty() {
+            return Err(format!("release manifest evidence {field} is empty"));
+        }
+        for reference in references {
+            validate_digest_reference(reference)?;
+        }
+    }
+    validate_digest_reference(&evidence["formalManifest"])
+}
+
+fn validate_digest_reference(reference: &Value) -> Result<(), String> {
+    validate_safe_relative_path(
+        reference["path"]
+            .as_str()
+            .ok_or("digest reference has no path")?,
+    )?;
+    validate_sha256(
+        reference["sha256"]
+            .as_str()
+            .ok_or("digest reference has no SHA-256")?,
+    )
+}
+
+fn validate_safe_relative_path(path: &str) -> Result<(), String> {
+    let candidate = Path::new(path);
+    if path.is_empty()
+        || candidate.is_absolute()
+        || candidate.components().any(|component| {
+            matches!(
+                component,
+                std::path::Component::ParentDir
+                    | std::path::Component::RootDir
+                    | std::path::Component::Prefix(_)
+            )
+        })
+    {
+        return Err(format!("release path escapes its root: {path}"));
+    }
+    Ok(())
+}
+
+fn validate_sha256(digest: &str) -> Result<(), String> {
+    if digest.len() != 64
+        || !digest
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    {
+        return Err(format!("invalid SHA-256 digest: {digest}"));
+    }
+    Ok(())
+}
+
+fn validate_full_commit(commit: &str) -> Result<(), String> {
+    if commit.len() != 40
+        || !commit
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    {
+        return Err("release manifest source commit is not a full Git SHA".to_owned());
+    }
+    Ok(())
+}
+
 fn validate_release_tag(tag: &str, version: &str) -> Result<(), String> {
     let expected = format!("auths-v{version}");
     if tag != expected {
@@ -498,9 +1214,66 @@ fn validate_release_tag(tag: &str, version: &str) -> Result<(), String> {
     Ok(())
 }
 
+fn validate_release_candidate_tag(tag: &str) -> Result<(), String> {
+    let version = tag
+        .strip_prefix("auths-v")
+        .ok_or_else(|| format!("release candidate tag has wrong product prefix: {tag}"))?;
+    let (core, ordinal) = version
+        .rsplit_once("-rc.")
+        .ok_or_else(|| format!("release candidate tag has no RC ordinal: {tag}"))?;
+    let components = core.split('.').collect::<Vec<_>>();
+    if components.len() != 3
+        || components.iter().any(|component| {
+            component.is_empty() || !component.bytes().all(|byte| byte.is_ascii_digit())
+        })
+        || ordinal
+            .parse::<u64>()
+            .ok()
+            .is_none_or(|ordinal| ordinal == 0)
+    {
+        return Err(format!(
+            "release candidate tag is not valid semver RC form: {tag}"
+        ));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn digest_reference(path: &str) -> Value {
+        json!({ "path": path, "sha256": "a".repeat(64) })
+    }
+
+    fn valid_manifest() -> Value {
+        json!({
+            "schema": RELEASE_MANIFEST_SCHEMA,
+            "release": {
+                "tag": "auths-v1.0.0-rc.1",
+                "status": "release-candidate",
+            },
+            "source": {
+                "repository": RELEASE_REPOSITORY,
+                "commit": "b".repeat(40),
+            },
+            "semanticFreeze": digest_reference("release/semantic-freeze.json"),
+            "subjects": [{
+                "name": "target/package/auths-1.0.0-rc.1.crate",
+                "mediaType": "application/vnd.rust.crate",
+                "size": 42,
+                "sha256": "c".repeat(64),
+                "reproducibility": "byte-identical",
+            }],
+            "evidence": {
+                "spdx": [digest_reference("evidence/sbom.spdx.json")],
+                "provenance": [digest_reference("evidence/provenance.sigstore.json")],
+                "formalManifest": digest_reference("formal/assurance-manifest-v1.toml"),
+                "conformance": [digest_reference("evidence/conformance.json")],
+                "benchmarks": [digest_reference("evidence/benchmarks.json")],
+            },
+        })
+    }
 
     #[test]
     fn release_tag_matches_workspace_version() {
@@ -520,5 +1293,149 @@ mod tests {
         let error = validate_release_tag("auths-v1.0.0-rc.2", "1.0.0-rc.1")
             .expect_err("wrong release version must fail");
         assert!(error.contains("expected auths-v1.0.0-rc.1"));
+    }
+
+    #[test]
+    fn release_candidate_tag_rejects_zero_ordinal() {
+        let error = validate_release_candidate_tag("auths-v1.0.0-rc.0")
+            .expect_err("zero RC ordinal must fail");
+        assert!(error.contains("not valid semver RC form"));
+    }
+
+    #[test]
+    fn spdx_subject_coverage_rejects_missing_subject() {
+        let expected = BTreeMap::from([
+            ("auths.crate".to_owned(), "a".repeat(64)),
+            ("auths.wasm".to_owned(), "b".repeat(64)),
+        ]);
+        let actual = BTreeMap::from([("auths.crate".to_owned(), "a".repeat(64))]);
+        let error = validate_subject_coverage("SPDX", &actual, &expected)
+            .expect_err("missing SPDX subject must fail");
+        assert!(error.contains("SPDX subject coverage differs"));
+    }
+
+    #[test]
+    fn provenance_subject_coverage_rejects_wrong_digest() {
+        let expected = BTreeMap::from([("auths.crate".to_owned(), "a".repeat(64))]);
+        let actual = BTreeMap::from([("auths.crate".to_owned(), "b".repeat(64))]);
+        let error = validate_subject_coverage("signed provenance", &actual, &expected)
+            .expect_err("wrong provenance subject digest must fail");
+        assert!(error.contains("signed provenance subject coverage differs"));
+    }
+
+    #[test]
+    fn spdx_package_metadata_rejects_missing_declared_license() {
+        let spdx = json!({
+            "packages": [{
+                "name": "auths",
+                "versionInfo": "1.0.0-rc.1",
+                "licenseDeclared": "NOASSERTION",
+                "externalRefs": [{"referenceType": "purl"}],
+            }],
+        });
+        let error = validate_spdx_package_metadata(&spdx)
+            .expect_err("missing SPDX license metadata must fail");
+        assert!(error.contains("SPDX package metadata is incomplete"));
+    }
+
+    #[test]
+    fn final_release_manifest_contract_accepts_exact_candidate() {
+        validate_release_manifest_value(&valid_manifest())
+            .expect("complete exact release manifest should pass");
+    }
+
+    #[test]
+    fn final_release_manifest_rejects_unknown_schema() {
+        let mut manifest = valid_manifest();
+        manifest["schema"] = json!("auths.release-manifest/2");
+        let error = validate_release_manifest_value(&manifest)
+            .expect_err("unknown release schema must fail closed");
+        assert!(error.contains("unknown release-manifest schema"));
+    }
+
+    #[test]
+    fn final_release_manifest_rejects_empty_subjects() {
+        let mut manifest = valid_manifest();
+        manifest["subjects"] = json!([]);
+        let error = validate_release_manifest_value(&manifest)
+            .expect_err("empty release subject set must fail closed");
+        assert!(error.contains("no subjects"));
+    }
+
+    #[test]
+    fn final_release_manifest_rejects_duplicate_subject_names() {
+        let mut manifest = valid_manifest();
+        let duplicate = manifest["subjects"][0].clone();
+        manifest["subjects"]
+            .as_array_mut()
+            .expect("subjects array")
+            .push(duplicate);
+        let error = validate_release_manifest_value(&manifest)
+            .expect_err("duplicate artifact names must fail closed");
+        assert!(error.contains("duplicate release subject"));
+    }
+
+    #[test]
+    fn final_release_manifest_rejects_path_escape() {
+        let mut manifest = valid_manifest();
+        manifest["subjects"][0]["name"] = json!("../auths.crate");
+        let error = validate_release_manifest_value(&manifest)
+            .expect_err("relative path escape must fail closed");
+        assert!(error.contains("escapes its root"));
+    }
+
+    #[test]
+    fn final_release_manifest_rejects_unsupported_digest() {
+        let mut manifest = valid_manifest();
+        manifest["subjects"][0]["sha256"] = json!("sha512:not-supported");
+        let error = validate_release_manifest_value(&manifest)
+            .expect_err("unsupported digest must fail closed");
+        assert!(error.contains("invalid SHA-256"));
+    }
+
+    #[test]
+    fn final_release_manifest_rejects_unknown_reproducibility_class() {
+        let mut manifest = valid_manifest();
+        manifest["subjects"][0]["reproducibility"] = json!("reproducible-ish");
+        let error = validate_release_manifest_value(&manifest)
+            .expect_err("unknown reproducibility class must fail closed");
+        assert!(error.contains("unsupported release subject reproducibility"));
+    }
+
+    #[test]
+    fn provenance_only_subject_requires_named_limitation() {
+        let mut manifest = valid_manifest();
+        manifest["subjects"][0]["reproducibility"] = json!("provenance-only");
+        let error = validate_release_manifest_value(&manifest)
+            .expect_err("provenance-only artifact without limitation must fail");
+        assert!(error.contains("no named limitation"));
+    }
+
+    #[test]
+    fn final_release_manifest_requires_every_evidence_class() {
+        let mut manifest = valid_manifest();
+        manifest["evidence"]["provenance"] = json!([]);
+        let error = validate_release_manifest_value(&manifest)
+            .expect_err("missing signed provenance reference must fail");
+        assert!(error.contains("provenance is empty"));
+    }
+
+    #[test]
+    fn release_subject_catalogue_rejects_duplicate_family() {
+        let bytes = fs::read_to_string(root().join("release/release-subjects.toml"))
+            .expect("subject catalogue");
+        let mut catalogue: ReleaseSubjectCatalogue =
+            toml::from_str(&bytes).expect("valid subject catalogue");
+        catalogue.families.push(ReleaseSubjectFamily {
+            id: catalogue.families[0].id.clone(),
+            coordinate: "duplicate".to_owned(),
+            media_type: "application/octet-stream".to_owned(),
+            reproducibility: "byte-identical".to_owned(),
+            producer: "test".to_owned(),
+            publication: "never".to_owned(),
+        });
+        let error = validate_release_subject_catalogue(&catalogue)
+            .expect_err("duplicate subject family must fail closed");
+        assert!(error.contains("duplicate release subject family"));
     }
 }

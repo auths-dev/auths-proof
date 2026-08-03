@@ -1,0 +1,54 @@
+{
+  "schema": "auths.release-manifest/1",
+  "release": {
+    "tag": "auths-v1.0.0-rc.1",
+    "status": "release-candidate"
+  },
+  "source": {
+    "repository": "auths-dev/auths-proof",
+    "commit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "semanticFreeze": {
+    "path": "release/semantic-freeze.json",
+    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "subjects": [
+    {
+      "name": "target/package/auths-1.0.0-rc.1.crate",
+      "mediaType": "application/vnd.rust.crate",
+      "size": 42,
+      "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "reproducibility": "byte-identical"
+    }
+  ],
+  "evidence": {
+    "spdx": [
+      {
+        "path": "evidence/sbom.spdx.json",
+        "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+      }
+    ],
+    "provenance": [
+      {
+        "path": "evidence/provenance.sigstore.json",
+        "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+      }
+    ],
+    "formalManifest": {
+      "path": "formal/assurance-manifest-v1.toml",
+      "sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    },
+    "conformance": [
+      {
+        "path": "evidence/conformance.json",
+        "sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+      }
+    ],
+    "benchmarks": [
+      {
+        "path": "evidence/benchmarks.json",
+        "sha256": "2222222222222222222222222222222222222222222222222222222222222222"
+      }
+    ]
+  }
+}
