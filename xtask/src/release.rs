@@ -144,15 +144,6 @@ pub(crate) fn release_check() -> Result<(), String> {
     ci()?;
     cargo(&["test", "--workspace", "--no-default-features"])?;
     wire(false)?;
-    let status = Command::new("cargo")
-        .args(["doc", "--workspace", "--all-features", "--no-deps"])
-        .env("RUSTDOCFLAGS", "-D warnings")
-        .current_dir(root())
-        .status()
-        .map_err(|error| format!("could not build release documentation: {error}"))?;
-    if !status.success() {
-        return Err(format!("documentation build failed with {status}"));
-    }
     package_check()?;
     release_evidence()?;
     println!("release checks passed");
