@@ -4,7 +4,7 @@ use crate::*;
 
 const INVENTORY_PATH: &str = "release/semantic-freeze.json";
 const INVENTORY_SCHEMA: &str = "auths.semantic-freeze/1";
-const FREEZE_VERSION: u64 = 2;
+const FREEZE_VERSION: u64 = 3;
 const PUBLIC_RUST_ROOTS: [&str; 2] = ["auths", "auths-sdk"];
 const PUBLIC_RUST_CLOSURE: [&str; 28] = [
     "auths",
@@ -277,9 +277,14 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
     ];
 
     for (id, path) in frozen_byte_inventories()? {
+        let version = if path == "architecture/dependency-graph.json" {
+            2
+        } else {
+            1
+        };
         entries.push(freeze_entry(
             &id,
-            1,
+            version,
             FreezeClassification::FrozenBytes,
             &["canonical-generated-evidence"],
             vec![path],
@@ -289,6 +294,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
     let mut release_owners = rust_surface.package_manifests;
     release_owners.extend([
         ".github/workflows/release.yml".to_owned(),
+        ".github/workflows/release-builder.yml".to_owned(),
         "Cargo.toml".to_owned(),
         "Cargo.lock".to_owned(),
         "rust-toolchain.toml".to_owned(),
@@ -298,6 +304,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         "architecture.toml".to_owned(),
         "docs/plans/PHASE_7_RELEASE_OWNER_DECISIONS.md".to_owned(),
         "release/public-naming.toml".to_owned(),
+        "release/RELEASE_CONTROL.md".to_owned(),
         "release/release-manifest.contract-fixture.json".to_owned(),
         "release/release-manifest.schema.json".to_owned(),
         "release/release-subjects.toml".to_owned(),
@@ -307,11 +314,12 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         "xtask/src/main.rs".to_owned(),
         "xtask/src/public_naming.rs".to_owned(),
         "xtask/src/release.rs".to_owned(),
+        "xtask/src/release_control.rs".to_owned(),
         "xtask/src/semantic_freeze.rs".to_owned(),
     ]);
     entries.push(freeze_entry(
         "auths.release.public-surface",
-        2,
+        3,
         FreezeClassification::ReleaseMetadata,
         &[
             "package-names",

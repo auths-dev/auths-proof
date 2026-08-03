@@ -50,7 +50,7 @@ id = "assurance-bundle"
 coordinate = "auths-<version>-assurance.tar.zst"
 media_type = "application/zstd"
 reproducibility = "byte-identical"
-producer = "AP32-PR4 after signed provenance is available"
+producer = "AP32-PR4 before detached signed provenance; provenance is stored beside the archive to avoid a self-referential digest"
 publication = "GitHub prerelease only after exact-manifest authorization"
 
 [[excluded]]

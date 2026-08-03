@@ -2,10 +2,10 @@
 
 use crate::*;
 
-const RELEASE_MANIFEST_SCHEMA: &str = "auths.release-manifest/1";
+pub(crate) const RELEASE_MANIFEST_SCHEMA: &str = "auths.release-manifest/1";
 const RELEASE_MANIFEST_INPUT_SCHEMA: &str = "auths.release-manifest-input/1";
 const RELEASE_SUBJECTS_SCHEMA: &str = "auths.release-subjects/1";
-const RELEASE_REPOSITORY: &str = "auths-dev/auths-proof";
+pub(crate) const RELEASE_REPOSITORY: &str = "auths-dev/auths-proof";
 const REPRODUCIBILITY_CLASSES: [&str; 4] = [
     "byte-identical",
     "deterministic-evidence",
@@ -43,6 +43,7 @@ struct ReleaseSubjectExclusion {
 
 pub(crate) fn release_contract() -> Result<(), String> {
     validate_release_contract_sources()?;
+    validate_release_workflow_contract()?;
     let fixture: Value = serde_json::from_slice(
         &fs::read(root().join("release/release-manifest.contract-fixture.json"))
             .map_err(|error| format!("could not read release-manifest fixture: {error}"))?,
@@ -50,6 +51,75 @@ pub(crate) fn release_contract() -> Result<(), String> {
     .map_err(|error| format!("release-manifest fixture is not valid JSON: {error}"))?;
     validate_release_manifest_value(&fixture)?;
     println!("release-manifest schema and subject catalogue passed");
+    Ok(())
+}
+
+fn validate_release_workflow_contract() -> Result<(), String> {
+    let controller = fs::read_to_string(root().join(".github/workflows/release.yml"))
+        .map_err(|error| format!("could not read release control workflow: {error}"))?;
+    let builder = fs::read_to_string(root().join(".github/workflows/release-builder.yml"))
+        .map_err(|error| format!("could not read reusable release builder: {error}"))?;
+    for required in [
+        "workflow_dispatch:",
+        "uses: ./.github/workflows/release-builder.yml",
+        "name: independent isolated reproduction",
+        "cargo xtask release-control compare",
+        "overwrite: false",
+        "environment: release-promotion",
+        "cargo xtask release-control verify-promotion",
+        "Promotion remains blocked pending SLSA runtime assessment",
+    ] {
+        if !controller.contains(required) {
+            return Err(format!("release control workflow is missing: {required}"));
+        }
+    }
+    if controller.contains("tags: [\"auths-v*\"]") {
+        return Err("release control must not build from a tag push".to_owned());
+    }
+    for required in [
+        "workflow_call:",
+        "environment: release-candidate",
+        "actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6",
+        "subject-checksums: target/release-evidence/attestation-subjects.txt",
+        "repo:auths-dev@260513770/auths-proof@1310728509:environment:release-candidate",
+        "--deny-self-hosted-runners",
+        "--signer-digest \"$CANDIDATE_COMMIT\"",
+        "cargo xtask release-control finalize",
+    ] {
+        if !builder.contains(required) {
+            return Err(format!("reusable release builder is missing: {required}"));
+        }
+    }
+    let promotion = controller
+        .split("  promote-github-prerelease:")
+        .nth(1)
+        .ok_or("release control workflow has no promotion job")?;
+    validate_no_rebuild_promotion_job(promotion)
+}
+
+fn validate_no_rebuild_promotion_job(promotion: &str) -> Result<(), String> {
+    for forbidden in [
+        "cargo ",
+        "npm ",
+        "maturin",
+        "wasm-pack",
+        "nix ",
+        "actions/checkout",
+        "release-check",
+        "release-control finalize",
+    ] {
+        if promotion.contains(forbidden) {
+            return Err(format!(
+                "promotion job contains a forbidden build or generation step: {forbidden}"
+            ));
+        }
+    }
+    if !promotion.contains("gh release create")
+        || !promotion.contains("repos/auths-dev/auths-proof/git/refs")
+        || !promotion.contains("sha256sum \"$MANIFEST\"")
+    {
+        return Err("promotion job does not verify and publish staged bytes exactly".to_owned());
+    }
     Ok(())
 }
 
@@ -178,14 +248,17 @@ pub(crate) fn release_evidence() -> Result<(), String> {
         wasm_relative.to_owned(),
         sha256_file(&root().join(wasm_relative))?,
     );
-    let commit = Command::new("git")
+    let commit_output = Command::new("git")
         .args(["rev-parse", "HEAD"])
         .current_dir(root())
         .output()
         .map_err(|error| format!("could not identify release commit: {error}"))?;
-    if !commit.status.success() {
+    if !commit_output.status.success() {
         return Err("could not identify release commit".to_owned());
     }
+    let commit = String::from_utf8_lossy(&commit_output.stdout)
+        .trim()
+        .to_owned();
     let toolchain = Command::new("rustc")
         .arg("--version")
         .output()
@@ -214,6 +287,9 @@ pub(crate) fn release_evidence() -> Result<(), String> {
     ] {
         evidence_checksums.insert(relative.to_owned(), sha256_file(&root().join(relative))?);
     }
+    for (relative, digest) in prepare_release_archives(&commit)? {
+        subject_checksums.insert(relative, digest);
+    }
     let cyclone_dx = serde_json::to_vec_pretty(&json!({
         "bomFormat": "CycloneDX",
         "specVersion": "1.5",
@@ -229,7 +305,6 @@ pub(crate) fn release_evidence() -> Result<(), String> {
         hex::encode(Sha256::digest(&cyclone_dx)),
     );
 
-    let commit = String::from_utf8_lossy(&commit.stdout).trim().to_owned();
     let subject_records = subject_checksums
         .iter()
         .map(|(name, digest)| release_subject_record(name, digest))
@@ -315,7 +390,6 @@ pub(crate) fn release_evidence() -> Result<(), String> {
             "signed hosted-build provenance whose subjects exactly equal attestation-subjects.txt",
             "SLSA 1.2 Build Level 3 assessment for every subject",
             "second isolated preparation and reproducibility comparison",
-            "source archive and assurance bundle digests",
         ],
     });
     let manifest_input_bytes = pretty_json(&manifest_input, "release-manifest input")?;
@@ -490,6 +564,8 @@ fn release_subject_record(name: &str, sha256: &str) -> Result<Value, String> {
             "platform-reproducible",
             Some("wasm32-unknown-unknown".to_owned()),
         )
+    } else if name.ends_with(".tar.zst") {
+        ("application/zstd", "byte-identical", None)
     } else {
         return Err(format!(
             "release subject has no approved media type: {name}"
@@ -506,6 +582,247 @@ fn release_subject_record(name: &str, sha256: &str) -> Result<Value, String> {
         record["platform"] = Value::String(platform);
     }
     Ok(record)
+}
+
+fn prepare_release_archives(commit: &str) -> Result<BTreeMap<String, String>, String> {
+    validate_full_commit(commit)?;
+    let output_directory = root().join("target/release-artifacts");
+    if output_directory.exists() {
+        fs::remove_dir_all(&output_directory).map_err(|error| {
+            format!(
+                "could not clear release artifact directory {}: {error}",
+                output_directory.display()
+            )
+        })?;
+    }
+    fs::create_dir_all(&output_directory).map_err(|error| {
+        format!(
+            "could not create release artifact directory {}: {error}",
+            output_directory.display()
+        )
+    })?;
+    let version = env!("CARGO_PKG_VERSION");
+    let timestamp = commit_timestamp_epoch(commit)?;
+    let tracked = tracked_release_files()?;
+
+    let source_relative = format!("target/release-artifacts/auths-{version}-source.tar.zst");
+    write_deterministic_archive(
+        &root().join(&source_relative),
+        &format!("auths-{version}-source"),
+        &tracked,
+        timestamp,
+    )?;
+
+    let mut assurance = tracked
+        .iter()
+        .filter(|(path, _)| assurance_source_path(path))
+        .map(|(path, mode)| (path.clone(), *mode))
+        .collect::<BTreeMap<_, _>>();
+    for generated_root in ["target/formal", "target/compliance"] {
+        collect_generated_evidence(&root().join(generated_root), &mut assurance)?;
+    }
+    for generated in [
+        "target/release-evidence/platform.json",
+        "target/release-evidence/platform.sha256",
+    ] {
+        if root().join(generated).is_file() {
+            assurance.insert(generated.to_owned(), 0o644);
+        }
+    }
+    if assurance.is_empty() {
+        return Err("assurance archive input set is empty".to_owned());
+    }
+    let assurance_relative = format!("target/release-artifacts/auths-{version}-assurance.tar.zst");
+    write_deterministic_archive(
+        &root().join(&assurance_relative),
+        &format!("auths-{version}-assurance"),
+        &assurance,
+        timestamp,
+    )?;
+
+    Ok(BTreeMap::from([
+        (
+            source_relative.clone(),
+            sha256_file(&root().join(source_relative))?,
+        ),
+        (
+            assurance_relative.clone(),
+            sha256_file(&root().join(assurance_relative))?,
+        ),
+    ]))
+}
+
+fn tracked_release_files() -> Result<BTreeMap<String, u32>, String> {
+    let output = Command::new("git")
+        .args(["ls-files", "--stage", "-z"])
+        .current_dir(root())
+        .output()
+        .map_err(|error| format!("could not enumerate tracked release files: {error}"))?;
+    if !output.status.success() {
+        return Err("git ls-files failed while preparing release archives".to_owned());
+    }
+    let mut files = BTreeMap::new();
+    for entry in output
+        .stdout
+        .split(|byte| *byte == 0)
+        .filter(|entry| !entry.is_empty())
+    {
+        let text = std::str::from_utf8(entry)
+            .map_err(|error| format!("tracked path inventory is not UTF-8: {error}"))?;
+        let (metadata, path) = text
+            .split_once('\t')
+            .ok_or("tracked path inventory entry has no path")?;
+        let mut metadata = metadata.split_ascii_whitespace();
+        let mode = metadata.next().ok_or("tracked path has no Git mode")?;
+        let _object = metadata.next().ok_or("tracked path has no Git object")?;
+        let stage = metadata.next().ok_or("tracked path has no Git stage")?;
+        if stage != "0" || !matches!(mode, "100644" | "100755") {
+            return Err(format!(
+                "unsupported tracked release path mode or stage: {text}"
+            ));
+        }
+        validate_safe_relative_path(path)?;
+        if files
+            .insert(
+                path.to_owned(),
+                if mode == "100755" { 0o755 } else { 0o644 },
+            )
+            .is_some()
+        {
+            return Err(format!("duplicate tracked release path: {path}"));
+        }
+    }
+    if files.is_empty() {
+        return Err("tracked release path inventory is empty".to_owned());
+    }
+    Ok(files)
+}
+
+fn assurance_source_path(path: &str) -> bool {
+    [
+        "formal/",
+        "core/fixtures/v1/",
+        "core/formal-vectors/v1/",
+        "product/fixtures/v1/",
+        "product/integrations/auths-stripe/fixtures/",
+        "release/",
+    ]
+    .iter()
+    .any(|prefix| path.starts_with(prefix))
+        || matches!(
+            path,
+            "architecture/dependency-graph.dot"
+                | "architecture/dependency-graph.json"
+                | "architecture.toml"
+                | "bounded-domains.toml"
+                | "compliance.toml"
+                | "demos/benchmarks/profiles/release.toml"
+                | "docs/research/domains/0004-seven-domain-bounded-authorization-performance-baseline.md"
+        )
+}
+
+fn collect_generated_evidence(
+    directory: &Path,
+    files: &mut BTreeMap<String, u32>,
+) -> Result<(), String> {
+    if !directory.is_dir() {
+        return Err(format!(
+            "generated assurance directory is absent: {}",
+            directory.display()
+        ));
+    }
+    let mut entries = fs::read_dir(directory)
+        .map_err(|error| format!("could not read {}: {error}", directory.display()))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| format!("could not enumerate {}: {error}", directory.display()))?;
+    entries.sort_by_key(std::fs::DirEntry::file_name);
+    for entry in entries {
+        let path = entry.path();
+        let metadata = fs::symlink_metadata(&path)
+            .map_err(|error| format!("could not inspect {}: {error}", path.display()))?;
+        if metadata.file_type().is_symlink() {
+            return Err(format!(
+                "generated assurance evidence must not contain symlinks: {}",
+                path.display()
+            ));
+        }
+        if metadata.is_dir() {
+            collect_generated_evidence(&path, files)?;
+        } else if metadata.is_file() {
+            let relative = path.strip_prefix(root()).map_err(|_| {
+                format!("generated evidence escaped repository: {}", path.display())
+            })?;
+            let relative = path_text(relative)?.replace('\\', "/");
+            validate_safe_relative_path(&relative)?;
+            files.insert(relative, 0o644);
+        }
+    }
+    Ok(())
+}
+
+fn commit_timestamp_epoch(commit: &str) -> Result<u64, String> {
+    let output = Command::new("git")
+        .args(["show", "-s", "--format=%ct", commit])
+        .current_dir(root())
+        .output()
+        .map_err(|error| format!("could not read release commit timestamp: {error}"))?;
+    if !output.status.success() {
+        return Err("could not read release commit timestamp".to_owned());
+    }
+    String::from_utf8_lossy(&output.stdout)
+        .trim()
+        .parse::<u64>()
+        .map_err(|error| format!("release commit timestamp is invalid: {error}"))
+}
+
+fn write_deterministic_archive(
+    output: &Path,
+    prefix: &str,
+    files: &BTreeMap<String, u32>,
+    timestamp: u64,
+) -> Result<(), String> {
+    if files.is_empty() {
+        return Err(format!("archive input set is empty: {}", output.display()));
+    }
+    let file = fs::File::create(output)
+        .map_err(|error| format!("could not create {}: {error}", output.display()))?;
+    let mut encoder = zstd::Encoder::new(file, 19)
+        .map_err(|error| format!("could not create Zstandard encoder: {error}"))?;
+    encoder
+        .include_checksum(true)
+        .map_err(|error| format!("could not configure Zstandard checksum: {error}"))?;
+    let mut archive = tar::Builder::new(encoder);
+    archive.mode(tar::HeaderMode::Deterministic);
+    for (relative, mode) in files {
+        let bytes = fs::read(root().join(relative))
+            .map_err(|error| format!("could not read archive input {relative}: {error}"))?;
+        let mut header = tar::Header::new_gnu();
+        header
+            .set_path(Path::new(prefix).join(relative))
+            .map_err(|error| format!("could not encode archive path {relative}: {error}"))?;
+        header.set_size(
+            u64::try_from(bytes.len())
+                .map_err(|_| format!("archive input is too large: {relative}"))?,
+        );
+        header.set_mode(*mode);
+        header.set_uid(0);
+        header.set_gid(0);
+        header.set_mtime(timestamp);
+        header.set_cksum();
+        archive
+            .append(&header, std::io::Cursor::new(bytes))
+            .map_err(|error| format!("could not append archive input {relative}: {error}"))?;
+    }
+    let encoder = archive
+        .into_inner()
+        .map_err(|error| format!("could not finish tar archive {}: {error}", output.display()))?;
+    encoder.finish().map_err(|error| {
+        format!(
+            "could not finish Zstandard archive {}: {error}",
+            output.display()
+        )
+    })?;
+    Ok(())
 }
 
 fn generate_spdx(metadata: &Value, subjects: &[Value], commit: &str) -> Result<Value, String> {
@@ -988,7 +1305,7 @@ pub(crate) fn validate_release_evidence(
         .is_err()
         || manifest_input["requiredBeforeFinalManifest"]
             .as_array()
-            .is_none_or(|requirements| requirements.len() < 4)
+            .is_none_or(|requirements| requirements.len() < 3)
     {
         return Err(
             "release-manifest input is incomplete or claims candidate completion".to_owned(),
@@ -1025,7 +1342,7 @@ pub(crate) fn validate_release_evidence(
     Ok(())
 }
 
-fn subject_map(document: &Value) -> Result<BTreeMap<String, String>, String> {
+pub(crate) fn subject_map(document: &Value) -> Result<BTreeMap<String, String>, String> {
     document["subjects"]
         .as_array()
         .ok_or("release document has no subjects")?
@@ -1074,7 +1391,7 @@ fn validate_spdx_package_metadata(spdx: &Value) -> Result<(), String> {
     Ok(())
 }
 
-fn validate_release_manifest_value(manifest: &Value) -> Result<(), String> {
+pub(crate) fn validate_release_manifest_value(manifest: &Value) -> Result<(), String> {
     if manifest["schema"] != RELEASE_MANIFEST_SCHEMA {
         return Err("unknown release-manifest schema".to_owned());
     }
@@ -1164,7 +1481,7 @@ fn validate_digest_reference(reference: &Value) -> Result<(), String> {
     )
 }
 
-fn validate_safe_relative_path(path: &str) -> Result<(), String> {
+pub(crate) fn validate_safe_relative_path(path: &str) -> Result<(), String> {
     let candidate = Path::new(path);
     if path.is_empty()
         || candidate.is_absolute()
@@ -1182,7 +1499,7 @@ fn validate_safe_relative_path(path: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn validate_sha256(digest: &str) -> Result<(), String> {
+pub(crate) fn validate_sha256(digest: &str) -> Result<(), String> {
     if digest.len() != 64
         || !digest
             .bytes()
@@ -1193,7 +1510,7 @@ fn validate_sha256(digest: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn validate_full_commit(commit: &str) -> Result<(), String> {
+pub(crate) fn validate_full_commit(commit: &str) -> Result<(), String> {
     if commit.len() != 40
         || !commit
             .bytes()
@@ -1204,7 +1521,7 @@ fn validate_full_commit(commit: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn validate_release_tag(tag: &str, version: &str) -> Result<(), String> {
+pub(crate) fn validate_release_tag(tag: &str, version: &str) -> Result<(), String> {
     let expected = format!("auths-v{version}");
     if tag != expected {
         return Err(format!(
@@ -1437,5 +1754,31 @@ mod tests {
         let error = validate_release_subject_catalogue(&catalogue)
             .expect_err("duplicate subject family must fail closed");
         assert!(error.contains("duplicate release subject family"));
+    }
+
+    #[test]
+    fn promotion_job_rejects_hidden_rebuild() {
+        let error = validate_no_rebuild_promotion_job(
+            "sha256sum \"$MANIFEST\"\nrepos/auths-dev/auths-proof/git/refs\ngh release create\ncargo build",
+        )
+        .expect_err("promotion rebuild must fail closed");
+        assert!(error.contains("forbidden build"));
+    }
+
+    #[test]
+    fn release_archive_encoding_is_deterministic() {
+        let first = root().join("target/release-archive-determinism-a.tar.zst");
+        let second = root().join("target/release-archive-determinism-b.tar.zst");
+        let files = BTreeMap::from([("Cargo.toml".to_owned(), 0o644)]);
+        write_deterministic_archive(&first, "auths-test", &files, 1)
+            .expect("first deterministic archive");
+        write_deterministic_archive(&second, "auths-test", &files, 1)
+            .expect("second deterministic archive");
+        assert_eq!(
+            sha256_file(&first).expect("first digest"),
+            sha256_file(&second).expect("second digest")
+        );
+        fs::remove_file(first).expect("remove first archive");
+        fs::remove_file(second).expect("remove second archive");
     }
 }
