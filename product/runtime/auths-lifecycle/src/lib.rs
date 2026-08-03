@@ -33,11 +33,11 @@ pub use identifier::{
 pub use model::{
     AttemptOrdinal, AttemptOrdinalError, CancellationDisposition, CapacityEntryV1,
     CapacitySnapshotError, CapacitySnapshotV1, DecisionInputV1, EffectConclusion,
-    ExecutionIntentV1, LifecycleEventKind, LifecycleEventV1,
-    LifecycleReceiptEnvelopeV1, LifecycleRecordV1, LifecycleState, LifecycleWork,
-    ProviderAttemptV1, ProviderRetryClass, ReconciliationObservationV1, ReservationEntryV1,
-    ReservationMode, ReservationRequestV1, ReservationSetError, ReservationSetV1,
-    RevocationSnapshotV1, StoreTransactionV1, TransitionCommandV1, TransitionContextV1,
+    ExecutionIntentV1, LifecycleEventKind, LifecycleEventV1, LifecycleReceiptEnvelopeV1,
+    LifecycleRecordV1, LifecycleState, LifecycleWork, ProviderAttemptV1, ProviderRetryClass,
+    ReconciliationObservationV1, ReservationEntryV1, ReservationMode, ReservationRequestV1,
+    ReservationSetError, ReservationSetV1, RevocationSnapshotV1, StoreTransactionV1,
+    TransitionCommandV1, TransitionContextV1,
 };
 pub use registry::{LifecycleRegistrationV1, LifecycleRegistryError, validate_lifecycle_registry};
 pub use sealed::{
