@@ -1,0 +1,62 @@
+schema = "auths.release-subjects/1"
+manifest_schema = "auths.release-manifest/1"
+product = "Auths"
+repository = "auths-dev/auths-proof"
+first_rc_tag = "auths-v1.0.0-rc.1"
+policy = "Every first-RC subject requires SLSA 1.2 Build Level 3 provenance. Preparation is not publication authorization."
+
+[[families]]
+id = "source-archive"
+coordinate = "auths-<version>-source.tar.zst"
+media_type = "application/zstd"
+reproducibility = "byte-identical"
+producer = "AP32-PR4"
+publication = "GitHub prerelease only after exact-manifest authorization"
+
+[[families]]
+id = "rust-crates"
+coordinate = "target/package/<crate>-<version>.crate"
+media_type = "application/vnd.rust.crate"
+reproducibility = "byte-identical"
+producer = "cargo package --locked"
+publication = "crates.io only after exact-manifest authorization"
+
+[[families]]
+id = "typescript-sdk"
+coordinate = "@auths-dev/sdk"
+media_type = "application/gzip"
+reproducibility = "byte-identical"
+producer = "npm pack"
+publication = "npm only after exact-manifest authorization"
+
+[[families]]
+id = "python-sdk"
+coordinate = "auths"
+media_type = "application/vnd.python.wheel"
+reproducibility = "platform-reproducible"
+producer = "maturin build"
+publication = "PyPI only after exact-manifest authorization"
+
+[[families]]
+id = "wasm-module"
+coordinate = "@auths-dev/sdk/wasm/auths_proof_wasm_bg.wasm"
+media_type = "application/wasm"
+reproducibility = "platform-reproducible"
+producer = "wasm-pack build with the frozen Rust and wasm-bindgen toolchains"
+publication = "Contained by the npm subject; not separately published"
+
+[[families]]
+id = "assurance-bundle"
+coordinate = "auths-<version>-assurance.tar.zst"
+media_type = "application/zstd"
+reproducibility = "byte-identical"
+producer = "AP32-PR4 after signed provenance is available"
+publication = "GitHub prerelease only after exact-manifest authorization"
+
+[[excluded]]
+id = "domain-integrations"
+reason = "Domain packages, demos, benchmarks, testkits, fuzz crates, internal tools, CLIs, hosted services, and OCI images are outside the lean first-RC catalogue."
+
+[[excluded]]
+id = "proof-build-crates"
+reason = "auths-proof-wasm and auths-proof-python are private build boundaries owned by the npm and PyPI subjects, not additional public package roots."
