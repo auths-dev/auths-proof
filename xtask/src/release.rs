@@ -67,6 +67,9 @@ fn validate_release_workflow_contract() -> Result<(), String> {
         "overwrite: false",
         "environment: release-promotion",
         "cargo xtask release-control verify-promotion",
+        "owner_authorization_base64:",
+        "target/owner-authorization.json",
+        "--notes-file",
         "Promotion remains blocked pending exact owner authorization",
     ] {
         if !controller.contains(required) {
@@ -418,6 +421,19 @@ fn validate_release_contract_sources() -> Result<(), String> {
         || schema["properties"]["release"]["properties"]["status"]["const"] != "release-candidate"
     {
         return Err("release-manifest schema identity or release status drifted".to_owned());
+    }
+    let authorization_schema: Value = serde_json::from_slice(
+        &fs::read(root().join("release/owner-authorization.schema.json"))
+            .map_err(|error| format!("could not read owner-authorization schema: {error}"))?,
+    )
+    .map_err(|error| format!("owner-authorization schema is not valid JSON: {error}"))?;
+    if authorization_schema["$schema"] != "https://json-schema.org/draft/2020-12/schema"
+        || authorization_schema["properties"]["schema"]["const"]
+            != "auths.owner-release-authorization/1"
+        || authorization_schema["properties"]["repository"]["const"] != RELEASE_REPOSITORY
+        || authorization_schema["additionalProperties"] != false
+    {
+        return Err("owner-authorization schema identity drifted".to_owned());
     }
 
     let catalogue: ReleaseSubjectCatalogue = toml::from_str(
@@ -1470,7 +1486,8 @@ pub(crate) fn validate_release_manifest_value(manifest: &Value) -> Result<(), St
             validate_digest_reference(reference)?;
         }
     }
-    validate_digest_reference(&evidence["formalManifest"])
+    validate_digest_reference(&evidence["formalManifest"])?;
+    validate_digest_reference(&evidence["releaseNotes"])
 }
 
 fn validate_digest_reference(reference: &Value) -> Result<(), String> {
@@ -1604,6 +1621,7 @@ mod tests {
                 "formalManifest": digest_reference("formal/assurance-manifest-v1.toml"),
                 "conformance": [digest_reference("evidence/conformance.json")],
                 "benchmarks": [digest_reference("evidence/benchmarks.json")],
+                "releaseNotes": digest_reference("evidence/RELEASE_CANDIDATE_NOTES.md"),
             },
         })
     }

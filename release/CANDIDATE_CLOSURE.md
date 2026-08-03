@@ -22,8 +22,8 @@ behavior remain unchanged and domain-owned.
 - Python distribution `auths`: `1.0.0rc1`, the PEP 440 spelling equivalent to
   the SemVer RC.
 - Candidate tag contract: `auths-v1.0.0-rc.1`.
-- Release public-surface semantic identity: version 14.
-- Semantic-freeze inventory: version 14.
+- Release public-surface semantic identity: version 15.
+- Semantic-freeze inventory: version 15.
 
 The release manifest, rather than this prose, owns the eventual full commit and
 artifact digests.

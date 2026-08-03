@@ -52,12 +52,25 @@ Promotion requires a second workflow dispatch naming:
 - exact release-manifest digest; and
 - SHA-256 digest of the repository owner's separate authorization record.
 
+The dispatch also carries the exact canonical authorization record as one-line
+base64. The entry gate decodes it, requires the immutable repository-owner
+identity, rejects unknown or non-canonical fields, verifies its digest, and
+requires every candidate, run, manifest, destination, and statement field to
+match the promotion request. The protected job receives and rechecks that
+record. Both the authorization and promotion request are preserved with the
+GitHub prerelease evidence. The schema is
+[`owner-authorization.schema.json`](owner-authorization.schema.json); the
+operator procedure is [`RELEASE_RUNBOOK.md`](RELEASE_RUNBOOK.md).
+
 The unprivileged entry job downloads and validates the staged artifact. The
 protected `release-promotion` job receives only verified staged bytes. Static
 repository policy rejects checkout, compilation, packaging, evidence
 generation, or overwriting in that job. It may create the tag only when the tag
 is absent, or resume when the existing tag already targets the exact candidate.
-It then creates a GitHub prerelease from the staged subjects and evidence.
+It then creates a GitHub prerelease from the staged subjects and evidence. The
+prerelease description comes from the digest-bound staged copy of
+[`RELEASE_CANDIDATE_NOTES.md`](RELEASE_CANDIDATE_NOTES.md), not mutable or
+hardcoded workflow prose.
 
 The SLSA 1.2 Build Level 3 assessment is recorded in
 [`SLSA_BUILD_LEVEL_3_ASSESSMENT.md`](SLSA_BUILD_LEVEL_3_ASSESSMENT.md) and its
@@ -91,6 +104,11 @@ Then verify `release-manifest.json`, every referenced SHA-256 digest, the
 semantic freeze, SPDX subject coverage, and `preparation-comparison.json`.
 Verification requires neither repository write access nor an Auths-hosted
 service.
+
+After promotion, also verify that `promotion-request.json` names the same
+manifest, run, tag, and authorization SHA-256, and that the published canonical
+`owner-authorization.json` hashes to that value. These two post-preparation
+records authorize distribution; they do not retroactively become build inputs.
 
 ## Withdrawal
 

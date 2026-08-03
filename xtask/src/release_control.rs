@@ -2,6 +2,9 @@ use crate::*;
 
 const PREPARATION_COMPARISON_SCHEMA: &str = "auths.preparation-comparison/1";
 const PROMOTION_REQUEST_SCHEMA: &str = "auths.promotion-request/1";
+const OWNER_AUTHORIZATION_SCHEMA: &str = "auths.owner-release-authorization/1";
+const OWNER_AUTHORIZATION_STATEMENT: &str =
+    "I authorize promotion of these exact prepared bytes to a GitHub prerelease.";
 const EXPECTED_OIDC_ISSUER: &str = "https://token.actions.githubusercontent.com";
 const EXPECTED_OIDC_SUBJECT: &str =
     "repo:auths-dev@260513770/auths-proof@1310728509:environment:release-candidate";
@@ -25,6 +28,23 @@ const REQUIRED_SLSA_REQUIREMENTS: [&str; 8] = [
     "build-l3-signing-secrets-inaccessible",
 ];
 
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct OwnerAuthorizationRecord {
+    schema: String,
+    operation: String,
+    repository: String,
+    authorized_by: String,
+    authorized_by_id: String,
+    issued_at: String,
+    candidate_commit: String,
+    tag: String,
+    manifest_sha256: String,
+    preparation_run_id: String,
+    destinations: Vec<String>,
+    statement: String,
+}
+
 pub(crate) fn release_control(arguments: Vec<String>) -> Result<(), String> {
     match arguments.as_slice() {
         [command, tag, commit, provenance, trusted_root, verification, workflow, digest]
@@ -43,11 +63,15 @@ pub(crate) fn release_control(arguments: Vec<String>) -> Result<(), String> {
         [command, first, second, output] if command == "compare" => {
             compare_preparations(Path::new(first), Path::new(second), Path::new(output))
         }
-        [command, staged, request] if command == "verify-promotion" => {
-            verify_promotion(Path::new(staged), Path::new(request))
+        [command, staged, request, authorization] if command == "verify-promotion" => {
+            verify_promotion(
+                Path::new(staged),
+                Path::new(request),
+                Path::new(authorization),
+            )
         }
         _ => Err(
-            "usage: cargo xtask release-control <finalize TAG COMMIT PROVENANCE TRUSTED_ROOT VERIFICATION BUILDER_WORKFLOW BUILDER_DIGEST|compare FIRST SECOND OUTPUT|verify-promotion STAGED REQUEST>"
+            "usage: cargo xtask release-control <finalize TAG COMMIT PROVENANCE TRUSTED_ROOT VERIFICATION BUILDER_WORKFLOW BUILDER_DIGEST|compare FIRST SECOND OUTPUT|verify-promotion STAGED REQUEST AUTHORIZATION>"
                 .to_owned(),
         ),
     }
@@ -114,6 +138,11 @@ fn finalize_preparation(
         &root().join(ASSESSED_BUILDER_EVIDENCE_PATH),
         "assessed reusable builder",
     )?;
+    copy_evidence_file(
+        &root().join("release/RELEASE_CANDIDATE_NOTES.md"),
+        &root().join("target/release-evidence/RELEASE_CANDIDATE_NOTES.md"),
+        "release-candidate notes",
+    )?;
 
     let subject_values = input["subjects"]
         .as_array()
@@ -154,6 +183,7 @@ fn finalize_preparation(
                 digest_reference("demos/benchmarks/profiles/release.toml")?,
                 digest_reference("docs/research/domains/0004-seven-domain-bounded-authorization-performance-baseline.md")?,
             ],
+            "releaseNotes": digest_reference("target/release-evidence/RELEASE_CANDIDATE_NOTES.md")?,
             "trustedRoot": digest_reference(path_text(&trusted_root_path)?)?,
             "attestationVerification": digest_reference(path_text(&verification_path)?)?,
         },
@@ -252,7 +282,11 @@ fn compare_subject_pair(name: &str, first: &Value, second: &Value) -> Result<Val
     }))
 }
 
-fn verify_promotion(staged: &Path, request_path: &Path) -> Result<(), String> {
+fn verify_promotion(
+    staged: &Path,
+    request_path: &Path,
+    authorization_path: &Path,
+) -> Result<(), String> {
     let manifest_path = staged.join("target/release-evidence/release-manifest.json");
     let manifest = read_json(&manifest_path, "staged release manifest")?;
     validate_release_manifest_value(&manifest)?;
@@ -271,6 +305,11 @@ fn verify_promotion(staged: &Path, request_path: &Path) -> Result<(), String> {
         .as_str()
         .ok_or("promotion request has no owner authorization digest")?;
     validate_sha256(authorization_digest)?;
+    if sha256_file(authorization_path)? != authorization_digest {
+        return Err("owner authorization bytes differ from the promotion request".to_owned());
+    }
+    let authorization = read_canonical_owner_authorization(authorization_path)?;
+    validate_owner_authorization(&authorization, &manifest, &request)?;
     if request["preparationRunId"]
         .as_str()
         .is_none_or(str::is_empty)
@@ -280,6 +319,78 @@ fn verify_promotion(staged: &Path, request_path: &Path) -> Result<(), String> {
     validate_slsa_promotion_status(&manifest)?;
     println!("promotion request matches exact staged bytes; no build was performed");
     Ok(())
+}
+
+fn read_canonical_owner_authorization(path: &Path) -> Result<OwnerAuthorizationRecord, String> {
+    let bytes = fs::read(path)
+        .map_err(|error| format!("could not read owner authorization record: {error}"))?;
+    let authorization: OwnerAuthorizationRecord = serde_json::from_slice(&bytes)
+        .map_err(|error| format!("owner authorization record is not valid JSON: {error}"))?;
+    let mut canonical = serde_json::to_vec(&authorization)
+        .map_err(|error| format!("could not encode owner authorization record: {error}"))?;
+    canonical.push(b'\n');
+    if bytes != canonical {
+        return Err(
+            "owner authorization record is not canonical compact JSON with one trailing newline"
+                .to_owned(),
+        );
+    }
+    Ok(authorization)
+}
+
+fn validate_owner_authorization(
+    authorization: &OwnerAuthorizationRecord,
+    manifest: &Value,
+    request: &Value,
+) -> Result<(), String> {
+    if authorization.schema != OWNER_AUTHORIZATION_SCHEMA
+        || authorization.operation != "promote-prepared-candidate"
+        || authorization.repository != RELEASE_REPOSITORY
+        || authorization.authorized_by != "bordumb"
+        || authorization.authorized_by_id != "3743841"
+        || !is_utc_second_timestamp(&authorization.issued_at)
+        || authorization.candidate_commit != manifest["source"]["commit"]
+        || authorization.tag != manifest["release"]["tag"]
+        || authorization.manifest_sha256 != request["manifestSha256"]
+        || authorization.preparation_run_id != request["preparationRunId"]
+        || authorization
+            .preparation_run_id
+            .parse::<u64>()
+            .ok()
+            .is_none_or(|run| run == 0)
+        || authorization.destinations != ["github-prerelease"]
+        || authorization.statement != OWNER_AUTHORIZATION_STATEMENT
+    {
+        return Err("owner authorization does not authorize the exact promotion".to_owned());
+    }
+    Ok(())
+}
+
+fn is_utc_second_timestamp(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    if bytes.len() != 20
+        || bytes[4] != b'-'
+        || bytes[7] != b'-'
+        || bytes[10] != b'T'
+        || bytes[13] != b':'
+        || bytes[16] != b':'
+        || bytes[19] != b'Z'
+        || bytes.iter().enumerate().any(|(index, byte)| {
+            !matches!(index, 4 | 7 | 10 | 13 | 16 | 19) && !byte.is_ascii_digit()
+        })
+    {
+        return false;
+    }
+    let component = |start: usize, end: usize| {
+        value[start..end]
+            .parse::<u32>()
+            .expect("validated ASCII digits")
+    };
+    (1..=12).contains(&component(5, 7))
+        && (1..=31).contains(&component(8, 10))
+        && component(11, 13) < 24
+        && component(14, 16) < 60
+        && component(17, 19) < 60
 }
 
 fn validate_slsa_promotion_status(manifest: &Value) -> Result<(), String> {
@@ -439,7 +550,12 @@ fn validate_manifest_files(manifest: &Value, base: &Path) -> Result<(), String> 
             validate_digest_reference_file(base, reference)?;
         }
     }
-    for field in ["formalManifest", "trustedRoot", "attestationVerification"] {
+    for field in [
+        "formalManifest",
+        "releaseNotes",
+        "trustedRoot",
+        "attestationVerification",
+    ] {
         validate_digest_reference_file(base, &evidence[field])?;
     }
     validate_digest_reference_file(base, &manifest["builder"]["slsaAssessment"])?;
@@ -552,6 +668,36 @@ mod tests {
         })
     }
 
+    fn owner_authorization() -> OwnerAuthorizationRecord {
+        OwnerAuthorizationRecord {
+            schema: OWNER_AUTHORIZATION_SCHEMA.to_owned(),
+            operation: "promote-prepared-candidate".to_owned(),
+            repository: RELEASE_REPOSITORY.to_owned(),
+            authorized_by: "bordumb".to_owned(),
+            authorized_by_id: "3743841".to_owned(),
+            issued_at: "2026-08-03T12:00:00Z".to_owned(),
+            candidate_commit: "b".repeat(40),
+            tag: "auths-v1.0.0-rc.1".to_owned(),
+            manifest_sha256: "a".repeat(64),
+            preparation_run_id: "30849197798".to_owned(),
+            destinations: vec!["github-prerelease".to_owned()],
+            statement: OWNER_AUTHORIZATION_STATEMENT.to_owned(),
+        }
+    }
+
+    fn authorization_manifest_and_request() -> (Value, Value) {
+        (
+            json!({
+                "source": {"commit": "b".repeat(40)},
+                "release": {"tag": "auths-v1.0.0-rc.1"},
+            }),
+            json!({
+                "manifestSha256": "a".repeat(64),
+                "preparationRunId": "30849197798",
+            }),
+        )
+    }
+
     #[test]
     fn changed_byte_identical_subject_is_terminal() {
         let first = subject("auths.crate", 'a', "byte-identical");
@@ -643,5 +789,36 @@ mod tests {
             }
         });
         validate_slsa_promotion_status(&manifest).expect("passed assessment should promote");
+    }
+
+    #[test]
+    fn exact_owner_authorization_passes() {
+        let (manifest, request) = authorization_manifest_and_request();
+        validate_owner_authorization(&owner_authorization(), &manifest, &request)
+            .expect("exact authorization must pass");
+    }
+
+    #[test]
+    fn owner_authorization_rejects_different_manifest() {
+        let (manifest, mut request) = authorization_manifest_and_request();
+        request["manifestSha256"] = json!("c".repeat(64));
+        let error = validate_owner_authorization(&owner_authorization(), &manifest, &request)
+            .expect_err("different manifest must fail");
+        assert!(error.contains("exact promotion"));
+    }
+
+    #[test]
+    fn owner_authorization_rejects_noncanonical_bytes() {
+        let temporary = root().join("target/release-control-owner-authorization-test.json");
+        write_json(
+            &temporary,
+            &serde_json::to_value(owner_authorization()).expect("encode authorization"),
+            "test owner authorization",
+        )
+        .expect("write pretty authorization");
+        let error = read_canonical_owner_authorization(&temporary)
+            .expect_err("pretty authorization must fail");
+        fs::remove_file(&temporary).expect("remove authorization");
+        assert!(error.contains("not canonical compact JSON"));
     }
 }

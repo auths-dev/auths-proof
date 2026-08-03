@@ -4,7 +4,7 @@ use crate::*;
 
 const INVENTORY_PATH: &str = "release/semantic-freeze.json";
 const INVENTORY_SCHEMA: &str = "auths.semantic-freeze/1";
-const FREEZE_VERSION: u64 = 14;
+const FREEZE_VERSION: u64 = 15;
 const PUBLIC_RUST_ROOTS: [&str; 2] = ["auths", "auths-sdk"];
 const PUBLIC_RUST_CLOSURE: [&str; 28] = [
     "auths",
@@ -304,7 +304,9 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         "architecture.toml".to_owned(),
         "docs/plans/PHASE_7_RELEASE_OWNER_DECISIONS.md".to_owned(),
         "release/public-naming.toml".to_owned(),
+        "release/README.md".to_owned(),
         "release/RELEASE_CONTROL.md".to_owned(),
+        "release/RELEASE_RUNBOOK.md".to_owned(),
         "release/CANDIDATE_CLOSURE.md".to_owned(),
         "release/SLSA_BUILD_LEVEL_3_ASSESSMENT.md".to_owned(),
         "release/slsa-build-level-3-assessment.json".to_owned(),
@@ -312,6 +314,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         "release/release-manifest.contract-fixture.json".to_owned(),
         "release/release-manifest.schema.json".to_owned(),
         "release/release-subjects.toml".to_owned(),
+        "release/owner-authorization.schema.json".to_owned(),
         "xtask/src/architecture.rs".to_owned(),
         "xtask/src/checks.rs".to_owned(),
         "xtask/src/fixtures.rs".to_owned(),
@@ -323,7 +326,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
     ]);
     entries.push(freeze_entry(
         "auths.release.public-surface",
-        14,
+        15,
         FreezeClassification::ReleaseMetadata,
         &[
             "package-names",

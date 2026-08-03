@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://auths.dev/schemas/owner-release-authorization-1.json",
+  "title": "Auths owner release authorization",
+  "type": "object",
+  "required": [
+    "schema",
+    "operation",
+    "repository",
+    "authorizedBy",
+    "authorizedById",
+    "issuedAt",
+    "candidateCommit",
+    "tag",
+    "manifestSha256",
+    "preparationRunId",
+    "destinations",
+    "statement"
+  ],
+  "properties": {
+    "schema": { "const": "auths.owner-release-authorization/1" },
+    "operation": { "const": "promote-prepared-candidate" },
+    "repository": { "const": "auths-dev/auths-proof" },
+    "authorizedBy": { "const": "bordumb" },
+    "authorizedById": { "const": "3743841" },
+    "issuedAt": { "type": "string", "format": "date-time" },
+    "candidateCommit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "tag": { "type": "string", "pattern": "^auths-v[0-9]+\\.[0-9]+\\.[0-9]+-rc\\.[1-9][0-9]*$" },
+    "manifestSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "preparationRunId": { "type": "string", "pattern": "^[1-9][0-9]*$" },
+    "destinations": {
+      "const": ["github-prerelease"]
+    },
+    "statement": {
+      "const": "I authorize promotion of these exact prepared bytes to a GitHub prerelease."
+    }
+  },
+  "additionalProperties": false
+}

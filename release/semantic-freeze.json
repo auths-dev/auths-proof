@@ -1,6 +1,6 @@
 {
   "schema": "auths.semantic-freeze/1",
-  "freezeVersion": 14,
+  "freezeVersion": 15,
   "publicSurface": {
     "rustRoots": [
       "auths",
@@ -592,7 +592,7 @@
     },
     {
       "id": "auths.release.public-surface",
-      "version": 14,
+      "version": 15,
       "classification": "release-metadata",
       "categories": [
         "package-names",
@@ -643,9 +643,12 @@
         "product/runtime/auths-runtime/Cargo.toml",
         "product/sdk/auths-sdk/Cargo.toml",
         "release/CANDIDATE_CLOSURE.md",
+        "release/README.md",
         "release/RELEASE_CANDIDATE_NOTES.md",
         "release/RELEASE_CONTROL.md",
+        "release/RELEASE_RUNBOOK.md",
         "release/SLSA_BUILD_LEVEL_3_ASSESSMENT.md",
+        "release/owner-authorization.schema.json",
         "release/public-naming.toml",
         "release/release-manifest.contract-fixture.json",
         "release/release-manifest.schema.json",
@@ -661,7 +664,7 @@
         "xtask/src/release_control.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "d18b03d0faa485f03fd7e5666641785fe6ca5e5b781e1c1af7b92e048f97aece"
+      "sha256": "5bfffdc929463d7205f49ccbfb68d13656615fc611f1b6fed5f1cc84c21fa235"
     }
   ]
 }

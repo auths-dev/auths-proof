@@ -58,13 +58,14 @@
     },
     "evidence": {
       "type": "object",
-      "required": ["spdx", "provenance", "formalManifest", "conformance", "benchmarks"],
+      "required": ["spdx", "provenance", "formalManifest", "conformance", "benchmarks", "releaseNotes"],
       "properties": {
         "spdx": { "$ref": "#/$defs/nonEmptyDigestReferences" },
         "provenance": { "$ref": "#/$defs/nonEmptyDigestReferences" },
         "formalManifest": { "$ref": "#/$defs/digestReference" },
         "conformance": { "$ref": "#/$defs/nonEmptyDigestReferences" },
-        "benchmarks": { "$ref": "#/$defs/nonEmptyDigestReferences" }
+        "benchmarks": { "$ref": "#/$defs/nonEmptyDigestReferences" },
+        "releaseNotes": { "$ref": "#/$defs/digestReference" }
       },
       "additionalProperties": true
     }
