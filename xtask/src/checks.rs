@@ -17,6 +17,7 @@ pub(crate) fn ci_authoritative() -> Result<(), String> {
     repository_hygiene()?;
     cargo(&["check", "--workspace", "--all-targets", "--all-features"])?;
     cargo(&["test", "--workspace", "--all-features"])?;
+    release_preflight()?;
     cargo(&[
         "clippy",
         "--workspace",
@@ -31,6 +32,18 @@ pub(crate) fn ci_authoritative() -> Result<(), String> {
     workspace_msrv()?;
     platform_artifact(&root().join("target/release-evidence/platform.json"))?;
     fuzz_smoke()
+}
+
+/// Runs the deterministic compilation-profile and canonical-byte gates that
+/// release preparation depends on in addition to the all-features workspace
+/// suite.
+///
+/// Keep this in authoritative pull-request CI. A release candidate must not be
+/// the first place that no-default-features compilation or wire drift is
+/// discovered.
+pub(crate) fn release_preflight() -> Result<(), String> {
+    cargo(&["test", "--workspace", "--no-default-features"])?;
+    wire(false)
 }
 
 pub(crate) fn release_documentation() -> Result<(), String> {

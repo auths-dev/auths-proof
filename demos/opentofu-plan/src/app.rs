@@ -1338,7 +1338,7 @@ mod tests {
         artifacts: MemoryPlanArtifactStore,
         backend: Arc<OpenTofuBackend>,
         nonce_byte: u8,
-    ) -> WorkflowOutcome {
+    ) -> Result<WorkflowOutcome, ServiceError> {
         let demo = demo_with_nonce(nonce_byte);
         let handle = artifacts
             .put(SavedPlanArtifact::new(auths_opentofu::test_support::PLAN_BYTES.to_vec()).unwrap())
@@ -1362,7 +1362,6 @@ mod tests {
             proof: demo.auths.proof,
             auths_request: demo.auths.request,
         })
-        .unwrap()
     }
 
     async fn request(
@@ -1447,52 +1446,55 @@ mod tests {
 
     #[test]
     fn competing_same_scope_actions_execute_one_provider_effect() {
-        let state = tempfile::tempdir().unwrap();
-        let demo = demo_with_nonce(0x11);
-        let lifecycle_store =
-            fixture_lifecycle_store(&state.path().join("lifecycle"), &demo.product.action);
-        let artifacts = MemoryPlanArtifactStore::default();
-        let backend = Arc::new(OpenTofuBackend::fixture(demo.product.evidence));
-        let barrier = Arc::new(Barrier::new(2));
+        for _ in 0..32 {
+            let state = tempfile::tempdir().unwrap();
+            let demo = demo_with_nonce(0x11);
+            let lifecycle_store =
+                fixture_lifecycle_store(&state.path().join("lifecycle"), &demo.product.action);
+            let artifacts = MemoryPlanArtifactStore::default();
+            let backend = Arc::new(OpenTofuBackend::fixture(demo.product.evidence));
+            let barrier = Arc::new(Barrier::new(2));
 
-        let handles = [0x11, 0x22]
-            .into_iter()
-            .map(|nonce_byte| {
-                let lifecycle_store = Arc::clone(&lifecycle_store);
-                let artifacts = artifacts.clone();
-                let backend = Arc::clone(&backend);
-                let barrier = Arc::clone(&barrier);
-                thread::spawn(move || {
-                    barrier.wait();
-                    execute_fixture_workflow(lifecycle_store, artifacts, backend, nonce_byte)
+            let handles = [0x11, 0x22]
+                .into_iter()
+                .map(|nonce_byte| {
+                    let lifecycle_store = Arc::clone(&lifecycle_store);
+                    let artifacts = artifacts.clone();
+                    let backend = Arc::clone(&backend);
+                    let barrier = Arc::clone(&barrier);
+                    thread::spawn(move || {
+                        barrier.wait();
+                        execute_fixture_workflow(lifecycle_store, artifacts, backend, nonce_byte)
+                    })
                 })
-            })
-            .collect::<Vec<_>>();
-        let outcomes = handles
-            .into_iter()
-            .map(|handle| handle.join().unwrap())
-            .collect::<Vec<_>>();
+                .collect::<Vec<_>>();
+            let outcomes = handles
+                .into_iter()
+                .map(|handle| handle.join().unwrap())
+                .collect::<Vec<_>>();
 
-        assert_eq!(backend.apply_calls(), 1);
-        assert_eq!(
-            outcomes
-                .iter()
-                .filter(|outcome| matches!(outcome, WorkflowOutcome::Executed { .. }))
-                .count(),
-            1
-        );
-        assert_eq!(
-            outcomes
-                .iter()
-                .filter(|outcome| {
-                    matches!(
-                        outcome,
-                        WorkflowOutcome::Replay { .. } | WorkflowOutcome::Conflict { .. }
-                    )
-                })
-                .count(),
-            1
-        );
+            assert_eq!(backend.apply_calls(), 1);
+            assert_eq!(
+                outcomes
+                    .iter()
+                    .filter(|outcome| matches!(outcome, Ok(WorkflowOutcome::Executed { .. })))
+                    .count(),
+                1
+            );
+            assert_eq!(
+                outcomes
+                    .iter()
+                    .filter(|outcome| {
+                        matches!(
+                            outcome,
+                            Ok(WorkflowOutcome::Replay { .. } | WorkflowOutcome::Conflict { .. })
+                                | Err(ServiceError::StateChanged)
+                        )
+                    })
+                    .count(),
+                1
+            );
+        }
     }
 
     #[test]
@@ -1511,14 +1513,14 @@ mod tests {
             Arc::clone(&backend),
             0x11,
         );
-        assert!(matches!(first, WorkflowOutcome::OutcomeUnknown { .. }));
+        assert!(matches!(first, Ok(WorkflowOutcome::OutcomeUnknown { .. })));
         assert_eq!(backend.apply_calls(), 1);
         drop(first_store);
 
         let reopened_store = fixture_lifecycle_store(&lifecycle_path, &demo.product.action);
         let recovered =
             execute_fixture_workflow(reopened_store, artifacts, Arc::clone(&backend), 0x11);
-        assert!(matches!(recovered, WorkflowOutcome::Executed { .. }));
+        assert!(matches!(recovered, Ok(WorkflowOutcome::Executed { .. })));
         assert_eq!(backend.apply_calls(), 1);
     }
 
