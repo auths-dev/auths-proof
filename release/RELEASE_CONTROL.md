@@ -59,11 +59,13 @@ generation, or overwriting in that job. It may create the tag only when the tag
 is absent, or resume when the existing tag already targets the exact candidate.
 It then creates a GitHub prerelease from the staged subjects and evidence.
 
-The first-RC manifest deliberately records the SLSA 1.2 Build Level 3 runtime
-assessment as pending. Promotion remains terminally blocked until an
-independent assessment of the implemented builder and an actual preparation
-run changes that exact manifest field to `passed` through the candidate-closure
-process. No label or ordinary successful workflow is treated as that evidence.
+The SLSA 1.2 Build Level 3 assessment is recorded in
+[`SLSA_BUILD_LEVEL_3_ASSESSMENT.md`](SLSA_BUILD_LEVEL_3_ASSESSMENT.md) and its
+machine-readable companion. It is bound to an observed successful preparation
+and the exact reusable-builder SHA-256. Finalization and offline promotion
+verification reject a stale workflow digest, an incomplete requirement set,
+or a status other than `passed`. The assessment is not an independent security
+audit and does not itself authorize promotion.
 
 Publication to crates.io, npm, and PyPI remains separately gated by
 [issue #50](https://github.com/auths-dev/auths-proof/issues/50). This workflow

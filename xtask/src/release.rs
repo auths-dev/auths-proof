@@ -67,7 +67,7 @@ fn validate_release_workflow_contract() -> Result<(), String> {
         "overwrite: false",
         "environment: release-promotion",
         "cargo xtask release-control verify-promotion",
-        "Promotion remains blocked pending SLSA runtime assessment",
+        "Promotion remains blocked pending exact owner authorization",
     ] {
         if !controller.contains(required) {
             return Err(format!("release control workflow is missing: {required}"));
@@ -1403,6 +1403,19 @@ pub(crate) fn validate_release_manifest_value(manifest: &Value) -> Result<(), St
             .ok_or("release manifest has no source commit")?,
     )?;
     validate_digest_reference(&manifest["semanticFreeze"])?;
+    let builder = &manifest["builder"];
+    if builder["workflow"].as_str().is_none_or(str::is_empty)
+        || builder["workflowDigest"].as_str().is_none_or(str::is_empty)
+        || builder["environment"].as_str().is_none_or(str::is_empty)
+        || builder["oidcIssuer"].as_str().is_none_or(str::is_empty)
+        || builder["oidcSubject"].as_str().is_none_or(str::is_empty)
+        || builder["slsaTarget"] != "SLSA 1.2 Build Level 3"
+        || builder["slsaAssessmentStatus"] != "passed"
+    {
+        return Err("release manifest builder assessment is incomplete".to_owned());
+    }
+    validate_digest_reference(&builder["slsaAssessment"])?;
+    validate_digest_reference(&builder["slsaBuilderWorkflow"])?;
 
     let subjects = manifest["subjects"]
         .as_array()
@@ -1567,6 +1580,17 @@ mod tests {
                 "commit": "b".repeat(40),
             },
             "semanticFreeze": digest_reference("release/semantic-freeze.json"),
+            "builder": {
+                "workflow": "auths-dev/auths-proof/.github/workflows/release-builder.yml",
+                "workflowDigest": "b".repeat(40),
+                "environment": "release-candidate",
+                "oidcIssuer": "https://token.actions.githubusercontent.com",
+                "oidcSubject": "repo:auths-dev@260513770/auths-proof@1310728509:environment:release-candidate",
+                "slsaTarget": "SLSA 1.2 Build Level 3",
+                "slsaAssessmentStatus": "passed",
+                "slsaAssessment": digest_reference("target/release-evidence/slsa-build-level-3-assessment.json"),
+                "slsaBuilderWorkflow": digest_reference("target/release-evidence/release-builder.yml"),
+            },
             "subjects": [{
                 "name": "target/package/auths-1.0.0-rc.1.crate",
                 "mediaType": "application/vnd.rust.crate",

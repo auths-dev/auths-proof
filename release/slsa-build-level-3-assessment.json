@@ -1,0 +1,68 @@
+{
+  "schema": "auths.slsa-build-assessment/1",
+  "specification": "https://slsa.dev/spec/v1.2/requirements",
+  "target": "SLSA 1.2 Build Level 3",
+  "status": "passed",
+  "assessmentNature": "repository-owner-delegated-technical-assessment",
+  "assessedBuilder": {
+    "platform": "github-actions",
+    "workflow": ".github/workflows/release-builder.yml",
+    "workflowEvidence": "target/release-evidence/release-builder.yml",
+    "workflowSha256": "e2762ffe4ee2aa2c76c79f7382b2ac4913582a21630907c27fa0a517a1c7c25d",
+    "runner": "github-hosted/ubuntu-latest",
+    "provenance": "github-artifact-attestations/slsa-provenance-v1"
+  },
+  "runtimeEvidence": {
+    "preparationRunId": "30849197798",
+    "preparationRunUrl": "https://github.com/auths-dev/auths-proof/actions/runs/30849197798",
+    "candidateCommit": "a6e7f99a151b641b94837504749404109f7a59e2",
+    "candidateTag": "auths-v1.0.0-rc.1",
+    "releaseManifestSha256": "2c9f38a7c2190e4d531af6f5bc3bb318bde18a599da459bc25802958eeefdd3a",
+    "officialAttestation": "https://github.com/auths-dev/auths-proof/attestations/38657617",
+    "reproductionAttestation": "https://github.com/auths-dev/auths-proof/attestations/38657752"
+  },
+  "requirements": [
+    {
+      "id": "build-l1-consistent-process",
+      "status": "passed"
+    },
+    {
+      "id": "build-l1-provenance-exists",
+      "status": "passed"
+    },
+    {
+      "id": "build-l1-provenance-distributed",
+      "status": "passed"
+    },
+    {
+      "id": "build-l2-hosted-platform",
+      "status": "passed"
+    },
+    {
+      "id": "build-l2-authentic-provenance",
+      "status": "passed"
+    },
+    {
+      "id": "build-l2-consumer-verification",
+      "status": "passed"
+    },
+    {
+      "id": "build-l3-isolated-builds",
+      "status": "passed"
+    },
+    {
+      "id": "build-l3-signing-secrets-inaccessible",
+      "status": "passed"
+    }
+  ],
+  "validity": {
+    "condition": "The assessment remains valid only while the assessed workflow bytes and GitHub-hosted builder boundary remain unchanged.",
+    "enforcement": "Release finalization rejects a workflow digest mismatch or an incomplete assessment."
+  },
+  "limitations": [
+    "This is a SLSA build-platform assessment, not an independent security audit.",
+    "It does not establish source correctness, dependency trustworthiness, provider correctness, or production readiness.",
+    "It does not cover compromise of GitHub, Sigstore roots, or the consumer verification environment.",
+    "A new builder workflow digest requires a new runtime assessment."
+  ]
+}

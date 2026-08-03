@@ -176,7 +176,7 @@ jobs:
             echo "Candidate tag: $CANDIDATE_TAG"
             echo "Manifest SHA-256: $MANIFEST_SHA256"
             echo "Preparation is not publication authorization."
-            echo "Promotion remains blocked pending SLSA runtime assessment and exact owner authorization."
+            echo "Promotion remains blocked pending exact owner authorization."
           } >> "$GITHUB_STEP_SUMMARY"
 
   promotion-entry-gate:

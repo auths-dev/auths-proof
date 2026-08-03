@@ -7,6 +7,23 @@ const EXPECTED_OIDC_SUBJECT: &str =
     "repo:auths-dev@260513770/auths-proof@1310728509:environment:release-candidate";
 const EXPECTED_BUILDER_WORKFLOW: &str =
     "auths-dev/auths-proof/.github/workflows/release-builder.yml";
+const SLSA_ASSESSMENT_PATH: &str = "release/slsa-build-level-3-assessment.json";
+const SLSA_ASSESSMENT_EVIDENCE_PATH: &str =
+    "target/release-evidence/slsa-build-level-3-assessment.json";
+const SLSA_ASSESSMENT_SCHEMA: &str = "auths.slsa-build-assessment/1";
+const SLSA_TARGET: &str = "SLSA 1.2 Build Level 3";
+const ASSESSED_BUILDER_PATH: &str = ".github/workflows/release-builder.yml";
+const ASSESSED_BUILDER_EVIDENCE_PATH: &str = "target/release-evidence/release-builder.yml";
+const REQUIRED_SLSA_REQUIREMENTS: [&str; 8] = [
+    "build-l1-consistent-process",
+    "build-l1-provenance-exists",
+    "build-l1-provenance-distributed",
+    "build-l2-hosted-platform",
+    "build-l2-authentic-provenance",
+    "build-l2-consumer-verification",
+    "build-l3-isolated-builds",
+    "build-l3-signing-secrets-inaccessible",
+];
 
 pub(crate) fn release_control(arguments: Vec<String>) -> Result<(), String> {
     match arguments.as_slice() {
@@ -86,6 +103,17 @@ fn finalize_preparation(
         "attestation verification report",
     )?;
     validate_attestation_verification(&verification_path, &subjects)?;
+    validate_slsa_assessment(&root(), SLSA_ASSESSMENT_PATH, ASSESSED_BUILDER_PATH)?;
+    copy_evidence_file(
+        &root().join(SLSA_ASSESSMENT_PATH),
+        &root().join(SLSA_ASSESSMENT_EVIDENCE_PATH),
+        "SLSA Build Level 3 assessment",
+    )?;
+    copy_evidence_file(
+        &root().join(ASSESSED_BUILDER_PATH),
+        &root().join(ASSESSED_BUILDER_EVIDENCE_PATH),
+        "assessed reusable builder",
+    )?;
 
     let subject_values = input["subjects"]
         .as_array()
@@ -109,8 +137,10 @@ fn finalize_preparation(
             "environment": "release-candidate",
             "oidcIssuer": EXPECTED_OIDC_ISSUER,
             "oidcSubject": EXPECTED_OIDC_SUBJECT,
-            "slsaTarget": "SLSA 1.2 Build Level 3",
-            "slsaAssessmentStatus": "pending-runtime-assessment",
+            "slsaTarget": SLSA_TARGET,
+            "slsaAssessmentStatus": "passed",
+            "slsaAssessment": digest_reference(SLSA_ASSESSMENT_EVIDENCE_PATH)?,
+            "slsaBuilderWorkflow": digest_reference(ASSESSED_BUILDER_EVIDENCE_PATH)?,
         },
         "evidence": {
             "spdx": [digest_reference("target/release-evidence/sbom.spdx.json")?],
@@ -129,7 +159,7 @@ fn finalize_preparation(
         },
         "limitations": [
             "Preparation is not publication authorization.",
-            "The SLSA 1.2 Build Level 3 target remains a promotion blocker until runtime evidence is independently assessed.",
+            "The SLSA Build Level 3 assessment is bound to the exact reusable-builder bytes and becomes stale if they change.",
             "No independent security audit is claimed.",
         ],
     });
@@ -253,13 +283,98 @@ fn verify_promotion(staged: &Path, request_path: &Path) -> Result<(), String> {
 }
 
 fn validate_slsa_promotion_status(manifest: &Value) -> Result<(), String> {
-    if manifest["builder"]["slsaTarget"] != "SLSA 1.2 Build Level 3"
+    if manifest["builder"]["slsaTarget"] != SLSA_TARGET
         || manifest["builder"]["slsaAssessmentStatus"] != "passed"
     {
         return Err(
             "promotion blocked: SLSA 1.2 Build Level 3 runtime assessment has not passed"
                 .to_owned(),
         );
+    }
+    Ok(())
+}
+
+fn validate_slsa_assessment(
+    base: &Path,
+    assessment_path: &str,
+    builder_path: &str,
+) -> Result<(), String> {
+    let path = base.join(assessment_path);
+    let assessment = read_json(&path, "SLSA Build Level 3 assessment")?;
+    if assessment["schema"] != SLSA_ASSESSMENT_SCHEMA
+        || assessment["specification"] != "https://slsa.dev/spec/v1.2/requirements"
+        || assessment["target"] != SLSA_TARGET
+        || assessment["status"] != "passed"
+        || assessment["assessmentNature"] != "repository-owner-delegated-technical-assessment"
+        || assessment["assessedBuilder"]["platform"] != "github-actions"
+        || assessment["assessedBuilder"]["workflow"] != ASSESSED_BUILDER_PATH
+        || assessment["assessedBuilder"]["workflowEvidence"] != ASSESSED_BUILDER_EVIDENCE_PATH
+        || assessment["assessedBuilder"]["runner"] != "github-hosted/ubuntu-latest"
+        || assessment["assessedBuilder"]["provenance"]
+            != "github-artifact-attestations/slsa-provenance-v1"
+    {
+        return Err("SLSA Build Level 3 assessment metadata is incomplete".to_owned());
+    }
+    let expected_workflow_digest = assessment["assessedBuilder"]["workflowSha256"]
+        .as_str()
+        .ok_or("SLSA assessment has no workflow SHA-256")?;
+    validate_sha256(expected_workflow_digest)?;
+    let actual_workflow_digest = sha256_file(&base.join(builder_path))?;
+    if expected_workflow_digest != actual_workflow_digest {
+        return Err(
+            "SLSA Build Level 3 assessment is stale: reusable builder bytes changed".to_owned(),
+        );
+    }
+    validate_full_commit(
+        assessment["runtimeEvidence"]["candidateCommit"]
+            .as_str()
+            .ok_or("SLSA assessment has no assessed candidate commit")?,
+    )?;
+    validate_sha256(
+        assessment["runtimeEvidence"]["releaseManifestSha256"]
+            .as_str()
+            .ok_or("SLSA assessment has no release-manifest SHA-256")?,
+    )?;
+    for field in [
+        "preparationRunId",
+        "preparationRunUrl",
+        "candidateTag",
+        "officialAttestation",
+        "reproductionAttestation",
+    ] {
+        if assessment["runtimeEvidence"][field]
+            .as_str()
+            .is_none_or(str::is_empty)
+        {
+            return Err(format!("SLSA assessment runtime evidence has no {field}"));
+        }
+    }
+    let requirements = assessment["requirements"]
+        .as_array()
+        .ok_or("SLSA assessment has no requirements")?;
+    let actual = requirements
+        .iter()
+        .map(|requirement| {
+            let id = requirement["id"]
+                .as_str()
+                .ok_or("SLSA assessment requirement has no id")?;
+            if requirement["status"] != "passed" {
+                return Err(format!("SLSA assessment requirement did not pass: {id}"));
+            }
+            Ok(id)
+        })
+        .collect::<Result<BTreeSet<_>, String>>()?;
+    let expected = REQUIRED_SLSA_REQUIREMENTS
+        .into_iter()
+        .collect::<BTreeSet<_>>();
+    if actual != expected || requirements.len() != expected.len() {
+        return Err("SLSA assessment requirement set is incomplete".to_owned());
+    }
+    if assessment["limitations"]
+        .as_array()
+        .is_none_or(|limitations| limitations.len() < 4)
+    {
+        return Err("SLSA assessment limitations are incomplete".to_owned());
     }
     Ok(())
 }
@@ -327,6 +442,17 @@ fn validate_manifest_files(manifest: &Value, base: &Path) -> Result<(), String> 
     for field in ["formalManifest", "trustedRoot", "attestationVerification"] {
         validate_digest_reference_file(base, &evidence[field])?;
     }
+    validate_digest_reference_file(base, &manifest["builder"]["slsaAssessment"])?;
+    validate_digest_reference_file(base, &manifest["builder"]["slsaBuilderWorkflow"])?;
+    validate_slsa_assessment(
+        base,
+        manifest["builder"]["slsaAssessment"]["path"]
+            .as_str()
+            .ok_or("release manifest has no SLSA assessment path")?,
+        manifest["builder"]["slsaBuilderWorkflow"]["path"]
+            .as_str()
+            .ok_or("release manifest has no assessed builder path")?,
+    )?;
     Ok(())
 }
 
@@ -477,5 +603,45 @@ mod tests {
         let error = validate_slsa_promotion_status(&manifest)
             .expect_err("pending runtime assessment must block promotion");
         assert!(error.contains("has not passed"));
+    }
+
+    #[test]
+    fn checked_in_slsa_assessment_matches_builder_bytes() {
+        validate_slsa_assessment(&root(), SLSA_ASSESSMENT_PATH, ASSESSED_BUILDER_PATH)
+            .expect("checked-in assessment must be current");
+    }
+
+    #[test]
+    fn slsa_assessment_rejects_changed_builder_bytes() {
+        let temporary = root().join("target/release-control-slsa-staleness-test");
+        fs::create_dir_all(temporary.join("release")).expect("create release test directory");
+        fs::create_dir_all(temporary.join(".github/workflows"))
+            .expect("create workflow test directory");
+        fs::copy(
+            root().join(SLSA_ASSESSMENT_PATH),
+            temporary.join(SLSA_ASSESSMENT_PATH),
+        )
+        .expect("copy assessment");
+        fs::write(
+            temporary.join(ASSESSED_BUILDER_PATH),
+            b"name: changed builder\n",
+        )
+        .expect("write changed builder");
+        let error =
+            validate_slsa_assessment(&temporary, SLSA_ASSESSMENT_PATH, ASSESSED_BUILDER_PATH)
+                .expect_err("changed builder must stale assessment");
+        fs::remove_dir_all(&temporary).expect("remove test directory");
+        assert!(error.contains("assessment is stale"));
+    }
+
+    #[test]
+    fn promotion_accepts_passed_slsa_runtime_assessment() {
+        let manifest = json!({
+            "builder": {
+                "slsaTarget": SLSA_TARGET,
+                "slsaAssessmentStatus": "passed",
+            }
+        });
+        validate_slsa_promotion_status(&manifest).expect("passed assessment should promote");
     }
 }
