@@ -644,8 +644,8 @@ fn validate_current_coordinates() -> Result<(), String> {
     let workflow = fs::read_to_string(&workflow_path)
         .map_err(|error| format!("could not read {}: {error}", workflow_path.display()))?;
     for required in [
-        "tags: [\"auths-v*\"]",
-        "name: auths-release-evidence-${{ github.run_id }}-${{ github.run_attempt }}",
+        "candidate_tag:",
+        "name: auths-staged-${{ inputs.candidate_commit }}-${{ needs.official-preparation.outputs.manifest_sha256 }}",
     ] {
         if !workflow.contains(required) {
             return Err(format!(

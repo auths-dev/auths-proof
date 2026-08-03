@@ -1,6 +1,6 @@
 {
   "schema": "auths.semantic-freeze/1",
-  "freezeVersion": 2,
+  "freezeVersion": 3,
   "publicSurface": {
     "rustRoots": [
       "auths",
@@ -67,7 +67,7 @@
     },
     {
       "id": "auths.frozen-bytes/architecture/dependency-graph.json",
-      "version": 1,
+      "version": 2,
       "classification": "frozen-bytes",
       "categories": [
         "canonical-generated-evidence"
@@ -75,7 +75,7 @@
       "owners": [
         "architecture/dependency-graph.json"
       ],
-      "sha256": "649aed89578030bcb91ec32e3db99222b820c3e678556b2da9ddceeb1a5fcd06"
+      "sha256": "64478d6c5de619f40832f4f1dd9c0e2071fb33b38f9292a7960d2942190d0e7c"
     },
     {
       "id": "auths.frozen-bytes/bounded-domains.toml",
@@ -592,7 +592,7 @@
     },
     {
       "id": "auths.release.public-surface",
-      "version": 2,
+      "version": 3,
       "classification": "release-metadata",
       "categories": [
         "package-names",
@@ -605,6 +605,7 @@
         "toolchains"
       ],
       "owners": [
+        ".github/workflows/release-builder.yml",
         ".github/workflows/release.yml",
         "Cargo.lock",
         "Cargo.toml",
@@ -641,6 +642,7 @@
         "product/receipts/auths-receipts/Cargo.toml",
         "product/runtime/auths-runtime/Cargo.toml",
         "product/sdk/auths-sdk/Cargo.toml",
+        "release/RELEASE_CONTROL.md",
         "release/public-naming.toml",
         "release/release-manifest.contract-fixture.json",
         "release/release-manifest.schema.json",
@@ -652,9 +654,10 @@
         "xtask/src/main.rs",
         "xtask/src/public_naming.rs",
         "xtask/src/release.rs",
+        "xtask/src/release_control.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "796f075a40f74fbd3caf67410681c9bd9122223cd1a53574dfcd88bca4bf3d12"
+      "sha256": "ca3d413ba2c22053c8eea12c2f41e10fca43faf6f320dd00e15933fc1c4ce3a0"
     }
   ]
 }
