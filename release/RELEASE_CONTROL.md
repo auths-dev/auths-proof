@@ -21,6 +21,12 @@ creates a Sigstore-backed GitHub provenance attestation, preserves current
 trusted roots, and verifies every subject against the reusable workflow and
 candidate digest.
 
+Python wheel production derives `SOURCE_DATE_EPOCH` from the exact candidate
+commit timestamp. Maintained-bindings CI builds the wheel twice with that epoch
+and requires byte-identical SHA-256 digests before performing its install and
+test smoke check. The isolated release comparison remains the authoritative
+cross-runner check.
+
 The assurance archive contains deterministic formal, fixture, conformance,
 architecture, compliance, and benchmark evidence. Its own SPDX entry, signed
 provenance, trusted root, final manifest, and comparison report remain detached
