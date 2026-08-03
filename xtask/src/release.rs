@@ -67,7 +67,10 @@ fn validate_release_workflow_contract() -> Result<(), String> {
         "overwrite: false",
         "environment: release-promotion",
         "cargo xtask release-control verify-promotion",
-        "Promotion remains blocked pending SLSA runtime assessment",
+        "owner_authorization_base64:",
+        "target/owner-authorization.json",
+        "--notes-file",
+        "Promotion remains blocked pending exact owner authorization",
     ] {
         if !controller.contains(required) {
             return Err(format!("release control workflow is missing: {required}"));
@@ -418,6 +421,19 @@ fn validate_release_contract_sources() -> Result<(), String> {
         || schema["properties"]["release"]["properties"]["status"]["const"] != "release-candidate"
     {
         return Err("release-manifest schema identity or release status drifted".to_owned());
+    }
+    let authorization_schema: Value = serde_json::from_slice(
+        &fs::read(root().join("release/owner-authorization.schema.json"))
+            .map_err(|error| format!("could not read owner-authorization schema: {error}"))?,
+    )
+    .map_err(|error| format!("owner-authorization schema is not valid JSON: {error}"))?;
+    if authorization_schema["$schema"] != "https://json-schema.org/draft/2020-12/schema"
+        || authorization_schema["properties"]["schema"]["const"]
+            != "auths.owner-release-authorization/1"
+        || authorization_schema["properties"]["repository"]["const"] != RELEASE_REPOSITORY
+        || authorization_schema["additionalProperties"] != false
+    {
+        return Err("owner-authorization schema identity drifted".to_owned());
     }
 
     let catalogue: ReleaseSubjectCatalogue = toml::from_str(
@@ -1403,6 +1419,19 @@ pub(crate) fn validate_release_manifest_value(manifest: &Value) -> Result<(), St
             .ok_or("release manifest has no source commit")?,
     )?;
     validate_digest_reference(&manifest["semanticFreeze"])?;
+    let builder = &manifest["builder"];
+    if builder["workflow"].as_str().is_none_or(str::is_empty)
+        || builder["workflowDigest"].as_str().is_none_or(str::is_empty)
+        || builder["environment"].as_str().is_none_or(str::is_empty)
+        || builder["oidcIssuer"].as_str().is_none_or(str::is_empty)
+        || builder["oidcSubject"].as_str().is_none_or(str::is_empty)
+        || builder["slsaTarget"] != "SLSA 1.2 Build Level 3"
+        || builder["slsaAssessmentStatus"] != "passed"
+    {
+        return Err("release manifest builder assessment is incomplete".to_owned());
+    }
+    validate_digest_reference(&builder["slsaAssessment"])?;
+    validate_digest_reference(&builder["slsaBuilderWorkflow"])?;
 
     let subjects = manifest["subjects"]
         .as_array()
@@ -1457,7 +1486,8 @@ pub(crate) fn validate_release_manifest_value(manifest: &Value) -> Result<(), St
             validate_digest_reference(reference)?;
         }
     }
-    validate_digest_reference(&evidence["formalManifest"])
+    validate_digest_reference(&evidence["formalManifest"])?;
+    validate_digest_reference(&evidence["releaseNotes"])
 }
 
 fn validate_digest_reference(reference: &Value) -> Result<(), String> {
@@ -1567,6 +1597,17 @@ mod tests {
                 "commit": "b".repeat(40),
             },
             "semanticFreeze": digest_reference("release/semantic-freeze.json"),
+            "builder": {
+                "workflow": "auths-dev/auths-proof/.github/workflows/release-builder.yml",
+                "workflowDigest": "b".repeat(40),
+                "environment": "release-candidate",
+                "oidcIssuer": "https://token.actions.githubusercontent.com",
+                "oidcSubject": "repo:auths-dev@260513770/auths-proof@1310728509:environment:release-candidate",
+                "slsaTarget": "SLSA 1.2 Build Level 3",
+                "slsaAssessmentStatus": "passed",
+                "slsaAssessment": digest_reference("target/release-evidence/slsa-build-level-3-assessment.json"),
+                "slsaBuilderWorkflow": digest_reference("target/release-evidence/release-builder.yml"),
+            },
             "subjects": [{
                 "name": "target/package/auths-1.0.0-rc.1.crate",
                 "mediaType": "application/vnd.rust.crate",
@@ -1580,6 +1621,7 @@ mod tests {
                 "formalManifest": digest_reference("formal/assurance-manifest-v1.toml"),
                 "conformance": [digest_reference("evidence/conformance.json")],
                 "benchmarks": [digest_reference("evidence/benchmarks.json")],
+                "releaseNotes": digest_reference("evidence/RELEASE_CANDIDATE_NOTES.md"),
             },
         })
     }

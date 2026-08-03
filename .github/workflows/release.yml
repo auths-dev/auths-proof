@@ -30,6 +30,10 @@ on:
         description: Digest of the repository-owner authorization record; required only for promotion
         type: string
         required: false
+      owner_authorization_base64:
+        description: Canonical owner-authorization JSON encoded as one-line base64; required only for promotion
+        type: string
+        required: false
 
 permissions:
   contents: read
@@ -176,7 +180,7 @@ jobs:
             echo "Candidate tag: $CANDIDATE_TAG"
             echo "Manifest SHA-256: $MANIFEST_SHA256"
             echo "Preparation is not publication authorization."
-            echo "Promotion remains blocked pending SLSA runtime assessment and exact owner authorization."
+            echo "Promotion remains blocked pending exact owner authorization."
           } >> "$GITHUB_STEP_SUMMARY"
 
   promotion-entry-gate:
@@ -203,13 +207,17 @@ jobs:
           CANDIDATE_TAG: ${{ inputs.candidate_tag }}
           MANIFEST_SHA256: ${{ inputs.manifest_sha256 }}
           OWNER_AUTHORIZATION_SHA256: ${{ inputs.owner_authorization_sha256 }}
+          OWNER_AUTHORIZATION_BASE64: ${{ inputs.owner_authorization_base64 }}
           PREPARATION_RUN_ID: ${{ inputs.preparation_run_id }}
+          DISPATCH_ACTOR_ID: ${{ github.actor_id }}
         run: |
           set -euo pipefail
           [[ "$CANDIDATE_COMMIT" =~ ^[0-9a-f]{40}$ ]]
           [[ "$MANIFEST_SHA256" =~ ^[0-9a-f]{64}$ ]]
           [[ "$OWNER_AUTHORIZATION_SHA256" =~ ^[0-9a-f]{64}$ ]]
+          [[ -n "$OWNER_AUTHORIZATION_BASE64" ]]
           [[ "$PREPARATION_RUN_ID" =~ ^[0-9]+$ ]]
+          [[ "$DISPATCH_ACTOR_ID" == 3743841 ]]
           [[ "$(git rev-parse HEAD)" == "$CANDIDATE_COMMIT" ]]
           [[ "$CANDIDATE_TAG" == "auths-v$(sed -n 's/^version = "\([^"]*\)"/\1/p' Cargo.toml | head -1)" ]]
       - name: Refuse absent or unprotected promotion environment
@@ -237,8 +245,14 @@ jobs:
           CANDIDATE_TAG: ${{ inputs.candidate_tag }}
           MANIFEST_SHA256: ${{ inputs.manifest_sha256 }}
           OWNER_AUTHORIZATION_SHA256: ${{ inputs.owner_authorization_sha256 }}
+          OWNER_AUTHORIZATION_BASE64: ${{ inputs.owner_authorization_base64 }}
           PREPARATION_RUN_ID: ${{ inputs.preparation_run_id }}
         run: |
+          set -euo pipefail
+          printf '%s' "$OWNER_AUTHORIZATION_BASE64" \
+            | base64 --decode > target/owner-authorization.json
+          [[ "$(sha256sum target/owner-authorization.json | cut -d' ' -f1)" == \
+            "$OWNER_AUTHORIZATION_SHA256" ]]
           jq -n \
             --arg commit "$CANDIDATE_COMMIT" \
             --arg tag "$CANDIDATE_TAG" \
@@ -252,6 +266,7 @@ jobs:
           cargo xtask release-control verify-promotion
           target/staged
           target/promotion-request.json
+          target/owner-authorization.json
       - name: Preserve verified promotion input for protected job
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
@@ -259,6 +274,7 @@ jobs:
           path: |
             target/staged/
             target/promotion-request.json
+            target/owner-authorization.json
           if-no-files-found: error
           retention-days: 7
           compression-level: 0
@@ -284,12 +300,19 @@ jobs:
           CANDIDATE_TAG: ${{ inputs.candidate_tag }}
           GH_TOKEN: ${{ github.token }}
           MANIFEST_SHA256: ${{ inputs.manifest_sha256 }}
+          OWNER_AUTHORIZATION_SHA256: ${{ inputs.owner_authorization_sha256 }}
         run: |
           set -euo pipefail
           MANIFEST=target/promotion/staged/target/release-evidence/release-manifest.json
           [[ "$(sha256sum "$MANIFEST" | cut -d' ' -f1)" == "$MANIFEST_SHA256" ]]
           [[ "$(jq -r '.source.commit' "$MANIFEST")" == "$CANDIDATE_COMMIT" ]]
           [[ "$(jq -r '.release.tag' "$MANIFEST")" == "$CANDIDATE_TAG" ]]
+          AUTHORIZATION=target/promotion/owner-authorization.json
+          PROMOTION_REQUEST=target/promotion/promotion-request.json
+          [[ "$(sha256sum "$AUTHORIZATION" | cut -d' ' -f1)" == \
+            "$OWNER_AUTHORIZATION_SHA256" ]]
+          [[ "$(jq -r '.ownerAuthorizationSha256' "$PROMOTION_REQUEST")" == \
+            "$OWNER_AUTHORIZATION_SHA256" ]]
           EXISTING="$(gh api "repos/auths-dev/auths-proof/git/ref/tags/$CANDIDATE_TAG" --jq '.object.sha' 2>/dev/null || true)"
           [[ -z "$EXISTING" || "$EXISTING" == "$CANDIDATE_COMMIT" ]]
           if [[ -z "$EXISTING" ]]; then
@@ -304,6 +327,9 @@ jobs:
         run: |
           set -euo pipefail
           MANIFEST=target/promotion/staged/target/release-evidence/release-manifest.json
+          NOTES=target/promotion/staged/target/release-evidence/RELEASE_CANDIDATE_NOTES.md
+          AUTHORIZATION=target/promotion/owner-authorization.json
+          PROMOTION_REQUEST=target/promotion/promotion-request.json
           mapfile -t SUBJECTS < <(jq -r '.subjects[].name' "$MANIFEST" | sed 's#^#target/promotion/staged/#')
           mapfile -t EVIDENCE < <(find target/promotion/staged/target/release-evidence -type f -print | sort)
           gh release create "$CANDIDATE_TAG" \
@@ -311,6 +337,8 @@ jobs:
             --verify-tag \
             --prerelease \
             --title "Auths $CANDIDATE_TAG" \
-            --notes "Release candidate. Not stable v1. No independent security audit is claimed. Registry publication remains separately gated by issue #50." \
+            --notes-file "$NOTES" \
             "${SUBJECTS[@]}" \
-            "${EVIDENCE[@]}"
+            "${EVIDENCE[@]}" \
+            "$AUTHORIZATION" \
+            "$PROMOTION_REQUEST"

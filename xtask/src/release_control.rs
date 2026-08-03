@@ -2,11 +2,48 @@ use crate::*;
 
 const PREPARATION_COMPARISON_SCHEMA: &str = "auths.preparation-comparison/1";
 const PROMOTION_REQUEST_SCHEMA: &str = "auths.promotion-request/1";
+const OWNER_AUTHORIZATION_SCHEMA: &str = "auths.owner-release-authorization/1";
+const OWNER_AUTHORIZATION_STATEMENT: &str =
+    "I authorize promotion of these exact prepared bytes to a GitHub prerelease.";
 const EXPECTED_OIDC_ISSUER: &str = "https://token.actions.githubusercontent.com";
 const EXPECTED_OIDC_SUBJECT: &str =
     "repo:auths-dev@260513770/auths-proof@1310728509:environment:release-candidate";
 const EXPECTED_BUILDER_WORKFLOW: &str =
     "auths-dev/auths-proof/.github/workflows/release-builder.yml";
+const SLSA_ASSESSMENT_PATH: &str = "release/slsa-build-level-3-assessment.json";
+const SLSA_ASSESSMENT_EVIDENCE_PATH: &str =
+    "target/release-evidence/slsa-build-level-3-assessment.json";
+const SLSA_ASSESSMENT_SCHEMA: &str = "auths.slsa-build-assessment/1";
+const SLSA_TARGET: &str = "SLSA 1.2 Build Level 3";
+const ASSESSED_BUILDER_PATH: &str = ".github/workflows/release-builder.yml";
+const ASSESSED_BUILDER_EVIDENCE_PATH: &str = "target/release-evidence/release-builder.yml";
+const REQUIRED_SLSA_REQUIREMENTS: [&str; 8] = [
+    "build-l1-consistent-process",
+    "build-l1-provenance-exists",
+    "build-l1-provenance-distributed",
+    "build-l2-hosted-platform",
+    "build-l2-authentic-provenance",
+    "build-l2-consumer-verification",
+    "build-l3-isolated-builds",
+    "build-l3-signing-secrets-inaccessible",
+];
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct OwnerAuthorizationRecord {
+    schema: String,
+    operation: String,
+    repository: String,
+    authorized_by: String,
+    authorized_by_id: String,
+    issued_at: String,
+    candidate_commit: String,
+    tag: String,
+    manifest_sha256: String,
+    preparation_run_id: String,
+    destinations: Vec<String>,
+    statement: String,
+}
 
 pub(crate) fn release_control(arguments: Vec<String>) -> Result<(), String> {
     match arguments.as_slice() {
@@ -26,11 +63,15 @@ pub(crate) fn release_control(arguments: Vec<String>) -> Result<(), String> {
         [command, first, second, output] if command == "compare" => {
             compare_preparations(Path::new(first), Path::new(second), Path::new(output))
         }
-        [command, staged, request] if command == "verify-promotion" => {
-            verify_promotion(Path::new(staged), Path::new(request))
+        [command, staged, request, authorization] if command == "verify-promotion" => {
+            verify_promotion(
+                Path::new(staged),
+                Path::new(request),
+                Path::new(authorization),
+            )
         }
         _ => Err(
-            "usage: cargo xtask release-control <finalize TAG COMMIT PROVENANCE TRUSTED_ROOT VERIFICATION BUILDER_WORKFLOW BUILDER_DIGEST|compare FIRST SECOND OUTPUT|verify-promotion STAGED REQUEST>"
+            "usage: cargo xtask release-control <finalize TAG COMMIT PROVENANCE TRUSTED_ROOT VERIFICATION BUILDER_WORKFLOW BUILDER_DIGEST|compare FIRST SECOND OUTPUT|verify-promotion STAGED REQUEST AUTHORIZATION>"
                 .to_owned(),
         ),
     }
@@ -86,6 +127,22 @@ fn finalize_preparation(
         "attestation verification report",
     )?;
     validate_attestation_verification(&verification_path, &subjects)?;
+    validate_slsa_assessment(&root(), SLSA_ASSESSMENT_PATH, ASSESSED_BUILDER_PATH)?;
+    copy_evidence_file(
+        &root().join(SLSA_ASSESSMENT_PATH),
+        &root().join(SLSA_ASSESSMENT_EVIDENCE_PATH),
+        "SLSA Build Level 3 assessment",
+    )?;
+    copy_evidence_file(
+        &root().join(ASSESSED_BUILDER_PATH),
+        &root().join(ASSESSED_BUILDER_EVIDENCE_PATH),
+        "assessed reusable builder",
+    )?;
+    copy_evidence_file(
+        &root().join("release/RELEASE_CANDIDATE_NOTES.md"),
+        &root().join("target/release-evidence/RELEASE_CANDIDATE_NOTES.md"),
+        "release-candidate notes",
+    )?;
 
     let subject_values = input["subjects"]
         .as_array()
@@ -109,8 +166,10 @@ fn finalize_preparation(
             "environment": "release-candidate",
             "oidcIssuer": EXPECTED_OIDC_ISSUER,
             "oidcSubject": EXPECTED_OIDC_SUBJECT,
-            "slsaTarget": "SLSA 1.2 Build Level 3",
-            "slsaAssessmentStatus": "pending-runtime-assessment",
+            "slsaTarget": SLSA_TARGET,
+            "slsaAssessmentStatus": "passed",
+            "slsaAssessment": digest_reference(SLSA_ASSESSMENT_EVIDENCE_PATH)?,
+            "slsaBuilderWorkflow": digest_reference(ASSESSED_BUILDER_EVIDENCE_PATH)?,
         },
         "evidence": {
             "spdx": [digest_reference("target/release-evidence/sbom.spdx.json")?],
@@ -124,12 +183,13 @@ fn finalize_preparation(
                 digest_reference("demos/benchmarks/profiles/release.toml")?,
                 digest_reference("docs/research/domains/0004-seven-domain-bounded-authorization-performance-baseline.md")?,
             ],
+            "releaseNotes": digest_reference("target/release-evidence/RELEASE_CANDIDATE_NOTES.md")?,
             "trustedRoot": digest_reference(path_text(&trusted_root_path)?)?,
             "attestationVerification": digest_reference(path_text(&verification_path)?)?,
         },
         "limitations": [
             "Preparation is not publication authorization.",
-            "The SLSA 1.2 Build Level 3 target remains a promotion blocker until runtime evidence is independently assessed.",
+            "The SLSA Build Level 3 assessment is bound to the exact reusable-builder bytes and becomes stale if they change.",
             "No independent security audit is claimed.",
         ],
     });
@@ -222,7 +282,11 @@ fn compare_subject_pair(name: &str, first: &Value, second: &Value) -> Result<Val
     }))
 }
 
-fn verify_promotion(staged: &Path, request_path: &Path) -> Result<(), String> {
+fn verify_promotion(
+    staged: &Path,
+    request_path: &Path,
+    authorization_path: &Path,
+) -> Result<(), String> {
     let manifest_path = staged.join("target/release-evidence/release-manifest.json");
     let manifest = read_json(&manifest_path, "staged release manifest")?;
     validate_release_manifest_value(&manifest)?;
@@ -241,6 +305,11 @@ fn verify_promotion(staged: &Path, request_path: &Path) -> Result<(), String> {
         .as_str()
         .ok_or("promotion request has no owner authorization digest")?;
     validate_sha256(authorization_digest)?;
+    if sha256_file(authorization_path)? != authorization_digest {
+        return Err("owner authorization bytes differ from the promotion request".to_owned());
+    }
+    let authorization = read_canonical_owner_authorization(authorization_path)?;
+    validate_owner_authorization(&authorization, &manifest, &request)?;
     if request["preparationRunId"]
         .as_str()
         .is_none_or(str::is_empty)
@@ -252,14 +321,171 @@ fn verify_promotion(staged: &Path, request_path: &Path) -> Result<(), String> {
     Ok(())
 }
 
+fn read_canonical_owner_authorization(path: &Path) -> Result<OwnerAuthorizationRecord, String> {
+    let bytes = fs::read(path)
+        .map_err(|error| format!("could not read owner authorization record: {error}"))?;
+    let authorization: OwnerAuthorizationRecord = serde_json::from_slice(&bytes)
+        .map_err(|error| format!("owner authorization record is not valid JSON: {error}"))?;
+    let mut canonical = serde_json::to_vec(&authorization)
+        .map_err(|error| format!("could not encode owner authorization record: {error}"))?;
+    canonical.push(b'\n');
+    if bytes != canonical {
+        return Err(
+            "owner authorization record is not canonical compact JSON with one trailing newline"
+                .to_owned(),
+        );
+    }
+    Ok(authorization)
+}
+
+fn validate_owner_authorization(
+    authorization: &OwnerAuthorizationRecord,
+    manifest: &Value,
+    request: &Value,
+) -> Result<(), String> {
+    if authorization.schema != OWNER_AUTHORIZATION_SCHEMA
+        || authorization.operation != "promote-prepared-candidate"
+        || authorization.repository != RELEASE_REPOSITORY
+        || authorization.authorized_by != "bordumb"
+        || authorization.authorized_by_id != "3743841"
+        || !is_utc_second_timestamp(&authorization.issued_at)
+        || authorization.candidate_commit != manifest["source"]["commit"]
+        || authorization.tag != manifest["release"]["tag"]
+        || authorization.manifest_sha256 != request["manifestSha256"]
+        || authorization.preparation_run_id != request["preparationRunId"]
+        || authorization
+            .preparation_run_id
+            .parse::<u64>()
+            .ok()
+            .is_none_or(|run| run == 0)
+        || authorization.destinations != ["github-prerelease"]
+        || authorization.statement != OWNER_AUTHORIZATION_STATEMENT
+    {
+        return Err("owner authorization does not authorize the exact promotion".to_owned());
+    }
+    Ok(())
+}
+
+fn is_utc_second_timestamp(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    if bytes.len() != 20
+        || bytes[4] != b'-'
+        || bytes[7] != b'-'
+        || bytes[10] != b'T'
+        || bytes[13] != b':'
+        || bytes[16] != b':'
+        || bytes[19] != b'Z'
+        || bytes.iter().enumerate().any(|(index, byte)| {
+            !matches!(index, 4 | 7 | 10 | 13 | 16 | 19) && !byte.is_ascii_digit()
+        })
+    {
+        return false;
+    }
+    let component = |start: usize, end: usize| {
+        value[start..end]
+            .parse::<u32>()
+            .expect("validated ASCII digits")
+    };
+    (1..=12).contains(&component(5, 7))
+        && (1..=31).contains(&component(8, 10))
+        && component(11, 13) < 24
+        && component(14, 16) < 60
+        && component(17, 19) < 60
+}
+
 fn validate_slsa_promotion_status(manifest: &Value) -> Result<(), String> {
-    if manifest["builder"]["slsaTarget"] != "SLSA 1.2 Build Level 3"
+    if manifest["builder"]["slsaTarget"] != SLSA_TARGET
         || manifest["builder"]["slsaAssessmentStatus"] != "passed"
     {
         return Err(
             "promotion blocked: SLSA 1.2 Build Level 3 runtime assessment has not passed"
                 .to_owned(),
         );
+    }
+    Ok(())
+}
+
+fn validate_slsa_assessment(
+    base: &Path,
+    assessment_path: &str,
+    builder_path: &str,
+) -> Result<(), String> {
+    let path = base.join(assessment_path);
+    let assessment = read_json(&path, "SLSA Build Level 3 assessment")?;
+    if assessment["schema"] != SLSA_ASSESSMENT_SCHEMA
+        || assessment["specification"] != "https://slsa.dev/spec/v1.2/requirements"
+        || assessment["target"] != SLSA_TARGET
+        || assessment["status"] != "passed"
+        || assessment["assessmentNature"] != "repository-owner-delegated-technical-assessment"
+        || assessment["assessedBuilder"]["platform"] != "github-actions"
+        || assessment["assessedBuilder"]["workflow"] != ASSESSED_BUILDER_PATH
+        || assessment["assessedBuilder"]["workflowEvidence"] != ASSESSED_BUILDER_EVIDENCE_PATH
+        || assessment["assessedBuilder"]["runner"] != "github-hosted/ubuntu-latest"
+        || assessment["assessedBuilder"]["provenance"]
+            != "github-artifact-attestations/slsa-provenance-v1"
+    {
+        return Err("SLSA Build Level 3 assessment metadata is incomplete".to_owned());
+    }
+    let expected_workflow_digest = assessment["assessedBuilder"]["workflowSha256"]
+        .as_str()
+        .ok_or("SLSA assessment has no workflow SHA-256")?;
+    validate_sha256(expected_workflow_digest)?;
+    let actual_workflow_digest = sha256_file(&base.join(builder_path))?;
+    if expected_workflow_digest != actual_workflow_digest {
+        return Err(
+            "SLSA Build Level 3 assessment is stale: reusable builder bytes changed".to_owned(),
+        );
+    }
+    validate_full_commit(
+        assessment["runtimeEvidence"]["candidateCommit"]
+            .as_str()
+            .ok_or("SLSA assessment has no assessed candidate commit")?,
+    )?;
+    validate_sha256(
+        assessment["runtimeEvidence"]["releaseManifestSha256"]
+            .as_str()
+            .ok_or("SLSA assessment has no release-manifest SHA-256")?,
+    )?;
+    for field in [
+        "preparationRunId",
+        "preparationRunUrl",
+        "candidateTag",
+        "officialAttestation",
+        "reproductionAttestation",
+    ] {
+        if assessment["runtimeEvidence"][field]
+            .as_str()
+            .is_none_or(str::is_empty)
+        {
+            return Err(format!("SLSA assessment runtime evidence has no {field}"));
+        }
+    }
+    let requirements = assessment["requirements"]
+        .as_array()
+        .ok_or("SLSA assessment has no requirements")?;
+    let actual = requirements
+        .iter()
+        .map(|requirement| {
+            let id = requirement["id"]
+                .as_str()
+                .ok_or("SLSA assessment requirement has no id")?;
+            if requirement["status"] != "passed" {
+                return Err(format!("SLSA assessment requirement did not pass: {id}"));
+            }
+            Ok(id)
+        })
+        .collect::<Result<BTreeSet<_>, String>>()?;
+    let expected = REQUIRED_SLSA_REQUIREMENTS
+        .into_iter()
+        .collect::<BTreeSet<_>>();
+    if actual != expected || requirements.len() != expected.len() {
+        return Err("SLSA assessment requirement set is incomplete".to_owned());
+    }
+    if assessment["limitations"]
+        .as_array()
+        .is_none_or(|limitations| limitations.len() < 4)
+    {
+        return Err("SLSA assessment limitations are incomplete".to_owned());
     }
     Ok(())
 }
@@ -324,9 +550,25 @@ fn validate_manifest_files(manifest: &Value, base: &Path) -> Result<(), String> 
             validate_digest_reference_file(base, reference)?;
         }
     }
-    for field in ["formalManifest", "trustedRoot", "attestationVerification"] {
+    for field in [
+        "formalManifest",
+        "releaseNotes",
+        "trustedRoot",
+        "attestationVerification",
+    ] {
         validate_digest_reference_file(base, &evidence[field])?;
     }
+    validate_digest_reference_file(base, &manifest["builder"]["slsaAssessment"])?;
+    validate_digest_reference_file(base, &manifest["builder"]["slsaBuilderWorkflow"])?;
+    validate_slsa_assessment(
+        base,
+        manifest["builder"]["slsaAssessment"]["path"]
+            .as_str()
+            .ok_or("release manifest has no SLSA assessment path")?,
+        manifest["builder"]["slsaBuilderWorkflow"]["path"]
+            .as_str()
+            .ok_or("release manifest has no assessed builder path")?,
+    )?;
     Ok(())
 }
 
@@ -426,6 +668,36 @@ mod tests {
         })
     }
 
+    fn owner_authorization() -> OwnerAuthorizationRecord {
+        OwnerAuthorizationRecord {
+            schema: OWNER_AUTHORIZATION_SCHEMA.to_owned(),
+            operation: "promote-prepared-candidate".to_owned(),
+            repository: RELEASE_REPOSITORY.to_owned(),
+            authorized_by: "bordumb".to_owned(),
+            authorized_by_id: "3743841".to_owned(),
+            issued_at: "2026-08-03T12:00:00Z".to_owned(),
+            candidate_commit: "b".repeat(40),
+            tag: "auths-v1.0.0-rc.1".to_owned(),
+            manifest_sha256: "a".repeat(64),
+            preparation_run_id: "30849197798".to_owned(),
+            destinations: vec!["github-prerelease".to_owned()],
+            statement: OWNER_AUTHORIZATION_STATEMENT.to_owned(),
+        }
+    }
+
+    fn authorization_manifest_and_request() -> (Value, Value) {
+        (
+            json!({
+                "source": {"commit": "b".repeat(40)},
+                "release": {"tag": "auths-v1.0.0-rc.1"},
+            }),
+            json!({
+                "manifestSha256": "a".repeat(64),
+                "preparationRunId": "30849197798",
+            }),
+        )
+    }
+
     #[test]
     fn changed_byte_identical_subject_is_terminal() {
         let first = subject("auths.crate", 'a', "byte-identical");
@@ -477,5 +749,76 @@ mod tests {
         let error = validate_slsa_promotion_status(&manifest)
             .expect_err("pending runtime assessment must block promotion");
         assert!(error.contains("has not passed"));
+    }
+
+    #[test]
+    fn checked_in_slsa_assessment_matches_builder_bytes() {
+        validate_slsa_assessment(&root(), SLSA_ASSESSMENT_PATH, ASSESSED_BUILDER_PATH)
+            .expect("checked-in assessment must be current");
+    }
+
+    #[test]
+    fn slsa_assessment_rejects_changed_builder_bytes() {
+        let temporary = root().join("target/release-control-slsa-staleness-test");
+        fs::create_dir_all(temporary.join("release")).expect("create release test directory");
+        fs::create_dir_all(temporary.join(".github/workflows"))
+            .expect("create workflow test directory");
+        fs::copy(
+            root().join(SLSA_ASSESSMENT_PATH),
+            temporary.join(SLSA_ASSESSMENT_PATH),
+        )
+        .expect("copy assessment");
+        fs::write(
+            temporary.join(ASSESSED_BUILDER_PATH),
+            b"name: changed builder\n",
+        )
+        .expect("write changed builder");
+        let error =
+            validate_slsa_assessment(&temporary, SLSA_ASSESSMENT_PATH, ASSESSED_BUILDER_PATH)
+                .expect_err("changed builder must stale assessment");
+        fs::remove_dir_all(&temporary).expect("remove test directory");
+        assert!(error.contains("assessment is stale"));
+    }
+
+    #[test]
+    fn promotion_accepts_passed_slsa_runtime_assessment() {
+        let manifest = json!({
+            "builder": {
+                "slsaTarget": SLSA_TARGET,
+                "slsaAssessmentStatus": "passed",
+            }
+        });
+        validate_slsa_promotion_status(&manifest).expect("passed assessment should promote");
+    }
+
+    #[test]
+    fn exact_owner_authorization_passes() {
+        let (manifest, request) = authorization_manifest_and_request();
+        validate_owner_authorization(&owner_authorization(), &manifest, &request)
+            .expect("exact authorization must pass");
+    }
+
+    #[test]
+    fn owner_authorization_rejects_different_manifest() {
+        let (manifest, mut request) = authorization_manifest_and_request();
+        request["manifestSha256"] = json!("c".repeat(64));
+        let error = validate_owner_authorization(&owner_authorization(), &manifest, &request)
+            .expect_err("different manifest must fail");
+        assert!(error.contains("exact promotion"));
+    }
+
+    #[test]
+    fn owner_authorization_rejects_noncanonical_bytes() {
+        let temporary = root().join("target/release-control-owner-authorization-test.json");
+        write_json(
+            &temporary,
+            &serde_json::to_value(owner_authorization()).expect("encode authorization"),
+            "test owner authorization",
+        )
+        .expect("write pretty authorization");
+        let error = read_canonical_owner_authorization(&temporary)
+            .expect_err("pretty authorization must fail");
+        fs::remove_file(&temporary).expect("remove authorization");
+        assert!(error.contains("not canonical compact JSON"));
     }
 }

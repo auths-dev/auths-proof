@@ -12,6 +12,23 @@
     "path": "release/semantic-freeze.json",
     "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
   },
+  "builder": {
+    "workflow": "auths-dev/auths-proof/.github/workflows/release-builder.yml",
+    "workflowDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "environment": "release-candidate",
+    "oidcIssuer": "https://token.actions.githubusercontent.com",
+    "oidcSubject": "repo:auths-dev@260513770/auths-proof@1310728509:environment:release-candidate",
+    "slsaTarget": "SLSA 1.2 Build Level 3",
+    "slsaAssessmentStatus": "passed",
+    "slsaAssessment": {
+      "path": "target/release-evidence/slsa-build-level-3-assessment.json",
+      "sha256": "3333333333333333333333333333333333333333333333333333333333333333"
+    },
+    "slsaBuilderWorkflow": {
+      "path": "target/release-evidence/release-builder.yml",
+      "sha256": "4444444444444444444444444444444444444444444444444444444444444444"
+    }
+  },
   "subjects": [
     {
       "name": "target/package/auths-1.0.0-rc.1.crate",
@@ -49,6 +66,10 @@
         "path": "evidence/benchmarks.json",
         "sha256": "2222222222222222222222222222222222222222222222222222222222222222"
       }
-    ]
+    ],
+    "releaseNotes": {
+      "path": "evidence/RELEASE_CANDIDATE_NOTES.md",
+      "sha256": "5555555555555555555555555555555555555555555555555555555555555555"
+    }
   }
 }
