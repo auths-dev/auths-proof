@@ -243,42 +243,35 @@ pub(crate) fn workspace_msrv() -> Result<(), String> {
 
 pub(crate) fn python_wheel_smoke() -> Result<(), String> {
     let wheel_directory = root().join("target/python-wheels");
+    let reproduction_directory = root().join("target/python-wheels-reproduction");
     let virtual_environment = root().join("target/python-smoke-venv");
-    if wheel_directory.exists() {
-        fs::remove_dir_all(&wheel_directory)
-            .map_err(|error| format!("could not clear Python wheel directory: {error}"))?;
+    for directory in [&wheel_directory, &reproduction_directory] {
+        if directory.exists() {
+            fs::remove_dir_all(directory)
+                .map_err(|error| format!("could not clear Python wheel directory: {error}"))?;
+        }
+        fs::create_dir_all(directory)
+            .map_err(|error| format!("could not create Python wheel directory: {error}"))?;
     }
     if virtual_environment.exists() {
         fs::remove_dir_all(&virtual_environment)
             .map_err(|error| format!("could not clear Python smoke environment: {error}"))?;
     }
-    fs::create_dir_all(&wheel_directory)
-        .map_err(|error| format!("could not create Python wheel directory: {error}"))?;
-    command_in(
-        "maturin",
-        &[
-            "build",
-            "--out",
-            path_text(&wheel_directory)?,
-            "--manifest-path",
-            "bindings/python/Cargo.toml",
-        ],
-        &root(),
-        None,
-    )?;
-    let wheels: Vec<_> = fs::read_dir(&wheel_directory)
-        .map_err(|error| format!("could not list Python wheels: {error}"))?
-        .filter_map(Result::ok)
-        .map(|entry| entry.path())
-        .filter(|path| path.extension().and_then(|value| value.to_str()) == Some("whl"))
-        .collect();
-    if wheels.len() != 1 {
+    let source_date_epoch = release_source_date_epoch()?;
+    build_python_wheel(&wheel_directory, &source_date_epoch)?;
+    build_python_wheel(&reproduction_directory, &source_date_epoch)?;
+    let wheel = single_python_wheel(&wheel_directory)?;
+    let reproduction = single_python_wheel(&reproduction_directory)?;
+    let wheel_digest = sha256_file(&wheel)?;
+    let reproduction_digest = sha256_file(&reproduction)?;
+    if wheel_digest != reproduction_digest {
         return Err(format!(
-            "expected one Python wheel, found {} in {}",
-            wheels.len(),
-            wheel_directory.display()
+            "Python wheel is not reproducible for SOURCE_DATE_EPOCH={source_date_epoch}: {wheel_digest} != {reproduction_digest}"
         ));
     }
+    println!(
+        "Python wheel reproducibility passed for SOURCE_DATE_EPOCH={source_date_epoch}: {wheel_digest}"
+    );
     command("python3", &["-m", "venv", path_text(&virtual_environment)?])?;
     let python = if cfg!(windows) {
         virtual_environment.join("Scripts/python.exe")
@@ -288,7 +281,7 @@ pub(crate) fn python_wheel_smoke() -> Result<(), String> {
     command(path_text(&python)?, &["-m", "pip", "install", "pytest"])?;
     command(
         path_text(&python)?,
-        &["-m", "pip", "install", path_text(&wheels[0])?],
+        &["-m", "pip", "install", path_text(&wheel)?],
     )?;
     command_in(
         path_text(&python)?,
@@ -296,6 +289,75 @@ pub(crate) fn python_wheel_smoke() -> Result<(), String> {
         &root().join("bindings/python"),
         None,
     )
+}
+
+fn build_python_wheel(output: &Path, source_date_epoch: &str) -> Result<(), String> {
+    let status = Command::new("maturin")
+        .args([
+            "build",
+            "--out",
+            path_text(output)?,
+            "--manifest-path",
+            "bindings/python/Cargo.toml",
+        ])
+        .env("SOURCE_DATE_EPOCH", source_date_epoch)
+        .current_dir(root())
+        .status()
+        .map_err(|error| format!("could not run maturin: {error}"))?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!("maturin build failed with {status}"))
+    }
+}
+
+fn single_python_wheel(directory: &Path) -> Result<PathBuf, String> {
+    let wheels: Vec<_> = fs::read_dir(directory)
+        .map_err(|error| format!("could not list Python wheels: {error}"))?
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .filter(|path| path.extension().and_then(|value| value.to_str()) == Some("whl"))
+        .collect();
+    if wheels.len() != 1 {
+        return Err(format!(
+            "expected one Python wheel, found {} in {}",
+            wheels.len(),
+            directory.display()
+        ));
+    }
+    Ok(wheels[0].clone())
+}
+
+fn release_source_date_epoch() -> Result<String, String> {
+    let output = Command::new("git")
+        .args(["show", "-s", "--format=%ct", "HEAD"])
+        .current_dir(root())
+        .output()
+        .map_err(|error| format!("could not identify release source timestamp: {error}"))?;
+    if !output.status.success() {
+        return Err("could not identify release source timestamp".to_owned());
+    }
+    let value = String::from_utf8(output.stdout)
+        .map_err(|error| format!("release source timestamp is not UTF-8: {error}"))?;
+    validate_source_date_epoch(value.trim())
+}
+
+fn validate_source_date_epoch(value: &str) -> Result<String, String> {
+    if value.is_empty() || !value.bytes().all(|byte| byte.is_ascii_digit()) {
+        return Err(format!("invalid release SOURCE_DATE_EPOCH: {value}"));
+    }
+    let epoch = value
+        .parse::<u64>()
+        .map_err(|error| format!("invalid release SOURCE_DATE_EPOCH {value}: {error}"))?;
+    // ZIP timestamps cannot represent dates before 1980-01-01. Every repository
+    // commit is newer, but reject an invalid clock instead of relying on a
+    // packager-specific clamp.
+    if epoch < 315_532_800 {
+        return Err(format!(
+            "release SOURCE_DATE_EPOCH predates the ZIP timestamp domain: {value}"
+        ));
+    }
+    Ok(value.to_owned())
 }
 
 pub(crate) fn abi() -> Result<(), String> {
@@ -328,4 +390,31 @@ pub(crate) fn product_conformance() -> Result<(), String> {
     });
     println!("product MCP and Iroh conformance passed");
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn source_date_epoch_accepts_zip_representable_commit_time() {
+        assert_eq!(
+            validate_source_date_epoch("1785776427").expect("valid commit timestamp"),
+            "1785776427"
+        );
+    }
+
+    #[test]
+    fn source_date_epoch_rejects_non_numeric_input() {
+        let error = validate_source_date_epoch("not-a-timestamp")
+            .expect_err("non-numeric timestamp must fail closed");
+        assert!(error.contains("invalid release SOURCE_DATE_EPOCH"));
+    }
+
+    #[test]
+    fn source_date_epoch_rejects_pre_zip_timestamp() {
+        let error = validate_source_date_epoch("315532799")
+            .expect_err("pre-ZIP timestamp must fail closed");
+        assert!(error.contains("predates the ZIP timestamp domain"));
+    }
 }
