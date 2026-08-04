@@ -27,6 +27,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .first()
         .ok_or("raw-key chain omitted its grant")?
         .statement();
+    fs::write(
+        output.join("authoring.signed-root-grant.cbor"),
+        auths_codec::encode_signed_grant(
+            bundle
+                .grants()
+                .first()
+                .ok_or("raw-key chain omitted its grant")?,
+        )?,
+    )?;
     let parent = auths_model::GrantStatement::new(
         proposed.issuer().clone(),
         proposed.issuer().clone(),

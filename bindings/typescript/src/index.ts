@@ -7,7 +7,9 @@ import {
 export {
   AuthsClient,
   AuthsWorkflowError,
+  AttachedAgent,
   ProviderOperationError,
+  SignedGrantSource,
   type AgentIdentity,
   type ApprovalConfiguration,
   type ApprovalMode,
@@ -15,7 +17,11 @@ export {
   type ApprovalProvider,
   type ApprovalRequest,
   type ApprovalResponse,
+  type AttachAgentOptions,
+  type EffectiveAuthoritySummary,
+  type PermissionSummary,
   type PrincipalDescriptor,
+  type Profile,
   type ProviderFailureKind,
   type ReviewField,
   type Signer,
@@ -23,9 +29,13 @@ export {
   type SigningObjectKind,
   type SigningRequest,
   type SigningResponse,
+  type SignedGrantLoadRequest,
+  type SignedGrantProvider,
+  type SignedGrantSourceOptions,
   type TrustedAuthority,
   type TrustedAuthoritySnapshot,
   type WorkflowErrorCode,
+  signedGrantSource,
 } from "./workflow.js";
 
 const MAX_RESULT_BYTES = 16 * 1024 * 1024;
@@ -229,6 +239,8 @@ async function loadPackagedWorkflowEngine(): Promise<
     typeof loaded.authoringAbiVersionV1 !== "function" ||
     typeof loaded.canonicalPrincipalV1 !== "function" ||
     typeof loaded.configurationV1 !== "function" ||
+    typeof loaded.inspectSignedGrantV1 !== "function" ||
+    typeof loaded.validateRootAuthorityV1 !== "function" ||
     typeof loaded.prepareGrantSigningV1 !== "function" ||
     typeof loaded.prepareActionSigningV1 !== "function" ||
     typeof loaded.preparePrincipalStatusSigningV1 !== "function" ||

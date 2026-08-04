@@ -8,8 +8,9 @@ use auths_author::{
     prepare_principal_status,
 };
 use auths_model::{
-    Audience, Challenge, PrincipalId, PrincipalMethodId, SignatureBytes, SignatureDescriptor,
-    SignatureSuiteId, Timestamp, VerificationMethod, VerifierLimits,
+    ActionConstraint, Audience, Challenge, PrincipalId, PrincipalMethodId, ProfileId,
+    SignatureBytes, SignatureDescriptor, SignatureSuiteId, StatusPolicy, Timestamp,
+    VerificationMethod, VerifierLimits,
 };
 use auths_ports::{PrincipalMethod, SignatureSuite};
 use auths_registries::ImmutableRegistries;
@@ -44,6 +45,362 @@ pub fn canonical_principal_v1(principal: &str) -> Result<String, JsValue> {
     PrincipalId::parse(principal)
         .map(|value| value.as_str().to_owned())
         .map_err(js_error)
+}
+
+/// Lossless bounded authority projection for one canonical signed grant.
+#[wasm_bindgen]
+pub struct SignedGrantAuthorityV1 {
+    grant_id: Vec<u8>,
+    issuer: String,
+    subject: String,
+    profile_id: String,
+    profile_version: u16,
+    permission_capabilities: Vec<String>,
+    permission_resources: Vec<String>,
+    not_before: u64,
+    expires_at: u64,
+    audiences: Vec<String>,
+    action_constraint: &'static str,
+    action_digest_count: u32,
+    has_budget: bool,
+    budget_algebra: String,
+    budget_value: u64,
+    remaining_depth: u16,
+    has_parent: bool,
+    parent_id: Vec<u8>,
+    status_policy: &'static str,
+    status_method: String,
+    status_max_age: u64,
+    assurance_floor: String,
+    critical_extensions: Vec<String>,
+    signature_principal_method: String,
+    signature_verification_method: String,
+    signature_suite: String,
+}
+
+#[wasm_bindgen]
+impl SignedGrantAuthorityV1 {
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = grantId)]
+    pub fn grant_id(&self) -> Vec<u8> {
+        self.grant_id.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter)]
+    pub fn issuer(&self) -> String {
+        self.issuer.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter)]
+    pub fn subject(&self) -> String {
+        self.subject.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = profileId)]
+    pub fn profile_id(&self) -> String {
+        self.profile_id.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = profileVersion)]
+    pub fn profile_version(&self) -> u16 {
+        self.profile_version
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = permissionCapabilities)]
+    pub fn permission_capabilities(&self) -> Vec<String> {
+        self.permission_capabilities.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = permissionResources)]
+    pub fn permission_resources(&self) -> Vec<String> {
+        self.permission_resources.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = notBefore)]
+    pub fn not_before(&self) -> u64 {
+        self.not_before
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = expiresAt)]
+    pub fn expires_at(&self) -> u64 {
+        self.expires_at
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter)]
+    pub fn audiences(&self) -> Vec<String> {
+        self.audiences.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = actionConstraint)]
+    pub fn action_constraint(&self) -> String {
+        self.action_constraint.to_owned()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = actionDigestCount)]
+    pub fn action_digest_count(&self) -> u32 {
+        self.action_digest_count
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = hasBudget)]
+    pub fn has_budget(&self) -> bool {
+        self.has_budget
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = budgetAlgebra)]
+    pub fn budget_algebra(&self) -> String {
+        self.budget_algebra.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = budgetValue)]
+    pub fn budget_value(&self) -> u64 {
+        self.budget_value
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = remainingDepth)]
+    pub fn remaining_depth(&self) -> u16 {
+        self.remaining_depth
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = hasParent)]
+    pub fn has_parent(&self) -> bool {
+        self.has_parent
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = parentId)]
+    pub fn parent_id(&self) -> Vec<u8> {
+        self.parent_id.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = statusPolicy)]
+    pub fn status_policy(&self) -> String {
+        self.status_policy.to_owned()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = statusMethod)]
+    pub fn status_method(&self) -> String {
+        self.status_method.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = statusMaxAge)]
+    pub fn status_max_age(&self) -> u64 {
+        self.status_max_age
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = assuranceFloor)]
+    pub fn assurance_floor(&self) -> String {
+        self.assurance_floor.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = criticalExtensions)]
+    pub fn critical_extensions(&self) -> Vec<String> {
+        self.critical_extensions.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = signaturePrincipalMethod)]
+    pub fn signature_principal_method(&self) -> String {
+        self.signature_principal_method.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = signatureVerificationMethod)]
+    pub fn signature_verification_method(&self) -> String {
+        self.signature_verification_method.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = signatureSuite)]
+    pub fn signature_suite(&self) -> String {
+        self.signature_suite.clone()
+    }
+}
+
+/// Decodes one exact canonical signed grant into a bounded authority view.
+///
+/// This operation validates canonical structure and identifiers. Signature,
+/// status, assurance, and chain verification remain part of authorization.
+///
+/// # Errors
+///
+/// Returns a JavaScript error for malformed, non-canonical, or over-limit
+/// signed-grant input.
+#[wasm_bindgen(js_name = inspectSignedGrantV1)]
+pub fn inspect_signed_grant_v1(
+    signed_grant_cbor: &[u8],
+) -> Result<SignedGrantAuthorityV1, JsValue> {
+    inspect_signed_grant_native(signed_grant_cbor).map_err(js_error)
+}
+
+/// Validates the structural root-authority bindings of one signed grant.
+///
+/// This operation requires a parentless grant whose issuer, subject, and
+/// profile equal the caller's already-canonical trust and agent inputs. It
+/// does not claim that the signature, status, assurance, or chain has passed
+/// authorization verification.
+///
+/// # Errors
+///
+/// Returns a JavaScript error for malformed, non-canonical, over-limit, or
+/// mismatched signed-grant input.
+#[wasm_bindgen(js_name = validateRootAuthorityV1)]
+pub fn validate_root_authority_v1(
+    signed_grant_cbor: &[u8],
+    root_principal: &str,
+    subject_principal: &str,
+    profile_id: &str,
+    profile_version: u16,
+) -> Result<SignedGrantAuthorityV1, JsValue> {
+    validate_root_authority_native(
+        signed_grant_cbor,
+        root_principal,
+        subject_principal,
+        profile_id,
+        profile_version,
+    )
+    .map_err(js_error)
+}
+
+fn validate_root_authority_native(
+    signed_grant_cbor: &[u8],
+    root_principal: &str,
+    subject_principal: &str,
+    profile_id: &str,
+    profile_version: u16,
+) -> Result<SignedGrantAuthorityV1, EngineError> {
+    let authority = inspect_signed_grant_native(signed_grant_cbor)?;
+    let root_principal = PrincipalId::parse(root_principal)?;
+    let subject_principal = PrincipalId::parse(subject_principal)?;
+    let profile_id = ProfileId::parse(profile_id)?;
+    if authority.has_parent {
+        return Err(EngineError::Abi(
+            "root authority grant must not name a parent",
+        ));
+    }
+    if authority.issuer != root_principal.as_str() {
+        return Err(EngineError::Abi(
+            "root authority grant issuer does not match the trusted root",
+        ));
+    }
+    if authority.subject != subject_principal.as_str() {
+        return Err(EngineError::Abi(
+            "root authority grant subject does not match the attached agent",
+        ));
+    }
+    if authority.profile_id != profile_id.as_str() || authority.profile_version != profile_version {
+        return Err(EngineError::Abi(
+            "root authority grant profile does not match the attached profile",
+        ));
+    }
+    Ok(authority)
+}
+
+fn inspect_signed_grant_native(
+    signed_grant_cbor: &[u8],
+) -> Result<SignedGrantAuthorityV1, EngineError> {
+    let grant =
+        auths_codec::decode_signed_grant(signed_grant_cbor, &VerifierLimits::default_deployment())?;
+    let statement = grant.statement();
+    let grant_id = auths_codec::grant_id(statement)?.as_bytes().to_vec();
+    let permission_capabilities = statement
+        .permissions()
+        .as_slice()
+        .iter()
+        .map(|permission| permission.capability().as_str().to_owned())
+        .collect();
+    let permission_resources = statement
+        .permissions()
+        .as_slice()
+        .iter()
+        .map(|permission| permission.resource().as_str().to_owned())
+        .collect();
+    let audiences = statement
+        .audiences()
+        .as_slice()
+        .iter()
+        .map(|audience| audience.as_str().to_owned())
+        .collect();
+    let (action_constraint, action_digest_count) = match statement.action_constraint() {
+        ActionConstraint::AnyBody => ("any-body", 0),
+        ActionConstraint::ExactBodyDigest(_) => ("exact-body", 1),
+        ActionConstraint::AllowedBodyDigests(digests) => (
+            "allowed-bodies",
+            u32::try_from(digests.as_slice().len())
+                .map_err(|_| EngineError::Abi("action digest count exceeds ABI"))?,
+        ),
+    };
+    let (has_budget, budget_algebra, budget_value) = statement.budget_ceiling().map_or_else(
+        || (false, String::new(), 0),
+        |budget| (true, budget.algebra().as_str().to_owned(), budget.value()),
+    );
+    let (has_parent, parent_id) = statement.parent().map_or_else(
+        || (false, Vec::new()),
+        |parent| (true, parent.as_bytes().to_vec()),
+    );
+    let (status_policy, status_method, status_max_age) = match statement.status_policy() {
+        StatusPolicy::ExpiryOnly => ("expiry-only", String::new(), 0),
+        StatusPolicy::SnapshotRequired { method, max_age } => (
+            "snapshot-required",
+            method.as_str().to_owned(),
+            max_age.get(),
+        ),
+    };
+    let critical_extensions = statement
+        .extensions()
+        .as_slice()
+        .iter()
+        .map(|extension| extension.id().as_str().to_owned())
+        .collect();
+    let descriptor = grant.signature().descriptor();
+    Ok(SignedGrantAuthorityV1 {
+        grant_id,
+        issuer: statement.issuer().as_str().to_owned(),
+        subject: statement.subject().as_str().to_owned(),
+        profile_id: statement.profile().id().as_str().to_owned(),
+        profile_version: statement.profile().version(),
+        permission_capabilities,
+        permission_resources,
+        not_before: statement.validity().not_before().get(),
+        expires_at: statement.validity().expires_at().get(),
+        audiences,
+        action_constraint,
+        action_digest_count,
+        has_budget,
+        budget_algebra,
+        budget_value,
+        remaining_depth: statement.remaining_depth(),
+        has_parent,
+        parent_id,
+        status_policy,
+        status_method,
+        status_max_age,
+        assurance_floor: statement.assurance_floor().as_str().to_owned(),
+        critical_extensions,
+        signature_principal_method: descriptor.principal_method().as_str().to_owned(),
+        signature_verification_method: descriptor.verification_method().as_str().to_owned(),
+        signature_suite: descriptor.suite().as_str().to_owned(),
+    })
 }
 
 /// Bounded output of native child-grant planning.
@@ -763,6 +1120,79 @@ mod tests {
         assert_eq!(
             completed,
             auths_codec::encode_signed_action(action).unwrap()
+        );
+    }
+
+    #[test]
+    fn signed_grant_authority_projection_matches_the_native_model() {
+        let bundle = raw_key_bundle();
+        let grant = &bundle.grants()[0];
+        let statement = grant.statement();
+        let bytes = auths_codec::encode_signed_grant(grant).unwrap();
+        let projected = inspect_signed_grant_native(&bytes).unwrap();
+
+        assert_eq!(
+            projected.grant_id,
+            auths_codec::grant_id(statement).unwrap().as_bytes()
+        );
+        assert_eq!(projected.issuer, statement.issuer().as_str());
+        assert_eq!(projected.subject, statement.subject().as_str());
+        assert_eq!(projected.profile_id, statement.profile().id().as_str());
+        assert_eq!(projected.profile_version, statement.profile().version());
+        assert_eq!(projected.permission_capabilities, vec!["tools/call"]);
+        assert_eq!(projected.permission_resources, vec!["mcp://reports/read"]);
+        assert!(!projected.has_parent);
+        assert_eq!(projected.action_constraint, "exact-body");
+        assert_eq!(projected.action_digest_count, 1);
+        assert_eq!(projected.status_policy, "expiry-only");
+    }
+
+    #[test]
+    fn root_authority_validation_binds_every_attach_identity() {
+        let bundle = raw_key_bundle();
+        let grant = &bundle.grants()[0];
+        let statement = grant.statement();
+        let bytes = auths_codec::encode_signed_grant(grant).unwrap();
+
+        assert!(
+            validate_root_authority_native(
+                &bytes,
+                statement.issuer().as_str(),
+                statement.subject().as_str(),
+                statement.profile().id().as_str(),
+                statement.profile().version(),
+            )
+            .is_ok()
+        );
+        assert!(
+            validate_root_authority_native(
+                &bytes,
+                statement.subject().as_str(),
+                statement.subject().as_str(),
+                statement.profile().id().as_str(),
+                statement.profile().version(),
+            )
+            .is_err()
+        );
+        assert!(
+            validate_root_authority_native(
+                &bytes,
+                statement.issuer().as_str(),
+                statement.issuer().as_str(),
+                statement.profile().id().as_str(),
+                statement.profile().version(),
+            )
+            .is_err()
+        );
+        assert!(
+            validate_root_authority_native(
+                &bytes,
+                statement.issuer().as_str(),
+                statement.subject().as_str(),
+                statement.profile().id().as_str(),
+                statement.profile().version() + 1,
+            )
+            .is_err()
         );
     }
 

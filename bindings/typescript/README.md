@@ -31,11 +31,21 @@ The repository-local workflow preview uses the package-owned WASM subject and
 does not accept a caller-selected module or engine:
 
 ```ts
-import { loadAuths } from "@auths-dev/sdk";
+import { loadAuths, signedGrantSource } from "@auths-dev/sdk";
 
 const auths = await loadAuths({ signer, trustedAuthority });
 try {
-  console.log(auths.identity.principal.principal);
+  const agent = await auths.attachAgent({
+    name: "research-agent",
+    profile,
+    authority: signedGrantSource({
+      sourceId: "local-root-grant",
+      provider: grantStore,
+    }),
+    approval,
+  });
+  console.log(agent.authority.permissions);
+  await agent.dispose();
 } finally {
   await auths.dispose();
 }
@@ -46,6 +56,13 @@ ships no production custody provider and never asks either port to export a
 private key. Exact signing requests are prepared by Rust/WASM and bound to a
 configuration commitment, approval policy, principal descriptor, object,
 transaction digest, provider call, expiry, and one terminal lifecycle.
+
+`signedGrantSource` seals the normal authority-source boundary: `attachAgent`
+does not accept caller-supplied protocol bytes. Rust/WASM decodes the exact
+canonical signed grant and binds its parentlessness, root issuer, agent
+subject, and profile before the SDK exposes an effective-authority summary.
+That summary deliberately reports `pending-authorization`; attach does not
+claim that signature, status, assurance, or live authorization checks passed.
 
 The frozen target API and security boundary are documented in
 [`FULL_WORKFLOW_API_CONTRACT.md`](FULL_WORKFLOW_API_CONTRACT.md) and

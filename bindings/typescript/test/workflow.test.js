@@ -68,6 +68,7 @@ test("workflow loader binds an immutable principal to package-owned WASM", async
     signer,
     trustedAuthority: {
       authorityId: "local.test-root",
+      rootPrincipal: "did:web:root.auths.example",
       verifierConfiguration,
       requiredApproval,
     },
@@ -144,6 +145,7 @@ test("workflow load fails closed and cleans up on trust mismatch", async () => {
       signer,
       trustedAuthority: {
         authorityId: "wrong.test-root",
+        rootPrincipal: "did:web:root.auths.example",
         verifierConfiguration: new Uint8Array(32),
         requiredApproval: policy(),
       },

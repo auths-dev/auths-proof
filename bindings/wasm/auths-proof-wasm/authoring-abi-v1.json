@@ -6,6 +6,8 @@
   "exports": [
     "authoringAbiVersionV1",
     "canonicalPrincipalV1",
+    "inspectSignedGrantV1",
+    "validateRootAuthorityV1",
     "planChildGrantV1",
     "prepareGrantSigningV1",
     "prepareActionSigningV1",
@@ -29,6 +31,7 @@
     "source": "core/fixtures/v1/valid/raw-key-chain.proof.cbor",
     "generatedBy": "auths-proof-wasm/generate-node-vectors",
     "outputs": [
+      "authoring.signed-root-grant.cbor",
       "authoring.parent-grant.cbor",
       "authoring.proposed-grant.cbor",
       "authoring.planned-grant.cbor",
