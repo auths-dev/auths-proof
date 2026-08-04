@@ -144,6 +144,7 @@ export async function delegateAttachedAgent<P extends Profile>(
         authority: summary,
         signer: options.signer,
         signedGrant: signed.signedObject,
+        evidence: signed.evidence,
         grantStatement: plan.statementCbor,
         review,
       });

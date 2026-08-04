@@ -4,8 +4,8 @@ use crate::{
     CodecError,
     encode::{
         encode_action_envelope, encode_bundle, encode_grant_statement,
-        encode_grant_status_statement, encode_principal_status_statement, encode_signed_grant,
-        encode_verifier_context,
+        encode_grant_status_statement, encode_principal_status_statement, encode_signed_action,
+        encode_signed_grant, encode_verifier_context,
     },
     hash::evidence_id,
 };
@@ -1270,6 +1270,29 @@ pub fn decode_signed_grant(
         return Err(CodecError::NonCanonical);
     }
     Ok(grant)
+}
+
+/// Decodes one canonical signed action under explicit deployment limits.
+///
+/// # Errors
+///
+/// Returns a typed codec error for malformed, non-canonical, over-limit, or
+/// semantically invalid input.
+pub fn decode_signed_action(
+    input: &[u8],
+    limits: &VerifierLimits,
+) -> Result<SignedAction, CodecError> {
+    limits.validate()?;
+    if input.len() > limits.get(LimitKind::BundleBytes) {
+        return Err(CodecError::LimitExceeded);
+    }
+    let mut decoder = Decoder::new(input);
+    let action = signed_action(&mut decoder, limits)?;
+    ensure_complete(&decoder, input)?;
+    if encode_signed_action(&action)?.as_slice() != input {
+        return Err(CodecError::NonCanonical);
+    }
+    Ok(action)
 }
 
 /// Decodes one canonical unsigned action envelope under explicit limits.

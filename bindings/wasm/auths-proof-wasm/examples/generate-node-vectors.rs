@@ -1,3 +1,5 @@
+use auths_profile_api::ActionProfile as _;
+use ed25519_dalek::{Signer as _, SigningKey};
 use std::{env, fs, path::PathBuf};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -100,6 +102,124 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         output.join("authoring.action-signing-preimage.cbor"),
         signing.signing_preimage(),
     )?;
+    write_mcp_workflow_vectors(&output)?;
+    Ok(())
+}
+
+#[allow(clippy::too_many_lines)]
+fn write_mcp_workflow_vectors(output: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
+    let root_key = SigningKey::from_bytes(&[11; 32]);
+    let actor_key = SigningKey::from_bytes(&[12; 32]);
+    let root_descriptor = auths_raw_key::RawKeyDescriptor::new(
+        auths_raw_key::RawKeyType::Ed25519,
+        root_key.verifying_key().to_bytes().to_vec(),
+    )
+    .map_err(|_| std::io::Error::other("invalid fixed root key"))?;
+    let actor_descriptor = auths_raw_key::RawKeyDescriptor::new(
+        auths_raw_key::RawKeyType::Ed25519,
+        actor_key.verifying_key().to_bytes().to_vec(),
+    )
+    .map_err(|_| std::io::Error::other("invalid fixed actor key"))?;
+    let root = root_descriptor.principal()?;
+    let actor = actor_descriptor.principal()?;
+    let call = auths_profile_mcp::McpToolCall::new(
+        "reports",
+        "update_demo_record",
+        serde_json::from_value(serde_json::json!({"value": "reviewed"}))?,
+    )?;
+    let canonical = auths_profile_mcp::McpProfile.canonicalize(&call.canonical_bytes()?)?;
+    let template =
+        auths_codec::decode_verifier_context(&fs::read(output.join("authorized.context.cbor"))?)?;
+    let anchor = auths_model::TrustAnchor::new(
+        auths_model::TrustAnchorId::parse(root.as_str())?,
+        root.clone(),
+        vec![auths_model::PrincipalMethodId::parse(
+            auths_raw_key::RAW_KEY_V1,
+        )?],
+        vec![canonical.profile().clone()],
+        auths_model::PermissionSet::new(vec![canonical.permission().clone()])?,
+        vec![auths_model::ResourceId::parse("mcp://reports")?],
+        auths_model::AudienceSet::new(vec![call.audience()?])?,
+        auths_model::ValidityWindow::new(
+            auths_model::Timestamp::new(0),
+            auths_model::Timestamp::new(100),
+        )?,
+        Some(auths_model::BudgetCeiling::new(
+            auths_model::BudgetAlgebraId::parse("numeric-ceiling-v1")?,
+            20,
+        )),
+        1,
+        auths_model::AssurancePolicyId::parse("raw-key-baseline")?,
+        auths_model::StatusPolicy::ExpiryOnly,
+    )?;
+    let context = auths_model::VerifierContext::new(
+        template.configuration(),
+        template.composition(),
+        vec![anchor],
+        template.accepted_registries().clone(),
+        call.audience()?,
+        auths_model::Challenge::new([0x22; 32]),
+        auths_model::Timestamp::new(50),
+        template.assurance_policy().clone(),
+        template.principal_status_snapshot().clone(),
+        template.grant_status_snapshot().clone(),
+        template.resource_matcher().clone(),
+        template.profile_policy().clone(),
+        template.channel_policy().clone(),
+        template.limits().clone(),
+    )?;
+    fs::write(
+        output.join("mcp.context.cbor"),
+        auths_codec::encode_verifier_context(&context)?,
+    )?;
+    let statement = auths_model::GrantStatement::new(
+        root.clone(),
+        actor,
+        canonical.profile().clone(),
+        auths_model::PermissionSet::new(vec![canonical.permission().clone()])?,
+        auths_model::ValidityWindow::new(
+            auths_model::Timestamp::new(20),
+            auths_model::Timestamp::new(80),
+        )?,
+        auths_model::AudienceSet::new(vec![call.audience()?])?,
+        auths_model::ActionConstraint::AnyBody,
+        Some(auths_model::BudgetCeiling::new(
+            auths_model::BudgetAlgebraId::parse("numeric-ceiling-v1")?,
+            20,
+        )),
+        0,
+        None,
+        auths_model::StatusPolicy::ExpiryOnly,
+        auths_model::AssurancePolicyId::parse("raw-key-baseline")?,
+        auths_model::CriticalExtensions::empty(),
+    );
+    let signing = auths_author::prepare_grant(
+        statement,
+        auths_model::SignatureDescriptor::new(
+            auths_model::PrincipalMethodId::parse(auths_raw_key::RAW_KEY_V1)?,
+            auths_model::VerificationMethod::parse(root.as_str())?,
+            auths_model::SignatureSuiteId::parse("ed25519-v1")?,
+        ),
+    )?;
+    let signature = root_key
+        .sign(signing.signing_preimage())
+        .to_bytes()
+        .to_vec();
+    let signed = signing.complete(auths_model::SignatureBytes::new(signature)?);
+    fs::write(
+        output.join("mcp.signed-root-grant.cbor"),
+        auths_codec::encode_signed_grant(&signed)?,
+    )?;
+    fs::write(
+        output.join("mcp.root-evidence.bin"),
+        root_descriptor.encode(),
+    )?;
+    fs::write(
+        output.join("mcp.actor-evidence.bin"),
+        actor_descriptor.encode(),
+    )?;
+    fs::write(output.join("mcp.root-seed.bin"), [11; 32])?;
+    fs::write(output.join("mcp.actor-seed.bin"), [12; 32])?;
     Ok(())
 }
 

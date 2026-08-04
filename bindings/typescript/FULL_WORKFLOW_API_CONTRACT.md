@@ -27,11 +27,12 @@ No normal-path operation accepts caller-constructed protocol CBOR.
 
 ## Module surface
 
-The package has three explicit surfaces:
+The package has four explicit surfaces:
 
 ```text
 @auths-dev/sdk             workflow, results, identity, provider ports
 @auths-dev/sdk/mcp         closed MCP profile actions and commands
+@auths-dev/sdk/profile-kit application-owned closed profile authoring
 @auths-dev/sdk/advanced    raw verifier and bounded inspection
 ```
 
@@ -55,6 +56,7 @@ export interface TrustedAuthority {
   readonly authorityId: string;
   readonly rootPrincipal: string;
   readonly verifierConfiguration: Uint8Array;
+  readonly context: TrustedContextSource;
   readonly requiredApproval: ApprovalPolicyReference;
 }
 
@@ -112,10 +114,30 @@ parent by Rust and cannot be supplied in the normal request. Unknown request
 fields fail closed. The parent signer signs the native plan; the child signer
 only establishes the child principal and is retained for later child actions.
 
+`TrustedContextSource` is a sealed provider reference. It supplies one
+canonical immutable template containing trust anchors, registry acceptance,
+status snapshots, assurance policy, and limits. Packaged Rust validates the
+configured root and executable-verifier commitment at load; authorization
+rebinds only the exact plan, audience, challenge, and evaluation time.
+
+For self-contained local and headless deployments, `prepareRawKeyAuthority`
+constructs a matching root grant and trusted-context template through Rust,
+then submits the unsigned grant to an external raw-key signer and approval
+provider. It neither receives nor persists a private key. This is an explicit
+raw-key bootstrap, not a universal identity or trust-context builder; other
+principal methods retain their deployment-specific context providers.
+
+`SignedGrantProvider` returns a structured signed-grant material containing the
+canonical signed grant and typed public control evidence. Delegation retains
+the same material from the exact signing response. Evidence carries its
+registered evidence type, media type, and copied bytes; JavaScript never
+constructs evidence identifiers or control bindings.
+
 `authorize` constructs the selected profile action exactly once, obtains any
 required evidence outside verification, assembles the canonical proof/context
 through native authoring operations, and returns one of three results. It does
-not execute an effect.
+not execute an effect. The current PR6 authorized value contains only the
+sealed non-effect-capable verification result; PR7 alone adds `McpCommand`.
 
 ## Identity and custody ports
 
@@ -135,6 +157,20 @@ export interface SigningRequest {
   readonly signingPreimage: Uint8Array;
   readonly expiresAt: bigint;
   readonly display: readonly ReviewField[];
+}
+
+export interface SigningResponse {
+  readonly requestId: string;
+  readonly principal: PrincipalDescriptor;
+  readonly transactionDigest: Uint8Array;
+  readonly signature: Uint8Array;
+  readonly evidence?: readonly ControlEvidence[];
+}
+
+export interface ControlEvidence {
+  readonly evidenceType: string;
+  readonly mediaType: string;
+  readonly bytes: Uint8Array;
 }
 ```
 
@@ -160,17 +196,27 @@ underlying authority.
 
 ## Profile contract
 
-The first workflow profile is MCP. Its public facade owns closed action
+The first built-in workflow profile is MCP. Its public facade owns closed action
 constructors such as:
 
 ```ts
 const profile = mcp.profile({ service: "records" });
-const action = mcp.call("update_demo_record", { value: "reviewed" });
+const action = profile.call("update_demo_record", { value: "reviewed" });
 ```
 
 The profile validates and canonicalizes the complete tool call in its Rust
 owner. It does not accept an arbitrary endpoint, transport, callback, raw
 canonical bytes, or generic provider operation.
+
+`@auths-dev/sdk/profile-kit` lets an application provide a closed profile
+canonicalizer without teaching the SDK kernel the application's operation
+vocabulary. The profile returns exact body, media type, permission, optional
+budget, resource namespace, audience, and approval display. A sealed action's
+read-only `authorityFor` projection lets authority setup reuse those exact
+profile-derived fields instead of duplicating strings. Rust/WASM validates and constructs the
+protocol objects; the signed grant must still authorize the exact profile and
+derived authority. The profile kit registers no global action union, executor,
+credential provider, or generic operation-tag dispatcher.
 
 An authorized result contains an `McpCommand` created only by the packaged
 trusted verifier and MCP verified decoder. The closed gateway accepts that

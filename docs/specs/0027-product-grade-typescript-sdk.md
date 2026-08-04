@@ -6,7 +6,10 @@ tier, and reviewed-security claims remain blocked on AP-SPEC-032,
 AP-SPEC-033, and issue 74; capability and non-forgeability gaps are tracked in
 issues 71, 72, and 76; the broader native critical-extension attenuation gap
 discovered during PR5 is tracked in issue 81; PR5 resolves the authoring
-semantic-freeze coverage gap tracked in issue 82
+semantic-freeze coverage gap tracked in issue 82; PR6 corrects the proof
+material and trusted-context contract gap tracked in issue 84; local external-
+consumer feedback extended PR6 with a bounded application profile kit and an
+explicit raw-key authority bootstrap tracked in issue 85
 
 **Governs:** The TypeScript Full Workflow SDK portion of Phase 10 in the
 [Post-Milestone 6 Productization and Release Plan](../target-state/POST_MILESTONE_6_PRODUCTIZATION_AND_RELEASE_PLAN.md)
@@ -151,6 +154,10 @@ The TypeScript Full Workflow SDK MUST provide:
 - safe parent-agent creation or loading through a signer port;
 - bounded grant planning and parent-to-child delegation;
 - exact MCP action construction through profile-owned helpers;
+- application-owned closed profile construction without a global action or
+  executor union;
+- optional self-contained raw-key root-authority preparation without
+  hand-authored grant or trusted-context CBOR;
 - local proof verification through the supported WASM boundary;
 - an explicit discriminated union for authorized, denied, and indeterminate
   results;
@@ -192,13 +199,15 @@ The Phase 10 developer preview MUST NOT:
 The happy path MUST fit this conceptual shape:
 
 ```ts
-import { loadAuths, mcp } from "@auths-dev/sdk";
+import { loadAuths } from "@auths-dev/sdk";
+import { mcp } from "@auths-dev/sdk/mcp";
 
+const profile = mcp.profile({ service: "records" });
 const auths = await loadAuths({ signer, trustedAuthority });
 
 const parent = await auths.attachAgent({
   name: "research-agent",
-  runtime: mcp({ service: "records" }),
+  profile,
   authority: parentGrant,
   approval: { mode: "grant-only", provider: approvalProvider },
 });
@@ -210,7 +219,7 @@ const child = await parent.delegate({
 });
 
 const result = await child.authorize(
-  mcp.call("update_demo_record", { value: "reviewed" }),
+  profile.call("update_demo_record", { value: "reviewed" }),
 );
 
 switch (result.kind) {
@@ -516,10 +525,12 @@ Implementation MUST add:
 5. **`AP27-PR5` — delegation and attenuation.** Implement child grant planning,
    semantic authority diffs, over-granting warnings, approval binding, signing,
    and negative widening tests for every authority dimension.
-6. **`AP27-PR6` — MCP profile authorization.** Add the first profile-owned
-   action facade, canonicalization, proof/context assembly, three-valued local
+6. **`AP27-PR6` — profile authorization.** Add the first built-in profile-owned
+   action facade, a bounded application-profile kit, optional local raw-key
+   authority preparation, proof/context assembly, three-valued local
    verification, and exact cross-language fixtures. Do not add a generic
-   operation-tag action or executor.
+   operation-tag action, executor, credential provider, or global action
+   union.
 7. **`AP27-PR7` — sealed command and gateway handoff.** Decode only the
    verifier-sealed action into an MCP command whose constructor is unavailable
    to application code. Add compile-time and runtime construction, mutation,

@@ -5,6 +5,7 @@ import {
   AuthsWorkflowError,
   loadAuths,
   signedGrantSource,
+  trustedContextSource,
 } from "../dist/index.js";
 
 const ROOT = "key:sha256:qogx823wE-Cfoq_WXwDS1D6S8jMOhJssOpaNRZOJCKs";
@@ -18,6 +19,13 @@ const vector = (name) =>
       new URL(`../../../target/binding-vectors/${name}`, import.meta.url),
     ),
   );
+const contextSource = () =>
+  trustedContextSource({
+    sourceId: "fixture.context",
+    provider: {
+      async loadTrustedContext() { return vector("authorized.context.cbor"); },
+    },
+  });
 
 let wasmPromise;
 
@@ -132,6 +140,7 @@ async function fixture(
       authorityId: "local.test-root",
       rootPrincipal: ROOT,
       verifierConfiguration: wasm.configurationV1(),
+      context: contextSource(),
       requiredApproval,
     },
   });
@@ -142,7 +151,7 @@ async function fixture(
       sourceId: rootVector,
       provider: {
         async loadSignedGrant() {
-          return vector(rootVector);
+          return { signedGrant: vector(rootVector), evidence: [] };
         },
       },
     }),

@@ -3,12 +3,14 @@ import {
   ProviderOperationError,
   type ApprovalConfiguration,
   type ApprovalPolicyReference,
+  type ControlEvidence,
   type PrincipalDescriptor,
   type ReviewField,
   type Signer,
   type SigningObjectKind,
   type WorkflowWasmEngine,
   bytesEqual,
+  boundedIdentifier,
   copyPolicy,
   copyPrincipal,
   policiesEqual,
@@ -135,7 +137,7 @@ export interface SigningTransactionOptions {
 export interface SignedTransaction {
   readonly signedObject: Uint8Array;
   readonly transactionDigest: Uint8Array;
-  readonly evidence: readonly Uint8Array[];
+  readonly evidence: readonly ControlEvidence[];
 }
 
 export class SigningCoordinator {
@@ -413,7 +415,7 @@ function consumeSigningResponse(
   requestId: string,
   principal: PrincipalDescriptor,
   transactionDigest: Uint8Array,
-): { signature: Uint8Array; evidence: readonly Uint8Array[] } {
+): { signature: Uint8Array; evidence: readonly ControlEvidence[] } {
   try {
     validateSigningResponse(
       response,
@@ -489,7 +491,9 @@ function boundedSignature(value: Uint8Array): Uint8Array {
   return value.slice();
 }
 
-function copyEvidence(value: readonly Uint8Array[]): readonly Uint8Array[] {
+function copyEvidence(
+  value: readonly ControlEvidence[],
+): readonly ControlEvidence[] {
   if (!Array.isArray(value) || value.length > MAX_EVIDENCE) {
     throw new AuthsWorkflowError(
       "signer-response-mismatch",
@@ -498,14 +502,23 @@ function copyEvidence(value: readonly Uint8Array[]): readonly Uint8Array[] {
   }
   let total = 0;
   const result = value.map((item) => {
-    if (!(item instanceof Uint8Array) || item.length === 0) {
+    if (
+      item === null ||
+      typeof item !== "object" ||
+      !(item.bytes instanceof Uint8Array) ||
+      item.bytes.length === 0
+    ) {
       throw new AuthsWorkflowError(
         "signer-response-mismatch",
         "signer evidence contains an invalid item",
       );
     }
-    total += item.length;
-    return item.slice();
+    total += item.bytes.length;
+    return Object.freeze({
+      evidenceType: boundedIdentifier(item.evidenceType, "evidence type"),
+      mediaType: boundedIdentifier(item.mediaType, "evidence media type"),
+      bytes: item.bytes.slice(),
+    });
   });
   if (total > MAX_EVIDENCE_BYTES) {
     throw new AuthsWorkflowError(

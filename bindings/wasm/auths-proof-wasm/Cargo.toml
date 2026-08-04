@@ -19,14 +19,18 @@ auths-did-keri.workspace = true
 auths-did-key.workspace = true
 auths-model.workspace = true
 auths-ports.workspace = true
+auths-profile-api.workspace = true
+auths-profile-mcp.workspace = true
 auths-raw-key.workspace = true
 auths-registries.workspace = true
 auths-signature.workspace = true
 auths-verifier.workspace = true
+serde_json.workspace = true
 wasm-bindgen.workspace = true
 
 [dev-dependencies]
 auths-testkit.workspace = true
+ed25519-dalek.workspace = true
 
 [lints]
 workspace = true

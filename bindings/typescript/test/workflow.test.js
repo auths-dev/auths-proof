@@ -6,6 +6,7 @@ import {
   AuthsWorkflowError,
   ProviderOperationError,
   loadAuths,
+  trustedContextSource,
 } from "../dist/index.js";
 import {
   SigningCoordinator,
@@ -24,6 +25,20 @@ const policy = (fill = 7) => ({
   evaluatorVersion: "1",
   configurationDigest: new Uint8Array(32).fill(fill),
 });
+const ROOT = "key:sha256:qogx823wE-Cfoq_WXwDS1D6S8jMOhJssOpaNRZOJCKs";
+const contextSource = () =>
+  trustedContextSource({
+    sourceId: "fixture.context",
+    provider: {
+      async loadTrustedContext() {
+        return new Uint8Array(
+          readFileSync(
+            new URL("../../../target/binding-vectors/authorized.context.cbor", import.meta.url),
+          ),
+        );
+      },
+    },
+  });
 
 let wasmPromise;
 
@@ -68,8 +83,9 @@ test("workflow loader binds an immutable principal to package-owned WASM", async
     signer,
     trustedAuthority: {
       authorityId: "local.test-root",
-      rootPrincipal: "did:web:root.auths.example",
+      rootPrincipal: ROOT,
       verifierConfiguration,
+      context: contextSource(),
       requiredApproval,
     },
   });
@@ -147,6 +163,7 @@ test("workflow load fails closed and cleans up on trust mismatch", async () => {
         authorityId: "wrong.test-root",
         rootPrincipal: "did:web:root.auths.example",
         verifierConfiguration: new Uint8Array(32),
+        context: contextSource(),
         requiredApproval: policy(),
       },
     }),
@@ -199,7 +216,11 @@ function signingFixture(overrides = {}) {
         principal: request.principal,
         transactionDigest: request.transactionDigest.slice(),
         signature: new Uint8Array(64).fill(9),
-        evidence: [new Uint8Array([8])],
+        evidence: [{
+          evidenceType: "raw-key-v1",
+          mediaType: "application/vnd.auths.raw-key.v1",
+          bytes: new Uint8Array([8]),
+        }],
       };
     },
   };
@@ -229,7 +250,11 @@ test("exact approval and signer responses complete one transaction", async () =>
   const coordinator = new SigningCoordinator(fixture.adapter, () => 100n);
   const result = await coordinator.execute(fixture.options);
   assert.equal(result.transactionDigest.length, 32);
-  assert.deepEqual(result.evidence, [new Uint8Array([8])]);
+  assert.deepEqual(result.evidence, [{
+    evidenceType: "raw-key-v1",
+    mediaType: "application/vnd.auths.raw-key.v1",
+    bytes: new Uint8Array([8]),
+  }]);
   assert.equal(fixture.counters.approvals, 1);
   assert.equal(fixture.counters.signatures, 1);
   assert.equal(fixture.counters.completions, 1);

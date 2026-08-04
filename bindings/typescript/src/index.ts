@@ -1,8 +1,21 @@
 import {
+  AuthsWorkflowError,
   type LoadWorkflowOptions,
+  type ApprovalConfiguration,
+  type PermissionSummary,
+  type Profile,
+  type SignedGrantSource,
+  type Signer,
+  type TrustedAuthority,
   type WorkflowWasmEngine,
+  boundedIdentifier,
+  copyPolicy,
+  copyPrincipal,
   createWorkflowClient,
+  signedGrantSource,
+  trustedContextSource,
 } from "./workflow.js";
+import { SigningCoordinator, WasmSigningAdapter } from "./internal/signing.js";
 
 export {
   AuthsClient,
@@ -10,6 +23,7 @@ export {
   AttachedAgent,
   ProviderOperationError,
   SignedGrantSource,
+  TrustedContextSource,
   type AgentIdentity,
   type ApprovalConfiguration,
   type ApprovalMode,
@@ -18,6 +32,7 @@ export {
   type ApprovalRequest,
   type ApprovalResponse,
   type AttachAgentOptions,
+  type ControlEvidence,
   type AuthorityDiffSummary,
   type DelegatedActionConstraint,
   type DelegatedAuthorityRequest,
@@ -38,12 +53,17 @@ export {
   type SigningRequest,
   type SigningResponse,
   type SignedGrantLoadRequest,
+  type SignedGrantMaterial,
   type SignedGrantProvider,
   type SignedGrantSourceOptions,
   type TrustedAuthority,
   type TrustedAuthoritySnapshot,
+  type TrustedContextLoadRequest,
+  type TrustedContextProvider,
+  type TrustedContextSourceOptions,
   type WorkflowErrorCode,
   signedGrantSource,
+  trustedContextSource,
 } from "./workflow.js";
 
 const MAX_RESULT_BYTES = 16 * 1024 * 1024;
@@ -218,6 +238,136 @@ export async function loadAuths(options: LoadAuthsOptions) {
   return createWorkflowClient(options, engine);
 }
 
+export interface RawKeyAuthorityRequest<P extends Profile> {
+  readonly authorityId: string;
+  readonly rootSigner: Signer;
+  readonly subjectPrincipal: string;
+  readonly profile: P;
+  readonly permissions: readonly PermissionSummary[];
+  readonly resourceNamespaces: readonly string[];
+  readonly validity: Readonly<{ notBefore: bigint; expiresAt: bigint }>;
+  readonly audiences: readonly string[];
+  readonly budget?: Readonly<{ algebra: string; value: bigint }>;
+  readonly remainingDepth: number;
+  readonly approval: ApprovalConfiguration;
+}
+
+export interface PreparedRawKeyAuthority {
+  readonly trustedAuthority: TrustedAuthority;
+  readonly authority: SignedGrantSource;
+}
+
+/**
+ * Creates a self-contained raw-key root authority without receiving private
+ * key material. This explicit bootstrap is suitable for local/headless use;
+ * other identity and trust methods require their own context providers.
+ */
+export async function prepareRawKeyAuthority<P extends Profile>(
+  options: RawKeyAuthorityRequest<P>,
+): Promise<PreparedRawKeyAuthority> {
+  const engine = await loadPackagedWorkflowEngine();
+  const authorityId = boundedIdentifier(options.authorityId, "authority id");
+  const requiredApproval = copyPolicy(options.approval.policy);
+  let root;
+  try {
+    root = copyPrincipal(await options.rootSigner.publicIdentity());
+  } catch {
+    throw new AuthsWorkflowError(
+      "invalid-principal",
+      "root signer returned an invalid principal descriptor",
+    );
+  }
+  if (root.principalMethod !== "raw-key-v1" || root.suite !== "ed25519-v1") {
+    throw new AuthsWorkflowError(
+      "invalid-principal",
+      "raw-key bootstrap requires an Ed25519 raw-key root signer",
+    );
+  }
+  let preparation;
+  try {
+    preparation = engine.prepareRawKeyAuthorityV1(
+      root.principal,
+      options.subjectPrincipal,
+      options.profile.id,
+      options.profile.version,
+      options.permissions.map((permission) => permission.capability),
+      options.permissions.map((permission) => permission.resource),
+      [...options.resourceNamespaces],
+      options.validity.notBefore,
+      options.validity.expiresAt,
+      [...options.audiences],
+      options.budget !== undefined,
+      options.budget?.algebra ?? "",
+      options.budget?.value ?? 0n,
+      options.remainingDepth,
+    );
+    const signed = await new SigningCoordinator(
+      new WasmSigningAdapter(engine),
+    ).execute({
+      objectKind: "grant",
+      unsignedObject: preparation.statementCbor,
+      principal: root,
+      signer: options.rootSigner,
+      approval: options.approval,
+      requiredApproval,
+      expiresAt: BigInt(Math.floor(Date.now() / 1000)) + 300n,
+      display: [
+        { label: "Authority", value: authorityId },
+        { label: "Subject", value: options.subjectPrincipal },
+        { label: "Profile", value: `${options.profile.id}/${options.profile.version}` },
+        { label: "Permissions", value: String(options.permissions.length) },
+        { label: "Delegation depth", value: String(options.remainingDepth) },
+      ],
+    });
+    if (!signed.evidence.some((item) => item.evidenceType === "raw-key-v1")) {
+      throw new AuthsWorkflowError(
+        "invalid-provider",
+        "raw-key root signer omitted public control evidence",
+      );
+    }
+    const signedGrant = signed.signedObject.slice();
+    const evidence = signed.evidence.map((item) => Object.freeze({
+      evidenceType: item.evidenceType,
+      mediaType: item.mediaType,
+      bytes: item.bytes.slice(),
+    }));
+    const trustedContext = preparation.trustedContextCbor.slice();
+    const verifierConfiguration = preparation.verifierConfiguration.slice();
+    return Object.freeze({
+      trustedAuthority: Object.freeze({
+        authorityId,
+        rootPrincipal: root.principal,
+        verifierConfiguration,
+        context: trustedContextSource({
+          sourceId: `${authorityId}.context`,
+          provider: {
+            async loadTrustedContext() {
+              return trustedContext.slice();
+            },
+          },
+        }),
+        requiredApproval,
+      }),
+      authority: signedGrantSource({
+        sourceId: `${authorityId}.root-grant`,
+        provider: {
+          async loadSignedGrant() {
+            return { signedGrant: signedGrant.slice(), evidence };
+          },
+        },
+      }),
+    });
+  } catch (error) {
+    if (error instanceof AuthsWorkflowError) throw error;
+    throw new AuthsWorkflowError(
+      "invalid-authority",
+      "native raw-key authority preparation rejected the request",
+    );
+  } finally {
+    preparation?.free?.();
+  }
+}
+
 async function loadPackagedWorkflowEngine(): Promise<
   WorkflowWasmEngine & PortableWasmEngine
 > {
@@ -247,6 +397,11 @@ async function loadPackagedWorkflowEngine(): Promise<
     typeof loaded.authoringAbiVersionV1 !== "function" ||
     typeof loaded.canonicalPrincipalV1 !== "function" ||
     typeof loaded.configurationV1 !== "function" ||
+    typeof loaded.validateTrustedContextV1 !== "function" ||
+    typeof loaded.prepareMcpActionV1 !== "function" ||
+    typeof loaded.prepareProfileActionV1 !== "function" ||
+    typeof loaded.prepareRawKeyAuthorityV1 !== "function" ||
+    typeof loaded.WorkflowProofBuilderV1 !== "function" ||
     typeof loaded.inspectSignedGrantV1 !== "function" ||
     typeof loaded.validateRootAuthorityV1 !== "function" ||
     typeof loaded.planChildGrantFieldsV1 !== "function" ||

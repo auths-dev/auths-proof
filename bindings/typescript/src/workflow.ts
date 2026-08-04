@@ -1,3 +1,5 @@
+import type { VerificationResult } from "./index.js";
+
 const MAX_IDENTIFIER_BYTES = 128;
 const DIGEST_BYTES = 32;
 
@@ -41,7 +43,13 @@ export interface SigningResponse {
   readonly principal: PrincipalDescriptor;
   readonly transactionDigest: Uint8Array;
   readonly signature: Uint8Array;
-  readonly evidence?: readonly Uint8Array[];
+  readonly evidence?: readonly ControlEvidence[];
+}
+
+export interface ControlEvidence {
+  readonly evidenceType: string;
+  readonly mediaType: string;
+  readonly bytes: Uint8Array;
 }
 
 export interface Signer {
@@ -88,6 +96,7 @@ export interface TrustedAuthority {
   readonly authorityId: string;
   readonly rootPrincipal: string;
   readonly verifierConfiguration: Uint8Array;
+  readonly context: TrustedContextSource;
   readonly requiredApproval: ApprovalPolicyReference;
 }
 
@@ -101,6 +110,7 @@ export interface TrustedAuthoritySnapshot {
   readonly authorityId: string;
   readonly rootPrincipal: string;
   readonly verifierConfiguration: Uint8Array;
+  readonly contextSourceId: string;
   readonly requiredApproval: ApprovalPolicyReference;
 }
 
@@ -119,12 +129,33 @@ export interface SignedGrantLoadRequest {
 }
 
 export interface SignedGrantProvider {
-  loadSignedGrant(request: SignedGrantLoadRequest): Promise<Uint8Array>;
+  loadSignedGrant(request: SignedGrantLoadRequest): Promise<SignedGrantMaterial>;
+}
+
+export interface SignedGrantMaterial {
+  readonly signedGrant: Uint8Array;
+  readonly evidence: readonly ControlEvidence[];
 }
 
 export interface SignedGrantSourceOptions {
   readonly sourceId: string;
   readonly provider: SignedGrantProvider;
+}
+
+export interface TrustedContextLoadRequest {
+  readonly sourceId: string;
+  readonly authorityId: string;
+  readonly rootPrincipal: string;
+  readonly verifierConfiguration: Uint8Array;
+}
+
+export interface TrustedContextProvider {
+  loadTrustedContext(request: TrustedContextLoadRequest): Promise<Uint8Array>;
+}
+
+export interface TrustedContextSourceOptions {
+  readonly sourceId: string;
+  readonly provider: TrustedContextProvider;
 }
 
 export interface PermissionSummary {
@@ -247,6 +278,8 @@ export type WorkflowErrorCode =
   | "invalid-profile"
   | "invalid-authority-source"
   | "authority-source-failed"
+  | "trusted-context-source-failed"
+  | "invalid-trusted-context"
   | "invalid-authority"
   | "authority-mismatch"
   | "invalid-delegation"
@@ -299,6 +332,58 @@ export interface WorkflowWasmEngine {
   authoringAbiVersionV1(): number;
   canonicalPrincipalV1(principal: string): string;
   configurationV1(): Uint8Array;
+  validateTrustedContextV1(
+    trustedContext: Uint8Array,
+    rootPrincipal: string,
+    verifierConfiguration: Uint8Array,
+  ): Uint8Array;
+  prepareMcpActionV1(
+    service: string,
+    name: string,
+    argumentsJson: Uint8Array,
+    actor: string,
+    terminalGrant: Uint8Array,
+    challenge: Uint8Array,
+    evaluationTime: bigint,
+  ): WorkflowMcpActionPreparation;
+  prepareProfileActionV1(
+    profileId: string,
+    profileVersion: number,
+    mediaType: string,
+    body: Uint8Array,
+    capability: string,
+    resource: string,
+    hasBudget: boolean,
+    budgetAlgebra: string,
+    budgetValue: bigint,
+    audience: string,
+    actor: string,
+    terminalGrant: Uint8Array,
+    challenge: Uint8Array,
+    evaluationTime: bigint,
+  ): WorkflowProfileActionPreparation;
+  prepareRawKeyAuthorityV1(
+    root: string,
+    subject: string,
+    profileId: string,
+    profileVersion: number,
+    permissionCapabilities: readonly string[],
+    permissionResources: readonly string[],
+    resourceNamespaces: readonly string[],
+    notBefore: bigint,
+    expiresAt: bigint,
+    audiences: readonly string[],
+    hasBudget: boolean,
+    budgetAlgebra: string,
+    budgetValue: bigint,
+    remainingDepth: number,
+  ): WorkflowRawKeyAuthorityPreparation;
+  WorkflowProofBuilderV1: new () => WorkflowProofBuilder;
+  verifyV1(
+    proofCbor: Uint8Array,
+    canonicalActionCbor: Uint8Array,
+    trustedContextCbor: Uint8Array,
+  ): Uint8Array;
   inspectSignedGrantV1(
     signedGrant: Uint8Array,
   ): WorkflowSignedGrantAuthority;
@@ -382,6 +467,59 @@ export interface WorkflowWasmEngine {
   ): Uint8Array;
 }
 
+export interface WorkflowMcpActionPreparation {
+  readonly canonicalActionCbor: Uint8Array;
+  readonly actionEnvelopeCbor: Uint8Array;
+  readonly audience: string;
+  readonly resource: string;
+  readonly displayDigestHex: string;
+  free?(): void;
+}
+
+export interface WorkflowActionPreparation {
+  readonly canonicalActionCbor: Uint8Array;
+  readonly actionEnvelopeCbor: Uint8Array;
+  readonly audience: string;
+  readonly resource: string;
+  free?(): void;
+}
+
+export type WorkflowProfileActionPreparation = WorkflowActionPreparation;
+
+export interface WorkflowRawKeyAuthorityPreparation {
+  readonly statementCbor: Uint8Array;
+  readonly trustedContextCbor: Uint8Array;
+  readonly verifierConfiguration: Uint8Array;
+  free?(): void;
+}
+
+export interface WorkflowAuthorizationArtifacts {
+  readonly proofCbor: Uint8Array;
+  readonly trustedContextCbor: Uint8Array;
+  free?(): void;
+}
+
+export interface WorkflowProofBuilder {
+  pushGrant(signedGrant: Uint8Array): number;
+  bindGrantEvidence(
+    grantIndex: number,
+    evidenceType: string,
+    mediaType: string,
+    bytes: Uint8Array,
+  ): void;
+  bindActionEvidence(
+    evidenceType: string,
+    mediaType: string,
+    bytes: Uint8Array,
+  ): void;
+  finish(
+    signedAction: Uint8Array,
+    canonicalAction: Uint8Array,
+    trustedContext: Uint8Array,
+  ): WorkflowAuthorizationArtifacts;
+  free?(): void;
+}
+
 export interface WorkflowSignedGrantAuthority {
   readonly statementCbor: Uint8Array;
   readonly grantId: Uint8Array;
@@ -439,6 +577,7 @@ interface ClientResources {
   readonly engine: WorkflowWasmEngine;
   readonly identity: AgentIdentity;
   readonly trustedAuthority: TrustedAuthoritySnapshot;
+  readonly trustedContext: Uint8Array;
   readonly attachedAgents: Set<AttachedAgent<Profile>>;
 }
 
@@ -456,6 +595,7 @@ export class AuthsClient implements AsyncDisposable {
     trustedAuthority: TrustedAuthoritySnapshot,
     signer: Signer,
     engine: WorkflowWasmEngine,
+    trustedContext: Uint8Array,
   ) {
     if (token !== CLIENT_TOKEN) {
       throw new TypeError("sealed Auths workflow client");
@@ -467,6 +607,7 @@ export class AuthsClient implements AsyncDisposable {
       engine,
       identity,
       trustedAuthority,
+      trustedContext: trustedContext.slice(),
       attachedAgents: new Set(),
     });
   }
@@ -477,6 +618,7 @@ export class AuthsClient implements AsyncDisposable {
     trustedAuthority: TrustedAuthoritySnapshot,
     signer: Signer,
     engine: WorkflowWasmEngine,
+    trustedContext: Uint8Array,
   ): AuthsClient {
     if (token !== CLIENT_TOKEN) {
       throw new TypeError("sealed Auths workflow client");
@@ -487,6 +629,7 @@ export class AuthsClient implements AsyncDisposable {
       trustedAuthority,
       signer,
       engine,
+      trustedContext,
     );
   }
 
@@ -499,7 +642,7 @@ export class AuthsClient implements AsyncDisposable {
   }
 
   get trustedAuthority(): TrustedAuthoritySnapshot {
-    return copyTrustedAuthority(this.#trustedAuthority);
+    return copyTrustedAuthoritySnapshot(this.#trustedAuthority);
   }
 
   assertActive(): void {
@@ -535,6 +678,7 @@ export class AuthsClient implements AsyncDisposable {
         cleanupFailed = true;
       }
     }
+    resources?.trustedContext.fill(0);
     clientResources.delete(this);
     if (cleanupFailed) {
       throw new AuthsWorkflowError(
@@ -611,14 +755,101 @@ export function signedGrantSource(
   );
 }
 
+interface TrustedContextSourceResources {
+  readonly provider: TrustedContextProvider;
+}
+
+const trustedContextSourceResources = new WeakMap<
+  TrustedContextSource,
+  TrustedContextSourceResources
+>();
+const TRUSTED_CONTEXT_SOURCE_TOKEN: unique symbol = Symbol(
+  "auths-trusted-context-source",
+);
+
+export class TrustedContextSource {
+  readonly sourceId: string;
+
+  private constructor(
+    token: typeof TRUSTED_CONTEXT_SOURCE_TOKEN,
+    sourceId: string,
+    provider: TrustedContextProvider,
+  ) {
+    if (token !== TRUSTED_CONTEXT_SOURCE_TOKEN) {
+      throw new TypeError("sealed Auths trusted-context source");
+    }
+    this.sourceId = sourceId;
+    trustedContextSourceResources.set(this, { provider });
+    Object.freeze(this);
+  }
+
+  static create(
+    token: typeof TRUSTED_CONTEXT_SOURCE_TOKEN,
+    sourceId: string,
+    provider: TrustedContextProvider,
+  ): TrustedContextSource {
+    if (token !== TRUSTED_CONTEXT_SOURCE_TOKEN) {
+      throw new TypeError("sealed Auths trusted-context source");
+    }
+    return new TrustedContextSource(token, sourceId, provider);
+  }
+}
+
+export function trustedContextSource(
+  options: TrustedContextSourceOptions,
+): TrustedContextSource {
+  if (
+    options === null ||
+    typeof options !== "object" ||
+    options.provider === null ||
+    typeof options.provider !== "object" ||
+    typeof options.provider.loadTrustedContext !== "function"
+  ) {
+    throw new AuthsWorkflowError(
+      "invalid-trusted-context",
+      "trusted-context provider does not implement the Auths source port",
+    );
+  }
+  return TrustedContextSource.create(
+    TRUSTED_CONTEXT_SOURCE_TOKEN,
+    boundedIdentifier(options.sourceId, "trusted-context source"),
+    options.provider,
+  );
+}
+
 export interface AttachedAgentResources {
   readonly client: AuthsClient;
   readonly approval: ApprovalConfiguration;
   readonly signer: Signer;
   readonly ownsSigner: boolean;
   readonly signedGrant: Uint8Array;
+  readonly grantChain: readonly GrantControlMaterial[];
   readonly grantStatement: Uint8Array;
   readonly review: DelegationReview | undefined;
+}
+
+export interface GrantControlMaterial {
+  readonly signedGrant: Uint8Array;
+  readonly evidence: readonly ControlEvidence[];
+}
+
+interface ProfileRuntime {
+  authorize(
+    agent: AttachedAgent<Profile>,
+    action: unknown,
+  ): Promise<VerificationResult>;
+}
+
+const profileRuntimes = new WeakMap<object, ProfileRuntime>();
+
+export function registerProfileRuntime(
+  profile: Profile,
+  runtime: ProfileRuntime,
+): void {
+  if (profileRuntimes.has(profile as object)) {
+    throw new TypeError("Auths profile runtime is already registered");
+  }
+  profileRuntimes.set(profile as object, runtime);
 }
 
 const attachedAgentResources = new WeakMap<
@@ -645,6 +876,7 @@ export class AttachedAgent<P extends Profile> implements AsyncDisposable {
     signer: Signer,
     ownsSigner: boolean,
     signedGrant: Uint8Array,
+    grantChain: readonly GrantControlMaterial[],
     grantStatement: Uint8Array,
     review: DelegationReview | undefined,
   ) {
@@ -661,6 +893,7 @@ export class AttachedAgent<P extends Profile> implements AsyncDisposable {
       signer,
       ownsSigner,
       signedGrant: signedGrant.slice(),
+      grantChain: copyGrantChain(grantChain),
       grantStatement: grantStatement.slice(),
       review,
     });
@@ -680,6 +913,7 @@ export class AttachedAgent<P extends Profile> implements AsyncDisposable {
     signer: Signer,
     ownsSigner: boolean,
     signedGrant: Uint8Array,
+    grantChain: readonly GrantControlMaterial[],
     grantStatement: Uint8Array,
     review: DelegationReview | undefined,
   ): AttachedAgent<P> {
@@ -697,6 +931,7 @@ export class AttachedAgent<P extends Profile> implements AsyncDisposable {
       signer,
       ownsSigner,
       signedGrant,
+      grantChain,
       grantStatement,
       review,
     );
@@ -740,6 +975,18 @@ export class AttachedAgent<P extends Profile> implements AsyncDisposable {
     return delegateAttachedAgent(this, options);
   }
 
+  async authorize(action: P["__action"]): Promise<VerificationResult> {
+    this.assertActive();
+    const runtime = profileRuntimes.get(this.#profile as object);
+    if (runtime === undefined) {
+      throw new AuthsWorkflowError(
+        "invalid-profile",
+        "attached profile does not provide a package-owned authorization runtime",
+      );
+    }
+    return runtime.authorize(this as AttachedAgent<Profile>, action);
+  }
+
   assertActive(): void {
     const resources = attachedAgentResources.get(
       this as AttachedAgent<Profile>,
@@ -764,6 +1011,10 @@ export class AttachedAgent<P extends Profile> implements AsyncDisposable {
     }
     resources?.signedGrant.fill(0);
     resources?.grantStatement.fill(0);
+    for (const material of resources?.grantChain ?? []) {
+      material.signedGrant.fill(0);
+      for (const evidence of material.evidence) evidence.bytes.fill(0);
+    }
     if (resources?.ownsSigner && resources.signer.dispose !== undefined) {
       try {
         await resources.signer.dispose();
@@ -792,6 +1043,7 @@ export async function createWorkflowClient(
 ): Promise<AuthsClient> {
   validateSignerShape(options.signer);
   let trustedAuthority: TrustedAuthoritySnapshot;
+  let trustedContext: Uint8Array;
   try {
     trustedAuthority = copyTrustedAuthority(options.trustedAuthority);
     if (engine.authoringAbiVersionV1() !== 1) {
@@ -822,6 +1074,53 @@ export async function createWorkflowClient(
         trustedAuthority.rootPrincipal,
       ),
     });
+    const source = options.trustedAuthority.context;
+    const sourceResources =
+      source instanceof TrustedContextSource
+        ? trustedContextSourceResources.get(source)
+        : undefined;
+    if (sourceResources === undefined) {
+      throw new AuthsWorkflowError(
+        "invalid-trusted-context",
+        "trusted authority must use a package-created context source",
+      );
+    }
+    let loadedContext: Uint8Array;
+    try {
+      loadedContext = await sourceResources.provider.loadTrustedContext({
+        sourceId: source.sourceId,
+        authorityId: trustedAuthority.authorityId,
+        rootPrincipal: trustedAuthority.rootPrincipal,
+        verifierConfiguration:
+          trustedAuthority.verifierConfiguration.slice(),
+      });
+    } catch {
+      throw new AuthsWorkflowError(
+        "trusted-context-source-failed",
+        "trusted-context provider operation failed",
+      );
+    }
+    if (!(loadedContext instanceof Uint8Array)) {
+      throw new AuthsWorkflowError(
+        "invalid-trusted-context",
+        "trusted-context provider returned an invalid value",
+      );
+    }
+    try {
+      trustedContext = boundedBytes(
+        engine.validateTrustedContextV1(
+          loadedContext.slice(),
+          trustedAuthority.rootPrincipal,
+          trustedAuthority.verifierConfiguration.slice(),
+        ),
+        "trusted context",
+      );
+    } catch {
+      throw new AuthsWorkflowError(
+        "invalid-trusted-context",
+        "trusted context does not bind the configured root and verifier",
+      );
+    }
   } catch (error) {
     await cleanupAfterFailedLoad(options.signer);
     if (error instanceof AuthsWorkflowError) throw error;
@@ -849,6 +1148,7 @@ export async function createWorkflowClient(
       trustedAuthority,
       options.signer,
       engine,
+      trustedContext,
     );
   } catch (error) {
     await cleanupAfterFailedLoad(options.signer);
@@ -897,22 +1197,17 @@ async function attachAgent<P extends Profile>(
     subject: identity.principal.principal,
     profile: Object.freeze({ id: profile.id, version: profile.version }),
   });
-  let loadedGrant: Uint8Array;
+  let loadedMaterial: SignedGrantMaterial;
   try {
-    loadedGrant = await sourceResources.provider.loadSignedGrant(request);
+    loadedMaterial = await sourceResources.provider.loadSignedGrant(request);
   } catch {
     throw new AuthsWorkflowError(
       "authority-source-failed",
       "signed-grant provider operation failed",
     );
   }
-  if (!(loadedGrant instanceof Uint8Array)) {
-    throw new AuthsWorkflowError(
-      "invalid-authority",
-      "signed-grant provider returned an invalid value",
-    );
-  }
-  const signedGrant = loadedGrant.slice();
+  const material = copySignedGrantMaterial(loadedMaterial);
+  const signedGrant = material.signedGrant.slice();
 
   const engine = engineForClient(client);
   let inspection: WorkflowSignedGrantAuthority | undefined;
@@ -951,6 +1246,7 @@ async function attachAgent<P extends Profile>(
       signerForClient(client),
       false,
       signedGrant,
+      [material],
       validated.statementCbor,
       undefined,
     );
@@ -999,6 +1295,15 @@ export function trustedAuthorityForClient(
   return resources.trustedAuthority;
 }
 
+export function trustedContextForClient(client: AuthsClient): Uint8Array {
+  client.assertActive();
+  const resources = clientResources.get(client);
+  if (resources === undefined) {
+    throw new AuthsWorkflowError("disposed", "Auths client is disposed");
+  }
+  return resources.trustedContext.slice();
+}
+
 export function resourcesForAttachedAgent<P extends Profile>(
   agent: AttachedAgent<P>,
 ): AttachedAgentResources {
@@ -1020,6 +1325,7 @@ export function createDelegatedAttachedAgent<P extends Profile>(options: {
   readonly authority: EffectiveAuthoritySummary;
   readonly signer: Signer;
   readonly signedGrant: Uint8Array;
+  readonly evidence: readonly ControlEvidence[];
   readonly grantStatement: Uint8Array;
   readonly review: DelegationReview;
 }): AttachedAgent<P> {
@@ -1035,6 +1341,10 @@ export function createDelegatedAttachedAgent<P extends Profile>(options: {
     options.signer,
     true,
     options.signedGrant,
+    [
+      ...parentResources.grantChain,
+      { signedGrant: options.signedGrant, evidence: options.evidence },
+    ],
     options.grantStatement,
     options.review,
   );
@@ -1131,6 +1441,20 @@ export function copyExactBytes(
   return value.slice();
 }
 
+export function boundedBytes(value: Uint8Array, label: string): Uint8Array {
+  if (
+    !(value instanceof Uint8Array) ||
+    value.length === 0 ||
+    value.length > 16 * 1024 * 1024
+  ) {
+    throw new AuthsWorkflowError(
+      "invalid-provider",
+      `${label} must be a non-empty bounded byte array`,
+    );
+  }
+  return value.slice();
+}
+
 export function boundedIdentifier(value: string, label: string): string {
   if (
     typeof value !== "string" ||
@@ -1163,8 +1487,100 @@ function copyTrustedAuthority(
       DIGEST_BYTES,
       "verifier configuration",
     ),
+    contextSourceId:
+      value.context instanceof TrustedContextSource
+        ? value.context.sourceId
+        : (() => {
+            throw new AuthsWorkflowError(
+              "invalid-trusted-context",
+              "trusted authority must use a package-created context source",
+            );
+          })(),
     requiredApproval: copyPolicy(value.requiredApproval),
   });
+}
+
+function copyTrustedAuthoritySnapshot(
+  value: TrustedAuthoritySnapshot,
+): TrustedAuthoritySnapshot {
+  return Object.freeze({
+    authorityId: value.authorityId,
+    rootPrincipal: value.rootPrincipal,
+    verifierConfiguration: value.verifierConfiguration.slice(),
+    contextSourceId: value.contextSourceId,
+    requiredApproval: copyPolicy(value.requiredApproval),
+  });
+}
+
+function copyControlEvidence(value: ControlEvidence): ControlEvidence {
+  if (
+    value === null ||
+    typeof value !== "object" ||
+    !(value.bytes instanceof Uint8Array) ||
+    value.bytes.length === 0
+  ) {
+    throw new AuthsWorkflowError(
+      "invalid-authority",
+      "control evidence is malformed",
+    );
+  }
+  return Object.freeze({
+    evidenceType: boundedIdentifier(value.evidenceType, "evidence type"),
+    mediaType: boundedIdentifier(value.mediaType, "evidence media type"),
+    bytes: value.bytes.slice(),
+  });
+}
+
+function copySignedGrantMaterial(
+  value: SignedGrantMaterial,
+): SignedGrantMaterial {
+  if (
+    value === null ||
+    typeof value !== "object" ||
+    !(value.signedGrant instanceof Uint8Array) ||
+    value.signedGrant.length === 0 ||
+    value.signedGrant.length > 16 * 1024 * 1024 ||
+    !Array.isArray(value.evidence)
+  ) {
+    throw new AuthsWorkflowError(
+      "invalid-authority",
+      "signed-grant provider returned invalid proof material",
+    );
+  }
+  if (value.evidence.length > 32) {
+    throw new AuthsWorkflowError(
+      "invalid-authority",
+      "signed-grant control evidence exceeds the supported count",
+    );
+  }
+  const evidence = value.evidence.map(copyControlEvidence);
+  if (
+    evidence.reduce((total, item) => total + item.bytes.length, 0) >
+    64 * 1024
+  ) {
+    throw new AuthsWorkflowError(
+      "invalid-authority",
+      "signed-grant control evidence exceeds the supported byte bound",
+    );
+  }
+  return Object.freeze({
+    signedGrant: value.signedGrant.slice(),
+    evidence: Object.freeze(evidence),
+  });
+}
+
+function copyGrantChain(
+  value: readonly GrantControlMaterial[],
+): readonly GrantControlMaterial[] {
+  if (!Array.isArray(value) || value.length === 0 || value.length > 64) {
+    throw new AuthsWorkflowError(
+      "invalid-authority",
+      "grant chain exceeds the supported count",
+    );
+  }
+  return Object.freeze(
+    value.map((material) => copySignedGrantMaterial(material)),
+  );
 }
 
 function copyAgentName(value: string): string {
@@ -1192,10 +1608,13 @@ function copyProfile(value: Profile): Readonly<{ id: string; version: number }> 
     );
   }
   try {
-    return Object.freeze({
+    const copied = Object.freeze({
       id: boundedIdentifier(value.id, "profile"),
       version: value.version,
     });
+    const runtime = profileRuntimes.get(value as object);
+    if (runtime !== undefined) profileRuntimes.set(copied, runtime);
+    return copied;
   } catch {
     throw new AuthsWorkflowError(
       "invalid-profile",

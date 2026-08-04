@@ -7,6 +7,7 @@ import {
   SignedGrantSource,
   loadAuths,
   signedGrantSource,
+  trustedContextSource,
 } from "../dist/index.js";
 
 const ROOT = "key:sha256:qogx823wE-Cfoq_WXwDS1D6S8jMOhJssOpaNRZOJCKs";
@@ -21,6 +22,17 @@ const signedRootGrant = () =>
       ),
     ),
   );
+const trustedContext = () =>
+  new Uint8Array(
+    readFileSync(
+      new URL("../../../target/binding-vectors/authorized.context.cbor", import.meta.url),
+    ),
+  );
+const contextSource = () =>
+  trustedContextSource({
+    sourceId: "fixture.context",
+    provider: { async loadTrustedContext() { return trustedContext(); } },
+  });
 
 let wasmPromise;
 
@@ -67,7 +79,7 @@ async function fixture(overrides = {}) {
         assert.equal(request.authorityId, "local.test-root");
         assert.equal(request.subject, overrides.subject ?? SUBJECT);
         assert.deepEqual(request.profile, overrides.profile ?? PROFILE);
-        return signedRootGrant();
+        return { signedGrant: signedRootGrant(), evidence: [] };
       },
     };
   const signer = {
@@ -94,6 +106,7 @@ async function fixture(overrides = {}) {
       authorityId: "local.test-root",
       rootPrincipal: overrides.rootPrincipal ?? ROOT,
       verifierConfiguration: wasm.configurationV1(),
+      context: contextSource(),
       requiredApproval,
     },
   });
@@ -182,7 +195,7 @@ test("attach differentiates malformed authority from structural mismatch", async
   const malformed = await fixture({
     provider: {
       async loadSignedGrant() {
-        return new Uint8Array([0xa0]);
+        return { signedGrant: new Uint8Array([0xa0]), evidence: [] };
       },
     },
   });
@@ -198,18 +211,11 @@ test("attach differentiates malformed authority from structural mismatch", async
   );
   await malformed.client.dispose();
 
-  const mismatch = await fixture({ rootPrincipal: SUBJECT });
   await assert.rejects(
-    mismatch.client.attachAgent({
-      name: "research-agent",
-      profile: PROFILE,
-      authority: mismatch.source,
-      approval: approval(mismatch.requiredApproval),
-    }),
+    fixture({ rootPrincipal: SUBJECT }),
     (error) =>
-      error instanceof AuthsWorkflowError && error.code === "authority-mismatch",
+      error instanceof AuthsWorkflowError && error.code === "invalid-trusted-context",
   );
-  await mismatch.client.dispose();
 });
 
 test("configuration failures happen before authority I/O and provider failures are sanitized", async () => {
