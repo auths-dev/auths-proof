@@ -19,10 +19,10 @@ pub use decode::{
 pub use encode::{
     encode_action_envelope, encode_action_signing_input, encode_authorization_plan, encode_bundle,
     encode_canonical_action, encode_grant_signing_input, encode_grant_statement,
-    encode_grant_status_statement, encode_grant_status_signing_input,
-    encode_principal_status_statement, encode_principal_status_signing_input,
-    encode_signed_action, encode_signed_grant, encode_signed_grant_status,
-    encode_signed_principal_status, encode_verification_result, encode_verifier_context,
+    encode_grant_status_signing_input, encode_grant_status_statement,
+    encode_principal_status_signing_input, encode_principal_status_statement, encode_signed_action,
+    encode_signed_grant, encode_signed_grant_status, encode_signed_principal_status,
+    encode_verification_result, encode_verifier_context,
 };
 pub use error::CodecError;
 pub use hash::{

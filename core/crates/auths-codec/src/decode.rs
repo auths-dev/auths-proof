@@ -4,8 +4,7 @@ use crate::{
     CodecError,
     encode::{
         encode_action_envelope, encode_bundle, encode_grant_statement,
-        encode_grant_status_statement, encode_principal_status_statement,
-        encode_verifier_context,
+        encode_grant_status_statement, encode_principal_status_statement, encode_verifier_context,
     },
     hash::evidence_id,
 };
@@ -1847,7 +1846,10 @@ mod tests {
         let limits = VerifierLimits::default_deployment();
         let grant = minimal_grant_statement();
         let grant_bytes = crate::encode::encode_grant_statement(&grant).unwrap();
-        assert_eq!(decode_grant_statement(&grant_bytes, &limits).unwrap(), grant);
+        assert_eq!(
+            decode_grant_statement(&grant_bytes, &limits).unwrap(),
+            grant
+        );
 
         let action = minimal_bundle().actions()[0].envelope().clone();
         let action_bytes = crate::encode::encode_action_envelope(&action).unwrap();
@@ -1876,8 +1878,7 @@ mod tests {
     #[test]
     fn isolated_authoring_decoders_reject_trailing_bytes() {
         let limits = VerifierLimits::default_deployment();
-        let mut bytes =
-            crate::encode::encode_grant_statement(&minimal_grant_statement()).unwrap();
+        let mut bytes = crate::encode::encode_grant_statement(&minimal_grant_statement()).unwrap();
         bytes.push(0);
         assert_eq!(
             decode_grant_statement(&bytes, &limits),

@@ -278,10 +278,7 @@ pub fn encode_grant_statement(statement: &GrantStatement) -> Result<Vec<u8>, Cod
     finish(|encoder| encode_grant_statement_to(encoder, statement))
 }
 
-fn encode_signed_grant_to(
-    encoder: &mut V1Encoder,
-    grant: &SignedGrant,
-) -> Result<(), CodecError> {
+fn encode_signed_grant_to(encoder: &mut V1Encoder, grant: &SignedGrant) -> Result<(), CodecError> {
     map(encoder, 2)?;
     key(encoder, 0)?;
     encode_grant_statement_to(encoder, grant.statement())?;

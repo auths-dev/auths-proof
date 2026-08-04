@@ -8,8 +8,8 @@ use auths_author::{
     prepare_principal_status,
 };
 use auths_model::{
-    Audience, Challenge, PrincipalId, PrincipalMethodId, SignatureDescriptor, SignatureSuiteId,
-    SignatureBytes, Timestamp, VerificationMethod, VerifierLimits,
+    Audience, Challenge, PrincipalId, PrincipalMethodId, SignatureBytes, SignatureDescriptor,
+    SignatureSuiteId, Timestamp, VerificationMethod, VerifierLimits,
 };
 use auths_ports::{PrincipalMethod, SignatureSuite};
 use auths_registries::ImmutableRegistries;
@@ -188,8 +188,8 @@ pub fn prepare_grant_signing_v1(
     suite: &str,
 ) -> Result<AuthoringSigningRequestV1, JsValue> {
     let limits = VerifierLimits::default_deployment();
-    let statement = auths_codec::decode_grant_statement(statement_cbor, &limits)
-        .map_err(js_error)?;
+    let statement =
+        auths_codec::decode_grant_statement(statement_cbor, &limits).map_err(js_error)?;
     let request = prepare_grant(
         statement,
         signing_descriptor(principal_method, verification_method, suite).map_err(js_error)?,
@@ -256,8 +256,8 @@ pub fn prepare_grant_status_signing_v1(
     suite: &str,
 ) -> Result<AuthoringSigningRequestV1, JsValue> {
     let limits = VerifierLimits::default_deployment();
-    let statement = auths_codec::decode_grant_status_statement(statement_cbor, &limits)
-        .map_err(js_error)?;
+    let statement =
+        auths_codec::decode_grant_status_statement(statement_cbor, &limits).map_err(js_error)?;
     let request = prepare_grant_status(
         statement,
         signing_descriptor(principal_method, verification_method, suite).map_err(js_error)?,
@@ -281,8 +281,8 @@ pub fn complete_grant_signing_v1(
     signature: &[u8],
 ) -> Result<Vec<u8>, JsValue> {
     let limits = VerifierLimits::default_deployment();
-    let statement = auths_codec::decode_grant_statement(statement_cbor, &limits)
-        .map_err(js_error)?;
+    let statement =
+        auths_codec::decode_grant_statement(statement_cbor, &limits).map_err(js_error)?;
     let request = prepare_grant(
         statement,
         signing_descriptor(principal_method, verification_method, suite).map_err(js_error)?,
@@ -358,8 +358,8 @@ pub fn complete_grant_status_signing_v1(
     signature: &[u8],
 ) -> Result<Vec<u8>, JsValue> {
     let limits = VerifierLimits::default_deployment();
-    let statement = auths_codec::decode_grant_status_statement(statement_cbor, &limits)
-        .map_err(js_error)?;
+    let statement =
+        auths_codec::decode_grant_status_statement(statement_cbor, &limits).map_err(js_error)?;
     let request = prepare_grant_status(
         statement,
         signing_descriptor(principal_method, verification_method, suite).map_err(js_error)?,
@@ -381,13 +381,8 @@ pub fn bind_trusted_context_request_v1(
     challenge: &[u8],
     evaluation_time: u64,
 ) -> Result<Vec<u8>, JsValue> {
-    bind_trusted_context_request_native(
-        trusted_context_cbor,
-        audience,
-        challenge,
-        evaluation_time,
-    )
-    .map_err(js_error)
+    bind_trusted_context_request_native(trusted_context_cbor, audience, challenge, evaluation_time)
+        .map_err(js_error)
 }
 
 fn plan_child_grant_native(
@@ -595,7 +590,10 @@ impl fmt::Display for EngineError {
                 )
             }
             Self::Codec(error) => {
-                write!(formatter, "could not process canonical target V1 data: {error}")
+                write!(
+                    formatter,
+                    "could not process canonical target V1 data: {error}"
+                )
             }
             Self::Planning(error) => write!(formatter, "could not plan child authority: {error}"),
             Self::Author(error) => write!(formatter, "could not prepare signing request: {error}"),
@@ -713,11 +711,8 @@ mod tests {
         let proposed_cbor = auths_codec::encode_grant_statement(proposed).unwrap();
 
         let wasm_plan = plan_child_grant_native(&parent_cbor, &proposed_cbor).unwrap();
-        let native_plan = plan_child_grant(
-            &parent,
-            GrantRequest::from_proposed_statement(proposed),
-        )
-        .unwrap();
+        let native_plan =
+            plan_child_grant(&parent, GrantRequest::from_proposed_statement(proposed)).unwrap();
 
         assert_eq!(
             wasm_plan.statement_cbor,
@@ -765,7 +760,10 @@ mod tests {
             action.signature().signature().as_slice(),
         )
         .unwrap();
-        assert_eq!(completed, auths_codec::encode_signed_action(action).unwrap());
+        assert_eq!(
+            completed,
+            auths_codec::encode_signed_action(action).unwrap()
+        );
     }
 
     #[test]
@@ -788,7 +786,10 @@ mod tests {
             1234,
         )
         .unwrap();
-        assert_eq!(actual, auths_codec::encode_verifier_context(&expected).unwrap());
+        assert_eq!(
+            actual,
+            auths_codec::encode_verifier_context(&expected).unwrap()
+        );
     }
 
     #[test]

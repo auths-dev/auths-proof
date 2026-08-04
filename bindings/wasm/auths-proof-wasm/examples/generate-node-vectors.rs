@@ -20,7 +20,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     fs::write(output.join("authorized.context.cbor"), context)?;
     fs::write(output.join("authorized.result.cbor"), result)?;
 
-    let bundle = auths_codec::decode_bundle(proof, &auths_model::VerifierLimits::default_deployment())?;
+    let bundle =
+        auths_codec::decode_bundle(proof, &auths_model::VerifierLimits::default_deployment())?;
     let proposed = bundle
         .grants()
         .first()
