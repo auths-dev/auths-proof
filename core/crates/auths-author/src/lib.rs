@@ -72,6 +72,28 @@ impl GrantRequest {
             extensions,
         }
     }
+
+    /// Projects requested child scope from a complete proposed statement.
+    ///
+    /// The proposal's issuer and parent fields are deliberately discarded.
+    /// [`plan_child_grant`] derives both from the actual parent, preventing a
+    /// binding from accidentally treating caller-supplied linkage as trusted.
+    #[must_use]
+    pub fn from_proposed_statement(statement: &GrantStatement) -> Self {
+        Self {
+            subject: statement.subject().clone(),
+            profile: statement.profile().clone(),
+            permissions: statement.permissions().clone(),
+            validity: statement.validity(),
+            audiences: statement.audiences().clone(),
+            action_constraint: statement.action_constraint().clone(),
+            budget_ceiling: statement.budget_ceiling().cloned(),
+            remaining_depth: statement.remaining_depth(),
+            status_policy: statement.status_policy().clone(),
+            assurance_floor: statement.assurance_floor().clone(),
+            extensions: statement.extensions().clone(),
+        }
+    }
 }
 
 /// Non-fatal authoring warning shown before custody is invoked.

@@ -13,6 +13,7 @@ description = "Prebuildable WebAssembly boundary for Auths Proof Protocol V1"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+auths-author = { workspace = true, features = ["std"] }
 auths-codec.workspace = true
 auths-did-keri.workspace = true
 auths-did-key.workspace = true

@@ -1118,9 +1118,9 @@ language-binding = ["bindings/python/tests/test_api.py#test_configuration_mismat
 kind = "cargo"
 layer = "bindings"
 path = "bindings/wasm/auths-proof-wasm"
-core_apis = ["auths-codec", "auths-did-keri", "auths-did-key", "auths-model", "auths-ports", "auths-raw-key", "auths-registries", "auths-signature", "auths-testkit", "auths-verifier"]
+core_apis = ["auths-author", "auths-codec", "auths-did-keri", "auths-did-key", "auths-model", "auths-ports", "auths-raw-key", "auths-registries", "auths-signature", "auths-testkit", "auths-verifier"]
 protocol_versions = ["auths-proof/v1"]
-wire_objects = ["CanonicalAction", "PortableVerificationResult", "ProofBundle", "VerifierContext"]
+wire_objects = ["ActionEnvelope", "CanonicalAction", "GrantStatement", "GrantStatusStatement", "PortableVerificationResult", "PrincipalStatusStatement", "ProofBundle", "VerifierContext"]
 fixture_suites = ["core/fixtures/v1"]
 principal_families = ["did-keri-v1", "did-key-v1", "raw-key-v1"]
 signature_families = ["ed25519-v1", "p256-sha256-v1"]
@@ -1130,7 +1130,7 @@ configuration_inputs = ["executed-verifier-configuration", "registry-manifest", 
 security_state = []
 
 [packages.auths-proof-wasm.claims]
-core-wire-consumer = ["bindings/wasm/auths-proof-wasm/src/lib.rs#native_wasm_boundary_matches_the_portable_contract"]
+core-wire-consumer = ["bindings/wasm/auths-proof-wasm/src/lib.rs#authoring_abi_planning_matches_the_native_owner", "bindings/wasm/auths-proof-wasm/src/lib.rs#native_wasm_boundary_matches_the_portable_contract"]
 language-binding = ["bindings/typescript/test/api.test.js#precompiled WASM matches the canonical Rust result"]
 
 [packages.auths-receipts]

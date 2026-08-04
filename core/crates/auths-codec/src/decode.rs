@@ -2,7 +2,11 @@
 
 use crate::{
     CodecError,
-    encode::{encode_bundle, encode_verifier_context},
+    encode::{
+        encode_action_envelope, encode_bundle, encode_grant_statement,
+        encode_grant_status_statement, encode_principal_status_statement,
+        encode_verifier_context,
+    },
     hash::evidence_id,
 };
 use alloc::vec::Vec;
@@ -1222,6 +1226,98 @@ pub fn decode_bundle(input: &[u8], limits: &VerifierLimits) -> Result<ProofBundl
     Ok(bundle)
 }
 
+/// Decodes one canonical unsigned grant statement under explicit limits.
+///
+/// # Errors
+///
+/// Returns a typed codec error for malformed, non-canonical, over-limit, or
+/// semantically invalid input.
+pub fn decode_grant_statement(
+    input: &[u8],
+    limits: &VerifierLimits,
+) -> Result<GrantStatement, CodecError> {
+    limits.validate()?;
+    if input.len() > limits.get(LimitKind::BundleBytes) {
+        return Err(CodecError::LimitExceeded);
+    }
+    let mut decoder = Decoder::new(input);
+    let statement = grant_statement(&mut decoder, limits)?;
+    ensure_complete(&decoder, input)?;
+    if encode_grant_statement(&statement)?.as_slice() != input {
+        return Err(CodecError::NonCanonical);
+    }
+    Ok(statement)
+}
+
+/// Decodes one canonical unsigned action envelope under explicit limits.
+///
+/// # Errors
+///
+/// Returns a typed codec error for malformed, non-canonical, over-limit, or
+/// semantically invalid input.
+pub fn decode_action_envelope(
+    input: &[u8],
+    limits: &VerifierLimits,
+) -> Result<ActionEnvelope, CodecError> {
+    limits.validate()?;
+    if input.len() > limits.get(LimitKind::ActionBytes) {
+        return Err(CodecError::LimitExceeded);
+    }
+    let mut decoder = Decoder::new(input);
+    let envelope = action_envelope(&mut decoder, limits)?;
+    ensure_complete(&decoder, input)?;
+    if encode_action_envelope(&envelope)?.as_slice() != input {
+        return Err(CodecError::NonCanonical);
+    }
+    Ok(envelope)
+}
+
+/// Decodes one canonical unsigned principal-status statement.
+///
+/// # Errors
+///
+/// Returns a typed codec error for malformed, non-canonical, over-limit, or
+/// semantically invalid input.
+pub fn decode_principal_status_statement(
+    input: &[u8],
+    limits: &VerifierLimits,
+) -> Result<PrincipalStatusStatement, CodecError> {
+    limits.validate()?;
+    if input.len() > limits.get(LimitKind::BundleBytes) {
+        return Err(CodecError::LimitExceeded);
+    }
+    let mut decoder = Decoder::new(input);
+    let statement = principal_status_statement(&mut decoder, limits)?;
+    ensure_complete(&decoder, input)?;
+    if encode_principal_status_statement(&statement)?.as_slice() != input {
+        return Err(CodecError::NonCanonical);
+    }
+    Ok(statement)
+}
+
+/// Decodes one canonical unsigned grant-status statement.
+///
+/// # Errors
+///
+/// Returns a typed codec error for malformed, non-canonical, over-limit, or
+/// semantically invalid input.
+pub fn decode_grant_status_statement(
+    input: &[u8],
+    limits: &VerifierLimits,
+) -> Result<GrantStatusStatement, CodecError> {
+    limits.validate()?;
+    if input.len() > limits.get(LimitKind::BundleBytes) {
+        return Err(CodecError::LimitExceeded);
+    }
+    let mut decoder = Decoder::new(input);
+    let statement = grant_status_statement(&mut decoder, limits)?;
+    ensure_complete(&decoder, input)?;
+    if encode_grant_status_statement(&statement)?.as_slice() != input {
+        return Err(CodecError::NonCanonical);
+    }
+    Ok(statement)
+}
+
 /// Decodes the complete portable canonical-action verifier input.
 ///
 /// # Errors
@@ -1685,6 +1781,57 @@ mod tests {
         .unwrap()
     }
 
+    fn minimal_grant_statement() -> GrantStatement {
+        GrantStatement::new(
+            PrincipalId::parse("did:example:root").unwrap(),
+            PrincipalId::parse("did:example:actor").unwrap(),
+            ProfileRef::new(ProfileId::parse("test").unwrap(), 1).unwrap(),
+            PermissionSet::new(vec![Permission::new(
+                CapabilityId::parse("read").unwrap(),
+                ResourceId::parse("urn:test:item").unwrap(),
+            )])
+            .unwrap(),
+            ValidityWindow::new(Timestamp::new(10), Timestamp::new(20)).unwrap(),
+            AudienceSet::new(vec![Audience::parse("urn:test:verifier").unwrap()]).unwrap(),
+            ActionConstraint::AnyBody,
+            None,
+            1,
+            None,
+            StatusPolicy::ExpiryOnly,
+            AssurancePolicyId::parse("baseline").unwrap(),
+            CriticalExtensions::empty(),
+        )
+    }
+
+    fn minimal_principal_status_statement() -> PrincipalStatusStatement {
+        PrincipalStatusStatement::new(
+            StatusMethodId::parse("status-test-v1").unwrap(),
+            PrincipalId::parse("did:example:actor").unwrap(),
+            PurposeId::parse("signing").unwrap(),
+            PrincipalState::Active,
+            1,
+            Timestamp::new(10),
+            Timestamp::new(20),
+            PrincipalId::parse("did:example:root").unwrap(),
+            CriticalExtensions::empty(),
+        )
+        .unwrap()
+    }
+
+    fn minimal_grant_status_statement() -> GrantStatusStatement {
+        GrantStatusStatement::new(
+            StatusMethodId::parse("status-test-v1").unwrap(),
+            GrantId::new(identifier(9)),
+            GrantState::Active,
+            1,
+            Timestamp::new(10),
+            Timestamp::new(20),
+            PrincipalId::parse("did:example:root").unwrap(),
+            CriticalExtensions::empty(),
+        )
+        .unwrap()
+    }
+
     #[test]
     fn bundle_round_trip_is_unique() {
         let bundle = minimal_bundle();
@@ -1692,6 +1839,49 @@ mod tests {
         assert_eq!(
             decode_bundle(&encoded, &VerifierLimits::default()).unwrap(),
             bundle
+        );
+    }
+
+    #[test]
+    fn isolated_authoring_statements_round_trip_canonically() {
+        let limits = VerifierLimits::default_deployment();
+        let grant = minimal_grant_statement();
+        let grant_bytes = crate::encode::encode_grant_statement(&grant).unwrap();
+        assert_eq!(decode_grant_statement(&grant_bytes, &limits).unwrap(), grant);
+
+        let action = minimal_bundle().actions()[0].envelope().clone();
+        let action_bytes = crate::encode::encode_action_envelope(&action).unwrap();
+        assert_eq!(
+            decode_action_envelope(&action_bytes, &limits).unwrap(),
+            action
+        );
+
+        let principal_status = minimal_principal_status_statement();
+        let principal_status_bytes =
+            crate::encode::encode_principal_status_statement(&principal_status).unwrap();
+        assert_eq!(
+            decode_principal_status_statement(&principal_status_bytes, &limits).unwrap(),
+            principal_status
+        );
+
+        let grant_status = minimal_grant_status_statement();
+        let grant_status_bytes =
+            crate::encode::encode_grant_status_statement(&grant_status).unwrap();
+        assert_eq!(
+            decode_grant_status_statement(&grant_status_bytes, &limits).unwrap(),
+            grant_status
+        );
+    }
+
+    #[test]
+    fn isolated_authoring_decoders_reject_trailing_bytes() {
+        let limits = VerifierLimits::default_deployment();
+        let mut bytes =
+            crate::encode::encode_grant_statement(&minimal_grant_statement()).unwrap();
+        bytes.push(0);
+        assert_eq!(
+            decode_grant_statement(&bytes, &limits),
+            Err(CodecError::Malformed)
         );
     }
 

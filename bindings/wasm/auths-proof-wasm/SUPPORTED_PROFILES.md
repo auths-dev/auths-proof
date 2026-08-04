@@ -15,7 +15,20 @@ fixed package. Such contexts fail closed with
 `verifier-configuration-mismatch` or an unsupported-method requirement; the
 package never substitutes another method.
 
+The module also exposes the versioned `auths.wasm-authoring-abi/1` boundary
+described by [`authoring-abi-v1.json`](authoring-abi-v1.json). It validates
+principal identifiers, plans child grants through `auths-author`, prepares and
+completes exact signing envelopes without receiving a private key, and binds
+one request to a canonical trusted-context template. Canonical grant, action,
+and status decoders use `VerifierLimits::default_deployment`; malformed,
+trailing, non-canonical, and widening inputs fail before custody is invoked.
+
+This is a repository-local pre-review ABI. It does not by itself promote the
+TypeScript package beyond the Verifier Binding tier.
+
 `cargo xtask wasm` builds `wasm-bindgen` Node artifacts twice, compares every
-generated JS/WASM/TypeScript byte, generates an authorized native result, and
-requires Node to produce identical canonical bytes. Malformed arrays must
-return protocol result bytes rather than JavaScript exceptions.
+generated JS/WASM/TypeScript byte, generates authorized verification and
+authoring vectors from the checked-in raw-key corpus, and requires Node to
+produce identical canonical bytes. Malformed verification arrays return
+protocol result bytes; malformed authoring requests return bounded local
+errors and never produce a signing request.
