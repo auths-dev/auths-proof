@@ -126,6 +126,10 @@ pub async fn build_site(repository: &Path, output: &Path) -> Result<(), BuildErr
     write(output.join("vercel.json"), VERCEL_JSON)?;
 
     copy_required(&sdk.join("dist/index.js"), &output.join("vendor/index.js"))?;
+    copy_required(
+        &sdk.join("dist/workflow.js"),
+        &output.join("vendor/workflow.js"),
+    )?;
     for name in [
         "auths_proof_wasm.js",
         "auths_proof_wasm_bg.wasm",

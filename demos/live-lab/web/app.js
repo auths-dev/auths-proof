@@ -1,4 +1,4 @@
-import { loadAuths } from "./vendor/index.js";
+import { loadPortableAuths } from "./vendor/index.js";
 import {
   configurationState,
   formatNumber,
@@ -551,7 +551,7 @@ async function boot() {
       response.json(),
     ),
     fetchBytes("./vendor/wasm/auths_proof_wasm_bg.wasm").then((wasmInput) =>
-      loadAuths({ moduleUrl: wasmModuleUrl, wasmInput }),
+      loadPortableAuths({ moduleUrl: wasmModuleUrl, wasmInput }),
     ),
   ]);
   state.scenario = scenario;

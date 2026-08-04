@@ -127,6 +127,7 @@ pub(crate) fn live_demo() -> Result<(), String> {
         "styles.css",
         "vercel.json",
         "vendor/index.js",
+        "vendor/workflow.js",
         "vendor/wasm/auths_proof_wasm.d.ts",
         "vendor/wasm/auths_proof_wasm.js",
         "vendor/wasm/auths_proof_wasm_bg.wasm",
