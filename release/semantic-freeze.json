@@ -1,6 +1,6 @@
 {
   "schema": "auths.semantic-freeze/1",
-  "freezeVersion": 16,
+  "freezeVersion": 17,
   "publicSurface": {
     "rustRoots": [
       "auths",
@@ -452,7 +452,7 @@
     },
     {
       "id": "auths.portable-abi-bindings",
-      "version": 2,
+      "version": 3,
       "classification": "frozen-meaning",
       "categories": [
         "portable-abi",
@@ -467,7 +467,7 @@
         "core/crates/auths-model/src/lib.rs",
         "core/spec/v1/auths-proof.cddl"
       ],
-      "sha256": "d93de3f8573fad7cefec71f851cb2bdc170ce8c8066f17e018b0ebcf4d6295a7"
+      "sha256": "2175e2adb694af0dfac876bf518646bf732c5d2fbb1ebc647cea5a8b97c499a4"
     },
     {
       "id": "auths.product.bounded-domains",
@@ -596,7 +596,7 @@
     },
     {
       "id": "auths.release.public-surface",
-      "version": 16,
+      "version": 17,
       "classification": "release-metadata",
       "categories": [
         "package-names",
@@ -668,7 +668,7 @@
         "xtask/src/release_control.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "95d262aa2dc5b8402365f17547bfa8b789e3973f8902983948370955c31f67e7"
+      "sha256": "2d87a8b806e20c60aa9c0201770a7554b229e09df2e1c0c22448a290e27f6c5c"
     }
   ]
 }

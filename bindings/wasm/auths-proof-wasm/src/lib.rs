@@ -393,10 +393,10 @@ fn plan_child_grant_native(
     let parent = auths_codec::decode_grant_statement(parent_grant_cbor, &limits)?;
     let proposed = auths_codec::decode_grant_statement(proposed_child_cbor, &limits)?;
     let plan = plan_child_grant(&parent, GrantRequest::from_proposed_statement(&proposed))?;
-    grant_plan_output(plan)
+    grant_plan_output(&plan)
 }
 
-fn grant_plan_output(plan: GrantPlan) -> Result<GrantPlanV1, EngineError> {
+fn grant_plan_output(plan: &GrantPlan) -> Result<GrantPlanV1, EngineError> {
     let diff = plan.diff();
     let (parent_depth, child_depth) = diff.delegation_depth();
     let removed_permissions = u32::try_from(diff.removed_permissions())
