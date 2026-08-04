@@ -1,9 +1,10 @@
-# AP-SPEC-027: TypeScript SDK developer preview
+# AP-SPEC-027: TypeScript Full Workflow SDK
 
-**Status:** Specified — Phase 10 implementation is blocked on AP-SPEC-032 and
-the AP-SPEC-033 Phase 9 exit gate
+**Status:** Specified — Full Workflow SDK implementation is blocked on
+AP-SPEC-032, the AP-SPEC-033 Phase 9 exit gate, and an immutable reviewed SDK
+baseline; the capability gap is tracked in issues 71 and 72
 
-**Governs:** The TypeScript developer-preview portion of Phase 10 in the
+**Governs:** The TypeScript Full Workflow SDK portion of Phase 10 in the
 [Post-Milestone 6 Productization and Release Plan](../target-state/POST_MILESTONE_6_PRODUCTIZATION_AND_RELEASE_PLAN.md)
 
 **Source strategy:** [Auths Product and Go-to-Market Strategy](../plans/GO_TO_MARKET_STRATEGY.md)
@@ -11,15 +12,20 @@ the AP-SPEC-033 Phase 9 exit gate
 **Aligned with:** [Post-Milestone-6 Technical and Go-to-Market
 Alignment](../plans/POST_MILESTONE_6_TECHNICAL_AND_GO_TO_MARKET_ALIGNMENT.md)
 
+**Authority:** [Issue 71](https://github.com/auths-dev/auths-proof/issues/71)
+and the cross-language capability-tier contract in
+[issue 72](https://github.com/auths-dev/auths-proof/issues/72)
+
 **Depends on:** AP-SPEC-032, AP-SPEC-033, the reviewed release candidate and
 assurance claim, the `auths-sdk` Rust package, `auths-proof-wasm`,
 `auths-profile-mcp`, and the reviewed canonical corpus
 
-**Scope:** An explicitly labeled, cross-platform TypeScript developer preview
-over the reviewed Rust/WASM implementation for attaching an agent, authoring
-bounded grants and exact actions, delegating to child agents, verifying
-locally, and returning structured decisions on macOS, Linux, Windows, and
-supported browsers
+**Scope:** An explicitly labeled, cross-platform TypeScript Full Workflow SDK
+over the reviewed Rust/WASM implementation for creating or loading principals,
+attaching agents, authoring bounded grants and exact profile actions,
+delegating narrower authority, assembling trusted inputs, signing through
+provider-neutral custody, verifying locally, decoding sealed commands, and
+returning structured decisions on macOS, Linux, Windows, and supported browsers
 
 **Normative language:** **MUST**, **MUST NOT**, **SHOULD**, and **MAY** are
 requirements on conforming implementations.
@@ -48,7 +54,8 @@ The base SDK MUST run natively on macOS, Linux, and Windows. Platform-specific
 custody providers are optional integrations and MUST NOT be required to load,
 install, or use the portable authoring and verification surfaces.
 
-The Phase 10 package MUST remain visibly pre-v1 and developer-preview quality.
+The first Full Workflow package MAY remain visibly pre-v1 and
+developer-preview quality.
 It MUST NOT be represented as independently reviewed merely because its Rust
 kernel dependency was reviewed in Phase 9; the new binding, workflow, and API
 code requires its own tests and later release evidence.
@@ -87,9 +94,30 @@ Existing independent TypeScript verification under
 `bindings/independent/typescript` remains a differential implementation. It
 MUST NOT become the product SDK's authoring or execution implementation.
 
-## 4. Goals
+## 4. Capability tier and goals
 
-The Phase 10 developer preview MUST provide:
+This specification promotes `@auths-dev/sdk` from **Verifier Binding** to
+**Full Workflow SDK** under issue 72. The tiers mean:
+
+```text
+Verifier Binding
+  proof bytes + action bytes + trusted context -> three verdicts
+        |
+        v
+Authoring SDK
+  principals + grants + delegation + exact actions + signing requests
+        |
+        v
+Full Workflow SDK
+  attach + delegate + authorize + explain + sealed profile command
+```
+
+The package MUST continue to expose the verifier binding as an explicitly
+advanced API. It MUST NOT claim the Full Workflow tier until every stage above
+uses supported Rust/WASM semantics and the clean external-consumer scenario
+passes without hand-authored protocol CBOR.
+
+The TypeScript Full Workflow SDK MUST provide:
 
 - one idiomatic Node 20+ TypeScript package that runs natively on macOS,
   Linux, and Windows, plus its supported browser surface;
@@ -105,6 +133,10 @@ The Phase 10 developer preview MUST provide:
 - lifecycle-safe cleanup for ephemeral child signers;
 - advanced access to canonical bytes, commitments, metrics, and raw results;
 - examples and API documentation reproducible from a clean checkout.
+
+The normal workflow MUST expose no public API that accepts caller-constructed
+canonical proof, grant, status, or trusted-context CBOR. Raw byte APIs remain
+available only under the advanced verifier/inspection surface.
 
 ## 5. Non-goals
 
@@ -437,22 +469,53 @@ Implementation MUST add:
 - documentation examples compiled in CI;
 - `architecture.toml` and `compliance.toml` updates for every changed consumer.
 
-## 11. Delivery order
+## 11. Bounded PR units
 
-1. Freeze a TypeScript product API contract and threat model.
-2. Add missing Rust/WASM authoring and profile surfaces without duplicating
-   semantics in TypeScript.
-3. Implement signer, approval, agent, and delegation lifecycle interfaces.
-4. Implement the MCP action facade.
-5. Add sealed command decoding and gateway handoff.
-6. Add structured explanations and advanced inspection.
-7. Add clean-checkout examples and generated API documentation.
-8. Close Node, browser, conformance, architecture, compliance, and packaging
-   evidence across macOS, Linux, and Windows.
+1. **`AP27-PR1` — capability contract and threat model.** Freeze the public
+   Full Workflow API, advanced/raw boundary, ownership map, hard limits,
+   non-forgeability model, browser/Node lifecycle, and exact claim exclusions.
+   No production behavior changes.
+2. **`AP27-PR2` — Rust/WASM authoring ABI.** Expose only the missing
+   principal, grant-planning, delegation, action, status, trusted-context, and
+   exact-signing operations from their canonical Rust owners. Add ABI versions,
+   bounded decoders, canonical fixtures, and Rust/WASM differential tests.
+3. **`AP27-PR3` — principals, signers, and trusted authority.** Implement
+   `loadAuths`, principal creation/loading, provider-neutral signer and approval
+   ports, transaction binding, explicit configuration commitments, cleanup,
+   and hostile provider tests. Ship no production custody provider.
+4. **`AP27-PR4` — attach and root authority.** Implement `attachAgent`, exact
+   root/signed-grant sources, effective-authority summaries, typed construction
+   errors, and stable explanation projection without accepting raw protocol
+   bytes on the normal path.
+5. **`AP27-PR5` — delegation and attenuation.** Implement child grant planning,
+   semantic authority diffs, over-granting warnings, approval binding, signing,
+   and negative widening tests for every authority dimension.
+6. **`AP27-PR6` — MCP profile authorization.** Add the first profile-owned
+   action facade, canonicalization, proof/context assembly, three-valued local
+   verification, and exact cross-language fixtures. Do not add a generic
+   operation-tag action or executor.
+7. **`AP27-PR7` — sealed command and gateway handoff.** Decode only the
+   verifier-sealed action into an MCP command whose constructor is unavailable
+   to application code. Add compile-time and runtime construction, mutation,
+   copying, serialization, and denied/indeterminate tests.
+8. **`AP27-PR8` — advanced inspection and explanation.** Preserve raw
+   verification, canonical bytes, commitments, metrics, stable stages/codes,
+   and bounded export behind visibly advanced APIs. Prove that inspection data
+   cannot be promoted into a command.
+9. **`AP27-PR9` — external-consumer and package closure.** Exercise the packed
+   npm artifact from a repository with no Auths source checkout; compile every
+   example; run Node and browser smoke tests; verify package contents,
+   architecture, compliance, provenance subjects, and native macOS/Linux/
+   Windows behavior.
+
+Every implementation PR MUST state the exact RC/baseline digest, tests and
+fixtures added, capability tier affected, security invariants, supported and
+excluded claims, and remaining entry/exit gates. A later PR MUST NOT merge
+around a failed earlier semantic or non-forgeability gate.
 
 ## 12. Exit gate
 
-The Phase 10 SDK developer-preview gate is complete only when:
+The TypeScript Full Workflow SDK gate is complete only when:
 
 - a new developer can run the reference attach/delegate/authorize flow without
   hand-authoring CBOR;
@@ -466,6 +529,12 @@ The Phase 10 SDK developer-preview gate is complete only when:
 - the final package installs and runs from a clean checkout in native Node on
   macOS, Ubuntu Linux, and Windows, and in a supported browser;
 - the authoritative repository checks pass on the exact revision.
+
+The release manifest, npm README, generated API documentation, package
+metadata, and issue-72 capability matrix MUST all label the package Full
+Workflow only after this gate passes. Before that point they MUST say
+Verifier Binding or implementation preview, matching the evidence actually
+available.
 
 Passing this gate does not claim stable-v1 compatibility, production custody,
 complete MCP execution, production readiness, or commercial readiness. Those

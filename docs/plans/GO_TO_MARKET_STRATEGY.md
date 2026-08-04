@@ -450,17 +450,21 @@ and stateful-execution reviewers. Every finding receives an owner, affected
 claim, regression obligation, remediation revision, and independent retest.
 No unresolved critical finding may pass the gate.
 
-### Phase 10: TypeScript and MCP developer preview
+### Phase 10: Full Workflow SDKs and MCP developer preview
 
-- [AP-SPEC-027: TypeScript SDK developer
-  preview](../specs/0027-product-grade-typescript-sdk.md)
+- [AP-SPEC-027: TypeScript Full Workflow
+  SDK](../specs/0027-product-grade-typescript-sdk.md)
+- [AP-SPEC-035: Python Full Workflow
+  SDK](../specs/0035-python-full-workflow-sdk.md)
 - [AP-SPEC-028: MCP delegation reference
   application](../specs/0028-mcp-delegation-reference-application.md)
 
-The SDK is the first developer product, but its Phase 10 publication is an
-explicit preview rather than GA. The MCP vertical is local, synthetic,
-sandboxed, or demonstrably reversible and is not the Phase 13 production
-flagship.
+The TypeScript SDK remains the first developer product. Python follows the
+same language-neutral Full Workflow contract without delaying the first
+TypeScript integration or creating a second source of protocol semantics.
+Phase 10 publication is an explicit preview rather than GA. The MCP vertical
+is local, synthetic, sandboxed, or demonstrably reversible and is not the
+Phase 13 production flagship.
 
 ### Phases 10–11: approval and custody
 
