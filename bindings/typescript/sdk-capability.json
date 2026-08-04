@@ -1,0 +1,30 @@
+{
+  "schema": "auths.sdk-capability/1",
+  "package": "@auths-dev/sdk",
+  "language": "typescript",
+  "currentTier": "verifier-binding",
+  "targetTier": "full-workflow-sdk",
+  "governingSpec": "AP-SPEC-027",
+  "implementationStatus": "authorized-pre-review",
+  "publicationStatus": "blocked",
+  "promotionStatus": "blocked",
+  "blockingIssues": [
+    "https://github.com/auths-dev/auths-proof/issues/71",
+    "https://github.com/auths-dev/auths-proof/issues/74",
+    "https://github.com/auths-dev/auths-proof/issues/76"
+  ],
+  "claims": {
+    "supported": [
+      "bounded three-input local verification",
+      "three-valued result projection",
+      "stable code and configuration commitment projection"
+    ],
+    "excluded": [
+      "full workflow SDK",
+      "non-forgeable effect command",
+      "independent review of workflow surfaces",
+      "production readiness",
+      "package publication authorization"
+    ]
+  }
+}

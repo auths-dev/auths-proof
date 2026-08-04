@@ -1,8 +1,10 @@
 # AP-SPEC-027: TypeScript Full Workflow SDK
 
-**Status:** Specified — Full Workflow SDK implementation is blocked on
-AP-SPEC-032, the AP-SPEC-033 Phase 9 exit gate, and an immutable reviewed SDK
-baseline; the capability gap is tracked in issues 71 and 72
+**Status:** Repository-local implementation authorized before Phase 9 by the
+repository owner on 2026-08-04; publication, promotion to the Full Workflow
+tier, and reviewed-security claims remain blocked on AP-SPEC-032,
+AP-SPEC-033, and issue 74; capability and non-forgeability gaps are tracked in
+issues 71, 72, and 76
 
 **Governs:** The TypeScript Full Workflow SDK portion of Phase 10 in the
 [Post-Milestone 6 Productization and Release Plan](../target-state/POST_MILESTONE_6_PRODUCTIZATION_AND_RELEASE_PLAN.md)
@@ -60,9 +62,26 @@ It MUST NOT be represented as independently reviewed merely because its Rust
 kernel dependency was reviewed in Phase 9; the new binding, workflow, and API
 code requires its own tests and later release evidence.
 
-## 2. Phase placement and entry gate
+## 2. Phase placement and implementation gate
 
-Implementation begins only after:
+The repository owner has authorized the bounded PR units in this specification
+to be implemented and merged before Phase 9 so that SDK engineering can
+proceed against the prepared baseline. This changes work sequencing, not the
+strength of any release claim.
+
+Pre-review implementation MUST satisfy all of these conditions:
+
+- every PR remains repository-local and passes authoritative CI;
+- package metadata and documentation continue to label the public surface
+  **Verifier Binding** or pre-review implementation, never Full Workflow;
+- no package, tag, release artifact, deployment, or reviewed claim is
+  published or promoted;
+- new Rust/WASM/TypeScript surfaces are added to the future Phase 9 scope;
+- any change to frozen semantics, bytes, subjects, or claims returns through
+  AP-SPEC-032's candidate-change process; and
+- issue 74 remains the explicit release and promotion blocker.
+
+Publication or promotion begins only after:
 
 - AP-SPEC-032 has produced the immutable RC and exact claim bundle;
 - AP-SPEC-033 has completed all required review tracks;
@@ -72,6 +91,11 @@ Implementation begins only after:
   not covered by the reviewed RC; and
 - the release process can distinguish preview packages from stable-v1
   artifacts and claims.
+
+Opening, merging, or testing an AP27 implementation PR is not evidence that
+any external gate passed. This specification does not authorize engaging
+reviewers, spending review funds, accepting security risk, publishing a
+package, creating a tag, or promoting release artifacts.
 
 Phase 10 MAY fix SDK usability and binding defects. A required change to frozen
 Rust semantics or reviewed claims returns through AP-SPEC-032 and AP-SPEC-033
@@ -497,7 +521,9 @@ Implementation MUST add:
 7. **`AP27-PR7` — sealed command and gateway handoff.** Decode only the
    verifier-sealed action into an MCP command whose constructor is unavailable
    to application code. Add compile-time and runtime construction, mutation,
-   copying, serialization, and denied/indeterminate tests.
+   copying, serialization, hostile-engine, dynamic-module, and
+   denied/indeterminate tests. Issue 76 MUST be resolved by this unit; a
+   caller-controlled engine may not select the capability-minting branch.
 8. **`AP27-PR8` — advanced inspection and explanation.** Preserve raw
    verification, canonical bytes, commitments, metrics, stable stages/codes,
    and bounded export behind visibly advanced APIs. Prove that inspection data
