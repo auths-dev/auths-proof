@@ -51,6 +51,13 @@ export interface LoadAuthsOptions {
   readonly trustedAuthority: TrustedAuthority;
 }
 
+export interface TrustedAuthority {
+  readonly authorityId: string;
+  readonly rootPrincipal: string;
+  readonly verifierConfiguration: Uint8Array;
+  readonly requiredApproval: ApprovalPolicyReference;
+}
+
 export function loadAuths(options: LoadAuthsOptions): Promise<AuthsClient>;
 
 export interface AuthsClient extends AsyncDisposable {
@@ -79,6 +86,15 @@ export interface AttachedAgent<P extends Profile> extends AsyncDisposable {
 availability, or a valid signature. It consumes an exact signed authority
 source whose profile, principal, audience, validity, status, assurance,
 budget, and depth are checked by Rust.
+
+The normal source is created with `signedGrantSource({ sourceId, provider })`.
+It is a sealed provider reference, not a byte wrapper: `AttachAgentOptions`
+has no raw-CBOR field. The provider response is copied and canonically decoded
+by packaged Rust/WASM. Root attachment requires no parent and exact equality
+with `TrustedAuthority.rootPrincipal`, the loaded signer principal, and the
+selected profile. Its effective-authority explanation remains
+`pending-authorization` until the later verification workflow checks the
+signature, status, assurance, chain, and request context.
 
 `delegate` first returns a native-planned authority diff and warnings for
 review. Approval and signing receive that exact plan. Parent linkage and

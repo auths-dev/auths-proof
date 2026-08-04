@@ -4,7 +4,8 @@ use crate::{
     CodecError,
     encode::{
         encode_action_envelope, encode_bundle, encode_grant_statement,
-        encode_grant_status_statement, encode_principal_status_statement, encode_verifier_context,
+        encode_grant_status_statement, encode_principal_status_statement, encode_signed_grant,
+        encode_verifier_context,
     },
     hash::evidence_id,
 };
@@ -1248,6 +1249,29 @@ pub fn decode_grant_statement(
     Ok(statement)
 }
 
+/// Decodes one canonical signed grant under explicit deployment limits.
+///
+/// # Errors
+///
+/// Returns a typed codec error for malformed, non-canonical, over-limit, or
+/// semantically invalid input.
+pub fn decode_signed_grant(
+    input: &[u8],
+    limits: &VerifierLimits,
+) -> Result<SignedGrant, CodecError> {
+    limits.validate()?;
+    if input.len() > limits.get(LimitKind::BundleBytes) {
+        return Err(CodecError::LimitExceeded);
+    }
+    let mut decoder = Decoder::new(input);
+    let grant = signed_grant(&mut decoder, limits)?;
+    ensure_complete(&decoder, input)?;
+    if encode_signed_grant(&grant)?.as_slice() != input {
+        return Err(CodecError::NonCanonical);
+    }
+    Ok(grant)
+}
+
 /// Decodes one canonical unsigned action envelope under explicit limits.
 ///
 /// # Errors
@@ -1850,6 +1874,12 @@ mod tests {
             decode_grant_statement(&grant_bytes, &limits).unwrap(),
             grant
         );
+        let signed_grant = SignedGrant::new(grant.clone(), minimal_signature());
+        let signed_grant_bytes = crate::encode::encode_signed_grant(&signed_grant).unwrap();
+        assert_eq!(
+            decode_signed_grant(&signed_grant_bytes, &limits).unwrap(),
+            signed_grant
+        );
 
         let action = minimal_bundle().actions()[0].envelope().clone();
         let action_bytes = crate::encode::encode_action_envelope(&action).unwrap();
@@ -1882,6 +1912,16 @@ mod tests {
         bytes.push(0);
         assert_eq!(
             decode_grant_statement(&bytes, &limits),
+            Err(CodecError::Malformed)
+        );
+        let mut signed = crate::encode::encode_signed_grant(&SignedGrant::new(
+            minimal_grant_statement(),
+            minimal_signature(),
+        ))
+        .unwrap();
+        signed.push(0);
+        assert_eq!(
+            decode_signed_grant(&signed, &limits),
             Err(CodecError::Malformed)
         );
     }

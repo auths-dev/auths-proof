@@ -86,6 +86,17 @@ canonicalization and signing/verification bind the complete action. Public
 mutable byte arrays are copied. Mutation tests change every relevant field and
 one canonical byte at a time.
 
+### Root-authority substitution
+
+An authority source may return malformed bytes, a non-root grant, or a grant
+for another issuer, subject, or profile. The normal API accepts only a sealed
+provider-backed `SignedGrantSource`, copies its one response, and passes the
+exact bytes to packaged Rust/WASM. Native validation binds parentlessness,
+trusted root, attached principal, and exact profile before TypeScript creates
+an attached agent. The resulting summary is structural and explicitly says
+`pending-authorization`; it is not evidence that cryptographic, status,
+assurance, or live verification passed.
+
 ### Delegation widening
 
 A child request may widen permissions, resources, audiences, validity, budget,

@@ -13,8 +13,8 @@ mod hash;
 
 pub use decode::{
     decode_action_envelope, decode_bundle, decode_canonical_action, decode_grant_statement,
-    decode_grant_status_statement, decode_principal_status_statement, decode_verification_result,
-    decode_verifier_context,
+    decode_grant_status_statement, decode_principal_status_statement, decode_signed_grant,
+    decode_verification_result, decode_verifier_context,
 };
 pub use encode::{
     encode_action_envelope, encode_action_signing_input, encode_authorization_plan, encode_bundle,
