@@ -358,6 +358,7 @@ digraph auths_architecture {
   "auths-proof-offline-example" -> "auths-registries" [label="normal"];
   "auths-proof-offline-example" -> "auths-signature" [label="normal"];
   "auths-proof-python" -> "auths-proof-wasm" [label="normal"];
+  "auths-proof-wasm" -> "auths-author" [label="normal"];
   "auths-proof-wasm" -> "auths-codec" [label="normal"];
   "auths-proof-wasm" -> "auths-did-keri" [label="normal"];
   "auths-proof-wasm" -> "auths-did-key" [label="normal"];
