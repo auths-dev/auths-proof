@@ -1,0 +1,38 @@
+{
+  "schema": "auths.wasm-authoring-abi/1",
+  "abiVersion": 1,
+  "inputEncoding": "canonical-target-v1-cbor",
+  "limits": "VerifierLimits::default_deployment",
+  "exports": [
+    "authoringAbiVersionV1",
+    "canonicalPrincipalV1",
+    "planChildGrantV1",
+    "prepareGrantSigningV1",
+    "prepareActionSigningV1",
+    "preparePrincipalStatusSigningV1",
+    "prepareGrantStatusSigningV1",
+    "completeGrantSigningV1",
+    "completeActionSigningV1",
+    "completePrincipalStatusSigningV1",
+    "completeGrantStatusSigningV1",
+    "bindTrustedContextRequestV1"
+  ],
+  "grantPlanWarningBits": {
+    "anyBody": 1,
+    "multiplePermissions": 2,
+    "multipleAudiences": 4,
+    "delegationAllowed": 8,
+    "noBudgetCeiling": 16,
+    "longValidity": 32
+  },
+  "fixtures": {
+    "source": "core/fixtures/v1/valid/raw-key-chain.proof.cbor",
+    "generatedBy": "auths-proof-wasm/generate-node-vectors",
+    "outputs": [
+      "authoring.parent-grant.cbor",
+      "authoring.proposed-grant.cbor",
+      "authoring.planned-grant.cbor",
+      "authoring.action-signing-preimage.cbor"
+    ]
+  }
+}

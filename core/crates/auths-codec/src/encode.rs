@@ -278,13 +278,22 @@ pub fn encode_grant_statement(statement: &GrantStatement) -> Result<Vec<u8>, Cod
     finish(|encoder| encode_grant_statement_to(encoder, statement))
 }
 
-fn encode_signed_grant(encoder: &mut V1Encoder, grant: &SignedGrant) -> Result<(), CodecError> {
+fn encode_signed_grant_to(encoder: &mut V1Encoder, grant: &SignedGrant) -> Result<(), CodecError> {
     map(encoder, 2)?;
     key(encoder, 0)?;
     encode_grant_statement_to(encoder, grant.statement())?;
     key(encoder, 1)?;
     encode_signature(encoder, grant.signature())?;
     Ok(())
+}
+
+/// Encodes a signed grant using deterministic target V1 CBOR.
+///
+/// # Errors
+///
+/// Returns [`CodecError`] if the value exceeds a protocol encoding bound.
+pub fn encode_signed_grant(grant: &SignedGrant) -> Result<Vec<u8>, CodecError> {
+    finish(|encoder| encode_signed_grant_to(encoder, grant))
 }
 
 pub(crate) fn encode_action_envelope_to(
@@ -607,13 +616,25 @@ pub fn encode_verification_result_digest_input(
     finish(|encoder| encode_verification_result_to(encoder, result, false))
 }
 
-fn encode_signed_action(encoder: &mut V1Encoder, action: &SignedAction) -> Result<(), CodecError> {
+fn encode_signed_action_to(
+    encoder: &mut V1Encoder,
+    action: &SignedAction,
+) -> Result<(), CodecError> {
     map(encoder, 2)?;
     key(encoder, 0)?;
     encode_action_envelope_to(encoder, action.envelope())?;
     key(encoder, 1)?;
     encode_signature(encoder, action.signature())?;
     Ok(())
+}
+
+/// Encodes a signed action using deterministic target V1 CBOR.
+///
+/// # Errors
+///
+/// Returns [`CodecError`] if the value exceeds a protocol encoding bound.
+pub fn encode_signed_action(action: &SignedAction) -> Result<Vec<u8>, CodecError> {
+    finish(|encoder| encode_signed_action_to(encoder, action))
 }
 
 pub(crate) fn encode_authorization_plan_to(
@@ -786,13 +807,18 @@ pub(crate) fn encode_principal_status_statement_to(
     Ok(())
 }
 
-pub(crate) fn encode_principal_status_statement(
+/// Encodes a principal-status statement using deterministic target V1 CBOR.
+///
+/// # Errors
+///
+/// Returns [`CodecError`] if the value exceeds a protocol encoding bound.
+pub fn encode_principal_status_statement(
     statement: &PrincipalStatusStatement,
 ) -> Result<Vec<u8>, CodecError> {
     finish(|encoder| encode_principal_status_statement_to(encoder, statement))
 }
 
-fn encode_signed_principal_status(
+fn encode_signed_principal_status_to(
     encoder: &mut V1Encoder,
     status: &SignedPrincipalStatus,
 ) -> Result<(), CodecError> {
@@ -802,6 +828,18 @@ fn encode_signed_principal_status(
     key(encoder, 1)?;
     encode_signature(encoder, status.signature())?;
     Ok(())
+}
+
+/// Encodes a signed principal-status statement using deterministic target V1
+/// CBOR.
+///
+/// # Errors
+///
+/// Returns [`CodecError`] if the value exceeds a protocol encoding bound.
+pub fn encode_signed_principal_status(
+    status: &SignedPrincipalStatus,
+) -> Result<Vec<u8>, CodecError> {
+    finish(|encoder| encode_signed_principal_status_to(encoder, status))
 }
 
 pub(crate) fn encode_grant_status_statement_to(
@@ -841,13 +879,18 @@ pub(crate) fn encode_grant_status_statement_to(
     Ok(())
 }
 
-pub(crate) fn encode_grant_status_statement(
+/// Encodes a grant-status statement using deterministic target V1 CBOR.
+///
+/// # Errors
+///
+/// Returns [`CodecError`] if the value exceeds a protocol encoding bound.
+pub fn encode_grant_status_statement(
     statement: &GrantStatusStatement,
 ) -> Result<Vec<u8>, CodecError> {
     finish(|encoder| encode_grant_status_statement_to(encoder, statement))
 }
 
-fn encode_signed_grant_status(
+fn encode_signed_grant_status_to(
     encoder: &mut V1Encoder,
     status: &SignedGrantStatus,
 ) -> Result<(), CodecError> {
@@ -857,6 +900,16 @@ fn encode_signed_grant_status(
     key(encoder, 1)?;
     encode_signature(encoder, status.signature())?;
     Ok(())
+}
+
+/// Encodes a signed grant-status statement using deterministic target V1
+/// CBOR.
+///
+/// # Errors
+///
+/// Returns [`CodecError`] if the value exceeds a protocol encoding bound.
+pub fn encode_signed_grant_status(status: &SignedGrantStatus) -> Result<Vec<u8>, CodecError> {
+    finish(|encoder| encode_signed_grant_status_to(encoder, status))
 }
 
 fn encode_attachment(
@@ -931,7 +984,7 @@ fn encode_bundle_to(encoder: &mut V1Encoder, bundle: &ProofBundle) -> Result<(),
     let grants = sorted_grants(bundle)?;
     array(encoder, grants.len())?;
     for grant in grants {
-        encode_signed_grant(encoder, grant)?;
+        encode_signed_grant_to(encoder, grant)?;
     }
 
     key(encoder, 2)?;
@@ -939,7 +992,7 @@ fn encode_bundle_to(encoder: &mut V1Encoder, bundle: &ProofBundle) -> Result<(),
     actions.sort_by_key(|action| action.envelope().proof_ref());
     array(encoder, actions.len())?;
     for action in actions {
-        encode_signed_action(encoder, action)?;
+        encode_signed_action_to(encoder, action)?;
     }
 
     key(encoder, 3)?;
@@ -965,14 +1018,14 @@ fn encode_bundle_to(encoder: &mut V1Encoder, bundle: &ProofBundle) -> Result<(),
     let principal_status = sorted_principal_status(bundle.principal_status())?;
     array(encoder, principal_status.len())?;
     for status in principal_status {
-        encode_signed_principal_status(encoder, status)?;
+        encode_signed_principal_status_to(encoder, status)?;
     }
 
     key(encoder, 7)?;
     let grant_status = sorted_grant_status(bundle.grant_status())?;
     array(encoder, grant_status.len())?;
     for status in grant_status {
-        encode_signed_grant_status(encoder, status)?;
+        encode_signed_grant_status_to(encoder, status)?;
     }
 
     key(encoder, 8)?;
@@ -1275,7 +1328,7 @@ fn encode_principal_snapshot(
     let statuses = sorted_principal_status(snapshot.statements())?;
     array(encoder, statuses.len())?;
     for status in statuses {
-        encode_signed_principal_status(encoder, status)?;
+        encode_signed_principal_status_to(encoder, status)?;
     }
     key(encoder, 4)?;
     array(encoder, snapshot.checkpoints().len())?;
@@ -1306,7 +1359,7 @@ fn encode_grant_snapshot(
     let statuses = sorted_grant_status(snapshot.statements())?;
     array(encoder, statuses.len())?;
     for status in statuses {
-        encode_signed_grant_status(encoder, status)?;
+        encode_signed_grant_status_to(encoder, status)?;
     }
     key(encoder, 4)?;
     array(encoder, snapshot.checkpoints().len())?;

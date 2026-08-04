@@ -1067,6 +1067,7 @@ dependencies = [
 name = "auths-proof-wasm"
 version = "1.0.0-rc.1"
 dependencies = [
+ "auths-author",
  "auths-codec",
  "auths-did-keri",
  "auths-did-key",
