@@ -1,3 +1,33 @@
+import {
+  type LoadWorkflowOptions,
+  type WorkflowWasmEngine,
+  createWorkflowClient,
+} from "./workflow.js";
+
+export {
+  AuthsClient,
+  AuthsWorkflowError,
+  ProviderOperationError,
+  type AgentIdentity,
+  type ApprovalConfiguration,
+  type ApprovalMode,
+  type ApprovalPolicyReference,
+  type ApprovalProvider,
+  type ApprovalRequest,
+  type ApprovalResponse,
+  type PrincipalDescriptor,
+  type ProviderFailureKind,
+  type ReviewField,
+  type Signer,
+  type SignerLifecycle,
+  type SigningObjectKind,
+  type SigningRequest,
+  type SigningResponse,
+  type TrustedAuthority,
+  type TrustedAuthoritySnapshot,
+  type WorkflowErrorCode,
+} from "./workflow.js";
+
 const MAX_RESULT_BYTES = 16 * 1024 * 1024;
 const MAX_DEPTH = 64;
 const AUTHORIZED_TOKEN: unique symbol = Symbol("auths-authorized");
@@ -127,7 +157,7 @@ export class Auths {
   }
 }
 
-export interface LoadAuthsOptions {
+export interface LoadPortableAuthsOptions {
   readonly moduleUrl?: string;
   readonly wasmInput?:
     | RequestInfo
@@ -137,15 +167,19 @@ export interface LoadAuthsOptions {
     | WebAssembly.Module;
 }
 
-export async function loadAuths(
-  options: LoadAuthsOptions = {},
+export async function loadPortableAuths(
+  options: LoadPortableAuthsOptions = {},
 ): Promise<Auths> {
+  if (options.moduleUrl === undefined && options.wasmInput === undefined) {
+    const packaged = await loadPackagedWorkflowEngine();
+    return new Auths({ verifyV1: packaged.verifyV1 });
+  }
   const moduleUrl =
     options.moduleUrl ??
     new URL("../wasm/auths_proof_wasm.js", import.meta.url).href;
   const loaded = (await import(moduleUrl)) as {
     default?: (
-      input?: { module_or_path: LoadAuthsOptions["wasmInput"] },
+      input?: { module_or_path: LoadPortableAuthsOptions["wasmInput"] },
     ) => Promise<unknown>;
     verifyV1: PortableWasmEngine["verifyV1"];
   };
@@ -157,6 +191,57 @@ export async function loadAuths(
     throw new TypeError("Auths WASM module omitted verifyV1");
   }
   return new Auths({ verifyV1: loaded.verifyV1 });
+}
+
+export type LoadAuthsOptions = LoadWorkflowOptions;
+
+export async function loadAuths(options: LoadAuthsOptions) {
+  const engine = await loadPackagedWorkflowEngine();
+  return createWorkflowClient(options, engine);
+}
+
+async function loadPackagedWorkflowEngine(): Promise<
+  WorkflowWasmEngine & PortableWasmEngine
+> {
+  const moduleUrl = new URL(
+    "../wasm/auths_proof_wasm.js",
+    import.meta.url,
+  ).href;
+  const loaded = (await import(moduleUrl)) as WorkflowWasmEngine &
+    PortableWasmEngine & {
+    default?: (input?: {
+      module_or_path: RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
+    }) => Promise<unknown>;
+  };
+  if (loaded.default !== undefined) {
+    const wasmUrl = new URL(
+      "../wasm/auths_proof_wasm_bg.wasm",
+      import.meta.url,
+    );
+    if (wasmUrl.protocol === "file:") {
+      const { readFile } = await import("node:fs/promises");
+      await loaded.default({ module_or_path: await readFile(wasmUrl) });
+    } else {
+      await loaded.default({ module_or_path: wasmUrl });
+    }
+  }
+  if (
+    typeof loaded.authoringAbiVersionV1 !== "function" ||
+    typeof loaded.canonicalPrincipalV1 !== "function" ||
+    typeof loaded.configurationV1 !== "function" ||
+    typeof loaded.prepareGrantSigningV1 !== "function" ||
+    typeof loaded.prepareActionSigningV1 !== "function" ||
+    typeof loaded.preparePrincipalStatusSigningV1 !== "function" ||
+    typeof loaded.prepareGrantStatusSigningV1 !== "function" ||
+    typeof loaded.completeGrantSigningV1 !== "function" ||
+    typeof loaded.completeActionSigningV1 !== "function" ||
+    typeof loaded.completePrincipalStatusSigningV1 !== "function" ||
+    typeof loaded.completeGrantStatusSigningV1 !== "function" ||
+    typeof loaded.verifyV1 !== "function"
+  ) {
+    throw new TypeError("Auths WASM module omitted workflow authoring exports");
+  }
+  return loaded;
 }
 
 type DecodedResult = {

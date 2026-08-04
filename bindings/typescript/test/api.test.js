@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { Auths, VerifiedAction, loadAuths } from "../dist/index.js";
+import { Auths, VerifiedAction, loadPortableAuths } from "../dist/index.js";
 
 const fixture = (name) =>
   readFileSync(
@@ -30,7 +30,7 @@ test("application code cannot construct a verified action", () => {
 });
 
 test("precompiled WASM matches the canonical Rust result", async () => {
-  const auths = await loadAuths({
+  const auths = await loadPortableAuths({
     moduleUrl: new URL("../wasm/auths_proof_wasm.js", import.meta.url).href,
     wasmInput: readFileSync(
       new URL("../wasm/auths_proof_wasm_bg.wasm", import.meta.url),
@@ -49,8 +49,18 @@ test("precompiled WASM matches the canonical Rust result", async () => {
   );
 });
 
+test("package-owned portable loader works in native Node", async () => {
+  const auths = await loadPortableAuths();
+  const result = auths.verify(
+    fixture("raw-key-chain.proof.cbor"),
+    fixture("raw-key-chain.action.cbor"),
+    bindingVector("authorized.context.cbor"),
+  );
+  assert.equal(result.kind, "authorized");
+});
+
 test("configuration mismatch reports required and executed commitments", async () => {
-  const auths = await loadAuths({
+  const auths = await loadPortableAuths({
     moduleUrl: new URL("../wasm/auths_proof_wasm.js", import.meta.url).href,
     wasmInput: readFileSync(
       new URL("../wasm/auths_proof_wasm_bg.wasm", import.meta.url),

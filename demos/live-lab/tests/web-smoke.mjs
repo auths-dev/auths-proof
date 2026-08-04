@@ -158,10 +158,10 @@ for (const designToken of [
   );
 }
 
-const { loadAuths } = await import(
+const { loadPortableAuths } = await import(
   pathToFileURL(join(site, "vendor/index.js")).href
 );
-const auths = await loadAuths({
+const auths = await loadPortableAuths({
   moduleUrl: pathToFileURL(join(site, "vendor/wasm/auths_proof_wasm.js")).href,
   wasmInput: await readFile(join(site, "vendor/wasm/auths_proof_wasm_bg.wasm")),
 });

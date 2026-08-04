@@ -1238,18 +1238,18 @@ layer = "bindings"
 path = "bindings/typescript"
 core_apis = ["auths-proof-wasm"]
 protocol_versions = ["auths-proof/v1"]
-wire_objects = ["CanonicalAction", "PortableVerificationResult", "ProofBundle", "VerifierContext"]
+wire_objects = ["ActionEnvelope", "CanonicalAction", "GrantStatement", "GrantStatusStatement", "PortableVerificationResult", "PrincipalStatusStatement", "ProofBundle", "VerifierContext"]
 fixture_suites = ["core/fixtures/v1"]
 principal_families = ["self-contained-v1"]
 signature_families = ["ed25519-v1", "p256-sha256-v1"]
 profiles = ["core-corpus"]
 transports = []
-configuration_inputs = ["executed-verifier-configuration", "required-verifier-configuration"]
-security_state = []
+configuration_inputs = ["approval-policy-commitment", "executed-verifier-configuration", "required-verifier-configuration", "trusted-authority-configuration"]
+security_state = ["signer-transaction-lifecycle"]
 
 [packages."@auths-dev/sdk".claims]
-core-wire-consumer = ["bindings/typescript/test/api.test.js#portable decoder rejects shape version and trailing data"]
-language-binding = ["bindings/typescript/test/api.test.js#configuration mismatch reports required and executed commitments"]
+core-wire-consumer = ["bindings/typescript/test/api.test.js#portable decoder rejects shape version and trailing data", "bindings/typescript/test/workflow.test.js#transaction binding drives the real Rust WASM authoring ABI"]
+language-binding = ["bindings/typescript/test/api.test.js#configuration mismatch reports required and executed commitments", "bindings/typescript/test/workflow.test.js#hostile approval substitution invokes no signer", "bindings/typescript/test/workflow.test.js#hostile signer substitution cannot reach native completion"]
 
 [packages."auths.dev/independent-verifier"]
 kind = "go"

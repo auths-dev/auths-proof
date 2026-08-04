@@ -17,7 +17,9 @@
     "supported": [
       "bounded three-input local verification",
       "three-valued result projection",
-      "stable code and configuration commitment projection"
+      "stable code and configuration commitment projection",
+      "repository-local pre-review principal and trusted-authority loading",
+      "repository-local transaction-bound signer and approval ports"
     ],
     "excluded": [
       "full workflow SDK",
