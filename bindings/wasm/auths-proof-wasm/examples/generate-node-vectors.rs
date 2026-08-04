@@ -61,6 +61,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         proposed.assurance_floor().clone(),
         auths_model::CriticalExtensions::empty(),
     );
+    let delegation_root = delegation_root(
+        proposed,
+        bundle
+            .grants()
+            .first()
+            .ok_or("raw-key chain omitted its grant")?,
+    )?;
     let plan = auths_author::plan_child_grant(
         &parent,
         auths_author::GrantRequest::from_proposed_statement(proposed),
@@ -78,6 +85,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         auths_codec::encode_grant_statement(&parent)?,
     )?;
     fs::write(
+        output.join("authoring.delegation-root-grant.cbor"),
+        auths_codec::encode_signed_grant(&delegation_root)?,
+    )?;
+    fs::write(
         output.join("authoring.proposed-grant.cbor"),
         auths_codec::encode_grant_statement(proposed)?,
     )?;
@@ -90,4 +101,45 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         signing.signing_preimage(),
     )?;
     Ok(())
+}
+
+fn delegation_root(
+    proposed: &auths_model::GrantStatement,
+    signed: &auths_model::SignedGrant,
+) -> Result<auths_model::SignedGrant, Box<dyn std::error::Error>> {
+    let statement = auths_model::GrantStatement::new(
+        proposed.issuer().clone(),
+        proposed.subject().clone(),
+        proposed.profile().clone(),
+        proposed.permissions().clone(),
+        auths_model::ValidityWindow::new(
+            auths_model::Timestamp::new(0),
+            auths_model::Timestamp::new(100),
+        )?,
+        proposed.audiences().clone(),
+        auths_model::ActionConstraint::AnyBody,
+        Some(auths_model::BudgetCeiling::new(
+            proposed
+                .budget_ceiling()
+                .ok_or("raw-key chain omitted its budget")?
+                .algebra()
+                .clone(),
+            20,
+        )),
+        2,
+        None,
+        auths_model::StatusPolicy::SnapshotRequired {
+            method: auths_model::StatusMethodId::parse("status.test-v1")?,
+            max_age: auths_model::FreshnessLimit::new(60)?,
+        },
+        proposed.assurance_floor().clone(),
+        auths_model::CriticalExtensions::new(vec![auths_model::CriticalExtension::new(
+            auths_model::ExtensionId::parse("extension.test-v1")?,
+            vec![1, 2, 3],
+        )?])?,
+    );
+    Ok(auths_model::SignedGrant::new(
+        statement,
+        signed.signature().clone(),
+    ))
 }

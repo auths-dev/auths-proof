@@ -9,6 +9,7 @@
     "inspectSignedGrantV1",
     "validateRootAuthorityV1",
     "planChildGrantV1",
+    "planChildGrantFieldsV1",
     "prepareGrantSigningV1",
     "prepareActionSigningV1",
     "preparePrincipalStatusSigningV1",
@@ -27,11 +28,19 @@
     "noBudgetCeiling": 16,
     "longValidity": 32
   },
+  "structuredGrantModes": {
+    "action": ["inherit", "any-body", "exact-body", "allowed-bodies"],
+    "budget": ["inherit", "none", "ceiling"],
+    "status": ["inherit", "expiry-only", "snapshot-required"],
+    "profile": "inherit",
+    "criticalExtensions": "inherit"
+  },
   "fixtures": {
     "source": "core/fixtures/v1/valid/raw-key-chain.proof.cbor",
     "generatedBy": "auths-proof-wasm/generate-node-vectors",
     "outputs": [
       "authoring.signed-root-grant.cbor",
+      "authoring.delegation-root-grant.cbor",
       "authoring.parent-grant.cbor",
       "authoring.proposed-grant.cbor",
       "authoring.planned-grant.cbor",
