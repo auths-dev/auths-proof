@@ -96,12 +96,21 @@ selected profile. Its effective-authority explanation remains
 `pending-authorization` until the later verification workflow checks the
 signature, status, assurance, chain, and request context.
 
-`delegate` first returns a native-planned authority diff and warnings for
-review. Approval and signing receive that exact plan. Parent linkage and
+`delegate` first produces a native-planned authority diff and warnings for
+approval review, and the attached child exposes the same structured review.
+Approval and signing receive that exact plan. Parent linkage and
 issuer identity are derived, not supplied independently by TypeScript. A
 widened permission, resource, audience, validity window, budget, delegation
 depth, status policy, assurance floor, profile, or critical extension fails
 before approval or signing.
+
+The implemented delegation request is structured rather than protocol-shaped:
+permissions, validity, audiences, action-constraint mode, budget mode, depth,
+status mode, and an optional assurance floor are bounded TypeScript values.
+The selected profile and critical-extension set are inherited exactly from the
+parent by Rust and cannot be supplied in the normal request. Unknown request
+fields fail closed. The parent signer signs the native plan; the child signer
+only establishes the child principal and is retained for later child actions.
 
 `authorize` constructs the selected profile action exactly once, obtains any
 required evidence outside verification, assembles the canonical proof/context

@@ -18,11 +18,19 @@ export {
   type ApprovalRequest,
   type ApprovalResponse,
   type AttachAgentOptions,
+  type AuthorityDiffSummary,
+  type DelegatedActionConstraint,
+  type DelegatedAuthorityRequest,
+  type DelegatedBudget,
+  type DelegatedStatus,
+  type DelegationOptions,
+  type DelegationReview,
   type EffectiveAuthoritySummary,
   type PermissionSummary,
   type PrincipalDescriptor,
   type Profile,
   type ProviderFailureKind,
+  type OverGrantingWarning,
   type ReviewField,
   type Signer,
   type SignerLifecycle,
@@ -241,6 +249,7 @@ async function loadPackagedWorkflowEngine(): Promise<
     typeof loaded.configurationV1 !== "function" ||
     typeof loaded.inspectSignedGrantV1 !== "function" ||
     typeof loaded.validateRootAuthorityV1 !== "function" ||
+    typeof loaded.planChildGrantFieldsV1 !== "function" ||
     typeof loaded.prepareGrantSigningV1 !== "function" ||
     typeof loaded.prepareActionSigningV1 !== "function" ||
     typeof loaded.preparePrincipalStatusSigningV1 !== "function" ||

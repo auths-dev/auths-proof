@@ -4,7 +4,9 @@
 repository owner on 2026-08-04; publication, promotion to the Full Workflow
 tier, and reviewed-security claims remain blocked on AP-SPEC-032,
 AP-SPEC-033, and issue 74; capability and non-forgeability gaps are tracked in
-issues 71, 72, and 76
+issues 71, 72, and 76; the broader native critical-extension attenuation gap
+discovered during PR5 is tracked in issue 81; PR5 resolves the authoring
+semantic-freeze coverage gap tracked in issue 82
 
 **Governs:** The TypeScript Full Workflow SDK portion of Phase 10 in the
 [Post-Milestone 6 Productization and Release Plan](../target-state/POST_MILESTONE_6_PRODUCTIZATION_AND_RELEASE_PLAN.md)

@@ -64,6 +64,40 @@ subject, and profile before the SDK exposes an effective-authority summary.
 That summary deliberately reports `pending-authorization`; attach does not
 claim that signature, status, assurance, or live authorization checks passed.
 
+An attached agent can delegate through structured authority fields without
+constructing a grant or CBOR payload:
+
+```ts
+const child = await agent.delegate({
+  name: "records-child",
+  signer: childSigner,
+  authority: {
+    permissions: [
+      { capability: "tools/call", resource: "mcp://reports/read" },
+    ],
+    validity: { notBefore: 20n, expiresAt: 80n },
+    audiences: ["mcp://reports"],
+    actionConstraint: { kind: "inherit" },
+    budget: {
+      kind: "ceiling",
+      algebra: "numeric-ceiling-v1",
+      value: 10n,
+    },
+    remainingDepth: 0,
+    status: { kind: "inherit" },
+  },
+});
+
+console.log(child.delegation.diff, child.delegation.warnings);
+```
+
+Rust derives the issuer and parent link and rejects widening before approval
+or signing. The selected profile and exact critical extensions are inherited
+from the parent and are not caller-selectable. Approval receives the native
+semantic diff and warning projection; the parent signer signs the exact native
+plan, while the child signer supplies only the child identity and is retained
+for that child's later actions.
+
 The frozen target API and security boundary are documented in
 [`FULL_WORKFLOW_API_CONTRACT.md`](FULL_WORKFLOW_API_CONTRACT.md) and
 [`THREAT_MODEL.md`](THREAT_MODEL.md). `loadPortableAuths` remains the temporary

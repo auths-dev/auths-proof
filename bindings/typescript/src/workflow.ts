@@ -162,7 +162,9 @@ export interface EffectiveAuthoritySummary {
   }>;
   readonly explanation: Readonly<{
     stage: "attach";
-    code: "root-authority-structurally-bound";
+    code:
+      | "root-authority-structurally-bound"
+      | "delegated-authority-structurally-bound";
     verification: "pending-authorization";
     message: string;
   }>;
@@ -175,6 +177,68 @@ export interface AttachAgentOptions<P extends Profile> {
   readonly approval: ApprovalConfiguration;
 }
 
+export type DelegatedActionConstraint =
+  | Readonly<{ kind: "inherit" }>
+  | Readonly<{ kind: "any-body" }>
+  | Readonly<{ kind: "exact-body"; digest: Uint8Array }>
+  | Readonly<{ kind: "allowed-bodies"; digests: readonly Uint8Array[] }>;
+
+export type DelegatedBudget =
+  | Readonly<{ kind: "inherit" }>
+  | Readonly<{ kind: "none" }>
+  | Readonly<{ kind: "ceiling"; algebra: string; value: bigint }>;
+
+export type DelegatedStatus =
+  | Readonly<{ kind: "inherit" }>
+  | Readonly<{ kind: "expiry-only" }>
+  | Readonly<{
+      kind: "snapshot-required";
+      method: string;
+      maxAge: bigint;
+    }>;
+
+export interface DelegatedAuthorityRequest {
+  readonly permissions: readonly PermissionSummary[];
+  readonly validity: Readonly<{ notBefore: bigint; expiresAt: bigint }>;
+  readonly audiences: readonly string[];
+  readonly actionConstraint?: DelegatedActionConstraint;
+  readonly budget?: DelegatedBudget;
+  readonly remainingDepth: number;
+  readonly status?: DelegatedStatus;
+  readonly assuranceFloor?: string;
+}
+
+export interface DelegationOptions<P extends Profile> {
+  readonly name: string;
+  readonly authority: DelegatedAuthorityRequest;
+  readonly signer: Signer;
+  readonly profile?: P;
+}
+
+export type OverGrantingWarning =
+  | "any-body"
+  | "multiple-permissions"
+  | "multiple-audiences"
+  | "delegation-allowed"
+  | "no-budget-ceiling"
+  | "long-validity";
+
+export interface AuthorityDiffSummary {
+  readonly removedPermissions: number;
+  readonly removedAudiences: number;
+  readonly validityShortened: boolean;
+  readonly actionNarrowed: boolean;
+  readonly budgetNarrowed: boolean;
+  readonly statusNarrowed: boolean;
+  readonly parentDepth: number;
+  readonly childDepth: number;
+}
+
+export interface DelegationReview {
+  readonly diff: AuthorityDiffSummary;
+  readonly warnings: readonly OverGrantingWarning[];
+}
+
 export type WorkflowErrorCode =
   | "disposed"
   | "invalid-provider"
@@ -185,6 +249,8 @@ export type WorkflowErrorCode =
   | "authority-source-failed"
   | "invalid-authority"
   | "authority-mismatch"
+  | "invalid-delegation"
+  | "delegation-expanded"
   | "configuration-mismatch"
   | "approval-policy-mismatch"
   | "approval-failed"
@@ -243,6 +309,25 @@ export interface WorkflowWasmEngine {
     profileId: string,
     profileVersion: number,
   ): WorkflowSignedGrantAuthority;
+  planChildGrantFieldsV1(
+    parentGrant: Uint8Array,
+    subject: string,
+    permissionCapabilities: readonly string[],
+    permissionResources: readonly string[],
+    notBefore: bigint,
+    expiresAt: bigint,
+    audiences: readonly string[],
+    actionMode: string,
+    actionDigests: Uint8Array,
+    budgetMode: string,
+    budgetAlgebra: string,
+    budgetValue: bigint,
+    remainingDepth: number,
+    statusMode: string,
+    statusMethod: string,
+    statusMaxAge: bigint,
+    assuranceFloor: string,
+  ): WorkflowGrantPlan;
   prepareGrantSigningV1(
     statement: Uint8Array,
     principalMethod: string,
@@ -298,6 +383,7 @@ export interface WorkflowWasmEngine {
 }
 
 export interface WorkflowSignedGrantAuthority {
+  readonly statementCbor: Uint8Array;
   readonly grantId: Uint8Array;
   readonly issuer: string;
   readonly subject: string;
@@ -327,6 +413,20 @@ export interface WorkflowSignedGrantAuthority {
   free?(): void;
 }
 
+export interface WorkflowGrantPlan {
+  readonly statementCbor: Uint8Array;
+  readonly removedPermissions: number;
+  readonly removedAudiences: number;
+  readonly validityShortened: boolean;
+  readonly actionNarrowed: boolean;
+  readonly budgetNarrowed: boolean;
+  readonly statusNarrowed: boolean;
+  readonly parentDepth: number;
+  readonly childDepth: number;
+  readonly warningMask: number;
+  free?(): void;
+}
+
 export interface WorkflowNativeSigningRequest {
   readonly objectKind: string;
   readonly objectId: Uint8Array;
@@ -339,6 +439,7 @@ interface ClientResources {
   readonly engine: WorkflowWasmEngine;
   readonly identity: AgentIdentity;
   readonly trustedAuthority: TrustedAuthoritySnapshot;
+  readonly attachedAgents: Set<AttachedAgent<Profile>>;
 }
 
 const clientResources = new WeakMap<AuthsClient, ClientResources>();
@@ -366,6 +467,7 @@ export class AuthsClient implements AsyncDisposable {
       engine,
       identity,
       trustedAuthority,
+      attachedAgents: new Set(),
     });
   }
 
@@ -416,16 +518,29 @@ export class AuthsClient implements AsyncDisposable {
     if (this.#disposed) return;
     this.#disposed = true;
     const resources = clientResources.get(this);
-    clientResources.delete(this);
+    let cleanupFailed = false;
+    if (resources !== undefined) {
+      for (const agent of Array.from(resources.attachedAgents)) {
+        try {
+          await agent.dispose();
+        } catch {
+          cleanupFailed = true;
+        }
+      }
+    }
     if (resources?.signer.dispose !== undefined) {
       try {
         await resources.signer.dispose();
       } catch {
-        throw new AuthsWorkflowError(
-          "signer-failed",
-          "signer provider cleanup failed",
-        );
+        cleanupFailed = true;
       }
+    }
+    clientResources.delete(this);
+    if (cleanupFailed) {
+      throw new AuthsWorkflowError(
+        "signer-failed",
+        "one or more signer providers failed during cleanup",
+      );
     }
   }
 
@@ -496,9 +611,14 @@ export function signedGrantSource(
   );
 }
 
-interface AttachedAgentResources {
+export interface AttachedAgentResources {
   readonly client: AuthsClient;
   readonly approval: ApprovalConfiguration;
+  readonly signer: Signer;
+  readonly ownsSigner: boolean;
+  readonly signedGrant: Uint8Array;
+  readonly grantStatement: Uint8Array;
+  readonly review: DelegationReview | undefined;
 }
 
 const attachedAgentResources = new WeakMap<
@@ -522,6 +642,11 @@ export class AttachedAgent<P extends Profile> implements AsyncDisposable {
     profile: P,
     authority: EffectiveAuthoritySummary,
     approval: ApprovalConfiguration,
+    signer: Signer,
+    ownsSigner: boolean,
+    signedGrant: Uint8Array,
+    grantStatement: Uint8Array,
+    review: DelegationReview | undefined,
   ) {
     if (token !== ATTACHED_AGENT_TOKEN) {
       throw new TypeError("sealed Auths attached agent");
@@ -533,7 +658,15 @@ export class AttachedAgent<P extends Profile> implements AsyncDisposable {
     attachedAgentResources.set(this as AttachedAgent<Profile>, {
       client,
       approval,
+      signer,
+      ownsSigner,
+      signedGrant: signedGrant.slice(),
+      grantStatement: grantStatement.slice(),
+      review,
     });
+    clientResources
+      .get(client)
+      ?.attachedAgents.add(this as AttachedAgent<Profile>);
   }
 
   static create<P extends Profile>(
@@ -544,6 +677,11 @@ export class AttachedAgent<P extends Profile> implements AsyncDisposable {
     profile: P,
     authority: EffectiveAuthoritySummary,
     approval: ApprovalConfiguration,
+    signer: Signer,
+    ownsSigner: boolean,
+    signedGrant: Uint8Array,
+    grantStatement: Uint8Array,
+    review: DelegationReview | undefined,
   ): AttachedAgent<P> {
     if (token !== ATTACHED_AGENT_TOKEN) {
       throw new TypeError("sealed Auths attached agent");
@@ -556,6 +694,11 @@ export class AttachedAgent<P extends Profile> implements AsyncDisposable {
       profile,
       authority,
       approval,
+      signer,
+      ownsSigner,
+      signedGrant,
+      grantStatement,
+      review,
     );
   }
 
@@ -583,6 +726,20 @@ export class AttachedAgent<P extends Profile> implements AsyncDisposable {
     return this.#disposed;
   }
 
+  get delegation(): DelegationReview | undefined {
+    this.assertActive();
+    const review = resourcesForAttachedAgent(this).review;
+    return review === undefined ? undefined : copyDelegationReview(review);
+  }
+
+  async delegate(options: DelegationOptions<P>): Promise<AttachedAgent<P>> {
+    this.assertActive();
+    const { delegateAttachedAgent } = await import(
+      "./internal/delegation.js"
+    );
+    return delegateAttachedAgent(this, options);
+  }
+
   assertActive(): void {
     const resources = attachedAgentResources.get(
       this as AttachedAgent<Profile>,
@@ -596,7 +753,27 @@ export class AttachedAgent<P extends Profile> implements AsyncDisposable {
   async dispose(): Promise<void> {
     if (this.#disposed) return;
     this.#disposed = true;
+    const resources = attachedAgentResources.get(
+      this as AttachedAgent<Profile>,
+    );
     attachedAgentResources.delete(this as AttachedAgent<Profile>);
+    if (resources !== undefined) {
+      clientResources
+        .get(resources.client)
+        ?.attachedAgents.delete(this as AttachedAgent<Profile>);
+    }
+    resources?.signedGrant.fill(0);
+    resources?.grantStatement.fill(0);
+    if (resources?.ownsSigner && resources.signer.dispose !== undefined) {
+      try {
+        await resources.signer.dispose();
+      } catch {
+        throw new AuthsWorkflowError(
+          "signer-failed",
+          "child signer provider cleanup failed",
+        );
+      }
+    }
   }
 
   async [Symbol.asyncDispose](): Promise<void> {
@@ -771,6 +948,11 @@ async function attachAgent<P extends Profile>(
       profile,
       authoritySummary(validated),
       approval,
+      signerForClient(client),
+      false,
+      signedGrant,
+      validated.statementCbor,
+      undefined,
     );
   } finally {
     inspection?.free?.();
@@ -815,6 +997,47 @@ export function trustedAuthorityForClient(
     throw new AuthsWorkflowError("disposed", "Auths client is disposed");
   }
   return resources.trustedAuthority;
+}
+
+export function resourcesForAttachedAgent<P extends Profile>(
+  agent: AttachedAgent<P>,
+): AttachedAgentResources {
+  agent.assertActive();
+  const resources = attachedAgentResources.get(
+    agent as AttachedAgent<Profile>,
+  );
+  if (resources === undefined) {
+    throw new AuthsWorkflowError("disposed", "attached agent is disposed");
+  }
+  return resources;
+}
+
+export function createDelegatedAttachedAgent<P extends Profile>(options: {
+  readonly parent: AttachedAgent<P>;
+  readonly name: string;
+  readonly identity: AgentIdentity;
+  readonly profile: P;
+  readonly authority: EffectiveAuthoritySummary;
+  readonly signer: Signer;
+  readonly signedGrant: Uint8Array;
+  readonly grantStatement: Uint8Array;
+  readonly review: DelegationReview;
+}): AttachedAgent<P> {
+  const parentResources = resourcesForAttachedAgent(options.parent);
+  return AttachedAgent.create(
+    ATTACHED_AGENT_TOKEN,
+    parentResources.client,
+    options.name,
+    options.identity,
+    options.profile,
+    options.authority,
+    parentResources.approval,
+    options.signer,
+    true,
+    options.signedGrant,
+    options.grantStatement,
+    options.review,
+  );
 }
 
 export function copyPrincipal(value: PrincipalDescriptor): PrincipalDescriptor {
@@ -1014,8 +1237,9 @@ function validateApprovalConfiguration(
   });
 }
 
-function authoritySummary(
+export function authoritySummary(
   value: WorkflowSignedGrantAuthority,
+  binding: "root" | "delegated" = "root",
 ): EffectiveAuthoritySummary {
   if (
     value.permissionCapabilities.length !== value.permissionResources.length ||
@@ -1083,11 +1307,23 @@ function authoritySummary(
     }),
     explanation: Object.freeze({
       stage: "attach",
-      code: "root-authority-structurally-bound",
+      code:
+        binding === "root"
+          ? "root-authority-structurally-bound"
+          : "delegated-authority-structurally-bound",
       verification: "pending-authorization",
       message:
-        "Canonical root authority is bound; cryptographic and live checks remain pending authorization.",
+        binding === "root"
+          ? "Canonical root authority is bound; cryptographic and live checks remain pending authorization."
+          : "Canonical delegated authority is bound; cryptographic and live checks remain pending authorization.",
     }),
+  });
+}
+
+function copyDelegationReview(value: DelegationReview): DelegationReview {
+  return Object.freeze({
+    diff: Object.freeze({ ...value.diff }),
+    warnings: Object.freeze(Array.from(value.warnings)),
   });
 }
 

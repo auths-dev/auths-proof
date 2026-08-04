@@ -114,6 +114,7 @@ pub enum OverGrantingWarning {
 }
 
 /// Machine-readable semantic difference between parent and planned child.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AuthorityDiff {
     removed_permissions: usize,
@@ -121,6 +122,7 @@ pub struct AuthorityDiff {
     validity_shortened: bool,
     action_narrowed: bool,
     budget_narrowed: bool,
+    status_narrowed: bool,
     parent_depth: u16,
     child_depth: u16,
 }
@@ -154,6 +156,12 @@ impl AuthorityDiff {
     #[must_use]
     pub const fn budget_narrowed(&self) -> bool {
         self.budget_narrowed
+    }
+
+    /// Reports whether the child requires a stricter status policy.
+    #[must_use]
+    pub const fn status_narrowed(&self) -> bool {
+        self.status_narrowed
     }
 
     /// Returns `(parent, child)` delegation depth.
@@ -242,6 +250,7 @@ pub fn plan_child_grant(
         validity_shortened: request.validity != parent.validity(),
         action_narrowed: request.action_constraint != *parent.action_constraint(),
         budget_narrowed: request.budget_ceiling.as_ref() != parent.budget_ceiling(),
+        status_narrowed: request.status_policy != *parent.status_policy(),
         parent_depth: parent.remaining_depth(),
         child_depth: request.remaining_depth,
     };

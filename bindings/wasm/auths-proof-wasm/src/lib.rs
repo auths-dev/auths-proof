@@ -8,9 +8,11 @@ use auths_author::{
     prepare_principal_status,
 };
 use auths_model::{
-    ActionConstraint, Audience, Challenge, PrincipalId, PrincipalMethodId, ProfileId,
-    SignatureBytes, SignatureDescriptor, SignatureSuiteId, StatusPolicy, Timestamp,
-    VerificationMethod, VerifierLimits,
+    ActionConstraint, AssurancePolicyId, Audience, AudienceSet, BodyDigestSet, BudgetAlgebraId,
+    BudgetCeiling, CapabilityId, Challenge, Digest, FreshnessLimit, Permission, PermissionSet,
+    PrincipalId, PrincipalMethodId, ProfileId, ResourceId, SignatureBytes, SignatureDescriptor,
+    SignatureSuiteId, StatusMethodId, StatusPolicy, Timestamp, ValidityWindow, VerificationMethod,
+    VerifierLimits,
 };
 use auths_ports::{PrincipalMethod, SignatureSuite};
 use auths_registries::ImmutableRegistries;
@@ -50,6 +52,7 @@ pub fn canonical_principal_v1(principal: &str) -> Result<String, JsValue> {
 /// Lossless bounded authority projection for one canonical signed grant.
 #[wasm_bindgen]
 pub struct SignedGrantAuthorityV1 {
+    statement_cbor: Vec<u8>,
     grant_id: Vec<u8>,
     issuer: String,
     subject: String,
@@ -80,6 +83,13 @@ pub struct SignedGrantAuthorityV1 {
 
 #[wasm_bindgen]
 impl SignedGrantAuthorityV1 {
+    /// Returns the canonical unsigned statement owned by this signed grant.
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = statementCbor)]
+    pub fn statement_cbor(&self) -> Vec<u8> {
+        self.statement_cbor.clone()
+    }
+
     #[must_use]
     #[wasm_bindgen(getter, js_name = grantId)]
     pub fn grant_id(&self) -> Vec<u8> {
@@ -374,6 +384,7 @@ fn inspect_signed_grant_native(
         .collect();
     let descriptor = grant.signature().descriptor();
     Ok(SignedGrantAuthorityV1 {
+        statement_cbor: auths_codec::encode_grant_statement(statement)?,
         grant_id,
         issuer: statement.issuer().as_str().to_owned(),
         subject: statement.subject().as_str().to_owned(),
@@ -404,6 +415,7 @@ fn inspect_signed_grant_native(
 }
 
 /// Bounded output of native child-grant planning.
+#[allow(clippy::struct_excessive_bools)]
 #[wasm_bindgen]
 pub struct GrantPlanV1 {
     statement_cbor: Vec<u8>,
@@ -412,6 +424,7 @@ pub struct GrantPlanV1 {
     validity_shortened: bool,
     action_narrowed: bool,
     budget_narrowed: bool,
+    status_narrowed: bool,
     parent_depth: u16,
     child_depth: u16,
     warning_mask: u32,
@@ -461,6 +474,13 @@ impl GrantPlanV1 {
         self.budget_narrowed
     }
 
+    /// Reports whether the status policy was narrowed.
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = statusNarrowed)]
+    pub fn status_narrowed(&self) -> bool {
+        self.status_narrowed
+    }
+
     /// Returns the parent delegation depth.
     #[must_use]
     #[wasm_bindgen(getter, js_name = parentDepth)]
@@ -498,6 +518,59 @@ pub fn plan_child_grant_v1(
     proposed_child_cbor: &[u8],
 ) -> Result<GrantPlanV1, JsValue> {
     plan_child_grant_native(parent_grant_cbor, proposed_child_cbor).map_err(js_error)
+}
+
+/// Plans a child grant from bounded workflow fields without caller-authored CBOR.
+///
+/// Profile and critical extensions are inherited exactly from the parent.
+/// Issuer and parent linkage are derived by native authoring. Optional fields
+/// use the closed modes documented by the authoring ABI manifest.
+///
+/// # Errors
+///
+/// Returns a JavaScript error for malformed identifiers, inconsistent field
+/// arrays, invalid modes, over-limit input, or any widened authority.
+#[allow(clippy::too_many_arguments)]
+#[wasm_bindgen(js_name = planChildGrantFieldsV1)]
+pub fn plan_child_grant_fields_v1(
+    parent_grant_cbor: &[u8],
+    subject: &str,
+    permission_capabilities: Vec<String>,
+    permission_resources: Vec<String>,
+    not_before: u64,
+    expires_at: u64,
+    audiences: Vec<String>,
+    action_mode: &str,
+    action_digests: &[u8],
+    budget_mode: &str,
+    budget_algebra: &str,
+    budget_value: u64,
+    remaining_depth: u16,
+    status_mode: &str,
+    status_method: &str,
+    status_max_age: u64,
+    assurance_floor: &str,
+) -> Result<GrantPlanV1, JsValue> {
+    plan_child_grant_fields_native(
+        parent_grant_cbor,
+        subject,
+        permission_capabilities,
+        permission_resources,
+        not_before,
+        expires_at,
+        audiences,
+        action_mode,
+        action_digests,
+        budget_mode,
+        budget_algebra,
+        budget_value,
+        remaining_depth,
+        status_mode,
+        status_method,
+        status_max_age,
+        assurance_floor,
+    )
+    .map_err(js_error)
 }
 
 /// Exact native signing request returned to an external custody port.
@@ -753,6 +826,157 @@ fn plan_child_grant_native(
     grant_plan_output(&plan)
 }
 
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
+fn plan_child_grant_fields_native(
+    parent_grant_cbor: &[u8],
+    subject: &str,
+    permission_capabilities: Vec<String>,
+    permission_resources: Vec<String>,
+    not_before: u64,
+    expires_at: u64,
+    audiences: Vec<String>,
+    action_mode: &str,
+    action_digests: &[u8],
+    budget_mode: &str,
+    budget_algebra: &str,
+    budget_value: u64,
+    remaining_depth: u16,
+    status_mode: &str,
+    status_method: &str,
+    status_max_age: u64,
+    assurance_floor: &str,
+) -> Result<GrantPlanV1, EngineError> {
+    let limits = VerifierLimits::default_deployment();
+    let parent = auths_codec::decode_grant_statement(parent_grant_cbor, &limits)?;
+    if permission_capabilities.len() != permission_resources.len() {
+        return Err(EngineError::Abi(
+            "permission capability and resource counts differ",
+        ));
+    }
+    let permissions = permission_capabilities
+        .into_iter()
+        .zip(permission_resources)
+        .map(|(capability, resource)| {
+            Ok(Permission::new(
+                CapabilityId::parse(&capability)?,
+                ResourceId::parse(&resource)?,
+            ))
+        })
+        .collect::<Result<Vec<_>, auths_model::ModelError>>()?;
+    let permissions = PermissionSet::new(permissions)?;
+    let audiences = AudienceSet::new(
+        audiences
+            .into_iter()
+            .map(|audience| Audience::parse(&audience))
+            .collect::<Result<Vec<_>, _>>()?,
+    )?;
+    let action_constraint = match action_mode {
+        "inherit" => {
+            if !action_digests.is_empty() {
+                return Err(EngineError::Abi(
+                    "inherited action constraint must not include digests",
+                ));
+            }
+            parent.action_constraint().clone()
+        }
+        "any-body" => {
+            if !action_digests.is_empty() {
+                return Err(EngineError::Abi(
+                    "any-body action constraint must not include digests",
+                ));
+            }
+            ActionConstraint::AnyBody
+        }
+        "exact-body" => ActionConstraint::ExactBodyDigest(Digest::new(
+            action_digests
+                .try_into()
+                .map_err(|_| EngineError::Abi("exact-body requires one 32-byte digest"))?,
+        )),
+        "allowed-bodies" => {
+            if action_digests.is_empty() || !action_digests.len().is_multiple_of(32) {
+                return Err(EngineError::Abi(
+                    "allowed-bodies requires complete 32-byte digests",
+                ));
+            }
+            let digests = action_digests
+                .chunks_exact(32)
+                .map(|bytes| {
+                    Ok(Digest::new(bytes.try_into().map_err(|_| {
+                        EngineError::Abi("allowed-body digest has invalid length")
+                    })?))
+                })
+                .collect::<Result<Vec<_>, EngineError>>()?;
+            ActionConstraint::AllowedBodyDigests(BodyDigestSet::new(digests)?)
+        }
+        _ => return Err(EngineError::Abi("unsupported action constraint mode")),
+    };
+    let budget_ceiling = match budget_mode {
+        "inherit" => {
+            if !budget_algebra.is_empty() || budget_value != 0 {
+                return Err(EngineError::Abi(
+                    "inherited budget must not include budget fields",
+                ));
+            }
+            parent.budget_ceiling().cloned()
+        }
+        "none" => {
+            if !budget_algebra.is_empty() || budget_value != 0 {
+                return Err(EngineError::Abi(
+                    "absent budget must not include budget fields",
+                ));
+            }
+            None
+        }
+        "ceiling" => Some(BudgetCeiling::new(
+            BudgetAlgebraId::parse(budget_algebra)?,
+            budget_value,
+        )),
+        _ => return Err(EngineError::Abi("unsupported budget mode")),
+    };
+    let status_policy = match status_mode {
+        "inherit" => {
+            if !status_method.is_empty() || status_max_age != 0 {
+                return Err(EngineError::Abi(
+                    "inherited status must not include status fields",
+                ));
+            }
+            parent.status_policy().clone()
+        }
+        "expiry-only" => {
+            if !status_method.is_empty() || status_max_age != 0 {
+                return Err(EngineError::Abi(
+                    "expiry-only status must not include status fields",
+                ));
+            }
+            StatusPolicy::ExpiryOnly
+        }
+        "snapshot-required" => StatusPolicy::SnapshotRequired {
+            method: StatusMethodId::parse(status_method)?,
+            max_age: FreshnessLimit::new(status_max_age)?,
+        },
+        _ => return Err(EngineError::Abi("unsupported status mode")),
+    };
+    let assurance_floor = if assurance_floor.is_empty() {
+        parent.assurance_floor().clone()
+    } else {
+        AssurancePolicyId::parse(assurance_floor)?
+    };
+    let request = GrantRequest::new(
+        PrincipalId::parse(subject)?,
+        parent.profile().clone(),
+        permissions,
+        ValidityWindow::new(Timestamp::new(not_before), Timestamp::new(expires_at))?,
+        audiences,
+        action_constraint,
+        budget_ceiling,
+        remaining_depth,
+        status_policy,
+        assurance_floor,
+        parent.extensions().clone(),
+    );
+    grant_plan_output(&plan_child_grant(&parent, request)?)
+}
+
 fn grant_plan_output(plan: &GrantPlan) -> Result<GrantPlanV1, EngineError> {
     let diff = plan.diff();
     let (parent_depth, child_depth) = diff.delegation_depth();
@@ -777,6 +1001,7 @@ fn grant_plan_output(plan: &GrantPlan) -> Result<GrantPlanV1, EngineError> {
         validity_shortened: diff.validity_shortened(),
         action_narrowed: diff.action_narrowed(),
         budget_narrowed: diff.budget_narrowed(),
+        status_narrowed: diff.status_narrowed(),
         parent_depth,
         child_depth,
         warning_mask,
@@ -1132,6 +1357,10 @@ mod tests {
         let projected = inspect_signed_grant_native(&bytes).unwrap();
 
         assert_eq!(
+            projected.statement_cbor,
+            auths_codec::encode_grant_statement(statement).unwrap()
+        );
+        assert_eq!(
             projected.grant_id,
             auths_codec::grant_id(statement).unwrap().as_bytes()
         );
@@ -1194,6 +1423,76 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn structured_child_planning_inherits_closed_parent_fields() {
+        let bundle = raw_key_bundle();
+        let proposed = bundle.grants()[0].statement();
+        let extensions = auths_model::CriticalExtensions::new(vec![
+            auths_model::CriticalExtension::new(
+                auths_model::ExtensionId::parse("extension.test-v1").unwrap(),
+                vec![1, 2, 3],
+            )
+            .unwrap(),
+        ])
+        .unwrap();
+        let parent = auths_model::GrantStatement::new(
+            proposed.issuer().clone(),
+            proposed.subject().clone(),
+            proposed.profile().clone(),
+            proposed.permissions().clone(),
+            ValidityWindow::new(Timestamp::new(0), Timestamp::new(100)).unwrap(),
+            proposed.audiences().clone(),
+            ActionConstraint::AnyBody,
+            Some(BudgetCeiling::new(
+                proposed.budget_ceiling().unwrap().algebra().clone(),
+                20,
+            )),
+            2,
+            None,
+            StatusPolicy::SnapshotRequired {
+                method: StatusMethodId::parse("status.test-v1").unwrap(),
+                max_age: FreshnessLimit::new(60).unwrap(),
+            },
+            proposed.assurance_floor().clone(),
+            extensions.clone(),
+        );
+        let parent_cbor = auths_codec::encode_grant_statement(&parent).unwrap();
+        let plan = plan_child_grant_fields_native(
+            &parent_cbor,
+            "did:web:child.workflow.auths.example",
+            vec!["tools/call".to_owned()],
+            vec!["mcp://reports/read".to_owned()],
+            20,
+            80,
+            vec!["mcp://reports".to_owned()],
+            "inherit",
+            &[],
+            "ceiling",
+            "numeric-ceiling-v1",
+            10,
+            1,
+            "inherit",
+            "",
+            0,
+            "",
+        )
+        .unwrap();
+        let child = auths_codec::decode_grant_statement(
+            &plan.statement_cbor,
+            &VerifierLimits::default_deployment(),
+        )
+        .unwrap();
+
+        assert_eq!(child.issuer(), parent.subject());
+        assert_eq!(child.profile(), parent.profile());
+        assert_eq!(
+            child.parent(),
+            Some(auths_codec::grant_id(&parent).unwrap())
+        );
+        assert_eq!(child.extensions(), &extensions);
+        assert_eq!(child.status_policy(), parent.status_policy());
     }
 
     #[test]

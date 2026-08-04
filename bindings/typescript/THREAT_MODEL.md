@@ -100,10 +100,16 @@ assurance, or live verification passed.
 ### Delegation widening
 
 A child request may widen permissions, resources, audiences, validity, budget,
-depth, status policy, assurance, profile, or extensions. Rust grant planning
-derives issuer/parent linkage and rejects the first widened dimension before
-approval or signer invocation. TypeScript does not implement a second
-attenuation test.
+depth, status policy, assurance, profile, or extensions. For every
+caller-selectable workflow field, Rust grant planning derives issuer/parent
+linkage and rejects the first widened dimension before approval or signer
+invocation. TypeScript does not implement a second attenuation test.
+
+The normal TypeScript request cannot select a different profile or critical
+extension payload: native structured planning inherits both exactly from the
+parent. Issue 81 tracks the broader core-protocol requirement to define and
+enforce extension attenuation for advanced/native callers that author complete
+grant statements.
 
 ### Signer substitution and confused deputy
 

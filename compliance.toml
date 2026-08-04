@@ -1245,11 +1245,11 @@ signature_families = ["ed25519-v1", "p256-sha256-v1"]
 profiles = ["core-corpus"]
 transports = []
 configuration_inputs = ["approval-policy-commitment", "executed-verifier-configuration", "required-verifier-configuration", "trusted-authority-configuration"]
-security_state = ["root-authority-source", "signer-transaction-lifecycle"]
+security_state = ["delegated-authority-chain", "root-authority-source", "signer-transaction-lifecycle"]
 
 [packages."@auths-dev/sdk".claims]
-core-wire-consumer = ["bindings/typescript/test/api.test.js#portable decoder rejects shape version and trailing data", "bindings/typescript/test/attach.test.js#attachAgent binds one canonical root authority through native Rust", "bindings/typescript/test/workflow.test.js#transaction binding drives the real Rust WASM authoring ABI"]
-language-binding = ["bindings/typescript/test/api.test.js#configuration mismatch reports required and executed commitments", "bindings/typescript/test/attach.test.js#normal attach rejects caller-shaped sources and sealed object construction", "bindings/typescript/test/attach.test.js#attach differentiates malformed authority from structural mismatch", "bindings/typescript/test/workflow.test.js#hostile approval substitution invokes no signer", "bindings/typescript/test/workflow.test.js#hostile signer substitution cannot reach native completion"]
+core-wire-consumer = ["bindings/typescript/test/api.test.js#portable decoder rejects shape version and trailing data", "bindings/typescript/test/attach.test.js#attachAgent binds one canonical root authority through native Rust", "bindings/typescript/test/delegation.test.js#delegate plans reviews approves and signs one attenuated child", "bindings/typescript/test/workflow.test.js#transaction binding drives the real Rust WASM authoring ABI"]
+language-binding = ["bindings/typescript/test/api.test.js#configuration mismatch reports required and executed commitments", "bindings/typescript/test/attach.test.js#normal attach rejects caller-shaped sources and sealed object construction", "bindings/typescript/test/attach.test.js#attach differentiates malformed authority from structural mismatch", "bindings/typescript/test/delegation.test.js#every caller-selectable authority dimension fails before approval when widened", "bindings/typescript/test/delegation.test.js#profile action and critical-extension substitution are closed before approval", "bindings/typescript/test/workflow.test.js#hostile approval substitution invokes no signer", "bindings/typescript/test/workflow.test.js#hostile signer substitution cannot reach native completion"]
 
 [packages."auths.dev/independent-verifier"]
 kind = "go"
