@@ -1,5 +1,7 @@
 # TypeScript Full Workflow SDK threat model
 
+This contributor document is maintained under `bindings/typescript/docs`.
+
 ## Scope
 
 This threat model covers the JavaScript/TypeScript wrapper, packaged WASM
@@ -68,15 +70,16 @@ signature; its response is still transaction-bound and verified.
 
 ### Hostile engine or module injection
 
-The current verifier binding accepts a public `PortableWasmEngine` constructor
-argument and arbitrary `moduleUrl`. A hostile implementation can return forged
-authorized-result CBOR and cause the wrapper to mint `VerifiedAction`. Issue 76
-tracks this defect.
+The advanced verifier accepts a public `PortableWasmEngine` constructor and an
+explicit module URL for diagnostic and differential use. A hostile engine can
+produce an advanced `VerifiedAction`, but no advanced result or action is
+accepted by a profile gateway or convertible into a command.
 
-The Full Workflow loader MUST use only package-owned WASM. Arbitrary engines
-belong to an advanced diagnostic/test API whose result cannot become a
-command. The JavaScript wrapper and WASM are one integrity-bound release
-subject set.
+The Full Workflow loader uses only package-owned WASM. Effect-capable
+`McpCommand`, `ApplicationCommand`, and `VerifiedPlanCommand` values require
+the package-owned workflow path, private module tokens, matching profile
+state, and successful verification. The wrapper and WASM remain one
+integrity-bound release subject set.
 
 ### Action substitution
 
@@ -85,6 +88,21 @@ signing, exchange two actions, or reuse a proof with a different call. Rust
 canonicalization and signing/verification bind the complete action. Public
 mutable byte arrays are copied. Mutation tests change every relevant field and
 one canonical byte at a time.
+
+### Application-owned profile substitution
+
+The profile kit treats the application profile implementation as trusted code
+at the same boundary as its closed gateway. An untrusted agent may propose
+input, but it must not select or replace the canonicalizer. Actions are sealed
+to the exact profile instance that created them; Rust reconstructs the
+canonical protocol action and the verifier still requires exact profile,
+permission, resource, audience, body, and budget coverage. Defining another
+profile does not grant authority and creates no generic executor capability.
+
+The SDK cannot prove that an application canonicalizer gives sensible meaning
+to its own bytes or that its gateway decodes them safely. Profiles must test
+canonical uniqueness, hostile inputs, approval-display binding, and the sealed
+verified-command boundary as one vertical.
 
 ### Root-authority substitution
 
@@ -96,6 +114,27 @@ trusted root, attached principal, and exact profile before TypeScript creates
 an attached agent. The resulting summary is structural and explicitly says
 `pending-authorization`; it is not evidence that cryptographic, status,
 assurance, or live verification passed.
+
+The optional raw-key bootstrap prepares the root statement and trust context
+in native code and submits the exact grant transaction to an external signer.
+It is intentionally restricted to the compiled Ed25519 raw-key method. It does
+not silently manufacture trust for DID, hardware, enterprise, or networked
+identity methods, and missing public raw-key evidence fails before the
+prepared authority can authorize an action.
+
+### Trusted-context or evidence substitution
+
+A configuration digest alone cannot reconstruct trust anchors, accepted
+registries, status snapshots, assurance policy, or limits. The normal workflow
+therefore loads a canonical context through a sealed `TrustedContextSource`.
+Packaged Rust rejects a context whose executable configuration or root anchor
+does not match `TrustedAuthority` before signer use.
+
+Every signed grant retains typed public control evidence beside its copied
+canonical bytes. Action evidence comes only from the transaction-bound signer
+response. Rust derives evidence identifiers, statement bindings, the exact
+authorization plan, proof bundle, and per-request context; JavaScript cannot
+assert those relationships with a digest, Boolean, or hand-authored CBOR.
 
 ### Delegation widening
 
@@ -124,6 +163,11 @@ A callback may approve a different digest, reply twice, throw, hang, or claim a
 weaker policy. Required and executed policy identities/configuration digests
 must match before callback invocation and again before signing. Timeout,
 cancellation, mismatch, and ambiguity release no command.
+
+A plan approval session is private to one `authorizePlan` invocation, binds
+the displayed plan commitment and exact member count, accepts one exact
+provider response, and is disposed at terminal completion. It cannot approve
+an action appended after plan construction or be reused by application code.
 
 ### Capability forgery in JavaScript
 

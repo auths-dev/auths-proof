@@ -7,7 +7,8 @@ import {
   SignedGrantSource,
   loadAuths,
   signedGrantSource,
-} from "../dist/index.js";
+  trustedContextSource,
+} from "../../../dist/index.js";
 
 const ROOT = "key:sha256:qogx823wE-Cfoq_WXwDS1D6S8jMOhJssOpaNRZOJCKs";
 const SUBJECT = "key:sha256:MPL4hHxgoCRRtbEjYAedm50CmSM11XgLojSwwYeRi1E";
@@ -16,21 +17,32 @@ const signedRootGrant = () =>
   new Uint8Array(
     readFileSync(
       new URL(
-        "../../../target/binding-vectors/authoring.signed-root-grant.cbor",
+        "../../../../../target/binding-vectors/authoring.signed-root-grant.cbor",
         import.meta.url,
       ),
     ),
   );
+const trustedContext = () =>
+  new Uint8Array(
+    readFileSync(
+      new URL("../../../../../target/binding-vectors/authorized.context.cbor", import.meta.url),
+    ),
+  );
+const contextSource = () =>
+  trustedContextSource({
+    sourceId: "fixture.context",
+    provider: { async loadTrustedContext() { return trustedContext(); } },
+  });
 
 let wasmPromise;
 
 async function packagedWasm() {
   if (wasmPromise !== undefined) return wasmPromise;
   wasmPromise = (async () => {
-    const wasm = await import("../wasm/auths_proof_wasm.js");
+    const wasm = await import("../../../wasm/auths_proof_wasm.js");
     await wasm.default({
       module_or_path: readFileSync(
-        new URL("../wasm/auths_proof_wasm_bg.wasm", import.meta.url),
+        new URL("../../../wasm/auths_proof_wasm_bg.wasm", import.meta.url),
       ),
     });
     return wasm;
@@ -43,10 +55,16 @@ const policy = (fill = 7) => ({
   evaluatorVersion: "1",
   configurationDigest: new Uint8Array(32).fill(fill),
 });
+const executablePolicy = (reference, mode = "grant-only") => ({
+  reference,
+  mode,
+  maxUses: 1,
+  expiresInSeconds: 300,
+  requirements: [],
+});
 
 const approval = (required = policy()) => ({
-  mode: "grant-only",
-  policy: required,
+  policy: executablePolicy(required),
   provider: {
     async approve() {
       throw new Error("attach must not request approval");
@@ -67,7 +85,7 @@ async function fixture(overrides = {}) {
         assert.equal(request.authorityId, "local.test-root");
         assert.equal(request.subject, overrides.subject ?? SUBJECT);
         assert.deepEqual(request.profile, overrides.profile ?? PROFILE);
-        return signedRootGrant();
+        return { signedGrant: signedRootGrant(), evidence: [] };
       },
     };
   const signer = {
@@ -94,6 +112,7 @@ async function fixture(overrides = {}) {
       authorityId: "local.test-root",
       rootPrincipal: overrides.rootPrincipal ?? ROOT,
       verifierConfiguration: wasm.configurationV1(),
+      context: contextSource(),
       requiredApproval,
     },
   });
@@ -182,7 +201,7 @@ test("attach differentiates malformed authority from structural mismatch", async
   const malformed = await fixture({
     provider: {
       async loadSignedGrant() {
-        return new Uint8Array([0xa0]);
+        return { signedGrant: new Uint8Array([0xa0]), evidence: [] };
       },
     },
   });
@@ -198,18 +217,11 @@ test("attach differentiates malformed authority from structural mismatch", async
   );
   await malformed.client.dispose();
 
-  const mismatch = await fixture({ rootPrincipal: SUBJECT });
   await assert.rejects(
-    mismatch.client.attachAgent({
-      name: "research-agent",
-      profile: PROFILE,
-      authority: mismatch.source,
-      approval: approval(mismatch.requiredApproval),
-    }),
+    fixture({ rootPrincipal: SUBJECT }),
     (error) =>
-      error instanceof AuthsWorkflowError && error.code === "authority-mismatch",
+      error instanceof AuthsWorkflowError && error.code === "invalid-trusted-context",
   );
-  await mismatch.client.dispose();
 });
 
 test("configuration failures happen before authority I/O and provider failures are sanitized", async () => {

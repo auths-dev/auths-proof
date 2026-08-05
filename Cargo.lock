@@ -1073,11 +1073,15 @@ dependencies = [
  "auths-did-key",
  "auths-model",
  "auths-ports",
+ "auths-profile-api",
+ "auths-profile-mcp",
  "auths-raw-key",
  "auths-registries",
  "auths-signature",
  "auths-testkit",
  "auths-verifier",
+ "ed25519-dalek 2.2.0",
+ "serde_json",
  "wasm-bindgen",
 ]
 

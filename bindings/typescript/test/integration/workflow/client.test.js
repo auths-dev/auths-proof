@@ -6,11 +6,12 @@ import {
   AuthsWorkflowError,
   ProviderOperationError,
   loadAuths,
-} from "../dist/index.js";
+  trustedContextSource,
+} from "../../../dist/index.js";
 import {
   SigningCoordinator,
   WasmSigningAdapter,
-} from "../dist/internal/signing.js";
+} from "../../../dist/internal/signing.js";
 
 const descriptor = () => ({
   principal: "did:web:workflow.auths.example",
@@ -24,16 +25,30 @@ const policy = (fill = 7) => ({
   evaluatorVersion: "1",
   configurationDigest: new Uint8Array(32).fill(fill),
 });
+const ROOT = "key:sha256:qogx823wE-Cfoq_WXwDS1D6S8jMOhJssOpaNRZOJCKs";
+const contextSource = () =>
+  trustedContextSource({
+    sourceId: "fixture.context",
+    provider: {
+      async loadTrustedContext() {
+        return new Uint8Array(
+          readFileSync(
+            new URL("../../../../../target/binding-vectors/authorized.context.cbor", import.meta.url),
+          ),
+        );
+      },
+    },
+  });
 
 let wasmPromise;
 
 async function packagedWasm() {
   if (wasmPromise !== undefined) return wasmPromise;
   wasmPromise = (async () => {
-  const wasm = await import("../wasm/auths_proof_wasm.js");
+  const wasm = await import("../../../wasm/auths_proof_wasm.js");
   await wasm.default({
     module_or_path: readFileSync(
-      new URL("../wasm/auths_proof_wasm_bg.wasm", import.meta.url),
+      new URL("../../../wasm/auths_proof_wasm_bg.wasm", import.meta.url),
     ),
   });
     return wasm;
@@ -68,8 +83,9 @@ test("workflow loader binds an immutable principal to package-owned WASM", async
     signer,
     trustedAuthority: {
       authorityId: "local.test-root",
-      rootPrincipal: "did:web:root.auths.example",
+      rootPrincipal: ROOT,
       verifierConfiguration,
+      context: contextSource(),
       requiredApproval,
     },
   });
@@ -147,6 +163,7 @@ test("workflow load fails closed and cleans up on trust mismatch", async () => {
         authorityId: "wrong.test-root",
         rootPrincipal: "did:web:root.auths.example",
         verifierConfiguration: new Uint8Array(32),
+        context: contextSource(),
         requiredApproval: policy(),
       },
     }),
@@ -199,7 +216,11 @@ function signingFixture(overrides = {}) {
         principal: request.principal,
         transactionDigest: request.transactionDigest.slice(),
         signature: new Uint8Array(64).fill(9),
-        evidence: [new Uint8Array([8])],
+        evidence: [{
+          evidenceType: "raw-key-v1",
+          mediaType: "application/vnd.auths.raw-key.v1",
+          bytes: new Uint8Array([8]),
+        }],
       };
     },
   };
@@ -212,8 +233,13 @@ function signingFixture(overrides = {}) {
       principal,
       signer,
       approval: {
-        mode: "grant-only",
-        policy: requiredApproval,
+        policy: {
+          reference: requiredApproval,
+          mode: "grant-only",
+          maxUses: 1,
+          expiresInSeconds: 300,
+          requirements: [],
+        },
         provider: approvalProvider,
       },
       requiredApproval,
@@ -229,7 +255,11 @@ test("exact approval and signer responses complete one transaction", async () =>
   const coordinator = new SigningCoordinator(fixture.adapter, () => 100n);
   const result = await coordinator.execute(fixture.options);
   assert.equal(result.transactionDigest.length, 32);
-  assert.deepEqual(result.evidence, [new Uint8Array([8])]);
+  assert.deepEqual(result.evidence, [{
+    evidenceType: "raw-key-v1",
+    mediaType: "application/vnd.auths.raw-key.v1",
+    bytes: new Uint8Array([8]),
+  }]);
   assert.equal(fixture.counters.approvals, 1);
   assert.equal(fixture.counters.signatures, 1);
   assert.equal(fixture.counters.completions, 1);
@@ -246,7 +276,7 @@ test("transaction binding drives the real Rust WASM authoring ABI", async () => 
   const fixture = signingFixture({
     unsignedObject: readFileSync(
       new URL(
-        "../../../target/binding-vectors/authoring.proposed-grant.cbor",
+        "../../../../../target/binding-vectors/authoring.proposed-grant.cbor",
         import.meta.url,
       ),
     ),
@@ -302,7 +332,7 @@ test("hostile approval substitution invokes no signer", async () => {
 
 test("runtime-invalid approval modes fail before any callback", async () => {
   const fixture = signingFixture();
-  fixture.options.approval.mode = "trust-me";
+  fixture.options.approval.policy.mode = "trust-me";
   const coordinator = new SigningCoordinator(fixture.adapter, () => 100n);
   await assert.rejects(
     coordinator.execute(fixture.options),

@@ -1,15 +1,15 @@
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { Auths, VerifiedAction, loadPortableAuths } from "../dist/index.js";
+import { Auths, VerifiedAction, loadPortableAuths } from "../../dist/index.js";
 
 const fixture = (name) =>
   readFileSync(
-    new URL(`../../../core/fixtures/v1/valid/${name}`, import.meta.url),
+    new URL(`../../../../core/fixtures/v1/valid/${name}`, import.meta.url),
   );
 const bindingVector = (name) =>
   readFileSync(
-    new URL(`../../../target/binding-vectors/${name}`, import.meta.url),
+    new URL(`../../../../target/binding-vectors/${name}`, import.meta.url),
   );
 
 test("authorized results expose only a sealed verified action", () => {
@@ -31,9 +31,9 @@ test("application code cannot construct a verified action", () => {
 
 test("precompiled WASM matches the canonical Rust result", async () => {
   const auths = await loadPortableAuths({
-    moduleUrl: new URL("../wasm/auths_proof_wasm.js", import.meta.url).href,
+    moduleUrl: new URL("../../wasm/auths_proof_wasm.js", import.meta.url).href,
     wasmInput: readFileSync(
-      new URL("../wasm/auths_proof_wasm_bg.wasm", import.meta.url),
+      new URL("../../wasm/auths_proof_wasm_bg.wasm", import.meta.url),
     ),
   });
   const result = auths.verify(
@@ -61,9 +61,9 @@ test("package-owned portable loader works in native Node", async () => {
 
 test("configuration mismatch reports required and executed commitments", async () => {
   const auths = await loadPortableAuths({
-    moduleUrl: new URL("../wasm/auths_proof_wasm.js", import.meta.url).href,
+    moduleUrl: new URL("../../wasm/auths_proof_wasm.js", import.meta.url).href,
     wasmInput: readFileSync(
-      new URL("../wasm/auths_proof_wasm_bg.wasm", import.meta.url),
+      new URL("../../wasm/auths_proof_wasm_bg.wasm", import.meta.url),
     ),
   });
   const result = auths.verify(

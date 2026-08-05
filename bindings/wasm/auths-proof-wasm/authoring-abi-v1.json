@@ -18,7 +18,12 @@
     "completeActionSigningV1",
     "completePrincipalStatusSigningV1",
     "completeGrantStatusSigningV1",
-    "bindTrustedContextRequestV1"
+    "bindTrustedContextRequestV1",
+    "prepareMcpActionV1",
+    "prepareProfileActionV1",
+    "prepareRawKeyAuthorityV1",
+    "WorkflowProofBuilderV1",
+    "validateTrustedContextV1"
   ],
   "grantPlanWarningBits": {
     "anyBody": 1,
@@ -44,7 +49,13 @@
       "authoring.parent-grant.cbor",
       "authoring.proposed-grant.cbor",
       "authoring.planned-grant.cbor",
-      "authoring.action-signing-preimage.cbor"
+      "authoring.action-signing-preimage.cbor",
+      "mcp.signed-root-grant.cbor",
+      "mcp.context.cbor",
+      "mcp.root-evidence.bin",
+      "mcp.actor-evidence.bin",
+      "mcp.root-seed.bin",
+      "mcp.actor-seed.bin"
     ]
   }
 }

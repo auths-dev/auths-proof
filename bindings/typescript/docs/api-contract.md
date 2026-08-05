@@ -1,12 +1,12 @@
 # TypeScript Full Workflow API contract
 
+This contributor document is maintained under `bindings/typescript/docs`.
+
 ## Status and claim boundary
 
-This document freezes the AP27-PR1 product contract. It does not describe a
-currently shipped Full Workflow SDK. The current package is a **Verifier
-Binding**. Repository-local implementation may proceed before Phase 9, while
-publication, capability-tier promotion, and reviewed-security claims remain
-blocked by issue 74.
+This document defines the repository-local Full Workflow implementation
+contract. Publication, capability-tier promotion, stable-v1, production, and
+reviewed-security claims remain controlled by release evidence and issue 74.
 
 The target workflow is:
 
@@ -27,11 +27,12 @@ No normal-path operation accepts caller-constructed protocol CBOR.
 
 ## Module surface
 
-The package has three explicit surfaces:
+The package has four explicit surfaces:
 
 ```text
 @auths-dev/sdk             workflow, results, identity, provider ports
 @auths-dev/sdk/mcp         closed MCP profile actions and commands
+@auths-dev/sdk/profile-kit application-owned closed profile authoring
 @auths-dev/sdk/advanced    raw verifier and bounded inspection
 ```
 
@@ -55,6 +56,7 @@ export interface TrustedAuthority {
   readonly authorityId: string;
   readonly rootPrincipal: string;
   readonly verifierConfiguration: Uint8Array;
+  readonly context: TrustedContextSource;
   readonly requiredApproval: ApprovalPolicyReference;
 }
 
@@ -112,10 +114,38 @@ parent by Rust and cannot be supplied in the normal request. Unknown request
 fields fail closed. The parent signer signs the native plan; the child signer
 only establishes the child principal and is retained for later child actions.
 
+`TrustedContextSource` is a sealed provider reference. It supplies one
+canonical immutable template containing trust anchors, registry acceptance,
+status snapshots, assurance policy, and limits. Packaged Rust validates the
+configured root and executable-verifier commitment at load; authorization
+rebinds only the exact plan, audience, challenge, and evaluation time.
+
+For self-contained local and headless deployments, `prepareRawKeyAuthority`
+constructs a matching root grant and trusted-context template through Rust,
+then submits the unsigned grant to an external raw-key signer and approval
+provider. It neither receives nor persists a private key. This is an explicit
+raw-key bootstrap, not a universal identity or trust-context builder; other
+principal methods retain their deployment-specific context providers.
+
+`SignedGrantProvider` returns a structured signed-grant material containing the
+canonical signed grant and typed public control evidence. Delegation retains
+the same material from the exact signing response. Evidence carries its
+registered evidence type, media type, and copied bytes; JavaScript never
+constructs evidence identifiers or control bindings.
+
 `authorize` constructs the selected profile action exactly once, obtains any
 required evidence outside verification, assembles the canonical proof/context
 through native authoring operations, and returns one of three results. It does
-not execute an effect.
+not execute an effect. Only an authorized result includes the matching sealed
+profile command. Denied and indeterminate results never contain one.
+
+`profile.plan(actions)` creates an immutable ordered plan, checks compatible
+profile authority, aggregates permissions and compatible budgets, and commits
+the exact ordered canonical actions. `authorizePlan` stops at the first denied
+or indeterminate action and releases a sealed `VerifiedPlanCommand` only after
+every member authorizes. Provider sequencing and partial external effects
+remain profile-gateway responsibilities; SDK plan authorization does not claim
+remote transaction atomicity.
 
 ## Identity and custody ports
 
@@ -136,6 +166,20 @@ export interface SigningRequest {
   readonly expiresAt: bigint;
   readonly display: readonly ReviewField[];
 }
+
+export interface SigningResponse {
+  readonly requestId: string;
+  readonly principal: PrincipalDescriptor;
+  readonly transactionDigest: Uint8Array;
+  readonly signature: Uint8Array;
+  readonly evidence?: readonly ControlEvidence[];
+}
+
+export interface ControlEvidence {
+  readonly evidenceType: string;
+  readonly mediaType: string;
+  readonly bytes: Uint8Array;
+}
 ```
 
 The SDK supplies copied, read-only-by-contract byte arrays and validates the
@@ -149,8 +193,8 @@ typed workflow errors. They are not authorization verdicts.
 
 ## Approval contract
 
-Approval modes are `grant-only`, `risk-based`, `every-action`, and registered
-`custom`. Every mode names a versioned policy and configuration digest already
+Approval modes are `grant-only`, `risk-based`, `every-action`, `plan-once`,
+`headless`, and registered `custom`. Every mode names a versioned policy and configuration digest already
 committed by the grant or trusted context. Local configuration may be equal or
 stricter before commitment; it cannot weaken the committed requirement later.
 
@@ -158,24 +202,46 @@ A missing, mismatched, throwing, ambiguous, cancelled, or expired approval
 produces no signature, credential request, or command. Approval never expands
 underlying authority.
 
+Typed `approvalPolicy` builders derive configuration commitments from bounded
+canonical configuration. A plan session is owned by `authorizePlan`, bound to
+the immutable plan commitment and exact action count, and disposed immediately
+after its terminal result. A substituted provider response cannot activate the
+session.
+
 ## Profile contract
 
-The first workflow profile is MCP. Its public facade owns closed action
+The first built-in workflow profile is MCP. Its public facade owns closed action
 constructors such as:
 
 ```ts
 const profile = mcp.profile({ service: "records" });
-const action = mcp.call("update_demo_record", { value: "reviewed" });
+const action = profile.call("update_demo_record", { value: "reviewed" });
 ```
 
 The profile validates and canonicalizes the complete tool call in its Rust
 owner. It does not accept an arbitrary endpoint, transport, callback, raw
 canonical bytes, or generic provider operation.
 
-An authorized result contains an `McpCommand` created only by the packaged
-trusted verifier and MCP verified decoder. The closed gateway accepts that
-command. It does not accept the original JavaScript object, a Boolean, a
-digest, raw bytes, or a command from another profile.
+`@auths-dev/sdk/profile-kit` lets an application provide a closed profile
+canonicalizer without teaching the SDK kernel the application's operation
+vocabulary. The profile returns exact body, media type, permission, optional
+budget, resource namespace, audience, and approval display. A sealed action's
+read-only `authorityFor` projection lets authority setup reuse those exact
+profile-derived fields instead of duplicating strings. Rust/WASM validates and constructs the
+protocol objects; the signed grant must still authorize the exact profile and
+derived authority. The profile kit registers no global action union, executor,
+credential provider, or generic operation-tag dispatcher.
+
+An authorized result contains an `McpCommand` or `ApplicationCommand` created
+only after packaged verification and matching profile decoding. A closed
+gateway accepts only that profile instance's command. It does not accept the
+original JavaScript object, a Boolean, a digest, raw bytes, inspection data, or
+a command from another profile. Constructors, factories, serialization,
+prototype forgery, and plan-command promotion are tested as hostile paths.
+
+The separate `@auths-dev/sdk/testkit` export supplies an ephemeral Ed25519
+raw-key signer, explicit approve/reject fixtures, and profile mutation tooling.
+It is non-production, does not persist keys, and is not a custody fallback.
 
 ## Results and explanations
 

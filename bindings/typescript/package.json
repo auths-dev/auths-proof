@@ -7,24 +7,50 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./mcp": {
+      "types": "./dist/mcp.d.ts",
+      "import": "./dist/mcp.js"
+    },
+    "./profile-kit": {
+      "types": "./dist/profile-kit.d.ts",
+      "import": "./dist/profile-kit.js"
+    },
+    "./testkit": {
+      "types": "./dist/testkit/index.d.ts",
+      "import": "./dist/testkit/index.js"
+    },
+    "./advanced": {
+      "types": "./dist/advanced.d.ts",
+      "import": "./dist/advanced.js"
     }
   },
   "files": [
     "dist",
+    "docs",
     "wasm/auths_proof_wasm.js",
     "wasm/auths_proof_wasm.d.ts",
     "wasm/auths_proof_wasm_bg.wasm",
     "wasm/auths_proof_wasm_bg.wasm.d.ts",
-    "README.md"
+    "README.md",
+    "CONTRIBUTING.md"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "node tools/clean-dist.mjs && tsc -p tsconfig.json",
     "build:wasm": "wasm-pack build ../wasm/auths-proof-wasm --target web --out-dir ../../typescript/wasm",
     "build:vectors": "cargo run -p auths-proof-wasm --example generate-node-vectors -- ../../target/binding-vectors",
-    "pretest": "npm run build && npm run build:wasm && npm run build:vectors",
-    "test": "node --test test/*.test.js"
+    "test": "npm run test:all",
+    "test:all": "npm run test:contract && npm run test:integration && npm run test:unit && npm run test:package && npm run test:examples && npm run test:api",
+    "test:api": "npm run build && node tools/public-api.mjs",
+    "test:browser": "npm run build && node test/package/packed-browser.mjs",
+    "test:contract": "tsc -p test/contract/tsconfig.json",
+    "test:examples": "npm run build && tsc -p examples/tsconfig.json",
+    "test:integration": "npm run build && npm run build:wasm && npm run build:vectors && node --test test/integration/**/*.test.js",
+    "test:package": "npm run build && node --test test/package/**/*.test.js",
+    "test:unit": "npm run build && node --test test/unit/**/*.test.js"
   },
   "devDependencies": {
+    "playwright": "1.62.0",
     "typescript": "5.9.3"
   },
   "engines": {

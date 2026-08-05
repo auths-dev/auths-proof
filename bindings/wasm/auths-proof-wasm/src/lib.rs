@@ -8,14 +8,20 @@ use auths_author::{
     prepare_principal_status,
 };
 use auths_model::{
-    ActionConstraint, AssurancePolicyId, Audience, AudienceSet, BodyDigestSet, BudgetAlgebraId,
-    BudgetCeiling, CapabilityId, Challenge, Digest, FreshnessLimit, Permission, PermissionSet,
-    PrincipalId, PrincipalMethodId, ProfileId, ResourceId, SignatureBytes, SignatureDescriptor,
-    SignatureSuiteId, StatusMethodId, StatusPolicy, Timestamp, ValidityWindow, VerificationMethod,
-    VerifierLimits,
+    ActionConstraint, ActionEnvelope, AssurancePolicyId, Audience, AudienceSet, AuthorizationPlan,
+    BodyDigestSet, BudgetAlgebraId, BudgetCeiling, BundleHeader, CapabilityId, Challenge,
+    ChannelBindingId, CompositionRequirement, ControlBinding, CriticalExtensions, Digest,
+    EvidenceId, EvidenceObject, EvidenceTypeId, FreshnessLimit, MediaType, Permission,
+    PermissionSet, PrincipalId, PrincipalMethodId, ProfileId, ProofBundle, ProofRef, ResourceId,
+    SignatureBytes, SignatureDescriptor, SignatureSuiteId, SignedGrant, StatementRef,
+    StatusMethodId, StatusPolicy, Timestamp, ValidityWindow, VerificationMethod,
+    VerifierConfigurationId, VerifierLimits,
 };
 use auths_ports::{PrincipalMethod, SignatureSuite};
+use auths_profile_api::ActionProfile;
+use auths_profile_mcp::{McpProfile, McpToolCall};
 use auths_registries::ImmutableRegistries;
+use serde_json::Value;
 use std::fmt;
 use wasm_bindgen::prelude::*;
 
@@ -815,6 +821,838 @@ pub fn bind_trusted_context_request_v1(
         .map_err(js_error)
 }
 
+/// Native MCP action preparation retained across exact external signing.
+#[wasm_bindgen]
+pub struct McpActionPreparationV1 {
+    canonical_action_cbor: Vec<u8>,
+    action_envelope_cbor: Vec<u8>,
+    audience: String,
+    resource: String,
+    display_digest_hex: String,
+}
+
+#[wasm_bindgen]
+impl McpActionPreparationV1 {
+    /// Returns the exact canonical action consumed by verification.
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = canonicalActionCbor)]
+    pub fn canonical_action_cbor(&self) -> Vec<u8> {
+        self.canonical_action_cbor.clone()
+    }
+
+    /// Returns the exact unsigned action envelope consumed by signing.
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = actionEnvelopeCbor)]
+    pub fn action_envelope_cbor(&self) -> Vec<u8> {
+        self.action_envelope_cbor.clone()
+    }
+
+    /// Returns the profile-derived verifier audience.
+    #[must_use]
+    #[wasm_bindgen(getter)]
+    pub fn audience(&self) -> String {
+        self.audience.clone()
+    }
+
+    /// Returns the profile-derived resource.
+    #[must_use]
+    #[wasm_bindgen(getter)]
+    pub fn resource(&self) -> String {
+        self.resource.clone()
+    }
+
+    /// Returns the digest represented by the profile approval display.
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = displayDigestHex)]
+    pub fn display_digest_hex(&self) -> String {
+        self.display_digest_hex.clone()
+    }
+}
+
+/// Canonicalizes one closed MCP call and prepares its exact action envelope.
+///
+/// # Errors
+///
+/// Returns a JavaScript error for malformed arguments, invalid profile
+/// identifiers, an invalid actor/challenge, or a malformed terminal grant.
+#[wasm_bindgen(js_name = prepareMcpActionV1)]
+pub fn prepare_mcp_action_v1(
+    service: &str,
+    name: &str,
+    arguments_json: &[u8],
+    actor: &str,
+    terminal_grant_cbor: &[u8],
+    challenge: &[u8],
+    evaluation_time: u64,
+) -> Result<McpActionPreparationV1, JsValue> {
+    prepare_mcp_action_native(
+        service,
+        name,
+        arguments_json,
+        actor,
+        terminal_grant_cbor,
+        challenge,
+        evaluation_time,
+    )
+    .map_err(js_error)
+}
+
+/// Native action preparation for an application-owned closed profile.
+#[wasm_bindgen]
+pub struct ProfileActionPreparationV1 {
+    canonical_action_cbor: Vec<u8>,
+    action_envelope_cbor: Vec<u8>,
+    audience: String,
+    resource: String,
+}
+
+/// Unsigned root grant and matching self-contained raw-key trust context.
+#[wasm_bindgen]
+pub struct RawKeyAuthorityPreparationV1 {
+    statement_cbor: Vec<u8>,
+    trusted_context_cbor: Vec<u8>,
+    verifier_configuration: Vec<u8>,
+}
+
+#[wasm_bindgen]
+impl RawKeyAuthorityPreparationV1 {
+    /// Returns the unsigned canonical root-grant statement.
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = statementCbor)]
+    pub fn statement_cbor(&self) -> Vec<u8> {
+        self.statement_cbor.clone()
+    }
+
+    /// Returns the matching immutable trusted-context template.
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = trustedContextCbor)]
+    pub fn trusted_context_cbor(&self) -> Vec<u8> {
+        self.trusted_context_cbor.clone()
+    }
+
+    /// Returns the exact packaged-verifier configuration commitment.
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = verifierConfiguration)]
+    pub fn verifier_configuration(&self) -> Vec<u8> {
+        self.verifier_configuration.clone()
+    }
+}
+
+/// Plans a root grant and matching local raw-key verifier context.
+///
+/// This is an explicit self-contained bootstrap profile for local and
+/// headless deployments. It does not generate, import, or retain private key
+/// material; the returned statement must still pass through an external
+/// signer and approval provider.
+///
+/// # Errors
+///
+/// Returns a JavaScript error for invalid or unbounded authority fields.
+#[allow(clippy::too_many_arguments)]
+#[wasm_bindgen(js_name = prepareRawKeyAuthorityV1)]
+pub fn prepare_raw_key_authority_v1(
+    root: &str,
+    subject: &str,
+    profile_id: &str,
+    profile_version: u16,
+    permission_capabilities: Vec<String>,
+    permission_resources: Vec<String>,
+    resource_namespaces: Vec<String>,
+    not_before: u64,
+    expires_at: u64,
+    audiences: Vec<String>,
+    has_budget: bool,
+    budget_algebra: &str,
+    budget_value: u64,
+    remaining_depth: u16,
+) -> Result<RawKeyAuthorityPreparationV1, JsValue> {
+    prepare_raw_key_authority_native(
+        root,
+        subject,
+        profile_id,
+        profile_version,
+        permission_capabilities,
+        permission_resources,
+        resource_namespaces,
+        not_before,
+        expires_at,
+        audiences,
+        has_budget,
+        budget_algebra,
+        budget_value,
+        remaining_depth,
+    )
+    .map_err(js_error)
+}
+
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
+fn prepare_raw_key_authority_native(
+    root: &str,
+    subject: &str,
+    profile_id: &str,
+    profile_version: u16,
+    permission_capabilities: Vec<String>,
+    permission_resources: Vec<String>,
+    resource_namespaces: Vec<String>,
+    not_before: u64,
+    expires_at: u64,
+    audiences: Vec<String>,
+    has_budget: bool,
+    budget_algebra: &str,
+    budget_value: u64,
+    remaining_depth: u16,
+) -> Result<RawKeyAuthorityPreparationV1, EngineError> {
+    let root = PrincipalId::parse(root)?;
+    let subject = PrincipalId::parse(subject)?;
+    let profile = auths_model::ProfileRef::new(ProfileId::parse(profile_id)?, profile_version)?;
+    let permissions = permission_set(permission_capabilities, permission_resources)?;
+    let audiences = AudienceSet::new(
+        audiences
+            .into_iter()
+            .map(|value| Audience::parse(&value))
+            .collect::<Result<Vec<_>, _>>()?,
+    )?;
+    let expected_audience = audiences
+        .as_slice()
+        .first()
+        .ok_or(EngineError::Abi("authority must contain an audience"))?
+        .clone();
+    let validity = ValidityWindow::new(Timestamp::new(not_before), Timestamp::new(expires_at))?;
+    let budget = if has_budget {
+        Some(BudgetCeiling::new(
+            BudgetAlgebraId::parse(budget_algebra)?,
+            budget_value,
+        ))
+    } else {
+        None
+    };
+    let assurance_id = AssurancePolicyId::parse("raw-key-baseline")?;
+    let statement = auths_model::GrantStatement::new(
+        root.clone(),
+        subject,
+        profile.clone(),
+        permissions.clone(),
+        validity,
+        audiences.clone(),
+        ActionConstraint::AnyBody,
+        budget.clone(),
+        remaining_depth,
+        None,
+        StatusPolicy::ExpiryOnly,
+        assurance_id.clone(),
+        CriticalExtensions::empty(),
+    );
+    let namespaces = resource_namespaces
+        .into_iter()
+        .map(|value| ResourceId::parse(&value))
+        .collect::<Result<Vec<_>, _>>()?;
+    let anchor = auths_model::TrustAnchor::new(
+        auths_model::TrustAnchorId::parse(root.as_str())?,
+        root,
+        vec![PrincipalMethodId::parse(auths_raw_key::RAW_KEY_V1)?],
+        vec![profile.clone()],
+        permissions,
+        namespaces,
+        audiences,
+        validity,
+        budget.clone(),
+        remaining_depth
+            .checked_add(1)
+            .ok_or(EngineError::Abi("root delegation depth exceeds bounds"))?,
+        assurance_id.clone(),
+        StatusPolicy::ExpiryOnly,
+    )?;
+    let claim = auths_model::AssuranceClaimId::parse("self-certifying-identifier")?;
+    let assurance = auths_model::AssurancePolicy::new(
+        assurance_id,
+        vec![
+            auths_model::AssuranceRequirement::new(
+                auths_model::ParticipantRole::Root,
+                auths_model::AssuranceQuantifier::Every,
+                claim.clone(),
+                None,
+            ),
+            auths_model::AssuranceRequirement::new(
+                auths_model::ParticipantRole::Actor,
+                auths_model::AssuranceQuantifier::Every,
+                claim.clone(),
+                None,
+            ),
+        ],
+    )?;
+    let registries = auths_model::AcceptedRegistries::new(
+        auths_registries::TARGET_V1_REGISTRY_MANIFEST,
+        vec![PrincipalMethodId::parse(auths_raw_key::RAW_KEY_V1)?],
+        vec![SignatureSuiteId::parse("ed25519-v1")?],
+        vec![EvidenceTypeId::parse(auths_raw_key::RAW_KEY_V1)?],
+        Vec::new(),
+        Vec::new(),
+        vec![
+            claim,
+            auths_model::AssuranceClaimId::parse("offline-verifiable")?,
+        ],
+        Vec::new(),
+        vec![auths_model::ResourceMatcherId::parse(
+            auths_registries::URI_NAMESPACE_V1,
+        )?],
+        budget
+            .as_ref()
+            .map(|value| vec![value.algebra().clone()])
+            .unwrap_or_default(),
+        Vec::new(),
+        vec![profile],
+        vec![auths_model::ProfilePolicyId::parse(
+            auths_registries::EXACT_PROFILE_V1,
+        )?],
+    )?;
+    let context = auths_model::VerifierContext::new(
+        VerifierConfigurationId::new(self_contained_v1_configuration()?),
+        CompositionRequirement::new(None, 1, 1, 1)?,
+        vec![anchor],
+        registries,
+        expected_audience,
+        Challenge::new([0; 32]),
+        Timestamp::new(not_before),
+        assurance,
+        auths_model::PrincipalStatusSnapshot::new(
+            auths_model::StatusSnapshotId::new([0x44; 32]),
+            Timestamp::new(not_before),
+            Timestamp::new(expires_at),
+            Vec::new(),
+            Vec::new(),
+        )?,
+        auths_model::GrantStatusSnapshot::new(
+            auths_model::StatusSnapshotId::new([0x55; 32]),
+            Timestamp::new(not_before),
+            Timestamp::new(expires_at),
+            Vec::new(),
+            Vec::new(),
+        )?,
+        auths_model::ResourceMatcherId::parse(auths_registries::URI_NAMESPACE_V1)?,
+        auths_model::ProfilePolicyId::parse(auths_registries::EXACT_PROFILE_V1)?,
+        ChannelBindingId::parse("none-v1")?,
+        VerifierLimits::default_deployment(),
+    )?;
+    Ok(RawKeyAuthorityPreparationV1 {
+        statement_cbor: auths_codec::encode_grant_statement(&statement)?,
+        trusted_context_cbor: auths_codec::encode_verifier_context(&context)?,
+        verifier_configuration: self_contained_v1_configuration()?.to_vec(),
+    })
+}
+
+fn permission_set(
+    capabilities: Vec<String>,
+    resources: Vec<String>,
+) -> Result<PermissionSet, EngineError> {
+    if capabilities.len() != resources.len() {
+        return Err(EngineError::Abi(
+            "permission capability and resource counts differ",
+        ));
+    }
+    PermissionSet::new(
+        capabilities
+            .into_iter()
+            .zip(resources)
+            .map(|(capability, resource)| {
+                Ok(Permission::new(
+                    CapabilityId::parse(&capability)?,
+                    ResourceId::parse(&resource)?,
+                ))
+            })
+            .collect::<Result<Vec<_>, auths_model::ModelError>>()?,
+    )
+    .map_err(EngineError::from)
+}
+
+#[wasm_bindgen]
+impl ProfileActionPreparationV1 {
+    /// Returns the exact canonical action consumed by verification.
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = canonicalActionCbor)]
+    pub fn canonical_action_cbor(&self) -> Vec<u8> {
+        self.canonical_action_cbor.clone()
+    }
+
+    /// Returns the exact unsigned action envelope consumed by signing.
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = actionEnvelopeCbor)]
+    pub fn action_envelope_cbor(&self) -> Vec<u8> {
+        self.action_envelope_cbor.clone()
+    }
+
+    /// Returns the profile-selected verifier audience after validation.
+    #[must_use]
+    #[wasm_bindgen(getter)]
+    pub fn audience(&self) -> String {
+        self.audience.clone()
+    }
+
+    /// Returns the profile-derived resource after validation.
+    #[must_use]
+    #[wasm_bindgen(getter)]
+    pub fn resource(&self) -> String {
+        self.resource.clone()
+    }
+}
+
+/// Prepares one action whose semantics were canonicalized by an
+/// application-owned closed profile.
+///
+/// This boundary constructs protocol objects only. It does not interpret an
+/// operation tag, select an executor, or turn an authorized result into an
+/// effect-capable command.
+///
+/// # Errors
+///
+/// Returns a JavaScript error for an invalid profile, media type, permission,
+/// budget, audience, actor, challenge, or terminal grant.
+#[allow(clippy::too_many_arguments)]
+#[wasm_bindgen(js_name = prepareProfileActionV1)]
+pub fn prepare_profile_action_v1(
+    profile_id: &str,
+    profile_version: u16,
+    media_type: &str,
+    body: &[u8],
+    capability: &str,
+    resource: &str,
+    has_budget: bool,
+    budget_algebra: &str,
+    budget_value: u64,
+    audience: &str,
+    actor: &str,
+    terminal_grant_cbor: &[u8],
+    challenge: &[u8],
+    evaluation_time: u64,
+) -> Result<ProfileActionPreparationV1, JsValue> {
+    prepare_profile_action_native(
+        profile_id,
+        profile_version,
+        media_type,
+        body,
+        capability,
+        resource,
+        has_budget,
+        budget_algebra,
+        budget_value,
+        audience,
+        actor,
+        terminal_grant_cbor,
+        challenge,
+        evaluation_time,
+    )
+    .map_err(js_error)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn prepare_profile_action_native(
+    profile_id: &str,
+    profile_version: u16,
+    media_type: &str,
+    body: &[u8],
+    capability: &str,
+    resource: &str,
+    has_budget: bool,
+    budget_algebra: &str,
+    budget_value: u64,
+    audience: &str,
+    actor: &str,
+    terminal_grant_cbor: &[u8],
+    challenge: &[u8],
+    evaluation_time: u64,
+) -> Result<ProfileActionPreparationV1, EngineError> {
+    let profile = auths_model::ProfileRef::new(ProfileId::parse(profile_id)?, profile_version)?;
+    let permission = Permission::new(
+        CapabilityId::parse(capability)?,
+        ResourceId::parse(resource)?,
+    );
+    let requested_budget = if has_budget {
+        Some(BudgetCeiling::new(
+            BudgetAlgebraId::parse(budget_algebra)?,
+            budget_value,
+        ))
+    } else {
+        None
+    };
+    let canonical = auths_model::CanonicalAction::new(
+        profile.clone(),
+        MediaType::parse(media_type)?,
+        body.to_vec(),
+        permission.clone(),
+        requested_budget.clone(),
+    )?;
+    let terminal_grant = auths_codec::decode_signed_grant(
+        terminal_grant_cbor,
+        &VerifierLimits::default_deployment(),
+    )?;
+    let challenge: [u8; 32] = challenge
+        .try_into()
+        .map_err(|_| EngineError::Abi("challenge must contain exactly 32 bytes"))?;
+    let proof_ref = ProofRef::new(challenge);
+    let plan = AuthorizationPlan::proof(proof_ref);
+    let audience = Audience::parse(audience)?;
+    let envelope = ActionEnvelope::new(
+        profile,
+        MediaType::parse(media_type)?,
+        auths_codec::body_digest(body),
+        permission,
+        requested_budget,
+        audience.clone(),
+        Challenge::new(challenge),
+        ValidityWindow::new(
+            Timestamp::new(evaluation_time),
+            Timestamp::new(evaluation_time),
+        )?,
+        PrincipalId::parse(actor)?,
+        Some(auths_codec::grant_id(terminal_grant.statement())?),
+        auths_codec::plan_id(&plan)?,
+        ChannelBindingId::parse("none-v1")?,
+        proof_ref,
+        Vec::new(),
+        CriticalExtensions::empty(),
+    );
+    Ok(ProfileActionPreparationV1 {
+        canonical_action_cbor: auths_codec::encode_canonical_action(&canonical)?,
+        action_envelope_cbor: auths_codec::encode_action_envelope(&envelope)?,
+        audience: audience.to_string(),
+        resource: canonical.permission().resource().to_string(),
+    })
+}
+
+fn prepare_mcp_action_native(
+    service: &str,
+    name: &str,
+    arguments_json: &[u8],
+    actor: &str,
+    terminal_grant_cbor: &[u8],
+    challenge: &[u8],
+    evaluation_time: u64,
+) -> Result<McpActionPreparationV1, EngineError> {
+    let Value::Object(arguments) = serde_json::from_slice(arguments_json)
+        .map_err(|_| EngineError::Abi("MCP arguments must be valid JSON"))?
+    else {
+        return Err(EngineError::Abi("MCP arguments must be a JSON object"));
+    };
+    let call = McpToolCall::new(service, name, arguments)?;
+    let untrusted = call.canonical_bytes()?;
+    let profile = McpProfile;
+    let canonical = profile.canonicalize(&untrusted)?;
+    let display = profile.approval_display(&canonical)?;
+    let limits = VerifierLimits::default_deployment();
+    let terminal_grant = auths_codec::decode_signed_grant(terminal_grant_cbor, &limits)?;
+    let challenge: [u8; 32] = challenge
+        .try_into()
+        .map_err(|_| EngineError::Abi("challenge must contain exactly 32 bytes"))?;
+    let proof_ref = ProofRef::new(challenge);
+    let plan = AuthorizationPlan::proof(proof_ref);
+    let envelope = ActionEnvelope::new(
+        canonical.profile().clone(),
+        canonical.media_type().clone(),
+        auths_codec::body_digest(canonical.body()),
+        canonical.permission().clone(),
+        canonical.requested_budget().cloned(),
+        call.audience()?,
+        Challenge::new(challenge),
+        ValidityWindow::new(
+            Timestamp::new(evaluation_time),
+            Timestamp::new(evaluation_time),
+        )?,
+        PrincipalId::parse(actor)?,
+        Some(auths_codec::grant_id(terminal_grant.statement())?),
+        auths_codec::plan_id(&plan)?,
+        ChannelBindingId::parse("none-v1")?,
+        proof_ref,
+        Vec::new(),
+        CriticalExtensions::empty(),
+    );
+    Ok(McpActionPreparationV1 {
+        canonical_action_cbor: auths_codec::encode_canonical_action(&canonical)?,
+        action_envelope_cbor: auths_codec::encode_action_envelope(&envelope)?,
+        audience: call.audience()?.to_string(),
+        resource: canonical.permission().resource().to_string(),
+        display_digest_hex: display.canonical_digest_hex().to_owned(),
+    })
+}
+
+#[derive(Clone)]
+struct GrantProofMaterial {
+    grant: SignedGrant,
+    evidence: Vec<EvidenceObject>,
+}
+
+/// Native, bounded proof-material collector used only by the workflow facade.
+#[wasm_bindgen]
+pub struct WorkflowProofBuilderV1 {
+    grants: Vec<GrantProofMaterial>,
+    action_evidence: Vec<EvidenceObject>,
+}
+
+#[wasm_bindgen]
+impl WorkflowProofBuilderV1 {
+    /// Creates an empty bounded proof collector.
+    #[wasm_bindgen(constructor)]
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            grants: Vec::new(),
+            action_evidence: Vec::new(),
+        }
+    }
+
+    /// Appends one canonical signed grant in root-to-leaf order.
+    ///
+    /// # Errors
+    ///
+    /// Returns a JavaScript error for malformed grants or collection overflow.
+    #[wasm_bindgen(js_name = pushGrant)]
+    pub fn push_grant(&mut self, signed_grant_cbor: &[u8]) -> Result<u32, JsValue> {
+        if self.grants.len()
+            >= VerifierLimits::default_deployment().get(auths_model::LimitKind::Grants)
+        {
+            return Err(js_error(EngineError::Abi(
+                "grant chain exceeds deployment limit",
+            )));
+        }
+        let grant = auths_codec::decode_signed_grant(
+            signed_grant_cbor,
+            &VerifierLimits::default_deployment(),
+        )
+        .map_err(js_error)?;
+        self.grants.push(GrantProofMaterial {
+            grant,
+            evidence: Vec::new(),
+        });
+        u32::try_from(self.grants.len() - 1)
+            .map_err(|_| js_error(EngineError::Abi("grant index exceeds ABI")))
+    }
+
+    /// Binds one typed public evidence object to a previously added grant.
+    ///
+    /// # Errors
+    ///
+    /// Returns a JavaScript error for an invalid index, identifier, media type,
+    /// evidence body, or collection limit.
+    #[wasm_bindgen(js_name = bindGrantEvidence)]
+    pub fn bind_grant_evidence(
+        &mut self,
+        grant_index: u32,
+        evidence_type: &str,
+        media_type: &str,
+        bytes: &[u8],
+    ) -> Result<(), JsValue> {
+        let material = self
+            .grants
+            .get_mut(usize::try_from(grant_index).map_err(js_error)?)
+            .ok_or_else(|| js_error(EngineError::Abi("grant evidence index is invalid")))?;
+        material
+            .evidence
+            .push(addressed_evidence(evidence_type, media_type, bytes).map_err(js_error)?);
+        Ok(())
+    }
+
+    /// Binds one typed public evidence object to the signed action.
+    ///
+    /// # Errors
+    ///
+    /// Returns a JavaScript error for an invalid identifier, media type,
+    /// evidence body, or collection limit.
+    #[wasm_bindgen(js_name = bindActionEvidence)]
+    pub fn bind_action_evidence(
+        &mut self,
+        evidence_type: &str,
+        media_type: &str,
+        bytes: &[u8],
+    ) -> Result<(), JsValue> {
+        self.action_evidence
+            .push(addressed_evidence(evidence_type, media_type, bytes).map_err(js_error)?);
+        Ok(())
+    }
+
+    /// Assembles the canonical proof and exact request-bound trusted context.
+    ///
+    /// # Errors
+    ///
+    /// Returns a JavaScript error for malformed signed data, inconsistent plan
+    /// binding, invalid evidence, or an invalid trusted-context template.
+    pub fn finish(
+        &self,
+        signed_action_cbor: &[u8],
+        canonical_action_cbor: &[u8],
+        trusted_context_cbor: &[u8],
+    ) -> Result<WorkflowAuthorizationArtifactsV1, JsValue> {
+        self.finish_native(
+            signed_action_cbor,
+            canonical_action_cbor,
+            trusted_context_cbor,
+        )
+        .map_err(js_error)
+    }
+}
+
+impl Default for WorkflowProofBuilderV1 {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl WorkflowProofBuilderV1 {
+    fn finish_native(
+        &self,
+        signed_action_cbor: &[u8],
+        canonical_action_cbor: &[u8],
+        trusted_context_cbor: &[u8],
+    ) -> Result<WorkflowAuthorizationArtifactsV1, EngineError> {
+        let limits = VerifierLimits::default_deployment();
+        let action = auths_codec::decode_signed_action(signed_action_cbor, &limits)?;
+        let canonical = auths_codec::decode_canonical_action(canonical_action_cbor, &limits)?;
+        let plan = AuthorizationPlan::proof(action.envelope().proof_ref());
+        if auths_codec::plan_id(&plan)? != action.envelope().authorization_plan() {
+            return Err(EngineError::Abi(
+                "signed action does not bind its authorization plan",
+            ));
+        }
+        let mut evidence = Vec::new();
+        let mut bindings = Vec::new();
+        for material in &self.grants {
+            let ids = unique_evidence(&mut evidence, &material.evidence);
+            if !ids.is_empty() {
+                bindings.push(ControlBinding::new(
+                    StatementRef::Grant(auths_codec::grant_id(material.grant.statement())?),
+                    ids,
+                )?);
+            }
+        }
+        let action_ids = unique_evidence(&mut evidence, &self.action_evidence);
+        if !action_ids.is_empty() {
+            bindings.push(ControlBinding::new(
+                StatementRef::Action(auths_codec::action_id(action.envelope())?),
+                action_ids,
+            )?);
+        }
+        let proof = ProofBundle::new(
+            BundleHeader::v1(),
+            self.grants
+                .iter()
+                .map(|material| material.grant.clone())
+                .collect(),
+            vec![action.clone()],
+            plan.clone(),
+            evidence,
+            bindings,
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Some(canonical.body().to_vec()),
+        )?;
+        let context = auths_codec::decode_verifier_context(trusted_context_cbor)?
+            .for_request(
+                action.envelope().audience().clone(),
+                action.envelope().challenge(),
+                action.envelope().validity().not_before(),
+            )?
+            .with_composition(CompositionRequirement::exact(auths_codec::plan_id(&plan)?))?;
+        Ok(WorkflowAuthorizationArtifactsV1 {
+            proof_cbor: auths_codec::encode_bundle(&proof)?,
+            trusted_context_cbor: auths_codec::encode_verifier_context(&context)?,
+        })
+    }
+}
+
+/// Canonical inputs assembled by native profile and proof owners.
+#[wasm_bindgen]
+pub struct WorkflowAuthorizationArtifactsV1 {
+    proof_cbor: Vec<u8>,
+    trusted_context_cbor: Vec<u8>,
+}
+
+#[wasm_bindgen]
+impl WorkflowAuthorizationArtifactsV1 {
+    /// Returns the canonical proof bundle.
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = proofCbor)]
+    pub fn proof_cbor(&self) -> Vec<u8> {
+        self.proof_cbor.clone()
+    }
+
+    /// Returns the exact request-bound trusted context.
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = trustedContextCbor)]
+    pub fn trusted_context_cbor(&self) -> Vec<u8> {
+        self.trusted_context_cbor.clone()
+    }
+}
+
+/// Validates a canonical trusted-context template against its configured root
+/// and packaged verifier commitment.
+///
+/// # Errors
+///
+/// Returns a JavaScript error for malformed context, configuration mismatch,
+/// or a missing root trust anchor.
+#[wasm_bindgen(js_name = validateTrustedContextV1)]
+pub fn validate_trusted_context_v1(
+    trusted_context_cbor: &[u8],
+    root_principal: &str,
+    verifier_configuration: &[u8],
+) -> Result<Vec<u8>, JsValue> {
+    let result = (|| -> Result<Vec<u8>, EngineError> {
+        let expected: [u8; 32] = verifier_configuration
+            .try_into()
+            .map_err(|_| EngineError::Abi("verifier configuration must contain 32 bytes"))?;
+        let root = PrincipalId::parse(root_principal)?;
+        let context = auths_codec::decode_verifier_context(trusted_context_cbor)?;
+        if context.configuration() != VerifierConfigurationId::new(expected) {
+            return Err(EngineError::Abi(
+                "trusted context configuration does not match",
+            ));
+        }
+        if !context
+            .trust_anchors()
+            .iter()
+            .any(|anchor| anchor.principal() == &root)
+        {
+            return Err(EngineError::Abi(
+                "trusted context omits the configured root",
+            ));
+        }
+        Ok(auths_codec::encode_verifier_context(&context)?)
+    })();
+    result.map_err(js_error)
+}
+
+fn addressed_evidence(
+    evidence_type: &str,
+    media_type: &str,
+    bytes: &[u8],
+) -> Result<EvidenceObject, EngineError> {
+    let evidence_type = EvidenceTypeId::parse(evidence_type)?;
+    let media_type = MediaType::parse(media_type)?;
+    let unaddressed = EvidenceObject::new(
+        EvidenceId::new([0; 32]),
+        evidence_type.clone(),
+        media_type.clone(),
+        bytes.to_vec(),
+    )?;
+    Ok(EvidenceObject::new(
+        auths_codec::evidence_id(&unaddressed)?,
+        evidence_type,
+        media_type,
+        bytes.to_vec(),
+    )?)
+}
+
+fn unique_evidence(all: &mut Vec<EvidenceObject>, additions: &[EvidenceObject]) -> Vec<EvidenceId> {
+    let mut ids = Vec::with_capacity(additions.len());
+    for object in additions {
+        if !all.iter().any(|candidate| candidate.id() == object.id()) {
+            all.push(object.clone());
+        }
+        if !ids.contains(&object.id()) {
+            ids.push(object.id());
+        }
+    }
+    ids
+}
+
 fn plan_child_grant_native(
     parent_grant_cbor: &[u8],
     proposed_child_cbor: &[u8],
@@ -1156,6 +1994,10 @@ pub enum EngineError {
     Planning(auths_author::PlanningError),
     /// Exact signing-input construction failed.
     Author(auths_author::AuthorError),
+    /// MCP profile construction or canonicalization failed.
+    Mcp(auths_profile_mcp::ProfileError),
+    /// Profile contract construction or projection failed.
+    Profile(auths_profile_api::ProfileContractError),
     /// A binding-level invariant could not be represented.
     Abi(&'static str),
 }
@@ -1179,6 +2021,8 @@ impl fmt::Display for EngineError {
             }
             Self::Planning(error) => write!(formatter, "could not plan child authority: {error}"),
             Self::Author(error) => write!(formatter, "could not prepare signing request: {error}"),
+            Self::Mcp(error) => write!(formatter, "could not construct MCP action: {error}"),
+            Self::Profile(error) => write!(formatter, "MCP profile contract failed: {error}"),
             Self::Abi(message) => formatter.write_str(message),
         }
     }
@@ -1219,6 +2063,18 @@ impl From<auths_author::PlanningError> for EngineError {
 impl From<auths_author::AuthorError> for EngineError {
     fn from(error: auths_author::AuthorError) -> Self {
         Self::Author(error)
+    }
+}
+
+impl From<auths_profile_mcp::ProfileError> for EngineError {
+    fn from(error: auths_profile_mcp::ProfileError) -> Self {
+        Self::Mcp(error)
+    }
+}
+
+impl From<auths_profile_api::ProfileContractError> for EngineError {
+    fn from(error: auths_profile_api::ProfileContractError) -> Self {
+        Self::Profile(error)
     }
 }
 
@@ -1264,6 +2120,85 @@ mod tests {
                 .unwrap()
                 .local_configuration(),
             auths_model::VerifierConfigurationId::new(self_contained_v1_configuration().unwrap())
+        );
+    }
+
+    #[test]
+    fn native_mcp_authorization_assembly_matches_profile_and_core_owners() {
+        let fixture = auths_testkit::raw_key_chain();
+        let bundle = auths_codec::decode_bundle(
+            fixture.proof_bytes(),
+            &VerifierLimits::default_deployment(),
+        )
+        .unwrap();
+        let mut builder = WorkflowProofBuilderV1::new();
+        for grant in bundle.grants() {
+            let index = builder.grants.len();
+            let grant_identifier = auths_codec::grant_id(grant.statement()).unwrap();
+            let ids = bundle
+                .bindings()
+                .iter()
+                .find(|binding| binding.statement() == StatementRef::Grant(grant_identifier))
+                .unwrap()
+                .evidence();
+            builder.grants.push(GrantProofMaterial {
+                grant: grant.clone(),
+                evidence: bundle
+                    .evidence()
+                    .iter()
+                    .filter(|evidence| ids.contains(&evidence.id()))
+                    .cloned()
+                    .collect(),
+            });
+            assert_eq!(builder.grants.len(), index + 1);
+        }
+        let action = bundle.actions().first().unwrap();
+        let action_identifier = auths_codec::action_id(action.envelope()).unwrap();
+        let ids = bundle
+            .bindings()
+            .iter()
+            .find(|binding| binding.statement() == StatementRef::Action(action_identifier))
+            .unwrap()
+            .evidence();
+        builder.action_evidence = bundle
+            .evidence()
+            .iter()
+            .filter(|evidence| ids.contains(&evidence.id()))
+            .cloned()
+            .collect();
+        let artifacts = builder
+            .finish_native(
+                &auths_codec::encode_signed_action(action).unwrap(),
+                &auths_codec::encode_canonical_action(fixture.canonical_action()).unwrap(),
+                fixture.context_bytes(),
+            )
+            .unwrap();
+        assert_eq!(artifacts.proof_cbor, fixture.proof_bytes());
+
+        let terminal = auths_codec::encode_signed_grant(bundle.grants().first().unwrap()).unwrap();
+        let actor = action.envelope().actor().as_str();
+        let prepared = prepare_mcp_action_native(
+            "reports",
+            "update_demo_record",
+            br#"{"value":"reviewed"}"#,
+            actor,
+            &terminal,
+            &[0x22; 32],
+            50,
+        )
+        .unwrap();
+        let call = McpToolCall::new(
+            "reports",
+            "update_demo_record",
+            serde_json::from_value(serde_json::json!({"value": "reviewed"})).unwrap(),
+        )
+        .unwrap();
+        let expected = McpProfile
+            .canonicalize(&call.canonical_bytes().unwrap())
+            .unwrap();
+        assert_eq!(
+            prepared.canonical_action_cbor,
+            auths_codec::encode_canonical_action(&expected).unwrap()
         );
     }
 
