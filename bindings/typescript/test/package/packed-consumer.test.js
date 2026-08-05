@@ -8,23 +8,27 @@ import { fileURLToPath } from "node:url";
 
 const packageRoot = new URL("../../", import.meta.url);
 const packageRootPath = fileURLToPath(packageRoot);
-const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
 const fixtureRoot = new URL("../../../../core/fixtures/v1/", import.meta.url);
 const bindingRoot = new URL("../../../../target/binding-vectors/", import.meta.url);
+
+function npmSync(arguments_, options) {
+  const npmCli = process.env.npm_execpath;
+  return npmCli === undefined
+    ? execFileSync("npm", arguments_, options)
+    : execFileSync(process.execPath, [npmCli, ...arguments_], options);
+}
 
 test("packed package installs and executes only through published entry points", async () => {
   const temporary = await mkdtemp(join(tmpdir(), "auths-typescript-consumer-"));
   try {
     const npmEnvironment = { ...process.env, npm_config_cache: join(temporary, "npm-cache") };
-    const packOutput = execFileSync(
-      npmCommand,
+    const packOutput = npmSync(
       ["pack", packageRootPath, "--json", "--pack-destination", temporary],
       { encoding: "utf8", env: npmEnvironment },
     );
     const [{ filename }] = JSON.parse(packOutput);
     await writeFile(join(temporary, "package.json"), JSON.stringify({ type: "module" }));
-    execFileSync(
-      npmCommand,
+    npmSync(
       ["install", "--ignore-scripts", "--no-audit", "--no-fund", join(temporary, filename)],
       { cwd: temporary, stdio: "pipe", env: npmEnvironment },
     );
@@ -90,11 +94,11 @@ test("packed package installs and executes only through published entry points",
       include: ["consumer.ts"],
     }));
     execFileSync(
-      join(packageRootPath, "node_modules", ".bin", process.platform === "win32" ? "tsc.cmd" : "tsc"),
-      ["-p", "tsconfig.json"],
+      process.execPath,
+      [join(packageRootPath, "node_modules", "typescript", "bin", "tsc"), "-p", "tsconfig.json"],
       { cwd: temporary, stdio: "pipe" },
     );
-    execFileSync("node", ["consumer.mjs"], { cwd: temporary, stdio: "pipe" });
+    execFileSync(process.execPath, ["consumer.mjs"], { cwd: temporary, stdio: "pipe" });
 
     const installedManifest = JSON.parse(await readFile(
       join(temporary, "node_modules", "@auths-dev", "sdk", "package.json"),

@@ -125,11 +125,7 @@ pub async fn build_site(repository: &Path, output: &Path) -> Result<(), BuildErr
     write(output.join("styles.css"), STYLES_CSS)?;
     write(output.join("vercel.json"), VERCEL_JSON)?;
 
-    copy_required(&sdk.join("dist/index.js"), &output.join("vendor/index.js"))?;
-    copy_required(
-        &sdk.join("dist/workflow.js"),
-        &output.join("vendor/workflow.js"),
-    )?;
+    copy_javascript_tree(&sdk.join("dist"), &output.join("vendor"))?;
     for name in [
         "auths_proof_wasm.js",
         "auths_proof_wasm_bg.wasm",
@@ -421,6 +417,23 @@ fn copy_required(source: &Path, destination: &Path) -> Result<(), BuildError> {
         fs::create_dir_all(parent)?;
     }
     fs::copy(source, destination)?;
+    Ok(())
+}
+
+fn copy_javascript_tree(source: &Path, destination: &Path) -> Result<(), BuildError> {
+    if !source.is_dir() {
+        return Err(BuildError::MissingVendor(source.to_owned()));
+    }
+    for entry in fs::read_dir(source)? {
+        let entry = entry?;
+        let source_path = entry.path();
+        let destination_path = destination.join(entry.file_name());
+        if source_path.is_dir() {
+            copy_javascript_tree(&source_path, &destination_path)?;
+        } else if source_path.extension().and_then(std::ffi::OsStr::to_str) == Some("js") {
+            copy_required(&source_path, &destination_path)?;
+        }
+    }
     Ok(())
 }
 

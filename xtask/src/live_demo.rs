@@ -118,7 +118,7 @@ pub(crate) fn live_demo() -> Result<(), String> {
         path_text(&output)?,
     ])?;
 
-    let expected: BTreeSet<String> = [
+    let mut expected: BTreeSet<String> = [
         "app.js",
         "assets/scenario.json",
         "index.html",
@@ -126,8 +126,6 @@ pub(crate) fn live_demo() -> Result<(), String> {
         "package.json",
         "styles.css",
         "vercel.json",
-        "vendor/index.js",
-        "vendor/workflow.js",
         "vendor/wasm/auths_proof_wasm.d.ts",
         "vendor/wasm/auths_proof_wasm.js",
         "vendor/wasm/auths_proof_wasm_bg.wasm",
@@ -152,6 +150,19 @@ pub(crate) fn live_demo() -> Result<(), String> {
     .into_iter()
     .map(str::to_owned)
     .collect();
+    let dist = typescript.join("dist");
+    for path in repository_files(&dist)? {
+        if path.extension().and_then(|extension| extension.to_str()) != Some("js") {
+            continue;
+        }
+        let relative = path
+            .strip_prefix(&dist)
+            .map_err(|_| format!("TypeScript build output escaped {}", dist.display()))?;
+        expected.insert(format!(
+            "vendor/{}",
+            relative.to_string_lossy().replace('\\', "/")
+        ));
+    }
     let actual: BTreeSet<String> = repository_files(&output)?
         .into_iter()
         .map(|path| {
