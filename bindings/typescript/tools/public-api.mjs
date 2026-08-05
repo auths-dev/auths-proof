@@ -2,6 +2,14 @@ import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import ts from "typescript";
 
+const normalizeText = (value) => value.replaceAll("\r\n", "\n").replaceAll("\r", "\n");
+const normalizedPath = (value) => value.replaceAll("\\", "/");
+const compareText = (left, right) => left < right ? -1 : left > right ? 1 : 0;
+const comparePublicNames = (left, right) => {
+  const folded = compareText(left.toLowerCase(), right.toLowerCase());
+  return folded === 0 ? -compareText(left, right) : folded;
+};
+
 const entries = new Map([
   [".", "dist/index.d.ts"],
   ["./advanced", "dist/advanced.d.ts"],
@@ -19,13 +27,13 @@ const program = ts.createProgram([...entries.values()], {
 const checker = program.getTypeChecker();
 const declarationDigest = createHash("sha256");
 for (const source of program.getSourceFiles()
-  .filter((item) => item.fileName.replaceAll("\\", "/").includes("/dist/") || item.fileName.startsWith("dist/"))
-  .sort((left, right) => left.fileName.localeCompare(right.fileName))) {
+  .filter((item) => normalizedPath(item.fileName).includes("/dist/") || item.fileName.startsWith("dist/"))
+  .sort((left, right) => compareText(normalizedPath(left.fileName), normalizedPath(right.fileName)))) {
   declarationDigest.update(
-    source.fileName.replaceAll("\\", "/").replace(/^.*?dist\//, "dist/"),
+    normalizedPath(source.fileName).replace(/^.*?dist\//, "dist/"),
   );
   declarationDigest.update("\0");
-  declarationDigest.update(source.text);
+  declarationDigest.update(normalizeText(source.text));
   declarationDigest.update("\0");
 }
 const lines = [
@@ -37,7 +45,7 @@ for (const [subpath, filename] of entries) {
   if (source === undefined) throw new Error(`missing built declaration ${filename}`);
   const moduleSymbol = checker.getSymbolAtLocation(source);
   if (moduleSymbol === undefined) throw new Error(`missing module symbol ${filename}`);
-  for (const exported of checker.getExportsOfModule(moduleSymbol).sort((a, b) => a.name.localeCompare(b.name))) {
+  for (const exported of checker.getExportsOfModule(moduleSymbol).sort((a, b) => comparePublicNames(a.name, b.name))) {
     const symbol = exported.flags & ts.SymbolFlags.Alias
       ? checker.getAliasedSymbol(exported)
       : exported;
@@ -53,7 +61,9 @@ if (process.argv.includes("--print")) {
   process.stdout.write(actual);
   process.exit(0);
 }
-const expected = await readFile(new URL("../api/public-api.txt", import.meta.url), "utf8");
+const expected = normalizeText(
+  await readFile(new URL("../api/public-api.txt", import.meta.url), "utf8"),
+);
 if (actual !== expected) {
   throw new Error("installed TypeScript public API drifted; review declarations and update api/public-api.txt");
 }
