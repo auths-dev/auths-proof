@@ -16,6 +16,10 @@ export interface DecisionInspection {
     evaluatorVersion: string;
     requiredConfiguration: Uint8Array;
     executedConfiguration: Uint8Array;
+    executedMode: string;
+    executedMaxUses: number;
+    executedExpiresInSeconds: number;
+    executedRequirements: readonly string[];
   }>;
   readonly safeToLog: Readonly<Record<string, string | boolean>>;
 }
@@ -36,6 +40,10 @@ export async function inspectDecision(result: VerificationResult): Promise<Decis
         readonly evaluatorVersion: string;
         readonly requiredConfiguration: Uint8Array;
         readonly executedConfiguration: Uint8Array;
+        readonly executedMode: string;
+        readonly executedMaxUses: number;
+        readonly executedExpiresInSeconds: number;
+        readonly executedRequirements: readonly string[];
       }
     : undefined;
   return Object.freeze({
@@ -56,6 +64,10 @@ export async function inspectDecision(result: VerificationResult): Promise<Decis
             evaluatorVersion: approval.evaluatorVersion,
             requiredConfiguration: approval.requiredConfiguration.slice(),
             executedConfiguration: approval.executedConfiguration.slice(),
+            executedMode: approval.executedMode,
+            executedMaxUses: approval.executedMaxUses,
+            executedExpiresInSeconds: approval.executedExpiresInSeconds,
+            executedRequirements: Object.freeze([...approval.executedRequirements]),
           }),
         }),
     safeToLog: Object.freeze({

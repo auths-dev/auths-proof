@@ -3,6 +3,17 @@ import { ApplicationCommand } from "../../src/profile-kit.js";
 import { defineProfile } from "../../src/profile-kit.js";
 import { McpCommand } from "../../src/mcp.js";
 import { ProfilePlan, VerifiedPlanCommand } from "../../src/plans.js";
+import * as publicRoot from "../../src/index.js";
+import * as advanced from "../../src/advanced.js";
+
+// @ts-expect-error package coordination is not part of the public root
+publicRoot.registerProfileRuntime;
+
+// @ts-expect-error attached-agent resources are package-private
+publicRoot.resourcesForAttachedAgent;
+
+// @ts-expect-error the advanced verifier surface does not expose workflow internals
+advanced.engineForClient;
 
 // @ts-expect-error verified actions are package-minted
 new VerifiedAction(Symbol(), new Uint8Array());

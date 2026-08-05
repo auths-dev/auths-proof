@@ -39,7 +39,7 @@ export async function prepareRawKeyAuthority<P extends Profile>(
 ): Promise<PreparedRawKeyAuthority> {
   const engine = await loadPackagedWorkflowEngine();
   const authorityId = boundedIdentifier(options.authorityId, "authority id");
-  const requiredApproval = copyPolicy(options.approval.policy);
+  const requiredApproval = copyPolicy(options.approval.policy.reference);
   let root;
   try {
     root = copyPrincipal(await options.rootSigner.publicIdentity());

@@ -28,3 +28,20 @@ test("compatibility barrels contain exports only", async () => {
     );
   }
 });
+
+test("published entry points omit package coordination hooks", async () => {
+  const forbidden = [
+    "createDelegatedAttachedAgent",
+    "engineForClient",
+    "registerProfileRuntime",
+    "resourcesForAttachedAgent",
+    "signerForClient",
+    "trustedContextForClient",
+  ];
+  for (const modulePath of ["../../dist/index.js", "../../dist/advanced.js"]) {
+    const exports = await import(modulePath);
+    for (const name of forbidden) {
+      assert.equal(name in exports, false, `${modulePath} exported ${name}`);
+    }
+  }
+});

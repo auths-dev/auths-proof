@@ -1,7 +1,8 @@
 # AP-SPEC-037: TypeScript SDK ergonomics closure, public-surface discipline, and exact plan approval
 
-**Status:** Specified — implementation is not yet authorized; AP-SPEC-036's
-remaining external-consumer and Python gates are not waived by this follow-up
+**Status:** Repository-local implementation complete; exact-revision CI and
+cross-platform evidence pending. AP-SPEC-036's Python gates are not waived by
+this follow-up.
 
 **Governs:** The second TypeScript SDK ergonomics pass: closing accidental
 public runtime hooks, making approval execution refine its committed policy,
@@ -494,7 +495,45 @@ Completion improves the TypeScript SDK's integrity, usability, and package
 evidence. It does not close AP-SPEC-036's Python parity gate, establish an
 independent security review, publish a package, or promote a release.
 
-## 15. Related documents
+## 15. Implementation record
+
+The repository-local AP-SPEC-037 implementation completed the eight bounded
+units as one direct prelaunch cutover:
+
+- the installed root and documented subpaths expose an explicit public API,
+  while registration, resource extraction, engine selection, and command
+  minting remain behind the package export boundary;
+- one immutable `ApprovalPolicy` now owns both its canonical commitment and
+  its executed mode, maximum uses, relative expiry, and requirements;
+- plan-once approval now commits to and consumes exact ordered member
+  commitments, rejecting substitution, reordering, duplication, append,
+  expiry, and overuse;
+- the former `workflow/runtime.ts` monolith was deleted and its implementation
+  moved into contracts, source ownership, and package-internal orchestration
+  modules;
+- package conformance now installs the produced tarball into a clean consumer,
+  typechecks the installed declarations, executes packaged WASM, and rejects
+  unpublished subpaths and stale build output;
+- a packed-package Chromium fixture exercises authorization, denial, exact
+  plan handoff, disposal, and repeated loading;
+- a maintained workflow defines packed Node jobs for Linux, macOS, and Windows
+  and packed Chromium on Linux;
+- the README and executable quickstart now lead with the supported closed-
+  gateway workflow; and
+- `api/public-api.txt` freezes the installed declaration surface and its
+  reachable declaration closure.
+
+Local evidence includes the focused TypeScript contract, unit, package,
+example, API, real-WASM integration, and packed-Chromium suites. The refreshed
+tarball also passes the complete `auths-agent-demo` TypeScript workspace
+typecheck and all 29 integration-package tests.
+
+The specification's exit gate remains open until authoritative CI passes on
+the exact revision, including the Linux, macOS, and Windows package matrix and
+packed Chromium job. This record makes no package-publication, Python-parity,
+stable-v1, production-readiness, or independent-review claim.
+
+## 16. Related documents
 
 - [AP-SPEC-027: TypeScript Full Workflow
   SDK](0027-product-grade-typescript-sdk.md)

@@ -2,6 +2,7 @@ import { decodeResult } from "./decoder.js";
 import { explain } from "./explanation.js";
 
 const AUTHORIZED_TOKEN: unique symbol = Symbol("auths-authorized");
+let mintVerifiedAction: (canonicalAction: Uint8Array) => VerifiedAction;
 
 export type VerdictKind = "authorized" | "denied" | "indeterminate";
 export type VerificationStage =
@@ -35,11 +36,16 @@ export class VerifiedAction {
     this.#canonicalAction = canonicalAction.slice();
   }
 
-  static fromEngine(
+  private static fromEngine(
     token: typeof AUTHORIZED_TOKEN,
     canonicalAction: Uint8Array,
   ): VerifiedAction {
     return new VerifiedAction(token, canonicalAction);
+  }
+
+  static {
+    mintVerifiedAction = (canonicalAction) =>
+      VerifiedAction.fromEngine(AUTHORIZED_TOKEN, canonicalAction);
   }
 
   canonicalBytes(): Uint8Array {
@@ -109,7 +115,7 @@ export class Auths {
       return {
         ...common,
         kind: "authorized",
-        action: VerifiedAction.fromEngine(AUTHORIZED_TOKEN, canonicalActionCbor),
+        action: mintVerifiedAction(canonicalActionCbor),
       };
     }
     return { ...common, kind: decoded.kind };

@@ -6,4 +6,4 @@ export {
   type SigningObjectKind,
   type SigningRequest,
   type SigningResponse,
-} from "./runtime.js";
+} from "./contracts.js";

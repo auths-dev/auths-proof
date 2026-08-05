@@ -15,6 +15,7 @@ export {
   type ApprovalConfiguration,
   type ApprovalExecutionSummary,
   type ApprovalMode,
+  type ApprovalPolicy,
   type ApprovalPolicyReference,
   type ApprovalProvider,
   type ApprovalRequest,

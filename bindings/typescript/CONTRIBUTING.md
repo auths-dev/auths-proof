@@ -29,8 +29,11 @@ npm run test:contract
 npm run test:unit
 ```
 
-`npm run test:integration` also rebuilds WASM and Rust-generated vectors. The
-authoritative repository CI remains the final check.
+`npm run test:integration` also rebuilds WASM and Rust-generated vectors.
+`npm run test:package` packs and installs a clean consumer, while
+`npm run test:browser` runs that tarball through Chromium. `npm run test:api`
+rejects declaration or export drift. The authoritative repository CI remains
+the final check.
 
 ## Public API
 
@@ -41,3 +44,8 @@ implementation. Advanced inspection must never mint an effect capability.
 Every public change needs documentation, a misuse test, an external-consumer
 example where applicable, and an explicit statement of the assurance claim it
 does or does not affect.
+
+After intentionally changing the supported declarations, review the complete
+installed surface produced by `node tools/public-api.mjs --print` and update
+`api/public-api.txt` in the same bounded change. Never update the snapshot only
+to silence unexplained drift.

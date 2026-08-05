@@ -233,8 +233,13 @@ function signingFixture(overrides = {}) {
       principal,
       signer,
       approval: {
-        mode: "grant-only",
-        policy: requiredApproval,
+        policy: {
+          reference: requiredApproval,
+          mode: "grant-only",
+          maxUses: 1,
+          expiresInSeconds: 300,
+          requirements: [],
+        },
         provider: approvalProvider,
       },
       requiredApproval,
@@ -327,7 +332,7 @@ test("hostile approval substitution invokes no signer", async () => {
 
 test("runtime-invalid approval modes fail before any callback", async () => {
   const fixture = signingFixture();
-  fixture.options.approval.mode = "trust-me";
+  fixture.options.approval.policy.mode = "trust-me";
   const coordinator = new SigningCoordinator(fixture.adapter, () => 100n);
   await assert.rejects(
     coordinator.execute(fixture.options),

@@ -1,6 +1,6 @@
 import {
   ProviderOperationError,
-  type ApprovalPolicyReference,
+  type ApprovalPolicy,
   type ApprovalProvider,
   type ApprovalRequest,
   type ApprovalResponse,
@@ -133,11 +133,10 @@ export const development = Object.freeze({
     return new DevelopmentApprovalProvider("rejected");
   },
   approval(
-    policy: ApprovalPolicyReference,
+    policy: ApprovalPolicy,
     decision: "approved" | "rejected" = "approved",
   ) {
     return Object.freeze({
-      mode: "every-action" as const,
       policy,
       provider: new DevelopmentApprovalProvider(decision),
     });

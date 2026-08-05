@@ -41,17 +41,26 @@ release, provenance, independent-review, or clean-clone evidence.
 - Fast unit tests pass.
 - Existing real-WASM integration tests pass from the current generated WASM.
 - New MCP single-command and plan-command integration tests pass.
-- Repacking the SDK succeeded through the npm package boundary.
-- Reinstalling and checking `auths-agent-demo` is currently incomplete because
-  the local package store lacked a declared React type package and the
-  environment denied the required network install. No external-consumer exit
-  claim is made until that install and the demo checks pass.
+- The SDK was packed, installed as the declared dependency of
+  `auths-agent-demo`, and checked without a TypeScript source-path bypass.
+- The complete external TypeScript workspace typecheck passes against the
+  refreshed tarball.
+- The external `@auths-agent-demo/auths-integration` suite passes all 29 tests
+  against that tarball.
+- The clean packed-package Node fixture passes locally, including installed
+  declarations and real packaged-WASM authorized, denied, and indeterminate
+  decisions.
+- The clean packed-package Chromium fixture passes locally, including a normal
+  workflow, an exact two-action plan, a denied action with no gateway effect,
+  disposal, and repeated loading.
+- A maintained GitHub Actions matrix now covers the packed Node fixture on
+  Linux, macOS, and Windows, plus packed Chromium on Linux. It has not yet run
+  on the final revision, so no cross-platform exit claim is made here.
 
 ## Remaining gates
 
-- Run the complete packed-package consumer check after dependency restoration.
-- Run browser behavior on the refreshed package.
-- Obtain macOS, Linux, and Windows CI evidence.
+- Obtain passing macOS, Linux, and Windows CI evidence on the exact revision.
+- Obtain passing packed-Chromium CI evidence on the exact revision.
 - Reconcile Python parity with AP-SPEC-035 and issue 73.
 - Publish or promote nothing until the governing release and review gates
   permit it.

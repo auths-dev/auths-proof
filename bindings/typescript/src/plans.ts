@@ -4,7 +4,22 @@ import { commitCanonical, type CanonicalCommitment } from "./commitments.js";
 
 const PLAN_TOKEN: unique symbol = Symbol("auths-profile-plan");
 const COMMAND_TOKEN: unique symbol = Symbol("auths-verified-plan-command");
-const planResources = new WeakMap<ProfilePlan<unknown>, { profile: Profile; actions: readonly unknown[] }>();
+let mintProfilePlan: <Action>(
+  profile: Profile,
+  actions: readonly Action[],
+  commitment: CanonicalCommitment,
+  authority: PlanAuthoritySummary,
+  memberCommitments: readonly Uint8Array[],
+) => ProfilePlan<Action>;
+let mintVerifiedPlan: <Command>(
+  commands: readonly Command[],
+  commitment: Uint8Array,
+) => VerifiedPlanCommand<Command>;
+const planResources = new WeakMap<ProfilePlan<unknown>, {
+  profile: Profile;
+  actions: readonly unknown[];
+  memberCommitments: readonly Uint8Array[];
+}>();
 const commandResources = new WeakMap<VerifiedPlanCommand<unknown>, {
   readonly commands: readonly unknown[];
   readonly commitment: Uint8Array;
@@ -30,12 +45,17 @@ export class ProfilePlan<Action> {
     actions: readonly Action[],
     commitment: CanonicalCommitment,
     authority: PlanAuthoritySummary,
+    memberCommitments: readonly Uint8Array[],
   ) {
     if (token !== PLAN_TOKEN) throw new TypeError("sealed Auths profile plan");
     this.#commitment = Object.freeze({ ...commitment, digest: commitment.digest.slice() });
     this.length = actions.length;
     this.#authority = copyAuthority(authority);
-    planResources.set(this as ProfilePlan<unknown>, { profile, actions: Object.freeze([...actions]) });
+    planResources.set(this as ProfilePlan<unknown>, {
+      profile,
+      actions: Object.freeze([...actions]),
+      memberCommitments: Object.freeze(memberCommitments.map((item) => item.slice())),
+    });
     Object.freeze(this);
   }
 
@@ -47,14 +67,20 @@ export class ProfilePlan<Action> {
     return copyAuthority(this.#authority);
   }
 
-  static create<Action>(
+  private static create<Action>(
     token: typeof PLAN_TOKEN,
     profile: Profile,
     actions: readonly Action[],
     commitment: CanonicalCommitment,
     authority: PlanAuthoritySummary,
+    memberCommitments: readonly Uint8Array[],
   ): ProfilePlan<Action> {
-    return new ProfilePlan(token, profile, actions, commitment, authority);
+    return new ProfilePlan(token, profile, actions, commitment, authority, memberCommitments);
+  }
+
+  static {
+    mintProfilePlan = (profile, actions, commitment, authority, members) =>
+      ProfilePlan.create(PLAN_TOKEN, profile, actions, commitment, authority, members);
   }
 }
 
@@ -85,12 +111,17 @@ export class VerifiedPlanCommand<Command> {
     return this.#commitment.slice();
   }
 
-  static create<Command>(
+  private static create<Command>(
     token: typeof COMMAND_TOKEN,
     commands: readonly Command[],
     commitment: Uint8Array,
   ): VerifiedPlanCommand<Command> {
     return new VerifiedPlanCommand(token, commands, commitment);
+  }
+
+  static {
+    mintVerifiedPlan = (commands, commitment) =>
+      VerifiedPlanCommand.create(COMMAND_TOKEN, commands, commitment);
   }
 }
 
@@ -121,9 +152,14 @@ export async function createProfilePlan<Action>(
     `auths.profile-plan.${profile.id}.${profile.version}`,
     canonical,
   );
+  const memberCommitments = await Promise.all(parts.map(async (part, index) => (
+    await commitCanonical(
+      `auths.profile-plan-member.${profile.id}.${profile.version}.${index}`,
+      part,
+    )
+  ).digest));
   canonical.fill(0);
-  return ProfilePlan.create(
-    PLAN_TOKEN,
+  return mintProfilePlan(
     profile,
     actions,
     commitment,
@@ -134,6 +170,7 @@ export async function createProfilePlan<Action>(
       audiences: authority?.audiences ?? [],
       ...(authority?.budget === undefined ? {} : { budget: authority.budget }),
     },
+    memberCommitments,
   );
 }
 
@@ -149,12 +186,27 @@ export function actionsForPlan<Action>(plan: ProfilePlan<Action>, profile: Profi
   return resources.actions as readonly Action[];
 }
 
+export function memberCommitmentsForPlan<Action>(
+  plan: ProfilePlan<Action>,
+  profile: Profile,
+): readonly Uint8Array[] {
+  const resources = planResources.get(plan as ProfilePlan<unknown>);
+  if (
+    resources === undefined ||
+    resources.profile.id !== profile.id ||
+    resources.profile.version !== profile.version
+  ) {
+    throw new AuthsWorkflowError("invalid-profile", "plan was not created by the attached profile");
+  }
+  return Object.freeze(resources.memberCommitments.map((item) => item.slice()));
+}
+
 export function createVerifiedPlanCommand<Command>(
   commands: readonly Command[],
   commitment: Uint8Array,
 ): VerifiedPlanCommand<Command> {
   if (commands.length === 0) throw new AuthsWorkflowError("invalid-profile", "verified plan is empty");
-  return VerifiedPlanCommand.create(COMMAND_TOKEN, commands, commitment);
+  return mintVerifiedPlan(commands, commitment);
 }
 
 /** Gateway-only extraction; the individual command capabilities remain sealed. */

@@ -17,6 +17,8 @@ test("approval policy builders commit exact bounded configuration", async () => 
   const first = await approvalPolicy.planOnce({ maxUses: 3, expiresInSeconds: 60 });
   const second = await approvalPolicy.planOnce({ maxUses: 3, expiresInSeconds: 60 });
   const changed = await approvalPolicy.planOnce({ maxUses: 4, expiresInSeconds: 60 });
-  assert.deepEqual(first.configurationDigest, second.configurationDigest);
-  assert.notDeepEqual(first.configurationDigest, changed.configurationDigest);
+  assert.deepEqual(first.reference.configurationDigest, second.reference.configurationDigest);
+  assert.notDeepEqual(first.reference.configurationDigest, changed.reference.configurationDigest);
+  assert.equal(first.maxUses, 3);
+  assert.equal(first.expiresInSeconds, 60);
 });

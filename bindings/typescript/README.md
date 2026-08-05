@@ -2,24 +2,25 @@
 
 The Auths SDK for browser and Node. It provides local verification and the
 typed attach, delegate, authorize, inspect, and closed-gateway workflow. Exact
-release capability and assurance labels are recorded in `sdk-capability.json`
-and repository release evidence; this README does not upgrade those claims.
+release capability and assurance labels belong to repository release evidence;
+this README does not upgrade those claims.
 
 ```ts
-import { loadPortableAuths } from "@auths-dev/sdk";
+const auths = await loadAuths({ signer, trustedAuthority });
+const agent = await auths.attachAgent({ name: "worker", profile, authority, approval });
+const result = await agent.authorize(profile.action(proposedChange));
 
-const auths = await loadPortableAuths();
-const result = auths.verify(proofBytes, canonicalActionBytes, contextBytes);
-
-if (result.kind === "authorized") {
-  await execute(profile.decodeVerified(result.action));
-} else {
-  report(result.explanation.code, result.explanation.message);
-}
+if (result.kind === "authorized") await gateway.execute(result.command);
+else report(result.kind, result.code);
 ```
 
 The published package contains precompiled WebAssembly. Consumer machines do
 not need Rust, C, a daemon, or network access during verification.
+
+The complete [local quickstart](examples/quickstart/index.ts) shows a bounded
+root grant, narrower child delegation, visible approval, exact authorization,
+deterministic disposal, and a closed MCP gateway. Its ephemeral signers are
+explicitly development-only.
 
 Application workflows can compose an immutable, authority-summarized plan and
 receive a sealed command only after every exact action authorizes:
@@ -43,6 +44,21 @@ if (result.kind === "authorized") {
 `inspectDecision` returns copied safe projections, and the separate
 `@auths-dev/sdk/testkit` export provides unmistakably non-production ephemeral
 signers and profile mutation fixtures.
+
+## Advanced raw verification
+
+Applications that already possess canonical proof, action, and trusted-context
+bytes can use the effect-free verifier from `@auths-dev/sdk/advanced`:
+
+```ts
+import { loadPortableAuths } from "@auths-dev/sdk/advanced";
+
+const auths = await loadPortableAuths();
+const result = auths.verify(proofBytes, canonicalActionBytes, contextBytes);
+```
+
+An authorized raw verifier result is evidence, not a profile command accepted
+by a closed gateway.
 
 Local/headless applications can bootstrap an explicit Ed25519 raw-key root
 without hand-authoring a grant or verifier context:

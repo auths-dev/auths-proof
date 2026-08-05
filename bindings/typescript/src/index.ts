@@ -1,5 +1,5 @@
 export * from "./verifier/client.js";
-export * from "./approvals.js";
+export { approvalPolicy, type ApprovalPolicyOptions } from "./approvals.js";
 export * from "./commitments.js";
 export * from "./inspection.js";
 export {

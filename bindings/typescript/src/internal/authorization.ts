@@ -78,7 +78,11 @@ export async function authorizePreparedAction(
         policyId: required.policyId,
         evaluatorVersion: required.evaluatorVersion,
         requiredConfiguration: required.configurationDigest.slice(),
-        executedConfiguration: executed.policy.configurationDigest.slice(),
+        executedConfiguration: executed.policy.reference.configurationDigest.slice(),
+        executedMode: executed.policy.mode,
+        executedMaxUses: executed.policy.maxUses,
+        executedExpiresInSeconds: executed.policy.expiresInSeconds,
+        executedRequirements: Object.freeze([...executed.policy.requirements]),
       }),
     });
   } finally {

@@ -55,10 +55,16 @@ const policy = (fill = 7) => ({
   evaluatorVersion: "1",
   configurationDigest: new Uint8Array(32).fill(fill),
 });
+const executablePolicy = (reference, mode = "grant-only") => ({
+  reference,
+  mode,
+  maxUses: 1,
+  expiresInSeconds: 300,
+  requirements: [],
+});
 
 const approval = (required = policy()) => ({
-  mode: "grant-only",
-  policy: required,
+  policy: executablePolicy(required),
   provider: {
     async approve() {
       throw new Error("attach must not request approval");

@@ -47,6 +47,13 @@ const policy = () => ({
   evaluatorVersion: "1",
   configurationDigest: new Uint8Array(32).fill(7),
 });
+const executablePolicy = (reference, mode = "every-action", maxUses = 1) => ({
+  reference,
+  mode,
+  maxUses,
+  expiresInSeconds: 300,
+  requirements: [],
+});
 
 async function fixture(evidence = {
   ...RAW_EVIDENCE,
@@ -116,8 +123,7 @@ async function fixture(evidence = {
       },
     }),
     approval: {
-      mode: "every-action",
-      policy: requiredApproval,
+      policy: executablePolicy(requiredApproval, "plan-once", 2),
       provider: {
         async approve(request) {
           counters.approvals += 1;
@@ -172,10 +178,7 @@ test("application profile kit uses the native authoring and verification path", 
       "mcp://reports/tools/update_demo_record",
     );
     assert.throws(() => new ApplicationCommand(Symbol(), {}, {}), /sealed/);
-    assert.throws(
-      () => profile.createVerifiedCommand(Symbol(), profile.inspectAction(action)),
-      /sealed/,
-    );
+    assert.equal(profile.createVerifiedCommand, undefined);
     await client.dispose();
   } finally {
     Date.now = originalNow;
@@ -188,8 +191,7 @@ test("raw-key bootstrap creates the root grant and trusted context locally", asy
   try {
     const requiredApproval = policy();
     const approval = {
-      mode: "every-action",
-      policy: requiredApproval,
+      policy: executablePolicy(requiredApproval),
       provider: {
         async approve(request) {
           return {

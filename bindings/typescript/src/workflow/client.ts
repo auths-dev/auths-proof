@@ -1,9 +1,11 @@
 export {
   AuthsClient,
   createWorkflowClient,
-  type AgentIdentity,
   type LoadWorkflowOptions,
-  type TrustedAuthority,
-  type TrustedAuthoritySnapshot,
-  type WorkflowWasmEngine,
-} from "./runtime.js";
+} from "./internal/orchestrator.js";
+export type {
+  AgentIdentity,
+  TrustedAuthority,
+  TrustedAuthoritySnapshot,
+  WorkflowWasmEngine,
+} from "./contracts.js";

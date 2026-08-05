@@ -16,6 +16,22 @@ const PROFILE_TOKEN: unique symbol = Symbol("auths-application-profile");
 const ACTION_TOKEN: unique symbol = Symbol("auths-application-action");
 const COMMAND_TOKEN: unique symbol = Symbol("auths-application-command");
 
+let mintApplicationCommand: <Command>(
+  profile: ApplicationProfile<unknown, Command>,
+  command: Command,
+) => ApplicationCommand<Command>;
+let mintApplicationAction: <Input>(
+  profile: ApplicationProfile<Input, unknown>,
+  canonical: CanonicalProfileAction,
+) => ApplicationAction<Input>;
+let mintApplicationProfile: <Input, Command>(
+  definition: ProfileDefinition<Input, Command>,
+) => ApplicationProfile<Input, Command>;
+let mintVerifiedApplicationCommand: <Command>(
+  profile: ApplicationProfile<unknown, Command>,
+  canonical: CanonicalProfileAction,
+) => ApplicationCommand<Command>;
+
 export interface ProfilePermission {
   readonly capability: string;
   readonly resource: string;
@@ -60,6 +76,10 @@ const commandResources = new WeakMap<ApplicationCommand<unknown>, {
   readonly profile: ApplicationProfile<unknown, unknown>;
   readonly command: unknown;
 }>();
+const profileDecoders = new WeakMap<
+  ApplicationProfile<unknown, unknown>,
+  (canonical: CanonicalProfileAction) => unknown
+>();
 
 /** A verified application-profile command that cannot be constructed or serialized. */
 export class ApplicationCommand<Command> {
@@ -73,12 +93,17 @@ export class ApplicationCommand<Command> {
     Object.freeze(this);
   }
 
-  static create<Command>(
+  private static create<Command>(
     token: typeof COMMAND_TOKEN,
     profile: ApplicationProfile<unknown, Command>,
     command: Command,
   ): ApplicationCommand<Command> {
     return new ApplicationCommand(token, profile, command);
+  }
+
+  static {
+    mintApplicationCommand = (profile, command) =>
+      ApplicationCommand.create(COMMAND_TOKEN, profile, command);
   }
 
   toJSON(): never {
@@ -105,13 +130,18 @@ export class ApplicationAction<Input> {
     Object.freeze(this);
   }
 
-  static create<Input>(
+  private static create<Input>(
     token: typeof ACTION_TOKEN,
     profile: ApplicationProfile<Input, unknown>,
     canonical: CanonicalProfileAction,
   ): ApplicationAction<Input> {
     if (token !== ACTION_TOKEN) throw new TypeError("sealed Auths profile action");
     return new ApplicationAction(token, profile, canonical);
+  }
+
+  static {
+    mintApplicationAction = (profile, canonical) =>
+      ApplicationAction.create(ACTION_TOKEN, profile, canonical);
   }
 }
 
@@ -124,7 +154,6 @@ export class ApplicationProfile<Input, Command = CanonicalProfileAction>
   declare readonly __action?: ApplicationAction<Input>;
   declare readonly __command?: ApplicationCommand<Command>;
   readonly #canonicalize: (input: Input) => CanonicalProfileAction;
-  readonly #decodeVerified: (canonical: CanonicalProfileAction) => Command;
 
   private constructor(token: typeof PROFILE_TOKEN, definition: ProfileDefinition<Input, Command>) {
     if (token !== PROFILE_TOKEN) throw new TypeError("sealed Auths application profile");
@@ -137,7 +166,10 @@ export class ApplicationProfile<Input, Command = CanonicalProfileAction>
     }
     this.version = definition.version;
     this.#canonicalize = definition.canonicalize;
-    this.#decodeVerified = definition.decodeVerified ?? ((canonical) => canonical as Command);
+    profileDecoders.set(
+      this as ApplicationProfile<unknown, unknown>,
+      definition.decodeVerified ?? ((canonical) => canonical as Command),
+    );
     registerProfileRuntime(this, {
       authorize: (agent, action, approvalOverride) => authorizeApplication(
         agent,
@@ -149,12 +181,19 @@ export class ApplicationProfile<Input, Command = CanonicalProfileAction>
     Object.freeze(this);
   }
 
-  static create<Input, Command>(
+  private static create<Input, Command>(
     token: typeof PROFILE_TOKEN,
     definition: ProfileDefinition<Input, Command>,
   ): ApplicationProfile<Input, Command> {
     if (token !== PROFILE_TOKEN) throw new TypeError("sealed Auths application profile");
     return new ApplicationProfile(token, definition);
+  }
+
+  static {
+    mintApplicationProfile = (definition) =>
+      ApplicationProfile.create(PROFILE_TOKEN, definition);
+    mintVerifiedApplicationCommand = (profile, canonical) =>
+      createVerifiedCommandFor(profile, canonical);
   }
 
   action(input: Input): ApplicationAction<Input> {
@@ -165,7 +204,7 @@ export class ApplicationProfile<Input, Command = CanonicalProfileAction>
       if (error instanceof AuthsWorkflowError) throw error;
       throw new AuthsWorkflowError("invalid-profile", "profile rejected the proposed action");
     }
-    return ApplicationAction.create(ACTION_TOKEN, this, copyCanonical(canonical));
+    return mintApplicationAction(this, copyCanonical(canonical));
   }
 
   /** Returns profile-derived grant inputs for this exact sealed action. */
@@ -222,25 +261,23 @@ export class ApplicationProfile<Input, Command = CanonicalProfileAction>
     return copyCanonical(resources.canonical);
   }
 
-  createVerifiedCommand(
-    token: typeof COMMAND_TOKEN,
-    canonical: CanonicalProfileAction,
-  ): ApplicationCommand<Command> {
-    if (token !== COMMAND_TOKEN) {
-      throw new TypeError("sealed Auths application command factory");
-    }
-    let decoded: Command;
-    try {
-      decoded = this.#decodeVerified(copyCanonical(canonical));
-    } catch {
-      throw new AuthsWorkflowError("invalid-profile", "application profile rejected verified command decoding");
-    }
-    return ApplicationCommand.create(
-      COMMAND_TOKEN,
-      this as ApplicationProfile<unknown, Command>,
-      decoded,
-    );
+}
+
+function createVerifiedCommandFor<Command>(
+  profile: ApplicationProfile<unknown, Command>,
+  canonical: CanonicalProfileAction,
+): ApplicationCommand<Command> {
+  const decoder = profileDecoders.get(profile as ApplicationProfile<unknown, unknown>);
+  if (decoder === undefined) {
+    throw new AuthsWorkflowError("invalid-profile", "application profile decoder is unavailable");
   }
+  let decoded: Command;
+  try {
+    decoded = decoder(copyCanonical(canonical)) as Command;
+  } catch {
+    throw new AuthsWorkflowError("invalid-profile", "application profile rejected verified command decoding");
+  }
+  return mintApplicationCommand(profile, decoded);
 }
 
 /** Defines one application-owned profile without registering a generic executor. */
@@ -250,7 +287,7 @@ export function defineProfile<Input, Command = CanonicalProfileAction>(
   if (definition === null || typeof definition !== "object") {
     throw new AuthsWorkflowError("invalid-profile", "profile definition is missing");
   }
-  return ApplicationProfile.create(PROFILE_TOKEN, definition);
+  return mintApplicationProfile(definition);
 }
 
 async function authorizeApplication(
@@ -307,7 +344,7 @@ async function authorizeApplication(
   if (result.kind !== "authorized") return result;
   return Object.freeze({
     ...result,
-    command: profile.createVerifiedCommand(COMMAND_TOKEN, canonical),
+    command: mintVerifiedApplicationCommand(profile, canonical),
   });
 }
 

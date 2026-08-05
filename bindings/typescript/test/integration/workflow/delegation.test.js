@@ -48,6 +48,13 @@ const policy = () => ({
   evaluatorVersion: "1",
   configurationDigest: new Uint8Array(32).fill(7),
 });
+const executablePolicy = (reference, mode = "grant-only") => ({
+  reference,
+  mode,
+  maxUses: 1,
+  expiresInSeconds: 300,
+  requirements: [],
+});
 
 const baseAuthority = () => ({
   permissions: [{ capability: "tools/call", resource: "mcp://reports/read" }],
@@ -80,8 +87,7 @@ async function fixture(
   };
   const requiredApproval = policy();
   const approval = {
-    mode: "grant-only",
-    policy: requiredApproval,
+    policy: executablePolicy(requiredApproval),
     provider: {
       async approve(request) {
         counters.approvals += 1;

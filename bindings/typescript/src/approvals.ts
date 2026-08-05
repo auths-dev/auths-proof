@@ -1,4 +1,5 @@
 import {
+  type ApprovalPolicy,
   type ApprovalPolicyReference,
   type ApprovalProvider,
   type ApprovalRequest,
@@ -18,9 +19,9 @@ export interface ApprovalPolicyOptions {
 }
 
 async function buildPolicy(
-  mode: string,
+  mode: ApprovalPolicy["mode"],
   options: ApprovalPolicyOptions = {},
-): Promise<ApprovalPolicyReference> {
+): Promise<ApprovalPolicy> {
   const maxUses = options.maxUses ?? 1;
   const expiresInSeconds = options.expiresInSeconds ?? 300;
   if (!Number.isSafeInteger(maxUses) || maxUses < 1 || maxUses > 256) {
@@ -44,10 +45,17 @@ async function buildPolicy(
     requirements,
   }));
   const commitment = await commitCanonical("auths.approval-policy.v1", canonical);
-  return Object.freeze({
+  const reference = Object.freeze({
     policyId: options.policyId ?? `approval.${mode}`,
     evaluatorVersion: options.evaluatorVersion ?? "1",
     configurationDigest: commitment.digest.slice(),
+  });
+  return Object.freeze({
+    reference,
+    mode,
+    maxUses,
+    expiresInSeconds,
+    requirements: Object.freeze(requirements),
   });
 }
 
@@ -69,11 +77,12 @@ export const approvalPolicy = Object.freeze({
 
 export interface BoundedApprovalSessionOptions {
   readonly planCommitment: Uint8Array;
-  readonly policy: ApprovalPolicyReference;
+  readonly memberCommitments: readonly Uint8Array[];
+  readonly policy: ApprovalPolicy;
   readonly provider: ApprovalProvider;
-  readonly expiresAt: bigint;
-  readonly maxUses: number;
   readonly display: readonly ReviewField[];
+  readonly now?: () => bigint;
+  readonly startedAt?: bigint;
 }
 
 /**
@@ -81,13 +90,14 @@ export interface BoundedApprovalSessionOptions {
  * The first transaction is shown to the configured provider; subsequent
  * members are accepted only while the same frozen session remains active.
  */
-export class BoundedApprovalSession implements ApprovalProvider, AsyncDisposable {
+export class BoundedApprovalSession implements AsyncDisposable {
   readonly #planCommitment: Uint8Array;
-  readonly #policy: ApprovalPolicyReference;
+  readonly #memberCommitments: readonly Uint8Array[];
+  readonly #policy: ApprovalPolicy;
   readonly #provider: ApprovalProvider;
   readonly #expiresAt: bigint;
-  readonly #maxUses: number;
   readonly #display: readonly ReviewField[];
+  readonly #now: () => bigint;
   #uses = 0;
   #approved = false;
   #disposed = false;
@@ -96,17 +106,28 @@ export class BoundedApprovalSession implements ApprovalProvider, AsyncDisposable
     if (!(options.planCommitment instanceof Uint8Array) || options.planCommitment.length !== 32) {
       throw new AuthsWorkflowError("invalid-provider", "plan commitment must contain 32 bytes");
     }
-    if (!Number.isSafeInteger(options.maxUses) || options.maxUses < 1 || options.maxUses > 256) {
-      throw new AuthsWorkflowError("invalid-provider", "approval session use limit is outside bounds");
+    if (
+      options.policy.mode !== "plan-once" ||
+      options.memberCommitments.length === 0 ||
+      options.memberCommitments.length !== options.policy.maxUses ||
+      options.memberCommitments.some((item) => !(item instanceof Uint8Array) || item.length !== 32)
+    ) {
+      throw new AuthsWorkflowError("invalid-provider", "approval policy does not match exact plan membership");
     }
     if (typeof options.provider?.approve !== "function") {
       throw new AuthsWorkflowError("invalid-provider", "approval session provider is missing");
     }
     this.#planCommitment = options.planCommitment.slice();
-    this.#policy = copyPolicy(options.policy);
+    this.#memberCommitments = Object.freeze(options.memberCommitments.map((item) => item.slice()));
+    this.#policy = Object.freeze({
+      ...options.policy,
+      reference: copyPolicy(options.policy.reference),
+      requirements: Object.freeze([...options.policy.requirements]),
+    });
     this.#provider = options.provider;
-    this.#expiresAt = options.expiresAt;
-    this.#maxUses = options.maxUses;
+    this.#now = options.now ?? (() => BigInt(Math.floor(Date.now() / 1000)));
+    const startedAt = options.startedAt ?? this.#now();
+    this.#expiresAt = startedAt + BigInt(options.policy.expiresInSeconds);
     this.#display = Object.freeze(options.display.map((field) => Object.freeze({ ...field })));
   }
 
@@ -114,19 +135,46 @@ export class BoundedApprovalSession implements ApprovalProvider, AsyncDisposable
     return this.#planCommitment.slice();
   }
 
-  async approve(request: ApprovalRequest): Promise<ApprovalResponse> {
+  providerFor(index: number, memberCommitment: Uint8Array): ApprovalProvider {
+    if (
+      !Number.isSafeInteger(index) ||
+      index < 0 ||
+      index >= this.#memberCommitments.length ||
+      !(memberCommitment instanceof Uint8Array) ||
+      memberCommitment.length !== 32
+    ) {
+      throw new AuthsWorkflowError("invalid-provider", "approval plan member is invalid");
+    }
+    const expected = this.#memberCommitments[index];
+    if (expected === undefined || !equalBytes(expected, memberCommitment)) {
+      throw new AuthsWorkflowError("approval-response-mismatch", "approval plan member commitment mismatch");
+    }
+    return Object.freeze({
+      approve: (request: ApprovalRequest) => this.#approveMember(index, memberCommitment, request),
+    });
+  }
+
+  async #approveMember(
+    index: number,
+    memberCommitment: Uint8Array,
+    request: ApprovalRequest,
+  ): Promise<ApprovalResponse> {
     if (this.#disposed) throw new ProviderOperationError("cancelled");
-    const now = BigInt(Math.floor(Date.now() / 1000));
+    const now = this.#now();
     if (now > this.#expiresAt || now > request.expiresAt) {
       throw new ProviderOperationError("timeout");
     }
-    if (this.#uses >= this.#maxUses) {
+    if (this.#uses >= this.#policy.maxUses || index !== this.#uses) {
+      throw new ProviderOperationError("rejected");
+    }
+    const expectedMember = this.#memberCommitments[index];
+    if (expectedMember === undefined || !equalBytes(expectedMember, memberCommitment)) {
       throw new ProviderOperationError("rejected");
     }
     if (
-      request.policy.policyId !== this.#policy.policyId ||
-      request.policy.evaluatorVersion !== this.#policy.evaluatorVersion ||
-      !equalBytes(request.policy.configurationDigest, this.#policy.configurationDigest)
+      request.policy.policyId !== this.#policy.reference.policyId ||
+      request.policy.evaluatorVersion !== this.#policy.reference.evaluatorVersion ||
+      !equalBytes(request.policy.configurationDigest, this.#policy.reference.configurationDigest)
     ) {
       throw new ProviderOperationError("rejected");
     }
@@ -136,6 +184,8 @@ export class BoundedApprovalSession implements ApprovalProvider, AsyncDisposable
         display: Object.freeze([
           ...this.#display,
           Object.freeze({ label: "Plan commitment", value: hex(this.#planCommitment) }),
+          Object.freeze({ label: "Plan member", value: `${index + 1}/${this.#memberCommitments.length}` }),
+          Object.freeze({ label: "Member commitment", value: hex(memberCommitment) }),
           ...request.display,
         ]),
       });
@@ -166,6 +216,7 @@ export class BoundedApprovalSession implements ApprovalProvider, AsyncDisposable
   async dispose(): Promise<void> {
     this.#disposed = true;
     this.#planCommitment.fill(0);
+    for (const member of this.#memberCommitments) member.fill(0);
   }
 
   async [Symbol.asyncDispose](): Promise<void> {

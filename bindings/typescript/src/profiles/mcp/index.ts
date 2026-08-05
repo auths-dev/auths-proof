@@ -18,6 +18,14 @@ const MCP_PROFILE_TOKEN: unique symbol = Symbol("auths-mcp-profile");
 const MCP_ACTION_TOKEN: unique symbol = Symbol("auths-mcp-action");
 const MCP_COMMAND_TOKEN: unique symbol = Symbol("auths-mcp-command");
 
+let mintMcpCommand: (resources: McpActionResources) => McpCommand;
+let mintMcpAction: (
+  profile: McpProfile,
+  name: string,
+  argumentsJson: Uint8Array,
+) => McpAction;
+let mintMcpProfile: (service: string) => McpProfile;
+
 interface McpActionResources {
   readonly profile: McpProfile;
   readonly name: string;
@@ -43,8 +51,12 @@ export class McpCommand {
     Object.freeze(this);
   }
 
-  static create(token: typeof MCP_COMMAND_TOKEN, resources: McpActionResources): McpCommand {
+  private static create(token: typeof MCP_COMMAND_TOKEN, resources: McpActionResources): McpCommand {
     return new McpCommand(token, resources);
+  }
+
+  static {
+    mintMcpCommand = (resources) => McpCommand.create(MCP_COMMAND_TOKEN, resources);
   }
 
   toJSON(): never {
@@ -82,7 +94,7 @@ export class McpAction {
     Object.freeze(this);
   }
 
-  static create(
+  private static create(
     token: typeof MCP_ACTION_TOKEN,
     profile: McpProfile,
     name: string,
@@ -90,6 +102,11 @@ export class McpAction {
   ): McpAction {
     if (token !== MCP_ACTION_TOKEN) throw new TypeError("sealed Auths MCP action");
     return new McpAction(token, profile, name, argumentsJson);
+  }
+
+  static {
+    mintMcpAction = (profile, name, argumentsJson) =>
+      McpAction.create(MCP_ACTION_TOKEN, profile, name, argumentsJson);
   }
 }
 
@@ -106,7 +123,7 @@ export class McpProfile implements Profile<McpAction, McpCommand> {
     this.service = service;
   }
 
-  static create(token: typeof MCP_PROFILE_TOKEN, service: string): McpProfile {
+  private static create(token: typeof MCP_PROFILE_TOKEN, service: string): McpProfile {
     if (token !== MCP_PROFILE_TOKEN) throw new TypeError("sealed Auths MCP profile");
     const profile = new McpProfile(token, service);
     registerProfileRuntime(profile, {
@@ -120,10 +137,13 @@ export class McpProfile implements Profile<McpAction, McpCommand> {
     return Object.freeze(profile);
   }
 
+  static {
+    mintMcpProfile = (service) => McpProfile.create(MCP_PROFILE_TOKEN, service);
+  }
+
   call(name: string, argumentsValue: Readonly<Record<string, unknown>>): McpAction {
     const argumentsJson = encodeArguments(argumentsValue);
-    return McpAction.create(
-      MCP_ACTION_TOKEN,
+    return mintMcpAction(
       this,
       boundedToolName(name),
       argumentsJson,
@@ -194,10 +214,7 @@ export const mcp = Object.freeze({
     if (options === null || typeof options !== "object") {
       throw new AuthsWorkflowError("invalid-profile", "MCP profile options are missing");
     }
-    return McpProfile.create(
-      MCP_PROFILE_TOKEN,
-      boundedService(options.service),
-    );
+    return mintMcpProfile(boundedService(options.service));
   },
 });
 
@@ -250,7 +267,7 @@ async function authorizeMcp(
   if (result.kind !== "authorized") return result;
   return Object.freeze({
     ...result,
-    command: McpCommand.create(MCP_COMMAND_TOKEN, action),
+    command: mintMcpCommand(action),
   });
 }
 

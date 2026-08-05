@@ -4,5 +4,5 @@ export {
   type PermissionSummary,
   type Profile,
   type ReviewField,
-} from "./runtime.js";
+} from "./contracts.js";
 export type { PlanAuthoritySummary } from "../plans.js";
