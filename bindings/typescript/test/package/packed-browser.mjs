@@ -133,8 +133,20 @@ try {
   if (address === null || typeof address === "string") throw new Error("browser server did not bind");
   browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
+  const browserFailures = [];
+  page.on("pageerror", (error) => browserFailures.push(`page error: ${error.message}`));
+  page.on("response", (response) => {
+    if (!response.ok()) browserFailures.push(`HTTP ${response.status()}: ${response.url()}`);
+  });
   await page.goto(`http://127.0.0.1:${address.port}/`);
-  await page.waitForFunction(() => document.querySelector("#result")?.textContent !== "starting");
+  try {
+    await page.waitForFunction(() => document.querySelector("#result")?.textContent !== "starting");
+  } catch (error) {
+    throw new Error(
+      `packed browser did not finish: ${browserFailures.join("; ") || "no page error was reported"}`,
+      { cause: error },
+    );
+  }
   const result = await page.textContent("#result");
   if (result !== "authorized,denied,authorized,authorized,2,denied") {
     throw new Error(`packed browser result drifted: ${result}`);
