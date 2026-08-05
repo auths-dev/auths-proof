@@ -4,13 +4,15 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   AuthsWorkflowError,
+  commandsForGateway,
+  inspectDecision,
   loadAuths,
   prepareRawKeyAuthority,
   signedGrantSource,
   trustedContextSource,
-} from "../dist/index.js";
-import { McpAction, mcp } from "../dist/mcp.js";
-import { ApplicationAction, defineProfile } from "../dist/profile-kit.js";
+} from "../../../dist/index.js";
+import { McpAction, McpCommand, mcp } from "../../../dist/mcp.js";
+import { ApplicationAction, ApplicationCommand, defineProfile } from "../../../dist/profile-kit.js";
 
 const ROOT = "key:sha256:qogx823wE-Cfoq_WXwDS1D6S8jMOhJssOpaNRZOJCKs";
 const ACTOR = "key:sha256:MPL4hHxgoCRRtbEjYAedm50CmSM11XgLojSwwYeRi1E";
@@ -21,7 +23,7 @@ const RAW_EVIDENCE = Object.freeze({
 const vector = (name) =>
   new Uint8Array(
     readFileSync(
-      new URL(`../../../target/binding-vectors/${name}`, import.meta.url),
+      new URL(`../../../../../target/binding-vectors/${name}`, import.meta.url),
     ),
   );
 
@@ -29,10 +31,10 @@ let wasmPromise;
 async function packagedWasm() {
   if (wasmPromise !== undefined) return wasmPromise;
   wasmPromise = (async () => {
-    const wasm = await import("../wasm/auths_proof_wasm.js");
+    const wasm = await import("../../../wasm/auths_proof_wasm.js");
     await wasm.default({
       module_or_path: readFileSync(
-        new URL("../wasm/auths_proof_wasm_bg.wasm", import.meta.url),
+        new URL("../../../wasm/auths_proof_wasm_bg.wasm", import.meta.url),
       ),
     });
     return wasm;
@@ -163,6 +165,17 @@ test("application profile kit uses the native authoring and verification path", 
     assert.equal(action instanceof ApplicationAction, true);
     const result = await agent.authorize(action);
     assert.equal(result.kind, "authorized", `${result.stage}:${result.code}`);
+    assert.equal(result.command instanceof ApplicationCommand, true);
+    const gateway = profile.gateway(async (command) => command.permission.resource);
+    assert.equal(
+      await gateway.execute(result.command),
+      "mcp://reports/tools/update_demo_record",
+    );
+    assert.throws(() => new ApplicationCommand(Symbol(), {}, {}), /sealed/);
+    assert.throws(
+      () => profile.createVerifiedCommand(Symbol(), profile.inspectAction(action)),
+      /sealed/,
+    );
     await client.dispose();
   } finally {
     Date.now = originalNow;
@@ -272,8 +285,71 @@ test("MCP facade canonicalizes signs assembles and authorizes locally", async ()
     );
     assert.equal(result.kind, "authorized");
     assert.equal(result.stage, "complete");
+    assert.equal(result.command instanceof McpCommand, true);
+    const inspection = await inspectDecision(result);
+    assert.deepEqual(
+      inspection.approval.requiredConfiguration,
+      inspection.approval.executedConfiguration,
+    );
+    const calls = [];
+    const gateway = profile.gateway(async (call) => {
+      calls.push(call);
+      return "executed";
+    });
+    assert.equal(await gateway.execute(result.command), "executed");
+    assert.equal(calls[0].name, "update_demo_record");
     assert.equal(counters.approvals, 1);
     assert.equal(counters.signatures, 1);
+    await client.dispose();
+  } finally {
+    Date.now = originalNow;
+  }
+});
+
+test("MCP plan approval prompts once and releases only a sealed plan command", async () => {
+  const originalNow = Date.now;
+  Date.now = () => 50_000;
+  try {
+    const { client, agent, profile, counters } = await fixture();
+    const plan = await profile.plan([
+      profile.call("update_demo_record", { value: "first" }),
+      profile.call("update_demo_record", { value: "second" }),
+    ]);
+    const result = await agent.authorizePlan(plan);
+    assert.equal(result.kind, "authorized");
+    assert.equal(result.command.count, 2);
+    assert.equal(counters.approvals, 1);
+    assert.equal(counters.signatures, 2);
+    const commands = commandsForGateway(result.command);
+    assert.equal(commands.length, 2);
+    const values = [];
+    const gateway = profile.gateway(async (call) => {
+      values.push(JSON.parse(new TextDecoder().decode(call.argumentsJson)).value);
+    });
+    for (const command of commands) await gateway.execute(command);
+    assert.deepEqual(values, ["first", "second"]);
+    assert.throws(() => new McpCommand(Symbol(), {}), /sealed/);
+    await client.dispose();
+  } finally {
+    Date.now = originalNow;
+  }
+});
+
+test("a failed MCP plan exposes no earlier command capability", async () => {
+  const originalNow = Date.now;
+  Date.now = () => 50_000;
+  try {
+    const { client, agent, profile, counters } = await fixture();
+    const plan = await profile.plan([
+      profile.call("update_demo_record", { value: "allowed" }),
+      profile.call("delete_everything", {}),
+    ]);
+    const result = await agent.authorizePlan(plan);
+    assert.equal(result.kind, "denied");
+    assert.equal(result.failedIndex, 1);
+    assert.equal("command" in result, false);
+    assert.equal("command" in result.results[0], false);
+    assert.equal(counters.approvals, 1);
     await client.dispose();
   } finally {
     Date.now = originalNow;

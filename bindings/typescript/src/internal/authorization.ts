@@ -1,9 +1,11 @@
-import { Auths, type VerificationResult } from "../index.js";
+import { Auths } from "../verifier/client.js";
 import {
   type AttachedAgent,
+  type ApprovalConfiguration,
   type Profile,
   type ReviewField,
   type WorkflowActionPreparation,
+  type WorkflowVerificationResult,
   engineForClient,
   resourcesForAttachedAgent,
   trustedContextForClient,
@@ -15,7 +17,8 @@ export async function authorizePreparedAction(
   agent: AttachedAgent<Profile>,
   preparation: WorkflowActionPreparation,
   display: readonly ReviewField[],
-): Promise<VerificationResult> {
+  approvalOverride?: ApprovalConfiguration,
+): Promise<WorkflowVerificationResult> {
   const resources = resourcesForAttachedAgent(agent);
   const engine = engineForClient(resources.client);
   let builder;
@@ -29,7 +32,7 @@ export async function authorizePreparedAction(
       unsignedObject: preparation.actionEnvelopeCbor,
       principal: agent.identity.principal,
       signer: resources.signer,
-      approval: resources.approval,
+      approval: approvalOverride ?? resources.approval,
       requiredApproval: resources.client.trustedAuthority.requiredApproval,
       expiresAt: evaluationTime + 300n,
       display,
@@ -62,11 +65,22 @@ export async function authorizePreparedAction(
       verifyV1: (proof, canonicalAction, trustedContext) =>
         engine.verifyV1(proof, canonicalAction, trustedContext),
     });
-    return verifier.verify(
+    const result = verifier.verify(
       artifacts.proofCbor,
       preparation.canonicalActionCbor,
       artifacts.trustedContextCbor,
     );
+    const executed = approvalOverride ?? resources.approval;
+    const required = resources.client.trustedAuthority.requiredApproval;
+    return Object.freeze({
+      ...result,
+      approval: Object.freeze({
+        policyId: required.policyId,
+        evaluatorVersion: required.evaluatorVersion,
+        requiredConfiguration: required.configurationDigest.slice(),
+        executedConfiguration: executed.policy.configurationDigest.slice(),
+      }),
+    });
   } finally {
     artifacts?.free?.();
     builder?.free?.();

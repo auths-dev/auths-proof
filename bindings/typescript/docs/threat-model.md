@@ -1,5 +1,7 @@
 # TypeScript Full Workflow SDK threat model
 
+This contributor document is maintained under `bindings/typescript/docs`.
+
 ## Scope
 
 This threat model covers the JavaScript/TypeScript wrapper, packaged WASM
@@ -68,15 +70,16 @@ signature; its response is still transaction-bound and verified.
 
 ### Hostile engine or module injection
 
-The current verifier binding accepts a public `PortableWasmEngine` constructor
-argument and arbitrary `moduleUrl`. A hostile implementation can return forged
-authorized-result CBOR and cause the wrapper to mint `VerifiedAction`. Issue 76
-tracks this defect.
+The advanced verifier accepts a public `PortableWasmEngine` constructor and an
+explicit module URL for diagnostic and differential use. A hostile engine can
+produce an advanced `VerifiedAction`, but no advanced result or action is
+accepted by a profile gateway or convertible into a command.
 
-The Full Workflow loader MUST use only package-owned WASM. Arbitrary engines
-belong to an advanced diagnostic/test API whose result cannot become a
-command. The JavaScript wrapper and WASM are one integrity-bound release
-subject set.
+The Full Workflow loader uses only package-owned WASM. Effect-capable
+`McpCommand`, `ApplicationCommand`, and `VerifiedPlanCommand` values require
+the package-owned workflow path, private module tokens, matching profile
+state, and successful verification. The wrapper and WASM remain one
+integrity-bound release subject set.
 
 ### Action substitution
 
@@ -160,6 +163,11 @@ A callback may approve a different digest, reply twice, throw, hang, or claim a
 weaker policy. Required and executed policy identities/configuration digests
 must match before callback invocation and again before signing. Timeout,
 cancellation, mismatch, and ambiguity release no command.
+
+A plan approval session is private to one `authorizePlan` invocation, binds
+the displayed plan commitment and exact member count, accepts one exact
+provider response, and is disposed at terminal completion. It cannot approve
+an action appended after plan construction or be reused by application code.
 
 ### Capability forgery in JavaScript
 

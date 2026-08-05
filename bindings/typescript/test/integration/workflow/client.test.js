@@ -7,11 +7,11 @@ import {
   ProviderOperationError,
   loadAuths,
   trustedContextSource,
-} from "../dist/index.js";
+} from "../../../dist/index.js";
 import {
   SigningCoordinator,
   WasmSigningAdapter,
-} from "../dist/internal/signing.js";
+} from "../../../dist/internal/signing.js";
 
 const descriptor = () => ({
   principal: "did:web:workflow.auths.example",
@@ -33,7 +33,7 @@ const contextSource = () =>
       async loadTrustedContext() {
         return new Uint8Array(
           readFileSync(
-            new URL("../../../target/binding-vectors/authorized.context.cbor", import.meta.url),
+            new URL("../../../../../target/binding-vectors/authorized.context.cbor", import.meta.url),
           ),
         );
       },
@@ -45,10 +45,10 @@ let wasmPromise;
 async function packagedWasm() {
   if (wasmPromise !== undefined) return wasmPromise;
   wasmPromise = (async () => {
-  const wasm = await import("../wasm/auths_proof_wasm.js");
+  const wasm = await import("../../../wasm/auths_proof_wasm.js");
   await wasm.default({
     module_or_path: readFileSync(
-      new URL("../wasm/auths_proof_wasm_bg.wasm", import.meta.url),
+      new URL("../../../wasm/auths_proof_wasm_bg.wasm", import.meta.url),
     ),
   });
     return wasm;
@@ -271,7 +271,7 @@ test("transaction binding drives the real Rust WASM authoring ABI", async () => 
   const fixture = signingFixture({
     unsignedObject: readFileSync(
       new URL(
-        "../../../target/binding-vectors/authoring.proposed-grant.cbor",
+        "../../../../../target/binding-vectors/authoring.proposed-grant.cbor",
         import.meta.url,
       ),
     ),

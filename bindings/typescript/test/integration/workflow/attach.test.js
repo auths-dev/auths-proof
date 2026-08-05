@@ -8,7 +8,7 @@ import {
   loadAuths,
   signedGrantSource,
   trustedContextSource,
-} from "../dist/index.js";
+} from "../../../dist/index.js";
 
 const ROOT = "key:sha256:qogx823wE-Cfoq_WXwDS1D6S8jMOhJssOpaNRZOJCKs";
 const SUBJECT = "key:sha256:MPL4hHxgoCRRtbEjYAedm50CmSM11XgLojSwwYeRi1E";
@@ -17,7 +17,7 @@ const signedRootGrant = () =>
   new Uint8Array(
     readFileSync(
       new URL(
-        "../../../target/binding-vectors/authoring.signed-root-grant.cbor",
+        "../../../../../target/binding-vectors/authoring.signed-root-grant.cbor",
         import.meta.url,
       ),
     ),
@@ -25,7 +25,7 @@ const signedRootGrant = () =>
 const trustedContext = () =>
   new Uint8Array(
     readFileSync(
-      new URL("../../../target/binding-vectors/authorized.context.cbor", import.meta.url),
+      new URL("../../../../../target/binding-vectors/authorized.context.cbor", import.meta.url),
     ),
   );
 const contextSource = () =>
@@ -39,10 +39,10 @@ let wasmPromise;
 async function packagedWasm() {
   if (wasmPromise !== undefined) return wasmPromise;
   wasmPromise = (async () => {
-    const wasm = await import("../wasm/auths_proof_wasm.js");
+    const wasm = await import("../../../wasm/auths_proof_wasm.js");
     await wasm.default({
       module_or_path: readFileSync(
-        new URL("../wasm/auths_proof_wasm_bg.wasm", import.meta.url),
+        new URL("../../../wasm/auths_proof_wasm_bg.wasm", import.meta.url),
       ),
     });
     return wasm;

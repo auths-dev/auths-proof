@@ -1,12 +1,12 @@
 # TypeScript Full Workflow API contract
 
+This contributor document is maintained under `bindings/typescript/docs`.
+
 ## Status and claim boundary
 
-This document freezes the AP27-PR1 product contract. It does not describe a
-currently shipped Full Workflow SDK. The current package is a **Verifier
-Binding**. Repository-local implementation may proceed before Phase 9, while
-publication, capability-tier promotion, and reviewed-security claims remain
-blocked by issue 74.
+This document defines the repository-local Full Workflow implementation
+contract. Publication, capability-tier promotion, stable-v1, production, and
+reviewed-security claims remain controlled by release evidence and issue 74.
 
 The target workflow is:
 
@@ -136,8 +136,16 @@ constructs evidence identifiers or control bindings.
 `authorize` constructs the selected profile action exactly once, obtains any
 required evidence outside verification, assembles the canonical proof/context
 through native authoring operations, and returns one of three results. It does
-not execute an effect. The current PR6 authorized value contains only the
-sealed non-effect-capable verification result; PR7 alone adds `McpCommand`.
+not execute an effect. Only an authorized result includes the matching sealed
+profile command. Denied and indeterminate results never contain one.
+
+`profile.plan(actions)` creates an immutable ordered plan, checks compatible
+profile authority, aggregates permissions and compatible budgets, and commits
+the exact ordered canonical actions. `authorizePlan` stops at the first denied
+or indeterminate action and releases a sealed `VerifiedPlanCommand` only after
+every member authorizes. Provider sequencing and partial external effects
+remain profile-gateway responsibilities; SDK plan authorization does not claim
+remote transaction atomicity.
 
 ## Identity and custody ports
 
@@ -185,14 +193,20 @@ typed workflow errors. They are not authorization verdicts.
 
 ## Approval contract
 
-Approval modes are `grant-only`, `risk-based`, `every-action`, and registered
-`custom`. Every mode names a versioned policy and configuration digest already
+Approval modes are `grant-only`, `risk-based`, `every-action`, `plan-once`,
+`headless`, and registered `custom`. Every mode names a versioned policy and configuration digest already
 committed by the grant or trusted context. Local configuration may be equal or
 stricter before commitment; it cannot weaken the committed requirement later.
 
 A missing, mismatched, throwing, ambiguous, cancelled, or expired approval
 produces no signature, credential request, or command. Approval never expands
 underlying authority.
+
+Typed `approvalPolicy` builders derive configuration commitments from bounded
+canonical configuration. A plan session is owned by `authorizePlan`, bound to
+the immutable plan commitment and exact action count, and disposed immediately
+after its terminal result. A substituted provider response cannot activate the
+session.
 
 ## Profile contract
 
@@ -218,10 +232,16 @@ protocol objects; the signed grant must still authorize the exact profile and
 derived authority. The profile kit registers no global action union, executor,
 credential provider, or generic operation-tag dispatcher.
 
-An authorized result contains an `McpCommand` created only by the packaged
-trusted verifier and MCP verified decoder. The closed gateway accepts that
-command. It does not accept the original JavaScript object, a Boolean, a
-digest, raw bytes, or a command from another profile.
+An authorized result contains an `McpCommand` or `ApplicationCommand` created
+only after packaged verification and matching profile decoding. A closed
+gateway accepts only that profile instance's command. It does not accept the
+original JavaScript object, a Boolean, a digest, raw bytes, inspection data, or
+a command from another profile. Constructors, factories, serialization,
+prototype forgery, and plan-command promotion are tested as hostile paths.
+
+The separate `@auths-dev/sdk/testkit` export supplies an ephemeral Ed25519
+raw-key signer, explicit approve/reject fixtures, and profile mutation tooling.
+It is non-production, does not persist keys, and is not a custody fallback.
 
 ## Results and explanations
 
