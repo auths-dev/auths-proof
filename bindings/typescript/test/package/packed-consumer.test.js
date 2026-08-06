@@ -1,37 +1,16 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { access, cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { access, cp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { test } from "node:test";
-import { fileURLToPath } from "node:url";
+import { compileConsumer, installPackedSdk } from "./helpers/packed-install.mjs";
 
-const packageRoot = new URL("../../", import.meta.url);
-const packageRootPath = fileURLToPath(packageRoot);
 const fixtureRoot = new URL("../../../../core/fixtures/v1/", import.meta.url);
 const bindingRoot = new URL("../../../../target/binding-vectors/", import.meta.url);
 
-function npmSync(arguments_, options) {
-  const npmCli = process.env.npm_execpath;
-  return npmCli === undefined
-    ? execFileSync("npm", arguments_, options)
-    : execFileSync(process.execPath, [npmCli, ...arguments_], options);
-}
-
 test("packed package installs and executes only through published entry points", async () => {
-  const temporary = await mkdtemp(join(tmpdir(), "auths-typescript-consumer-"));
+  const { directory: temporary } = await installPackedSdk("auths-typescript-consumer-");
   try {
-    const npmEnvironment = { ...process.env, npm_config_cache: join(temporary, "npm-cache") };
-    const packOutput = npmSync(
-      ["pack", packageRootPath, "--json", "--pack-destination", temporary],
-      { encoding: "utf8", env: npmEnvironment },
-    );
-    const [{ filename }] = JSON.parse(packOutput);
-    await writeFile(join(temporary, "package.json"), JSON.stringify({ type: "module" }));
-    npmSync(
-      ["install", "--ignore-scripts", "--no-audit", "--no-fund", join(temporary, filename)],
-      { cwd: temporary, stdio: "pipe", env: npmEnvironment },
-    );
     await cp(new URL("valid/raw-key-chain.proof.cbor", fixtureRoot), join(temporary, "proof.cbor"));
     await cp(new URL("valid/raw-key-chain.action.cbor", fixtureRoot), join(temporary, "action.cbor"));
     await cp(new URL("authorized.context.cbor", bindingRoot), join(temporary, "authorized.context.cbor"));
@@ -116,11 +95,7 @@ test("packed package installs and executes only through published entry points",
       },
       include: ["consumer.ts"],
     }));
-    execFileSync(
-      process.execPath,
-      [join(packageRootPath, "node_modules", "typescript", "bin", "tsc"), "-p", "tsconfig.json"],
-      { cwd: temporary, stdio: "pipe" },
-    );
+    compileConsumer(temporary);
     execFileSync(process.execPath, ["consumer.mjs"], { cwd: temporary, stdio: "pipe" });
 
     const installedManifest = JSON.parse(await readFile(
