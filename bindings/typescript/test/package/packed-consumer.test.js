@@ -42,8 +42,14 @@ test("packed package installs and executes only through published entry points",
     );
     await writeFile(join(temporary, "consumer.mjs"), `
       import { readFile } from "node:fs/promises";
-      import { Auths, loadPortableAuths } from "@auths-dev/sdk";
-      const { createDiagnosticVerifier } = await import("@auths-dev/sdk/advanced");
+      const {
+        Auths, createDiagnosticVerifier, inspectDecision, loadPortableAuths,
+      } = await import("@auths-dev/sdk/advanced");
+      const sdk = await import("@auths-dev/sdk");
+      for (const name of ["Auths", "loadPortableAuths", "inspectDecision", "commitCanonical"]) {
+        if (name in sdk) throw new Error(name + " leaked onto the main entry point");
+      }
+      void inspectDecision;
       await import("@auths-dev/sdk/mcp");
       await import("@auths-dev/sdk/profile-kit");
       await import("@auths-dev/sdk/testkit");
@@ -86,12 +92,15 @@ test("packed package installs and executes only through published entry points",
     `);
     await writeFile(join(temporary, "consumer.ts"), `
       import { approvalPolicy, loadAuths, type AuthorizationResult, type Signer } from "@auths-dev/sdk";
+      import { createDiagnosticVerifier, inspectDecision, type DiagnosticResult } from "@auths-dev/sdk/advanced";
       import { mcp, type McpCommand } from "@auths-dev/sdk/mcp";
       import { defineProfile } from "@auths-dev/sdk/profile-kit";
       import { development } from "@auths-dev/sdk/testkit";
       import { loadPortableAuths } from "@auths-dev/sdk/advanced";
       void approvalPolicy; void loadAuths; void mcp; void defineProfile;
-      void development; void loadPortableAuths;
+      void development; void loadPortableAuths; void createDiagnosticVerifier; void inspectDecision;
+      declare const diagnostic: DiagnosticResult;
+      void diagnostic;
       declare const result: AuthorizationResult<McpCommand>;
       declare const signer: Signer;
       void result; void signer;

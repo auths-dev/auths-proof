@@ -1,4 +1,5 @@
-import { VerifiedAction, type Signer } from "../../src/index.js";
+import { type Signer } from "../../src/index.js";
+import { Auths, VerifiedAction } from "../../src/advanced.js";
 import { ApplicationCommand } from "../../src/profile-kit.js";
 import { defineProfile } from "../../src/profile-kit.js";
 import { McpCommand } from "../../src/mcp.js";
@@ -17,6 +18,24 @@ advanced.engineForClient;
 
 // @ts-expect-error verified actions are package-minted
 new VerifiedAction(Symbol(), new Uint8Array());
+
+// @ts-expect-error the capability-minting verifier is package-minted
+new Auths({ verifyV1: () => new Uint8Array() });
+
+// @ts-expect-error raw verification is not on the supported root entry point
+publicRoot.loadPortableAuths;
+
+// @ts-expect-error the raw verifier type is not on the supported root entry point
+publicRoot.Auths;
+
+// @ts-expect-error decision inspection is an advanced surface
+publicRoot.inspectDecision;
+
+// @ts-expect-error canonical commitment is an advanced surface
+publicRoot.commitCanonical;
+
+// @ts-expect-error diagnostic verification never reaches the root entry point
+publicRoot.createDiagnosticVerifier;
 
 // @ts-expect-error application commands are profile/verifier-minted
 new ApplicationCommand(Symbol(), {}, {});

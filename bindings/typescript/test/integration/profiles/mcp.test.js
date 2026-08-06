@@ -4,12 +4,12 @@ import assert from "node:assert/strict";
 import {
   AuthsWorkflowError,
   commandsForGateway,
-  inspectDecision,
   loadAuths,
   prepareRawKeyAuthority,
   signedGrantSource,
   trustedContextSource,
 } from "../../../dist/index.js";
+import { inspectDecision } from "../../../dist/advanced.js";
 import { McpAction, McpCommand, mcp } from "../../../dist/mcp.js";
 import { ApplicationAction, ApplicationCommand, defineProfile } from "../../../dist/profile-kit.js";
 import {

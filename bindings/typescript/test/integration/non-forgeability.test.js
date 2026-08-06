@@ -1,8 +1,13 @@
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { Auths, VerifiedAction, loadPortableAuths } from "../../dist/index.js";
-import { DiagnosticVerifier, createDiagnosticVerifier } from "../../dist/advanced.js";
+import {
+  Auths,
+  DiagnosticVerifier,
+  VerifiedAction,
+  createDiagnosticVerifier,
+  loadPortableAuths,
+} from "../../dist/advanced.js";
 import { mintPackagedVerifierEngine } from "../../dist/verifier/result.js";
 import { McpAction, McpCommand, McpProfile, mcp } from "../../dist/mcp.js";
 import { mcpFixture, packagedWasm } from "./helpers/mcp-fixture.js";

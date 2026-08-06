@@ -1,8 +1,12 @@
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { Auths, VerifiedAction, loadPortableAuths } from "../../dist/index.js";
-import { createDiagnosticVerifier } from "../../dist/advanced.js";
+import {
+  Auths,
+  VerifiedAction,
+  createDiagnosticVerifier,
+  loadPortableAuths,
+} from "../../dist/advanced.js";
 
 const fixture = (name) =>
   readFileSync(

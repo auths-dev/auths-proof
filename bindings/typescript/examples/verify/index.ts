@@ -1,4 +1,4 @@
-import { loadPortableAuths } from "@auths-dev/sdk";
+import { loadPortableAuths } from "@auths-dev/sdk/advanced";
 
 export async function verifyLocally(
   proof: Uint8Array,
