@@ -34,6 +34,7 @@ pub enum CustodyKind {
 /// Immutable provider request bound to exact Auths signing bytes.
 pub struct SigningIntent<'a> {
     kind: CustodyKind,
+    request_id: String,
     object_id: SigningObjectId,
     descriptor: &'a SignatureDescriptor,
     signing_preimage: &'a [u8],
@@ -44,6 +45,7 @@ impl<'a> SigningIntent<'a> {
     fn from_request<T>(kind: CustodyKind, request: &'a ExternalSigningRequest<T>) -> Self {
         Self {
             kind,
+            request_id: request.request_id(),
             object_id: request.object_id(),
             descriptor: request.descriptor(),
             signing_preimage: request.signing_preimage(),
@@ -55,6 +57,12 @@ impl<'a> SigningIntent<'a> {
     #[must_use]
     pub const fn kind(&self) -> CustodyKind {
         self.kind
+    }
+
+    /// Returns the exact identifier a provider echoes back.
+    #[must_use]
+    pub fn request_id(&self) -> &str {
+        &self.request_id
     }
 
     /// Returns the exact object identifier being signed.

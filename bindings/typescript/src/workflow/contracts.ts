@@ -562,6 +562,8 @@ export interface WorkflowGrantPlan {
 
 export interface WorkflowNativeSigningRequest {
   readonly objectKind: string;
+  /** Request identifier whose format is owned by auths-author. */
+  readonly requestId: string;
   readonly objectId: Uint8Array;
   readonly signingPreimage: Uint8Array;
   /** SHA-256 transaction binding stated by auths-codec, carried by the ABI. */

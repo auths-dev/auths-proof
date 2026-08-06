@@ -26,6 +26,8 @@ const MAX_AUTHORING_BYTES = 16 * 1024 * 1024;
 
 export interface NativeSigningRequest {
   readonly objectKind: string;
+  /** Request identifier whose format is owned by auths-author. */
+  readonly requestId: string;
   readonly objectId: Uint8Array;
   readonly signingPreimage: Uint8Array;
   /** Transaction binding stated by the Rust core, never recomputed here. */
@@ -225,7 +227,7 @@ export class SigningCoordinator {
       // meaning. auths-codec states it, the authoring ABI carries it, and this
       // binding commits to the value rather than deriving its own.
       const transactionDigest = copyExactDigest(native.transactionDigest);
-      const requestId = `${options.objectKind}:${hex(objectId)}:${hex(transactionDigest)}`;
+      const requestId = boundedRequestId(native.requestId);
 
       await approveExact(
         options,
@@ -477,6 +479,16 @@ function copyExactObjectId(value: Uint8Array): Uint8Array {
   return value.slice();
 }
 
+function boundedRequestId(value: string): string {
+  if (typeof value !== "string" || value.length === 0 || value.length > 256) {
+    throw new AuthsWorkflowError(
+      "invalid-provider",
+      "native authoring returned an invalid signing request identifier",
+    );
+  }
+  return value;
+}
+
 function copyExactDigest(value: Uint8Array): Uint8Array {
   if (!(value instanceof Uint8Array) || value.length !== 32) {
     throw new AuthsWorkflowError(
@@ -581,8 +593,4 @@ function boundedDisplay(value: string, label: string): string {
     );
   }
   return value;
-}
-
-function hex(value: Uint8Array): string {
-  return Array.from(value, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }

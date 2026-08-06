@@ -3,9 +3,8 @@
 #![forbid(unsafe_code)]
 
 use auths_author::{
-    ExternalSigningRequest, GrantPlan, GrantRequest, OverGrantingWarning, SigningObjectId,
-    plan_child_grant, prepare_action, prepare_grant, prepare_grant_status,
-    prepare_principal_status,
+    ExternalSigningRequest, GrantPlan, GrantRequest, OverGrantingWarning, plan_child_grant,
+    prepare_action, prepare_grant, prepare_grant_status, prepare_principal_status,
 };
 use auths_model::{
     ActionConstraint, ActionEnvelope, AssurancePolicyId, Audience, AudienceSet, AuthorizationPlan,
@@ -583,6 +582,7 @@ pub fn plan_child_grant_fields_v1(
 #[wasm_bindgen]
 pub struct AuthoringSigningRequestV1 {
     object_kind: &'static str,
+    request_id: String,
     object_id: Vec<u8>,
     signing_preimage: Vec<u8>,
     transaction_digest: Vec<u8>,
@@ -595,6 +595,15 @@ impl AuthoringSigningRequestV1 {
     #[wasm_bindgen(getter, js_name = objectKind)]
     pub fn object_kind(&self) -> String {
         self.object_kind.to_owned()
+    }
+
+    /// Returns the exact identifier custody and approval ports echo back.
+    ///
+    /// The format belongs to `auths-author`; bindings carry it unchanged.
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = requestId)]
+    pub fn request_id(&self) -> String {
+        self.request_id.clone()
     }
 
     /// Returns the exact unsigned object identifier.
@@ -642,7 +651,7 @@ pub fn prepare_grant_signing_v1(
         signing_descriptor(principal_method, verification_method, suite).map_err(js_error)?,
     )
     .map_err(js_error)?;
-    Ok(signing_request("grant", &request))
+    Ok(signing_request(&request))
 }
 
 /// Prepares exact action signing bytes from canonical unsigned CBOR.
@@ -664,7 +673,7 @@ pub fn prepare_action_signing_v1(
         signing_descriptor(principal_method, verification_method, suite).map_err(js_error)?,
     )
     .map_err(js_error)?;
-    Ok(signing_request("action", &request))
+    Ok(signing_request(&request))
 }
 
 /// Prepares exact principal-status signing bytes from canonical unsigned CBOR.
@@ -687,7 +696,7 @@ pub fn prepare_principal_status_signing_v1(
         signing_descriptor(principal_method, verification_method, suite).map_err(js_error)?,
     )
     .map_err(js_error)?;
-    Ok(signing_request("principal-status", &request))
+    Ok(signing_request(&request))
 }
 
 /// Prepares exact grant-status signing bytes from canonical unsigned CBOR.
@@ -710,7 +719,7 @@ pub fn prepare_grant_status_signing_v1(
         signing_descriptor(principal_method, verification_method, suite).map_err(js_error)?,
     )
     .map_err(js_error)?;
-    Ok(signing_request("grant-status", &request))
+    Ok(signing_request(&request))
 }
 
 /// Completes one grant with a signature over the exact prepared preimage.
@@ -1869,19 +1878,11 @@ fn signing_descriptor(
     ))
 }
 
-fn signing_request<T>(
-    object_kind: &'static str,
-    request: &ExternalSigningRequest<T>,
-) -> AuthoringSigningRequestV1 {
-    let object_id = match request.object_id() {
-        SigningObjectId::Grant(identifier) => identifier.as_bytes().to_vec(),
-        SigningObjectId::Action(identifier) => identifier.as_bytes().to_vec(),
-        SigningObjectId::PrincipalStatus(identifier) => identifier.as_bytes().to_vec(),
-        SigningObjectId::GrantStatus(identifier) => identifier.as_bytes().to_vec(),
-    };
+fn signing_request<T>(request: &ExternalSigningRequest<T>) -> AuthoringSigningRequestV1 {
     AuthoringSigningRequestV1 {
-        object_kind,
-        object_id,
+        object_kind: request.object_id().label(),
+        request_id: request.request_id(),
+        object_id: request.object_id().as_bytes().to_vec(),
         signing_preimage: request.signing_preimage().to_vec(),
         transaction_digest: request.transaction_digest().as_bytes().to_vec(),
     }
@@ -2265,9 +2266,11 @@ mod tests {
         let envelope = bundle.actions()[0].envelope().clone();
         let descriptor = bundle.actions()[0].signature().descriptor().clone();
         let native = prepare_action(envelope.clone(), descriptor).unwrap();
-        let projected = signing_request("action", &native);
+        let projected = signing_request(&native);
 
         assert_eq!(projected.object_kind, "action");
+        assert_eq!(projected.request_id, native.request_id());
+        assert!(projected.request_id.starts_with("action:"));
         assert_eq!(projected.signing_preimage, native.signing_preimage());
         assert_eq!(
             projected.transaction_digest,

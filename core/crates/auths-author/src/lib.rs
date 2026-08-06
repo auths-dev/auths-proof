@@ -5,6 +5,7 @@
 
 extern crate alloc;
 
+use alloc::string::String;
 use alloc::vec::Vec;
 use auths_authority::{AuthorScopeDecision, evaluate_author_scope_view};
 use auths_codec::{
@@ -376,6 +377,41 @@ pub enum SigningObjectId {
     GrantStatus(GrantStatusId),
 }
 
+impl SigningObjectId {
+    /// Returns the exact identifier bytes.
+    #[must_use]
+    pub const fn as_bytes(&self) -> &[u8; 32] {
+        match self {
+            Self::Grant(identifier) => identifier.as_bytes(),
+            Self::Action(identifier) => identifier.as_bytes(),
+            Self::PrincipalStatus(identifier) => identifier.as_bytes(),
+            Self::GrantStatus(identifier) => identifier.as_bytes(),
+        }
+    }
+
+    /// Returns the closed object-kind label.
+    #[must_use]
+    pub const fn label(&self) -> &'static str {
+        match self {
+            Self::Grant(_) => "grant",
+            Self::Action(_) => "action",
+            Self::PrincipalStatus(_) => "principal-status",
+            Self::GrantStatus(_) => "grant-status",
+        }
+    }
+}
+
+/// Longest label, two 32-byte hex identifiers, and two separators.
+const REQUEST_ID_CAPACITY: usize = 16 + 1 + 64 + 1 + 64;
+
+fn push_hex(output: &mut String, bytes: &[u8; 32]) {
+    const DIGITS: &[u8; 16] = b"0123456789abcdef";
+    for byte in bytes {
+        output.push(DIGITS[usize::from(byte >> 4)] as char);
+        output.push(DIGITS[usize::from(byte & 0x0f)] as char);
+    }
+}
+
 /// Exact bytes and descriptor to submit to an external signer.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ExternalSigningRequest<T> {
@@ -402,6 +438,22 @@ impl<T> ExternalSigningRequest<T> {
     #[must_use]
     pub fn signing_preimage(&self) -> &[u8] {
         &self.signing_preimage
+    }
+
+    /// Returns the exact identifier for this signing transaction.
+    ///
+    /// Custody ports and approval providers echo this value back, so its
+    /// format is owned here rather than assembled by each language binding.
+    /// It is `<object kind>:<hex object id>:<hex transaction binding>`.
+    #[must_use]
+    pub fn request_id(&self) -> String {
+        let mut value = String::with_capacity(REQUEST_ID_CAPACITY);
+        value.push_str(self.object_id.label());
+        value.push(':');
+        push_hex(&mut value, self.object_id.as_bytes());
+        value.push(':');
+        push_hex(&mut value, self.transaction_digest().as_bytes());
+        value
     }
 
     /// Returns the transaction binding every custody port must echo back.

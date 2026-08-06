@@ -183,6 +183,7 @@ function signingFixture(overrides = {}) {
     prepare(objectKind) {
       return {
         objectKind,
+        requestId: `${objectKind}:double`,
         objectId: new Uint8Array(32).fill(3),
         signingPreimage: new Uint8Array([4, 5, 6]),
         // The real adapter carries the binding stated by auths-codec; this
@@ -442,13 +443,16 @@ test("the transaction binding comes from the core, not from the binding", async 
     descriptor().suite,
   );
   const stated = request.transactionDigest.slice();
+  const statedRequestId = request.requestId;
   request.free?.();
   assert.equal(stated.length, 32);
   assert.notDeepEqual(stated, new Uint8Array(32));
+  // The identifier format belongs to auths-author, not to this binding.
+  assert.match(statedRequestId, /^grant:[0-9a-f]{64}:[0-9a-f]{64}$/);
 
   // What the SDK hands to approval and to custody for the same bytes. The
   // binding carries the core's value; it derives nothing of its own.
-  const seen = { approval: undefined, signer: undefined };
+  const seen = { approval: undefined, signer: undefined, ids: [] };
   const fixture = signingFixture({ unsignedObject });
   const observing = {
     ...fixture.options,
@@ -457,6 +461,7 @@ test("the transaction binding comes from the core, not from the binding", async 
       provider: {
         async approve(approvalRequest) {
           seen.approval = approvalRequest.transactionDigest.slice();
+          seen.ids.push(approvalRequest.requestId);
           return fixture.options.approval.provider.approve(approvalRequest);
         },
       },
@@ -465,6 +470,7 @@ test("the transaction binding comes from the core, not from the binding", async 
       ...fixture.options.signer,
       async sign(signingRequest) {
         seen.signer = signingRequest.transactionDigest.slice();
+        seen.ids.push(signingRequest.requestId);
         return fixture.options.signer.sign(signingRequest);
       },
     },
@@ -477,4 +483,5 @@ test("the transaction binding comes from the core, not from the binding", async 
   assert.deepEqual(seen.approval, stated);
   assert.deepEqual(seen.signer, stated);
   assert.deepEqual(result.transactionDigest, stated);
+  assert.deepEqual(seen.ids, [statedRequestId, statedRequestId]);
 });
