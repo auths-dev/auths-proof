@@ -37,8 +37,8 @@
   ],
   "scripts": {
     "build": "node tools/clean-dist.mjs && tsc -p tsconfig.json",
-    "build:wasm": "wasm-pack build ../wasm/auths-proof-wasm --target web --out-dir ../../typescript/wasm",
     "build:vectors": "cargo run -p auths-proof-wasm --example generate-node-vectors -- ../../target/binding-vectors",
+    "build:wasm": "wasm-pack build ../wasm/auths-proof-wasm --target web --out-dir ../../typescript/wasm",
     "test": "npm run test:all",
     "test:all": "npm run test:contract && npm run test:integration && npm run test:unit && npm run test:package && npm run test:examples && npm run test:api",
     "test:api": "npm run build && node tools/public-api.mjs",
@@ -47,6 +47,7 @@
     "test:examples": "npm run build && tsc -p examples/tsconfig.json",
     "test:integration": "npm run build && npm run build:wasm && npm run build:vectors && node --test test/integration/**/*.test.js",
     "test:package": "npm run build && node --test test/package/**/*.test.js",
+    "test:packed": "npm run test:package && npm run test:browser",
     "test:unit": "npm run build && node --test test/unit/**/*.test.js"
   },
   "devDependencies": {
