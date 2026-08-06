@@ -11,6 +11,7 @@ pub(crate) fn ci() -> Result<(), String> {
 pub(crate) fn ci_authoritative() -> Result<(), String> {
     format_all()?;
     arch(false)?;
+    crate::binding_semantics::binding_semantics()?;
     semantic_freeze(false)?;
     public_naming()?;
     release_contract()?;
@@ -141,6 +142,9 @@ pub(crate) fn demos_check() -> Result<(), String> {
 
 pub(crate) fn bindings_check() -> Result<(), String> {
     layer_check("bindings")?;
+    // Fails before the long conformance run: a binding that holds protocol
+    // meaning is an architecture defect, not a test failure.
+    crate::binding_semantics::binding_semantics()?;
     bindings_conformance()
 }
 
