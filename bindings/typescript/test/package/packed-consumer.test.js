@@ -43,7 +43,7 @@ test("packed package installs and executes only through published entry points",
     await writeFile(join(temporary, "consumer.mjs"), `
       import { readFile } from "node:fs/promises";
       import { Auths, loadPortableAuths } from "@auths-dev/sdk";
-      await import("@auths-dev/sdk/advanced");
+      const { createDiagnosticVerifier } = await import("@auths-dev/sdk/advanced");
       await import("@auths-dev/sdk/mcp");
       await import("@auths-dev/sdk/profile-kit");
       await import("@auths-dev/sdk/testkit");
@@ -57,12 +57,26 @@ test("packed package installs and executes only through published entry points",
         await bytes("proof.cbor"), action, await bytes("denied.context.cbor"),
       );
       const indeterminateBytes = await bytes("indeterminate.result.cbor");
-      const indeterminate = new Auths({ verifyV1: () => indeterminateBytes }).verify(
+      const indeterminate = createDiagnosticVerifier({ verifyV1: () => indeterminateBytes }).verify(
         new Uint8Array([1]), action, new Uint8Array([2]),
       );
       if (authorized.kind !== "authorized") throw new Error("authorized fixture drifted");
       if (denied.kind !== "denied") throw new Error("denied fixture drifted");
       if (indeterminate.kind !== "indeterminate") throw new Error("indeterminate fixture drifted");
+      if (indeterminate.effectCapable !== false) throw new Error("diagnostic result claimed effect capability");
+      if ("action" in indeterminate) throw new Error("diagnostic result carried a verified action");
+      try {
+        new Auths({ verifyV1: () => indeterminateBytes });
+        throw new Error("installed package allowed engine injection");
+      } catch (error) {
+        if (!/sealed/.test(String(error?.message))) throw error;
+      }
+      const forged = createDiagnosticVerifier({ verifyV1: () => authorized.resultCbor }).verify(
+        new Uint8Array([1]), action, new Uint8Array([2]),
+      );
+      if (forged.kind !== "authorized" || "action" in forged) {
+        throw new Error("forged authorized bytes produced a verified action");
+      }
       try {
         await import("@auths-dev/sdk/workflow");
         throw new Error("internal workflow subpath was importable");

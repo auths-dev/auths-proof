@@ -1,5 +1,5 @@
 # Installed @auths-dev/sdk public API v1
-# declaration-sha256 fda4ec987b49b8836996720d59d3a1f5cf5932d50138f0882b94799cffe92c97
+# declaration-sha256 e44fd4d92b44494c4879ee78096d24de8f0768f20f676dc0b22667ef046598d4
 .	AgentIdentity	type
 .	ApprovalConfiguration	type
 .	ApprovalExecutionSummary	type
@@ -39,7 +39,6 @@
 .	loadAuths	value
 .	LoadAuthsOptions	type
 .	loadPortableAuths	value
-.	LoadPortableAuthsOptions	type
 .	OverGrantingWarning	type
 .	PermissionSummary	type
 .	PlanAuthoritySummary	type
@@ -84,13 +83,15 @@
 ./advanced	Auths	value+type
 ./advanced	CanonicalCommitment	type
 ./advanced	commitCanonical	value
+./advanced	createDiagnosticVerifier	value
 ./advanced	DecisionInspection	type
 ./advanced	DeniedResult	type
+./advanced	DiagnosticResult	type
+./advanced	DiagnosticVerifier	value+type
 ./advanced	Explanation	type
 ./advanced	IndeterminateResult	type
 ./advanced	inspectDecision	value
 ./advanced	loadPortableAuths	value
-./advanced	LoadPortableAuthsOptions	type
 ./advanced	PortableWasmEngine	type
 ./advanced	VerdictKind	type
 ./advanced	VerificationMetrics	type

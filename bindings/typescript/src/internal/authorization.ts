@@ -1,4 +1,4 @@
-import { Auths } from "../verifier/client.js";
+import { mintPackagedVerifierEngine } from "../verifier/result.js";
 import {
   type AttachedAgent,
   type ApprovalConfiguration,
@@ -61,10 +61,7 @@ export async function authorizePreparedAction(
       preparation.canonicalActionCbor,
       trustedContextForClient(resources.client),
     );
-    const verifier = new Auths({
-      verifyV1: (proof, canonicalAction, trustedContext) =>
-        engine.verifyV1(proof, canonicalAction, trustedContext),
-    });
+    const verifier = mintPackagedVerifierEngine(engine);
     const result = verifier.verify(
       artifacts.proofCbor,
       preparation.canonicalActionCbor,

@@ -1,8 +1,10 @@
-import { decodeResult } from "./decoder.js";
-import { explain } from "./explanation.js";
+import { interpretVerification } from "./decode-common.js";
+import { isPackagedEngine } from "./packaged-registry.js";
 
 const AUTHORIZED_TOKEN: unique symbol = Symbol("auths-authorized");
+const PACKAGED_VERIFIER_TOKEN: unique symbol = Symbol("auths-packaged-verifier");
 let mintVerifiedAction: (canonicalAction: Uint8Array) => VerifiedAction;
+let mintPackagedVerifier: (engine: PortableWasmEngine) => Auths;
 
 export type VerdictKind = "authorized" | "denied" | "indeterminate";
 export type VerificationStage =
@@ -86,12 +88,34 @@ export interface PortableWasmEngine {
   ): Uint8Array;
 }
 
-/** Advanced raw verifier result; it is not an effect-capable profile command. */
+/**
+ * Capability-minting verifier bound to the SDK-packaged WASM subject.
+ *
+ * Application code cannot construct one and cannot supply the engine whose
+ * output selects the authorized branch. Caller-supplied engines belong on
+ * `createDiagnosticVerifier`, whose results are never effect-capable.
+ */
 export class Auths {
   readonly #engine: PortableWasmEngine;
 
-  constructor(engine: PortableWasmEngine) {
+  private constructor(token: typeof PACKAGED_VERIFIER_TOKEN, engine: PortableWasmEngine) {
+    if (token !== PACKAGED_VERIFIER_TOKEN) throw new TypeError("sealed Auths verifier");
+    if (!isPackagedEngine(engine)) {
+      throw new TypeError("Auths verification requires the packaged WASM engine");
+    }
     this.#engine = engine;
+    Object.freeze(this);
+  }
+
+  private static create(
+    token: typeof PACKAGED_VERIFIER_TOKEN,
+    engine: PortableWasmEngine,
+  ): Auths {
+    return new Auths(token, engine);
+  }
+
+  static {
+    mintPackagedVerifier = (engine) => Auths.create(PACKAGED_VERIFIER_TOKEN, engine);
   }
 
   verify(
@@ -100,24 +124,24 @@ export class Auths {
     trustedContextCbor: Uint8Array,
   ): VerificationResult {
     const bytes = this.#engine.verifyV1(proofCbor, canonicalActionCbor, trustedContextCbor);
-    const decoded = decodeResult(bytes);
-    const explanation = explain(decoded.kind, decoded.code);
-    const common = {
-      code: decoded.code,
-      stage: decoded.stage,
-      explanation,
-      metrics: decoded.metrics,
-      requiredConfiguration: decoded.requiredConfiguration?.slice(),
-      localConfiguration: decoded.localConfiguration.slice(),
-      resultCbor: bytes.slice(),
-    };
-    if (decoded.kind === "authorized") {
+    const { kind, ...common } = interpretVerification(bytes);
+    if (kind === "authorized") {
       return {
         ...common,
         kind: "authorized",
         action: mintVerifiedAction(canonicalActionCbor),
       };
     }
-    return { ...common, kind: decoded.kind };
+    return { ...common, kind };
   }
+}
+
+/**
+ * Package-private constructor for the capability-minting verifier.
+ *
+ * It is intentionally absent from every published entry point, and it refuses
+ * any engine that the packaged loader did not produce.
+ */
+export function mintPackagedVerifierEngine(engine: PortableWasmEngine): Auths {
+  return mintPackagedVerifier(engine);
 }
