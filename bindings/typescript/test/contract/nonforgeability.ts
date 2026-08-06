@@ -67,6 +67,27 @@ new ProfilePlan(Symbol(), {}, [], {});
 // @ts-expect-error verified plans are created only after every member authorizes
 new VerifiedPlanCommand(Symbol(), []);
 
+declare const inspection: advanced.DecisionInspection;
+declare const diagnostic: advanced.DiagnosticResult;
+
+// @ts-expect-error inspection evidence is not a gateway-accepted command
+const promotedCommand: McpCommand = inspection;
+void promotedCommand;
+
+// @ts-expect-error diagnostic results are never gateway-accepted commands
+const promotedDiagnostic: McpCommand = diagnostic;
+void promotedDiagnostic;
+
+// @ts-expect-error diagnostic results carry no verified action
+diagnostic.action;
+
+// @ts-expect-error inspection evidence carries no verified action
+inspection.action;
+
+// @ts-expect-error a caller-supplied engine cannot produce an authorized SDK result
+const promotedResult: advanced.AuthorizedResult = diagnostic;
+void promotedResult;
+
 // @ts-expect-error a signer without an exact sign operation is not a Signer
 const invalidSigner: Signer = {
   kind: "invalid",
