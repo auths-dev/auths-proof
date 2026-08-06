@@ -158,8 +158,10 @@ pub(crate) fn live_demo() -> Result<(), String> {
         let relative = path
             .strip_prefix(&dist)
             .map_err(|_| format!("TypeScript build output escaped {}", dist.display()))?;
+        // The vendor tree mirrors the published package layout so the SDK's
+        // packaged WASM loader resolves vendor/wasm without any injected input.
         expected.insert(format!(
-            "vendor/{}",
+            "vendor/dist/{}",
             relative.to_string_lossy().replace('\\', "/")
         ));
     }

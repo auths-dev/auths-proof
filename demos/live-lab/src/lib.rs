@@ -125,7 +125,7 @@ pub async fn build_site(repository: &Path, output: &Path) -> Result<(), BuildErr
     write(output.join("styles.css"), STYLES_CSS)?;
     write(output.join("vercel.json"), VERCEL_JSON)?;
 
-    copy_javascript_tree(&sdk.join("dist"), &output.join("vendor"))?;
+    copy_javascript_tree(&sdk.join("dist"), &output.join("vendor/dist"))?;
     for name in [
         "auths_proof_wasm.js",
         "auths_proof_wasm_bg.wasm",

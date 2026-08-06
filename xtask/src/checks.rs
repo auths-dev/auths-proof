@@ -206,7 +206,13 @@ pub(crate) fn npm_package_smoke() -> Result<(), String> {
     fs::write(
         &smoke,
         "import * as auths from '@auths-dev/sdk';\n\
-         if (typeof auths.Auths !== 'function') throw new Error('Auths export missing');\n",
+         import * as advanced from '@auths-dev/sdk/advanced';\n\
+         if (typeof auths.loadAuths !== 'function') throw new Error('loadAuths export missing');\n\
+         if (typeof advanced.Auths !== 'function') throw new Error('Auths export missing');\n\
+         if (typeof advanced.loadPortableAuths !== 'function') throw new Error('loadPortableAuths export missing');\n\
+         if (typeof advanced.createDiagnosticVerifier !== 'function') throw new Error('createDiagnosticVerifier export missing');\n\
+         if ('Auths' in auths) throw new Error('raw verifier leaked onto the root entry point');\n\
+         if ('loadPortableAuths' in auths) throw new Error('raw loader leaked onto the root entry point');\n",
     )
     .map_err(|error| format!("could not write npm install smoke: {error}"))?;
     command_in("node", &[path_text(&smoke)?], &install_directory, None)
