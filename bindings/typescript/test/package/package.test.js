@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 
 test("package exposes bounded public surfaces and includes contributor docs", async () => {
   const manifest = JSON.parse(
@@ -16,6 +18,54 @@ test("package exposes bounded public surfaces and includes contributor docs", as
   assert.ok(manifest.files.includes("docs"));
   assert.ok(manifest.files.includes("wasm/auths_proof_wasm_bg.wasm"));
   assert.equal(manifest.files.some((entry) => entry.includes("test/")), false);
+  assert.deepEqual([...manifest.files].sort(), [
+    "CONTRIBUTING.md",
+    "README.md",
+    "dist",
+    "docs",
+    "wasm/auths_proof_wasm.d.ts",
+    "wasm/auths_proof_wasm.js",
+    "wasm/auths_proof_wasm_bg.wasm",
+    "wasm/auths_proof_wasm_bg.wasm.d.ts",
+  ]);
+});
+
+test("packed contents carry the published artifacts and no source or tests", async () => {
+  const listing = execFileSync("npm", ["pack", "--dry-run", "--json"], {
+    cwd: fileURLToPath(new URL("../../", import.meta.url)),
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  });
+  const [packed] = JSON.parse(listing);
+  const entries = packed.files.map((file) => file.path);
+
+  for (const required of [
+    "package.json",
+    "dist/index.js",
+    "dist/index.d.ts",
+    "dist/advanced.js",
+    "dist/advanced.d.ts",
+    "dist/mcp.js",
+    "dist/profile-kit.js",
+    "dist/testkit/index.js",
+    "wasm/auths_proof_wasm.js",
+    "wasm/auths_proof_wasm_bg.wasm",
+    "README.md",
+  ]) {
+    assert.ok(entries.includes(required), `packed artifact omitted ${required}`);
+  }
+
+  // The published subject is the built wrapper plus its WASM bytes. Source,
+  // tests, fixtures, and tooling must not travel with it.
+  for (const entry of entries) {
+    assert.equal(
+      /^(src|test|tools|examples|api|node_modules)\//.test(entry),
+      false,
+      `packed artifact leaked ${entry}`,
+    );
+    assert.equal(entry.endsWith(".map"), false, `packed artifact leaked source map ${entry}`);
+    assert.equal(entry.endsWith(".tgz"), false, `packed artifact nested a tarball: ${entry}`);
+  }
 });
 
 test("compatibility barrels contain exports only", async () => {

@@ -65,6 +65,10 @@ jobs:
         with:
           name: typescript-sdk-runtime-${{ github.run_id }}-${{ github.run_attempt }}
           path: .
+      - run: npm run test:contract
+        working-directory: bindings/typescript
+      - run: npm run test:sealed
+        working-directory: bindings/typescript
       - run: npm run test:package
         working-directory: bindings/typescript
       - run: npm run test:api

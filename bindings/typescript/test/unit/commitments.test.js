@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { approvalPolicy, commitCanonical } from "../../dist/index.js";
+import { approvalPolicy } from "../../dist/index.js";
+import { commitCanonical } from "../../dist/advanced.js";
 
 test("canonical commitments are deterministic and domain separated", async () => {
   const bytes = new TextEncoder().encode("canonical");

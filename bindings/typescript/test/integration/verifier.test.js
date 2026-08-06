@@ -1,7 +1,12 @@
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { Auths, VerifiedAction, loadPortableAuths } from "../../dist/index.js";
+import {
+  Auths,
+  VerifiedAction,
+  createDiagnosticVerifier,
+  loadPortableAuths,
+} from "../../dist/advanced.js";
 
 const fixture = (name) =>
   readFileSync(
@@ -12,30 +17,33 @@ const bindingVector = (name) =>
     new URL(`../../../../target/binding-vectors/${name}`, import.meta.url),
   );
 
-test("authorized results expose only a sealed verified action", () => {
-  const expected = fixture("raw-key-chain.result.cbor");
-  const engine = new Auths({ verifyV1: () => expected });
+test("authorized results expose only a sealed verified action", async () => {
+  const auths = await loadPortableAuths();
   const action = fixture("raw-key-chain.action.cbor");
-  const result = engine.verify(new Uint8Array([1]), action, new Uint8Array([2]));
+  const result = auths.verify(
+    fixture("raw-key-chain.proof.cbor"),
+    action,
+    bindingVector("authorized.context.cbor"),
+  );
   assert.equal(result.kind, "authorized");
   assert.equal(result.code, "authorized");
   assert.equal(result.requiredConfiguration.length, 32);
   assert.equal(result.localConfiguration.length, 32);
   assert.deepEqual(result.requiredConfiguration, result.localConfiguration);
-  assert.deepEqual(result.action.canonicalBytes(), action);
+  assert.deepEqual(Buffer.from(result.action.canonicalBytes()), action);
 });
 
 test("application code cannot construct a verified action", () => {
   assert.throws(() => new VerifiedAction(Symbol(), new Uint8Array()), /sealed/);
 });
 
+test("application code cannot construct a capability-minting verifier", () => {
+  assert.throws(() => new Auths({ verifyV1: () => new Uint8Array() }), /sealed/);
+  assert.throws(() => new Auths(Symbol(), { verifyV1: () => new Uint8Array() }), /sealed/);
+});
+
 test("precompiled WASM matches the canonical Rust result", async () => {
-  const auths = await loadPortableAuths({
-    moduleUrl: new URL("../../wasm/auths_proof_wasm.js", import.meta.url).href,
-    wasmInput: readFileSync(
-      new URL("../../wasm/auths_proof_wasm_bg.wasm", import.meta.url),
-    ),
-  });
+  const auths = await loadPortableAuths();
   const result = auths.verify(
     fixture("raw-key-chain.proof.cbor"),
     fixture("raw-key-chain.action.cbor"),
@@ -49,7 +57,8 @@ test("precompiled WASM matches the canonical Rust result", async () => {
   );
 });
 
-test("package-owned portable loader works in native Node", async () => {
+test("package-owned portable loader accepts no injected module", async () => {
+  assert.equal(loadPortableAuths.length, 0);
   const auths = await loadPortableAuths();
   const result = auths.verify(
     fixture("raw-key-chain.proof.cbor"),
@@ -60,12 +69,7 @@ test("package-owned portable loader works in native Node", async () => {
 });
 
 test("configuration mismatch reports required and executed commitments", async () => {
-  const auths = await loadPortableAuths({
-    moduleUrl: new URL("../../wasm/auths_proof_wasm.js", import.meta.url).href,
-    wasmInput: readFileSync(
-      new URL("../../wasm/auths_proof_wasm_bg.wasm", import.meta.url),
-    ),
-  });
+  const auths = await loadPortableAuths();
   const result = auths.verify(
     fixture("raw-key-chain.proof.cbor"),
     fixture("raw-key-chain.action.cbor"),
@@ -76,6 +80,7 @@ test("configuration mismatch reports required and executed commitments", async (
   assert.equal(result.requiredConfiguration.length, 32);
   assert.equal(result.localConfiguration.length, 32);
   assert.notDeepEqual(result.requiredConfiguration, result.localConfiguration);
+  assert.equal("action" in result, false);
 });
 
 test("portable decoder rejects shape version and trailing data", () => {
@@ -83,43 +88,34 @@ test("portable decoder rejects shape version and trailing data", () => {
   assert.equal(canonical[0], 0xb0);
   assert.deepEqual(canonical.subarray(-2), Buffer.from([0x0f, 0x02]));
   const action = fixture("raw-key-chain.action.cbor");
+  const verifying = (bytes) => () =>
+    createDiagnosticVerifier({ verifyV1: () => bytes }).verify(
+      new Uint8Array([1]),
+      action,
+      new Uint8Array([2]),
+    );
 
-  const trailing = new Auths({
-    verifyV1: () => Buffer.concat([canonical, Buffer.from([0x00])]),
-  });
-  assert.throws(
-    () => trailing.verify(new Uint8Array([1]), action, new Uint8Array([2])),
-    /trailing/,
-  );
+  assert.throws(verifying(Buffer.concat([canonical, Buffer.from([0x00])])), /trailing/);
 
-  const reorderedKeys = Buffer.concat([
-    Buffer.from([0xb0, 0x01, 0x04, 0x00, 0x00]),
-    canonical.subarray(5),
-  ]);
-  const reordered = new Auths({ verifyV1: () => reorderedKeys });
   assert.throws(
-    () => reordered.verify(new Uint8Array([1]), action, new Uint8Array([2])),
+    verifying(Buffer.concat([
+      Buffer.from([0xb0, 0x01, 0x04, 0x00, 0x00]),
+      canonical.subarray(5),
+    ])),
     /canonical/,
   );
 
-  const unknownField = Buffer.concat([
-    Buffer.from([0xb1]),
-    canonical.subarray(1),
-    Buffer.from([0x10, 0xf6]),
-  ]);
-  const unknown = new Auths({ verifyV1: () => unknownField });
   assert.throws(
-    () => unknown.verify(new Uint8Array([1]), action, new Uint8Array([2])),
+    verifying(Buffer.concat([
+      Buffer.from([0xb1]),
+      canonical.subarray(1),
+      Buffer.from([0x10, 0xf6]),
+    ])),
     /shape/,
   );
 
-  const unsupportedAbi = Buffer.concat([
-    canonical.subarray(0, -1),
-    Buffer.from([0x03]),
-  ]);
-  const unsupported = new Auths({ verifyV1: () => unsupportedAbi });
   assert.throws(
-    () => unsupported.verify(new Uint8Array([1]), action, new Uint8Array([2])),
+    verifying(Buffer.concat([canonical.subarray(0, -1), Buffer.from([0x03])])),
     /ABI version/,
   );
 });

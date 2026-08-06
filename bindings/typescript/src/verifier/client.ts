@@ -1,9 +1,21 @@
 import { createWorkflowClient, type LoadWorkflowOptions } from "../workflow.js";
-import { Auths, type PortableWasmEngine } from "./result.js";
+import { mintPackagedVerifierEngine, type Auths } from "./result.js";
 import { loadPackagedWorkflowEngine } from "./wasm.js";
 
 export * from "./authority.js";
-export * from "./result.js";
+export {
+  Auths,
+  VerifiedAction,
+  type AuthorizedResult,
+  type DeniedResult,
+  type Explanation,
+  type IndeterminateResult,
+  type PortableWasmEngine,
+  type VerdictKind,
+  type VerificationMetrics,
+  type VerificationResult,
+  type VerificationStage,
+} from "./result.js";
 export {
   AuthsClient,
   AuthsWorkflowError,
@@ -59,29 +71,14 @@ export {
   trustedContextSource,
 } from "../workflow.js";
 
-export interface LoadPortableAuthsOptions {
-  readonly moduleUrl?: string;
-  readonly wasmInput?: RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
-}
-
-export async function loadPortableAuths(
-  options: LoadPortableAuthsOptions = {},
-): Promise<Auths> {
-  if (options.moduleUrl === undefined && options.wasmInput === undefined) {
-    const packaged = await loadPackagedWorkflowEngine();
-    return new Auths({ verifyV1: packaged.verifyV1 });
-  }
-  const moduleUrl = options.moduleUrl ?? new URL("../../wasm/auths_proof_wasm.js", import.meta.url).href;
-  const loaded = (await import(moduleUrl)) as {
-    default?: (input?: { module_or_path: LoadPortableAuthsOptions["wasmInput"] }) => Promise<unknown>;
-    verifyV1: PortableWasmEngine["verifyV1"];
-  };
-  if (loaded.default !== undefined) {
-    if (options.wasmInput === undefined) await loaded.default();
-    else await loaded.default({ module_or_path: options.wasmInput });
-  }
-  if (typeof loaded.verifyV1 !== "function") throw new TypeError("Auths WASM module omitted verifyV1");
-  return new Auths({ verifyV1: loaded.verifyV1 });
+/**
+ * Loads the raw verifier over the SDK-packaged WASM subject.
+ *
+ * It accepts no module URL, WASM input, or engine: the capability-minting
+ * path resolves only the reviewed implementation shipped with this package.
+ */
+export async function loadPortableAuths(): Promise<Auths> {
+  return mintPackagedVerifierEngine(await loadPackagedWorkflowEngine());
 }
 
 export type LoadAuthsOptions = LoadWorkflowOptions;

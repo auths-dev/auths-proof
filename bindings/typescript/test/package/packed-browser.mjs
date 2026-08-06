@@ -39,9 +39,13 @@ try {
         approvalPolicy,
         commandsForGateway,
         loadAuths,
-        loadPortableAuths,
         prepareRawKeyAuthority,
       } from "/node_modules/@auths-dev/sdk/dist/index.js";
+      import {
+        createDiagnosticVerifier,
+        inspectDecision,
+        loadPortableAuths,
+      } from "/node_modules/@auths-dev/sdk/dist/advanced.js";
       import { mcp } from "/node_modules/@auths-dev/sdk/dist/mcp.js";
       import { development } from "/node_modules/@auths-dev/sdk/dist/testkit/index.js";
       const bytes = async (name) => new Uint8Array(await (await fetch('/fixtures/' + name)).arrayBuffer());
@@ -97,6 +101,19 @@ try {
         }
         const deniedDecision = await agent.authorize(profile.call('delete', { record: 'one' }));
         deniedKind = deniedDecision.kind;
+        if ('command' in deniedDecision) throw new Error('denied browser decision carried a command');
+        if (planDecision.kind === 'authorized') {
+          const inspection = await inspectDecision(planDecision.results[0]);
+          if ('command' in inspection || 'action' in inspection) {
+            throw new Error('browser inspection exposed a capability');
+          }
+        }
+        const forged = createDiagnosticVerifier({
+          verifyV1: () => authorized.resultCbor,
+        }).verify(new Uint8Array([1]), action, new Uint8Array([2]));
+        if (forged.kind !== 'authorized' || 'action' in forged || forged.effectCapable !== false) {
+          throw new Error('browser diagnostic result was effect-capable');
+        }
       } finally {
         await client.dispose();
         await rootSigner.dispose();

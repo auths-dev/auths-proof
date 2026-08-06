@@ -159,12 +159,9 @@ for (const designToken of [
 }
 
 const { loadPortableAuths } = await import(
-  pathToFileURL(join(site, "vendor/index.js")).href
+  pathToFileURL(join(site, "vendor/dist/advanced.js")).href
 );
-const auths = await loadPortableAuths({
-  moduleUrl: pathToFileURL(join(site, "vendor/wasm/auths_proof_wasm.js")).href,
-  wasmInput: await readFile(join(site, "vendor/wasm/auths_proof_wasm_bg.wasm")),
-});
+const auths = await loadPortableAuths();
 const scenario = JSON.parse(
   await readFile(join(site, "assets/scenario.json"), "utf8"),
 );

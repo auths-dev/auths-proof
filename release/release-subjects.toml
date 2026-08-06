@@ -44,6 +44,7 @@ media_type = "application/wasm"
 reproducibility = "platform-reproducible"
 producer = "wasm-pack build with the frozen Rust and wasm-bindgen toolchains"
 publication = "Contained by the npm subject; not separately published"
+binding = "The JavaScript wrapper, these WASM bytes, and the packaged loader form one subject. The published SDK resolves this exact vendored subject and accepts no caller-selected module, WASM input, or engine on the capability-minting path, so provenance over the npm subject covers verification behavior."
 
 [[families]]
 id = "assurance-bundle"

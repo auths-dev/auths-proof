@@ -1,5 +1,6 @@
 import type { WorkflowWasmEngine } from "../workflow.js";
 import type { PortableWasmEngine } from "./result.js";
+import { registerPackagedEngine } from "./packaged-registry.js";
 
 export type PackagedWorkflowEngine = WorkflowWasmEngine & PortableWasmEngine;
 
@@ -43,5 +44,5 @@ export async function loadPackagedWorkflowEngine(): Promise<PackagedWorkflowEngi
   ) {
     throw new TypeError("Auths WASM module omitted workflow authoring exports");
   }
-  return loaded;
+  return registerPackagedEngine(loaded);
 }

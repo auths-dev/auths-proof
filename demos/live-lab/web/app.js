@@ -1,4 +1,4 @@
-import { loadPortableAuths } from "./vendor/index.js";
+import { loadPortableAuths } from "./vendor/dist/advanced.js";
 import {
   configurationState,
   formatNumber,
@@ -542,17 +542,13 @@ async function boot() {
     elements.developerPanel.hidden = !hidden;
     elements.developerToggle.setAttribute("aria-expanded", String(hidden));
   });
-  const wasmModuleUrl = new URL(
-    "./vendor/wasm/auths_proof_wasm.js",
-    import.meta.url,
-  ).href;
   const [scenario, auths] = await Promise.all([
     fetchWithRetry("./assets/scenario.json").then((response) =>
       response.json(),
     ),
-    fetchBytes("./vendor/wasm/auths_proof_wasm_bg.wasm").then((wasmInput) =>
-      loadPortableAuths({ moduleUrl: wasmModuleUrl, wasmInput }),
-    ),
+    // The verifier resolves only the WASM subject vendored beside it; the SDK
+    // accepts no caller-selected module or bytes on this path.
+    loadPortableAuths(),
   ]);
   state.scenario = scenario;
   state.auths = auths;

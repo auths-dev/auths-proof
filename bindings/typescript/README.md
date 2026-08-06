@@ -40,10 +40,11 @@ if (result.kind === "authorized") {
 }
 ```
 
-`approvalPolicy` creates typed configuration commitments,
-`inspectDecision` returns copied safe projections, and the separate
+`approvalPolicy` creates typed configuration commitments, the separate
 `@auths-dev/sdk/testkit` export provides unmistakably non-production ephemeral
-signers and profile mutation fixtures.
+signers and profile mutation fixtures, and every raw-verification surface —
+`loadPortableAuths`, `createDiagnosticVerifier`, `inspectDecision`, and
+`commitCanonical` — lives behind `@auths-dev/sdk/advanced`.
 
 ## Advanced raw verification
 
@@ -59,6 +60,12 @@ const result = auths.verify(proofBytes, canonicalActionBytes, contextBytes);
 
 An authorized raw verifier result is evidence, not a profile command accepted
 by a closed gateway.
+
+`loadPortableAuths` accepts no module URL, WASM input, or engine: it resolves
+only the reviewed WASM subject packaged with this SDK. To run an explicitly
+supplied engine — a differential test harness, or an engine under analysis —
+use `createDiagnosticVerifier`, whose `DiagnosticResult` reports the verdict
+but never carries a `VerifiedAction`, whatever bytes the engine returns.
 
 Local/headless applications can bootstrap an explicit Ed25519 raw-key root
 without hand-authoring a grant or verifier context:

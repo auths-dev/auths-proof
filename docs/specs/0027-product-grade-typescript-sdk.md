@@ -4,7 +4,9 @@
 repository owner on 2026-08-04; publication, promotion to the Full Workflow
 tier, and reviewed-security claims remain blocked on AP-SPEC-032,
 AP-SPEC-033, and issue 74; capability and non-forgeability gaps are tracked in
-issues 71, 72, and 76; the broader native critical-extension attenuation gap
+issues 71 and 72; issue 76's engine-injection and command-minting boundary is
+closed by the AP27-PR7 through AP27-PR9 unit below; the broader native
+critical-extension attenuation gap
 discovered during PR5 is tracked in issue 81; PR5 resolves the authoring
 semantic-freeze coverage gap tracked in issue 82; PR6 corrects the proof
 material and trusted-context contract gap tracked in issue 84; local external-
@@ -531,17 +533,19 @@ Implementation MUST add:
    verification, and exact cross-language fixtures. Do not add a generic
    operation-tag action, executor, credential provider, or global action
    union.
-7. **`AP27-PR7` — sealed command and gateway handoff.** Decode only the
+7. **`AP27-PR7` — sealed command and gateway handoff.** *(Implemented.)* Decode only the
    verifier-sealed action into an MCP command whose constructor is unavailable
    to application code. Add compile-time and runtime construction, mutation,
    copying, serialization, hostile-engine, dynamic-module, and
    denied/indeterminate tests. Issue 76 MUST be resolved by this unit; a
    caller-controlled engine may not select the capability-minting branch.
-8. **`AP27-PR8` — advanced inspection and explanation.** Preserve raw
+8. **`AP27-PR8` — advanced inspection and explanation.** *(Implemented.)* Preserve raw
    verification, canonical bytes, commitments, metrics, stable stages/codes,
    and bounded export behind visibly advanced APIs. Prove that inspection data
    cannot be promoted into a command.
-9. **`AP27-PR9` — external-consumer and package closure.** Exercise the packed
+9. **`AP27-PR9` — external-consumer and package closure.** *(Implemented; the
+   maintained macOS, Ubuntu, and Windows matrix is authoritative only on the
+   exact merged revision.)* Exercise the packed
    npm artifact from a repository with no Auths source checkout; compile every
    example; run Node and browser smoke tests; verify package contents,
    architecture, compliance, provenance subjects, and native macOS/Linux/
@@ -568,6 +572,22 @@ The TypeScript Full Workflow SDK gate is complete only when:
 - the final package installs and runs from a clean checkout in native Node on
   macOS, Ubuntu Linux, and Windows, and in a supported browser;
 - the authoritative repository checks pass on the exact revision.
+
+Units 7 through 9 are implemented as follows. Application code cannot reach the
+capability-minting constructor: `Auths` is token-gated and frozen, the packaged
+loader registers its exact module object, and minting refuses any spread, clone,
+`Object.create`, `Proxy`, or reconstructed engine. `loadPortableAuths` accepts no
+module URL, WASM input, or engine; explicitly supplied engines run through
+`createDiagnosticVerifier`, whose result carries no `VerifiedAction` whatever
+verdict the engine claims. Raw verification, commitments, and inspection live
+only on `@auths-dev/sdk/advanced`. The packed tarball is exercised from a
+directory with no Auths source checkout, in native Node with no network
+capability and in Chromium, compiling and running every maintained example.
+
+Remaining before the gate can be declared passed: the maintained macOS, Ubuntu,
+and Windows evidence must be produced on the exact merged revision, and the
+publication and independent-review blockers in AP-SPEC-032, AP-SPEC-033, and
+issue 74 are unchanged by this work.
 
 The release manifest, npm README, generated API documentation, package
 metadata, and issue-72 capability matrix MUST all label the package Full
