@@ -181,3 +181,57 @@ auths-webauthn = "core"
 xtask = "tooling"
 
 [exceptions]
+
+# Bindings call the Rust core and the WASM authoring ABI for every protocol
+# meaning. A cryptographic primitive or protocol constant written directly in
+# binding source is a second opinion about what Auths means, and each new
+# language multiplies it. Anything genuinely local is declared below with a
+# written reason; a stale allowance fails the check as loudly as an
+# undeclared primitive.
+[binding_semantics]
+scanned_paths = [
+  "bindings/typescript/src",
+  "bindings/python/python",
+]
+# Independent implementations exist to reproduce semantics on purpose.
+exempt_paths = ["bindings/independent"]
+scanned_extensions = ["ts", "js", "mjs", "py"]
+forbidden_patterns = [
+  "crypto.subtle",
+  "getRandomValues",
+  "createHash",
+  "createHmac",
+  "createPrivateKey",
+  "createPublicKey",
+  "hashlib",
+  "hmac.",
+  "os.urandom",
+  "secrets.",
+  "nacl.",
+  "cryptography.hazmat",
+]
+
+[[binding_semantics.allowances]]
+path = "bindings/typescript/src/testkit/index.ts"
+pattern = "crypto.subtle"
+reason = "Non-production ephemeral development signer. External custody is deliberately outside the kernel, so a stand-in signer must hold a key locally; it is labelled ephemeral and ships only on the testkit entry point."
+
+[[binding_semantics.allowances]]
+path = "bindings/typescript/src/profiles/mcp/index.ts"
+pattern = "getRandomValues"
+reason = "Fresh local entropy for one action challenge. Randomness cannot come from an effect-free kernel; the authoring ABI receives the challenge and rejects an invalid one, so Rust still owns the rule."
+
+[[binding_semantics.allowances]]
+path = "bindings/typescript/src/profiles/application/index.ts"
+pattern = "getRandomValues"
+reason = "Fresh local entropy for one action challenge. Randomness cannot come from an effect-free kernel; the authoring ABI receives the challenge and rejects an invalid one, so Rust still owns the rule."
+
+[[binding_semantics.allowances]]
+path = "bindings/typescript/src/internal/signing.ts"
+pattern = "crypto.subtle"
+reason = "KNOWN DUPLICATION, scheduled for removal. The transaction binding is SHA-256 over the signing preimage, and auths-custody already states that rule in Rust. TypeScript recomputes it, so the rule now lives in two languages and Python would make three. Move it behind an authoring ABI operation and delete this allowance."
+
+[[binding_semantics.allowances]]
+path = "bindings/typescript/src/commitments.ts"
+pattern = "crypto.subtle"
+reason = "UNDER REVIEW. commitCanonical defines an SDK-local domain-separated digest that has no Rust owner. If it is protocol-adjacent evidence it belongs in the core; if it is a logging convenience it must not be cloned into Python. Resolve the ownership question, then either move it or narrow this allowance."
