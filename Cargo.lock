@@ -387,7 +387,6 @@ dependencies = [
  "auths-author",
  "auths-model",
  "ed25519-dalek 2.2.0",
- "sha2 0.10.9",
  "subtle",
 ]
 

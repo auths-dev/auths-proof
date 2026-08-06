@@ -29,5 +29,5 @@ pub use hash::{
     action_id, action_signing_preimage, attachment_digest, body_digest, context_digest,
     evidence_id, grant_id, grant_signing_preimage, grant_status_id, grant_status_signing_preimage,
     plan_id, principal_status_id, principal_status_signing_preimage, proof_digest,
-    verification_result_digest,
+    transaction_binding, verification_result_digest,
 };

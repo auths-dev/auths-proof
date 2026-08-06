@@ -28,6 +28,8 @@ export interface NativeSigningRequest {
   readonly objectKind: string;
   readonly objectId: Uint8Array;
   readonly signingPreimage: Uint8Array;
+  /** Transaction binding stated by the Rust core, never recomputed here. */
+  readonly transactionDigest: Uint8Array;
   free?(): void;
 }
 
@@ -219,12 +221,10 @@ export class SigningCoordinator {
         native.signingPreimage,
         "signing preimage",
       );
-      const transactionDigest = new Uint8Array(
-        await crypto.subtle.digest(
-          "SHA-256",
-          new Uint8Array(signingPreimage).buffer,
-        ),
-      );
+      // The binding between a preimage and its transaction is protocol
+      // meaning. auths-codec states it, the authoring ABI carries it, and this
+      // binding commits to the value rather than deriving its own.
+      const transactionDigest = copyExactDigest(native.transactionDigest);
       const requestId = `${options.objectKind}:${hex(objectId)}:${hex(transactionDigest)}`;
 
       await approveExact(
@@ -472,6 +472,16 @@ function copyExactObjectId(value: Uint8Array): Uint8Array {
     throw new AuthsWorkflowError(
       "invalid-provider",
       "native authoring returned an invalid object identifier",
+    );
+  }
+  return value.slice();
+}
+
+function copyExactDigest(value: Uint8Array): Uint8Array {
+  if (!(value instanceof Uint8Array) || value.length !== 32) {
+    throw new AuthsWorkflowError(
+      "invalid-provider",
+      "native authoring returned an invalid transaction binding",
     );
   }
   return value.slice();

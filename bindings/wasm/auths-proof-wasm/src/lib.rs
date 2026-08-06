@@ -585,6 +585,7 @@ pub struct AuthoringSigningRequestV1 {
     object_kind: &'static str,
     object_id: Vec<u8>,
     signing_preimage: Vec<u8>,
+    transaction_digest: Vec<u8>,
 }
 
 #[wasm_bindgen]
@@ -608,6 +609,16 @@ impl AuthoringSigningRequestV1 {
     #[wasm_bindgen(getter, js_name = signingPreimage)]
     pub fn signing_preimage(&self) -> Vec<u8> {
         self.signing_preimage.clone()
+    }
+
+    /// Returns the transaction binding a custody port must echo back.
+    ///
+    /// Bindings commit to this value instead of restating the rule, so no
+    /// language recomputes what the preimage binds to.
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = transactionDigest)]
+    pub fn transaction_digest(&self) -> Vec<u8> {
+        self.transaction_digest.clone()
     }
 }
 
@@ -1872,6 +1883,7 @@ fn signing_request<T>(
         object_kind,
         object_id,
         signing_preimage: request.signing_preimage().to_vec(),
+        transaction_digest: request.transaction_digest().as_bytes().to_vec(),
     }
 }
 
@@ -2257,6 +2269,14 @@ mod tests {
 
         assert_eq!(projected.object_kind, "action");
         assert_eq!(projected.signing_preimage, native.signing_preimage());
+        assert_eq!(
+            projected.transaction_digest,
+            native.transaction_digest().as_bytes()
+        );
+        assert_eq!(
+            projected.transaction_digest,
+            auths_codec::transaction_binding(native.signing_preimage()).as_bytes()
+        );
         assert_eq!(
             projected.object_id,
             auths_codec::action_id(&envelope).unwrap().as_bytes()

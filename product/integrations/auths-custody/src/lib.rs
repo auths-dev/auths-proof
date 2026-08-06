@@ -13,7 +13,6 @@ use auths_model::{
     SignatureBytes, SignatureDescriptor, SignedAction, SignedGrant, SignedGrantStatus,
     SignedPrincipalStatus,
 };
-use sha2::{Digest as _, Sha256};
 use std::fmt;
 use subtle::ConstantTimeEq as _;
 
@@ -48,7 +47,7 @@ impl<'a> SigningIntent<'a> {
             object_id: request.object_id(),
             descriptor: request.descriptor(),
             signing_preimage: request.signing_preimage(),
-            transaction_digest: Sha256::digest(request.signing_preimage()).into(),
+            transaction_digest: *request.transaction_digest().as_bytes(),
         }
     }
 

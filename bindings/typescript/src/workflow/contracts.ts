@@ -564,5 +564,7 @@ export interface WorkflowNativeSigningRequest {
   readonly objectKind: string;
   readonly objectId: Uint8Array;
   readonly signingPreimage: Uint8Array;
+  /** SHA-256 transaction binding stated by auths-codec, carried by the ABI. */
+  readonly transactionDigest: Uint8Array;
   free?(): void;
 }

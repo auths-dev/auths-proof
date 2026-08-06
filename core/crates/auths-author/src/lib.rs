@@ -10,11 +10,11 @@ use auths_authority::{AuthorScopeDecision, evaluate_author_scope_view};
 use auths_codec::{
     CodecError, action_id, action_signing_preimage, grant_id, grant_signing_preimage,
     grant_status_id, grant_status_signing_preimage, principal_status_id,
-    principal_status_signing_preimage,
+    principal_status_signing_preimage, transaction_binding,
 };
 use auths_model::{
     ActionConstraint, ActionEnvelope, ActionId, AssurancePolicyId, AudienceSet, AuthorizationPlan,
-    BudgetCeiling, CriticalExtensions, GrantId, GrantStatement, GrantStatusId,
+    BudgetCeiling, CriticalExtensions, Digest, GrantId, GrantStatement, GrantStatusId,
     GrantStatusStatement, ModelError, PermissionSet, PrincipalId, PrincipalStatusId,
     PrincipalStatusStatement, ProfileRef, ProofRef, ScopeAuthorityView, SignatureBytes,
     SignatureDescriptor, SignatureEnvelope, SignedAction, SignedGrant, SignedGrantStatus,
@@ -402,6 +402,16 @@ impl<T> ExternalSigningRequest<T> {
     #[must_use]
     pub fn signing_preimage(&self) -> &[u8] {
         &self.signing_preimage
+    }
+
+    /// Returns the transaction binding every custody port must echo back.
+    ///
+    /// Approval prompts, external signers, and language bindings all commit to
+    /// this value. It is derived here from the exact signing preimage so that
+    /// no consumer restates the rule in its own language.
+    #[must_use]
+    pub fn transaction_digest(&self) -> Digest {
+        transaction_binding(&self.signing_preimage)
     }
 }
 

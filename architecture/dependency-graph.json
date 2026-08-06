@@ -1575,18 +1575,6 @@
     {
       "source": "auths-custody",
       "source_layer": "product",
-      "target": "sha2",
-      "target_layer": null,
-      "scope": "external",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": false,
-      "features": []
-    },
-    {
-      "source": "auths-custody",
-      "source_layer": "product",
       "target": "subtle",
       "target_layer": null,
       "scope": "external",

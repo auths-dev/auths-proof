@@ -46,6 +46,16 @@ fn raw_sha256(value: &[u8]) -> Digest {
     Digest::new(hasher.finalize().into())
 }
 
+/// Returns the transaction binding for one external signing preimage.
+///
+/// The binding is SHA-256 over the exact domain-separated signing preimage.
+/// Custody ports, approval prompts, and every language binding commit to this
+/// value, so it is stated once here and never recomputed by a consumer.
+#[must_use]
+pub fn transaction_binding(signing_preimage: &[u8]) -> Digest {
+    raw_sha256(signing_preimage)
+}
+
 fn domain_hash(identifier_type: IdentifierType, canonical: &[u8]) -> Result<Digest, CodecError> {
     let canonical_length = u64::try_from(canonical.len()).map_err(|_| CodecError::LimitExceeded)?;
     let mut hasher = Sha256::new();

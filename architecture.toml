@@ -226,10 +226,6 @@ path = "bindings/typescript/src/profiles/application/index.ts"
 pattern = "getRandomValues"
 reason = "Fresh local entropy for one action challenge. Randomness cannot come from an effect-free kernel; the authoring ABI receives the challenge and rejects an invalid one, so Rust still owns the rule."
 
-[[binding_semantics.allowances]]
-path = "bindings/typescript/src/internal/signing.ts"
-pattern = "crypto.subtle"
-reason = "KNOWN DUPLICATION, scheduled for removal. The transaction binding is SHA-256 over the signing preimage, and auths-custody already states that rule in Rust. TypeScript recomputes it, so the rule now lives in two languages and Python would make three. Move it behind an authoring ABI operation and delete this allowance."
 
 [[binding_semantics.allowances]]
 path = "bindings/typescript/src/commitments.ts"
