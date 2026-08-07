@@ -6,7 +6,14 @@ import { fileURLToPath } from "node:url";
 
 export const packageRootPath = fileURLToPath(new URL("../../../", import.meta.url));
 
-function npmSync(arguments_, options) {
+/**
+ * Runs npm portably.
+ *
+ * `npm` is `npm.cmd` on Windows, so a bare `execFileSync("npm", ...)` cannot
+ * resolve it without a shell. Preferring `npm_execpath` runs the CLI the
+ * current npm invocation already resolved.
+ */
+export function npmSync(arguments_, options) {
   const npmCli = process.env.npm_execpath;
   return npmCli === undefined
     ? execFileSync("npm", arguments_, options)

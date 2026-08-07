@@ -12,7 +12,6 @@ import {
   type VerifiedPlanCommand,
 } from "../../plans.js";
 import { BoundedApprovalSession } from "../../approvals.js";
-import { commitCanonical } from "../../commitments.js";
 export {
   AuthsWorkflowError,
   ProviderOperationError,
@@ -439,16 +438,15 @@ export class AttachedAgent<P extends Profile> implements AsyncDisposable {
     const resources = resourcesForAttachedAgent(this);
     const startedAt = BigInt(Math.floor(Date.now() / 1000));
     const expiresAt = startedAt + BigInt(resources.approval.policy.expiresInSeconds);
-    const approvalPreimage = new Uint8Array(80);
-    approvalPreimage.set(plan.commitment.digest, 0);
-    approvalPreimage.set(resources.approval.policy.reference.configurationDigest, 32);
-    const approvalView = new DataView(approvalPreimage.buffer);
-    approvalView.setBigUint64(64, BigInt(resources.approval.policy.maxUses), false);
-    approvalView.setBigUint64(72, expiresAt, false);
-    const approvedPlan = await commitCanonical("auths.plan-approval.v1", approvalPreimage);
-    approvalPreimage.fill(0);
+    // What one approval covered is committed by auths-author, not framed here.
+    const approvedPlan = engineForClient(resources.client).commitPlanApprovalV1(
+      plan.commitment,
+      resources.approval.policy.reference.configurationDigest,
+      resources.approval.policy.maxUses,
+      expiresAt,
+    );
     const session = new BoundedApprovalSession({
-      planCommitment: approvedPlan.digest,
+      planCommitment: approvedPlan.slice(),
       memberCommitments,
       policy: resources.approval.policy,
       provider: options.approvalProvider ?? resources.approval.provider,
@@ -493,7 +491,7 @@ export class AttachedAgent<P extends Profile> implements AsyncDisposable {
         kind: "authorized" as const,
         command: createVerifiedPlanCommand(
           authorized.map((result) => result.command),
-          plan.commitment.digest,
+          plan.commitment,
         ),
         results: Object.freeze([...authorized]),
       });

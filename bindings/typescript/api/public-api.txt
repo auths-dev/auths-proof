@@ -1,5 +1,5 @@
 # Installed @auths-dev/sdk public API v1
-# declaration-sha256 0d0bb09ad810d99f8e06ec02c28c949afc8f45f1ef477dbe34f0ea8a090732cc
+# declaration-sha256 1ac082d42baec98b4b2e50d93655f40a44917fd57c23b28029bcb6b3576525e0
 .	AgentIdentity	type
 .	ApprovalConfiguration	type
 .	ApprovalExecutionSummary	type
@@ -65,8 +65,6 @@
 .	WorkflowVerificationResult	type
 ./advanced	AuthorizedResult	type
 ./advanced	Auths	value+type
-./advanced	CanonicalCommitment	type
-./advanced	commitCanonical	value
 ./advanced	createDiagnosticVerifier	value
 ./advanced	DecisionInspection	type
 ./advanced	DeniedResult	type

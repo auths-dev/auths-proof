@@ -183,8 +183,12 @@ function signingFixture(overrides = {}) {
     prepare(objectKind) {
       return {
         objectKind,
+        requestId: `${objectKind}:double`,
         objectId: new Uint8Array(32).fill(3),
         signingPreimage: new Uint8Array([4, 5, 6]),
+        // The real adapter carries the binding stated by auths-codec; this
+        // double supplies an exact-width stand-in.
+        transactionDigest: new Uint8Array(32).fill(9),
       };
     },
     complete(_kind, _unsigned, _principal, signature) {
@@ -420,4 +424,64 @@ test("throwing hostile response accessors are sanitized", async () => {
     },
   );
   assert.equal(fixture.counters.completions, 0);
+});
+
+test("the transaction binding comes from the core, not from the binding", async () => {
+  const wasm = await packagedWasm();
+  const unsignedObject = readFileSync(
+    new URL(
+      "../../../../../target/binding-vectors/authoring.proposed-grant.cbor",
+      import.meta.url,
+    ),
+  );
+
+  // What the authoring ABI states for these exact bytes.
+  const request = wasm.prepareGrantSigningV1(
+    unsignedObject,
+    descriptor().principalMethod,
+    descriptor().verificationMethod,
+    descriptor().suite,
+  );
+  const stated = request.transactionDigest.slice();
+  const statedRequestId = request.requestId;
+  request.free?.();
+  assert.equal(stated.length, 32);
+  assert.notDeepEqual(stated, new Uint8Array(32));
+  // The identifier format belongs to auths-author, not to this binding.
+  assert.match(statedRequestId, /^grant:[0-9a-f]{64}:[0-9a-f]{64}$/);
+
+  // What the SDK hands to approval and to custody for the same bytes. The
+  // binding carries the core's value; it derives nothing of its own.
+  const seen = { approval: undefined, signer: undefined, ids: [] };
+  const fixture = signingFixture({ unsignedObject });
+  const observing = {
+    ...fixture.options,
+    approval: {
+      policy: fixture.options.approval.policy,
+      provider: {
+        async approve(approvalRequest) {
+          seen.approval = approvalRequest.transactionDigest.slice();
+          seen.ids.push(approvalRequest.requestId);
+          return fixture.options.approval.provider.approve(approvalRequest);
+        },
+      },
+    },
+    signer: {
+      ...fixture.options.signer,
+      async sign(signingRequest) {
+        seen.signer = signingRequest.transactionDigest.slice();
+        seen.ids.push(signingRequest.requestId);
+        return fixture.options.signer.sign(signingRequest);
+      },
+    },
+  };
+  const result = await new SigningCoordinator(
+    new WasmSigningAdapter(wasm),
+    () => 100n,
+  ).execute(observing);
+
+  assert.deepEqual(seen.approval, stated);
+  assert.deepEqual(seen.signer, stated);
+  assert.deepEqual(result.transactionDigest, stated);
+  assert.deepEqual(seen.ids, [statedRequestId, statedRequestId]);
 });

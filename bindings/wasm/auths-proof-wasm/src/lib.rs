@@ -3,9 +3,9 @@
 #![forbid(unsafe_code)]
 
 use auths_author::{
-    ExternalSigningRequest, GrantPlan, GrantRequest, OverGrantingWarning, SigningObjectId,
-    plan_child_grant, prepare_action, prepare_grant, prepare_grant_status,
-    prepare_principal_status,
+    ApprovalPolicyCommitment, ExternalSigningRequest, GrantPlan, GrantRequest, OverGrantingWarning,
+    ProfilePlanCommitment, commit_plan_approval, plan_child_grant, prepare_action, prepare_grant,
+    prepare_grant_status, prepare_principal_status,
 };
 use auths_model::{
     ActionConstraint, ActionEnvelope, AssurancePolicyId, Audience, AudienceSet, AuthorizationPlan,
@@ -579,12 +579,150 @@ pub fn plan_child_grant_fields_v1(
     .map_err(js_error)
 }
 
+/// Commits to already-canonical bytes under an explicit application domain.
+///
+/// # Errors
+///
+/// Returns a JavaScript error when the domain or payload exceeds limits.
+#[wasm_bindgen(js_name = commitCanonicalV1)]
+pub fn commit_canonical_v1(domain: &str, canonical: &[u8]) -> Result<Vec<u8>, JsValue> {
+    auths_codec::domain_commitment(domain, canonical)
+        .map(|digest| digest.as_bytes().to_vec())
+        .map_err(js_error)
+}
+
+/// Commits to one exact executable approval configuration.
+///
+/// # Errors
+///
+/// Returns a JavaScript error for an out-of-limit or repeated requirement set.
+// wasm-bindgen marshals a JavaScript string array as an owned Vec<String>.
+#[allow(clippy::needless_pass_by_value)]
+#[wasm_bindgen(js_name = commitApprovalPolicyV1)]
+pub fn commit_approval_policy_v1(
+    mode: &str,
+    max_uses: u32,
+    expires_in_seconds: u32,
+    requirements: Vec<String>,
+) -> Result<Vec<u8>, JsValue> {
+    let borrowed: Vec<&str> = requirements.iter().map(String::as_str).collect();
+    ApprovalPolicyCommitment::commit(mode, max_uses, expires_in_seconds, &borrowed)
+        .map(|digest| digest.as_bytes().to_vec())
+        .map_err(js_error)
+}
+
+/// Binds one plan approval to the plan, policy, and expiry it covered.
+///
+/// # Errors
+///
+/// Returns a JavaScript error for out-of-limit or wrong-width inputs.
+#[wasm_bindgen(js_name = commitPlanApprovalV1)]
+pub fn commit_plan_approval_v1(
+    plan_commitment: &[u8],
+    configuration_digest: &[u8],
+    max_uses: u32,
+    expires_at: u64,
+) -> Result<Vec<u8>, JsValue> {
+    let plan: [u8; 32] = plan_commitment
+        .try_into()
+        .map_err(|_| js_error(EngineError::Abi("plan commitment must be 32 bytes")))?;
+    let configuration: [u8; 32] = configuration_digest
+        .try_into()
+        .map_err(|_| js_error(EngineError::Abi("configuration digest must be 32 bytes")))?;
+    commit_plan_approval(&plan, &configuration, max_uses, expires_at)
+        .map(|digest| digest.as_bytes().to_vec())
+        .map_err(js_error)
+}
+
+/// Ordered plan and per-member commitments for one profile.
+#[wasm_bindgen]
+pub struct ProfilePlanCommitmentV1 {
+    plan: Vec<u8>,
+    members: Vec<u8>,
+    member_count: usize,
+}
+
+#[wasm_bindgen]
+impl ProfilePlanCommitmentV1 {
+    /// Returns the commitment over the whole ordered plan.
+    #[must_use]
+    #[wasm_bindgen(getter)]
+    pub fn plan(&self) -> Vec<u8> {
+        self.plan.clone()
+    }
+
+    /// Returns every member commitment concatenated in plan order.
+    #[must_use]
+    #[wasm_bindgen(getter)]
+    pub fn members(&self) -> Vec<u8> {
+        self.members.clone()
+    }
+
+    /// Returns how many members the plan commits to.
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = memberCount)]
+    pub fn member_count(&self) -> usize {
+        self.member_count
+    }
+}
+
+/// Commits to an ordered profile-plan membership.
+///
+/// Members arrive concatenated with their exact lengths, so the boundary
+/// carries no per-member JavaScript object.
+///
+/// # Errors
+///
+/// Returns a JavaScript error when the profile or membership exceeds limits,
+/// or when the declared lengths do not consume the buffer exactly.
+#[wasm_bindgen(js_name = commitProfilePlanV1)]
+pub fn commit_profile_plan_v1(
+    profile_id: &str,
+    profile_version: u16,
+    members: &[u8],
+    member_lengths: &[u32],
+) -> Result<ProfilePlanCommitmentV1, JsValue> {
+    let mut borrowed: Vec<&[u8]> = Vec::with_capacity(member_lengths.len());
+    let mut offset = 0_usize;
+    for length in member_lengths {
+        let length = *length as usize;
+        let end = offset
+            .checked_add(length)
+            .ok_or_else(|| js_error(EngineError::Abi("plan member lengths overflow")))?;
+        if end > members.len() {
+            return Err(js_error(EngineError::Abi(
+                "plan member lengths exceed the supplied buffer",
+            )));
+        }
+        borrowed.push(&members[offset..end]);
+        offset = end;
+    }
+    if offset != members.len() {
+        return Err(js_error(EngineError::Abi(
+            "plan member lengths do not consume the supplied buffer",
+        )));
+    }
+    let commitment =
+        ProfilePlanCommitment::commit(profile_id, profile_version, &borrowed).map_err(js_error)?;
+    let mut flattened = Vec::with_capacity(commitment.members().len() * 32);
+    for member in commitment.members() {
+        flattened.extend_from_slice(member.as_bytes());
+    }
+    Ok(ProfilePlanCommitmentV1 {
+        plan: commitment.plan().as_bytes().to_vec(),
+        members: flattened,
+        member_count: commitment.members().len(),
+    })
+}
+
 /// Exact native signing request returned to an external custody port.
 #[wasm_bindgen]
 pub struct AuthoringSigningRequestV1 {
     object_kind: &'static str,
+    request_id: String,
     object_id: Vec<u8>,
     signing_preimage: Vec<u8>,
+    transaction_digest: Vec<u8>,
 }
 
 #[wasm_bindgen]
@@ -594,6 +732,15 @@ impl AuthoringSigningRequestV1 {
     #[wasm_bindgen(getter, js_name = objectKind)]
     pub fn object_kind(&self) -> String {
         self.object_kind.to_owned()
+    }
+
+    /// Returns the exact identifier custody and approval ports echo back.
+    ///
+    /// The format belongs to `auths-author`; bindings carry it unchanged.
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = requestId)]
+    pub fn request_id(&self) -> String {
+        self.request_id.clone()
     }
 
     /// Returns the exact unsigned object identifier.
@@ -608,6 +755,16 @@ impl AuthoringSigningRequestV1 {
     #[wasm_bindgen(getter, js_name = signingPreimage)]
     pub fn signing_preimage(&self) -> Vec<u8> {
         self.signing_preimage.clone()
+    }
+
+    /// Returns the transaction binding a custody port must echo back.
+    ///
+    /// Bindings commit to this value instead of restating the rule, so no
+    /// language recomputes what the preimage binds to.
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = transactionDigest)]
+    pub fn transaction_digest(&self) -> Vec<u8> {
+        self.transaction_digest.clone()
     }
 }
 
@@ -631,7 +788,7 @@ pub fn prepare_grant_signing_v1(
         signing_descriptor(principal_method, verification_method, suite).map_err(js_error)?,
     )
     .map_err(js_error)?;
-    Ok(signing_request("grant", &request))
+    Ok(signing_request(&request))
 }
 
 /// Prepares exact action signing bytes from canonical unsigned CBOR.
@@ -653,7 +810,7 @@ pub fn prepare_action_signing_v1(
         signing_descriptor(principal_method, verification_method, suite).map_err(js_error)?,
     )
     .map_err(js_error)?;
-    Ok(signing_request("action", &request))
+    Ok(signing_request(&request))
 }
 
 /// Prepares exact principal-status signing bytes from canonical unsigned CBOR.
@@ -676,7 +833,7 @@ pub fn prepare_principal_status_signing_v1(
         signing_descriptor(principal_method, verification_method, suite).map_err(js_error)?,
     )
     .map_err(js_error)?;
-    Ok(signing_request("principal-status", &request))
+    Ok(signing_request(&request))
 }
 
 /// Prepares exact grant-status signing bytes from canonical unsigned CBOR.
@@ -699,7 +856,7 @@ pub fn prepare_grant_status_signing_v1(
         signing_descriptor(principal_method, verification_method, suite).map_err(js_error)?,
     )
     .map_err(js_error)?;
-    Ok(signing_request("grant-status", &request))
+    Ok(signing_request(&request))
 }
 
 /// Completes one grant with a signature over the exact prepared preimage.
@@ -1858,20 +2015,13 @@ fn signing_descriptor(
     ))
 }
 
-fn signing_request<T>(
-    object_kind: &'static str,
-    request: &ExternalSigningRequest<T>,
-) -> AuthoringSigningRequestV1 {
-    let object_id = match request.object_id() {
-        SigningObjectId::Grant(identifier) => identifier.as_bytes().to_vec(),
-        SigningObjectId::Action(identifier) => identifier.as_bytes().to_vec(),
-        SigningObjectId::PrincipalStatus(identifier) => identifier.as_bytes().to_vec(),
-        SigningObjectId::GrantStatus(identifier) => identifier.as_bytes().to_vec(),
-    };
+fn signing_request<T>(request: &ExternalSigningRequest<T>) -> AuthoringSigningRequestV1 {
     AuthoringSigningRequestV1 {
-        object_kind,
-        object_id,
+        object_kind: request.object_id().label(),
+        request_id: request.request_id(),
+        object_id: request.object_id().as_bytes().to_vec(),
         signing_preimage: request.signing_preimage().to_vec(),
+        transaction_digest: request.transaction_digest().as_bytes().to_vec(),
     }
 }
 
@@ -2253,10 +2403,20 @@ mod tests {
         let envelope = bundle.actions()[0].envelope().clone();
         let descriptor = bundle.actions()[0].signature().descriptor().clone();
         let native = prepare_action(envelope.clone(), descriptor).unwrap();
-        let projected = signing_request("action", &native);
+        let projected = signing_request(&native);
 
         assert_eq!(projected.object_kind, "action");
+        assert_eq!(projected.request_id, native.request_id());
+        assert!(projected.request_id.starts_with("action:"));
         assert_eq!(projected.signing_preimage, native.signing_preimage());
+        assert_eq!(
+            projected.transaction_digest,
+            native.transaction_digest().as_bytes()
+        );
+        assert_eq!(
+            projected.transaction_digest,
+            auths_codec::transaction_binding(native.signing_preimage()).as_bytes()
+        );
         assert_eq!(
             projected.object_id,
             auths_codec::action_id(&envelope).unwrap().as_bytes()

@@ -1,5 +1,5 @@
 import type { VerificationResult } from "./verifier/client.js";
-import { commitCanonical } from "./commitments.js";
+import { loadPackagedWorkflowEngine } from "./verifier/wasm.js";
 
 export interface DecisionInspection {
   readonly decision: Readonly<{ kind: VerificationResult["kind"] }>;
@@ -26,13 +26,18 @@ export interface DecisionInspection {
 
 /** Produces copied, browser-safe evidence without promoting it to a command. */
 export async function inspectDecision(result: VerificationResult): Promise<DecisionInspection> {
-  const resultCommitment = await commitCanonical("auths.verification-result.v1", result.resultCbor);
-  const local = await commitCanonical("auths.verifier-configuration.v1", result.localConfiguration);
+  // Commitments are stated by the core so the same decision inspects to the
+  // same digests in every SDK.
+  const engine = await loadPackagedWorkflowEngine();
+  const commit = (domain: string, canonical: Uint8Array) =>
+    engine.commitCanonicalV1(domain, canonical).slice();
+  const resultCommitment = commit("auths.verification-result.v1", result.resultCbor);
+  const local = commit("auths.verifier-configuration.v1", result.localConfiguration);
   const required = result.requiredConfiguration === undefined
     ? undefined
-    : await commitCanonical("auths.required-configuration.v1", result.requiredConfiguration);
+    : commit("auths.required-configuration.v1", result.requiredConfiguration);
   const action = result.kind === "authorized"
-    ? await commitCanonical("auths.canonical-action.v1", result.action.canonicalBytes())
+    ? commit("auths.canonical-action.v1", result.action.canonicalBytes())
     : undefined;
   const approval = "approval" in result && result.approval !== null && typeof result.approval === "object"
     ? result.approval as {
@@ -50,10 +55,10 @@ export async function inspectDecision(result: VerificationResult): Promise<Decis
     decision: Object.freeze({ kind: result.kind }),
     kernel: Object.freeze({ stage: result.stage, code: result.code }),
     commitments: Object.freeze({
-      result: resultCommitment.digest.slice(),
-      localConfiguration: local.digest.slice(),
-      ...(required === undefined ? {} : { requiredConfiguration: required.digest.slice() }),
-      ...(action === undefined ? {} : { action: action.digest.slice() }),
+      result: resultCommitment,
+      localConfiguration: local,
+      ...(required === undefined ? {} : { requiredConfiguration: required }),
+      ...(action === undefined ? {} : { action }),
     }),
     metrics: result.metrics,
     ...(approval === undefined

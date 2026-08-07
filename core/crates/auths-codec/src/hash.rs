@@ -19,6 +19,8 @@ use auths_model::{
 use sha2::{Digest as _, Sha256};
 
 const SIGNING_PREFIX: &[u8] = b"AUTHS";
+const COMMITMENT_PREFIX: &[u8] = b"AUTHS-COMMITMENT";
+const MAX_COMMITMENT_DOMAIN_BYTES: usize = 128;
 const IDENTIFIER_PREFIX: &[u8] = b"AUTHS-ID";
 
 #[derive(Clone, Copy)]
@@ -44,6 +46,43 @@ fn raw_sha256(value: &[u8]) -> Digest {
     let mut hasher = Sha256::new();
     hasher.update(value);
     Digest::new(hasher.finalize().into())
+}
+
+/// Commits to already-canonical bytes under an explicit application domain.
+///
+/// The commitment is SHA-256 over the domain prefix, protocol version, the
+/// length-framed domain, and the length-framed payload. Every SDK receives
+/// this value from the core rather than restating the framing, so the same
+/// input commits to the same digest in every language.
+///
+/// # Errors
+///
+/// Returns an error when the domain or payload exceeds protocol limits.
+pub fn domain_commitment(domain: &str, canonical: &[u8]) -> Result<Digest, CodecError> {
+    let domain_bytes = domain.as_bytes();
+    if domain_bytes.is_empty() || domain_bytes.len() > MAX_COMMITMENT_DOMAIN_BYTES {
+        return Err(CodecError::LimitExceeded);
+    }
+    let domain_length = u16::try_from(domain_bytes.len()).map_err(|_| CodecError::LimitExceeded)?;
+    let payload_length = u64::try_from(canonical.len()).map_err(|_| CodecError::LimitExceeded)?;
+    let mut hasher = Sha256::new();
+    hasher.update(COMMITMENT_PREFIX);
+    hasher.update(PROTOCOL_V1.to_be_bytes());
+    hasher.update(domain_length.to_be_bytes());
+    hasher.update(domain_bytes);
+    hasher.update(payload_length.to_be_bytes());
+    hasher.update(canonical);
+    Ok(Digest::new(hasher.finalize().into()))
+}
+
+/// Returns the transaction binding for one external signing preimage.
+///
+/// The binding is SHA-256 over the exact domain-separated signing preimage.
+/// Custody ports, approval prompts, and every language binding commit to this
+/// value, so it is stated once here and never recomputed by a consumer.
+#[must_use]
+pub fn transaction_binding(signing_preimage: &[u8]) -> Digest {
+    raw_sha256(signing_preimage)
 }
 
 fn domain_hash(identifier_type: IdentifierType, canonical: &[u8]) -> Result<Digest, CodecError> {

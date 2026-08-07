@@ -1,13 +1,13 @@
 import { type Profile } from "./workflow.js";
 import { AuthsWorkflowError } from "./workflow/errors.js";
-import { commitCanonical, type CanonicalCommitment } from "./commitments.js";
+import { loadPackagedWorkflowEngine } from "./verifier/wasm.js";
 
 const PLAN_TOKEN: unique symbol = Symbol("auths-profile-plan");
 const COMMAND_TOKEN: unique symbol = Symbol("auths-verified-plan-command");
 let mintProfilePlan: <Action>(
   profile: Profile,
   actions: readonly Action[],
-  commitment: CanonicalCommitment,
+  commitment: Uint8Array,
   authority: PlanAuthoritySummary,
   memberCommitments: readonly Uint8Array[],
 ) => ProfilePlan<Action>;
@@ -36,19 +36,19 @@ export interface PlanAuthoritySummary {
 /** An immutable ordered set of actions owned by one exact profile instance. */
 export class ProfilePlan<Action> {
   readonly length: number;
-  readonly #commitment: CanonicalCommitment;
+  readonly #commitment: Uint8Array;
   readonly #authority: PlanAuthoritySummary;
 
   private constructor(
     token: typeof PLAN_TOKEN,
     profile: Profile,
     actions: readonly Action[],
-    commitment: CanonicalCommitment,
+    commitment: Uint8Array,
     authority: PlanAuthoritySummary,
     memberCommitments: readonly Uint8Array[],
   ) {
     if (token !== PLAN_TOKEN) throw new TypeError("sealed Auths profile plan");
-    this.#commitment = Object.freeze({ ...commitment, digest: commitment.digest.slice() });
+    this.#commitment = commitment.slice();
     this.length = actions.length;
     this.#authority = copyAuthority(authority);
     planResources.set(this as ProfilePlan<unknown>, {
@@ -59,8 +59,9 @@ export class ProfilePlan<Action> {
     Object.freeze(this);
   }
 
-  get commitment(): CanonicalCommitment {
-    return Object.freeze({ ...this.#commitment, digest: this.#commitment.digest.slice() });
+  /** Commitment over this exact ordered membership, stated by auths-author. */
+  get commitment(): Uint8Array {
+    return this.#commitment.slice();
   }
 
   get authority(): PlanAuthoritySummary {
@@ -71,7 +72,7 @@ export class ProfilePlan<Action> {
     token: typeof PLAN_TOKEN,
     profile: Profile,
     actions: readonly Action[],
-    commitment: CanonicalCommitment,
+    commitment: Uint8Array,
     authority: PlanAuthoritySummary,
     memberCommitments: readonly Uint8Array[],
   ): ProfilePlan<Action> {
@@ -138,27 +139,34 @@ export async function createProfilePlan<Action>(
   if (parts.some((part) => !(part instanceof Uint8Array) || part.length === 0)) {
     throw new AuthsWorkflowError("invalid-profile", "profile plan contains an invalid action");
   }
-  const size = parts.reduce((sum, part) => sum + 8 + part.length, 0);
-  const canonical = new Uint8Array(size);
-  const view = new DataView(canonical.buffer);
+  // Plan membership and order decide what one approval covers, so the
+  // commitment is stated by auths-author rather than framed here.
+  const members = new Uint8Array(parts.reduce((sum, part) => sum + part.length, 0));
+  const memberLengths = new Uint32Array(parts.length);
   let offset = 0;
-  for (const part of parts) {
-    view.setBigUint64(offset, BigInt(part.length), false);
-    offset += 8;
-    canonical.set(part, offset);
+  parts.forEach((part, index) => {
+    members.set(part, offset);
+    memberLengths[index] = part.length;
     offset += part.length;
+  });
+  const engine = await loadPackagedWorkflowEngine();
+  let planCommitment;
+  try {
+    planCommitment = engine.commitProfilePlanV1(
+      profile.id,
+      profile.version,
+      members,
+      memberLengths,
+    );
+  } catch {
+    throw new AuthsWorkflowError("invalid-profile", "profile plan is outside the supported commitment");
   }
-  const commitment = await commitCanonical(
-    `auths.profile-plan.${profile.id}.${profile.version}`,
-    canonical,
+  const commitment = planCommitment.plan.slice();
+  const memberCommitments = Array.from(
+    { length: planCommitment.memberCount },
+    (_unused, index) => planCommitment.members.slice(index * 32, index * 32 + 32),
   );
-  const memberCommitments = await Promise.all(parts.map(async (part, index) => (
-    await commitCanonical(
-      `auths.profile-plan-member.${profile.id}.${profile.version}.${index}`,
-      part,
-    )
-  ).digest));
-  canonical.fill(0);
+  members.fill(0);
   return mintProfilePlan(
     profile,
     actions,

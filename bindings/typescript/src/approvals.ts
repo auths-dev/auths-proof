@@ -8,7 +8,7 @@ import {
   copyPolicy,
 } from "./workflow.js";
 import { AuthsWorkflowError, ProviderOperationError } from "./workflow/errors.js";
-import { commitCanonical } from "./commitments.js";
+import { loadPackagedWorkflowEngine } from "./verifier/wasm.js";
 
 export interface ApprovalPolicyOptions {
   readonly policyId?: string;
@@ -38,17 +38,27 @@ async function buildPolicy(
   if (requirements.some((item) => typeof item !== "string" || item.length === 0)) {
     throw new AuthsWorkflowError("invalid-provider", "approval requirement is invalid");
   }
-  const canonical = new TextEncoder().encode(JSON.stringify({
-    expiresInSeconds,
-    maxUses,
-    mode,
-    requirements,
-  }));
-  const commitment = await commitCanonical("auths.approval-policy.v1", canonical);
+  // The commitment decides whether signing proceeds, so its canonical form
+  // belongs to auths-author. This binding supplies the fields and nothing else.
+  const engine = await loadPackagedWorkflowEngine();
+  let configurationDigest: Uint8Array;
+  try {
+    configurationDigest = engine.commitApprovalPolicyV1(
+      mode,
+      maxUses,
+      expiresInSeconds,
+      requirements,
+    );
+  } catch {
+    throw new AuthsWorkflowError(
+      "invalid-provider",
+      "approval configuration is outside the supported commitment",
+    );
+  }
   const reference = Object.freeze({
     policyId: options.policyId ?? `approval.${mode}`,
     evaluatorVersion: options.evaluatorVersion ?? "1",
-    configurationDigest: commitment.digest.slice(),
+    configurationDigest: configurationDigest.slice(),
   });
   return Object.freeze({
     reference,

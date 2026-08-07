@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
+import { npmSync } from "./helpers/packed-install.mjs";
 
 test("package exposes bounded public surfaces and includes contributor docs", async () => {
   const manifest = JSON.parse(
@@ -31,7 +31,7 @@ test("package exposes bounded public surfaces and includes contributor docs", as
 });
 
 test("packed contents carry the published artifacts and no source or tests", async () => {
-  const listing = execFileSync("npm", ["pack", "--dry-run", "--json"], {
+  const listing = npmSync(["pack", "--dry-run", "--json"], {
     cwd: fileURLToPath(new URL("../../", import.meta.url)),
     encoding: "utf8",
     stdio: ["ignore", "pipe", "ignore"],

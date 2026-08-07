@@ -28,7 +28,7 @@ test("profile plans aggregate exact authority and commit ordered actions", async
   assert.equal(plan.authority.permissions.length, 2);
   assert.equal(plan.authority.budget.value, 5n);
   const reversed = await profile.plan([second, first]);
-  assert.notDeepEqual(plan.commitment.digest, reversed.commitment.digest);
+  assert.notDeepEqual(plan.commitment, reversed.commitment);
 });
 
 test("bounded approval sessions prompt once and cannot outlive their plan", async () => {
