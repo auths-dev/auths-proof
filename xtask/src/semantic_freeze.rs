@@ -4,7 +4,7 @@ use crate::*;
 
 const INVENTORY_PATH: &str = "release/semantic-freeze.json";
 const INVENTORY_SCHEMA: &str = "auths.semantic-freeze/1";
-const FREEZE_VERSION: u64 = 28;
+const FREEZE_VERSION: u64 = 29;
 const PUBLIC_RUST_ROOTS: [&str; 2] = ["auths", "auths-sdk"];
 const PUBLIC_RUST_CLOSURE: [&str; 28] = [
     "auths",
@@ -142,7 +142,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
     let mut entries = vec![
         freeze_entry(
             "auths.core.protocol",
-            7,
+            8,
             FreezeClassification::FrozenMeaning,
             &[
                 "protocol-versions",
@@ -162,7 +162,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.portable-abi-bindings",
-            11,
+            12,
             FreezeClassification::FrozenMeaning,
             &["portable-abi", "authoring-abi", "binding-contracts"],
             vec![
@@ -176,7 +176,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.public-sdk-contract",
-            10,
+            11,
             FreezeClassification::FrozenMeaning,
             &[
                 "rust-sdk-contract",
@@ -330,7 +330,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
     ]);
     entries.push(freeze_entry(
         "auths.release.public-surface",
-        28,
+        29,
         FreezeClassification::ReleaseMetadata,
         &[
             "package-names",

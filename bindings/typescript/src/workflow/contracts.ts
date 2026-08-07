@@ -374,6 +374,25 @@ export interface WorkflowWasmEngine {
     remainingDepth: number,
   ): WorkflowRawKeyAuthorityPreparation;
   WorkflowProofBuilderV1: new () => WorkflowProofBuilder;
+  commitCanonicalV1(domain: string, canonical: Uint8Array): Uint8Array;
+  commitApprovalPolicyV1(
+    mode: string,
+    maxUses: number,
+    expiresInSeconds: number,
+    requirements: readonly string[],
+  ): Uint8Array;
+  commitPlanApprovalV1(
+    planCommitment: Uint8Array,
+    configurationDigest: Uint8Array,
+    maxUses: number,
+    expiresAt: bigint,
+  ): Uint8Array;
+  commitProfilePlanV1(
+    profileId: string,
+    profileVersion: number,
+    members: Uint8Array,
+    memberLengths: Uint32Array,
+  ): WorkflowPlanCommitment;
   verifyV1(
     proofCbor: Uint8Array,
     canonicalActionCbor: Uint8Array,
@@ -558,6 +577,12 @@ export interface WorkflowGrantPlan {
   readonly childDepth: number;
   readonly warningMask: number;
   free?(): void;
+}
+
+export interface WorkflowPlanCommitment {
+  readonly plan: Uint8Array;
+  readonly members: Uint8Array;
+  readonly memberCount: number;
 }
 
 export interface WorkflowNativeSigningRequest {

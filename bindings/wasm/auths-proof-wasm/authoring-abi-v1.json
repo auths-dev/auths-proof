@@ -23,7 +23,11 @@
     "prepareProfileActionV1",
     "prepareRawKeyAuthorityV1",
     "WorkflowProofBuilderV1",
-    "validateTrustedContextV1"
+    "validateTrustedContextV1",
+    "commitCanonicalV1",
+    "commitApprovalPolicyV1",
+    "commitProfilePlanV1",
+    "commitPlanApprovalV1"
   ],
   "grantPlanWarningBits": {
     "anyBody": 1,
@@ -34,9 +38,22 @@
     "longValidity": 32
   },
   "structuredGrantModes": {
-    "action": ["inherit", "any-body", "exact-body", "allowed-bodies"],
-    "budget": ["inherit", "none", "ceiling"],
-    "status": ["inherit", "expiry-only", "snapshot-required"],
+    "action": [
+      "inherit",
+      "any-body",
+      "exact-body",
+      "allowed-bodies"
+    ],
+    "budget": [
+      "inherit",
+      "none",
+      "ceiling"
+    ],
+    "status": [
+      "inherit",
+      "expiry-only",
+      "snapshot-required"
+    ],
     "profile": "inherit",
     "criticalExtensions": "inherit"
   },

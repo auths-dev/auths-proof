@@ -3,14 +3,13 @@ import assert from "node:assert/strict";
 import {
   Auths,
   VerifiedAction,
-  commitCanonical,
   createDiagnosticVerifier,
   inspectDecision,
 } from "../../dist/advanced.js";
 import { McpAction, McpCommand, mcp } from "../../dist/mcp.js";
 import { ApplicationCommand, defineProfile } from "../../dist/profile-kit.js";
 import { ProfilePlan, VerifiedPlanCommand, commandsForGateway } from "../../dist/index.js";
-import { mcpFixture } from "./helpers/mcp-fixture.js";
+import { mcpFixture, packagedWasm } from "./helpers/mcp-fixture.js";
 
 const authorizedFixture = async () => {
   const { client, agent, profile } = await mcpFixture();
@@ -95,9 +94,10 @@ test("canonical bytes recovered from inspection stay inert", async () => {
   await withFrozenClock(async () => {
     const { client, profile, result } = await authorizedFixture();
     const canonical = result.action.canonicalBytes();
-    const commitment = await commitCanonical("auths.canonical-action.v1", canonical);
+    const engine = await packagedWasm();
+    const commitment = engine.commitCanonicalV1("auths.canonical-action.v1", canonical);
     const inspection = await inspectDecision(result);
-    assert.deepEqual(commitment.digest, inspection.commitments.action);
+    assert.deepEqual(commitment, inspection.commitments.action);
 
     // Replaying the canonical bytes through an engine the caller controls
     // reproduces the verdict as evidence and nothing more.

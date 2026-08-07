@@ -9,8 +9,8 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use auths_authority::{AuthorScopeDecision, evaluate_author_scope_view};
 use auths_codec::{
-    CodecError, action_id, action_signing_preimage, grant_id, grant_signing_preimage,
-    grant_status_id, grant_status_signing_preimage, principal_status_id,
+    CodecError, action_id, action_signing_preimage, domain_commitment, grant_id,
+    grant_signing_preimage, grant_status_id, grant_status_signing_preimage, principal_status_id,
     principal_status_signing_preimage, transaction_binding,
 };
 use auths_model::{
@@ -401,6 +401,137 @@ impl SigningObjectId {
     }
 }
 
+/// Approval-policy configuration committed before any signer is invoked.
+///
+/// The SDK compares this commitment against the requirement published by the
+/// trusted authority, so its canonical form decides whether signing proceeds.
+/// It is stated here, in deterministic length-framed bytes, rather than in a
+/// language binding's own serializer.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ApprovalPolicyCommitment;
+
+impl ApprovalPolicyCommitment {
+    /// Commits to one exact executable approval configuration.
+    ///
+    /// Requirements are committed in the caller's order after rejecting
+    /// duplicates, so a reordered or padded requirement set never collides
+    /// with the configuration an authority actually required.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when any field exceeds protocol limits or the
+    /// requirement list repeats a value.
+    pub fn commit(
+        mode: &str,
+        max_uses: u32,
+        expires_in_seconds: u32,
+        requirements: &[&str],
+    ) -> Result<Digest, CodecError> {
+        let mut canonical = Vec::new();
+        push_framed(&mut canonical, mode.as_bytes())?;
+        canonical.extend_from_slice(&max_uses.to_be_bytes());
+        canonical.extend_from_slice(&expires_in_seconds.to_be_bytes());
+        let count = u32::try_from(requirements.len()).map_err(|_| CodecError::LimitExceeded)?;
+        canonical.extend_from_slice(&count.to_be_bytes());
+        for (index, requirement) in requirements.iter().enumerate() {
+            if requirements[..index].contains(requirement) {
+                return Err(CodecError::NonCanonical);
+            }
+            push_framed(&mut canonical, requirement.as_bytes())?;
+        }
+        domain_commitment("auths.approval-policy.v1", &canonical)
+    }
+}
+
+/// Binds one plan approval to the exact plan, policy, and expiry it covered.
+///
+/// A single approval may release many signatures, so what it covered must be
+/// committed rather than reassembled by each binding.
+///
+/// # Errors
+///
+/// Returns an error when the commitment inputs exceed protocol limits.
+pub fn commit_plan_approval(
+    plan_commitment: &[u8; 32],
+    configuration_digest: &[u8; 32],
+    max_uses: u32,
+    expires_at: u64,
+) -> Result<Digest, CodecError> {
+    let mut canonical = Vec::with_capacity(32 + 32 + 4 + 8);
+    canonical.extend_from_slice(plan_commitment);
+    canonical.extend_from_slice(configuration_digest);
+    canonical.extend_from_slice(&max_uses.to_be_bytes());
+    canonical.extend_from_slice(&expires_at.to_be_bytes());
+    domain_commitment("auths.plan-approval.v1", &canonical)
+}
+
+/// Commitment over one profile plan and each of its ordered members.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProfilePlanCommitment {
+    plan: Digest,
+    members: Vec<Digest>,
+}
+
+impl ProfilePlanCommitment {
+    /// Commits to an ordered plan membership for one profile.
+    ///
+    /// The plan digest covers every member in order, so approving a plan
+    /// cannot approve a different set or a different ordering.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the profile reference or membership exceeds
+    /// protocol limits.
+    pub fn commit(
+        profile_id: &str,
+        profile_version: u16,
+        members: &[&[u8]],
+    ) -> Result<Self, CodecError> {
+        let mut canonical = Vec::new();
+        push_framed(&mut canonical, profile_id.as_bytes())?;
+        canonical.extend_from_slice(&profile_version.to_be_bytes());
+        let count = u32::try_from(members.len()).map_err(|_| CodecError::LimitExceeded)?;
+        canonical.extend_from_slice(&count.to_be_bytes());
+        let mut member_digests = Vec::with_capacity(members.len());
+        for (index, member) in members.iter().enumerate() {
+            push_framed(&mut canonical, member)?;
+            let position = u32::try_from(index).map_err(|_| CodecError::LimitExceeded)?;
+            let mut member_input = Vec::new();
+            push_framed(&mut member_input, profile_id.as_bytes())?;
+            member_input.extend_from_slice(&profile_version.to_be_bytes());
+            member_input.extend_from_slice(&position.to_be_bytes());
+            push_framed(&mut member_input, member)?;
+            member_digests.push(domain_commitment(
+                "auths.profile-plan-member.v1",
+                &member_input,
+            )?);
+        }
+        Ok(Self {
+            plan: domain_commitment("auths.profile-plan.v1", &canonical)?,
+            members: member_digests,
+        })
+    }
+
+    /// Returns the commitment over the whole ordered plan.
+    #[must_use]
+    pub const fn plan(&self) -> Digest {
+        self.plan
+    }
+
+    /// Returns the ordered per-member commitments.
+    #[must_use]
+    pub fn members(&self) -> &[Digest] {
+        &self.members
+    }
+}
+
+fn push_framed(output: &mut Vec<u8>, value: &[u8]) -> Result<(), CodecError> {
+    let length = u64::try_from(value.len()).map_err(|_| CodecError::LimitExceeded)?;
+    output.extend_from_slice(&length.to_be_bytes());
+    output.extend_from_slice(value);
+    Ok(())
+}
+
 /// Longest label, two 32-byte hex identifiers, and two separators.
 const REQUEST_ID_CAPACITY: usize = 16 + 1 + 64 + 1 + 64;
 
@@ -741,5 +872,53 @@ mod tests {
             builder.all_of(vec![left, right]),
             Err(PlanningError::InvalidPlan)
         );
+    }
+    #[test]
+    fn approval_policy_commitment_separates_every_field() {
+        let baseline =
+            ApprovalPolicyCommitment::commit("every-action", 1, 300, &["visible-human-review"])
+                .unwrap();
+        for candidate in [
+            ApprovalPolicyCommitment::commit("plan-once", 1, 300, &["visible-human-review"]),
+            ApprovalPolicyCommitment::commit("every-action", 2, 300, &["visible-human-review"]),
+            ApprovalPolicyCommitment::commit("every-action", 1, 301, &["visible-human-review"]),
+            ApprovalPolicyCommitment::commit("every-action", 1, 300, &[]),
+            ApprovalPolicyCommitment::commit("every-action", 1, 300, &["visible-human-reviewX"]),
+        ] {
+            assert_ne!(baseline, candidate.unwrap());
+        }
+    }
+
+    #[test]
+    fn approval_policy_commitment_is_unambiguous_across_field_boundaries() {
+        // Length framing must stop a longer mode from imitating a shorter mode
+        // followed by a requirement.
+        assert_ne!(
+            ApprovalPolicyCommitment::commit("every", 1, 300, &["action"]).unwrap(),
+            ApprovalPolicyCommitment::commit("everyaction", 1, 300, &[""]).unwrap()
+        );
+        assert_eq!(
+            ApprovalPolicyCommitment::commit("every-action", 1, 300, &["a", "a"]),
+            Err(CodecError::NonCanonical)
+        );
+    }
+
+    #[test]
+    fn profile_plan_commitment_binds_membership_and_order() {
+        let first: &[u8] = b"first";
+        let second: &[u8] = b"second";
+        let ordered = ProfilePlanCommitment::commit("auths.mcp", 1, &[first, second]).unwrap();
+        let reordered = ProfilePlanCommitment::commit("auths.mcp", 1, &[second, first]).unwrap();
+        let shortened = ProfilePlanCommitment::commit("auths.mcp", 1, &[first]).unwrap();
+        let other_profile =
+            ProfilePlanCommitment::commit("other.plan", 1, &[first, second]).unwrap();
+
+        assert_ne!(ordered.plan(), reordered.plan());
+        assert_ne!(ordered.plan(), shortened.plan());
+        assert_ne!(ordered.plan(), other_profile.plan());
+        assert_eq!(ordered.members().len(), 2);
+        // Identical bytes at different positions commit differently.
+        let repeated = ProfilePlanCommitment::commit("auths.mcp", 1, &[first, first]).unwrap();
+        assert_ne!(repeated.members()[0], repeated.members()[1]);
     }
 }

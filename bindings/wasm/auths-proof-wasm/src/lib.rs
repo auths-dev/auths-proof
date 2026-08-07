@@ -3,8 +3,9 @@
 #![forbid(unsafe_code)]
 
 use auths_author::{
-    ExternalSigningRequest, GrantPlan, GrantRequest, OverGrantingWarning, plan_child_grant,
-    prepare_action, prepare_grant, prepare_grant_status, prepare_principal_status,
+    ApprovalPolicyCommitment, ExternalSigningRequest, GrantPlan, GrantRequest, OverGrantingWarning,
+    ProfilePlanCommitment, commit_plan_approval, plan_child_grant, prepare_action, prepare_grant,
+    prepare_grant_status, prepare_principal_status,
 };
 use auths_model::{
     ActionConstraint, ActionEnvelope, AssurancePolicyId, Audience, AudienceSet, AuthorizationPlan,
@@ -576,6 +577,142 @@ pub fn plan_child_grant_fields_v1(
         assurance_floor,
     )
     .map_err(js_error)
+}
+
+/// Commits to already-canonical bytes under an explicit application domain.
+///
+/// # Errors
+///
+/// Returns a JavaScript error when the domain or payload exceeds limits.
+#[wasm_bindgen(js_name = commitCanonicalV1)]
+pub fn commit_canonical_v1(domain: &str, canonical: &[u8]) -> Result<Vec<u8>, JsValue> {
+    auths_codec::domain_commitment(domain, canonical)
+        .map(|digest| digest.as_bytes().to_vec())
+        .map_err(js_error)
+}
+
+/// Commits to one exact executable approval configuration.
+///
+/// # Errors
+///
+/// Returns a JavaScript error for an out-of-limit or repeated requirement set.
+// wasm-bindgen marshals a JavaScript string array as an owned Vec<String>.
+#[allow(clippy::needless_pass_by_value)]
+#[wasm_bindgen(js_name = commitApprovalPolicyV1)]
+pub fn commit_approval_policy_v1(
+    mode: &str,
+    max_uses: u32,
+    expires_in_seconds: u32,
+    requirements: Vec<String>,
+) -> Result<Vec<u8>, JsValue> {
+    let borrowed: Vec<&str> = requirements.iter().map(String::as_str).collect();
+    ApprovalPolicyCommitment::commit(mode, max_uses, expires_in_seconds, &borrowed)
+        .map(|digest| digest.as_bytes().to_vec())
+        .map_err(js_error)
+}
+
+/// Binds one plan approval to the plan, policy, and expiry it covered.
+///
+/// # Errors
+///
+/// Returns a JavaScript error for out-of-limit or wrong-width inputs.
+#[wasm_bindgen(js_name = commitPlanApprovalV1)]
+pub fn commit_plan_approval_v1(
+    plan_commitment: &[u8],
+    configuration_digest: &[u8],
+    max_uses: u32,
+    expires_at: u64,
+) -> Result<Vec<u8>, JsValue> {
+    let plan: [u8; 32] = plan_commitment
+        .try_into()
+        .map_err(|_| js_error(EngineError::Abi("plan commitment must be 32 bytes")))?;
+    let configuration: [u8; 32] = configuration_digest
+        .try_into()
+        .map_err(|_| js_error(EngineError::Abi("configuration digest must be 32 bytes")))?;
+    commit_plan_approval(&plan, &configuration, max_uses, expires_at)
+        .map(|digest| digest.as_bytes().to_vec())
+        .map_err(js_error)
+}
+
+/// Ordered plan and per-member commitments for one profile.
+#[wasm_bindgen]
+pub struct ProfilePlanCommitmentV1 {
+    plan: Vec<u8>,
+    members: Vec<u8>,
+    member_count: usize,
+}
+
+#[wasm_bindgen]
+impl ProfilePlanCommitmentV1 {
+    /// Returns the commitment over the whole ordered plan.
+    #[must_use]
+    #[wasm_bindgen(getter)]
+    pub fn plan(&self) -> Vec<u8> {
+        self.plan.clone()
+    }
+
+    /// Returns every member commitment concatenated in plan order.
+    #[must_use]
+    #[wasm_bindgen(getter)]
+    pub fn members(&self) -> Vec<u8> {
+        self.members.clone()
+    }
+
+    /// Returns how many members the plan commits to.
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = memberCount)]
+    pub fn member_count(&self) -> usize {
+        self.member_count
+    }
+}
+
+/// Commits to an ordered profile-plan membership.
+///
+/// Members arrive concatenated with their exact lengths, so the boundary
+/// carries no per-member JavaScript object.
+///
+/// # Errors
+///
+/// Returns a JavaScript error when the profile or membership exceeds limits,
+/// or when the declared lengths do not consume the buffer exactly.
+#[wasm_bindgen(js_name = commitProfilePlanV1)]
+pub fn commit_profile_plan_v1(
+    profile_id: &str,
+    profile_version: u16,
+    members: &[u8],
+    member_lengths: &[u32],
+) -> Result<ProfilePlanCommitmentV1, JsValue> {
+    let mut borrowed: Vec<&[u8]> = Vec::with_capacity(member_lengths.len());
+    let mut offset = 0_usize;
+    for length in member_lengths {
+        let length = *length as usize;
+        let end = offset
+            .checked_add(length)
+            .ok_or_else(|| js_error(EngineError::Abi("plan member lengths overflow")))?;
+        if end > members.len() {
+            return Err(js_error(EngineError::Abi(
+                "plan member lengths exceed the supplied buffer",
+            )));
+        }
+        borrowed.push(&members[offset..end]);
+        offset = end;
+    }
+    if offset != members.len() {
+        return Err(js_error(EngineError::Abi(
+            "plan member lengths do not consume the supplied buffer",
+        )));
+    }
+    let commitment =
+        ProfilePlanCommitment::commit(profile_id, profile_version, &borrowed).map_err(js_error)?;
+    let mut flattened = Vec::with_capacity(commitment.members().len() * 32);
+    for member in commitment.members() {
+        flattened.extend_from_slice(member.as_bytes());
+    }
+    Ok(ProfilePlanCommitmentV1 {
+        plan: commitment.plan().as_bytes().to_vec(),
+        members: flattened,
+        member_count: commitment.members().len(),
+    })
 }
 
 /// Exact native signing request returned to an external custody port.

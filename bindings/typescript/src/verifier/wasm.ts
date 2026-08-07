@@ -4,7 +4,20 @@ import { registerPackagedEngine } from "./packaged-registry.js";
 
 export type PackagedWorkflowEngine = WorkflowWasmEngine & PortableWasmEngine;
 
+let packaged: Promise<PackagedWorkflowEngine> | undefined;
+
+/**
+ * Loads the SDK-packaged WASM subject exactly once per module instance.
+ *
+ * Memoising matters beyond cost: the packaged registry identifies the engine
+ * by object identity, so every caller must observe the same module object.
+ */
 export async function loadPackagedWorkflowEngine(): Promise<PackagedWorkflowEngine> {
+  packaged ??= loadPackagedWorkflowEngineOnce();
+  return packaged;
+}
+
+async function loadPackagedWorkflowEngineOnce(): Promise<PackagedWorkflowEngine> {
   const moduleUrl = new URL("../../wasm/auths_proof_wasm.js", import.meta.url).href;
   const loaded = (await import(moduleUrl)) as PackagedWorkflowEngine & {
     default?: (input?: {
@@ -40,6 +53,10 @@ export async function loadPackagedWorkflowEngine(): Promise<PackagedWorkflowEngi
     typeof loaded.completeActionSigningV1 !== "function" ||
     typeof loaded.completePrincipalStatusSigningV1 !== "function" ||
     typeof loaded.completeGrantStatusSigningV1 !== "function" ||
+    typeof loaded.commitCanonicalV1 !== "function" ||
+    typeof loaded.commitApprovalPolicyV1 !== "function" ||
+    typeof loaded.commitProfilePlanV1 !== "function" ||
+    typeof loaded.commitPlanApprovalV1 !== "function" ||
     typeof loaded.verifyV1 !== "function"
   ) {
     throw new TypeError("Auths WASM module omitted workflow authoring exports");

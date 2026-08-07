@@ -209,25 +209,63 @@ forbidden_patterns = [
   "secrets.",
   "nacl.",
   "cryptography.hazmat",
+  # A binding that frames its own bytes is defining a wire format the other
+  # SDKs must reproduce exactly. Canonical encodings belong to the Rust core.
+  "JSON.stringify",
+  "DataView",
 ]
 
 [[binding_semantics.allowances]]
 path = "bindings/typescript/src/testkit/index.ts"
 pattern = "crypto.subtle"
+status = "permanent"
 reason = "Non-production ephemeral development signer. External custody is deliberately outside the kernel, so a stand-in signer must hold a key locally; it is labelled ephemeral and ships only on the testkit entry point."
 
 [[binding_semantics.allowances]]
 path = "bindings/typescript/src/profiles/mcp/index.ts"
 pattern = "getRandomValues"
+status = "permanent"
 reason = "Fresh local entropy for one action challenge. Randomness cannot come from an effect-free kernel; the authoring ABI receives the challenge and rejects an invalid one, so Rust still owns the rule."
 
 [[binding_semantics.allowances]]
 path = "bindings/typescript/src/profiles/application/index.ts"
 pattern = "getRandomValues"
+status = "permanent"
 reason = "Fresh local entropy for one action challenge. Randomness cannot come from an effect-free kernel; the authoring ABI receives the challenge and rejects an invalid one, so Rust still owns the rule."
 
 
+
 [[binding_semantics.allowances]]
-path = "bindings/typescript/src/commitments.ts"
-pattern = "crypto.subtle"
-reason = "UNDER REVIEW. commitCanonical defines an SDK-local domain-separated digest that has no Rust owner. If it is protocol-adjacent evidence it belongs in the core; if it is a logging convenience it must not be cloned into Python. Resolve the ownership question, then either move it or narrow this allowance."
+path = "bindings/typescript/src/profiles/mcp/index.ts"
+pattern = "JSON.stringify"
+status = "temporary"
+issue = "https://github.com/auths-dev/auths-proof/issues/88"
+reason = "The MCP action body is produced by JavaScript's JSON.stringify, so Python would have to reproduce its key order, number formatting, and escaping byte for byte. Rust must own this canonical encoding."
+
+[[binding_semantics.allowances]]
+path = "bindings/typescript/src/profiles/mcp/index.ts"
+pattern = "DataView"
+status = "temporary"
+issue = "https://github.com/auths-dev/auths-proof/issues/88"
+reason = "The plan-member byte layout for MCP calls is framed here rather than by the core, so a second SDK would have to match a hand-rolled format to commit to the same plan."
+
+[[binding_semantics.allowances]]
+path = "bindings/typescript/src/profiles/application/index.ts"
+pattern = "JSON.stringify"
+status = "temporary"
+issue = "https://github.com/auths-dev/auths-proof/issues/88"
+reason = "The application profile kit serialises its canonical header with JSON.stringify, which makes the exact bytes a property of this JavaScript runtime rather than of the protocol."
+
+[[binding_semantics.allowances]]
+path = "bindings/typescript/src/profiles/application/index.ts"
+pattern = "DataView"
+status = "temporary"
+issue = "https://github.com/auths-dev/auths-proof/issues/88"
+reason = "The application profile kit frames its canonical header length here. The framing belongs with the canonicalisation it protects, in the Rust core."
+
+[[binding_semantics.allowances]]
+path = "bindings/typescript/src/testkit/index.ts"
+pattern = "DataView"
+status = "temporary"
+issue = "https://github.com/auths-dev/auths-proof/issues/88"
+reason = "The development signer frames raw-key evidence and derives the key:sha256 principal identifier here. That derivation is protocol meaning owned by auths-raw-key, and it agrees with the kernel today only because the encoding was matched by hand."

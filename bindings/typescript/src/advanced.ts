@@ -17,5 +17,4 @@ export {
   createDiagnosticVerifier,
   type DiagnosticResult,
 } from "./verifier/diagnostic.js";
-export { commitCanonical, type CanonicalCommitment } from "./commitments.js";
 export { inspectDecision, type DecisionInspection } from "./inspection.js";

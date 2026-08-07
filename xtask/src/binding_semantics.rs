@@ -29,6 +29,16 @@ struct Allowance {
     path: String,
     pattern: String,
     reason: String,
+    status: AllowanceStatus,
+}
+
+/// Whether an allowance records a decision or an outstanding defect.
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+enum AllowanceStatus {
+    /// The meaning is genuinely local and is expected to stay in the binding.
+    Permanent,
+    /// A known defect, tracked, and expected to move into the Rust core.
+    Temporary,
 }
 
 #[derive(Debug)]
@@ -125,8 +135,13 @@ pub(crate) fn binding_semantics() -> Result<(), String> {
         return Err(message.trim_end().to_owned());
     }
 
+    let temporary = policy
+        .allowances
+        .iter()
+        .filter(|allowance| allowance.status == AllowanceStatus::Temporary)
+        .count();
     println!(
-        "binding semantics passed: {scanned_files} files, {} patterns, {} declared allowances",
+        "binding semantics passed: {scanned_files} files, {} patterns, {} declared allowances ({temporary} temporary)",
         policy.forbidden_patterns.len(),
         policy.allowances.len()
     );
@@ -193,10 +208,32 @@ fn load_policy() -> Result<BindingSemanticsPolicy, String> {
                 .map(str::to_owned)
                 .ok_or_else(|| format!("binding_semantics allowance requires {key}"))
         };
+        let status = match field("status")?.as_str() {
+            "permanent" => AllowanceStatus::Permanent,
+            "temporary" => AllowanceStatus::Temporary,
+            other => {
+                return Err(format!(
+                    "binding_semantics allowance status must be permanent or temporary, found {other}"
+                ));
+            }
+        };
+        // A temporary allowance is an open defect, not a blessing. Requiring a
+        // tracker reference stops "under review" from becoming permanent by
+        // being forgotten.
+        if status == AllowanceStatus::Temporary {
+            let issue = field("issue")?;
+            if issue.trim().is_empty() {
+                return Err(format!(
+                    "temporary binding_semantics allowance for {} must reference a tracked issue",
+                    field("path")?
+                ));
+            }
+        }
         let allowance = Allowance {
             path: field("path")?,
             pattern: field("pattern")?,
             reason: field("reason")?,
+            status,
         };
         if allowance.reason.trim().len() < MINIMUM_REASON_BYTES {
             return Err(format!(
@@ -250,6 +287,12 @@ mod tests {
         for allowance in &policy.allowances {
             assert!(allowance.reason.trim().len() >= MINIMUM_REASON_BYTES);
         }
+        assert!(
+            policy
+                .allowances
+                .iter()
+                .any(|allowance| allowance.status == AllowanceStatus::Permanent)
+        );
     }
 
     #[test]
