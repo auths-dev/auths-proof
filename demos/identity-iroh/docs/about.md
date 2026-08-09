@@ -6,8 +6,9 @@ an exact application message to the exchanged identity and verify it with the
 core Ed25519 suite.
 
 No grant, capability, approval, policy, lifecycle, store, or product runtime is
-constructed. The identity transport package has no transitive workspace
-dependency on those systems, and architecture CI preserves that boundary.
+constructed. Identity and Iroh are independent packages: identity has no
+network dependency, while Iroh transports opaque bytes with no Auths semantic
+dependency. Architecture CI preserves both boundaries.
 
 A successful Iroh handshake authenticates the Iroh endpoint. A successful
 Ed25519 verification authenticates the exact message bytes to the carried

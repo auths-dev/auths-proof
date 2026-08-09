@@ -10,7 +10,8 @@ description = "Interactive capability-free Ed25519 identity exchange over Iroh"
 publish = false
 
 [dependencies]
-auths-identity-iroh.workspace = true
+auths-identity.workspace = true
+auths-iroh.workspace = true
 axum.workspace = true
 ed25519-dalek.workspace = true
 getrandom.workspace = true

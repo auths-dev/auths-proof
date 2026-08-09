@@ -46,30 +46,30 @@ does not authorize an application action.
 +-------------+--------------+
               | real loopback Iroh exchange
               v
-+----------------------------+
-| auths-identity-iroh        |
-| bounded identity protocol  |
-+------+------+--------------+
-       |      |
-       v      v
-+----------+ +---------------+
-| raw key  | | Ed25519 verify|
-+----------+ +---------------+
++---------------------+       +-----------------------+
+| auths-identity      |       | auths-iroh            |
+| identity bytes      |       | bounded opaque bytes  |
++----------+----------+       +-----------+-----------+
+           |                              |
+           v                              v
++----------+----------+          +--------------------+
+| raw key + signatures|          | Iroh + Tokio       |
++---------------------+          +--------------------+
 
 No dependency edge reaches proof grants, capabilities, approvals, product
 runtimes, stores, lifecycle services, or governance packages.
 ```
 
-`auths-identity-iroh` is one vertical exchange adapter. It owns its bounded
-wire message and Iroh sequence rather than extracting a speculative generic
-identity-exchange framework. Core continues to own raw-key principal derivation
-and Ed25519 verification. The demo owns ephemeral signing keys and browser
-presentation.
+`auths-identity` owns the transport-independent identity model, canonical
+bytes, signing preimage, and verification. `auths-iroh` owns only caller-bound
+ALPN negotiation, framed opaque bytes, timeouts, and peer observations. Neither
+package depends on the other. The demo owns their composition, the identity
+ALPN, ephemeral signing keys, and browser presentation.
 
-An architecture boundary lists the only workspace packages reachable from the
-identity transport. CI checks the complete transitive workspace dependency
-closure, so a future capability or approval dependency fails before build and
-test fan-out.
+Independent architecture boundaries pin identity to four lower-level core
+packages and Iroh transport to zero workspace dependencies. CI checks both
+complete transitive closures, so hidden semantic coupling fails before build
+and test fan-out.
 
 ## APIs
 
@@ -82,18 +82,20 @@ test fan-out.
 - `SignedIdentityMessage::new(identity, message, [u8; 64])`
 - `SignedIdentityMessage::verify()`
 - `IdentityPacket::{PublicIdentity, SignedMessage}`
-- `IrohIdentityClient::connect(endpoint, target, config)`
-- `IrohIdentityClient::exchange(packet)`
-- `IrohIdentityServer::accept(endpoint, config)`
-- `IrohIdentityServer::receive()`
-- `IrohIdentityServer::respond(packet)`
+- `IdentityPacket::encode()` / `IdentityPacket::decode(bytes)`
+- `IrohConfig::new(alpn, max_frame_bytes, timeout, stream_initiator)`
+- `IrohChannel::connect(endpoint, target, config)`
+- `IrohChannel::accept(endpoint, config)`
+- `IrohChannel::send(bytes)` / `IrohChannel::receive()`
+- `IrohChannel::finish_send()` / `IrohChannel::finish_send_and_wait()`
 
-The signing preimage is domain separated and binds the canonical raw-key
+The identity signing preimage is domain separated and binds the canonical raw-key
 descriptor plus the exact message bytes. Message and frame sizes are bounded.
 Malformed, oversized, non-canonical, unknown-version, or invalid-signature
-input fails with a typed error. Transport endpoint identity is reported
-separately from the exchanged Ed25519 identity and never upgrades it into
-authorization.
+input fails with a typed error. The generic Iroh component never decodes these
+bytes and supports either peer initiating a multi-frame exchange. Transport
+endpoint identity is reported separately from the exchanged Ed25519 identity
+and never upgrades it into authorization.
 
 ### Demo HTTP API
 

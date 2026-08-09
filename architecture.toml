@@ -70,6 +70,7 @@ no_std_packages = [
   "auths-did-key",
   "auths-did-web",
   "auths-hsm-attested",
+  "auths-identity",
   "auths-model",
   "auths-multikey",
   "auths-ports",
@@ -85,8 +86,9 @@ no_std_packages = [
 [packages]
 auths-algebra-kernel = "core"
 auths-apps-testkit = "demos"
-auths-identity-iroh = "exchange"
+auths-identity = "core"
 auths-identity-iroh-demo = "demos"
+auths-iroh = "exchange"
 auths-bench-model = "demos"
 auths-bench-native = "demos"
 auths-bench-wasm = "demos"
@@ -182,14 +184,18 @@ auths-verifier = "core"
 auths-webauthn = "core"
 xtask = "tooling"
 
-[dependency_boundaries.identity-transport]
-roots = ["auths-identity-iroh"]
+[dependency_boundaries.identity]
+roots = ["auths-identity"]
 allowed_workspace_dependencies = [
   "auths-model",
   "auths-ports",
   "auths-raw-key",
   "auths-signature",
 ]
+
+[dependency_boundaries.iroh-transport]
+roots = ["auths-iroh"]
+allowed_workspace_dependencies = []
 
 [exceptions]
 

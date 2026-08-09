@@ -59,8 +59,9 @@ Target packages:
 - `auths-author`: external-signing requests with no custody;
 - `auths-multikey`: the closed canonical Ed25519/P-256 Multikey subset;
 - `auths-raw-key`: self-certifying raw-key evidence;
-- `auths-identity-iroh`: capability-free Ed25519 public identity and signed
-  message exchange over Iroh;
+- `auths-identity`: transport-independent Ed25519 public identities and signed
+  messages;
+- `auths-iroh`: semantics-free bounded byte exchange over Iroh;
 - `auths-did-key`: self-certifying `did:key` evidence;
 - `auths-did-keri`: bounded offline KEL replay with threshold and rotation
   commitment verification;
@@ -78,9 +79,10 @@ Target packages:
 
 Teams can adopt Auths raw-key identities and Iroh transport without loading a
 grant, capability, approval, policy, lifecycle, store, or product runtime. The
-`auths-identity-iroh` package exchanges canonical Ed25519 public identities and
-optionally verifies an exact signed application message. Those are
-authentication facts only; they never become an authorization verdict.
+`auths-identity` exchanges canonical Ed25519 public identities and optionally
+verifies an exact signed application message. `auths-iroh` carries arbitrary
+bounded bytes under an application-selected ALPN. Neither component depends on
+the other, and neither manufactures an authorization verdict.
 
 Run the full native backend and browser workbench with:
 
@@ -88,10 +90,10 @@ Run the full native backend and browser workbench with:
 cargo run -p auths-identity-iroh-demo
 ```
 
-Then open `http://localhost:8080`. Architecture CI pins the transport's full
-transitive workspace dependency closure to the model, ports, raw-key, and
-signature packages, preventing accidental coupling to capability or approval
-systems.
+Then open `http://localhost:8080`. Architecture CI independently pins identity
+to the model, ports, raw-key, and signature packages, and pins Iroh transport
+to zero workspace dependencies. This prevents either component from acquiring
+capability or approval coupling.
 
 Focused validation:
 

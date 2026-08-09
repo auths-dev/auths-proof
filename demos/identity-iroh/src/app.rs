@@ -1,9 +1,9 @@
-use std::{env, net::SocketAddr, sync::Arc};
+use std::{env, net::SocketAddr, sync::Arc, time::Duration};
 
-use auths_identity_iroh::{
-    IDENTITY_ALPN_V1, IdentityError, IdentityPacket, IrohIdentityClient, IrohIdentityConfig,
-    IrohIdentityServer, PathObservation, PublicIdentity, SignedIdentityMessage,
+use auths_identity::{
+    IdentityError, IdentityPacket, MAX_IDENTITY_PACKET_BYTES, PublicIdentity, SignedIdentityMessage,
 };
+use auths_iroh::{IrohChannel, IrohConfig, IrohError, PathObservation, StreamInitiator};
 use axum::{
     Json, Router,
     extract::{DefaultBodyLimit, State},
@@ -18,6 +18,7 @@ use serde_json::json;
 use tower_http::cors::CorsLayer;
 
 const API_SCHEMA: &str = "auths.identity-iroh-demo/1";
+const IDENTITY_ALPN_V1: &[u8] = b"/auths/identity/1";
 const MAX_DEMO_MESSAGE_BYTES: usize = 256;
 
 /// Deployment configuration for the public demo shell.
@@ -62,6 +63,7 @@ struct AppState {
     server_target: EndpointAddr,
     server_signing: Arc<SigningKey>,
     server_identity: PublicIdentity,
+    transport_config: IrohConfig,
     config: AppConfig,
 }
 
@@ -75,6 +77,13 @@ pub async fn app(config: AppConfig) -> Result<Router, StartupError> {
     let server_signing = Arc::new(ephemeral_signing_key()?);
     let server_identity = PublicIdentity::from_ed25519(server_signing.verifying_key().to_bytes())
         .map_err(|_| StartupError)?;
+    let transport_config = IrohConfig::new(
+        Arc::<[u8]>::from(IDENTITY_ALPN_V1),
+        MAX_IDENTITY_PACKET_BYTES,
+        Duration::from_secs(10),
+        StreamInitiator::ConnectingEndpoint,
+    )
+    .map_err(|_| StartupError)?;
     let server_endpoint = Endpoint::builder(presets::N0)
         .alpns(vec![IDENTITY_ALPN_V1.to_vec()])
         .relay_mode(RelayMode::Disabled)
@@ -88,6 +97,7 @@ pub async fn app(config: AppConfig) -> Result<Router, StartupError> {
         server_target,
         server_signing,
         server_identity,
+        transport_config,
         config,
     };
     let cors = if allowed_origin == HeaderValue::from_static("*") {
@@ -266,33 +276,39 @@ async fn exchange(
     let server_endpoint = state.server_endpoint.clone();
     let server_signing = Arc::clone(&state.server_signing);
     let server_identity = state.server_identity.clone();
-    let config = IrohIdentityConfig::default();
+    let config = state.transport_config.clone();
+    let server_config = config.clone();
 
     let server_task = tokio::spawn(async move {
-        let mut channel = IrohIdentityServer::accept(&server_endpoint, config).await?;
+        let mut channel = IrohChannel::accept(&server_endpoint, server_config).await?;
         let received = channel.receive().await?;
-        let signature_verified = verify_packet(received.packet());
+        let packet = IdentityPacket::decode(received.payload()).map_err(ExchangeError::Identity)?;
+        let signature_verified = verify_packet(&packet);
         let response = response_packet(&server_signing, &server_identity, signature_verified)?;
-        channel.respond(&response).await?;
-        Ok::<_, IdentityError>((received, signature_verified))
+        channel.send(&response.encode()?).await?;
+        channel.finish_send_and_wait().await?;
+        Ok::<_, ExchangeError>((received, packet, signature_verified))
     });
 
-    let client = IrohIdentityClient::connect(&client_endpoint, state.server_target.clone(), config)
+    let mut client = IrohChannel::connect(&client_endpoint, state.server_target.clone(), config)
         .await
-        .map_err(ApiError::identity)?;
+        .map_err(ApiError::transport)?;
     let path = client.path_observation();
-    let response = client
-        .exchange(&outbound)
+    client
+        .send(&outbound.encode().map_err(ApiError::identity)?)
         .await
-        .map_err(ApiError::identity)?;
-    let (server_received, signature_verified) = server_task
+        .map_err(ApiError::transport)?;
+    client.finish_send().map_err(ApiError::transport)?;
+    let response = client.receive().await.map_err(ApiError::transport)?;
+    let response_packet = IdentityPacket::decode(response.payload()).map_err(ApiError::identity)?;
+    let (server_received, server_packet, signature_verified) = server_task
         .await
         .map_err(|_| ApiError::internal())?
-        .map_err(ApiError::identity)?;
-    let response_identity = response.packet().identity();
-    let exchanged_identity = server_received.packet().identity();
+        .map_err(ApiError::exchange)?;
+    let response_identity = response_packet.identity();
+    let exchanged_identity = server_packet.identity();
     let (code, detail) = result_copy(experiment, signature_verified);
-    let signature = match server_received.packet() {
+    let signature = match &server_packet {
         IdentityPacket::PublicIdentity(_) => None,
         IdentityPacket::SignedMessage(signed) => Some(hex::encode(signed.signature())),
     };
@@ -490,6 +506,39 @@ impl ApiError {
             code: "identity-exchange-failed",
             detail: "the bounded identity exchange failed",
         }
+    }
+
+    const fn transport(_error: IrohError) -> Self {
+        Self {
+            status: StatusCode::BAD_GATEWAY,
+            code: "iroh-exchange-failed",
+            detail: "the bounded Iroh byte exchange failed",
+        }
+    }
+
+    const fn exchange(error: ExchangeError) -> Self {
+        match error {
+            ExchangeError::Identity(error) => Self::identity(error),
+            ExchangeError::Transport(error) => Self::transport(error),
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum ExchangeError {
+    Identity(IdentityError),
+    Transport(IrohError),
+}
+
+impl From<IdentityError> for ExchangeError {
+    fn from(error: IdentityError) -> Self {
+        Self::Identity(error)
+    }
+}
+
+impl From<IrohError> for ExchangeError {
+    fn from(error: IrohError) -> Self {
+        Self::Transport(error)
     }
 }
 

@@ -11,6 +11,7 @@ members = [
     "core/crates/auths-ports",
     "core/crates/auths-registries",
     "core/crates/auths-signature",
+    "core/crates/auths-identity",
     "core/crates/auths-algebra-kernel",
     "core/crates/auths-authority",
     "core/crates/auths-composition",
@@ -35,7 +36,7 @@ members = [
     "exchange/crates/auths-proof-exchange-framing",
     "exchange/adapters/auths-proof-exchange-memory",
     "exchange/adapters/auths-proof-exchange-iroh",
-    "exchange/adapters/auths-identity-iroh",
+    "exchange/adapters/auths-iroh",
     "exchange/adapters/auths-proof-exchange-tcp",
     "exchange/adapters/auths-proof-exchange-unix",
     "exchange/adapters/auths-proof-exchange-file",
@@ -116,6 +117,7 @@ auths-codec = { version = "1.0.0-rc.1", path = "core/crates/auths-codec", defaul
 auths-ports = { version = "1.0.0-rc.1", path = "core/crates/auths-ports", default-features = false }
 auths-registries = { version = "1.0.0-rc.1", path = "core/crates/auths-registries", default-features = false }
 auths-signature = { version = "1.0.0-rc.1", path = "core/crates/auths-signature", default-features = false }
+auths-identity = { version = "1.0.0-rc.1", path = "core/crates/auths-identity", default-features = false }
 auths-algebra-kernel = { version = "1.0.0-rc.1", path = "core/crates/auths-algebra-kernel", default-features = false }
 auths-authority = { version = "1.0.0-rc.1", path = "core/crates/auths-authority", default-features = false }
 auths-composition = { version = "1.0.0-rc.1", path = "core/crates/auths-composition", default-features = false }
@@ -141,7 +143,7 @@ auths-proof-exchange-port = { version = "1.0.0-rc.1", path = "exchange/crates/au
 auths-proof-exchange-framing = { version = "1.0.0-rc.1", path = "exchange/crates/auths-proof-exchange-framing" }
 auths-proof-exchange-memory = { version = "1.0.0-rc.1", path = "exchange/adapters/auths-proof-exchange-memory" }
 auths-proof-exchange-iroh = { version = "1.0.0-rc.1", path = "exchange/adapters/auths-proof-exchange-iroh" }
-auths-identity-iroh = { version = "1.0.0-rc.1", path = "exchange/adapters/auths-identity-iroh" }
+auths-iroh = { version = "1.0.0-rc.1", path = "exchange/adapters/auths-iroh" }
 auths-proof-exchange-tcp = { version = "1.0.0-rc.1", path = "exchange/adapters/auths-proof-exchange-tcp" }
 auths-proof-exchange-unix = { version = "1.0.0-rc.1", path = "exchange/adapters/auths-proof-exchange-unix" }
 auths-proof-exchange-file = { version = "1.0.0-rc.1", path = "exchange/adapters/auths-proof-exchange-file" }
