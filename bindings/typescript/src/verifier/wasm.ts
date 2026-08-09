@@ -39,8 +39,11 @@ async function loadPackagedWorkflowEngineOnce(): Promise<PackagedWorkflowEngine>
     typeof loaded.configurationV1 !== "function" ||
     typeof loaded.validateTrustedContextV1 !== "function" ||
     typeof loaded.prepareMcpActionV1 !== "function" ||
+    typeof loaded.canonicalizeMcpPlanMemberV1 !== "function" ||
+    typeof loaded.canonicalizeProfilePlanMemberV1 !== "function" ||
     typeof loaded.prepareProfileActionV1 !== "function" ||
     typeof loaded.prepareRawKeyAuthorityV1 !== "function" ||
+    typeof loaded.deriveEd25519RawKeyIdentityV1 !== "function" ||
     typeof loaded.WorkflowProofBuilderV1 !== "function" ||
     typeof loaded.inspectSignedGrantV1 !== "function" ||
     typeof loaded.validateRootAuthorityV1 !== "function" ||

@@ -6865,6 +6865,18 @@
     {
       "source": "auths-proof-wasm",
       "source_layer": "bindings",
+      "target": "serde-wasm-bindgen",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-proof-wasm",
+      "source_layer": "bindings",
       "target": "serde_json",
       "target_layer": null,
       "scope": "external",
@@ -6876,6 +6888,18 @@
         "alloc",
         "preserve_order"
       ]
+    },
+    {
+      "source": "auths-proof-wasm",
+      "source_layer": "bindings",
+      "target": "serde_json_canonicalizer",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
     },
     {
       "source": "auths-proof-wasm",
