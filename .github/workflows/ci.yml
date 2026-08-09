@@ -128,17 +128,31 @@ jobs:
     if: needs.ci-plan.outputs.formal_translation_required == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 120
+    outputs:
+      update_required: ${{ steps.formal-update.outputs.update_required || 'false' }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Verify the exact formal candidate before expensive setup
+        env:
+          AUTHS_EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          actual_head_sha="$(git rev-parse HEAD)"
+          if [[ "$actual_head_sha" != "$AUTHS_EXPECTED_HEAD_SHA" ]]; then
+            echo "::error::Formal candidate mismatch: expected ${AUTHS_EXPECTED_HEAD_SHA}, found ${actual_head_sha}."
+            exit 1
+          fi
+          echo "Formal candidate: ${actual_head_sha}" >> "$GITHUB_STEP_SUMMARY"
       - name: Start telemetry
         run: echo "AUTHS_PHASE_STARTED=$(date +%s)" >> "$GITHUB_ENV"
       - uses: ./.github/actions/setup-rust-cache
         with:
           toolchain: 1.97.1
-          compiler-cache: "false"
       - name: Check production source closure before formal setup
+        if: github.event_name != 'pull_request'
         run: >-
           cargo run --locked -p auths-ci-plan --
           formal-source-closure check
@@ -192,11 +206,45 @@ jobs:
           cargo install kani-verifier --version 0.67.0 --locked
           cargo kani setup
           kani --version
-      - name: Reproduce exact production translation twice
+      - name: Reproduce and verify exact production translation
+        if: github.event_name != 'pull_request'
         env:
           AUTHS_AENEAS_BIN: ${{ github.workspace }}/target/formal-tools/bin/aeneas
           AUTHS_CHARON_BIN: ${{ github.workspace }}/target/formal-tools/bin/charon
         run: cargo xtask ci formal-translation
+      - name: Reproduce and update generated artifacts without write credentials
+        if: github.event_name == 'pull_request'
+        env:
+          AUTHS_AENEAS_BIN: ${{ github.workspace }}/target/formal-tools/bin/aeneas
+          AUTHS_CHARON_BIN: ${{ github.workspace }}/target/formal-tools/bin/charon
+        run: cargo xtask formal qualify aeneas --update
+      - id: formal-update
+        name: Package a bounded generated update
+        if: github.event_name == 'pull_request'
+        run: >-
+          cargo run --locked -p auths-ci-plan --
+          formal-update-artifact create
+          --repository "${{ github.repository }}"
+          --workflow "${{ github.workflow }}"
+          --run-id "${{ github.run_id }}"
+          --run-attempt "${{ github.run_attempt }}"
+          --base-sha "${{ github.event.pull_request.base.sha }}"
+          --head-sha "${{ github.event.pull_request.head.sha }}"
+      - name: Run full read-only verification when the PR is already reproducible
+        if: steps.formal-update.outputs.update_required == 'false'
+        env:
+          AUTHS_AENEAS_BIN: ${{ github.workspace }}/target/formal-tools/bin/aeneas
+          AUTHS_CHARON_BIN: ${{ github.workspace }}/target/formal-tools/bin/charon
+        run: cargo xtask ci formal-translation
+      - name: Preserve the bounded generated update
+        if: steps.formal-update.outputs.update_required == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: auths-formal-update-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/formal-update/
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 9
       - name: Preserve translation evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -607,10 +655,11 @@ jobs:
           REQUIRED: ${{ needs.ci-plan.outputs.formal_translation_required }}
           REASON: ${{ needs.ci-plan.outputs.formal_translation_reason }}
           RUN_RESULT: ${{ needs.formal-translation-run.result }}
+          UPDATE_REQUIRED: ${{ needs.formal-translation-run.outputs.update_required }}
         run: |
-          echo "Decision: ${REQUIRED}; implementation: ${RUN_RESULT}; ${REASON}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Decision: ${REQUIRED}; implementation: ${RUN_RESULT}; generated update: ${UPDATE_REQUIRED}; ${REASON}" >> "$GITHUB_STEP_SUMMARY"
           [[ "$PLANNER" == success ]]
-          [[ "$REQUIRED" == true && "$RUN_RESULT" == success ]] || [[ "$REQUIRED" == false && "$RUN_RESULT" == skipped ]]
+          [[ "$REQUIRED" == true && "$RUN_RESULT" == success && "$UPDATE_REQUIRED" != true ]] || [[ "$REQUIRED" == false && "$RUN_RESULT" == skipped ]]
 
   compliance:
     name: compliance

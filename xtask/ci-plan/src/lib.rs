@@ -10,6 +10,8 @@ use std::{
     process::Command as ProcessCommand,
 };
 
+mod formal_update;
+
 const DEFAULT_MANIFEST: &str = ".github/ci/phase-ownership.toml";
 const DEFAULT_BASELINE: &str = ".github/ci/baseline.json";
 const PLAN_SCHEMA: &str = "auths-proof-ci-plan/v1";
@@ -23,6 +25,10 @@ pub enum Command {
         update: bool,
         root: PathBuf,
         output: PathBuf,
+    },
+    FormalUpdateArtifact {
+        apply: bool,
+        options: formal_update::Options,
     },
 }
 
@@ -79,6 +85,78 @@ impl Command {
                 update: action == "update",
                 root: selected_root,
                 output,
+            });
+        }
+        if command == "formal-update-artifact" {
+            let action = arguments.next().ok_or_else(|| usage().to_owned())?;
+            if action != "create" && action != "apply" {
+                return Err(format!(
+                    "formal-update-artifact action must be create or apply; {}",
+                    usage()
+                ));
+            }
+            let cwd =
+                env::current_dir().map_err(|error| format!("could not resolve cwd: {error}"))?;
+            let mut values: BTreeMap<String, String> = BTreeMap::new();
+            let arguments: Vec<_> = arguments.collect();
+            let mut index = 0;
+            let allowed = BTreeSet::from([
+                "--root",
+                "--artifact",
+                "--policy",
+                "--repository",
+                "--workflow",
+                "--run-id",
+                "--run-attempt",
+                "--base-sha",
+                "--head-sha",
+            ]);
+            while index < arguments.len() {
+                let flag = arguments[index].as_str();
+                if !allowed.contains(flag) {
+                    return Err(format!("unknown argument {flag}; {}", usage()));
+                }
+                let value = arguments
+                    .get(index + 1)
+                    .ok_or_else(|| format!("{flag} requires a value"))?;
+                if values.insert(flag.to_owned(), value.clone()).is_some() {
+                    return Err(format!("duplicate argument {flag}"));
+                }
+                index += 2;
+            }
+            let required = |flag: &str| {
+                values
+                    .get(flag)
+                    .cloned()
+                    .ok_or_else(|| format!("{flag} is required"))
+            };
+            let root = values.get("--root").map(PathBuf::from).unwrap_or(cwd);
+            let resolve = |flag: &str, default: Option<&str>| -> Result<PathBuf, String> {
+                let path = values
+                    .get(flag)
+                    .map(PathBuf::from)
+                    .or_else(|| default.map(PathBuf::from))
+                    .ok_or_else(|| format!("{flag} is required"))?;
+                Ok(if path.is_relative() {
+                    root.join(path)
+                } else {
+                    path
+                })
+            };
+            let options = formal_update::Options {
+                artifact: resolve("--artifact", Some("target/formal-update"))?,
+                policy: resolve("--policy", Some(formal_update::POLICY_PATH))?,
+                repository: required("--repository")?,
+                workflow: required("--workflow")?,
+                run_id: required("--run-id")?,
+                run_attempt: required("--run-attempt")?,
+                base_sha: required("--base-sha")?,
+                head_sha: required("--head-sha")?,
+                root,
+            };
+            return Ok(Self::FormalUpdateArtifact {
+                apply: action == "apply",
+                options,
             });
         }
         if command != "check" && command != "plan" {
@@ -150,7 +228,7 @@ impl Command {
 }
 
 fn usage() -> &'static str {
-    "usage: auths-ci-plan <check|plan> [--root PATH] [--manifest PATH] [--base SHA] [--head SHA] [--event EVENT] [--workflow ID] [--output PATH] [--github-output PATH] [--summary PATH]\n       auths-ci-plan formal-source-closure <check|update> [--root PATH] [--output PATH]"
+    "usage: auths-ci-plan <check|plan> [--root PATH] [--manifest PATH] [--base SHA] [--head SHA] [--event EVENT] [--workflow ID] [--output PATH] [--github-output PATH] [--summary PATH]\n       auths-ci-plan formal-source-closure <check|update> [--root PATH] [--output PATH]\n       auths-ci-plan formal-update-artifact <create|apply> --repository OWNER/REPO --workflow NAME --run-id ID --run-attempt N --base-sha SHA --head-sha SHA [--root PATH] [--artifact PATH] [--policy PATH]"
 }
 
 pub fn run(command: Command) -> Result<(), String> {
@@ -174,6 +252,13 @@ pub fn run(command: Command) -> Result<(), String> {
             root,
             output,
         } => synchronize_formal_source_closure(&root, &output, update),
+        Command::FormalUpdateArtifact { apply, options } => {
+            if apply {
+                formal_update::apply(&options)
+            } else {
+                formal_update::create(&options).map(|_| ())
+            }
+        }
     }
 }
 
@@ -1867,10 +1952,8 @@ serde = "2"
 
     #[test]
     fn help_text_is_stable() {
-        assert_eq!(
-            usage(),
-            "usage: auths-ci-plan <check|plan> [--root PATH] [--manifest PATH] [--base SHA] [--head SHA] [--event EVENT] [--workflow ID] [--output PATH] [--github-output PATH] [--summary PATH]\n       auths-ci-plan formal-source-closure <check|update> [--root PATH] [--output PATH]"
-        );
+        assert!(usage().contains("auths-ci-plan formal-source-closure <check|update>"));
+        assert!(usage().contains("auths-ci-plan formal-update-artifact <create|apply>"));
     }
 
     #[test]

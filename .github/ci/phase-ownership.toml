@@ -430,6 +430,12 @@ phase = "records_api_live"
 gate = false
 
 [[workflow_jobs]]
+file = ".github/workflows/formal-artifact-updater.yml"
+job = "update-formal-artifacts"
+phase = "planner"
+gate = false
+
+[[workflow_jobs]]
 file = ".github/workflows/fuzz.yml"
 job = "fuzz-plan"
 phase = "planner"
