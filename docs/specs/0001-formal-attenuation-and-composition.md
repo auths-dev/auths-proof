@@ -314,7 +314,8 @@ if !grant.permissions().is_subset_of(&self.permissions)
 }
 ```
 
-The complete code, including budget, status, profile, and assurance checks,
+The complete code, including budget, status, profile, assurance, and exact
+critical-extension-set checks,
 remains in
 [`core/crates/auths-authority/src/lib.rs`](../../core/crates/auths-authority/src/lib.rs).
 
@@ -680,7 +681,7 @@ the production Rust kernel and the corresponding Lean definitions. Shipping
 composition and delegation use that generated Rust boundary.
 
 Lean generates 2,448 exhaustive threshold-count cases through the target V1
-default deployment limit and all 1,024 Boolean projections of the ten declared
+default deployment limit and all 2,048 Boolean projections of the eleven declared
 attenuation dimensions. The Rust refinement suite consumes those artifacts
 without a handwritten reference evaluator. Kani symbolically verifies the two
 generated production functions at the same bound; the Lean theorems remain

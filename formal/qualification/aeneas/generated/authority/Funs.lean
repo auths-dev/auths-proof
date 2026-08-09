@@ -20,7 +20,7 @@ noncomputable section
 namespace auths_authority
 
 /-- [auths_authority::selected_profile_attenuates]:
-    Source: 'core/crates/auths-authority/src/lib.rs', lines 119:0-128:1 -/
+    Source: 'core/crates/auths-authority/src/lib.rs', lines 124:0-133:1 -/
 def selected_profile_attenuates
   (selected : Option auths_model.ProfileRef)
   (allowed_profiles : Slice auths_model.ProfileRef)
@@ -32,7 +32,7 @@ def selected_profile_attenuates
   | some parent => auths_model.profile_ref_equal parent child
 
 /-- [auths_authority::evaluate_author_scope_view]:
-    Source: 'core/crates/auths-authority/src/lib.rs', lines 134:0-166:1
+    Source: 'core/crates/auths-authority/src/lib.rs', lines 139:0-174:1
     Visibility: public -/
 def evaluate_author_scope_view
   (parent : auths_model.ScopeAuthorityView)
@@ -83,7 +83,15 @@ def evaluate_author_scope_view
                       auths_model.assurance_policy_id_equal
                         child.assurance_floor parent.assurance_floor
                     if b7
-                    then ok AuthorScopeDecision.Accepted
+                    then
+                      let b8 ←
+                        auths_model.critical_extensions_equal child.extensions
+                          parent.extensions
+                      if b8
+                      then ok AuthorScopeDecision.Accepted
+                      else
+                        ok (AuthorScopeDecision.Denied
+                          AuthorityDimension.Extensions)
                     else
                       ok (AuthorScopeDecision.Denied
                         AuthorityDimension.Assurance)
@@ -98,7 +106,7 @@ def evaluate_author_scope_view
   else ok (AuthorScopeDecision.Denied AuthorityDimension.Profile)
 
 /-- [auths_authority::evaluate_grant_view]:
-    Source: 'core/crates/auths-authority/src/lib.rs', lines 187:0-244:1
+    Source: 'core/crates/auths-authority/src/lib.rs', lines 195:0-257:1
     Visibility: public -/
 def evaluate_grant_view
   (parent : AuthorityStateView) (grant_id : auths_model.GrantId)
@@ -130,14 +138,19 @@ def evaluate_grant_view
   let b8 ←
     auths_model.assurance_policy_id_equal grant.assurance_floor
       parent.assurance_policy
-  let b9 ← auths_model.principal_id_equal grant.issuer parent.subject
-  if b9
+  let b9 ←
+    match parent.extensions with
+    | none => ok true
+    | some parent1 =>
+      auths_model.critical_extensions_equal grant.extensions parent1
+  let b10 ← auths_model.principal_id_equal grant.issuer parent.subject
+  if b10
   then
-    let b10 ←
+    let b11 ←
       auths_model.optional_grant_id_equal grant.parent parent.last_grant
-    if b10
+    if b11
     then
-      let b11 ←
+      let b12 ←
         auths_algebra_kernel.generated.attenuation_checks_accept
           {
             root_preserved := true,
@@ -149,9 +162,10 @@ def evaluate_grant_view
             action_constraint_attenuates := b5,
             budget_attenuates := b6,
             status_attenuates := b7,
-            assurance_attenuates := b8
+            assurance_attenuates := b8,
+            extensions_attenuate := b9
           }
-      if b11
+      if b12
       then
         ok
           {
@@ -166,7 +180,8 @@ def evaluate_grant_view
                 action_constraint_attenuates := b5,
                 budget_attenuates := b6,
                 status_attenuates := b7,
-                assurance_attenuates := b8
+                assurance_attenuates := b8,
+                extensions_attenuate := b9
               },
             outcome :=
               (DelegationOutcome.Accepted
@@ -180,7 +195,8 @@ def evaluate_grant_view
                   budget_ceiling := grant.budget_ceiling,
                   remaining_depth := grant.remaining_depth,
                   grant_id,
-                  status_policy := grant.status_policy
+                  status_policy := grant.status_policy,
+                  extensions := grant.extensions
                 })
           }
       else
@@ -197,7 +213,8 @@ def evaluate_grant_view
                 action_constraint_attenuates := b5,
                 budget_attenuates := b6,
                 status_attenuates := b7,
-                assurance_attenuates := b8
+                assurance_attenuates := b8,
+                extensions_attenuate := b9
               },
             outcome :=
               (DelegationOutcome.Denied
@@ -217,7 +234,8 @@ def evaluate_grant_view
               action_constraint_attenuates := b5,
               budget_attenuates := b6,
               status_attenuates := b7,
-              assurance_attenuates := b8
+              assurance_attenuates := b8,
+              extensions_attenuate := b9
             },
           outcome :=
             (DelegationOutcome.Denied
@@ -237,14 +255,15 @@ def evaluate_grant_view
             action_constraint_attenuates := b5,
             budget_attenuates := b6,
             status_attenuates := b7,
-            assurance_attenuates := b8
+            assurance_attenuates := b8,
+            extensions_attenuate := b9
           },
         outcome :=
           (DelegationOutcome.Denied auths_model.DenialReason.BrokenGrantChain)
       }
 
 /-- [auths_authority::evaluate_action_coverage_view]:
-    Source: 'core/crates/auths-authority/src/lib.rs', lines 263:0-295:1
+    Source: 'core/crates/auths-authority/src/lib.rs', lines 276:0-308:1
     Visibility: public -/
 def evaluate_action_coverage_view
   (authority : AuthorityStateView) (action : auths_model.ActionAuthorityView) :

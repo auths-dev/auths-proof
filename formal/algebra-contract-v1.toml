@@ -43,6 +43,10 @@ lean = "statusAttenuates"
 rust = "assurance_attenuates"
 lean = "assuranceAttenuates"
 
+[[attenuation_dimensions]]
+rust = "extensions_attenuate"
+lean = "extensionsAttenuate"
+
 [threshold]
 authorized = "authorized >= required"
 indeterminate = "authorized < required && authorized + indeterminate >= required"

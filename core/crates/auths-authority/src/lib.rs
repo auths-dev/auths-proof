@@ -9,13 +9,14 @@ use alloc::vec::Vec;
 use auths_algebra_kernel::{AttenuationChecks, attenuation_checks_accept};
 use auths_model::{
     ActionAuthorityView, ActionConstraint, ActionEnvelope, AssurancePolicyId, AudienceSet,
-    BudgetCeiling, DenialReason, GrantAuthorityView, GrantId, GrantStatement, PermissionSet,
-    PrincipalId, ProfileRef, ScopeAuthorityView, StatusPolicy, TrustAnchor, ValidityWindow,
-    action_authority_view, action_constraint_allows, action_constraint_attenuates,
-    assurance_policy_id_equal, audience_set_contains, audience_set_is_subset, grant_authority_view,
-    optional_budget_attenuates, optional_budget_covers, optional_grant_id_equal,
-    permission_set_contains, permission_set_is_subset, principal_id_equal, profile_ref_equal,
-    profile_slice_contains, status_policy_attenuates, validity_window_contains,
+    BudgetCeiling, CriticalExtensions, DenialReason, GrantAuthorityView, GrantId, GrantStatement,
+    PermissionSet, PrincipalId, ProfileRef, ScopeAuthorityView, StatusPolicy, TrustAnchor,
+    ValidityWindow, action_authority_view, action_constraint_allows, action_constraint_attenuates,
+    assurance_policy_id_equal, audience_set_contains, audience_set_is_subset,
+    critical_extensions_equal, grant_authority_view, optional_budget_attenuates,
+    optional_budget_covers, optional_grant_id_equal, permission_set_contains,
+    permission_set_is_subset, principal_id_equal, profile_ref_equal, profile_slice_contains,
+    status_policy_attenuates, validity_window_contains,
 };
 
 /// Authority accumulated while walking one root-to-terminal grant chain.
@@ -34,6 +35,7 @@ pub struct EffectiveAuthority {
     last_grant: Option<GrantId>,
     assurance_policy: AssurancePolicyId,
     status_policy: StatusPolicy,
+    extensions: Option<CriticalExtensions>,
 }
 
 /// Borrowed descriptor of the unique state changes for an accepted grant.
@@ -50,6 +52,7 @@ pub struct AcceptedTransition<'a> {
     remaining_depth: u16,
     grant_id: GrantId,
     status_policy: &'a StatusPolicy,
+    extensions: &'a CriticalExtensions,
 }
 
 /// Stable delegation decision made by the production authority kernel.
@@ -88,6 +91,7 @@ pub enum AuthorityDimension {
     DelegationDepth,
     Status,
     Assurance,
+    Extensions,
 }
 
 /// Stable pre-signing scope decision made by the production authority kernel.
@@ -114,6 +118,7 @@ pub struct AuthorityStateView<'a> {
     pub last_grant: Option<GrantId>,
     pub assurance_policy: &'a AssurancePolicyId,
     pub status_policy: &'a StatusPolicy,
+    pub extensions: Option<&'a CriticalExtensions>,
 }
 
 fn selected_profile_attenuates(
@@ -161,6 +166,9 @@ pub fn evaluate_author_scope_view(
     }
     if !assurance_policy_id_equal(child.assurance_floor, parent.assurance_floor) {
         return AuthorScopeDecision::Denied(AuthorityDimension::Assurance);
+    }
+    if !critical_extensions_equal(child.extensions, parent.extensions) {
+        return AuthorScopeDecision::Denied(AuthorityDimension::Extensions);
     }
     AuthorScopeDecision::Accepted
 }
@@ -211,6 +219,10 @@ pub fn evaluate_grant_view<'grant>(
             grant.assurance_floor,
             parent.assurance_policy,
         ),
+        extensions_attenuate: match parent.extensions {
+            Some(parent) => critical_extensions_equal(grant.extensions, parent),
+            None => true,
+        },
     };
     if !principal_id_equal(grant.issuer, parent.subject)
         || !optional_grant_id_equal(grant.parent, parent.last_grant)
@@ -239,6 +251,7 @@ pub fn evaluate_grant_view<'grant>(
             remaining_depth: grant.remaining_depth,
             grant_id,
             status_policy: grant.status_policy,
+            extensions: grant.extensions,
         }),
     }
 }
@@ -311,6 +324,7 @@ pub fn authority_state_view(authority: &EffectiveAuthority) -> AuthorityStateVie
         last_grant: authority.last_grant,
         assurance_policy: &authority.assurance_policy,
         status_policy: &authority.status_policy,
+        extensions: authority.extensions.as_ref(),
     }
 }
 
@@ -332,6 +346,7 @@ impl EffectiveAuthority {
             last_grant: None,
             assurance_policy: anchor.assurance_policy().clone(),
             status_policy: anchor.status_policy().clone(),
+            extensions: None,
         }
     }
 
@@ -360,6 +375,7 @@ impl EffectiveAuthority {
         self.remaining_depth = transition.remaining_depth;
         self.last_grant = Some(transition.grant_id);
         self.status_policy = transition.status_policy.clone();
+        self.extensions = Some(transition.extensions.clone());
         Ok(())
     }
 
@@ -393,8 +409,8 @@ mod tests {
     use super::*;
     use alloc::vec;
     use auths_model::{
-        Audience, CapabilityId, CriticalExtensions, PrincipalMethodId, ProfileId, ResourceId,
-        Timestamp, TrustAnchorId,
+        Audience, CapabilityId, CriticalExtension, CriticalExtensions, ExtensionId,
+        PrincipalMethodId, ProfileId, ResourceId, Timestamp, TrustAnchorId,
     };
 
     fn profile(name: &str) -> ProfileRef {
@@ -441,6 +457,24 @@ mod tests {
         remaining_depth: u16,
         parent: Option<GrantId>,
     ) -> GrantStatement {
+        grant_with_extensions(
+            issuer,
+            subject,
+            selected_profile,
+            remaining_depth,
+            parent,
+            CriticalExtensions::empty(),
+        )
+    }
+
+    fn grant_with_extensions(
+        issuer: &str,
+        subject: &str,
+        selected_profile: &str,
+        remaining_depth: u16,
+        parent: Option<GrantId>,
+        extensions: CriticalExtensions,
+    ) -> GrantStatement {
         GrantStatement::new(
             PrincipalId::parse(issuer).expect("issuer"),
             PrincipalId::parse(subject).expect("subject"),
@@ -454,8 +488,19 @@ mod tests {
             parent,
             StatusPolicy::ExpiryOnly,
             AssurancePolicyId::parse("assurance-v1").expect("assurance"),
-            CriticalExtensions::empty(),
+            extensions,
         )
+    }
+
+    fn extensions(bytes: &[u8]) -> CriticalExtensions {
+        CriticalExtensions::new(vec![
+            CriticalExtension::new(
+                ExtensionId::parse("exact-marker-v1").expect("extension id"),
+                bytes.to_vec(),
+            )
+            .expect("extension"),
+        ])
+        .expect("extensions")
     }
 
     #[test]
@@ -527,5 +572,55 @@ mod tests {
             ),
             Err(DenialReason::DelegationExpanded)
         );
+    }
+
+    #[test]
+    fn child_grant_must_preserve_the_selected_extension_set_exactly() {
+        let first_id = GrantId::new([1; 32]);
+        let mut authority = EffectiveAuthority::from_anchor(&anchor());
+        authority
+            .delegate(
+                first_id,
+                &grant_with_extensions(
+                    "did:key:root",
+                    "did:key:agent",
+                    "profile-a",
+                    1,
+                    None,
+                    extensions(&[1]),
+                ),
+            )
+            .expect("first grant selects the extension set");
+
+        for child_extensions in [CriticalExtensions::empty(), extensions(&[2])] {
+            assert_eq!(
+                authority.delegate(
+                    GrantId::new([2; 32]),
+                    &grant_with_extensions(
+                        "did:key:agent",
+                        "did:key:child",
+                        "profile-a",
+                        0,
+                        Some(first_id),
+                        child_extensions,
+                    ),
+                ),
+                Err(DenialReason::DelegationExpanded)
+            );
+        }
+
+        authority
+            .delegate(
+                GrantId::new([3; 32]),
+                &grant_with_extensions(
+                    "did:key:agent",
+                    "did:key:child",
+                    "profile-a",
+                    0,
+                    Some(first_id),
+                    extensions(&[1]),
+                ),
+            )
+            .expect("an exactly preserved extension set attenuates");
     }
 }

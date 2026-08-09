@@ -32,6 +32,12 @@ def BudgetAlgebraId := String
 @[reducible]
 def StatusMethodId := String
 
+/-- [auths_model::ExtensionId]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 141:8-141:33
+    Visibility: public -/
+@[reducible]
+def ExtensionId := String
+
 /-- [auths_model::AssurancePolicyId]
     Source: 'core/crates/auths-model/src/lib.rs', lines 141:8-141:33
     Visibility: public -/
@@ -148,5 +154,18 @@ def FreshnessLimit := Std.U64
 inductive StatusPolicy where
 | ExpiryOnly : StatusPolicy
 | SnapshotRequired : StatusMethodId → FreshnessLimit → StatusPolicy
+
+/-- [auths_model::CriticalExtension]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 988:0-991:1
+    Visibility: public -/
+structure CriticalExtension where
+  id : ExtensionId
+  bytes : alloc.vec.Vec Std.U8
+
+/-- [auths_model::CriticalExtensions]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1019:0-1019:54
+    Visibility: public -/
+@[reducible]
+def CriticalExtensions := alloc.vec.Vec CriticalExtension
 
 end auths_model

@@ -2,7 +2,7 @@
 --
 -- Every rich leaf predicate below is imported from the mechanically
 -- translated `auths-model` production source. The sole local definition is
--- the ten-field conjunction generated from `formal/algebra-contract-v1.toml`;
+-- the eleven-field conjunction generated from `formal/algebra-contract-v1.toml`;
 -- `cargo xtask formal` rejects drift from that contract.
 import Aeneas
 import qualification.aeneas.generated.authority.Types
@@ -30,7 +30,9 @@ def auths_algebra_kernel.generated.attenuation_checks_accept
               if checks.action_constraint_attenuates then
                 if checks.budget_attenuates then
                   if checks.status_attenuates then
-                    ok checks.assurance_attenuates
+                    if checks.assurance_attenuates then
+                      ok checks.extensions_attenuate
+                    else ok false
                   else ok false
                 else ok false
               else ok false

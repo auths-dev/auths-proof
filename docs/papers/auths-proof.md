@@ -26,8 +26,8 @@ abstract: |
 
   The evaluated artifact inventories 72 compiled Lean statements: 56 rich
   authority and production-refinement claims and 16 composition claims. It
-  supplements the proofs with 23 rich semantic vectors, a required 21-mutation
-  matrix, all 1,024 Boolean attenuation projections, 2,448 threshold states
+  supplements the proofs with 23 rich semantic vectors, a required 22-mutation
+  matrix, all 2,048 Boolean attenuation projections, 2,448 threshold states
   through the default 16-leaf deployment bound, and four Kani harnesses.
   Statement hashes, transitive axioms, translation source closure, pinned
   tools, external models, and generated artifacts are checked in a read-only
@@ -135,7 +135,7 @@ summarizes the resulting evidence graph.
   };
   \node[axisbox=green, minimum width=43mm, below=10mm of proofs] (evidence) {
     \textbf{Conformance evidence}\\
-    vectors · 21 mutations · 4 Kani
+    vectors · 22 mutations · 4 Kani
   };
   \node[axisbox=amber, minimum width=43mm, below=10mm of qualification] (manifest) {
     \textbf{Assurance manifest}\\
@@ -664,7 +664,7 @@ evaluate_action_coverage_view(authority, action)
 permission/audience/digest membership and subset, inclusive-window
 containment, action-constraint allowance and attenuation, optional-budget
 attenuation and coverage, status-policy attenuation, and assurance equality.
-`evaluate_grant_view` owns linkage, all ten attenuation checks, aggregate
+`evaluate_grant_view` owns linkage, all eleven attenuation checks, aggregate
 acceptance, stable denial choice, and the fields of the accepted transition.
 `evaluate_action_coverage_view` owns terminal linkage, membership,
 containment, requested-budget coverage, and ordered denials.
@@ -875,10 +875,10 @@ mutation testing proves completeness.
 
 The same Lean executable remains the oracle for the generated finite algebra.
 It does not call a Rust reference evaluator. For attenuation it enumerates all
-assignments in $\{0,1\}^{10}$:
+assignments in $\{0,1\}^{11}$:
 
 $$
-2^{10}=1{,}024 \text{ cases}.
+2^{11}=2{,}048 \text{ cases}.
 $$
 
 Exactly one assignment is accepted because V1 aggregation is conjunction. For
@@ -909,7 +909,7 @@ composition, and checks both the result and full leaf visitation.
   };
   \node[axisbox=green, minimum width=41mm, right=of lean] (json) {
     \textbf{Canonical vectors}\\
-    23 + 1,024 + 2,448
+    23 + 2,048 + 2,448
   };
   \node[axisbox=blue, minimum width=41mm, right=of json] (kernel) {
     \textbf{Shipping Rust}\\
@@ -917,7 +917,7 @@ composition, and checks both the result and full leaf visitation.
   };
   \node[axisbox=amber, minimum width=41mm, below=of kernel] (mutation) {
     \textbf{Mutation witnesses}\\
-    21 required failures
+    22 required failures
   };
   \node[kernel, minimum width=91mm, below=of $(lean)!0.5!(json)$] (stable) {
     BYTE-STABLE CHECKED-IN EVIDENCE
@@ -941,7 +941,7 @@ assertions over symbolic inputs [@delmas2026kani; @kroening2023cbmc]. Four
 harnesses cover two crates:
 
 - threshold classification under the declared bound;
-- conjunction over all ten attenuation Booleans;
+- conjunction over all eleven attenuation Booleans;
 - the exact fixed-width inclusive-window relation; and
 - three-window containment transitivity.
 
@@ -994,11 +994,11 @@ Rich semantic vectors &
 23 / 23 replayed &
 production-shaped positive, negative, boundary, and diagnostic cases\\
 Required mutations &
-21 / 21 killed &
+22 / 22 killed &
 named semantic near misses have concrete distinguishing witnesses\\
 Attenuation vectors &
-1,024 / 1,024 replayed &
-all Boolean assignments over ten generated predicates\\
+2,048 / 2,048 replayed &
+all Boolean assignments over eleven generated predicates\\
 Threshold and plan vectors &
 2,448 / 2,448 agreed &
 all valid counts and shipping `k-of-n` evaluation through 16 leaves\\

@@ -105,6 +105,9 @@ rust_symbols = [
   "auths_model::ActionConstraint",
   "auths_model::BudgetCeiling",
   "auths_model::StatusPolicy",
+  "auths_model::ExtensionId",
+  "auths_model::CriticalExtension",
+  "auths_model::CriticalExtensions",
 ]
 authority_semantics = false
 reviewed = true
@@ -131,6 +134,7 @@ rust_symbols = [
   "auths_model::optional_budget_attenuates",
   "auths_model::optional_budget_covers",
   "auths_model::status_policy_attenuates",
+  "auths_model::critical_extensions_equal",
 ]
 authority_semantics = true
 reviewed = true
@@ -162,7 +166,7 @@ classification = "Pinned upstream iterator proof-support sorry; the qualified so
 [[translations]]
 crate_name = "auths_model"
 translation_json = "formal/qualification/aeneas/generated/model/translation.json"
-local_functions = 42
+local_functions = 45
 external_functions = 1
 opaque_local_functions = 0
 required_symbols = [
@@ -180,6 +184,7 @@ required_symbols = [
   "auths_model::optional_budget_attenuates",
   "auths_model::optional_budget_covers",
   "auths_model::status_policy_attenuates",
+  "auths_model::critical_extensions_equal",
   "auths_model::assurance_policy_id_equal",
   "auths_model::principal_id_equal",
   "auths_model::grant_id_equal",
@@ -220,7 +225,7 @@ allowed_external_symbols = []
 crate_name = "auths_authority"
 translation_json = "formal/qualification/aeneas/generated/authority/translation.json"
 local_functions = 4
-external_functions = 16
+external_functions = 17
 opaque_local_functions = 0
 required_symbols = [
   "auths_authority::selected_profile_attenuates",
@@ -245,6 +250,7 @@ allowed_external_symbols = [
   "auths_model::optional_budget_attenuates",
   "auths_model::optional_budget_covers",
   "auths_model::status_policy_attenuates",
+  "auths_model::critical_extensions_equal",
 ]
 
 [[translations]]
@@ -269,10 +275,10 @@ compiled = false
 
 [[template_axioms]]
 artifact = "formal/qualification/aeneas/generated/authority/TypesExternal_Template.lean"
-count = 13
+count = 14
 compiled = false
 
 [[template_axioms]]
 artifact = "formal/qualification/aeneas/generated/authority/FunsExternal_Template.lean"
-count = 16
+count = 17
 compiled = false

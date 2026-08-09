@@ -16,7 +16,7 @@ set_option maxRecDepth 2048
 open auths_authority
 
 /-- [auths_algebra_kernel::generated::attenuation_checks_accept]:
-    Source: 'core/crates/auths-algebra-kernel/src/generated.rs', lines 132:0-132:68
+    Source: 'core/crates/auths-algebra-kernel/src/generated.rs', lines 141:0-141:68
     Name pattern: [auths_algebra_kernel::generated::attenuation_checks_accept]
     Visibility: public -/
 @[rust_fun "auths_algebra_kernel::generated::attenuation_checks_accept"]
@@ -149,4 +149,14 @@ axiom auths_model.optional_budget_covers
 @[rust_fun "auths_model::status_policy_attenuates"]
 axiom auths_model.status_policy_attenuates
   : auths_model.StatusPolicy → auths_model.StatusPolicy → Result Bool
+
+/-- [auths_model::critical_extensions_equal]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1060:0-1060:97
+    Name pattern: [auths_model::critical_extensions_equal]
+    Visibility: public -/
+@[rust_fun "auths_model::critical_extensions_equal"]
+axiom auths_model.critical_extensions_equal
+  :
+  auths_model.CriticalExtensions → auths_model.CriticalExtensions → Result
+    Bool
 

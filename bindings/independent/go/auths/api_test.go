@@ -62,7 +62,7 @@ func TestSharedCorpusRunsInNativeGoTest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	const expected = "101:2dc38d7c3581d242a7b56f3e5de2fb2c0d5aa3e7cac1f0b82f88dbc3aa443aeb"
+	const expected = "102:114c0508445854687020d96ac3f214c171a80407b2a6e6b185d99de533237cf0"
 	if digest != expected {
 		t.Fatalf("semantic corpus digest mismatch: got %s", digest)
 	}

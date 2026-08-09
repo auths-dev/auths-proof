@@ -4,7 +4,7 @@ use crate::*;
 
 const INVENTORY_PATH: &str = "release/semantic-freeze.json";
 const INVENTORY_SCHEMA: &str = "auths.semantic-freeze/1";
-const FREEZE_VERSION: u64 = 30;
+const FREEZE_VERSION: u64 = 35;
 const PUBLIC_RUST_ROOTS: [&str; 2] = ["auths", "auths-sdk"];
 const PUBLIC_RUST_CLOSURE: [&str; 28] = [
     "auths",
@@ -142,7 +142,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
     let mut entries = vec![
         freeze_entry(
             "auths.core.protocol",
-            9,
+            10,
             FreezeClassification::FrozenMeaning,
             &[
                 "protocol-versions",
@@ -162,7 +162,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.portable-abi-bindings",
-            13,
+            14,
             FreezeClassification::FrozenMeaning,
             &["portable-abi", "authoring-abi", "binding-contracts"],
             vec![
@@ -283,7 +283,11 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
     for (id, path) in frozen_byte_inventories()? {
         let version = match path.as_str() {
             "architecture/dependency-graph.json" => 6,
-            "formal/qualification/aeneas/source-closure.json" => 6,
+            "core/fixtures/v1/manifest.json" => 3,
+            "formal/assurance-manifest-v1.toml"
+            | "formal/qualification/aeneas/qualification.toml" => 2,
+            "formal/qualification/aeneas/generated" => 3,
+            "formal/qualification/aeneas/source-closure.json" => 8,
             _ => 1,
         };
         entries.push(freeze_entry(
@@ -330,7 +334,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
     ]);
     entries.push(freeze_entry(
         "auths.release.public-surface",
-        30,
+        35,
         FreezeClassification::ReleaseMetadata,
         &[
             "package-names",

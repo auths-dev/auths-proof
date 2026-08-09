@@ -230,6 +230,7 @@ pub fn plan_child_grant(
         remaining_depth: request.remaining_depth,
         status_policy: &request.status_policy,
         assurance_floor: &request.assurance_floor,
+        extensions: &request.extensions,
     };
     if let AuthorScopeDecision::Denied(dimension) =
         evaluate_author_scope_view(parent_scope, child_scope)
@@ -816,8 +817,8 @@ impl std::error::Error for AuthorError {}
 mod tests {
     use super::*;
     use auths_model::{
-        Audience, CapabilityId, CriticalExtensions, LimitKind, Permission, ProfileId, ResourceId,
-        StatusPolicy, Timestamp,
+        Audience, CapabilityId, CriticalExtension, CriticalExtensions, ExtensionId, LimitKind,
+        Permission, ProfileId, ResourceId, StatusPolicy, Timestamp,
     };
 
     fn permissions(resource: &str) -> PermissionSet {
@@ -862,6 +863,35 @@ mod tests {
         )
     }
 
+    fn extensions(bytes: &[u8]) -> CriticalExtensions {
+        CriticalExtensions::new(vec![
+            CriticalExtension::new(
+                ExtensionId::parse("exact-marker-v1").unwrap(),
+                bytes.to_vec(),
+            )
+            .unwrap(),
+        ])
+        .unwrap()
+    }
+
+    fn parent_with_extensions() -> GrantStatement {
+        GrantStatement::new(
+            PrincipalId::parse("did:key:root").unwrap(),
+            PrincipalId::parse("did:key:manager").unwrap(),
+            ProfileRef::new(ProfileId::parse("auths.deploy").unwrap(), 1).unwrap(),
+            permissions("deploy://production"),
+            ValidityWindow::new(Timestamp::new(10), Timestamp::new(200_000)).unwrap(),
+            AudienceSet::new(vec![Audience::parse("deploy://production").unwrap()]).unwrap(),
+            ActionConstraint::AnyBody,
+            None,
+            2,
+            None,
+            StatusPolicy::ExpiryOnly,
+            AssurancePolicyId::parse("production-v1").unwrap(),
+            extensions(&[1]),
+        )
+    }
+
     #[test]
     fn planner_derives_linkage_and_reports_over_granting() {
         let parent = parent();
@@ -888,6 +918,23 @@ mod tests {
             ),
             Err(PlanningError::Expanded(AuthorityDimension::Permissions))
         );
+    }
+
+    #[test]
+    fn planner_rejects_critical_extension_drift_before_signing() {
+        let parent = parent_with_extensions();
+        for child_extensions in [CriticalExtensions::empty(), extensions(&[2])] {
+            let mut child = request(permissions("deploy://production"));
+            child.extensions = child_extensions;
+            assert_eq!(
+                plan_child_grant(&parent, child),
+                Err(PlanningError::Expanded(AuthorityDimension::Extensions))
+            );
+        }
+
+        let mut child = request(permissions("deploy://production"));
+        child.extensions = extensions(&[1]);
+        plan_child_grant(&parent, child).expect("exact extension set is accepted");
     }
 
     #[test]

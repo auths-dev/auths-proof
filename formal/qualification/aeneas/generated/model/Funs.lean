@@ -556,4 +556,65 @@ def status_policy_attenuates
       then ok (child_age <= parent_age)
       else ok false
 
+/-- [auths_model::critical_extensions_equal]: loop body 0:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1065:4-1078:1
+    Visibility: public -/
+@[rust_loop_body]
+def critical_extensions_equal_loop.body
+  (v : alloc.vec.Vec CriticalExtension) (v1 : alloc.vec.Vec CriticalExtension)
+  (index : Std.Usize) :
+  Result (ControlFlow Std.Usize Bool)
+  := do
+  let i := alloc.vec.Vec.len v
+  if index < i
+  then
+    let child_extension ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        CriticalExtension) v index
+    let parent_extension ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        CriticalExtension) v1 index
+    let s := child_extension.id
+    let s1 ← alloc.string.String.as_bytes s
+    let s2 := parent_extension.id
+    let s3 ← alloc.string.String.as_bytes s2
+    let b ← byte_slices_equal s1 s3
+    if b
+    then
+      let s4 := alloc.vec.Vec.deref child_extension.bytes
+      let s5 := alloc.vec.Vec.deref parent_extension.bytes
+      let b1 ← byte_slices_equal s4 s5
+      if b1
+      then let index1 ← index + 1#usize
+           ok (cont index1)
+      else ok (done false)
+    else ok (done false)
+  else ok (done true)
+
+/-- [auths_model::critical_extensions_equal]: loop 0:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1065:4-1078:1
+    Visibility: public -/
+@[rust_loop]
+def critical_extensions_equal_loop
+  (v : alloc.vec.Vec CriticalExtension) (v1 : alloc.vec.Vec CriticalExtension)
+  (index : Std.Usize) :
+  Result Bool
+  := do
+  loop
+    (fun index1 => critical_extensions_equal_loop.body v v1 index1)
+    index
+
+/-- [auths_model::critical_extensions_equal]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1060:0-1078:1
+    Visibility: public -/
+def critical_extensions_equal
+  (child : CriticalExtensions) (parent : CriticalExtensions) :
+  Result Bool
+  := do
+  let i := alloc.vec.Vec.len child
+  let i1 := alloc.vec.Vec.len parent
+  if i != i1
+  then ok false
+  else critical_extensions_equal_loop child parent 0#usize
+
 end auths_model

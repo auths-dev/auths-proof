@@ -39,6 +39,8 @@ pub trait AttenuationProjection {
     fn status_attenuates(&self) -> bool;
     /// Whether assurance requirements do not weaken.
     fn assurance_attenuates(&self) -> bool;
+    /// Whether critical extensions remain exactly equal.
+    fn extensions_attenuate(&self) -> bool;
 }
 
 /// Concrete projection used by vectors and bounded verification.
@@ -68,6 +70,8 @@ pub struct AttenuationChecks {
     pub status_attenuates: bool,
     /// Whether assurance requirements do not weaken.
     pub assurance_attenuates: bool,
+    /// Whether critical extensions remain exactly equal.
+    pub extensions_attenuate: bool,
 }
 
 impl AttenuationProjection for AttenuationChecks {
@@ -110,6 +114,10 @@ impl AttenuationProjection for AttenuationChecks {
     fn assurance_attenuates(&self) -> bool {
         self.assurance_attenuates
     }
+
+    fn extensions_attenuate(&self) -> bool {
+        self.extensions_attenuate
+    }
 }
 
 /// Accepts exactly when every declared attenuation dimension accepts.
@@ -125,6 +133,7 @@ pub fn attenuation_accepts<P: AttenuationProjection + ?Sized>(projection: &P) ->
         && projection.budget_attenuates()
         && projection.status_attenuates()
         && projection.assurance_attenuates()
+        && projection.extensions_attenuate()
 }
 
 /// Concrete form of the generated conjunction for mechanical translation.
@@ -140,6 +149,7 @@ pub fn attenuation_checks_accept(checks: &AttenuationChecks) -> bool {
         && checks.budget_attenuates
         && checks.status_attenuates
         && checks.assurance_attenuates
+        && checks.extensions_attenuate
 }
 
 /// Classifies target V1 threshold counts.

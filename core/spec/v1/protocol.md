@@ -73,7 +73,13 @@ Every edge must narrow or preserve:
 - action constraint;
 - budget ceiling;
 - remaining delegation depth;
-- profile and version.
+- profile and version;
+- status and assurance policy; and
+- critical extensions.
+
+The first grant from a trust anchor may establish a critical-extension set.
+Every later child grant MUST preserve that complete canonical set byte for
+byte until an extension-specific attenuation algebra is standardized.
 
 Issuer/subject and parent linkage must be exact. Cross-profile delegation
 requires a registered bridge extension.

@@ -1107,6 +1107,8 @@ type effectiveAuthority struct {
 	lastGrant       []byte
 	assurance       string
 	status          statusPolicy
+	extensions      []criticalExtension
+	extensionsSet   bool
 }
 
 func (authority *effectiveAuthority) delegate(grant *signedGrant) error {
@@ -1125,7 +1127,8 @@ func (authority *effectiveAuthority) delegate(grant *signedGrant) error {
 		!constraintAttenuates(grant.constraint, authority.constraint) ||
 		!budgetAttenuates(grant.budget, authority.budget) ||
 		!statusAttenuates(grant.status, authority.status) ||
-		grant.assurance != authority.assurance {
+		grant.assurance != authority.assurance ||
+		(authority.extensionsSet && !extensionSliceEqual(grant.extensions, authority.extensions)) {
 		return denied("delegation-expanded")
 	}
 	authority.subject = grant.subject
@@ -1140,6 +1143,8 @@ func (authority *effectiveAuthority) delegate(grant *signedGrant) error {
 	authority.remainingDepth = grant.remainingDepth
 	authority.lastGrant = grant.id
 	authority.status = grant.status
+	authority.extensions = grant.extensions
+	authority.extensionsSet = true
 	return nil
 }
 

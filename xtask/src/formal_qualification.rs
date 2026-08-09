@@ -152,6 +152,8 @@ pub(crate) fn qualify(
     let stable_llbc = work.join("stable-llbc");
     reproduce(root, &charon, &aeneas, &stable_llbc, &first)?;
     reproduce(root, &charon, &aeneas, &stable_llbc, &second)?;
+    canonicalize_aeneas_versions(&first, &qualification.tools.aeneas_commit)?;
+    canonicalize_aeneas_versions(&second, &qualification.tools.aeneas_commit)?;
 
     let first_files = collect_files(&first)?;
     let second_files = collect_files(&second)?;
@@ -477,7 +479,7 @@ fn render_authority_functions_external(dimensions: &[String]) -> String {
 --\n\
 -- Every rich leaf predicate below is imported from the mechanically\n\
 -- translated `auths-model` production source. The sole local definition is\n\
--- the ten-field conjunction generated from `formal/algebra-contract-v1.toml`;\n\
+-- the eleven-field conjunction generated from `formal/algebra-contract-v1.toml`;\n\
 -- `cargo xtask formal` rejects drift from that contract.\n\
 import Aeneas\n\
 import qualification.aeneas.generated.authority.Types\n\
@@ -579,7 +581,7 @@ fn validate_translation_reports(root: &Path, qualification: &Qualification) -> R
             )
         })?;
         if report.crate_name != expected.crate_name
-            || report.aeneas_version != expected_aeneas
+            || !aeneas_version_matches(&report.aeneas_version, expected_aeneas)
             || report.charon_version != qualification.tools.charon
         {
             return Err(format!(
@@ -639,6 +641,10 @@ fn validate_translation_reports(root: &Path, qualification: &Qualification) -> R
         }
     }
     Ok(())
+}
+
+fn aeneas_version_matches(actual: &str, expected_commit: &str) -> bool {
+    actual == expected_commit || actual.ends_with(&format!("-{expected_commit}"))
 }
 
 fn validate_workflow_gates(root: &Path) -> Result<(), String> {
@@ -757,8 +763,11 @@ fn validate_translation_tool_versions(
         ));
     }
     let aeneas_version = run_output(aeneas, &["-version"], Path::new("."), &[])?;
-    let expected = format!("aeneas {}", &qualification.tools.aeneas_commit[..7]);
-    if aeneas_version.trim() != expected {
+    let expected_commit = &qualification.tools.aeneas_commit[..7];
+    let expected = format!("aeneas {expected_commit}");
+    let actual = aeneas_version.trim();
+    let actual_version = actual.strip_prefix("aeneas ").unwrap_or(actual);
+    if !aeneas_version_matches(actual_version, expected_commit) {
         return Err(format!(
             "Aeneas drift: expected {expected}, found {}",
             aeneas_version.trim()
@@ -823,6 +832,7 @@ fn reproduce(
         "auths_model::optional_budget_attenuates",
         "auths_model::optional_budget_covers",
         "auths_model::status_policy_attenuates",
+        "auths_model::critical_extensions_equal",
         "auths_model::assurance_policy_id_equal",
         "auths_model::principal_id_equal",
         "auths_model::grant_id_equal",
@@ -1099,6 +1109,45 @@ fn synchronize_aeneas_output(root: &Path, reproduced: &Path, update: bool) -> Re
                 ));
             }
         }
+    }
+    Ok(())
+}
+
+fn canonicalize_aeneas_versions(reproduced: &Path, expected_commit: &str) -> Result<(), String> {
+    let expected_short = &expected_commit[..7];
+    for component in [
+        "model",
+        "algebra",
+        "authority",
+        "bounded_policy",
+        "lifecycle",
+    ] {
+        let path = reproduced
+            .join(format!("{component}-run"))
+            .join("translation.json");
+        let mut report: Value = serde_json::from_slice(
+            &fs::read(&path)
+                .map_err(|error| format!("could not read {}: {error}", path.display()))?,
+        )
+        .map_err(|error| {
+            format!(
+                "invalid Aeneas translation report {}: {error}",
+                path.display()
+            )
+        })?;
+        let actual = report["aeneas_version"].as_str().ok_or_else(|| {
+            format!(
+                "Aeneas translation report omits aeneas_version: {}",
+                path.display()
+            )
+        })?;
+        if !aeneas_version_matches(actual, expected_short) {
+            return Err(format!(
+                "Aeneas translation identity drifted for {component}: expected {expected_short}, found {actual}"
+            ));
+        }
+        report["aeneas_version"] = Value::String(expected_short.to_owned());
+        write_pretty_json(&path, &report)?;
     }
     Ok(())
 }

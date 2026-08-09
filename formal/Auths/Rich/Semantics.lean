@@ -388,5 +388,6 @@ def delegationProjection {v : Vocabulary}
     decide (statusLe grant.status parent.scope.status)
   assuranceAttenuates :=
     decide (grant.assurance = parent.scope.assurance)
+  extensionsAttenuate := true
 
 end Auths.Rich

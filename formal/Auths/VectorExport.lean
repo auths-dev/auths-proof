@@ -41,6 +41,7 @@ def attenuationProjection (values : List Bool) : Generated.AttenuationProjection
   budgetAttenuates := values.getD 7 false
   statusAttenuates := values.getD 8 false
   assuranceAttenuates := values.getD 9 false
+  extensionsAttenuate := values.getD 10 false
 
 def attenuationVector (values : List Bool) : String :=
   let projection := attenuationProjection values
@@ -49,7 +50,7 @@ def attenuationVector (values : List Bool) : String :=
   "{" ++ s!"\"checks\":[{fields}],\"accepted\":{accepted}" ++ "}"
 
 def attenuationVectors : List String :=
-  (boolVectors 10).map attenuationVector
+  (boolVectors 11).map attenuationVector
 
 def natVocabulary : Rich.Vocabulary where
   PrincipalCarrier := Nat
@@ -194,7 +195,7 @@ def main (arguments : List String) : IO Unit := do
         "}"
   | ["attenuation"] =>
       IO.println <| "{" ++
-        s!"\"schema\":\"auths-proof-attenuation-vectors/v1\",\"dimensions\":10,\"cases\":[{String.intercalate "," attenuationVectors}]" ++
+        s!"\"schema\":\"auths-proof-attenuation-vectors/v1\",\"dimensions\":11,\"cases\":[{String.intercalate "," attenuationVectors}]" ++
         "}"
   | ["rich-authority"] =>
       IO.println <| "{" ++

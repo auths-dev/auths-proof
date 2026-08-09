@@ -1051,6 +1051,32 @@ impl CriticalExtensions {
     }
 }
 
+/// Exact target-V1 critical-extension delegation relation.
+///
+/// Until an extension-specific attenuation algebra is defined, a child grant
+/// must preserve the parent's complete canonical extension set byte for byte.
+#[doc(hidden)]
+#[must_use]
+pub fn critical_extensions_equal(child: &CriticalExtensions, parent: &CriticalExtensions) -> bool {
+    if child.0.len() != parent.0.len() {
+        return false;
+    }
+    let mut index = 0;
+    while index < child.0.len() {
+        let child_extension = &child.0[index];
+        let parent_extension = &parent.0[index];
+        if !byte_slices_equal(
+            child_extension.id.0.as_bytes(),
+            parent_extension.id.0.as_bytes(),
+        ) || !byte_slices_equal(&child_extension.bytes, &parent_extension.bytes)
+        {
+            return false;
+        }
+        index += 1;
+    }
+    true
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SignatureDescriptor {
     principal_method: PrincipalMethodId,
@@ -1269,6 +1295,7 @@ pub struct GrantAuthorityView<'a> {
     pub parent: Option<GrantId>,
     pub status_policy: &'a StatusPolicy,
     pub assurance_floor: &'a AssurancePolicyId,
+    pub extensions: &'a CriticalExtensions,
 }
 
 /// Lossless borrowed projection of the ordered scope fields used by both
@@ -1285,6 +1312,7 @@ pub struct ScopeAuthorityView<'a> {
     pub remaining_depth: u16,
     pub status_policy: &'a StatusPolicy,
     pub assurance_floor: &'a AssurancePolicyId,
+    pub extensions: &'a CriticalExtensions,
 }
 
 /// Projects the ordered scope fields from a complete grant view.
@@ -1301,6 +1329,7 @@ pub const fn scope_authority_view(grant: GrantAuthorityView<'_>) -> ScopeAuthori
         remaining_depth: grant.remaining_depth,
         status_policy: grant.status_policy,
         assurance_floor: grant.assurance_floor,
+        extensions: grant.extensions,
     }
 }
 
@@ -1321,6 +1350,7 @@ pub const fn grant_authority_view(grant: &GrantStatement) -> GrantAuthorityView<
         parent: grant.parent,
         status_policy: &grant.status_policy,
         assurance_floor: &grant.assurance_floor,
+        extensions: &grant.extensions,
     }
 }
 
@@ -4692,6 +4722,28 @@ mod tests {
             method: StatusMethodId::parse(method).expect("valid method"),
             max_age: FreshnessLimit::new(max_age).expect("positive age"),
         }
+    }
+
+    fn extensions(bytes: &[u8]) -> CriticalExtensions {
+        CriticalExtensions::new(vec![
+            CriticalExtension::new(
+                ExtensionId::parse("exact-marker-v1").expect("extension id"),
+                bytes.to_vec(),
+            )
+            .expect("extension"),
+        ])
+        .expect("extensions")
+    }
+
+    #[test]
+    fn critical_extension_attenuation_is_exact_canonical_equality() {
+        let parent = extensions(&[1]);
+        assert!(critical_extensions_equal(&extensions(&[1]), &parent));
+        assert!(!critical_extensions_equal(&extensions(&[2]), &parent));
+        assert!(!critical_extensions_equal(
+            &CriticalExtensions::empty(),
+            &parent
+        ));
     }
 
     #[test]

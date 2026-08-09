@@ -15,7 +15,7 @@ set_option maxRecDepth 2048
 namespace auths_algebra_kernel
 
 /-- [auths_algebra_kernel::generated::AttenuationChecks]
-    Source: 'core/crates/auths-algebra-kernel/src/generated.rs', lines 50:0-71:1
+    Source: 'core/crates/auths-algebra-kernel/src/generated.rs', lines 52:0-75:1
     Visibility: public -/
 structure generated.AttenuationChecks where
   root_preserved : Bool
@@ -28,5 +28,6 @@ structure generated.AttenuationChecks where
   budget_attenuates : Bool
   status_attenuates : Bool
   assurance_attenuates : Bool
+  extensions_attenuate : Bool
 
 end auths_algebra_kernel

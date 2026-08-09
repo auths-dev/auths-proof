@@ -23,6 +23,7 @@ structure AttenuationProjection where
   budgetAttenuates : Bool
   statusAttenuates : Bool
   assuranceAttenuates : Bool
+  extensionsAttenuate : Bool
   deriving BEq, DecidableEq, Repr
 
 def attenuationAccepts (projection : AttenuationProjection) : Bool :=
@@ -35,7 +36,8 @@ def attenuationAccepts (projection : AttenuationProjection) : Bool :=
   projection.actionConstraintAttenuates &&
   projection.budgetAttenuates &&
   projection.statusAttenuates &&
-  projection.assuranceAttenuates
+  projection.assuranceAttenuates &&
+  projection.extensionsAttenuate
 
 def thresholdCounts (required authorized indeterminate : Nat) : Truth :=
   if authorized ≥ required then .authorized

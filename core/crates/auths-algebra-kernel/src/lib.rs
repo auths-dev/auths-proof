@@ -53,6 +53,7 @@ mod kani_harnesses {
             budget_attenuates: kani::any(),
             status_attenuates: kani::any(),
             assurance_attenuates: kani::any(),
+            extensions_attenuate: kani::any(),
         };
         let expected = checks.root_preserved
             && checks.depth_decreases
@@ -63,7 +64,8 @@ mod kani_harnesses {
             && checks.action_constraint_attenuates
             && checks.budget_attenuates
             && checks.status_attenuates
-            && checks.assurance_attenuates;
+            && checks.assurance_attenuates
+            && checks.extensions_attenuate;
         let generic = attenuation_accepts(&checks);
         let concrete = attenuation_checks_accept(&checks);
         assert!(generic == expected);

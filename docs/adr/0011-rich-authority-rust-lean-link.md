@@ -159,7 +159,7 @@ This decision trusts:
 - the validated Rust constructor and lossless-view boundary until its
   Milestone 2 refinement is complete;
 - the reviewed `String::as_bytes` model on Auths' bounded string domain; and
-- the generated-contract bridge for the ten-field Boolean conjunction.
+- the generated-contract bridge for the eleven-field Boolean conjunction.
 
 It does not claim to prove decoding, canonical CBOR, cryptography, registries,
 clocks, stores, adapters, credentials, provider effects, or the complete
