@@ -1843,6 +1843,140 @@ pub fn assurance_policy_change() -> CorpusFixture {
     widening(GrantVariation::AssuranceChanged, "assurance-policy-change")
 }
 
+/// Child grant drops a critical extension selected by its parent grant.
+///
+/// # Panics
+///
+/// Panics only if repository-owned fixture constants violate model invariants.
+#[must_use]
+#[allow(clippy::too_many_lines)]
+pub fn critical_extension_attenuation() -> CorpusFixture {
+    let identities = [
+        Identity::ed25519(193),
+        Identity::ed25519(194),
+        Identity::ed25519(195),
+    ];
+    let canonical = canonical_action(BODY.to_vec());
+    let proof_ref = ProofRef::new([0xce; 32]);
+    let plan = AuthorizationPlan::proof(proof_ref);
+    let plan_identifier = plan_id(&plan).expect("plan ID");
+    let extension_id = ExtensionId::parse("exact-marker-v1").expect("extension ID");
+    let extension = CriticalExtensions::new(vec![
+        CriticalExtension::new(extension_id.clone(), vec![1]).expect("extension"),
+    ])
+    .expect("extension set");
+    let grant_scope = |issuer: &Identity,
+                       subject: &Identity,
+                       remaining_depth: u16,
+                       parent: Option<GrantId>,
+                       extensions: CriticalExtensions| {
+        GrantStatement::new(
+            issuer.principal.clone(),
+            subject.principal.clone(),
+            profile(),
+            PermissionSet::new(vec![permission()]).expect("permissions"),
+            ValidityWindow::new(Timestamp::new(20), Timestamp::new(80)).expect("validity"),
+            AudienceSet::new(vec![audience()]).expect("audience"),
+            ActionConstraint::ExactBodyDigest(body_digest(canonical.body())),
+            Some(BudgetCeiling::new(
+                BudgetAlgebraId::parse("numeric-ceiling-v1").expect("budget"),
+                10,
+            )),
+            remaining_depth,
+            parent,
+            StatusPolicy::ExpiryOnly,
+            AssurancePolicyId::parse("raw-key-baseline").expect("policy"),
+            extensions,
+        )
+    };
+    let parent_grant = signed_grant(
+        &identities[0],
+        grant_scope(&identities[0], &identities[1], 1, None, extension),
+    );
+    let parent_id = grant_id(parent_grant.statement()).expect("parent grant ID");
+    let child_grant = signed_grant(
+        &identities[1],
+        grant_scope(
+            &identities[1],
+            &identities[2],
+            0,
+            Some(parent_id),
+            CriticalExtensions::empty(),
+        ),
+    );
+    let child_id = grant_id(child_grant.statement()).expect("child grant ID");
+    let action = signed_action(
+        &identities[2],
+        action_envelope(
+            &identities[2],
+            &canonical,
+            plan_identifier,
+            proof_ref,
+            Some(child_id),
+        ),
+    );
+    let evidence = addressed_evidence(&identities);
+    let bindings = vec![
+        ControlBinding::new(
+            StatementRef::Grant(parent_id),
+            vec![identities[0].evidence().id()],
+        )
+        .expect("parent binding"),
+        ControlBinding::new(
+            StatementRef::Grant(child_id),
+            vec![identities[1].evidence().id()],
+        )
+        .expect("child binding"),
+        ControlBinding::new(
+            StatementRef::Action(action_id(action.envelope()).expect("action ID")),
+            vec![identities[2].evidence().id()],
+        )
+        .expect("action binding"),
+    ];
+    let base_context = context(&identities, vec![anchor(&identities[0], 2)]);
+    let accepted = accepted_from(
+        base_context.accepted_registries(),
+        base_context.accepted_registries().manifest_id(),
+        base_context
+            .accepted_registries()
+            .resource_matchers()
+            .to_vec(),
+        vec![extension_id],
+        base_context
+            .accepted_registries()
+            .profile_policies()
+            .to_vec(),
+    );
+    let verifier_context = context_replacement(
+        &base_context,
+        base_context.trust_anchors().to_vec(),
+        accepted,
+        base_context.resource_matcher().clone(),
+        base_context.profile_policy().clone(),
+    );
+    let bundle = ProofBundle::new(
+        BundleHeader::v1(),
+        vec![parent_grant, child_grant],
+        vec![action],
+        plan,
+        evidence,
+        bindings,
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+        Some(canonical.body().to_vec()),
+    )
+    .expect("proof bundle");
+    fixture(
+        "critical-extension-attenuation",
+        "denied",
+        &bundle,
+        &verifier_context,
+        canonical,
+        Expected::Denied(DenialReason::DelegationExpanded),
+    )
+}
+
 #[derive(Clone, Copy)]
 enum StatusVariation {
     ActiveGrant,
@@ -4488,6 +4622,7 @@ pub fn corpus() -> Vec<CorpusFixture> {
         budget_widening(),
         depth_widening(),
         assurance_policy_change(),
+        critical_extension_attenuation(),
         status_fixture("active-grant-status", StatusVariation::ActiveGrant),
         missing_grant_status(),
         stale_grant_status(),

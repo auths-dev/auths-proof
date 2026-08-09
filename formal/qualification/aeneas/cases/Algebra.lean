@@ -14,6 +14,7 @@ private def accepted : generated.AttenuationChecks where
   budget_attenuates := true
   status_attenuates := true
   assurance_attenuates := true
+  extensions_attenuate := true
 
 example : generated.attenuation_checks_accept accepted = ok true := by
   rfl

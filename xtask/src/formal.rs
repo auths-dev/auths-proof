@@ -77,6 +77,7 @@ pub(crate) fn dimension_description(name: &str) -> &'static str {
         "budget_attenuates" => "the budget ceiling does not widen",
         "status_attenuates" => "status requirements do not weaken",
         "assurance_attenuates" => "assurance requirements do not weaken",
+        "extensions_attenuate" => "critical extensions remain exactly equal",
         _ => "the declared authority dimension attenuates",
     }
 }

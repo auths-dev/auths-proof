@@ -1517,7 +1517,15 @@ type Authority = {
   permissions: Permission[]; notBefore: bigint; expiresAt: bigint; audiences: string[];
   constraint: Constraint; budget?: Budget; remainingDepth: bigint; lastGrant?: Uint8Array;
   assurance: string; status: StatusPolicy;
+  extensions?: Extension[];
 };
+
+function sameExtensions(left: Extension[], right: Extension[]): boolean {
+  return left.length === right.length && left.every((value, index) => {
+    const other = right[index]!;
+    return value.id === other.id && equal(value.bytes, other.bytes);
+  });
+}
 
 function delegate(authority: Authority, grantValue: Grant): void {
   const profileAllowed = authority.selectedProfile === undefined
@@ -1536,7 +1544,9 @@ function delegate(authority: Authority, grantValue: Grant): void {
     !constraintAttenuates(grantValue.constraint, authority.constraint) ||
     !budgetAttenuates(grantValue.budget, authority.budget) ||
     !statusAttenuates(grantValue.status, authority.status) ||
-    grantValue.assurance !== authority.assurance
+    grantValue.assurance !== authority.assurance ||
+    (authority.extensions !== undefined &&
+      !sameExtensions(grantValue.extensions, authority.extensions))
   ) throw denied("delegation-expanded");
   authority.subject = grantValue.subject;
   authority.selectedProfile = grantValue.profile;
@@ -1549,6 +1559,7 @@ function delegate(authority: Authority, grantValue: Grant): void {
   authority.remainingDepth = grantValue.remainingDepth;
   authority.lastGrant = grantValue.id;
   authority.status = grantValue.status;
+  authority.extensions = grantValue.extensions;
 }
 
 function authorize(authority: Authority, actionValue: Action): void {

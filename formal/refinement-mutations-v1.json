@@ -92,6 +92,11 @@
       "witness": "Assurance attenuation requires exact policy identity."
     },
     {
+      "id": "critical-extension-equality",
+      "operator": "Ignore changes to a critical extension payload.",
+      "witness": "Target V1 requires the complete canonical critical-extension set to remain exactly equal."
+    },
+    {
       "id": "delegation-depth-strictness",
       "operator": "Accept equal parent and child delegation depth.",
       "witness": "Every accepted child must strictly reduce remaining depth."

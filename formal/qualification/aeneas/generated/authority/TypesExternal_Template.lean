@@ -104,3 +104,10 @@ axiom auths_model.BudgetCeiling : Type
 @[rust_type "auths_model::StatusPolicy"]
 axiom auths_model.StatusPolicy : Type
 
+/-- [auths_model::CriticalExtensions]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1019:0-1019:29
+    Name pattern: [auths_model::CriticalExtensions]
+    Visibility: public -/
+@[rust_type "auths_model::CriticalExtensions"]
+axiom auths_model.CriticalExtensions : Type
+

@@ -25,7 +25,7 @@ product-level bounded authorization
 
 Auths currently has a mechanically shared Boolean boundary for attenuation and
 composition. Lean proves the Boolean aggregation algebra, Rust consumes the
-generated aggregation code, Lean emits all 1,024 possible ten-dimensional
+generated aggregation code, Lean emits all 2,048 possible eleven-dimensional
 Boolean projections, and Rust checks those vectors.
 
 The shipping verifier does more work before that boundary. It derives each
@@ -314,11 +314,11 @@ boundary:
 
 | Component | Current guarantee |
 | --- | --- |
-| `formal/algebra-contract-v1.toml` | Inventories ten attenuation Booleans and threshold expressions. |
+| `formal/algebra-contract-v1.toml` | Inventories eleven attenuation Booleans and threshold expressions. |
 | `formal/Auths/Generated/Algebra.lean` | Defines the generated Lean Boolean conjunction and threshold evaluator. |
 | `core/crates/auths-algebra-kernel` | Provides generated shipping Rust for the same conjunction and threshold evaluator. |
-| `formal/Auths/VectorExport.lean` | Exports every one of the \(2^{10}=1,024\) Boolean attenuation assignments. |
-| `core/crates/auths-formal-refinement` | Confirms Rust and Lean agree after the ten rich decisions have already become Booleans. |
+| `formal/Auths/VectorExport.lean` | Exports every one of the \(2^{11}=2,048\) Boolean attenuation assignments. |
+| `core/crates/auths-formal-refinement` | Confirms Rust and Lean agree after the eleven rich decisions have already become Booleans. |
 | Kani harnesses | Check the generated Boolean conjunction and bounded threshold partition. |
 
 This establishes that aggregate attenuation accepts exactly when every
@@ -356,8 +356,8 @@ permission and one audience, so Rust checks membership, not action-set
 inclusion. It also checks actor and terminal-grant linkage, profile, body
 digest, validity, and requested budget.
 
-The current 1,024-case refinement suite never constructs a rich parent, grant,
-or action and never calls these production predicates. It starts with ten
+The current 2,048-case refinement suite never constructs a rich parent, grant,
+or action and never calls these production predicates. It starts with eleven
 Booleans. This gap is explicitly disclosed in
 [`formal/README.md`](../../formal/README.md) and
 [ADR 0010](../adr/0010-mechanical-rust-lean-refinement-boundary.md). It is

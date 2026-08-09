@@ -9,13 +9,14 @@ mod refinement {
     use auths_composition::{BranchOutcome, evaluate};
     use auths_model::{
         ActionConstraint, AssurancePolicyId, Audience, AudienceSet, AuthorizationPlan,
-        BodyDigestSet, BudgetAlgebraId, BudgetCeiling, CapabilityId, DenialReason, Digest,
-        FreshnessLimit, GrantId, Permission, PermissionSet, PrincipalId, ProfileId, ProfileRef,
-        ProofRef, Requirement, ResourceId, ScopeAuthorityView, StatusMethodId, StatusPolicy,
-        Timestamp, ValidityWindow, VerifierLimits, action_constraint_allows,
-        action_constraint_attenuates, assurance_policy_id_equal, audience_set_contains,
-        audience_set_is_subset, body_digest_set_contains, body_digest_set_is_subset,
-        budget_ceiling_attenuates, inclusive_window_contains, optional_budget_attenuates,
+        BodyDigestSet, BudgetAlgebraId, BudgetCeiling, CapabilityId, CriticalExtension,
+        CriticalExtensions, DenialReason, Digest, ExtensionId, FreshnessLimit, GrantId, Permission,
+        PermissionSet, PrincipalId, ProfileId, ProfileRef, ProofRef, Requirement, ResourceId,
+        ScopeAuthorityView, StatusMethodId, StatusPolicy, Timestamp, ValidityWindow,
+        VerifierLimits, action_constraint_allows, action_constraint_attenuates,
+        assurance_policy_id_equal, audience_set_contains, audience_set_is_subset,
+        body_digest_set_contains, body_digest_set_is_subset, budget_ceiling_attenuates,
+        critical_extensions_equal, inclusive_window_contains, optional_budget_attenuates,
         optional_budget_covers, optional_grant_id_equal, permission_set_contains,
         permission_set_is_subset, principal_id_equal, profile_ref_equal, status_policy_attenuates,
     };
@@ -57,7 +58,7 @@ mod refinement {
 
     #[derive(Debug, Deserialize)]
     struct AttenuationVector {
-        checks: [bool; 10],
+        checks: [bool; 11],
         accepted: bool,
     }
 
@@ -97,7 +98,7 @@ mod refinement {
         cases: Vec<RichAuthorityVector>,
     }
 
-    fn checks(values: [bool; 10]) -> AttenuationChecks {
+    fn checks(values: [bool; 11]) -> AttenuationChecks {
         AttenuationChecks {
             root_preserved: values[0],
             depth_decreases: values[1],
@@ -109,6 +110,7 @@ mod refinement {
             budget_attenuates: values[7],
             status_attenuates: values[8],
             assurance_attenuates: values[9],
+            extensions_attenuate: values[10],
         }
     }
 
@@ -432,6 +434,20 @@ mod refinement {
                 let mutant = true;
                 Some(!canonical && mutant)
             }
+            "critical-extension-equality" => {
+                let extension_id = ExtensionId::parse("exact-marker-v1").expect("extension id");
+                let child = CriticalExtensions::new(vec![
+                    CriticalExtension::new(extension_id.clone(), vec![1]).expect("child extension"),
+                ])
+                .expect("child extensions");
+                let parent = CriticalExtensions::new(vec![
+                    CriticalExtension::new(extension_id, vec![2]).expect("parent extension"),
+                ])
+                .expect("parent extensions");
+                let canonical = critical_extensions_equal(&child, &parent);
+                let mutant = true;
+                Some(!canonical && mutant)
+            }
             "delegation-depth-strictness" => {
                 let profile = profile("profile-v1", 1);
                 let permissions =
@@ -442,6 +458,7 @@ mod refinement {
                 let constraint = ActionConstraint::AnyBody;
                 let status = StatusPolicy::ExpiryOnly;
                 let assurance = AssurancePolicyId::parse("assurance-v1").expect("assurance");
+                let extensions = CriticalExtensions::empty();
                 let parent = ScopeAuthorityView {
                     profile: &profile,
                     permissions: &permissions,
@@ -452,6 +469,7 @@ mod refinement {
                     remaining_depth: 2,
                     status_policy: &status,
                     assurance_floor: &assurance,
+                    extensions: &extensions,
                 };
                 let child = ScopeAuthorityView {
                     remaining_depth: 2,
@@ -531,8 +549,8 @@ mod refinement {
             ))
             .expect("valid Lean-generated attenuation vectors");
             assert_eq!(vectors.schema, "auths-proof-attenuation-vectors/v1");
-            assert_eq!(vectors.dimensions, 10);
-            assert_eq!(vectors.cases.len(), 1_024);
+            assert_eq!(vectors.dimensions, 11);
+            assert_eq!(vectors.cases.len(), 2_048);
             for vector in vectors.cases {
                 assert_eq!(attenuation_accepts(&checks(vector.checks)), vector.accepted);
             }
@@ -545,7 +563,7 @@ mod refinement {
             ))
             .expect("valid versioned semantic mutation matrix");
             assert_eq!(matrix.schema, "auths-proof-semantic-mutations/v1");
-            assert_eq!(matrix.cases.len(), 21);
+            assert_eq!(matrix.cases.len(), 22);
 
             let mut identifiers = BTreeSet::new();
             for mutation in matrix.cases {

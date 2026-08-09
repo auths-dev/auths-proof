@@ -16,7 +16,7 @@ set_option maxRecDepth 2048
 namespace auths_algebra_kernel
 
 /-- [auths_algebra_kernel::generated::attenuation_checks_accept]:
-    Source: 'core/crates/auths-algebra-kernel/src/generated.rs', lines 132:0-143:1
+    Source: 'core/crates/auths-algebra-kernel/src/generated.rs', lines 141:0-153:1
     Visibility: public -/
 def generated.attenuation_checks_accept
   (checks : generated.AttenuationChecks) : Result Bool := do
@@ -37,7 +37,10 @@ def generated.attenuation_checks_accept
                 if checks.budget_attenuates
                 then
                   if checks.status_attenuates
-                  then ok checks.assurance_attenuates
+                  then
+                    if checks.assurance_attenuates
+                    then ok checks.extensions_attenuate
+                    else ok false
                   else ok false
                 else ok false
               else ok false

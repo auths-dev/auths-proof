@@ -22,6 +22,18 @@ def stringBytes (value : String) : List Std.U8 :=
         Nat.reducePow]
       omega⟩
 
+def criticalExtensionKey (extension : auths_model.CriticalExtension) :
+    List Std.U8 × List Std.U8 :=
+  (stringBytes extension.id, extension.bytes.val)
+
+def criticalExtensionsKey (extensions : auths_model.CriticalExtensions) :
+    List (List Std.U8 × List Std.U8) :=
+  extensions.val.map criticalExtensionKey
+
+def CriticalExtensionsBounded
+    (extensions : auths_model.CriticalExtensions) : Prop :=
+  ∀ extension ∈ extensions.val, StringBounded extension.id
+
 @[step] theorem string_as_bytes_spec
     (value : String) (bounded : StringBounded value) :
     alloc.string.String.as_bytes value
@@ -38,6 +50,175 @@ def stringBytes (value : String) : List Std.U8 :=
   apply core.slice.cmp.PartialEqSlice.eq_homo_spec
   intro x y
   simp [core.cmp.impls.PartialEqU8.ne]
+
+def CriticalExtensionPrefixEqual
+    (child parent : auths_model.CriticalExtensions)
+    (limit : Nat) : Prop :=
+  ∀ index,
+    (childInBounds : index < child.val.length) →
+    (parentInBounds : index < parent.val.length) →
+    index < limit →
+    criticalExtensionKey child.val[index] =
+      criticalExtensionKey parent.val[index]
+
+@[step] theorem critical_extensions_equal_spec
+    (child parent : auths_model.CriticalExtensions)
+    (childBounded : CriticalExtensionsBounded child)
+    (parentBounded : CriticalExtensionsBounded parent) :
+    auths_model.critical_extensions_equal child parent
+      ⦃ result => result ↔
+        criticalExtensionsKey child = criticalExtensionsKey parent ⦄ := by
+  unfold auths_model.critical_extensions_equal
+  dsimp only
+  split <;> rename_i lengthCondition
+  · simp only [WP.spec, WP.theta, WP.wp_return, Bool.false_eq_true,
+      false_iff]
+    intro keysEqual
+    have rawLengthEqual : child.val.length = parent.val.length := by
+      simpa [criticalExtensionsKey] using congrArg List.length keysEqual
+    have vectorLengthEqual :
+        alloc.vec.Vec.len child = alloc.vec.Vec.len parent := by
+      scalar_tac
+    simp_all
+  · have lengthEqual : child.val.length = parent.val.length := by
+      simpa using lengthCondition
+    unfold auths_model.critical_extensions_equal_loop
+    apply loop.spec_decr_nat
+      (measure := fun index => child.val.length - index.val)
+      (inv := fun index =>
+        index.val ≤ child.val.length ∧
+        CriticalExtensionPrefixEqual child parent index.val)
+    · intro index
+      rintro ⟨indexBound, prefixEqual⟩
+      unfold auths_model.critical_extensions_equal_loop.body
+      dsimp only
+      split <;> rename_i withinBounds
+      · have childInBounds : index.val < child.val.length := by
+          simpa using withinBounds
+        have parentInBounds : index.val < parent.val.length := by
+          simpa [← lengthEqual] using childInBounds
+        step as ⟨childExtension, childExtensionEq⟩
+        step as ⟨parentExtension, parentExtensionEq⟩
+        have childExtensionMember : childExtension ∈ child.val := by
+          rw [childExtensionEq]
+          exact List.getElem_mem childInBounds
+        have parentExtensionMember : parentExtension ∈ parent.val := by
+          rw [parentExtensionEq]
+          exact List.getElem_mem parentInBounds
+        have childIdBounded : StringBounded childExtension.id :=
+          childBounded childExtension childExtensionMember
+        have parentIdBounded : StringBounded parentExtension.id :=
+          parentBounded parentExtension parentExtensionMember
+        step with string_as_bytes_spec as
+          ⟨childId, childIdBytes⟩
+        step with string_as_bytes_spec as
+          ⟨parentId, parentIdBytes⟩
+        step with byte_slices_equal_spec as ⟨idsEqual, idsIff⟩
+        split <;> rename_i idCondition
+        · step with byte_slices_equal_spec as
+            ⟨payloadsEqual, payloadsIff⟩
+          split <;> rename_i payloadCondition
+          · step as ⟨nextIndex, nextIndexPost⟩
+            constructor
+            · scalar_tac
+            · constructor
+              · intro prior priorChildIn priorParentIn priorBound
+                by_cases priorAtCurrent : prior = index.val
+                · subst prior
+                  rw [← childExtensionEq, ← parentExtensionEq]
+                  apply Prod.ext
+                  · simp only [criticalExtensionKey]
+                    rw [← childIdBytes, ← parentIdBytes]
+                    exact congrArg (fun slice : Slice Std.U8 => slice.val)
+                      (idsIff.mp idCondition)
+                  · simp only [criticalExtensionKey]
+                    exact congrArg (fun slice : Slice Std.U8 => slice.val)
+                      (payloadsIff.mp payloadCondition)
+                · exact prefixEqual prior priorChildIn priorParentIn
+                    (by scalar_tac)
+              · scalar_tac
+          · simp only [WP.spec, WP.theta, WP.wp_return,
+              Bool.false_eq_true, false_iff]
+            intro keysEqual
+            have currentEqual := congrArg
+              (fun values => values[index.val]?) keysEqual
+            simp [criticalExtensionsKey, criticalExtensionKey,
+              childInBounds, parentInBounds] at currentEqual
+            rw [← childExtensionEq, ← parentExtensionEq] at currentEqual
+            exact payloadCondition
+              (payloadsIff.mpr (Subtype.ext currentEqual.2))
+        · simp only [WP.spec, WP.theta, WP.wp_return,
+            Bool.false_eq_true, false_iff]
+          intro keysEqual
+          have currentEqual := congrArg
+            (fun values => values[index.val]?) keysEqual
+          simp [criticalExtensionsKey, criticalExtensionKey,
+            childInBounds, parentInBounds] at currentEqual
+          rw [← childExtensionEq, ← parentExtensionEq] at currentEqual
+          apply idCondition
+          apply idsIff.mpr
+          apply Subtype.ext
+          rw [childIdBytes, parentIdBytes]
+          exact currentEqual.1
+      · simp only [WP.spec, WP.theta, WP.wp_return]
+        have atEnd : index.val = child.val.length := by
+          have notWithin : ¬index.val < child.val.length := by
+            simpa using withinBounds
+          omega
+        constructor
+        · intro _
+          apply List.ext_get
+          · simpa [criticalExtensionsKey] using lengthEqual
+          · intro position childPosition parentPosition
+            have childRawPosition : position < child.val.length := by
+              simpa [criticalExtensionsKey] using childPosition
+            have parentRawPosition : position < parent.val.length := by
+              simpa [criticalExtensionsKey] using parentPosition
+            simpa [criticalExtensionsKey] using
+              prefixEqual position childRawPosition parentRawPosition
+                (by omega)
+        · intro
+          trivial
+    · constructor
+      · simp
+      · intro index childIn parentIn impossible
+        simp at impossible
+
+def OptionalCriticalExtensionsAttenuate
+    (child : auths_model.CriticalExtensions)
+    (parent : Option auths_model.CriticalExtensions) : Prop :=
+  match parent with
+  | none => True
+  | some parent =>
+      criticalExtensionsKey child = criticalExtensionsKey parent
+
+instance (child : auths_model.CriticalExtensions)
+    (parent : Option auths_model.CriticalExtensions) :
+    Decidable (OptionalCriticalExtensionsAttenuate child parent) := by
+  unfold OptionalCriticalExtensionsAttenuate
+  cases parent <;> simp <;> infer_instance
+
+@[step] theorem optional_critical_extensions_attenuate_spec
+    (child : auths_model.CriticalExtensions)
+    (parent : Option auths_model.CriticalExtensions)
+    (childBounded : CriticalExtensionsBounded child)
+    (parentBounded : ∀ extensions ∈ parent,
+      CriticalExtensionsBounded extensions) :
+    (match parent with
+     | none => ok true
+     | some parent => auths_model.critical_extensions_equal child parent)
+      ⦃ result => result ↔
+        OptionalCriticalExtensionsAttenuate child parent ⦄ := by
+  cases parentCase : parent with
+  | none =>
+      simp [OptionalCriticalExtensionsAttenuate,
+        WP.spec, WP.theta, WP.wp_return]
+  | some parentExtensions =>
+      apply spec_mono
+        (critical_extensions_equal_spec child parentExtensions childBounded
+          (parentBounded parentExtensions (by simp [parentCase])))
+      intro result resultIff
+      simpa [parentCase, OptionalCriticalExtensionsAttenuate] using resultIff
 
 theorem slice_eq_iff_val_eq {α : Type} (left right : Slice α) :
     left = right ↔ left.val = right.val :=
@@ -1258,6 +1439,7 @@ structure ScopeAuthorityViewValid
   budget : OptionalBudgetBounded view.budget_ceiling
   status : StatusPolicyValid view.status_policy
   assurance : StringBounded view.assurance_floor
+  extensions : CriticalExtensionsBounded view.extensions
 
 structure SelectedProfileValid
     (selected : Option auths_model.ProfileRef)
@@ -1323,6 +1505,8 @@ structure AuthorityStateViewValid
   budget : OptionalBudgetBounded view.budget_ceiling
   status : StatusPolicyValid view.status_policy
   assurance : StringBounded view.assurance_policy
+  extensions : ∀ extensions ∈ view.extensions,
+    CriticalExtensionsBounded extensions
 
 structure GrantAuthorityViewValid
     (view : auths_model.GrantAuthorityView) : Prop where
@@ -1335,6 +1519,7 @@ structure GrantAuthorityViewValid
   budget : OptionalBudgetBounded view.budget_ceiling
   status : StatusPolicyValid view.status_policy
   assurance : StringBounded view.assurance_floor
+  extensions : CriticalExtensionsBounded view.extensions
 
 structure ActionAuthorityViewValid
     (view : auths_model.ActionAuthorityView) : Prop where
@@ -1411,6 +1596,7 @@ def expectedAcceptedTransition
   remaining_depth := grant.remaining_depth
   grant_id := grantId
   status_policy := grant.status_policy
+  extensions := grant.extensions
 
 def productionDelegationOutcome
     (decision : Auths.Rich.DelegationDecision ProductionVocabulary)
@@ -1424,6 +1610,19 @@ def productionDelegationOutcome
       .Denied auths_model.DenialReason.BrokenGrantChain
   | .denied .delegationExpanded =>
       .Denied auths_model.DenialReason.DelegationExpanded
+
+def extensionAwareDelegationDecision
+    (parent : Option auths_model.CriticalExtensions)
+    (grant : auths_model.CriticalExtensions)
+    (decision : Auths.Rich.DelegationDecision ProductionVocabulary) :
+    Auths.Rich.DelegationDecision ProductionVocabulary :=
+  match decision with
+  | .denied .brokenGrantChain => decision
+  | _ =>
+      if OptionalCriticalExtensionsAttenuate grant parent then
+        decision
+      else
+        .denied .delegationExpanded
 
 def productionCoverageDecision
     (decision : Auths.Rich.CoverageDecision) :
@@ -1583,10 +1782,12 @@ def productionCoverageDecision
           checks.action_constraint_attenuates ∧
           checks.budget_attenuates ∧
           checks.status_attenuates ∧
-          checks.assurance_attenuates ⦄ := by
+          checks.assurance_attenuates ∧
+          checks.extensions_attenuate ⦄ := by
   unfold
     auths_algebra_kernel.generated.attenuation_checks_accept
   split <;> simp_all [WP.spec, WP.theta, WP.wp_return]
+  split <;> simp_all [WP.wp_return]
   split <;> simp_all [WP.wp_return]
   split <;> simp_all [WP.wp_return]
   split <;> simp_all [WP.wp_return]
@@ -1623,7 +1824,10 @@ def richAuthorScopeDecision
                   (richStatus parent.status_policy parentValid.status) then
                 if richAssurance child.assurance_floor =
                     richAssurance parent.assurance_floor then
-                  .Accepted
+                  if criticalExtensionsKey child.extensions =
+                      criticalExtensionsKey parent.extensions then
+                    .Accepted
+                  else .Denied .Extensions
                 else .Denied .Assurance
               else .Denied .Status
             else .Denied .Budget
@@ -1649,10 +1853,10 @@ theorem translated_rust_refines_rich_spec
           parent child parentValid childValid ⦄ := by
   rcases parentValid with
     ⟨parentProfile, parentPermissions, parentWindow, parentAudiences,
-      parentBudget, parentStatus, parentAssurance⟩
+      parentBudget, parentStatus, parentAssurance, parentExtensions⟩
   rcases childValid with
     ⟨childProfile, childPermissions, childWindow, childAudiences,
-      childBudget, childStatus, childAssurance⟩
+      childBudget, childStatus, childAssurance, childExtensions⟩
   unfold auths_authority.evaluate_author_scope_view
   unfold richAuthorScopeDecision
   step with profile_ref_equal_spec as ⟨profileAccepted, profileIff⟩
@@ -1717,7 +1921,19 @@ theorem translated_rust_refines_rich_spec
                           richAssurance child.assurance_floor =
                             richAssurance parent.assurance_floor := by
                         simpa using assuranceIff.mp assuranceCondition
-                      simp_all
+                      step with critical_extensions_equal_spec as
+                        ⟨extensionsAccepted, extensionsIff⟩
+                      split <;> rename_i extensionsCondition
+                      · have extensionsSemantic :
+                            criticalExtensionsKey child.extensions =
+                              criticalExtensionsKey parent.extensions :=
+                          extensionsIff.mp extensionsCondition
+                        simp_all
+                      · have extensionsSemantic :
+                            criticalExtensionsKey child.extensions ≠
+                              criticalExtensionsKey parent.extensions :=
+                          extensionsIff.not.mp extensionsCondition
+                        simp_all
                     · have assuranceSemantic :
                           richAssurance child.assurance_floor ≠
                             richAssurance parent.assurance_floor := by
@@ -1950,19 +2166,20 @@ theorem translated_delegation_refines_rich_spec
     auths_authority.evaluate_grant_view parent grantId grant
       ⦃ result =>
         result.outcome = productionDelegationOutcome
-          (Auths.Rich.evaluateGrant
-            (richAuthorityState root parent parentValid)
-            (richGrantId grantId)
-            (richGrant grant grantValid))
+          (extensionAwareDelegationDecision parent.extensions grant.extensions
+            (Auths.Rich.evaluateGrant
+              (richAuthorityState root parent parentValid)
+              (richGrantId grantId)
+              (richGrant grant grantValid)))
           grantId grant ⦄ := by
   rcases parentValid with
     ⟨parentSubject, allowedProfiles, selectedProfile,
       parentPermissions, parentWindow, parentAudiences,
-      parentBudget, parentStatus, parentAssurance⟩
+      parentBudget, parentStatus, parentAssurance, parentExtensions⟩
   rcases grantValid with
     ⟨grantIssuer, grantSubject, grantProfile, grantPermissions,
       grantWindow, grantAudiences, grantBudget, grantStatus,
-      grantAssurance⟩
+      grantAssurance, grantExtensions⟩
   unfold auths_authority.evaluate_grant_view
   split <;> rename_i parentDepthCondition
   all_goals
@@ -1982,6 +2199,8 @@ theorem translated_delegation_refines_rich_spec
       ⟨statusAccepted, statusIff⟩
     step with assurance_policy_id_equal_rich_spec as
       ⟨assuranceAccepted, assuranceIff⟩
+    step with optional_critical_extensions_attenuate_spec as
+      ⟨extensionsAccepted, extensionsIff⟩
     step with principal_id_equal_rich_spec as
       ⟨issuerAccepted, issuerIff⟩
     split <;> rename_i issuerCondition
@@ -1994,6 +2213,8 @@ theorem translated_delegation_refines_rich_spec
         · simp_all [Auths.Rich.evaluateGrant, Auths.Rich.linked,
             Auths.Rich.scopeDepthChecks, Auths.Rich.grantScopeChecks,
             productionDelegationOutcome, expectedAcceptedTransition,
+            extensionAwareDelegationDecision,
+            OptionalCriticalExtensionsAttenuate,
             richAuthorityState, richGrant]
         · have failedScope :
               ¬(grant.remaining_depth.val < parent.remaining_depth.val ∧
@@ -2023,10 +2244,12 @@ theorem translated_delegation_refines_rich_spec
                   (richStatus grant.status_policy grantStatus)
                   (richStatus parent.status_policy parentStatus) ∧
                 stringBytes grant.assurance_floor =
-                  stringBytes parent.assurance_policy) := by
+                  stringBytes parent.assurance_policy ∧
+                OptionalCriticalExtensionsAttenuate
+                  grant.extensions parent.extensions) := by
             rintro ⟨depth, profile, permissions, validityStart,
               validityEnd, audiences, constraint, budget, status,
-              assurance⟩
+              assurance, extensions⟩
             have permissionsRich :
                 richPermissionSet grant.permissions ⊆
                   richPermissionSet parent.permissions := by
@@ -2043,8 +2266,8 @@ theorem translated_delegation_refines_rich_spec
               apply scopeIff.mpr
               simp_all
             simp_all
-          have scopeSemantic :
-              ¬Auths.Rich.scopeDepthChecks
+          have scopeOrExtensions :
+              (¬Auths.Rich.scopeDepthChecks
                 (richAuthorityState root parent
                   {
                     subject := parentSubject
@@ -2056,6 +2279,7 @@ theorem translated_delegation_refines_rich_spec
                     budget := parentBudget
                     status := parentStatus
                     assurance := parentAssurance
+                    extensions := parentExtensions
                   })
                 (richGrant grant
                   {
@@ -2068,12 +2292,23 @@ theorem translated_delegation_refines_rich_spec
                     budget := grantBudget
                     status := grantStatus
                     assurance := grantAssurance
-                  }) := by
-            intro checks
-            apply failedScope
-            simpa [Auths.Rich.scopeDepthChecks,
-              Auths.Rich.grantScopeChecks, richAuthorityState,
-              richGrant] using checks.2
+                    extensions := grantExtensions
+                  }) ∧ OptionalCriticalExtensionsAttenuate
+                    grant.extensions parent.extensions) ∨
+                ¬OptionalCriticalExtensionsAttenuate
+                  grant.extensions parent.extensions := by
+            by_cases extensionsSemantic :
+                OptionalCriticalExtensionsAttenuate
+                  grant.extensions parent.extensions
+            · left
+              refine ⟨?_, extensionsSemantic⟩
+              intro checks
+              apply failedScope
+              have richChecks := checks.2
+              simpa [Auths.Rich.scopeDepthChecks,
+                Auths.Rich.grantScopeChecks, richAuthorityState,
+                richGrant] using And.intro richChecks extensionsSemantic
+            · exact Or.inr extensionsSemantic
           have linkedSemantic :
               Auths.Rich.linked
                 (richAuthorityState root parent
@@ -2087,6 +2322,7 @@ theorem translated_delegation_refines_rich_spec
                     budget := parentBudget
                     status := parentStatus
                     assurance := parentAssurance
+                    extensions := parentExtensions
                   })
                 (richGrant grant
                   {
@@ -2099,16 +2335,25 @@ theorem translated_delegation_refines_rich_spec
                     budget := grantBudget
                     status := grantStatus
                     assurance := grantAssurance
+                    extensions := grantExtensions
                   }) := by
             simp_all [Auths.Rich.linked, richAuthorityState,
               richGrant]
-          simp [Auths.Rich.evaluateGrant, linkedSemantic,
-            scopeSemantic, productionDelegationOutcome]
+          rcases scopeOrExtensions with
+            ⟨scopeSemantic, extensionsSemantic⟩ | extensionsSemantic
+          · simp [Auths.Rich.evaluateGrant, linkedSemantic,
+              scopeSemantic, productionDelegationOutcome,
+              extensionAwareDelegationDecision, extensionsSemantic]
+          · simp only [Auths.Rich.evaluateGrant, linkedSemantic, if_pos]
+            split <;> simp [productionDelegationOutcome,
+              extensionAwareDelegationDecision, extensionsSemantic]
       · simp_all [Auths.Rich.evaluateGrant, Auths.Rich.linked,
           productionDelegationOutcome,
+          extensionAwareDelegationDecision,
           richAuthorityState, richGrant]
     · simp_all [Auths.Rich.evaluateGrant, Auths.Rich.linked,
         productionDelegationOutcome,
+        extensionAwareDelegationDecision,
         richAuthorityState, richGrant]
 
 end Auths.Refinement

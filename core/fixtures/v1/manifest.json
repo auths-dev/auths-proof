@@ -1824,6 +1824,61 @@
       "expected_code": "delegation-expanded"
     },
     {
+      "name": "critical-extension-attenuation",
+      "class": "denied",
+      "proof": {
+        "path": "denied/critical-extension-attenuation.proof.cbor",
+        "sha256": "cbc09ab5675a2767415874f5b504dd7212c7b1cfefeda06b39892b0a06782e33"
+      },
+      "context": {
+        "path": "denied/critical-extension-attenuation.context.cbor",
+        "sha256": "7eece123bfe15dc52b3b3bf4c09f9b1c769a2c76f75a68792bd1b741121f6278"
+      },
+      "canonical_action": {
+        "path": "denied/critical-extension-attenuation.action.cbor",
+        "sha256": "409417c365cae4d8dd06b6106f954bc35a564355503f6d304efa1e1d00065297",
+        "profile": "auths.mcp",
+        "profile_version": 1,
+        "media_type": "application/vnd.auths.mcp-call.v1+cbor",
+        "capability": "tools/call",
+        "resource": "mcp://reports/read",
+        "requested_budget": {
+          "algebra": "numeric-ceiling-v1",
+          "value": 5
+        }
+      },
+      "canonical_body": {
+        "path": "denied/critical-extension-attenuation.body.cbor",
+        "sha256": "5c63cdd40e91c52d8e1e01d76e968cb2cd262c6c0ca0e9674a0975a1118f0a2d"
+      },
+      "expected_result": {
+        "path": "denied/critical-extension-attenuation.result.cbor",
+        "sha256": "0cd691235b0bc7261dbfb1c9f14a02f67dfdef241ef96c6f64f5fa19af6d58b8",
+        "stage": "authority",
+        "decision": "denied",
+        "code": "delegation-expanded",
+        "proof_digest": "cbc09ab5675a2767415874f5b504dd7212c7b1cfefeda06b39892b0a06782e33",
+        "action_digest": "409417c365cae4d8dd06b6106f954bc35a564355503f6d304efa1e1d00065297",
+        "context_digest": "91b712957c56b5cd114251880277063fc713187d74f219c6b9c9571789e9ac5e",
+        "plan_digest": "6a1d4506227ad7faaede8df4449b7eb54c9c1294a96fba4e85815b8b12b68f2d",
+        "result_digest": "d4614c27057b51a91bb11c6248e7ea829af5fc083294276674fb6de92fd0a264",
+        "authorized_branches": [],
+        "assurance_satisfactions": 0,
+        "resources": {
+          "proof_bytes": 2172,
+          "action_bytes": 144,
+          "context_bytes": 1174,
+          "object_count": 9,
+          "plan_leaves": 1,
+          "plan_depth": 1,
+          "work_units": 452
+        },
+        "registry_manifest": "3333333333333333333333333333333333333333333333333333333333333333"
+      },
+      "expected_decision": "denied",
+      "expected_code": "delegation-expanded"
+    },
+    {
       "name": "active-grant-status",
       "class": "denied",
       "proof": {

@@ -1,5 +1,5 @@
 {
-  "aeneas_version": "3a8586f",
+  "aeneas_version": "nightly-2026.07.31-3a8586f",
   "charon_version": "0.1.225",
   "crate": "auths_algebra_kernel",
   "functions": [
@@ -11,8 +11,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-algebra-kernel/src/generated.rs",
-        "begin_line": 132,
-        "end_line": 143
+        "begin_line": 141,
+        "end_line": 153
       },
       "is_opaque": false,
       "can_fail": true,
@@ -30,8 +30,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-algebra-kernel/src/generated.rs",
-        "begin_line": 50,
-        "end_line": 71
+        "begin_line": 52,
+        "end_line": 75
       }
     }
   ],
