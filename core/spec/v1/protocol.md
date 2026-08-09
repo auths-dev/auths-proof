@@ -90,12 +90,20 @@ V1 has a closed algebra:
 
 ```text
 ExactBodyDigest(x) <= AllowedBodyDigests(S)  when x is in S
+AllowedBodyDigests(S) <= ExactBodyDigest(x)  when every member of S is x
 AllowedBodyDigests(A) <= AllowedBodyDigests(B) when A is a subset of B
 AllowedBodyDigests(S) <= AnyBody
 ExactBodyDigest(x) <= AnyBody
 ```
 
 No application callback changes this order.
+
+Canonical production allow-lists are non-empty and duplicate-free, so the
+second rule applies exactly to `AllowedBodyDigests({x})`. Consequently,
+`ExactBodyDigest(x)` and `AllowedBodyDigests({x})` are distinct wire values but
+mutually attenuate and authorize the same body. The raw constructors form a
+preorder; structural antisymmetry applies after normalizing singleton
+allow-lists to `ExactBodyDigest` (or modulo this semantic equivalence).
 
 ### Authorization plan
 
@@ -193,6 +201,19 @@ AND budget claim
 AND application policy
 = ExecutableAction
 ```
+
+The proof-carried V1 budget ceiling is a stateless limit on the one proposed
+action. It does not count prior actions or reserve shared capacity. Aggregate,
+rolling, or shared spending limits require an execution-plane budget store.
+
+V1 assurance policy identifiers are retained by exact equality across a
+delegation edge. V1 does not define a stronger/weaker assurance lattice; a
+future lattice is a protocol-versioned semantic change, not an interpretation
+left to an adapter.
+
+Stable first-failure ordering makes implementations and receipts agree on one
+diagnostic. It is not a timing, cache, power, or other side-channel
+noninterference guarantee.
 
 ## Deterministic encoding
 

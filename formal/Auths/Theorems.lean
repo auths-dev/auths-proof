@@ -22,6 +22,7 @@ def theoremInventory : List Lean.Name :=
     `Auths.Rich.action_constraint_refl,
     `Auths.Rich.action_constraint_trans,
     `Auths.Rich.action_constraint_antisymm,
+    `Auths.Rich.action_constraint_canonical_antisymm,
     `Auths.Rich.action_constraint_allows_monotone,
     `Auths.Rich.budget_refl,
     `Auths.Rich.budget_trans,

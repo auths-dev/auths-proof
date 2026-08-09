@@ -48,8 +48,13 @@
     },
     {
       "id": "action-constructor-fallback",
-      "operator": "Accept an allowed-body set beneath an exact-body parent.",
-      "witness": "A set constraint cannot attenuate an exact constraint."
+      "operator": "Accept a multi-digest allowed-body set beneath an exact-body parent.",
+      "witness": "A two-digest set admits more actions than an exact constraint."
+    },
+    {
+      "id": "action-singleton-exact-rejection",
+      "operator": "Reject a singleton allowed-body set beneath its equivalent exact-body parent.",
+      "witness": "Allowed({d}) and Exact(d) admit the same canonical body digest."
     },
     {
       "id": "budget-value-direction",

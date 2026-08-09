@@ -166,7 +166,7 @@ classification = "Pinned upstream iterator proof-support sorry; the qualified so
 [[translations]]
 crate_name = "auths_model"
 translation_json = "formal/qualification/aeneas/generated/model/translation.json"
-local_functions = 45
+local_functions = 48
 external_functions = 1
 opaque_local_functions = 0
 required_symbols = [
@@ -178,6 +178,7 @@ required_symbols = [
   "auths_model::audience_set_is_subset",
   "auths_model::body_digest_set_contains",
   "auths_model::body_digest_set_is_subset",
+  "auths_model::body_digest_set_only_contains",
   "auths_model::action_constraint_allows",
   "auths_model::action_constraint_attenuates",
   "auths_model::budget_ceiling_attenuates",

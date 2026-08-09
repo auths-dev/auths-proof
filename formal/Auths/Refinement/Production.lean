@@ -1048,6 +1048,88 @@ def DigestPrefixContained
       · intro index inBounds impossible
         simp at impossible
 
+def DigestPrefixOnly
+    (digests : List auths_model.Digest)
+    (limit : Nat)
+    (digest : auths_model.Digest) : Prop :=
+  ∀ index, (inBounds : index < digests.length) → index < limit →
+    digestKey digests[index] = digestKey digest
+
+@[step] theorem body_digest_set_only_contains_spec
+    (digestSet : auths_model.BodyDigestSet)
+    (digest : auths_model.Digest) :
+    auths_model.body_digest_set_only_contains digestSet digest
+      ⦃ result =>
+        result ↔ ∀ key ∈ digestSet.val.map digestKey,
+          key = digestKey digest ⦄ := by
+  unfold auths_model.body_digest_set_only_contains
+  unfold auths_model.body_digest_set_only_contains_loop
+  apply loop.spec_decr_nat
+    (measure := fun state => digestSet.val.length - state.2.val)
+    (inv := fun state =>
+      state.1 = digestSet ∧
+      state.2.val ≤ digestSet.val.length ∧
+      DigestPrefixOnly digestSet.val state.2.val digest)
+  · rintro ⟨currentSet, index⟩ ⟨rfl, indexBound, prefixOnly⟩
+    have indexBound' : index.val ≤ currentSet.val.length := by
+      simpa using indexBound
+    have prefixOnly' :
+        DigestPrefixOnly currentSet.val index.val digest := by
+      simpa using prefixOnly
+    unfold auths_model.body_digest_set_only_contains_loop.body
+    dsimp only
+    split <;> rename_i withinBounds
+    · have indexWithin : index.val < currentSet.val.length := by
+        simpa using withinBounds
+      step as ⟨currentDigest, currentDigestEq⟩
+      have currentInSet : currentDigest ∈ currentSet.val := by
+        rw [currentDigestEq]
+        exact List.getElem_mem indexWithin
+      step with digests_equal_spec as ⟨equal, equalIff⟩
+      split <;> rename_i equalityCondition
+      · step as ⟨nextIndex, nextIndexPost⟩
+        · have currentSetLengthBound :
+              currentSet.val.length ≤ Std.Usize.max := currentSet.property
+          scalar_tac
+        constructor
+        · scalar_tac
+        · constructor
+          · intro prior priorInBounds priorBound
+            by_cases priorAtCurrent : prior = index.val
+            · subst prior
+              rw [← currentDigestEq]
+              exact equalIff.mp equalityCondition
+            · exact prefixOnly' prior priorInBounds (by omega)
+          · scalar_tac
+      · simp only [WP.spec, WP.theta, WP.wp_return, Bool.false_eq_true,
+          false_iff]
+        intro allEqual
+        apply equalityCondition
+        apply equalIff.mpr
+        exact allEqual (digestKey currentDigest)
+          (List.mem_map.mpr ⟨currentDigest, currentInSet, rfl⟩)
+    · simp only [WP.spec, WP.theta, WP.wp_return]
+      constructor
+      · intro _ key keyInSet
+        rcases List.mem_map.mp keyInSet with
+          ⟨candidate, candidateInSet, rfl⟩
+        obtain ⟨candidateIndex, candidateIndexBound, candidateAtIndex⟩ :=
+          List.getElem_of_mem candidateInSet
+        have notWithin : ¬index.val < currentSet.val.length := by
+          simpa using withinBounds
+        have indexAtEnd : index.val = currentSet.val.length := by omega
+        have covered :=
+          prefixOnly' candidateIndex candidateIndexBound (by omega)
+        simpa [candidateAtIndex] using covered
+      · intro
+        trivial
+  · constructor
+    · rfl
+    · constructor
+      · simp
+      · intro index inBounds impossible
+        simp at impossible
+
 abbrev productionVocabulary : Auths.Rich.Vocabulary where
   PrincipalCarrier := List Std.U8
   ProfileCarrier := Nat × List Std.U8
@@ -1121,6 +1203,17 @@ def richActionConstraint (constraint : auths_model.ActionConstraint) :
   rw [resultIff]
   simp [richDigest]
 
+@[step] theorem body_digest_set_only_contains_rich_spec
+    (digestSet : auths_model.BodyDigestSet)
+    (digest : auths_model.Digest) :
+    auths_model.body_digest_set_only_contains digestSet digest
+      ⦃ result => result ↔
+        (digestSet.val.map richDigest).toFinset ⊆ {richDigest digest} ⦄ := by
+  apply spec_mono (body_digest_set_only_contains_spec digestSet digest)
+  intro result resultIff
+  rw [resultIff]
+  simp [richDigest, Finset.subset_iff]
+
 @[step] theorem action_constraint_allows_spec
     (constraint : auths_model.ActionConstraint)
     (digest : auths_model.Digest) :
@@ -1155,6 +1248,11 @@ def richActionConstraint (constraint : auths_model.ActionConstraint) :
     simp only [auths_model.action_constraint_attenuates]
   case ExactBodyDigest.ExactBodyDigest =>
     exact digests_equal_rich_spec _ _
+  case ExactBodyDigest.AllowedBodyDigests =>
+    apply spec_mono (body_digest_set_only_contains_rich_spec _ _)
+    intro result resultIff
+    rw [resultIff]
+    simp [richActionConstraint, Auths.Rich.actionConstraintLe]
   case AllowedBodyDigests.ExactBodyDigest =>
     apply spec_mono (body_digest_set_contains_rich_spec _ _)
     intro result resultIff

@@ -1,6 +1,6 @@
 {
   "schema": "auths-proof-translation-source-closure/v2",
-  "digest": "73edab8eba0bb29e9d283f19873815c6c1d1cc433d1ab2c29ce6026f83e93976",
+  "digest": "94bdfff5ced347efd2f198d09e7c2ad5d825fcb1311ac2e12bb19ce5ff2bb885",
   "files": [
     {
       "path": "Cargo.lock",
@@ -38,7 +38,7 @@
     },
     {
       "path": "core/crates/auths-model/src/lib.rs",
-      "sha256": "edfae5f0f8b0871f5dbfed3bee29ff86362a32a3a2055cb8e61eafedd8ddda7a"
+      "sha256": "8f31ea29b3b574d23440711fc83fa9167174679921406f92cd5e9a807a95a699"
     },
     {
       "path": "formal/algebra-contract-v1.toml",
@@ -46,7 +46,7 @@
     },
     {
       "path": "formal/qualification/aeneas/qualification.toml",
-      "sha256": "3fa4dac28afb1d5a5b8c4626ee419e758d679457e2fae93b5d6c738a4436b5d1"
+      "sha256": "cda0d7cb0935ec120b8677ee6c7225f1201338c9924ce0311a58b61587adc544"
     },
     {
       "path": "formal/translation-toolchain.lock",

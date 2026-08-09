@@ -518,12 +518,13 @@ MAY additionally prove syntactic antisymmetry.
 
 The efficient structural V1 relation remains a separate decidable function.
 Lean MUST prove it sound for semantic containment. Completeness MUST NOT be
-claimed for representation-distinct but extensionally equivalent scopes:
-`Exact(d)` and `Allowed({d})`, for example, admit the same digest while the V1
-transition relation intentionally distinguishes their direction. The
-implementation MAY prove completeness on an explicitly normalized subtype or
-give a precise characterization of accepted V1 transitions. Partial-order laws
-alone are not enough to establish action-coverage safety.
+confused with structural equality for representation-distinct but
+extensionally equivalent scopes. `Exact(d)` and `Allowed({d})` admit the same
+digest and the V1 transition relation accepts both directions. The raw action
+constructors therefore form a preorder. Structural antisymmetry is proved only
+for the explicitly normalized carrier in which singleton allow-lists are
+represented as `Exact`. Partial-order laws alone are not enough to establish
+action-coverage safety.
 
 ### 5.2 Semantic values versus runtime representations
 
@@ -555,6 +556,13 @@ The representation bridge MUST prove:
 - binary-search membership and slice subset refine finite-set membership and
   subset; and
 - `u16` and `u64` embed into Lean arithmetic with exact boundary behavior.
+
+The current bridge relies on validation before these theorems are applied:
+Lean naturals corresponding to production counters and timestamps are within
+their Rust `u16`/`u64` ranges, and string-backed identifiers are the canonical,
+bounded byte sequences accepted by the model and codec. The proofs do not
+claim that arbitrary mathematical naturals fit Rust or that arbitrary Unicode
+spellings denote the same identifier.
 
 ### 5.3 Split ordered scope from transition state
 
@@ -607,7 +615,7 @@ Each field MUST use its actual relation:
 | permissions | child finite set is a subset of parent | reflexive, transitive, canonical antisymmetry, membership monotonicity |
 | audiences | child finite set is a subset of parent | reflexive, transitive, canonical antisymmetry, membership monotonicity |
 | inclusive validity | child start is no earlier and child end no later | reflexive, transitive, canonical antisymmetry, coverage monotonicity |
-| action constraint | target V1 `Any`, `Allowed`, and `Exact` attenuation | reflexive, transitive, canonical antisymmetry, `allows` monotonicity |
+| action constraint | semantic containment over target V1 `Any`, `Allowed`, and `Exact`; `Allowed({d})` and `Exact(d)` mutually attenuate | reflexive, transitive, extensional antisymmetry, normalized structural antisymmetry, `allows` monotonicity |
 | optional budget | `None` is unbounded top; `Some` requires equal algebra and a non-increasing value | reflexive, transitive, canonical antisymmetry, coverage monotonicity |
 | status | `ExpiryOnly` is top; snapshots require equal method and non-increasing maximum age | reflexive, transitive, canonical antisymmetry, evidence-satisfaction monotonicity |
 | profile | select a member once, then preserve exact equality | transition law; no arbitrary identifier ordering |
@@ -628,6 +636,10 @@ attenuation.
 Where a relation is defined only on well-formed values, the theorem MUST carry
 the invariant explicitly or use a subtype that makes malformed values
 unrepresentable.
+
+Exact assurance equality is the complete target-V1 rule, not a placeholder
+for an implicit ordering. Adding a stronger/weaker assurance lattice requires
+a versioned policy carrier and a separately linked proof.
 
 Every heterogeneous bridge lemma is normative. Examples include:
 
@@ -694,6 +706,9 @@ own mechanically linked proof artifact and protocol-version review. The
 duplicate V1 check SHOULD be removed or generated from the same proved kernel.
 Richer evidence-relative, aggregate, rolling, or shared budgets get closed
 product policy versions rather than silently changing V1 `BudgetCeiling`.
+Accordingly, core `BudgetCeiling` is stateless and applies independently to one
+action. It makes no cumulative-spend, reservation, or cross-action conservation
+claim; those are product lifecycle properties backed by mutable state.
 
 ### 5.6 Grant transition
 
@@ -722,6 +737,10 @@ diagnose = Ok iff the caller’s logical predicate
 diagnose = Err(code) implies the predicate is false
 code is the first failing check in that caller’s declared order
 ```
+
+This deterministic precedence contract is functional: equivalent
+implementations return the same stable code. It does not establish constant
+time, cache-obliviousness, or any broader side-channel noninterference claim.
 
 ### 5.7 Terminal action coverage
 
