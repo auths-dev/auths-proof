@@ -13,6 +13,8 @@ test("workbench makes the optional authority boundary explicit", async () => {
   assert.match(html, /Authorization evaluated/);
   assert.match(html, /Capability module/);
   assert.match(html, /id="evidence-json"/);
+  assert.match(html, /href="\.\/styles\.css"/);
+  assert.match(html, /src="\.\/app\.js"/);
 });
 
 test("frontend calls the real native identity endpoint", async () => {
@@ -21,4 +23,12 @@ test("frontend calls the real native identity endpoint", async () => {
   assert.match(javascript, /\/api\/v1\/exchanges/);
   assert.match(javascript, /signature_verified/);
   assert.doesNotMatch(javascript, /mock|fixtureResult|fakeIdentity/i);
+});
+
+test("static-host configuration preserves the designed frontend", async () => {
+  const config = JSON.parse(await readFile(new URL("web/vercel.json", root), "utf8"));
+  assert.equal(config.cleanUrls, true);
+  const headers = config.headers.flatMap((entry) => entry.headers);
+  assert.ok(headers.some((header) => header.key === "Content-Security-Policy"));
+  assert.ok(headers.some((header) => header.key === "X-Content-Type-Options"));
 });
