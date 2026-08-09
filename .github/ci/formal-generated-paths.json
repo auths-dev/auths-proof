@@ -1,0 +1,14 @@
+{
+  "schema": "auths-proof-formal-generated-paths/v1",
+  "version": 1,
+  "exact_paths": [
+    "formal/qualification/aeneas/source-closure.json",
+    "formal/Auths/Generated/Algebra.lean",
+    "core/crates/auths-algebra-kernel/src/generated.rs"
+  ],
+  "path_prefixes": [
+    "formal/qualification/aeneas/generated/"
+  ],
+  "max_files": 128,
+  "max_total_bytes": 16777216
+}

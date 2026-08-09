@@ -1,0 +1,132 @@
+name: Formal artifact updater
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+concurrency:
+  group: formal-artifact-updater-${{ github.event.workflow_run.id }}
+  cancel-in-progress: false
+
+permissions:
+  actions: read
+  contents: write
+  pull-requests: read
+
+jobs:
+  update-formal-artifacts:
+    name: update-formal-artifacts
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - id: authorize
+        name: Authorize the exact workflow run and open same-repository PR
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          script: |
+            const run = context.payload.workflow_run;
+            const artifactName = `auths-formal-update-${run.id}-${run.run_attempt}`;
+            const artifacts = await github.paginate(github.rest.actions.listWorkflowRunArtifacts, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: run.id,
+              per_page: 100,
+            });
+            const matches = artifacts.filter((artifact) => artifact.name === artifactName && !artifact.expired);
+            if (matches.length === 0) {
+              core.notice('No generated formal update was published; nothing to commit.');
+              core.setOutput('artifact_found', 'false');
+              return;
+            }
+            if (matches.length !== 1) throw new Error(`Expected one ${artifactName} artifact; found ${matches.length}`);
+            if (run.event !== 'pull_request' || run.pull_requests.length !== 1) {
+              throw new Error('Writeback is restricted to one pull_request from the CI workflow.');
+            }
+            const runPr = run.pull_requests[0];
+            const {data: pull} = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: runPr.number,
+            });
+            if (pull.state !== 'open' || pull.head.sha !== run.head_sha) {
+              core.notice('PR is closed or its head moved; discarding the stale artifact.');
+              core.setOutput('artifact_found', 'false');
+              return;
+            }
+            if (pull.head.repo.full_name !== `${context.repo.owner}/${context.repo.repo}`) throw new Error('Fork writeback is forbidden.');
+            if (pull.head.ref === pull.base.ref || pull.head.ref === context.payload.repository.default_branch) throw new Error('Protected/default branch writeback is forbidden.');
+            if (!['OWNER', 'MEMBER', 'COLLABORATOR'].includes(pull.author_association)) throw new Error('PR author is not trusted for writeback.');
+            const {data: branch} = await github.rest.repos.getBranch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              branch: pull.head.ref,
+            });
+            if (branch.protected) throw new Error('Protected branch writeback is forbidden.');
+            const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: run.id,
+              per_page: 100,
+            });
+            const generator = jobs.filter((job) => job.name === 'formal-translation implementation');
+            if (generator.length !== 1 || generator[0].conclusion !== 'success') throw new Error('The unprivileged generator did not succeed exactly once.');
+            core.setOutput('artifact_found', 'true');
+            core.setOutput('artifact_name', artifactName);
+            core.setOutput('pr_number', String(pull.number));
+            core.setOutput('head_sha', pull.head.sha);
+            core.setOutput('head_ref', pull.head.ref);
+            core.setOutput('base_sha', runPr.base.sha);
+      - name: Checkout trusted updater source
+        if: steps.authorize.outputs.artifact_found == 'true'
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: trusted
+          persist-credentials: false
+      - name: Build only the trusted updater
+        if: steps.authorize.outputs.artifact_found == 'true'
+        working-directory: trusted
+        run: cargo build --locked -p auths-ci-plan --release --target-dir ../trusted-target
+      - name: Checkout the exact candidate commit as data
+        if: steps.authorize.outputs.artifact_found == 'true'
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ steps.authorize.outputs.head_sha }}
+          path: candidate
+          persist-credentials: true
+      - name: Download the artifact from the exact triggering run
+        if: steps.authorize.outputs.artifact_found == 'true'
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: ${{ steps.authorize.outputs.artifact_name }}
+          path: generated-update
+          github-token: ${{ github.token }}
+          run-id: ${{ github.event.workflow_run.id }}
+      - name: Validate and stage only trusted-policy paths
+        if: steps.authorize.outputs.artifact_found == 'true'
+        run: >-
+          trusted-target/release/auths-ci-plan
+          formal-update-artifact apply
+          --root candidate
+          --artifact "${{ github.workspace }}/generated-update"
+          --policy "${{ github.workspace }}/trusted/.github/ci/formal-generated-paths.json"
+          --repository "${{ github.repository }}"
+          --workflow "${{ github.event.workflow_run.name }}"
+          --run-id "${{ github.event.workflow_run.id }}"
+          --run-attempt "${{ github.event.workflow_run.run_attempt }}"
+          --base-sha "${{ steps.authorize.outputs.base_sha }}"
+          --head-sha "${{ steps.authorize.outputs.head_sha }}"
+      - name: Commit and push without force
+        if: steps.authorize.outputs.artifact_found == 'true'
+        working-directory: candidate
+        env:
+          AUTHS_HEAD_REF: ${{ steps.authorize.outputs.head_ref }}
+          AUTHS_SOURCE_SHA: ${{ steps.authorize.outputs.head_sha }}
+          AUTHS_RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -c core.hooksPath=/dev/null -c commit.gpgsign=false commit -m "chore(formal): regenerate qualification artifacts" -m "Source-SHA: ${AUTHS_SOURCE_SHA}" -m "Workflow-Run: ${AUTHS_RUN_ID}"
+          git push origin "HEAD:refs/heads/${AUTHS_HEAD_REF}"
