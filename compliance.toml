@@ -4,6 +4,24 @@ portable_abi_version = 2
 report_schema = "auths-product-core-compliance/v1"
 scope_layers = ["bindings", "demos", "product"]
 
+[packages.auths-identity-iroh-demo]
+kind = "cargo"
+layer = "demos"
+path = "demos/identity-iroh"
+core_apis = []
+protocol_versions = ["auths-identity-iroh/v1"]
+wire_objects = ["PublicIdentity", "SignedIdentityMessage"]
+fixture_suites = []
+principal_families = ["raw-key-v1"]
+signature_families = ["ed25519-v1"]
+profiles = []
+transports = ["https", "iroh"]
+configuration_inputs = []
+security_state = []
+
+[packages.auths-identity-iroh-demo.claims]
+principal-evidence-integration = ["demos/identity-iroh/src/app.rs#public_and_signed_identity_paths_use_real_iroh_without_authorization"]
+
 [packages.auths-apps-testkit]
 kind = "cargo"
 layer = "demos"

@@ -59,6 +59,8 @@ Target packages:
 - `auths-author`: external-signing requests with no custody;
 - `auths-multikey`: the closed canonical Ed25519/P-256 Multikey subset;
 - `auths-raw-key`: self-certifying raw-key evidence;
+- `auths-identity-iroh`: capability-free Ed25519 public identity and signed
+  message exchange over Iroh;
 - `auths-did-key`: self-certifying `did:key` evidence;
 - `auths-did-keri`: bounded offline KEL replay with threshold and rotation
   commitment verification;
@@ -71,6 +73,25 @@ Target packages:
 - `auths-spiffe-x509`: bounded X.509-SVID path, URI SAN, client-EKU,
   trust-domain, key-suite, validity, and local status verification;
 - `auths-testkit`: canonical positive and negative corpus construction.
+
+## Identity without authorization
+
+Teams can adopt Auths raw-key identities and Iroh transport without loading a
+grant, capability, approval, policy, lifecycle, store, or product runtime. The
+`auths-identity-iroh` package exchanges canonical Ed25519 public identities and
+optionally verifies an exact signed application message. Those are
+authentication facts only; they never become an authorization verdict.
+
+Run the full native backend and browser workbench with:
+
+```sh
+cargo run -p auths-identity-iroh-demo
+```
+
+Then open `http://localhost:8080`. Architecture CI pins the transport's full
+transitive workspace dependency closure to the model, ports, raw-key, and
+signature packages, preventing accidental coupling to capability or approval
+systems.
 
 Focused validation:
 

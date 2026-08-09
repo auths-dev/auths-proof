@@ -12,6 +12,7 @@ pub(crate) struct ArchitectureLayer {
 pub(crate) struct ArchitecturePolicy {
     pub(crate) layers: BTreeMap<String, ArchitectureLayer>,
     pub(crate) packages: BTreeMap<String, String>,
+    pub(crate) dependency_boundaries: BTreeMap<String, DependencyBoundary>,
     pub(crate) workspace_edition: String,
     pub(crate) workspace_resolver: String,
     pub(crate) workspace_msrv: String,
@@ -20,6 +21,12 @@ pub(crate) struct ArchitecturePolicy {
     pub(crate) core_default_feature_exceptions: BTreeSet<String>,
     pub(crate) approved_build_scripts: BTreeSet<String>,
     pub(crate) no_std_packages: BTreeSet<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct DependencyBoundary {
+    pub(crate) roots: BTreeSet<String>,
+    pub(crate) allowed_workspace_dependencies: BTreeSet<String>,
 }
 
 pub(crate) fn arch(update: bool) -> Result<(), String> {
@@ -190,6 +197,7 @@ pub(crate) fn arch(update: bool) -> Result<(), String> {
     }
 
     reject_dependency_cycles(&internal_edges)?;
+    check_dependency_boundaries(&policy, &internal_edges)?;
     package_records.sort_by(|left, right| {
         left["name"]
             .as_str()
@@ -281,7 +289,7 @@ pub(crate) fn load_architecture_policy() -> Result<ArchitecturePolicy, String> {
             return Err(format!("layer {name} has no owners"));
         }
     }
-    let packages = document
+    let packages: BTreeMap<String, String> = document
         .get("packages")
         .and_then(toml::Value::as_table)
         .ok_or("architecture.toml has no packages table")?
@@ -300,6 +308,40 @@ pub(crate) fn load_architecture_policy() -> Result<ArchitecturePolicy, String> {
         .get("policy")
         .and_then(toml::Value::as_table)
         .ok_or("architecture.toml has no policy table")?;
+    let dependency_boundaries = document
+        .get("dependency_boundaries")
+        .and_then(toml::Value::as_table)
+        .ok_or("architecture.toml has no dependency_boundaries table")?
+        .iter()
+        .map(|(name, value)| {
+            let table = value
+                .as_table()
+                .ok_or_else(|| format!("dependency boundary {name} is not a table"))?;
+            let boundary = DependencyBoundary {
+                roots: required_toml_strings(table, "roots", name)?,
+                allowed_workspace_dependencies: required_toml_strings(
+                    table,
+                    "allowed_workspace_dependencies",
+                    name,
+                )?,
+            };
+            if boundary.roots.is_empty() {
+                return Err(format!("dependency boundary {name} has no roots"));
+            }
+            for package in boundary
+                .roots
+                .iter()
+                .chain(&boundary.allowed_workspace_dependencies)
+            {
+                if !packages.contains_key(package) {
+                    return Err(format!(
+                        "dependency boundary {name} names unknown package {package}"
+                    ));
+                }
+            }
+            Ok((name.clone(), boundary))
+        })
+        .collect::<Result<_, String>>()?;
     let exceptions = document
         .get("exceptions")
         .and_then(toml::Value::as_table)
@@ -319,6 +361,7 @@ pub(crate) fn load_architecture_policy() -> Result<ArchitecturePolicy, String> {
     Ok(ArchitecturePolicy {
         layers,
         packages,
+        dependency_boundaries,
         workspace_edition: required_toml_string(policy, "workspace_edition", "policy")?,
         workspace_resolver: required_toml_string(policy, "workspace_resolver", "policy")?,
         workspace_msrv: required_toml_string(policy, "workspace_msrv", "policy")?,
@@ -336,6 +379,37 @@ pub(crate) fn load_architecture_policy() -> Result<ArchitecturePolicy, String> {
         approved_build_scripts: required_toml_strings(policy, "approved_build_scripts", "policy")?,
         no_std_packages: required_toml_strings(policy, "no_std_packages", "policy")?,
     })
+}
+
+pub(crate) fn check_dependency_boundaries(
+    policy: &ArchitecturePolicy,
+    edges: &BTreeMap<String, BTreeSet<String>>,
+) -> Result<(), String> {
+    for (name, boundary) in &policy.dependency_boundaries {
+        for root in &boundary.roots {
+            let mut pending = edges.get(root).cloned().unwrap_or_default();
+            let mut reachable = BTreeSet::new();
+            while let Some(package) = pending.pop_first() {
+                if !reachable.insert(package.clone()) {
+                    continue;
+                }
+                if let Some(dependencies) = edges.get(&package) {
+                    pending.extend(dependencies.iter().cloned());
+                }
+            }
+            let forbidden: Vec<_> = reachable
+                .difference(&boundary.allowed_workspace_dependencies)
+                .cloned()
+                .collect();
+            if !forbidden.is_empty() {
+                return Err(format!(
+                    "dependency boundary {name} forbids transitive workspace dependencies from \
+                     {root}: {forbidden:?}"
+                ));
+            }
+        }
+    }
+    Ok(())
 }
 
 pub(crate) fn check_workspace_rust_policy(
@@ -964,5 +1038,66 @@ mod dependency_path_tests {
         collect_dependency_paths(&manifest, &mut paths);
         paths.sort();
         assert_eq!(paths, ["../../testkit/support", "../local"]);
+    }
+}
+
+#[cfg(test)]
+mod dependency_boundary_tests {
+    use super::*;
+
+    fn policy(boundary: DependencyBoundary) -> ArchitecturePolicy {
+        ArchitecturePolicy {
+            layers: BTreeMap::new(),
+            packages: BTreeMap::new(),
+            dependency_boundaries: BTreeMap::from([("identity".into(), boundary)]),
+            workspace_edition: String::new(),
+            workspace_resolver: String::new(),
+            workspace_msrv: String::new(),
+            development_toolchain: String::new(),
+            core_forbidden_dependencies: BTreeSet::new(),
+            core_default_feature_exceptions: BTreeSet::new(),
+            approved_build_scripts: BTreeSet::new(),
+            no_std_packages: BTreeSet::new(),
+        }
+    }
+
+    #[test]
+    fn transitive_dependency_boundaries_reject_hidden_coupling() {
+        let edges = BTreeMap::from([
+            (
+                "identity-transport".into(),
+                BTreeSet::from(["raw-key".into()]),
+            ),
+            ("raw-key".into(), BTreeSet::from(["capabilities".into()])),
+            ("capabilities".into(), BTreeSet::new()),
+        ]);
+        let result = check_dependency_boundaries(
+            &policy(DependencyBoundary {
+                roots: BTreeSet::from(["identity-transport".into()]),
+                allowed_workspace_dependencies: BTreeSet::from(["raw-key".into()]),
+            }),
+            &edges,
+        );
+        assert!(result.unwrap_err().contains("capabilities"));
+    }
+
+    #[test]
+    fn transitive_dependency_boundaries_accept_declared_identity_layers() {
+        let edges = BTreeMap::from([
+            (
+                "identity-transport".into(),
+                BTreeSet::from(["raw-key".into()]),
+            ),
+            ("raw-key".into(), BTreeSet::from(["model".into()])),
+            ("model".into(), BTreeSet::new()),
+        ]);
+        check_dependency_boundaries(
+            &policy(DependencyBoundary {
+                roots: BTreeSet::from(["identity-transport".into()]),
+                allowed_workspace_dependencies: BTreeSet::from(["raw-key".into(), "model".into()]),
+            }),
+            &edges,
+        )
+        .unwrap();
     }
 }

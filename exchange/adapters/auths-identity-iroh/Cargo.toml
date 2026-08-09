@@ -1,0 +1,25 @@
+[package]
+name = "auths-identity-iroh"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Capability-free Ed25519 public identity exchange over Iroh"
+publish = false
+
+[dependencies]
+auths-model.workspace = true
+auths-ports.workspace = true
+auths-raw-key.workspace = true
+auths-signature.workspace = true
+iroh.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+ed25519-dalek.workspace = true
+hex.workspace = true
+
+[lints]
+workspace = true

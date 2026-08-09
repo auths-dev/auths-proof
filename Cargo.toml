@@ -35,6 +35,7 @@ members = [
     "exchange/crates/auths-proof-exchange-framing",
     "exchange/adapters/auths-proof-exchange-memory",
     "exchange/adapters/auths-proof-exchange-iroh",
+    "exchange/adapters/auths-identity-iroh",
     "exchange/adapters/auths-proof-exchange-tcp",
     "exchange/adapters/auths-proof-exchange-unix",
     "exchange/adapters/auths-proof-exchange-file",
@@ -95,6 +96,7 @@ members = [
     "demos/opentofu-plan",
     "demos/postgresql-data-change",
     "demos/rest-api-authorization",
+    "demos/identity-iroh",
     "xtask/ci-plan",
     "xtask",
 ]
@@ -139,6 +141,7 @@ auths-proof-exchange-port = { version = "1.0.0-rc.1", path = "exchange/crates/au
 auths-proof-exchange-framing = { version = "1.0.0-rc.1", path = "exchange/crates/auths-proof-exchange-framing" }
 auths-proof-exchange-memory = { version = "1.0.0-rc.1", path = "exchange/adapters/auths-proof-exchange-memory" }
 auths-proof-exchange-iroh = { version = "1.0.0-rc.1", path = "exchange/adapters/auths-proof-exchange-iroh" }
+auths-identity-iroh = { version = "1.0.0-rc.1", path = "exchange/adapters/auths-identity-iroh" }
 auths-proof-exchange-tcp = { version = "1.0.0-rc.1", path = "exchange/adapters/auths-proof-exchange-tcp" }
 auths-proof-exchange-unix = { version = "1.0.0-rc.1", path = "exchange/adapters/auths-proof-exchange-unix" }
 auths-proof-exchange-file = { version = "1.0.0-rc.1", path = "exchange/adapters/auths-proof-exchange-file" }

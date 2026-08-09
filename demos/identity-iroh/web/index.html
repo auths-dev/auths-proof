@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Exchange Ed25519 public identities and signed messages over Iroh without adopting capabilities or approvals." />
+    <meta name="color-scheme" content="light" />
+    <title>Auths × Iroh — Identity without the authority stack</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#workbench">Skip to the demo</a>
+    <header class="site-header">
+      <nav class="nav-shell" aria-label="Primary navigation">
+        <a class="wordmark" href="https://auths.dev">auths <i>/</i> <small>identity lab</small></a>
+        <div class="nav-links"><a href="#workbench">Live exchange</a><a href="#boundary">Architecture</a><a href="https://github.com/auths-dev/auths-proof" target="_blank" rel="noreferrer">GitHub ↗</a></div>
+        <a class="nav-cta" href="#workbench">Exchange identities →</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="shell hero-grid">
+          <div>
+            <p class="eyebrow"><i aria-hidden="true"></i> Auths identity × Iroh, live</p>
+            <h1>Exchange keys. Verify messages. <em>No grants. No approvals.</em></h1>
+          </div>
+          <div class="hero-copy">
+            <p>Start with the smallest useful Auths layer: canonical Ed25519 identities moving over a real Iroh connection. Add delegated authority later—only if you need it.</p>
+            <ul><li>Self-certifying identity</li><li>Real local Iroh</li><li>Ed25519 verification</li></ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="workbench-section" id="workbench">
+        <div class="shell">
+          <div class="workbench">
+            <section class="controls" aria-labelledby="controls-title">
+              <header class="panel-kicker"><span>01</span><strong>Choose one identity exchange</strong><small>Native Rust + Iroh</small></header>
+              <h2 id="controls-title">See exactly where identity stops.</h2>
+              <p class="controls-intro">Every run creates a fresh client key and sends one bounded packet to the native server.</p>
+              <div class="variant-list">
+                <button class="variant active" data-experiment="public-identity" type="button"><span><b>Exchange a public identity</b><small>Send a canonical Ed25519 public key with no capability setup</small></span><i>01</i></button>
+                <button class="variant" data-experiment="signed-message" type="button"><span><b>Verify a signed message</b><small>Bind exact application bytes to the exchanged identity</small></span><i>02</i></button>
+                <button class="variant" data-experiment="tampered-message" type="button"><span><b>Change the message bytes</b><small>The signature fails closed; transport success changes nothing</small></span><i>03</i></button>
+              </div>
+              <label class="message-control" for="message"><span>Application message</span><input id="message" maxlength="256" value="hello from an Ed25519 identity" /></label>
+              <div class="boundary-note"><span>Not initialized</span><p>Grant graph · capability policy · approval workflow · lifecycle store · governance runtime</p></div>
+            </section>
+
+            <article class="result" aria-labelledby="result-title">
+              <header class="result-header"><div><span class="micro">02 · Identity result</span><strong id="result-title">IDENTITY-V1 / IROH</strong></div><span class="live-state" id="service-indicator"><i></i><b id="service-state">connecting</b></span></header>
+              <div class="verdict-block" aria-live="polite"><span class="micro">Current result</span><strong id="verdict" data-kind="loading">LOADING</strong><p id="verdict-detail">Connecting to the native identity service.</p></div>
+
+              <section class="identity-flow">
+                <article><span class="micro">Fresh client identity</span><h3 id="client-principal">—</h3><code id="client-key">—</code></article>
+                <div class="transport-line"><span>Iroh</span><b>→</b><small id="path">direct</small></div>
+                <article><span class="micro">Server identity</span><h3 id="server-principal">—</h3><code id="server-key">—</code></article>
+              </section>
+
+              <dl class="facts">
+                <div><dt>Stable code</dt><dd id="code">—</dd></div>
+                <div><dt>Signature</dt><dd id="signature-state">NOT REQUESTED</dd></div>
+                <div><dt>Authorization evaluated</dt><dd>NO</dd></div>
+                <div><dt>Approval required</dt><dd>NO</dd></div>
+              </dl>
+
+              <section class="execution">
+                <div><span class="micro">03 · Run the real exchange</span><h3 id="operation-title">Send only the public identity</h3><p id="operation-copy">The Ed25519 identity is ordinary bounded data. No policy object or grant is constructed.</p><button id="execute" type="button" disabled>Preparing endpoint</button></div>
+                <section class="status-card"><span class="micro">What participated</span><ol><li><span>Raw-key identity</span><strong>YES</strong></li><li><span>Iroh transport</span><strong>YES</strong></li><li><span>Capability module</span><strong>NO</strong></li><li><span>Approval module</span><strong>NO</strong></li></ol></section>
+              </section>
+
+              <details class="evidence"><summary>Inspect the exact exchange evidence</summary><pre id="evidence-json">Run an exchange to inspect the result.</pre></details>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="boundary-section" id="boundary">
+        <div class="shell boundary-grid"><div><p class="eyebrow"><i></i> A real package boundary</p><h2>Identity is useful before authority exists.</h2><p>The identity transport depends only on canonical raw-key identity, Ed25519 verification, Iroh, and bounded I/O. CI rejects any transitive workspace dependency on proof grants, capabilities, approvals, product policy, or lifecycle state.</p></div><pre>browser
+  → native demo
+    → auths-identity-iroh
+      → auths-raw-key
+      → auths-signature
+
+  ✕ grants
+  ✕ capabilities
+  ✕ approvals
+  ✕ product runtime</pre></div>
+      </section>
+    </main>
+
+    <footer><div class="shell"><a class="wordmark" href="#">auths <i>/</i> <small>identity lab</small></a><p>Authentication is a fact. Authorization is an optional next layer.</p><span>IDENTITY-V1</span></div></footer>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
