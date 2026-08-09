@@ -152,6 +152,8 @@ pub(crate) fn qualify(
     let stable_llbc = work.join("stable-llbc");
     reproduce(root, &charon, &aeneas, &stable_llbc, &first)?;
     reproduce(root, &charon, &aeneas, &stable_llbc, &second)?;
+    canonicalize_aeneas_versions(&first, &qualification.tools.aeneas_commit)?;
+    canonicalize_aeneas_versions(&second, &qualification.tools.aeneas_commit)?;
 
     let first_files = collect_files(&first)?;
     let second_files = collect_files(&second)?;
@@ -1107,6 +1109,45 @@ fn synchronize_aeneas_output(root: &Path, reproduced: &Path, update: bool) -> Re
                 ));
             }
         }
+    }
+    Ok(())
+}
+
+fn canonicalize_aeneas_versions(reproduced: &Path, expected_commit: &str) -> Result<(), String> {
+    let expected_short = &expected_commit[..7];
+    for component in [
+        "model",
+        "algebra",
+        "authority",
+        "bounded_policy",
+        "lifecycle",
+    ] {
+        let path = reproduced
+            .join(format!("{component}-run"))
+            .join("translation.json");
+        let mut report: Value = serde_json::from_slice(
+            &fs::read(&path)
+                .map_err(|error| format!("could not read {}: {error}", path.display()))?,
+        )
+        .map_err(|error| {
+            format!(
+                "invalid Aeneas translation report {}: {error}",
+                path.display()
+            )
+        })?;
+        let actual = report["aeneas_version"].as_str().ok_or_else(|| {
+            format!(
+                "Aeneas translation report omits aeneas_version: {}",
+                path.display()
+            )
+        })?;
+        if !aeneas_version_matches(actual, expected_short) {
+            return Err(format!(
+                "Aeneas translation identity drifted for {component}: expected {expected_short}, found {actual}"
+            ));
+        }
+        report["aeneas_version"] = Value::String(expected_short.to_owned());
+        write_pretty_json(&path, &report)?;
     }
     Ok(())
 }
