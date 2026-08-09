@@ -133,7 +133,19 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Verify the exact formal candidate before expensive setup
+        env:
+          AUTHS_EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          actual_head_sha="$(git rev-parse HEAD)"
+          if [[ "$actual_head_sha" != "$AUTHS_EXPECTED_HEAD_SHA" ]]; then
+            echo "::error::Formal candidate mismatch: expected ${AUTHS_EXPECTED_HEAD_SHA}, found ${actual_head_sha}."
+            exit 1
+          fi
+          echo "Formal candidate: ${actual_head_sha}" >> "$GITHUB_STEP_SUMMARY"
       - name: Start telemetry
         run: echo "AUTHS_PHASE_STARTED=$(date +%s)" >> "$GITHUB_ENV"
       - uses: ./.github/actions/setup-rust-cache
