@@ -67,9 +67,77 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+  formal-update-preflight:
+    name: formal-update preflight
+    needs: ci-plan
+    if: github.event_name == 'pull_request' && needs.ci-plan.outputs.formal_translation_required == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      update_required: ${{ steps.formal-update.outputs.update_required || 'false' }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust-cache
+        with:
+          toolchain: 1.97.1
+          compiler-cache: "false"
+      - name: Reproduce the lightweight formal source closure
+        run: >-
+          cargo run --locked -p auths-ci-plan --
+          formal-source-closure update
+          --output target/formal/source-closure.expected.json
+      - id: formal-update
+        name: Package a bounded generated update
+        run: >-
+          cargo run --locked -p auths-ci-plan --
+          formal-update-artifact create
+          --repository "${{ github.repository }}"
+          --workflow "${{ github.workflow }}"
+          --run-id "${{ github.run_id }}"
+          --run-attempt "${{ github.run_attempt }}"
+          --base-sha "${{ github.event.pull_request.base.sha }}"
+          --head-sha "${{ github.event.pull_request.head.sha }}"
+      - name: Preserve the bounded generated update
+        if: steps.formal-update.outputs.update_required == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: auths-formal-update-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/formal-update/
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 9
+
+  formal-update-gate:
+    name: generated artifacts current
+    if: always()
+    needs: [ci-plan, formal-update-preflight]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Stop before expensive CI when a generated update is ready
+        env:
+          EVENT: ${{ github.event_name }}
+          PLANNER: ${{ needs.ci-plan.result }}
+          FORMAL_REQUIRED: ${{ needs.ci-plan.outputs.formal_translation_required }}
+          PREFLIGHT_RESULT: ${{ needs.formal-update-preflight.result }}
+          UPDATE_REQUIRED: ${{ needs.formal-update-preflight.outputs.update_required }}
+        run: |
+          set -euo pipefail
+          [[ "$PLANNER" == success ]]
+          if [[ "$EVENT" != pull_request || "$FORMAL_REQUIRED" != true ]]; then
+            exit 0
+          fi
+          [[ "$PREFLIGHT_RESULT" == success ]]
+          if [[ "$UPDATE_REQUIRED" == true ]]; then
+            echo "::error::A bounded generated update is ready; expensive CI is deferred until the updater commits it."
+            exit 1
+          fi
+
   authoritative-run:
     name: authoritative implementation
-    needs: ci-plan
+    needs: [ci-plan, formal-update-gate]
     if: needs.ci-plan.outputs.authoritative_required == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 120
@@ -124,7 +192,7 @@ jobs:
 
   formal-translation-run:
     name: formal-translation implementation
-    needs: ci-plan
+    needs: [ci-plan, formal-update-gate]
     if: needs.ci-plan.outputs.formal_translation_required == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 120
@@ -263,7 +331,7 @@ jobs:
 
   compliance-run:
     name: compliance implementation
-    needs: ci-plan
+    needs: [ci-plan, formal-update-gate]
     if: needs.ci-plan.outputs.compliance_required == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -316,7 +384,7 @@ jobs:
 
   dependencies-run:
     name: dependencies implementation
-    needs: ci-plan
+    needs: [ci-plan, formal-update-gate]
     if: needs.ci-plan.outputs.dependencies_required == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -346,7 +414,7 @@ jobs:
 
   secrets-run:
     name: secrets implementation
-    needs: ci-plan
+    needs: [ci-plan, formal-update-gate]
     if: needs.ci-plan.outputs.secrets_required == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -376,7 +444,7 @@ jobs:
 
   opentofu-live-run:
     name: opentofu-live implementation
-    needs: ci-plan
+    needs: [ci-plan, formal-update-gate]
     if: needs.ci-plan.outputs.opentofu_live_required == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -450,7 +518,7 @@ jobs:
 
   postgresql-live-run:
     name: postgresql-live implementation
-    needs: ci-plan
+    needs: [ci-plan, formal-update-gate]
     if: needs.ci-plan.outputs.postgresql_live_required == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -553,7 +621,7 @@ jobs:
 
   records-api-live-run:
     name: records-api-live implementation
-    needs: ci-plan
+    needs: [ci-plan, formal-update-gate]
     if: needs.ci-plan.outputs.records_api_live_required == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
