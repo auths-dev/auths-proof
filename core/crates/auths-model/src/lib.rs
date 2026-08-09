@@ -770,6 +770,24 @@ pub fn body_digest_set_is_subset(child: &BodyDigestSet, parent: &BodyDigestSet) 
     true
 }
 
+/// Pure check that every member of a body-digest set equals `digest`.
+///
+/// Valid production sets are non-empty and deduplicated, so this is exactly
+/// the singleton-set check. The vacuous empty case keeps the extracted pure
+/// predicate equal to semantic set containment for all translated values.
+#[doc(hidden)]
+#[must_use]
+pub fn body_digest_set_only_contains(set: &BodyDigestSet, digest: &Digest) -> bool {
+    let mut index = 0;
+    while index < set.0.len() {
+        if !digests_equal(&set.0[index], digest) {
+            return false;
+        }
+        index += 1;
+    }
+    true
+}
+
 /// Closed V1 action-body attenuation algebra.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ActionConstraint {
@@ -836,6 +854,10 @@ pub fn action_constraint_attenuates(child: &ActionConstraint, parent: &ActionCon
             ActionConstraint::ExactBodyDigest(child),
             ActionConstraint::AllowedBodyDigests(parent),
         ) => body_digest_set_contains(parent, child),
+        (
+            ActionConstraint::AllowedBodyDigests(child),
+            ActionConstraint::ExactBodyDigest(parent),
+        ) => body_digest_set_only_contains(child, parent),
         (
             ActionConstraint::AllowedBodyDigests(child),
             ActionConstraint::AllowedBodyDigests(parent),
@@ -4835,24 +4857,29 @@ mod tests {
     }
 
     #[test]
-    fn action_constraint_constructor_matrix_is_a_partial_order() {
+    fn action_constraint_constructor_matrix_is_a_preorder() {
         let any = ActionConstraint::AnyBody;
         let parent =
             ActionConstraint::allowed_body_digests(vec![digest(1), digest(2)]).expect("parent");
-        let child = ActionConstraint::allowed_body_digests(vec![digest(1)]).expect("child");
+        let singleton = ActionConstraint::allowed_body_digests(vec![digest(1)]).expect("singleton");
         let exact = ActionConstraint::ExactBodyDigest(digest(1));
-        let constraints = [&any, &parent, &child, &exact];
+        let constraints = [&any, &parent, &singleton, &exact];
 
         for constraint in constraints {
             assert!(constraint.attenuates(constraint));
         }
-        assert!(exact.attenuates(&child));
-        assert!(child.attenuates(&parent));
+        assert!(exact.attenuates(&singleton));
+        assert!(singleton.attenuates(&exact));
+        assert!(singleton.attenuates(&parent));
         assert!(parent.attenuates(&any));
         assert!(exact.attenuates(&parent));
         assert!(exact.attenuates(&any));
-        assert!(!child.attenuates(&exact));
+        assert!(!parent.attenuates(&exact));
         assert!(!any.attenuates(&parent));
+
+        for value in [digest(1), digest(2)] {
+            assert_eq!(singleton.allows(value), exact.allows(value));
+        }
     }
 
     #[test]

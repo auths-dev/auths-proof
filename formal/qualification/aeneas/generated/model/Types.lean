@@ -126,7 +126,7 @@ def AudienceSet := alloc.vec.Vec Audience
 def BodyDigestSet := alloc.vec.Vec Digest
 
 /-- [auths_model::ActionConstraint]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 775:0-782:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 793:0-800:1
     Visibility: public -/
 @[discriminant isize]
 inductive ActionConstraint where
@@ -135,20 +135,20 @@ inductive ActionConstraint where
 | AllowedBodyDigests : BodyDigestSet → ActionConstraint
 
 /-- [auths_model::BudgetCeiling]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 848:0-851:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 870:0-873:1
     Visibility: public -/
 structure BudgetCeiling where
   algebra : BudgetAlgebraId
   value : Std.U64
 
 /-- [auths_model::FreshnessLimit]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 919:0-919:31
+    Source: 'core/crates/auths-model/src/lib.rs', lines 941:0-941:31
     Visibility: public -/
 @[reducible]
 def FreshnessLimit := Std.U64
 
 /-- [auths_model::StatusPolicy]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 944:0-954:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 966:0-976:1
     Visibility: public -/
 @[discriminant isize]
 inductive StatusPolicy where
@@ -156,14 +156,14 @@ inductive StatusPolicy where
 | SnapshotRequired : StatusMethodId → FreshnessLimit → StatusPolicy
 
 /-- [auths_model::CriticalExtension]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 988:0-991:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1010:0-1013:1
     Visibility: public -/
 structure CriticalExtension where
   id : ExtensionId
   bytes : alloc.vec.Vec Std.U8
 
 /-- [auths_model::CriticalExtensions]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1019:0-1019:54
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1041:0-1041:54
     Visibility: public -/
 @[reducible]
 def CriticalExtensions := alloc.vec.Vec CriticalExtension

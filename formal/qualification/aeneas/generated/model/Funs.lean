@@ -451,8 +451,50 @@ def body_digest_set_is_subset
   (child : BodyDigestSet) (parent : BodyDigestSet) : Result Bool := do
   body_digest_set_is_subset_loop child parent 0#usize
 
+/-- [auths_model::body_digest_set_only_contains]: loop body 0:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 782:4-789:1
+    Visibility: public -/
+@[rust_loop_body]
+def body_digest_set_only_contains_loop.body
+  (digest : Digest) (set : BodyDigestSet) (index : Std.Usize) :
+  Result (ControlFlow (BodyDigestSet × Std.Usize) Bool)
+  := do
+  let i := alloc.vec.Vec.len set
+  if index < i
+  then
+    let d ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Digest) set
+        index
+    let b ← digests_equal d digest
+    if b
+    then let index1 ← index + 1#usize
+         ok (cont (set, index1))
+    else ok (done false)
+  else ok (done true)
+
+/-- [auths_model::body_digest_set_only_contains]: loop 0:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 782:4-789:1
+    Visibility: public -/
+@[rust_loop]
+def body_digest_set_only_contains_loop
+  (set : BodyDigestSet) (digest : Digest) (index : Std.Usize) :
+  Result Bool
+  := do
+  loop
+    (fun (set1, index1) => body_digest_set_only_contains_loop.body digest set1
+      index1)
+    (set, index)
+
+/-- [auths_model::body_digest_set_only_contains]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 780:0-789:1
+    Visibility: public -/
+@[reducible]
+def body_digest_set_only_contains
+  (set : BodyDigestSet) (digest : Digest) : Result Bool := do
+  body_digest_set_only_contains_loop set digest 0#usize
+
 /-- [auths_model::action_constraint_allows]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 818:0-824:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 836:0-842:1
     Visibility: public -/
 def action_constraint_allows
   (constraint : ActionConstraint) (digest : Digest) : Result Bool := do
@@ -463,7 +505,7 @@ def action_constraint_allows
     body_digest_set_contains allowed digest
 
 /-- [auths_model::action_constraint_attenuates]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 829:0-845:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 847:0-867:1
     Visibility: public -/
 def action_constraint_attenuates
   (child : ActionConstraint) (parent : ActionConstraint) : Result Bool := do
@@ -473,7 +515,8 @@ def action_constraint_attenuates
     match child with
     | ActionConstraint.AnyBody => ok false
     | ActionConstraint.ExactBodyDigest child1 => digests_equal child1 parent1
-    | ActionConstraint.AllowedBodyDigests _ => ok false
+    | ActionConstraint.AllowedBodyDigests child1 =>
+      body_digest_set_only_contains child1 parent1
   | ActionConstraint.AllowedBodyDigests parent1 =>
     match child with
     | ActionConstraint.AnyBody => ok false
@@ -483,7 +526,7 @@ def action_constraint_attenuates
       body_digest_set_is_subset child1 parent1
 
 /-- [auths_model::budget_ceiling_attenuates]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 884:0-887:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 906:0-909:1
     Visibility: public -/
 def budget_ceiling_attenuates
   (child : BudgetCeiling) (parent : BudgetCeiling) : Result Bool := do
@@ -497,21 +540,21 @@ def budget_ceiling_attenuates
   else ok false
 
 /-- [auths_model::{auths_model::BudgetCeiling}::attenuates]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 870:4-872:5
+    Source: 'core/crates/auths-model/src/lib.rs', lines 892:4-894:5
     Visibility: public -/
 def BudgetCeiling.attenuates
   (self : BudgetCeiling) (parent : BudgetCeiling) : Result Bool := do
   budget_ceiling_attenuates self parent
 
 /-- [auths_model::{auths_model::BudgetCeiling}::covers]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 876:4-878:5
+    Source: 'core/crates/auths-model/src/lib.rs', lines 898:4-900:5
     Visibility: public -/
 def BudgetCeiling.covers
   (self : BudgetCeiling) (requested : BudgetCeiling) : Result Bool := do
   BudgetCeiling.attenuates requested self
 
 /-- [auths_model::optional_budget_attenuates]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 894:0-903:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 916:0-925:1
     Visibility: public -/
 def optional_budget_attenuates
   (child : Option BudgetCeiling) (parent : Option BudgetCeiling) :
@@ -525,7 +568,7 @@ def optional_budget_attenuates
     | some child1 => BudgetCeiling.attenuates child1 parent1
 
 /-- [auths_model::optional_budget_covers]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 907:0-915:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 929:0-937:1
     Visibility: public -/
 def optional_budget_covers
   (ceiling : Option BudgetCeiling) (requested : Option BudgetCeiling) :
@@ -539,7 +582,7 @@ def optional_budget_covers
     | some ceiling1 => BudgetCeiling.covers ceiling1 requested1
 
 /-- [auths_model::status_policy_attenuates]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 967:0-985:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 989:0-1007:1
     Visibility: public -/
 def status_policy_attenuates
   (child : StatusPolicy) (parent : StatusPolicy) : Result Bool := do
@@ -557,7 +600,7 @@ def status_policy_attenuates
       else ok false
 
 /-- [auths_model::critical_extensions_equal]: loop body 0:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1065:4-1078:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1087:4-1100:1
     Visibility: public -/
 @[rust_loop_body]
 def critical_extensions_equal_loop.body
@@ -592,7 +635,7 @@ def critical_extensions_equal_loop.body
   else ok (done true)
 
 /-- [auths_model::critical_extensions_equal]: loop 0:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1065:4-1078:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1087:4-1100:1
     Visibility: public -/
 @[rust_loop]
 def critical_extensions_equal_loop
@@ -605,7 +648,7 @@ def critical_extensions_equal_loop
     index
 
 /-- [auths_model::critical_extensions_equal]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1060:0-1078:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1082:0-1100:1
     Visibility: public -/
 def critical_extensions_equal
   (child : CriticalExtensions) (parent : CriticalExtensions) :

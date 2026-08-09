@@ -71,6 +71,7 @@ def actionConstraintLe {v : Vocabulary}
   | _, .anyBody => True
   | .exactBodyDigest child, .exactBodyDigest parent => child = parent
   | .exactBodyDigest child, .allowedBodyDigests parent => child ∈ parent
+  | .allowedBodyDigests child, .exactBodyDigest parent => child ⊆ {parent}
   | .allowedBodyDigests child, .allowedBodyDigests parent => child ⊆ parent
   | _, _ => False
 
@@ -78,6 +79,13 @@ instance {v : Vocabulary}
     (child parent : ActionConstraint v) :
     Decidable (actionConstraintLe child parent) := by
   cases child <;> cases parent <;> simp [actionConstraintLe] <;> infer_instance
+
+/-- Canonical action constraints represent singleton sets with `exactBodyDigest`. -/
+def actionConstraintCanonical {v : Vocabulary}
+    (constraint : ActionConstraint v) : Prop :=
+  match constraint with
+  | .allowedBodyDigests allowed => ∀ digest, allowed ≠ {digest}
+  | _ => True
 
 /--
 The target-V1 profile transition.  The retained root set is invariant; the

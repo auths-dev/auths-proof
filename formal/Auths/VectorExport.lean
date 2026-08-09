@@ -184,7 +184,19 @@ def richAuthorityVectors : List String :=
       (decide <| Rich.actionConstraintLe
         (.allowedBodyDigests {richDigest 1, richDigest 2})
         (.allowedBodyDigests {richDigest 1} :
-          Rich.ActionConstraint natVocabulary))
+          Rich.ActionConstraint natVocabulary)),
+    richVector "action-singleton-exact" "action-singleton-exact-attenuation" [1] [1] []
+      (decide <| Rich.actionConstraintLe
+        (.allowedBodyDigests {richDigest 1})
+        (.exactBodyDigest (richDigest 1) : Rich.ActionConstraint natVocabulary)),
+    richVector "action-singleton-exact-mismatch" "action-singleton-exact-attenuation" [2] [1] []
+      (decide <| Rich.actionConstraintLe
+        (.allowedBodyDigests {richDigest 1})
+        (.exactBodyDigest (richDigest 2) : Rich.ActionConstraint natVocabulary)),
+    richVector "action-multiple-exact" "action-singleton-exact-attenuation" [1] [1, 2] []
+      (decide <| Rich.actionConstraintLe
+        (.allowedBodyDigests {richDigest 1, richDigest 2})
+        (.exactBodyDigest (richDigest 1) : Rich.ActionConstraint natVocabulary))
   ]
 
 def main (arguments : List String) : IO Unit := do

@@ -84,28 +84,28 @@ axiom auths_model.PermissionSet : Type
 axiom auths_model.AudienceSet : Type
 
 /-- [auths_model::ActionConstraint]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 775:0-775:25
+    Source: 'core/crates/auths-model/src/lib.rs', lines 793:0-793:25
     Name pattern: [auths_model::ActionConstraint]
     Visibility: public -/
 @[rust_type "auths_model::ActionConstraint"]
 axiom auths_model.ActionConstraint : Type
 
 /-- [auths_model::BudgetCeiling]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 848:0-848:24
+    Source: 'core/crates/auths-model/src/lib.rs', lines 870:0-870:24
     Name pattern: [auths_model::BudgetCeiling]
     Visibility: public -/
 @[rust_type "auths_model::BudgetCeiling"]
 axiom auths_model.BudgetCeiling : Type
 
 /-- [auths_model::StatusPolicy]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 944:0-944:21
+    Source: 'core/crates/auths-model/src/lib.rs', lines 966:0-966:21
     Name pattern: [auths_model::StatusPolicy]
     Visibility: public -/
 @[rust_type "auths_model::StatusPolicy"]
 axiom auths_model.StatusPolicy : Type
 
 /-- [auths_model::CriticalExtensions]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1019:0-1019:29
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1041:0-1041:29
     Name pattern: [auths_model::CriticalExtensions]
     Visibility: public -/
 @[rust_type "auths_model::CriticalExtensions"]

@@ -61,17 +61,8 @@ theorem action_constraint_trans {v : Vocabulary}
     (hab : actionConstraintLe a b) (hbc : actionConstraintLe b c) :
     actionConstraintLe a c := by
   cases a <;> cases b <;> cases c <;>
-    simp_all [actionConstraintLe]
-  all_goals first
-    | exact hbc hab
-    | exact Finset.Subset.trans hab hbc
-
-theorem action_constraint_antisymm {v : Vocabulary}
-    {a b : ActionConstraint v}
-    (hab : actionConstraintLe a b) (hba : actionConstraintLe b a) :
-    a = b := by
-  cases a <;> cases b <;> simp_all [actionConstraintLe]
-  exact Finset.Subset.antisymm hab hba
+    simp only [actionConstraintLe] at hab hbc ⊢ <;>
+    first | aesop | exact Finset.Subset.trans hab hbc
 
 theorem action_constraint_allows_monotone {v : Vocabulary}
     {child parent : ActionConstraint v} {digest : Digest v}
@@ -79,8 +70,28 @@ theorem action_constraint_allows_monotone {v : Vocabulary}
     (allowed : actionConstraintAllows child digest) :
     actionConstraintAllows parent digest := by
   cases child <;> cases parent <;>
-    simp_all [actionConstraintLe, actionConstraintAllows]
-  exact order allowed
+    simp only [actionConstraintLe, actionConstraintAllows] at order allowed ⊢ <;>
+    aesop
+
+/-- Mutual attenuation makes raw action constraints extensionally equivalent. -/
+theorem action_constraint_antisymm {v : Vocabulary}
+    {a b : ActionConstraint v}
+    (hab : actionConstraintLe a b) (hba : actionConstraintLe b a) :
+    ∀ digest, actionConstraintAllows a digest ↔ actionConstraintAllows b digest := by
+  intro digest
+  exact ⟨action_constraint_allows_monotone hab,
+    action_constraint_allows_monotone hba⟩
+
+/-- Canonical representatives recover structural antisymmetry. -/
+theorem action_constraint_canonical_antisymm {v : Vocabulary}
+    {a b : ActionConstraint v}
+    (aCanonical : actionConstraintCanonical a)
+    (bCanonical : actionConstraintCanonical b)
+    (hab : actionConstraintLe a b) (hba : actionConstraintLe b a) :
+    a = b := by
+  cases a <;> cases b <;>
+    simp_all [actionConstraintCanonical, actionConstraintLe]
+  exact Finset.Subset.antisymm hab hba
 
 theorem budget_refl {v : Vocabulary}
     (budget : Option (BudgetCeiling v)) :
@@ -270,6 +281,8 @@ theorem structural_scope_le_trans {v : Vocabulary}
 
 theorem scope_le_canonical_antisymmetry {v : Vocabulary}
     {a b : AuthorityScope v}
+    (aActionCanonical : actionConstraintCanonical a.actionConstraint)
+    (bActionCanonical : actionConstraintCanonical b.actionConstraint)
     (hab : structuralScopeLe a b) (hba : structuralScopeLe b a) :
     a = b := by
   rcases hab with ⟨profileAB, permissionAB, validityAB, audienceAB,
@@ -280,7 +293,8 @@ theorem scope_le_canonical_antisymmetry {v : Vocabulary}
   have permissionEquality := Finset.Subset.antisymm permissionAB permissionBA
   have validityEquality := window_contained_antisymm validityAB validityBA
   have audienceEquality := Finset.Subset.antisymm audienceAB audienceBA
-  have actionEquality := action_constraint_antisymm actionAB actionBA
+  have actionEquality := action_constraint_canonical_antisymm
+    aActionCanonical bActionCanonical actionAB actionBA
   have budgetEquality := budget_antisymm budgetAB budgetBA
   have statusEquality := status_antisymm statusAB statusBA
   rcases a with ⟨aProfile, aPermissions, aValidity, aAudiences, aAction,

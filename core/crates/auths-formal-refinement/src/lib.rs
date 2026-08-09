@@ -291,6 +291,13 @@ mod refinement {
                 let parent = ActionConstraint::AllowedBodyDigests(indexed_digests(&vector.parent));
                 action_constraint_attenuates(&child, &parent)
             }
+            "action-singleton-exact-attenuation" => {
+                let child = ActionConstraint::AllowedBodyDigests(indexed_digests(&vector.child));
+                let parent = ActionConstraint::ExactBodyDigest(digest(
+                    u8::try_from(vector.args[0]).expect("Lean digest byte"),
+                ));
+                action_constraint_attenuates(&child, &parent)
+            }
             kind => panic!("unknown Lean rich-authority vector kind {kind}"),
         }
     }
@@ -373,6 +380,14 @@ mod refinement {
                 let canonical = action_constraint_attenuates(&child, &parent);
                 let mutant = true;
                 Some(!canonical && mutant)
+            }
+            "action-singleton-exact-rejection" => {
+                let child = ActionConstraint::allowed_body_digests(vec![digest(1)])
+                    .expect("singleton allowed-body child");
+                let parent = ActionConstraint::ExactBodyDigest(digest(1));
+                let canonical = action_constraint_attenuates(&child, &parent);
+                let mutant = false;
+                Some(canonical && !mutant)
             }
             "budget-value-direction" => {
                 let child = budget("numeric-v1", 5);
@@ -563,7 +578,7 @@ mod refinement {
             ))
             .expect("valid versioned semantic mutation matrix");
             assert_eq!(matrix.schema, "auths-proof-semantic-mutations/v1");
-            assert_eq!(matrix.cases.len(), 22);
+            assert_eq!(matrix.cases.len(), 23);
 
             let mut identifiers = BTreeSet::new();
             for mutation in matrix.cases {
@@ -589,7 +604,7 @@ mod refinement {
             ))
             .expect("valid Lean-generated rich-authority vectors");
             assert_eq!(vectors.schema, "auths-proof-rich-authority-vectors/v1");
-            assert_eq!(vectors.cases.len(), 23);
+            assert_eq!(vectors.cases.len(), 26);
             for vector in vectors.cases {
                 assert_eq!(
                     shipping_rich_authority_result(&vector),
