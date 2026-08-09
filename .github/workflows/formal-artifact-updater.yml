@@ -56,7 +56,12 @@ jobs:
             }
             if (pull.head.repo.full_name !== `${context.repo.owner}/${context.repo.repo}`) throw new Error('Fork writeback is forbidden.');
             if (pull.head.ref === pull.base.ref || pull.head.ref === context.payload.repository.default_branch) throw new Error('Protected/default branch writeback is forbidden.');
-            if (!['OWNER', 'MEMBER', 'COLLABORATOR'].includes(pull.author_association)) throw new Error('PR author is not trusted for writeback.');
+            const {data: access} = await github.rest.repos.getCollaboratorPermissionLevel({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              username: pull.user.login,
+            });
+            if (!access.user?.permissions?.push) throw new Error('PR author does not currently have repository write permission.');
             const {data: branch} = await github.rest.repos.getBranch({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -69,8 +74,11 @@ jobs:
               run_id: run.id,
               per_page: 100,
             });
-            const generator = jobs.filter((job) => job.name === 'formal-translation implementation');
-            if (generator.length !== 1 || generator[0].conclusion !== 'success') throw new Error('The unprivileged generator did not succeed exactly once.');
+            const preflight = jobs.filter((job) => job.name === 'formal-update preflight');
+            const formal = jobs.filter((job) => job.name === 'formal-translation implementation');
+            const preflightSucceeded = preflight.length === 1 && preflight[0].conclusion === 'success';
+            const formalSucceeded = formal.length === 1 && formal[0].conclusion === 'success';
+            if (!preflightSucceeded && !formalSucceeded) throw new Error('No approved unprivileged generator succeeded exactly once.');
             core.setOutput('artifact_found', 'true');
             core.setOutput('artifact_name', artifactName);
             core.setOutput('pr_number', String(pull.number));
