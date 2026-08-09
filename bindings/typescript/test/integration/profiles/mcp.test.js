@@ -191,6 +191,40 @@ test("MCP facade canonicalizes signs assembles and authorizes locally", async ()
   }
 });
 
+test("MCP canonical JSON is independent of JavaScript object insertion order", async () => {
+  const originalNow = Date.now;
+  Date.now = () => 50_000;
+  try {
+    const { client, agent, profile } = await fixture();
+    const first = profile.call("update_demo_record", {
+      z: 2,
+      nested: { second: true, first: "é" },
+      value: "reviewed",
+    });
+    const second = profile.call("update_demo_record", {
+      value: "reviewed",
+      nested: { first: "é", second: true },
+      z: 2,
+    });
+    assert.deepEqual(
+      (await profile.plan([first])).commitment,
+      (await profile.plan([second])).commitment,
+    );
+
+    const result = await agent.authorize(first);
+    assert.equal(result.kind, "authorized");
+    const gateway = profile.gateway(async (call) =>
+      new TextDecoder().decode(call.argumentsJson));
+    assert.equal(
+      await gateway.execute(result.command),
+      '{"nested":{"first":"é","second":true},"value":"reviewed","z":2}',
+    );
+    await client.dispose();
+  } finally {
+    Date.now = originalNow;
+  }
+});
+
 test("MCP plan approval prompts once and releases only a sealed plan command", async () => {
   const originalNow = Date.now;
   Date.now = () => 50_000;

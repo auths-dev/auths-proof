@@ -4,8 +4,8 @@
 
 use auths_author::{
     ApprovalPolicyCommitment, ExternalSigningRequest, GrantPlan, GrantRequest, OverGrantingWarning,
-    ProfilePlanCommitment, commit_plan_approval, plan_child_grant, prepare_action, prepare_grant,
-    prepare_grant_status, prepare_principal_status,
+    ProfilePlanCommitment, ProfilePlanMember, commit_plan_approval, plan_child_grant,
+    prepare_action, prepare_grant, prepare_grant_status, prepare_principal_status,
 };
 use auths_model::{
     ActionConstraint, ActionEnvelope, AssurancePolicyId, Audience, AudienceSet, AuthorizationPlan,
@@ -21,7 +21,7 @@ use auths_ports::{PrincipalMethod, SignatureSuite};
 use auths_profile_api::ActionProfile;
 use auths_profile_mcp::{McpProfile, McpToolCall};
 use auths_registries::ImmutableRegistries;
-use serde_json::Value;
+use serde_json::{Map, Value};
 use std::fmt;
 use wasm_bindgen::prelude::*;
 
@@ -715,6 +715,57 @@ pub fn commit_profile_plan_v1(
     })
 }
 
+/// Canonicalizes one MCP plan member from typed JavaScript argument values.
+///
+/// # Errors
+///
+/// Returns a JavaScript error when the arguments are not a bounded JSON
+/// object or any profile field is invalid.
+#[wasm_bindgen(js_name = canonicalizeMcpPlanMemberV1)]
+pub fn canonicalize_mcp_plan_member_v1(
+    service: &str,
+    name: &str,
+    arguments: &JsValue,
+) -> Result<Vec<u8>, JsValue> {
+    canonicalize_mcp_plan_member_native(service, name, arguments).map_err(js_error)
+}
+
+/// Canonicalizes one application-profile plan member from typed fields.
+///
+/// # Errors
+///
+/// Returns a JavaScript error for invalid or out-of-limit profile fields.
+#[allow(clippy::too_many_arguments)]
+#[wasm_bindgen(js_name = canonicalizeProfilePlanMemberV1)]
+pub fn canonicalize_profile_plan_member_v1(
+    profile_id: &str,
+    profile_version: u16,
+    media_type: &str,
+    body: &[u8],
+    capability: &str,
+    resource: &str,
+    has_budget: bool,
+    budget_algebra: &str,
+    budget_value: u64,
+    resource_namespace: &str,
+    audience: &str,
+) -> Result<Vec<u8>, JsValue> {
+    canonicalize_profile_plan_member_native(
+        profile_id,
+        profile_version,
+        media_type,
+        body,
+        capability,
+        resource,
+        has_budget,
+        budget_algebra,
+        budget_value,
+        resource_namespace,
+        audience,
+    )
+    .map_err(js_error)
+}
+
 /// Exact native signing request returned to an external custody port.
 #[wasm_bindgen]
 pub struct AuthoringSigningRequestV1 {
@@ -983,6 +1034,7 @@ pub fn bind_trusted_context_request_v1(
 pub struct McpActionPreparationV1 {
     canonical_action_cbor: Vec<u8>,
     action_envelope_cbor: Vec<u8>,
+    arguments_json: Vec<u8>,
     audience: String,
     resource: String,
     display_digest_hex: String,
@@ -1002,6 +1054,13 @@ impl McpActionPreparationV1 {
     #[wasm_bindgen(getter, js_name = actionEnvelopeCbor)]
     pub fn action_envelope_cbor(&self) -> Vec<u8> {
         self.action_envelope_cbor.clone()
+    }
+
+    /// Returns the exact canonical argument JSON accepted by the profile.
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = argumentsJson)]
+    pub fn arguments_json(&self) -> Vec<u8> {
+        self.arguments_json.clone()
     }
 
     /// Returns the profile-derived verifier audience.
@@ -1036,16 +1095,17 @@ impl McpActionPreparationV1 {
 pub fn prepare_mcp_action_v1(
     service: &str,
     name: &str,
-    arguments_json: &[u8],
+    arguments: &JsValue,
     actor: &str,
     terminal_grant_cbor: &[u8],
     challenge: &[u8],
     evaluation_time: u64,
 ) -> Result<McpActionPreparationV1, JsValue> {
+    let arguments = mcp_arguments_from_js(arguments).map_err(js_error)?;
     prepare_mcp_action_native(
         service,
         name,
-        arguments_json,
+        arguments,
         actor,
         terminal_grant_cbor,
         challenge,
@@ -1069,6 +1129,81 @@ pub struct RawKeyAuthorityPreparationV1 {
     statement_cbor: Vec<u8>,
     trusted_context_cbor: Vec<u8>,
     verifier_configuration: Vec<u8>,
+}
+
+/// Native raw-key identity fields derived from one Ed25519 public key.
+#[wasm_bindgen]
+pub struct RawKeyIdentityV1 {
+    principal: String,
+    evidence: Vec<u8>,
+    principal_method: String,
+    media_type: String,
+    suite: String,
+}
+
+#[wasm_bindgen]
+impl RawKeyIdentityV1 {
+    #[must_use]
+    #[wasm_bindgen(getter)]
+    pub fn principal(&self) -> String {
+        self.principal.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter)]
+    pub fn evidence(&self) -> Vec<u8> {
+        self.evidence.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = principalMethod)]
+    pub fn principal_method(&self) -> String {
+        self.principal_method.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = verificationMethod)]
+    pub fn verification_method(&self) -> String {
+        self.principal.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = mediaType)]
+    pub fn media_type(&self) -> String {
+        self.media_type.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter)]
+    pub fn suite(&self) -> String {
+        self.suite.clone()
+    }
+}
+
+/// Derives the canonical raw-key descriptor and self-certifying identity.
+///
+/// # Errors
+///
+/// Returns a JavaScript error unless the public key is exactly one Ed25519
+/// verification key.
+#[wasm_bindgen(js_name = deriveEd25519RawKeyIdentityV1)]
+pub fn derive_ed25519_raw_key_identity_v1(public_key: &[u8]) -> Result<RawKeyIdentityV1, JsValue> {
+    let descriptor = auths_raw_key::RawKeyDescriptor::new(
+        auths_raw_key::RawKeyType::Ed25519,
+        public_key.to_vec(),
+    )
+    .map_err(|_| js_error("invalid Ed25519 raw-key descriptor"))?;
+    let principal = descriptor
+        .principal()
+        .map_err(|_| js_error("raw-key principal derivation failed"))?
+        .to_string();
+    Ok(RawKeyIdentityV1 {
+        principal,
+        evidence: descriptor.encode(),
+        principal_method: auths_raw_key::RAW_KEY_V1.to_owned(),
+        media_type: auths_raw_key::RAW_KEY_MEDIA_TYPE.to_owned(),
+        suite: descriptor.suite().to_owned(),
+    })
 }
 
 #[wasm_bindgen]
@@ -1417,26 +1552,20 @@ fn prepare_profile_action_native(
     challenge: &[u8],
     evaluation_time: u64,
 ) -> Result<ProfileActionPreparationV1, EngineError> {
-    let profile = auths_model::ProfileRef::new(ProfileId::parse(profile_id)?, profile_version)?;
-    let permission = Permission::new(
-        CapabilityId::parse(capability)?,
-        ResourceId::parse(resource)?,
-    );
-    let requested_budget = if has_budget {
-        Some(BudgetCeiling::new(
-            BudgetAlgebraId::parse(budget_algebra)?,
-            budget_value,
-        ))
-    } else {
-        None
-    };
-    let canonical = auths_model::CanonicalAction::new(
-        profile.clone(),
-        MediaType::parse(media_type)?,
-        body.to_vec(),
-        permission.clone(),
-        requested_budget.clone(),
+    let canonical = canonical_profile_action_native(
+        profile_id,
+        profile_version,
+        media_type,
+        body,
+        capability,
+        resource,
+        has_budget,
+        budget_algebra,
+        budget_value,
     )?;
+    let profile = canonical.profile().clone();
+    let permission = canonical.permission().clone();
+    let requested_budget = canonical.requested_budget().cloned();
     let terminal_grant = auths_codec::decode_signed_grant(
         terminal_grant_cbor,
         &VerifierLimits::default_deployment(),
@@ -1478,17 +1607,12 @@ fn prepare_profile_action_native(
 fn prepare_mcp_action_native(
     service: &str,
     name: &str,
-    arguments_json: &[u8],
+    arguments: Map<String, Value>,
     actor: &str,
     terminal_grant_cbor: &[u8],
     challenge: &[u8],
     evaluation_time: u64,
 ) -> Result<McpActionPreparationV1, EngineError> {
-    let Value::Object(arguments) = serde_json::from_slice(arguments_json)
-        .map_err(|_| EngineError::Abi("MCP arguments must be valid JSON"))?
-    else {
-        return Err(EngineError::Abi("MCP arguments must be a JSON object"));
-    };
     let call = McpToolCall::new(service, name, arguments)?;
     let untrusted = call.canonical_bytes()?;
     let profile = McpProfile;
@@ -1524,10 +1648,105 @@ fn prepare_mcp_action_native(
     Ok(McpActionPreparationV1 {
         canonical_action_cbor: auths_codec::encode_canonical_action(&canonical)?,
         action_envelope_cbor: auths_codec::encode_action_envelope(&envelope)?,
+        arguments_json: serde_json_canonicalizer::to_vec(call.arguments())
+            .map_err(|_| EngineError::Abi("MCP arguments could not be canonicalized"))?,
         audience: call.audience()?.to_string(),
         resource: canonical.permission().resource().to_string(),
         display_digest_hex: display.canonical_digest_hex().to_owned(),
     })
+}
+
+fn mcp_arguments_from_js(arguments: &JsValue) -> Result<Map<String, Value>, EngineError> {
+    let Value::Object(arguments) = serde_wasm_bindgen::from_value(arguments.clone())
+        .map_err(|_| EngineError::Abi("MCP arguments must contain JSON values"))?
+    else {
+        return Err(EngineError::Abi("MCP arguments must be a JSON object"));
+    };
+    Ok(arguments)
+}
+
+fn canonicalize_mcp_plan_member_native(
+    service: &str,
+    name: &str,
+    arguments: &JsValue,
+) -> Result<Vec<u8>, EngineError> {
+    let call = McpToolCall::new(service, name, mcp_arguments_from_js(arguments)?)?;
+    let profile = McpProfile;
+    let canonical = profile.canonicalize(&call.canonical_bytes()?)?;
+    ProfilePlanMember::encode(
+        &canonical,
+        &ResourceId::parse(&format!("mcp://{service}"))?,
+        &call.audience()?,
+    )
+    .map_err(EngineError::from)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn canonicalize_profile_plan_member_native(
+    profile_id: &str,
+    profile_version: u16,
+    media_type: &str,
+    body: &[u8],
+    capability: &str,
+    resource: &str,
+    has_budget: bool,
+    budget_algebra: &str,
+    budget_value: u64,
+    resource_namespace: &str,
+    audience: &str,
+) -> Result<Vec<u8>, EngineError> {
+    let canonical = canonical_profile_action_native(
+        profile_id,
+        profile_version,
+        media_type,
+        body,
+        capability,
+        resource,
+        has_budget,
+        budget_algebra,
+        budget_value,
+    )?;
+    ProfilePlanMember::encode(
+        &canonical,
+        &ResourceId::parse(resource_namespace)?,
+        &Audience::parse(audience)?,
+    )
+    .map_err(EngineError::from)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn canonical_profile_action_native(
+    profile_id: &str,
+    profile_version: u16,
+    media_type: &str,
+    body: &[u8],
+    capability: &str,
+    resource: &str,
+    has_budget: bool,
+    budget_algebra: &str,
+    budget_value: u64,
+) -> Result<auths_model::CanonicalAction, EngineError> {
+    let profile = auths_model::ProfileRef::new(ProfileId::parse(profile_id)?, profile_version)?;
+    let permission = Permission::new(
+        CapabilityId::parse(capability)?,
+        ResourceId::parse(resource)?,
+    );
+    let requested_budget = if has_budget {
+        Some(BudgetCeiling::new(
+            BudgetAlgebraId::parse(budget_algebra)?,
+            budget_value,
+        ))
+    } else {
+        None
+    };
+    auths_model::CanonicalAction::new(
+        profile,
+        MediaType::parse(media_type)?,
+        body.to_vec(),
+        permission,
+        requested_budget,
+    )
+    .map_err(EngineError::from)
 }
 
 #[derive(Clone)]
@@ -2330,7 +2549,7 @@ mod tests {
         let prepared = prepare_mcp_action_native(
             "reports",
             "update_demo_record",
-            br#"{"value":"reviewed"}"#,
+            serde_json::from_value(serde_json::json!({"value": "reviewed"})).unwrap(),
             actor,
             &terminal,
             &[0x22; 32],

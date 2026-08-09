@@ -9,11 +9,8 @@ import {
   type SigningRequest,
   type SigningResponse,
 } from "../workflow.js";
+import { loadPackagedWorkflowEngine } from "../verifier/wasm.js";
 export { profileConformance } from "./profile-conformance.js";
-
-const RAW_KEY_DOMAIN = new TextEncoder().encode("AUTHS-RAW-KEY\0\x01");
-const RAW_KEY_EVIDENCE = "raw-key-v1";
-const RAW_KEY_MEDIA_TYPE = "application/vnd.auths.raw-key.v1";
 
 class DevelopmentEd25519Signer implements Signer {
   readonly kind = "auths-development-ed25519";
@@ -21,16 +18,22 @@ class DevelopmentEd25519Signer implements Signer {
   readonly #privateKey: CryptoKey;
   readonly #descriptor: PrincipalDescriptor;
   readonly #evidence: Uint8Array;
+  readonly #evidenceType: string;
+  readonly #mediaType: string;
   #disposed = false;
 
   private constructor(
     privateKey: CryptoKey,
     descriptor: PrincipalDescriptor,
     evidence: Uint8Array,
+    evidenceType: string,
+    mediaType: string,
   ) {
     this.#privateKey = privateKey;
     this.#descriptor = Object.freeze({ ...descriptor });
     this.#evidence = evidence.slice();
+    this.#evidenceType = evidenceType;
+    this.#mediaType = mediaType;
   }
 
   static async generate(): Promise<DevelopmentEd25519Signer> {
@@ -40,26 +43,27 @@ class DevelopmentEd25519Signer implements Signer {
       ["sign", "verify"],
     );
     const publicKey = new Uint8Array(await crypto.subtle.exportKey("raw", keys.publicKey));
-    if (publicKey.length !== 32) throw new TypeError("development Ed25519 key has invalid length");
-    const evidence = new Uint8Array(RAW_KEY_DOMAIN.length + 3 + publicKey.length);
-    evidence.set(RAW_KEY_DOMAIN, 0);
-    evidence[RAW_KEY_DOMAIN.length] = 1;
-    new DataView(evidence.buffer).setUint16(RAW_KEY_DOMAIN.length + 1, 32, false);
-    evidence.set(publicKey, RAW_KEY_DOMAIN.length + 3);
-    // Raw-key principals commit directly to the descriptor bytes, without the
-    // SDK commitment envelope. Compute that protocol digest explicitly here.
-    const protocolDigest = new Uint8Array(await crypto.subtle.digest("SHA-256", evidence));
-    const principal = `key:sha256:${base64Url(protocolDigest)}`;
-    return new DevelopmentEd25519Signer(
-      keys.privateKey,
-      {
-        principal,
-        principalMethod: RAW_KEY_EVIDENCE,
-        verificationMethod: principal,
-        suite: "ed25519-v1",
-      },
-      evidence,
-    );
+    const engine = await loadPackagedWorkflowEngine();
+    let identity;
+    try {
+      identity = engine.deriveEd25519RawKeyIdentityV1(publicKey);
+      return new DevelopmentEd25519Signer(
+        keys.privateKey,
+        {
+          principal: identity.principal,
+          principalMethod: identity.principalMethod,
+          verificationMethod: identity.verificationMethod,
+          suite: identity.suite,
+        },
+        identity.evidence,
+        identity.principalMethod,
+        identity.mediaType,
+      );
+    } catch {
+      throw new TypeError("native raw-key profile rejected the development Ed25519 key");
+    } finally {
+      identity?.free?.();
+    }
   }
 
   async publicIdentity(): Promise<PrincipalDescriptor> {
@@ -83,8 +87,8 @@ class DevelopmentEd25519Signer implements Signer {
       signature,
       evidence: Object.freeze([
         Object.freeze({
-          evidenceType: RAW_KEY_EVIDENCE,
-          mediaType: RAW_KEY_MEDIA_TYPE,
+          evidenceType: this.#evidenceType,
+          mediaType: this.#mediaType,
           bytes: this.#evidence.slice(),
         }),
       ]),
@@ -142,9 +146,3 @@ export const development = Object.freeze({
     });
   },
 });
-
-function base64Url(value: Uint8Array): string {
-  let binary = "";
-  for (const byte of value) binary += String.fromCharCode(byte);
-  return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
-}

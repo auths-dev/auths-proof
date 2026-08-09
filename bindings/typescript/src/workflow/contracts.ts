@@ -335,12 +335,30 @@ export interface WorkflowWasmEngine {
   prepareMcpActionV1(
     service: string,
     name: string,
-    argumentsJson: Uint8Array,
+    argumentsValue: unknown,
     actor: string,
     terminalGrant: Uint8Array,
     challenge: Uint8Array,
     evaluationTime: bigint,
   ): WorkflowMcpActionPreparation;
+  canonicalizeMcpPlanMemberV1(
+    service: string,
+    name: string,
+    argumentsValue: unknown,
+  ): Uint8Array;
+  canonicalizeProfilePlanMemberV1(
+    profileId: string,
+    profileVersion: number,
+    mediaType: string,
+    body: Uint8Array,
+    capability: string,
+    resource: string,
+    hasBudget: boolean,
+    budgetAlgebra: string,
+    budgetValue: bigint,
+    resourceNamespace: string,
+    audience: string,
+  ): Uint8Array;
   prepareProfileActionV1(
     profileId: string,
     profileVersion: number,
@@ -373,6 +391,7 @@ export interface WorkflowWasmEngine {
     budgetValue: bigint,
     remainingDepth: number,
   ): WorkflowRawKeyAuthorityPreparation;
+  deriveEd25519RawKeyIdentityV1(publicKey: Uint8Array): WorkflowRawKeyIdentity;
   WorkflowProofBuilderV1: new () => WorkflowProofBuilder;
   commitCanonicalV1(domain: string, canonical: Uint8Array): Uint8Array;
   commitApprovalPolicyV1(
@@ -484,6 +503,7 @@ export interface WorkflowWasmEngine {
 export interface WorkflowMcpActionPreparation {
   readonly canonicalActionCbor: Uint8Array;
   readonly actionEnvelopeCbor: Uint8Array;
+  readonly argumentsJson: Uint8Array;
   readonly audience: string;
   readonly resource: string;
   readonly displayDigestHex: string;
@@ -504,6 +524,16 @@ export interface WorkflowRawKeyAuthorityPreparation {
   readonly statementCbor: Uint8Array;
   readonly trustedContextCbor: Uint8Array;
   readonly verifierConfiguration: Uint8Array;
+  free?(): void;
+}
+
+export interface WorkflowRawKeyIdentity {
+  readonly principal: string;
+  readonly evidence: Uint8Array;
+  readonly principalMethod: string;
+  readonly verificationMethod: string;
+  readonly mediaType: string;
+  readonly suite: string;
   free?(): void;
 }
 

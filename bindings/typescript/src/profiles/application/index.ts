@@ -1,5 +1,6 @@
 import { authorizePreparedAction } from "../../internal/authorization.js";
 import { createProfilePlan, type ProfilePlan } from "../../plans.js";
+import { loadPackagedWorkflowEngine } from "../../verifier/wasm.js";
 import {
   AuthsWorkflowError,
   type AuthorizationResult,
@@ -227,10 +228,33 @@ export class ApplicationProfile<Input, Command = CanonicalProfileAction>
   async plan(actions: readonly ApplicationAction<Input>[]): Promise<ProfilePlan<ApplicationAction<Input>>> {
     const canonicals = actions.map((action) => this.canonicalFor(action));
     const authority = validateCompatibleAuthority(canonicals);
+    const engine = await loadPackagedWorkflowEngine();
     return createProfilePlan(
       this,
       actions,
-      (action) => encodePlanAction(this.canonicalFor(action)),
+      (action) => {
+        const canonical = this.canonicalFor(action);
+        try {
+          return engine.canonicalizeProfilePlanMemberV1(
+            this.id,
+            this.version,
+            canonical.mediaType,
+            canonical.body.slice(),
+            canonical.permission.capability,
+            canonical.permission.resource,
+            canonical.budget !== undefined,
+            canonical.budget?.algebra ?? "",
+            canonical.budget?.value ?? 0n,
+            canonical.resourceNamespace,
+            canonical.audience,
+          );
+        } catch {
+          throw new AuthsWorkflowError(
+            "invalid-profile",
+            "native application profile rejected a plan member",
+          );
+        }
+      },
       authority,
     );
   }
@@ -385,25 +409,6 @@ function validateCompatibleAuthority(
       ? {}
       : { budget: Object.freeze({ algebra: first.budget.algebra, value: aggregateBudget }) }),
   });
-}
-
-function encodePlanAction(canonical: CanonicalProfileAction): Uint8Array {
-  const header = new TextEncoder().encode(JSON.stringify({
-    audience: canonical.audience,
-    budget: canonical.budget === undefined ? null : {
-      algebra: canonical.budget.algebra,
-      value: canonical.budget.value.toString(),
-    },
-    capability: canonical.permission.capability,
-    mediaType: canonical.mediaType,
-    resource: canonical.permission.resource,
-    resourceNamespace: canonical.resourceNamespace,
-  }));
-  const output = new Uint8Array(8 + header.length + canonical.body.length);
-  new DataView(output.buffer).setBigUint64(0, BigInt(header.length), false);
-  output.set(header, 8);
-  output.set(canonical.body, 8 + header.length);
-  return output;
 }
 
 function copyCanonical(value: CanonicalProfileAction): CanonicalProfileAction {

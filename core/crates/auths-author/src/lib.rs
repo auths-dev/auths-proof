@@ -9,18 +9,18 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use auths_authority::{AuthorScopeDecision, evaluate_author_scope_view};
 use auths_codec::{
-    CodecError, action_id, action_signing_preimage, domain_commitment, grant_id,
-    grant_signing_preimage, grant_status_id, grant_status_signing_preimage, principal_status_id,
-    principal_status_signing_preimage, transaction_binding,
+    CodecError, action_id, action_signing_preimage, domain_commitment, encode_canonical_action,
+    grant_id, grant_signing_preimage, grant_status_id, grant_status_signing_preimage,
+    principal_status_id, principal_status_signing_preimage, transaction_binding,
 };
 use auths_model::{
-    ActionConstraint, ActionEnvelope, ActionId, AssurancePolicyId, AudienceSet, AuthorizationPlan,
-    BudgetCeiling, CriticalExtensions, Digest, GrantId, GrantStatement, GrantStatusId,
-    GrantStatusStatement, ModelError, PermissionSet, PrincipalId, PrincipalStatusId,
-    PrincipalStatusStatement, ProfileRef, ProofRef, ScopeAuthorityView, SignatureBytes,
-    SignatureDescriptor, SignatureEnvelope, SignedAction, SignedGrant, SignedGrantStatus,
-    SignedPrincipalStatus, StatusPolicy, ValidityWindow, VerifierLimits, grant_authority_view,
-    scope_authority_view,
+    ActionConstraint, ActionEnvelope, ActionId, AssurancePolicyId, Audience, AudienceSet,
+    AuthorizationPlan, BudgetCeiling, CanonicalAction, CriticalExtensions, Digest, GrantId,
+    GrantStatement, GrantStatusId, GrantStatusStatement, ModelError, PermissionSet, PrincipalId,
+    PrincipalStatusId, PrincipalStatusStatement, ProfileRef, ProofRef, ResourceId,
+    ScopeAuthorityView, SignatureBytes, SignatureDescriptor, SignatureEnvelope, SignedAction,
+    SignedGrant, SignedGrantStatus, SignedPrincipalStatus, StatusPolicy, ValidityWindow,
+    VerifierLimits, grant_authority_view, scope_authority_view,
 };
 use core::fmt;
 
@@ -463,6 +463,36 @@ pub fn commit_plan_approval(
     canonical.extend_from_slice(&max_uses.to_be_bytes());
     canonical.extend_from_slice(&expires_at.to_be_bytes());
     domain_commitment("auths.plan-approval.v1", &canonical)
+}
+
+/// Canonical bytes for one member of a profile-owned action plan.
+///
+/// The action owns profile, media type, body, permission, and budget meaning.
+/// Plan authority additionally commits to the resource namespace and audience.
+/// Keeping this framing here prevents language bindings from defining a second
+/// cross-language plan format.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ProfilePlanMember;
+
+impl ProfilePlanMember {
+    /// Encodes one exact plan member from validated protocol values.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the canonical action or a framed field exceeds
+    /// protocol limits.
+    pub fn encode(
+        action: &CanonicalAction,
+        resource_namespace: &ResourceId,
+        audience: &Audience,
+    ) -> Result<Vec<u8>, CodecError> {
+        let action = encode_canonical_action(action)?;
+        let mut canonical = Vec::new();
+        push_framed(&mut canonical, &action)?;
+        push_framed(&mut canonical, resource_namespace.as_str().as_bytes())?;
+        push_framed(&mut canonical, audience.as_str().as_bytes())?;
+        Ok(canonical)
+    }
 }
 
 /// Commitment over one profile plan and each of its ordered members.
@@ -920,5 +950,36 @@ mod tests {
         // Identical bytes at different positions commit differently.
         let repeated = ProfilePlanCommitment::commit("auths.mcp", 1, &[first, first]).unwrap();
         assert_ne!(repeated.members()[0], repeated.members()[1]);
+    }
+
+    #[test]
+    fn profile_plan_member_binds_action_namespace_and_audience() {
+        let profile =
+            ProfileRef::new(auths_model::ProfileId::parse("auths.test").unwrap(), 1).unwrap();
+        let baseline = CanonicalAction::new(
+            profile,
+            auths_model::MediaType::parse("application/json").unwrap(),
+            br#"{"value":1}"#.to_vec(),
+            auths_model::Permission::new(
+                auths_model::CapabilityId::parse("records/update").unwrap(),
+                ResourceId::parse("records://one").unwrap(),
+            ),
+            None,
+        )
+        .unwrap();
+        let namespace = ResourceId::parse("records://").unwrap();
+        let audience = auths_model::Audience::parse("records://service").unwrap();
+        let encoded = ProfilePlanMember::encode(&baseline, &namespace, &audience).unwrap();
+
+        let other_namespace = ResourceId::parse("other://").unwrap();
+        let other_audience = auths_model::Audience::parse("records://other").unwrap();
+        assert_ne!(
+            encoded,
+            ProfilePlanMember::encode(&baseline, &other_namespace, &audience).unwrap()
+        );
+        assert_ne!(
+            encoded,
+            ProfilePlanMember::encode(&baseline, &namespace, &other_audience).unwrap()
+        );
     }
 }

@@ -10,37 +10,43 @@ import {
 } from "../../workflow.js";
 import { authorizePreparedAction } from "../../internal/authorization.js";
 import { createProfilePlan, type ProfilePlan } from "../../plans.js";
+import { loadPackagedWorkflowEngine } from "../../verifier/wasm.js";
 
 const PROFILE_ID = "auths.mcp";
 const PROFILE_VERSION = 1;
-const MAX_ARGUMENT_JSON_BYTES = 256 * 1024;
 const MCP_PROFILE_TOKEN: unique symbol = Symbol("auths-mcp-profile");
 const MCP_ACTION_TOKEN: unique symbol = Symbol("auths-mcp-action");
 const MCP_COMMAND_TOKEN: unique symbol = Symbol("auths-mcp-command");
 
-let mintMcpCommand: (resources: McpActionResources) => McpCommand;
+let mintMcpCommand: (resources: McpCommandResources) => McpCommand;
 let mintMcpAction: (
   profile: McpProfile,
   name: string,
-  argumentsJson: Uint8Array,
+  argumentsValue: Readonly<Record<string, unknown>>,
 ) => McpAction;
 let mintMcpProfile: (service: string) => McpProfile;
 
 interface McpActionResources {
   readonly profile: McpProfile;
   readonly name: string;
+  readonly argumentsValue: Readonly<Record<string, unknown>>;
+}
+
+interface McpCommandResources {
+  readonly profile: McpProfile;
+  readonly name: string;
   readonly argumentsJson: Uint8Array;
 }
 
 const actionResources = new WeakMap<McpAction, McpActionResources>();
-const commandResources = new WeakMap<McpCommand, McpActionResources>();
+const commandResources = new WeakMap<McpCommand, McpCommandResources>();
 
 /** Verifier-minted MCP tool call accepted only by its matching gateway. */
 export class McpCommand {
   readonly service: string;
   readonly name: string;
 
-  private constructor(token: typeof MCP_COMMAND_TOKEN, resources: McpActionResources) {
+  private constructor(token: typeof MCP_COMMAND_TOKEN, resources: McpCommandResources) {
     if (token !== MCP_COMMAND_TOKEN) throw new TypeError("sealed Auths MCP command");
     this.service = resources.profile.service;
     this.name = resources.name;
@@ -51,7 +57,7 @@ export class McpCommand {
     Object.freeze(this);
   }
 
-  private static create(token: typeof MCP_COMMAND_TOKEN, resources: McpActionResources): McpCommand {
+  private static create(token: typeof MCP_COMMAND_TOKEN, resources: McpCommandResources): McpCommand {
     return new McpCommand(token, resources);
   }
 
@@ -82,14 +88,14 @@ export class McpAction {
     token: typeof MCP_ACTION_TOKEN,
     profile: McpProfile,
     name: string,
-    argumentsJson: Uint8Array,
+    argumentsValue: Readonly<Record<string, unknown>>,
   ) {
     if (token !== MCP_ACTION_TOKEN) throw new TypeError("sealed Auths MCP action");
     this.name = name;
     actionResources.set(this, {
       profile,
       name,
-      argumentsJson: argumentsJson.slice(),
+      argumentsValue,
     });
     Object.freeze(this);
   }
@@ -98,15 +104,15 @@ export class McpAction {
     token: typeof MCP_ACTION_TOKEN,
     profile: McpProfile,
     name: string,
-    argumentsJson: Uint8Array,
+    argumentsValue: Readonly<Record<string, unknown>>,
   ): McpAction {
     if (token !== MCP_ACTION_TOKEN) throw new TypeError("sealed Auths MCP action");
-    return new McpAction(token, profile, name, argumentsJson);
+    return new McpAction(token, profile, name, argumentsValue);
   }
 
   static {
-    mintMcpAction = (profile, name, argumentsJson) =>
-      McpAction.create(MCP_ACTION_TOKEN, profile, name, argumentsJson);
+    mintMcpAction = (profile, name, argumentsValue) =>
+      McpAction.create(MCP_ACTION_TOKEN, profile, name, argumentsValue);
   }
 }
 
@@ -142,11 +148,10 @@ export class McpProfile implements Profile<McpAction, McpCommand> {
   }
 
   call(name: string, argumentsValue: Readonly<Record<string, unknown>>): McpAction {
-    const argumentsJson = encodeArguments(argumentsValue);
     return mintMcpAction(
       this,
       boundedToolName(name),
-      argumentsJson,
+      copyArguments(argumentsValue),
     );
   }
 
@@ -158,22 +163,24 @@ export class McpProfile implements Profile<McpAction, McpCommand> {
       }
       return item;
     });
+    const engine = await loadPackagedWorkflowEngine();
     return createProfilePlan(this, actions, (action) => {
       const resources = actionResources.get(action);
       if (resources === undefined || resources.profile !== this) {
         throw new AuthsWorkflowError("invalid-profile", "MCP plan contains an action from another profile");
       }
-      const service = new TextEncoder().encode(this.service);
-      const name = new TextEncoder().encode(resources.name);
-      const output = new Uint8Array(8 + service.length + name.length + resources.argumentsJson.length);
-      const view = new DataView(output.buffer);
-      view.setUint16(0, service.length, false);
-      output.set(service, 2);
-      view.setUint16(2 + service.length, name.length, false);
-      output.set(name, 4 + service.length);
-      view.setUint32(4 + service.length + name.length, resources.argumentsJson.length, false);
-      output.set(resources.argumentsJson, 8 + service.length + name.length);
-      return output;
+      try {
+        return engine.canonicalizeMcpPlanMemberV1(
+          this.service,
+          resources.name,
+          resources.argumentsValue,
+        );
+      } catch {
+        throw new AuthsWorkflowError(
+          "invalid-profile",
+          "native MCP profile rejected a plan member",
+        );
+      }
     }, {
       permissions: resources.map((item) => Object.freeze({
         capability: "tools/call",
@@ -241,7 +248,7 @@ async function authorizeMcp(
     preparation = engine.prepareMcpActionV1(
       profile.service,
       action.name,
-      action.argumentsJson.slice(),
+      action.argumentsValue,
       agent.identity.principal.principal,
       resources.signedGrant.slice(),
       challenge,
@@ -253,6 +260,7 @@ async function authorizeMcp(
       "native MCP profile rejected the proposed tool call",
     );
   }
+  const argumentsJson = preparation.argumentsJson.slice();
   const result = await authorizePreparedAction(
     agent,
     preparation,
@@ -267,29 +275,28 @@ async function authorizeMcp(
   if (result.kind !== "authorized") return result;
   return Object.freeze({
     ...result,
-    command: mintMcpCommand(action),
+    command: mintMcpCommand({
+      profile,
+      name: action.name,
+      argumentsJson,
+    }),
   });
 }
 
-function encodeArguments(value: Readonly<Record<string, unknown>>): Uint8Array {
+function copyArguments(
+  value: Readonly<Record<string, unknown>>,
+): Readonly<Record<string, unknown>> {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
     throw new AuthsWorkflowError("invalid-profile", "MCP arguments must be an object");
   }
-  let encoded: Uint8Array;
   try {
-    const json = JSON.stringify(value);
-    if (json === undefined) throw new TypeError("missing JSON");
-    encoded = new TextEncoder().encode(json);
+    return Object.freeze(structuredClone(value));
   } catch {
     throw new AuthsWorkflowError(
       "invalid-profile",
-      "MCP arguments must have one finite JSON representation",
+      "MCP arguments cannot be retained safely",
     );
   }
-  if (encoded.length === 0 || encoded.length > MAX_ARGUMENT_JSON_BYTES) {
-    throw new AuthsWorkflowError("invalid-profile", "MCP arguments exceed profile limits");
-  }
-  return encoded;
 }
 
 function boundedService(value: string): string {
