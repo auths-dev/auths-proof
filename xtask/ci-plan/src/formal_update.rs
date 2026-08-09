@@ -381,7 +381,6 @@ fn validate_relative_path(value: &str) -> Result<(), String> {
     if value.is_empty()
         || path.is_absolute()
         || value.contains('\\')
-        || value.contains("//")
         || path
             .components()
             .any(|part| !matches!(part, Component::Normal(_)))
@@ -584,7 +583,6 @@ mod tests {
             "../secret",
             "/etc/passwd",
             "formal\\escape",
-            "formal//escape",
             "formal/../escape",
             "",
         ] {

@@ -1,6 +1,6 @@
 {
   "schema": "auths-proof-translation-source-closure/v2",
-  "digest": "09b86c2e24b61e16db64d9406d9999a3ccd75a665756f888cb90d391c2ae69f3",
+  "digest": "49b86c2e24b61e16db64d9406d9999a3ccd75a665756f888cb90d391c2ae69f3",
   "files": [
     {
       "path": "Cargo.lock",

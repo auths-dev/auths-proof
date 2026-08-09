@@ -56,7 +56,12 @@ jobs:
             }
             if (pull.head.repo.full_name !== `${context.repo.owner}/${context.repo.repo}`) throw new Error('Fork writeback is forbidden.');
             if (pull.head.ref === pull.base.ref || pull.head.ref === context.payload.repository.default_branch) throw new Error('Protected/default branch writeback is forbidden.');
-            if (!['OWNER', 'MEMBER', 'COLLABORATOR'].includes(pull.author_association)) throw new Error('PR author is not trusted for writeback.');
+            const {data: access} = await github.rest.repos.getCollaboratorPermissionLevel({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              username: pull.user.login,
+            });
+            if (!access.user?.permissions?.push) throw new Error('PR author does not currently have repository write permission.');
             const {data: branch} = await github.rest.repos.getBranch({
               owner: context.repo.owner,
               repo: context.repo.repo,
