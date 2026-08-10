@@ -1,0 +1,10 @@
+{
+  "include": [
+    "mcp_consumer.py",
+    "workflow_consumer.py",
+    "pyright_negative.py"
+  ],
+  "pythonVersion": "3.9",
+  "typeCheckingMode": "strict",
+  "reportUnnecessaryTypeIgnoreComment": "error"
+}

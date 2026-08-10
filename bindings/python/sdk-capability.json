@@ -2,8 +2,8 @@
   "schema": "auths.sdk-capability/2",
   "package": "auths",
   "language": "python",
-  "implementationTier": "attach-delegate-workflow",
-  "evidenceStatus": "repository-local-milestone-b",
+  "implementationTier": "full-workflow-sdk",
+  "evidenceStatus": "repository-local-complete",
   "promotedTier": "verifier-binding",
   "targetTier": "full-workflow-sdk",
   "governingSpec": "AP-SPEC-035",
@@ -19,15 +19,24 @@
       "provider-neutral async signer and approval protocols",
       "native-bound root authority attachment",
       "native-attenuated child delegation with semantic review",
-      "single-use exact signing transactions and deterministic provider cleanup"
+      "single-use exact signing transactions and deterministic provider cleanup",
+      "native-assembled proof and trusted-context verification for MCP actions",
+      "sealed single-use MCP commands and ordered plan commands",
+      "exact ordered plan-once approval with no partial command exposure",
+      "complete immutable decision inspection and inert caller-supplied diagnostics",
+      "shared Rust, TypeScript and Python Full Workflow projection",
+      "strict mypy and Pyright consumer contracts",
+      "installed abi3 wheel qualification on Linux, macOS and Windows for CPython 3.9 and 3.14"
     ],
     "excluded": [
-      "sealed profile command and gateway",
-      "proof and trusted-context assembly for a complete authorization workflow",
       "promoted full workflow SDK release claim",
       "independent review",
       "production readiness",
-      "stable-v1 compatibility"
+      "stable-v1 compatibility",
+      "production custody or approval adapters",
+      "application profile kit before a second independent Python profile",
+      "atomicity of remote provider effects",
+      "package publication authorization"
     ]
   }
 }

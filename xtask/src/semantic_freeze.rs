@@ -258,7 +258,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.public-sdk-contract",
-            17,
+            18,
             FreezeClassification::FrozenMeaning,
             &[
                 "rust-sdk-contract",

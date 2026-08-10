@@ -62,6 +62,16 @@
         "authoring.proposed-grant.cbor"
       ],
       "projection": "planned child statement, semantic diff, warnings, signing request identifier, transaction digest and signed child authority summary"
+    },
+    {
+      "name": "full-workflow-projection",
+      "inputs": [
+        "workflow.proof.cbor",
+        "workflow.action.cbor",
+        "workflow.context.cbor",
+        "workflow.result.cbor"
+      ],
+      "projection": "workflow.projection.json"
     }
   ]
 }

@@ -23,7 +23,13 @@ from typing import (
 )
 
 if TYPE_CHECKING:
-    from .mcp import AuthorizationRequest, McpAction, McpAuthorizationResult
+    from .mcp import (
+        AuthorizationRequest,
+        McpAction,
+        McpAuthorizationResult,
+        McpPlan,
+        McpPlanAuthorizationResult,
+    )
 
 from ._native import (
     ApprovalPolicyReference,
@@ -44,7 +50,9 @@ from ._native import (
 
 SignerLifecycle = Literal["durable", "ephemeral"]
 SigningObjectKind = Literal["grant", "action", "principal-status", "grant-status"]
-ApprovalMode = Literal["grant-only", "risk-based", "every-action", "custom"]
+ApprovalMode = Literal[
+    "grant-only", "risk-based", "every-action", "plan-once", "custom"
+]
 ApprovalDecision = Literal["approved", "rejected"]
 ProviderFailureKind = Literal[
     "unavailable", "rejected", "cancelled", "timeout", "unsupported"
@@ -86,7 +94,7 @@ class ProviderOperationError(AuthsError):
         ):
             raise ValueError("unsupported provider failure kind")
         super().__init__("external provider operation failed")
-        self.kind = kind
+        self.kind: ProviderFailureKind = kind
 
 
 @dataclass(frozen=True)
@@ -249,6 +257,26 @@ class Approval:
             policy_id,
             provider,
             "every-action",
+            evaluator_version,
+            max_uses,
+            expires_in_seconds,
+            requirements,
+        )
+
+    @staticmethod
+    def plan_once(
+        policy_id: str,
+        provider: ApprovalProvider,
+        *,
+        evaluator_version: str = "1",
+        max_uses: int,
+        expires_in_seconds: int = 300,
+        requirements: Sequence[str] = (),
+    ) -> ApprovalConfiguration:
+        return _approval(
+            policy_id,
+            provider,
+            "plan-once",
             evaluator_version,
             max_uses,
             expires_in_seconds,
@@ -1084,6 +1112,17 @@ class AttachedAgent:
 
         return await _authorize_mcp(self, action, request)
 
+    async def authorize_plan(
+        self,
+        plan: McpPlan,
+        *,
+        approval_provider: Optional[ApprovalProvider] = None,
+        requests: Optional[Sequence[AuthorizationRequest]] = None,
+    ) -> McpPlanAuthorizationResult:
+        from .mcp import _authorize_mcp_plan
+
+        return await _authorize_mcp_plan(self, plan, approval_provider, requests)
+
     async def aclose(self) -> None:
         if not await self._close(suppress_errors=False):
             raise AuthsWorkflowError(
@@ -1323,6 +1362,7 @@ def _validate_approval(approval: ApprovalConfiguration) -> None:
         "grant-only",
         "risk-based",
         "every-action",
+        "plan-once",
         "custom",
     ):
         raise TypeError("approval mode is invalid")

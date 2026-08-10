@@ -650,7 +650,7 @@
     },
     {
       "id": "auths.product.public-sdk-contract",
-      "version": 17,
+      "version": 18,
       "classification": "frozen-meaning",
       "categories": [
         "rust-sdk-contract",
@@ -667,7 +667,7 @@
         "product/runtime/auths-runtime/src",
         "product/sdk/auths-sdk/src"
       ],
-      "sha256": "d3be8e0fe13872faac9f0393dd513b726c79f66a84842eb1cf1bf3883638374e"
+      "sha256": "0eccc7d2b55273989858886322801f76257b3959a039397458a836f2052fb261"
     },
     {
       "id": "auths.product.receipts",

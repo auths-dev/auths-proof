@@ -7,8 +7,9 @@
 
 use auths_author::{
     AuthorityDiff, ExternalSigningRequest, GrantPlan, GrantRequest, OverGrantingWarning,
-    PlanBuilder, plan_child_grant, prepare_action, prepare_grant, prepare_grant_status,
-    prepare_principal_status, prepare_profile_action,
+    PlanBuilder, commit_plan_approval as commit_plan_approval_native, plan_child_grant,
+    prepare_action, prepare_grant, prepare_grant_status, prepare_principal_status,
+    prepare_profile_action,
 };
 use auths_model::{
     ActionConstraint, ActionEnvelope, AssuranceClaimId, AssurancePolicy, AssurancePolicyId,
@@ -1044,6 +1045,21 @@ fn self_contained_configuration(py: Python<'_>) -> PyResult<Bound<'_, PyBytes>> 
 }
 
 #[pyfunction]
+fn commit_plan_approval<'py>(
+    py: Python<'py>,
+    plan_commitment: &[u8],
+    configuration_digest: &[u8],
+    max_uses: u32,
+    expires_at: u64,
+) -> PyResult<Bound<'py, PyBytes>> {
+    let plan = array32(plan_commitment, "plan commitment")?;
+    let configuration = array32(configuration_digest, "configuration digest")?;
+    let commitment = commit_plan_approval_native(&plan, &configuration, max_uses, expires_at)
+        .map_err(value_error)?;
+    Ok(PyBytes::new(py, commitment.as_bytes()))
+}
+
+#[pyfunction]
 fn inspect_unsigned<'py>(
     py: Python<'py>,
     value: PyRef<'_, PyUnsignedObject>,
@@ -1195,6 +1211,7 @@ pub fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(status_snapshot, module)?)?;
     module.add_function(wrap_pyfunction!(compile_trusted_context, module)?)?;
     module.add_function(wrap_pyfunction!(self_contained_configuration, module)?)?;
+    module.add_function(wrap_pyfunction!(commit_plan_approval, module)?)?;
     module.add_function(wrap_pyfunction!(inspect_unsigned, module)?)?;
     module.add_function(wrap_pyfunction!(inspect_signed, module)?)?;
     module.add_function(wrap_pyfunction!(inspect_plan, module)?)?;

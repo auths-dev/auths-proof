@@ -14,6 +14,7 @@ from typing import (
     Literal,
     Mapping,
     Optional,
+    Sequence,
     Tuple,
     TypeVar,
     Union,
@@ -21,10 +22,16 @@ from typing import (
 
 from . import _native as native
 from .workflow import (
+    ApprovalConfiguration,
+    ApprovalProvider,
+    ApprovalRequest,
+    ApprovalResponse,
     AttachedAgent,
     AuthsWorkflowError,
     ControlEvidence,
+    Permission,
     Profile,
+    ProviderOperationError,
     ReviewField,
     _SigningCoordinator,
     _transaction_expiry,
@@ -33,6 +40,8 @@ from .workflow import (
 VerificationStage = Literal[
     "decode", "resolve", "principal-control", "authority", "complete"
 ]
+
+_PLAN_TOKEN = object()
 
 
 @dataclass(frozen=True)
@@ -77,6 +86,42 @@ class McpProfile(Profile):
             raise ValueError("invalid MCP tool call") from None
         return McpAction(self, native_call)
 
+    def plan(self, actions: Sequence[McpAction]) -> McpPlan:
+        values = tuple(actions)
+        if not values or len(values) > 256:
+            raise AuthsWorkflowError(
+                "invalid-profile", "MCP plan action count is outside bounds"
+            )
+        if any(
+            type(action) is not McpAction or action.profile is not self
+            for action in values
+        ):
+            raise AuthsWorkflowError(
+                "invalid-profile", "MCP plan contains an action from another profile"
+            )
+        try:
+            projection = native.commit_mcp_plan([action._call for action in values])
+        except (TypeError, ValueError):
+            raise AuthsWorkflowError(
+                "invalid-profile", "native MCP profile rejected the plan"
+            ) from None
+        authority = McpPlanAuthority(
+            permissions=tuple(
+                Permission(capability, resource)
+                for capability, resource in projection.permissions
+            ),
+            resource_namespaces=tuple(projection.resource_namespaces),
+            audiences=tuple(projection.audiences),
+        )
+        return McpPlan(
+            _PLAN_TOKEN,
+            self,
+            values,
+            bytes(projection.commitment),
+            tuple(bytes(member) for member in projection.members),
+            authority,
+        )
+
     def gateway(
         self, executor: Callable[[McpGatewayCall], Awaitable[GatewayResult]]
     ) -> McpGateway[GatewayResult]:
@@ -104,6 +149,44 @@ class McpAction:
 
 
 @dataclass(frozen=True)
+class McpPlanAuthority:
+    permissions: Tuple[Permission, ...]
+    resource_namespaces: Tuple[str, ...]
+    audiences: Tuple[str, ...]
+
+
+class McpPlan:
+    def __init__(
+        self,
+        token: object,
+        profile: McpProfile,
+        actions: Tuple[McpAction, ...],
+        commitment: bytes,
+        member_commitments: Tuple[bytes, ...],
+        authority: McpPlanAuthority,
+    ) -> None:
+        if token is not _PLAN_TOKEN:
+            raise TypeError("sealed Auths MCP plan")
+        self._profile = profile
+        self._actions = actions
+        self._commitment = commitment
+        self._member_commitments = member_commitments
+        self._authority = authority
+
+    @property
+    def length(self) -> int:
+        return len(self._actions)
+
+    @property
+    def commitment(self) -> bytes:
+        return self._commitment
+
+    @property
+    def authority(self) -> McpPlanAuthority:
+        return self._authority
+
+
+@dataclass(frozen=True)
 class AuthorizationMetrics:
     proof_bytes: int
     action_bytes: int
@@ -124,6 +207,13 @@ class AuthorizationExplanation:
 @dataclass(frozen=True)
 class ApprovalSummary:
     policy_id: str
+    evaluator_version: str
+    required_configuration: bytes
+    executed_configuration: bytes
+    executed_mode: str
+    executed_max_uses: int
+    executed_expires_in_seconds: int
+    executed_requirements: Tuple[str, ...]
     transaction_digest: bytes
     decision: Literal["approved"]
 
@@ -136,6 +226,10 @@ class McpAuthorized:
     explanation: AuthorizationExplanation
     metrics: AuthorizationMetrics
     approval: ApprovalSummary
+    required_configuration: Optional[bytes]
+    local_configuration: bytes
+    result_cbor: bytes
+    action_commitment: bytes
     command: native.McpCommand
 
 
@@ -147,6 +241,9 @@ class McpDenied:
     explanation: AuthorizationExplanation
     metrics: AuthorizationMetrics
     approval: ApprovalSummary
+    required_configuration: Optional[bytes]
+    local_configuration: bytes
+    result_cbor: bytes
 
 
 @dataclass(frozen=True)
@@ -157,9 +254,57 @@ class McpIndeterminate:
     explanation: AuthorizationExplanation
     metrics: AuthorizationMetrics
     approval: ApprovalSummary
+    required_configuration: Optional[bytes]
+    local_configuration: bytes
+    result_cbor: bytes
 
 
 McpAuthorizationResult = Union[McpAuthorized, McpDenied, McpIndeterminate]
+
+
+@dataclass(frozen=True)
+class McpPlanMemberAuthorized:
+    kind: Literal["authorized"]
+    code: str
+    stage: VerificationStage
+    explanation: AuthorizationExplanation
+    metrics: AuthorizationMetrics
+    approval: ApprovalSummary
+    required_configuration: Optional[bytes]
+    local_configuration: bytes
+    result_cbor: bytes
+    action_commitment: bytes
+
+
+McpPlanMemberResult = Union[McpPlanMemberAuthorized, McpDenied, McpIndeterminate]
+
+
+@dataclass(frozen=True)
+class McpPlanAuthorized:
+    kind: Literal["authorized"]
+    command: native.McpPlanCommand
+    results: Tuple[McpPlanMemberAuthorized, ...]
+
+
+@dataclass(frozen=True)
+class McpPlanDenied:
+    kind: Literal["denied"]
+    failed_index: int
+    result: McpDenied
+    results: Tuple[McpPlanMemberResult, ...]
+
+
+@dataclass(frozen=True)
+class McpPlanIndeterminate:
+    kind: Literal["indeterminate"]
+    failed_index: int
+    result: McpIndeterminate
+    results: Tuple[McpPlanMemberResult, ...]
+
+
+McpPlanAuthorizationResult = Union[
+    McpPlanAuthorized, McpPlanDenied, McpPlanIndeterminate
+]
 
 
 @dataclass(frozen=True)
@@ -203,6 +348,32 @@ class McpGateway(Generic[GatewayResult]):
                 "gateway-failed", "MCP gateway execution failed"
             ) from None
 
+    async def execute_plan(
+        self, command: native.McpPlanCommand
+    ) -> Tuple[GatewayResult, ...]:
+        if type(command) is not native.McpPlanCommand:
+            raise TypeError("gateway requires a native MCP plan command")
+        calls = native.consume_mcp_plan_command(command, self._service)
+        results: list[GatewayResult] = []
+        try:
+            for call in calls:
+                results.append(
+                    await self._executor(
+                        McpGatewayCall(
+                            service=call.service,
+                            name=call.name,
+                            arguments_json=bytes(call.arguments_json),
+                        )
+                    )
+                )
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            raise AuthsWorkflowError(
+                "gateway-failed", "MCP plan gateway execution failed"
+            ) from None
+        return tuple(results)
+
 
 class McpFacade:
     def profile(self, *, service: str) -> McpProfile:
@@ -216,6 +387,7 @@ async def _authorize_mcp(
     agent: AttachedAgent,
     action: McpAction,
     request: Optional[AuthorizationRequest],
+    approval_override: Optional[ApprovalConfiguration] = None,
 ) -> McpAuthorizationResult:
     agent._assert_active()
     if type(action) is not McpAction:
@@ -245,13 +417,18 @@ async def _authorize_mcp(
         raise AuthsWorkflowError(
             "invalid-action", "native MCP profile rejected the action"
         ) from None
+    approval_configuration = (
+        agent._approval if approval_override is None else approval_override
+    )
     signed = await _SigningCoordinator().execute(
         unsigned=prepared.unsigned,
         principal=agent.identity.principal,
         signer=agent._signer,
-        approval=agent._approval,
+        approval=approval_configuration,
         required_approval=agent._client._configured_authority.required_approval,
-        expires_at=_transaction_expiry(agent._approval.policy.expires_in_seconds),
+        expires_at=_transaction_expiry(
+            approval_configuration.policy.expires_in_seconds
+        ),
         display=tuple(
             ReviewField(label, value) for label, value in prepared.review_fields
         ),
@@ -276,7 +453,18 @@ async def _authorize_mcp(
     metrics = AuthorizationMetrics(*native_result.metrics)
     kind = native_result.kind
     approval = ApprovalSummary(
-        policy_id=agent._approval.policy.reference.policy_id,
+        policy_id=approval_configuration.policy.reference.policy_id,
+        evaluator_version=approval_configuration.policy.reference.evaluator_version,
+        required_configuration=bytes(
+            agent._client._configured_authority.required_approval.configuration_digest
+        ),
+        executed_configuration=bytes(
+            approval_configuration.policy.reference.configuration_digest
+        ),
+        executed_mode=approval_configuration.policy.mode,
+        executed_max_uses=approval_configuration.policy.max_uses,
+        executed_expires_in_seconds=approval_configuration.policy.expires_in_seconds,
+        executed_requirements=approval_configuration.policy.requirements,
         transaction_digest=signed.transaction_digest,
         decision="approved",
     )
@@ -288,14 +476,22 @@ async def _authorize_mcp(
                 "native-authorization-failed",
                 "native MCP authorization omitted its sealed command",
             )
+        canonical_action, _ = native.inspect_mcp_action(prepared)
+        action_commitment = native.commit_canonical_v1(
+            "auths.canonical-action.v1", canonical_action
+        )
         return McpAuthorized(
-            "authorized",
-            native_result.code,
-            stage,
-            explanation,
-            metrics,
-            approval,
-            command,
+            kind="authorized",
+            code=native_result.code,
+            stage=stage,
+            explanation=explanation,
+            metrics=metrics,
+            approval=approval,
+            required_configuration=native_result.required_configuration,
+            local_configuration=bytes(native_result.local_configuration),
+            result_cbor=bytes(native_result.result_cbor),
+            action_commitment=bytes(action_commitment),
+            command=command,
         )
     if command is not None:
         raise AuthsWorkflowError(
@@ -304,11 +500,302 @@ async def _authorize_mcp(
         )
     if kind == "denied":
         return McpDenied(
-            "denied", native_result.code, stage, explanation, metrics, approval
+            kind="denied",
+            code=native_result.code,
+            stage=stage,
+            explanation=explanation,
+            metrics=metrics,
+            approval=approval,
+            required_configuration=native_result.required_configuration,
+            local_configuration=bytes(native_result.local_configuration),
+            result_cbor=bytes(native_result.result_cbor),
         )
     return McpIndeterminate(
-        "indeterminate", native_result.code, stage, explanation, metrics, approval
+        kind="indeterminate",
+        code=native_result.code,
+        stage=stage,
+        explanation=explanation,
+        metrics=metrics,
+        approval=approval,
+        required_configuration=native_result.required_configuration,
+        local_configuration=bytes(native_result.local_configuration),
+        result_cbor=bytes(native_result.result_cbor),
     )
+
+
+class _PlanMemberApproval:
+    def __init__(
+        self, session: _PlanApprovalSession, index: int, member_commitment: bytes
+    ) -> None:
+        self._session = session
+        self._index = index
+        self._member_commitment = member_commitment
+
+    async def approve(self, request: ApprovalRequest) -> ApprovalResponse:
+        return await self._session.approve_member(
+            self._index, self._member_commitment, request
+        )
+
+
+class _PlanApprovalSession:
+    def __init__(
+        self,
+        *,
+        plan_approval: bytes,
+        member_commitments: Tuple[bytes, ...],
+        approval: ApprovalConfiguration,
+        provider: ApprovalProvider,
+        expires_at: int,
+        display: Tuple[ReviewField, ...],
+    ) -> None:
+        self._plan_approval = bytearray(plan_approval)
+        self._member_commitments = tuple(
+            bytearray(value) for value in member_commitments
+        )
+        self._approval = approval
+        self._provider = provider
+        self._expires_at = expires_at
+        self._display = display
+        self._uses = 0
+        self._approved = False
+        self._disposed = False
+
+    def provider_for(self, index: int, member_commitment: bytes) -> ApprovalProvider:
+        if self._disposed:
+            raise AuthsWorkflowError(
+                "approval-cancelled", "plan approval session is disposed"
+            )
+        if (
+            type(index) is not int
+            or index < 0
+            or index >= len(self._member_commitments)
+            or len(member_commitment) != 32
+            or not native.commitments_equal_v1(
+                bytes(self._member_commitments[index]), member_commitment
+            )
+        ):
+            raise AuthsWorkflowError(
+                "approval-response-mismatch",
+                "approval plan member commitment mismatch",
+            )
+        return _PlanMemberApproval(self, index, bytes(member_commitment))
+
+    async def approve_member(
+        self, index: int, member_commitment: bytes, request: ApprovalRequest
+    ) -> ApprovalResponse:
+        if self._disposed:
+            raise ProviderOperationError("cancelled")
+        if int(time.time()) > self._expires_at or int(time.time()) > request.expires_at:
+            raise ProviderOperationError("timeout")
+        if self._uses >= self._approval.policy.max_uses or index != self._uses:
+            raise ProviderOperationError("rejected")
+        if not native.commitments_equal_v1(
+            bytes(self._member_commitments[index]), member_commitment
+        ):
+            raise ProviderOperationError("rejected")
+        if not request.policy.matches(self._approval.policy.reference):
+            raise ProviderOperationError("rejected")
+        if not self._approved:
+            response = await self._provider.approve(
+                ApprovalRequest(
+                    request_id=request.request_id,
+                    object_kind=request.object_kind,
+                    transaction_digest=request.transaction_digest,
+                    policy=request.policy,
+                    expires_at=request.expires_at,
+                    display=(
+                        self._display
+                        + (
+                            ReviewField(
+                                "Plan commitment", bytes(self._plan_approval).hex()
+                            ),
+                            ReviewField(
+                                "Plan member",
+                                str(index + 1)
+                                + "/"
+                                + str(len(self._member_commitments)),
+                            ),
+                            ReviewField("Member commitment", member_commitment.hex()),
+                        )
+                        + request.display
+                    ),
+                )
+            )
+            if type(response) is not ApprovalResponse:
+                raise ProviderOperationError("rejected")
+            if response.decision != "approved":
+                return response
+            if (
+                response.request_id != request.request_id
+                or not native.commitments_equal_v1(
+                    response.transaction_digest, request.transaction_digest
+                )
+                or not response.policy.matches(request.policy)
+            ):
+                raise ProviderOperationError("rejected")
+            self._approved = True
+        self._uses += 1
+        return ApprovalResponse(
+            request.request_id,
+            request.transaction_digest,
+            request.policy,
+            "approved",
+        )
+
+    def dispose(self) -> None:
+        self._disposed = True
+        for index in range(len(self._plan_approval)):
+            self._plan_approval[index] = 0
+        for member in self._member_commitments:
+            for index in range(len(member)):
+                member[index] = 0
+
+
+async def _authorize_mcp_plan(
+    agent: AttachedAgent,
+    plan: McpPlan,
+    approval_provider: Optional[ApprovalProvider],
+    requests: Optional[Sequence[AuthorizationRequest]] = None,
+) -> McpPlanAuthorizationResult:
+    agent._assert_active()
+    if type(plan) is not McpPlan or plan._profile is not agent._profile:
+        raise AuthsWorkflowError(
+            "profile-mismatch", "MCP plan belongs to a different profile instance"
+        )
+    approval = agent._approval
+    if approval.policy.mode != "plan-once" or approval.policy.max_uses != plan.length:
+        raise AuthsWorkflowError(
+            "approval-policy-mismatch",
+            "plan-once approval must match the exact MCP plan length",
+        )
+    provider = approval.provider if approval_provider is None else approval_provider
+    if not callable(getattr(provider, "approve", None)):
+        raise TypeError("approval provider is invalid")
+    request_values = (
+        tuple(AuthorizationRequest() for _ in plan._actions)
+        if requests is None
+        else tuple(requests)
+    )
+    if len(request_values) != plan.length or any(
+        type(request) is not AuthorizationRequest for request in request_values
+    ):
+        raise ValueError("authorization requests must match the MCP plan length")
+    _validate_plan_members(plan)
+    started_at = int(time.time())
+    expires_at = started_at + approval.policy.expires_in_seconds
+    try:
+        plan_approval = native.commit_plan_approval(
+            plan._commitment,
+            approval.policy.reference.configuration_digest,
+            approval.policy.max_uses,
+            expires_at,
+        )
+    except (TypeError, ValueError):
+        raise AuthsWorkflowError(
+            "invalid-profile", "native authoring rejected the MCP plan approval"
+        ) from None
+    session = _PlanApprovalSession(
+        plan_approval=bytes(plan_approval),
+        member_commitments=plan._member_commitments,
+        approval=approval,
+        provider=provider,
+        expires_at=expires_at,
+        display=(
+            ReviewField("Profile", plan._profile.id + "/" + str(plan._profile.version)),
+            ReviewField("Actions", str(plan.length)),
+        ),
+    )
+    results: list[McpAuthorizationResult] = []
+    try:
+        for index, (action, request) in enumerate(zip(plan._actions, request_values)):
+            _validate_plan_members(plan)
+            member_approval = ApprovalConfiguration(
+                approval.policy,
+                session.provider_for(index, plan._member_commitments[index]),
+            )
+            result = await _authorize_mcp(agent, action, request, member_approval)
+            results.append(result)
+            if isinstance(result, McpDenied):
+                return McpPlanDenied(
+                    "denied",
+                    index,
+                    result,
+                    tuple(_plan_member_result(value) for value in results),
+                )
+            if isinstance(result, McpIndeterminate):
+                return McpPlanIndeterminate(
+                    "indeterminate",
+                    index,
+                    result,
+                    tuple(_plan_member_result(value) for value in results),
+                )
+        authorized = tuple(
+            result for result in results if isinstance(result, McpAuthorized)
+        )
+        if len(authorized) != plan.length:
+            raise AuthsWorkflowError(
+                "native-authorization-failed",
+                "MCP plan omitted an authorized member",
+            )
+        try:
+            command = native.seal_mcp_plan_command(
+                [result.command for result in authorized],
+                plan._profile.service,
+                plan._commitment,
+            )
+        except (TypeError, ValueError, RuntimeError):
+            raise AuthsWorkflowError(
+                "native-authorization-failed",
+                "native MCP profile rejected the verified plan",
+            ) from None
+        return McpPlanAuthorized(
+            "authorized",
+            command,
+            tuple(_authorized_member(result) for result in authorized),
+        )
+    finally:
+        session.dispose()
+
+
+def _validate_plan_members(plan: McpPlan) -> None:
+    try:
+        projection = native.commit_mcp_plan([action._call for action in plan._actions])
+    except (TypeError, ValueError):
+        raise AuthsWorkflowError(
+            "invalid-profile", "native MCP profile rejected the plan"
+        ) from None
+    if not native.commitments_equal_v1(
+        bytes(projection.commitment), plan._commitment
+    ) or len(projection.members) != len(plan._member_commitments):
+        raise AuthsWorkflowError(
+            "invalid-profile", "MCP plan membership changed after construction"
+        )
+    for actual, expected in zip(projection.members, plan._member_commitments):
+        if not native.commitments_equal_v1(bytes(actual), expected):
+            raise AuthsWorkflowError(
+                "invalid-profile", "MCP plan membership changed after construction"
+            )
+
+
+def _authorized_member(result: McpAuthorized) -> McpPlanMemberAuthorized:
+    return McpPlanMemberAuthorized(
+        kind="authorized",
+        code=result.code,
+        stage=result.stage,
+        explanation=result.explanation,
+        metrics=result.metrics,
+        approval=result.approval,
+        required_configuration=result.required_configuration,
+        local_configuration=result.local_configuration,
+        result_cbor=result.result_cbor,
+        action_commitment=result.action_commitment,
+    )
+
+
+def _plan_member_result(result: McpAuthorizationResult) -> McpPlanMemberResult:
+    if isinstance(result, McpAuthorized):
+        return _authorized_member(result)
+    return result
 
 
 def _native_evidence(value: ControlEvidence) -> Tuple[str, str, bytes]:
@@ -340,6 +827,14 @@ __all__ = [
     "McpGateway",
     "McpGatewayCall",
     "McpIndeterminate",
+    "McpPlan",
+    "McpPlanAuthority",
+    "McpPlanAuthorizationResult",
+    "McpPlanAuthorized",
+    "McpPlanDenied",
+    "McpPlanIndeterminate",
+    "McpPlanMemberAuthorized",
+    "McpPlanMemberResult",
     "McpProfile",
     "mcp",
 ]

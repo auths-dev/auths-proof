@@ -149,14 +149,64 @@ the configured service, cannot be copied or serialized, and is consumed by the
 gateway before the application callback runs. Denied and indeterminate results
 contain no command.
 
-## Adoption layer
+## Ordered plans
 
-The promoted claim remains the deterministic delegated-authority verifier
-(Level 3 of the repository's adoption ladder). The Python SDK now has the
-minimum attach, delegate, authorize, and MCP gateway vertical, but this does
-not promote it to a Full Workflow SDK. Importing `auths` performs no identity
-exchange, approval, gateway effect, receipt, or provider setup.
+Plan-once approval covers one exact ordered set of MCP calls. Rust commits the
+profile, each member position, the complete plan, the approval configuration,
+the permitted use count, and the expiry. Each member is still signed and
+verified independently. Python exposes a plan command only after every member
+authorizes, so a failed or cancelled plan cannot leak an earlier command.
 
-Supported wheels use the CPython 3.9 abi3 floor. PyPy, free-threaded CPython,
-alternative interpreters, production readiness, stable-v1 compatibility, and
-independent review of the new surface are not claimed.
+```python
+approval = Approval.plan_once(
+    "approval.reports-plan",
+    approval_provider,
+    max_uses=2,
+)
+plan = profile.plan(
+    (
+        profile.call("prepare_report", {"month": "august"}),
+        profile.call("publish_report", {"month": "august"}),
+    )
+)
+result = await agent.authorize_plan(plan)
+
+if result.kind == "authorized":
+    responses = await profile.gateway(execute).execute_plan(result.command)
+```
+
+The gateway consumes the plan command before invoking callbacks and preserves
+member order. It does not claim that remote provider effects form an atomic
+transaction.
+
+## Inspection and diagnostics
+
+`auths.advanced.inspect_decision` returns copied commitments, resource metrics,
+approval evidence, and bounded log fields. A caller-supplied diagnostic engine
+can return raw verifier bytes, but Rust parses those bytes into an explicitly
+inert result. Neither surface can construct a verified action, an MCP command,
+or a plan command.
+
+The application profile kit is deferred until a second independently
+implemented Python profile provides evidence for the right abstraction. MCP is
+the supported complete vertical; the SDK does not pretend one profile proves a
+generic profile framework.
+
+## Adoption and release boundary
+
+The implementation tier is repository-local Full Workflow SDK. It covers the
+same Rust-owned attach, delegate, authorize, plan, inspect, and closed MCP
+gateway contract as the TypeScript SDK. A shared Rust projection is asserted by
+both language bindings.
+
+The externally promoted release tier remains the deterministic verifier until
+independent review and publication authorization. Repository-local completion
+does not claim production readiness, stable-v1 compatibility, production
+custody adapters, or permission to publish.
+
+Wheels use the CPython 3.9 abi3 floor. CI builds native wheels on Linux, macOS,
+and Windows and executes installed-wheel consumers on CPython 3.9 and 3.14
+without a Rust toolchain. Strict mypy and Pyright consumers, an exact API
+snapshot, a wheel-content allowlist, architecture and compliance inventory,
+release SBOM generation, and SLSA provenance remain enforced repository gates.
+PyPy, free-threaded CPython, and alternative interpreters are not claimed.

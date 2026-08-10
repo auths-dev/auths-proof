@@ -1,4 +1,5 @@
 import { createPrivateKey, sign as signBytes } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -10,6 +11,7 @@ import {
   trustedContextSource,
 } from "../../../dist/index.js";
 import { inspectDecision } from "../../../dist/inspection.js";
+import { loadVerifier } from "../../../dist/verify.js";
 import { McpAction, McpCommand, mcp } from "../../../dist/mcp.js";
 import { ApplicationAction, ApplicationCommand, defineProfile } from "../../../dist/profile-kit.js";
 import {
@@ -22,6 +24,12 @@ import {
   policy,
   vector,
 } from "../helpers/mcp-fixture.js";
+
+const workflowProjection = () => JSON.parse(readFileSync(
+  new URL("../../../../../target/binding-vectors/workflow.projection.json", import.meta.url),
+  "utf8",
+));
+const hex = (value) => Buffer.from(value).toString("hex");
 
 test("application profile kit uses the native authoring and verification path", async () => {
   const originalNow = Date.now;
@@ -185,6 +193,64 @@ test("MCP facade canonicalizes signs assembles and authorizes locally", async ()
     assert.equal(calls[0].name, "update_demo_record");
     assert.equal(counters.approvals, 1);
     assert.equal(counters.signatures, 1);
+    await client.dispose();
+  } finally {
+    Date.now = originalNow;
+  }
+});
+
+test("shared Rust workflow projection matches TypeScript", async () => {
+  const projection = workflowProjection();
+  const verifier = await loadVerifier();
+  const result = verifier.verify(
+    vector("workflow.proof.cbor"),
+    vector("workflow.action.cbor"),
+    vector("workflow.context.cbor"),
+  );
+  const inspection = await inspectDecision(result);
+
+  assert.equal(projection.schema, "auths.full-workflow-projection/1");
+  assert.equal(result.kind, projection.verdict);
+  assert.equal(result.stage, projection.stage);
+  assert.equal(result.code, projection.code);
+  assert.deepEqual(
+    Object.fromEntries(Object.entries(result.metrics).map(([key, value]) => [key, Number(value)])),
+    projection.metrics,
+  );
+  assert.equal(hex(result.resultCbor), hex(vector("workflow.result.cbor")));
+  assert.equal(hex(inspection.commitments.action), projection.commitments.action);
+  assert.equal(hex(inspection.commitments.result), projection.commitments.result);
+  assert.equal(
+    hex(inspection.commitments.localConfiguration),
+    projection.commitments.localConfiguration,
+  );
+
+  const profile = mcp.profile({ service: projection.command.service });
+  const action = profile.call(
+    projection.command.name,
+    JSON.parse(projection.command.argumentsJson),
+  );
+  const plan = await profile.plan([action, action]);
+  assert.equal(hex(plan.commitment), projection.commitments.plan);
+  const wasm = await packagedWasm();
+  assert.equal(
+    hex(wasm.commitPlanApprovalV1(plan.commitment, new Uint8Array(32).fill(7), 2, 350n)),
+    projection.commitments.planApproval,
+  );
+
+  const originalNow = Date.now;
+  Date.now = () => 50_000;
+  try {
+    const { client, agent, profile: attachedProfile } = await fixture();
+    const authorized = await agent.authorize(
+      attachedProfile.call(projection.command.name, JSON.parse(projection.command.argumentsJson)),
+    );
+    assert.equal(authorized.kind, "authorized");
+    const calls = [];
+    await attachedProfile.gateway(async (call) => calls.push(call)).execute(authorized.command);
+    assert.equal(calls[0].service, projection.command.service);
+    assert.equal(calls[0].name, projection.command.name);
+    assert.equal(new TextDecoder().decode(calls[0].argumentsJson), projection.command.argumentsJson);
     await client.dispose();
   } finally {
     Date.now = originalNow;

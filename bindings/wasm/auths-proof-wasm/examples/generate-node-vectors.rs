@@ -324,6 +324,7 @@ fn write_mcp_workflow_vectors(output: &std::path::Path) -> Result<(), Box<dyn st
             auths_model::CriticalExtensions::empty(),
         ),
     )?;
+    let child_diff = child_plan.diff().clone();
     let child_signing = auths_author::prepare_grant(child_plan.into_statement(), actor_signature)?;
     let child_grant_signature = actor_key.sign(child_signing.signing_preimage()).to_bytes();
     let signed_child = child_signing.complete(auths_model::SignatureBytes::new(
@@ -338,7 +339,7 @@ fn write_mcp_workflow_vectors(output: &std::path::Path) -> Result<(), Box<dyn st
         auths_codec::encode_signed_grant(&signed_child)?,
     )?;
     let child_action = auths_author::prepare_profile_action(
-        canonical,
+        canonical.clone(),
         call.audience()?,
         child.clone(),
         &signed_child,
@@ -375,7 +376,167 @@ fn write_mcp_workflow_vectors(output: &std::path::Path) -> Result<(), Box<dyn st
     fs::write(output.join("mcp.actor-seed.bin"), [12; 32])?;
     fs::write(output.join("mcp.child-seed.bin"), [13; 32])?;
     fs::write(output.join("mcp.child-principal.txt"), child.as_str())?;
+    write_shared_workflow_projection(
+        output,
+        &root_descriptor,
+        &actor_descriptor,
+        &actor_key,
+        &actor,
+        &signed,
+        &context,
+        &call,
+        &canonical,
+        &child_diff,
+    )?;
     Ok(())
+}
+
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
+fn write_shared_workflow_projection(
+    output: &std::path::Path,
+    root_descriptor: &auths_raw_key::RawKeyDescriptor,
+    actor_descriptor: &auths_raw_key::RawKeyDescriptor,
+    actor_key: &SigningKey,
+    actor: &auths_model::PrincipalId,
+    root_grant: &auths_model::SignedGrant,
+    context: &auths_model::VerifierContext,
+    call: &auths_profile_mcp::McpToolCall,
+    canonical: &auths_model::CanonicalAction,
+    child_diff: &auths_author::AuthorityDiff,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let prepared = auths_author::prepare_profile_action(
+        canonical.clone(),
+        call.audience()?,
+        actor.clone(),
+        root_grant,
+        [0x22; 32],
+        50,
+    )?;
+    let signing = auths_author::prepare_action(
+        prepared.envelope().clone(),
+        auths_model::SignatureDescriptor::new(
+            auths_model::PrincipalMethodId::parse(auths_raw_key::RAW_KEY_V1)?,
+            auths_model::VerificationMethod::parse(actor.as_str())?,
+            auths_model::SignatureSuiteId::parse("ed25519-v1")?,
+        ),
+    )?;
+    let signature = actor_key.sign(signing.signing_preimage());
+    let signed_action = signing.complete(auths_model::SignatureBytes::new(
+        signature.to_bytes().to_vec(),
+    )?);
+    let mut proof = auths_author::WorkflowProofBuilder::new();
+    let grant_index = proof.push_grant(root_grant.clone())?;
+    proof.bind_grant_evidence(
+        grant_index,
+        auths_author::address_evidence(
+            auths_model::EvidenceTypeId::parse(auths_raw_key::RAW_KEY_V1)?,
+            auths_model::MediaType::parse("application/vnd.auths.raw-key.v1")?,
+            root_descriptor.encode(),
+        )?,
+    )?;
+    proof.bind_action_evidence(auths_author::address_evidence(
+        auths_model::EvidenceTypeId::parse(auths_raw_key::RAW_KEY_V1)?,
+        auths_model::MediaType::parse("application/vnd.auths.raw-key.v1")?,
+        actor_descriptor.encode(),
+    )?)?;
+    let artifacts = proof.finish(&signed_action, canonical, context)?;
+    let proof_cbor = auths_codec::encode_bundle(artifacts.proof())?;
+    let action_cbor = auths_codec::encode_canonical_action(canonical)?;
+    let context_cbor = auths_codec::encode_verifier_context(artifacts.context())?;
+    let result_cbor =
+        auths_proof_wasm::verify_self_contained_v1(&proof_cbor, &action_cbor, &context_cbor)?;
+    fs::write(output.join("workflow.proof.cbor"), &proof_cbor)?;
+    fs::write(output.join("workflow.action.cbor"), &action_cbor)?;
+    fs::write(output.join("workflow.context.cbor"), &context_cbor)?;
+    fs::write(output.join("workflow.result.cbor"), &result_cbor)?;
+    let result = auths_codec::decode_verification_result(&result_cbor)?;
+    let member = auths_author::ProfilePlanMember::encode(
+        canonical,
+        &auths_model::ResourceId::parse("mcp://reports")?,
+        &call.audience()?,
+    )?;
+    let plan = auths_author::ProfilePlanCommitment::commit(
+        auths_profile_mcp::PROFILE_ID,
+        auths_profile_mcp::PROFILE_VERSION,
+        &[member.as_slice(), member.as_slice()],
+    )?;
+    let plan_approval =
+        auths_author::commit_plan_approval(plan.plan().as_bytes(), &[7; 32], 2, 350)?;
+    let resources = result.resources();
+    let projection = serde_json::json!({
+        "schema": "auths.full-workflow-projection/1",
+        "verdict": decision_label(result.decision()),
+        "stage": stage_label(result.stage()),
+        "code": result.code().code(),
+        "commitments": {
+            "action": hex(auths_codec::domain_commitment("auths.canonical-action.v1", &action_cbor)?.as_bytes()),
+            "result": hex(auths_codec::domain_commitment("auths.verification-result.v1", &result_cbor)?.as_bytes()),
+            "localConfiguration": hex(auths_codec::domain_commitment(
+                "auths.verifier-configuration.v1",
+                result.local_configuration().as_bytes(),
+            )?.as_bytes()),
+            "plan": hex(plan.plan().as_bytes()),
+            "planMembers": plan.members().iter().map(|value| hex(value.as_bytes())).collect::<Vec<_>>(),
+            "planApproval": hex(plan_approval.as_bytes()),
+        },
+        "metrics": {
+            "proofBytes": resources.proof_bytes(),
+            "actionBytes": resources.action_bytes(),
+            "contextBytes": resources.context_bytes(),
+            "objectCount": resources.object_count(),
+            "planLeaves": resources.plan_leaves(),
+            "planDepth": resources.plan_depth(),
+            "workUnits": resources.work_units(),
+        },
+        "authorityDiff": {
+            "removedPermissions": child_diff.removed_permissions(),
+            "removedAudiences": child_diff.removed_audiences(),
+            "validityShortened": child_diff.validity_shortened(),
+            "actionNarrowed": child_diff.action_narrowed(),
+            "budgetNarrowed": child_diff.budget_narrowed(),
+            "statusNarrowed": child_diff.status_narrowed(),
+            "delegationDepth": child_diff.delegation_depth(),
+        },
+        "command": {
+            "profile": "auths.mcp/1",
+            "service": call.service(),
+            "name": call.name(),
+            "argumentsJson": String::from_utf8(serde_json_canonicalizer::to_vec(call.arguments())?)?,
+        },
+    });
+    fs::write(
+        output.join("workflow.projection.json"),
+        serde_json::to_vec_pretty(&projection)?,
+    )?;
+    Ok(())
+}
+
+fn decision_label(decision: auths_model::VerificationDecision) -> &'static str {
+    match decision {
+        auths_model::VerificationDecision::Authorized => "authorized",
+        auths_model::VerificationDecision::Denied => "denied",
+        auths_model::VerificationDecision::Indeterminate => "indeterminate",
+    }
+}
+
+fn stage_label(stage: auths_model::VerificationStage) -> &'static str {
+    match stage {
+        auths_model::VerificationStage::Decode => "decode",
+        auths_model::VerificationStage::Resolve => "resolve",
+        auths_model::VerificationStage::PrincipalControl => "principal-control",
+        auths_model::VerificationStage::Authority => "authority",
+        auths_model::VerificationStage::Complete => "complete",
+    }
+}
+
+fn hex(bytes: &[u8]) -> String {
+    const DIGITS: &[u8; 16] = b"0123456789abcdef";
+    let mut value = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        value.push(DIGITS[usize::from(byte >> 4)] as char);
+        value.push(DIGITS[usize::from(byte & 0x0f)] as char);
+    }
+    value
 }
 
 fn delegation_root(

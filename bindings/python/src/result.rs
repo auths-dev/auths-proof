@@ -1,12 +1,16 @@
 #![allow(clippy::needless_pass_by_value, clippy::unused_self)]
 
-use auths_model::{PortableVerificationResult, VerificationDecision, VerificationStage};
+use auths_model::{
+    DEFAULT_MAX_ACTION_BYTES, DEFAULT_MAX_BUNDLE_BYTES, DEFAULT_MAX_CONTEXT_BYTES,
+    PortableVerificationResult, VerificationDecision, VerificationStage,
+};
 use auths_ports::{PrincipalMethod, SignatureSuite};
 use pyo3::{
-    exceptions::{PyRuntimeError, PyTypeError},
+    exceptions::{PyRuntimeError, PyTypeError, PyValueError},
     prelude::*,
     types::PyBytes,
 };
+use subtle::ConstantTimeEq as _;
 
 pub const NATIVE_ABI_V1: u16 = 1;
 
@@ -119,6 +123,45 @@ fn verify_v1(
     native_result(py, sealed)
 }
 
+#[pyfunction]
+fn decode_diagnostic_result_v1(result_cbor: &[u8]) -> PyResult<NativeVerificationResult> {
+    let portable = auths_codec::decode_verification_result(result_cbor).map_err(runtime_error)?;
+    Ok(NativeVerificationResult {
+        portable,
+        result_cbor: result_cbor.to_vec(),
+        action: None,
+    })
+}
+
+#[pyfunction]
+fn commit_canonical_v1<'py>(
+    py: Python<'py>,
+    domain: &str,
+    canonical: &[u8],
+) -> PyResult<Bound<'py, PyBytes>> {
+    let commitment = auths_codec::domain_commitment(domain, canonical).map_err(runtime_error)?;
+    Ok(PyBytes::new(py, commitment.as_bytes()))
+}
+
+#[pyfunction]
+const fn diagnostic_input_limits_v1() -> (usize, usize, usize) {
+    (
+        DEFAULT_MAX_BUNDLE_BYTES,
+        DEFAULT_MAX_ACTION_BYTES,
+        DEFAULT_MAX_CONTEXT_BYTES,
+    )
+}
+
+#[pyfunction]
+fn commitments_equal_v1(left: &[u8], right: &[u8]) -> PyResult<bool> {
+    if left.len() != 32 || right.len() != 32 {
+        return Err(PyValueError::new_err(
+            "native commitments must contain 32 bytes",
+        ));
+    }
+    Ok(bool::from(left.ct_eq(right)))
+}
+
 pub(crate) fn verify_sealed(
     proof_cbor: &[u8],
     canonical_action_cbor: &[u8],
@@ -172,6 +215,10 @@ pub fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<NativeVerificationResult>()?;
     module.add_function(wrap_pyfunction!(native_abi_version_v1, module)?)?;
     module.add_function(wrap_pyfunction!(verify_v1, module)?)?;
+    module.add_function(wrap_pyfunction!(decode_diagnostic_result_v1, module)?)?;
+    module.add_function(wrap_pyfunction!(commit_canonical_v1, module)?)?;
+    module.add_function(wrap_pyfunction!(diagnostic_input_limits_v1, module)?)?;
+    module.add_function(wrap_pyfunction!(commitments_equal_v1, module)?)?;
     module.add_function(wrap_pyfunction!(inspect_verified_action, module)?)?;
     Ok(())
 }

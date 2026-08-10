@@ -1,0 +1,169 @@
+name: Python SDK package
+
+on:
+  pull_request:
+    paths:
+      - "bindings/python/**"
+      - "bindings/wasm/auths-proof-wasm/examples/generate-node-vectors.rs"
+      - ".github/workflows/python-sdk.yml"
+      - "Cargo.lock"
+      - "Cargo.toml"
+  push:
+    branches: [main]
+    paths:
+      - "bindings/python/**"
+      - "bindings/wasm/auths-proof-wasm/examples/generate-node-vectors.rs"
+      - ".github/workflows/python-sdk.yml"
+      - "Cargo.lock"
+      - "Cargo.toml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  consumer-contract:
+    name: build external-consumer contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust-cache
+        with:
+          toolchain: 1.97.1
+      - run: >-
+          cargo run --locked -p auths-proof-wasm
+          --example generate-node-vectors -- target/binding-vectors
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: python-sdk-consumer-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            target/binding-vectors/
+            bindings/python/api/public-api.txt
+            bindings/python/external/full_workflow_consumer.py
+            bindings/python/pyrightconfig.json
+            bindings/python/python/auths/
+            bindings/python/tools/check_public_api.py
+            bindings/python/tools/check_wheel.py
+            bindings/python/typecheck/*.py
+            bindings/python/typecheck/installed-pyrightconfig.json
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 9
+
+  wheel-build:
+    name: build abi3 wheel (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust-cache
+        with:
+          toolchain: 1.97.1
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.9"
+      - run: python -m pip install maturin==1.9.6
+      - run: >-
+          maturin build --release --locked
+          --manifest-path bindings/python/Cargo.toml
+          --out target/python-release-wheels
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: python-wheel-${{ matrix.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/python-release-wheels/*.whl
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
+
+  installed-workflow:
+    name: installed CPython ${{ matrix.python }} (${{ matrix.os }})
+    needs: [consumer-contract, wheel-build]
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python: ["3.9", "3.14"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: ${{ matrix.python }}
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: python-wheel-${{ matrix.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: wheelhouse
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: python-sdk-consumer-${{ github.run_id }}-${{ github.run_attempt }}
+          path: consumer
+      - name: Remove the build toolchain from the consumer boundary
+        shell: bash
+        run: |
+          if command -v rustup >/dev/null 2>&1; then
+            rustup self uninstall -y
+          fi
+          if command -v cargo >/dev/null 2>&1; then
+            echo "::error::External wheel workflow must run without Rust."
+            exit 1
+          fi
+      - name: Install only the built wheel
+        shell: bash
+        run: python -m pip install wheelhouse/*.whl
+      - name: Inspect exact wheel contents
+        shell: bash
+        run: python consumer/bindings/python/tools/check_wheel.py wheelhouse/*.whl
+      - name: Execute the external Full Workflow consumer
+        shell: bash
+        working-directory: ${{ runner.temp }}
+        run: >-
+          python "${{ github.workspace }}/consumer/bindings/python/external/full_workflow_consumer.py"
+          "${{ github.workspace }}/consumer/target/binding-vectors"
+
+  typing-and-api:
+    name: installed typing and API contract
+    needs: [consumer-contract, wheel-build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.9"
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: python-wheel-ubuntu-latest-${{ github.run_id }}-${{ github.run_attempt }}
+          path: wheelhouse
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: python-sdk-consumer-${{ github.run_id }}-${{ github.run_attempt }}
+          path: consumer
+      - name: Install the wheel and pinned type checkers
+        shell: bash
+        run: >-
+          python -m pip install wheelhouse/*.whl
+          mypy==1.19.1 pyright==1.1.407
+      - name: Check strict mypy source contract
+        run: >-
+          python -m mypy --strict --warn-unused-ignores
+          consumer/bindings/python/python/auths
+      - name: Check installed mypy consumer narrowing and negative boundaries
+        run: >-
+          python -m mypy --strict --warn-unused-ignores
+          consumer/bindings/python/typecheck/mcp_consumer.py
+          consumer/bindings/python/typecheck/workflow_consumer.py
+          consumer/bindings/python/typecheck/mypy_negative.py
+      - name: Check strict Pyright source contract
+        run: >-
+          python -m pyright --pythonpath "$(command -v python)"
+          -p consumer/bindings/python/pyrightconfig.json
+      - name: Check installed Pyright consumer narrowing and negative boundaries
+        run: >-
+          python -m pyright --pythonpath "$(command -v python)"
+          -p consumer/bindings/python/typecheck/installed-pyrightconfig.json
+      - name: Check the installed public API snapshot
+        run: python consumer/bindings/python/tools/check_public_api.py

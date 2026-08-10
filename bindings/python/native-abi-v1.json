@@ -20,7 +20,9 @@
     "AuthorizationPlanBuilder",
     "McpAction",
     "McpCall",
+    "NativeMcpPlan",
     "McpCommand",
+    "McpPlanCommand",
     "McpGatewayCall",
     "AssurancePolicy",
     "TrustAnchor",
@@ -48,12 +50,20 @@
     "validate_mcp_service",
     "mcp_call",
     "prepare_mcp_call_action",
+    "commit_mcp_plan",
+    "commit_plan_approval",
     "authorize_mcp",
     "consume_mcp_command",
+    "seal_mcp_plan_command",
+    "consume_mcp_plan_command",
     "status_snapshot",
     "compile_trusted_context",
     "self_contained_configuration",
-    "verify_v1"
+    "verify_v1",
+    "decode_diagnostic_result_v1",
+    "commit_canonical_v1",
+    "diagnostic_input_limits_v1",
+    "commitments_equal_v1"
   ],
   "advancedInspection": [
     "inspect_verified_action",
@@ -77,7 +87,13 @@
     "McpCommand has no copy, pickle, subclass, mutation, or buffer path",
     "only a native authorized VerifiedAction decodes into McpCommand",
     "McpCommand is service-bound and single-use",
-    "denied and indeterminate MCP results contain no command"
+    "denied and indeterminate MCP results contain no command",
+    "McpPlanCommand has no Python constructor",
+    "McpPlanCommand has no copy, pickle, subclass, mutation, or buffer path",
+    "McpPlanCommand is sealed only after every exact ordered member authorizes",
+    "McpPlanCommand is service-bound and single-use",
+    "failed plans expose no command from any earlier authorized member",
+    "diagnostic results are native-decoded evidence and cannot mint an effect capability"
   ],
   "workflowInvariants": [
     "approval configuration commitments are derived by auths-author",
@@ -89,6 +105,10 @@
     "signing transactions are single-use and terminal after rejection, mismatch, expiry, cancellation or completion",
     "proof and request-context assembly is bounded and owned by auths-author",
     "MCP permission mapping and command decoding are owned by auths-profile-mcp",
-    "a gateway effect requires a native-sealed command for the exact configured service"
+    "a gateway effect requires a native-sealed command for the exact configured service",
+    "plan commitments bind profile, exact membership, order, and duplicate positions",
+    "plan-once approval is bounded by the native plan approval commitment, policy configuration, exact use count, and expiry",
+    "ordered plan execution consumes the native command before application callbacks and does not claim remote atomicity",
+    "inspection commitments and resource metrics are computed from native-owned canonical values"
   ]
 }
