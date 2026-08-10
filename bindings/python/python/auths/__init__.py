@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from typing import Literal, Optional, Union
 
 from . import workflow as _workflow
+from . import mcp as _mcp
+from .mcp import *  # noqa: F403
 from .workflow import *  # noqa: F403
 
 from ._native import VerifiedAction, verify_v1
@@ -141,13 +143,17 @@ def _explain(kind: VerdictKind, code: str) -> Explanation:
     return Explanation(code=code, message=message, retryable=kind == "indeterminate")
 
 
-__all__ = [
-    "Authorized",
-    "Denied",
-    "Explanation",
-    "Indeterminate",
-    "VerificationMetrics",
-    "VerificationResult",
-    "VerifiedAction",
-    "verify",
-] + _workflow.__all__
+__all__ = (
+    [
+        "Authorized",
+        "Denied",
+        "Explanation",
+        "Indeterminate",
+        "VerificationMetrics",
+        "VerificationResult",
+        "VerifiedAction",
+        "verify",
+    ]
+    + _workflow.__all__
+    + _mcp.__all__
+)

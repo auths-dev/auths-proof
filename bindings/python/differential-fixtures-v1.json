@@ -36,7 +36,14 @@
       "name": "mcp-profile-action",
       "inputs": [
         "mcp.signed-root-grant.cbor",
-        "{\"value\":\"reviewed\"}"
+        "{\"value\":\"reviewed\"}",
+        "mcp.action-signature.bin",
+        "mcp.denied-action-signature.bin",
+        "mcp.signed-child-grant.cbor",
+        "mcp.child-grant-signature.bin",
+        "mcp.child-action-signature.bin",
+        "mcp.child-evidence.bin",
+        "mcp.child-principal.txt"
       ],
       "projection": "profile, permission, audience, resource, canonical arguments and signing request"
     },

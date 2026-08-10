@@ -19,6 +19,9 @@
     "AuthorizationPlan",
     "AuthorizationPlanBuilder",
     "McpAction",
+    "McpCall",
+    "McpCommand",
+    "McpGatewayCall",
     "AssurancePolicy",
     "TrustAnchor",
     "StatusSnapshot",
@@ -42,6 +45,11 @@
     "prepare_signing",
     "prepare_signing_transaction",
     "prepare_mcp_action",
+    "validate_mcp_service",
+    "mcp_call",
+    "prepare_mcp_call_action",
+    "authorize_mcp",
+    "consume_mcp_command",
     "status_snapshot",
     "compile_trusted_context",
     "self_contained_configuration",
@@ -56,6 +64,7 @@
     "inspect_trusted_context",
     "parse_unsigned",
     "parse_signed",
+    "parse_trusted_context",
     "unsigned_from_signed"
   ],
   "capabilityInvariants": [
@@ -63,7 +72,12 @@
     "VerifiedAction has no copy, pickle, subclass, mutation, or buffer path",
     "only an authorized native verifier branch returns VerifiedAction",
     "denied and indeterminate results contain no capability",
-    "canonical bytes cannot be promoted into VerifiedAction"
+    "canonical bytes cannot be promoted into VerifiedAction",
+    "McpCommand has no Python constructor",
+    "McpCommand has no copy, pickle, subclass, mutation, or buffer path",
+    "only a native authorized VerifiedAction decodes into McpCommand",
+    "McpCommand is service-bound and single-use",
+    "denied and indeterminate MCP results contain no command"
   ],
   "workflowInvariants": [
     "approval configuration commitments are derived by auths-author",
@@ -72,6 +86,9 @@
     "issuer and parent linkage are derived by native authoring",
     "approval responses bind policy, request and transaction before signing",
     "signer responses bind provider call, request, principal, descriptor and transaction through auths-custody",
-    "signing transactions are single-use and terminal after rejection, mismatch, expiry, cancellation or completion"
+    "signing transactions are single-use and terminal after rejection, mismatch, expiry, cancellation or completion",
+    "proof and request-context assembly is bounded and owned by auths-author",
+    "MCP permission mapping and command decoding are owned by auths-profile-mcp",
+    "a gateway effect requires a native-sealed command for the exact configured service"
   ]
 }

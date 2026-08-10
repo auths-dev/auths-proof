@@ -83,7 +83,7 @@
         "core/crates/auths-verifier/src",
         "core/spec/v1"
       ],
-      "sha256": "bbf5806c829bd6b606fc8683d8b039dbbdbee82ccb15558506c814af3e0e1dfd"
+      "sha256": "2bffcc027a74bc4e089224c371a670e727a5730d06c8445366840f263bf53672"
     },
     {
       "id": "auths.frozen-bytes/architecture/dependency-graph.json",

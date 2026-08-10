@@ -14,6 +14,7 @@ from ._native import (
     inspect_unsigned,
     inspect_verified_action,
     parse_signed,
+    parse_trusted_context,
     parse_unsigned,
     unsigned_from_signed,
 )
@@ -53,6 +54,10 @@ def parse_unsigned_object(kind: str, value: bytes) -> UnsignedObject:
     return parse_unsigned(kind, value)
 
 
+def parse_trusted_context_bytes(value: bytes) -> TrustedContext:
+    return parse_trusted_context(value)
+
+
 def signed_object_statement(value: SignedObject) -> UnsignedObject:
     return unsigned_from_signed(value)
 
@@ -62,6 +67,7 @@ __all__ = [
     "canonical_action_bytes",
     "mcp_action_bytes",
     "parse_signed_object",
+    "parse_trusted_context_bytes",
     "parse_unsigned_object",
     "signed_object_bytes",
     "signed_object_statement",

@@ -91,7 +91,15 @@
       "mcp.root-evidence.bin",
       "mcp.actor-evidence.bin",
       "mcp.root-seed.bin",
-      "mcp.actor-seed.bin"
+      "mcp.actor-seed.bin",
+      "mcp.action-signature.bin",
+      "mcp.denied-action-signature.bin",
+      "mcp.signed-child-grant.cbor",
+      "mcp.child-grant-signature.bin",
+      "mcp.child-action-signature.bin",
+      "mcp.child-evidence.bin",
+      "mcp.child-seed.bin",
+      "mcp.child-principal.txt"
     ]
   }
 }

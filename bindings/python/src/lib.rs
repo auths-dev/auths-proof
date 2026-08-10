@@ -3,6 +3,7 @@
 #![forbid(unsafe_code)]
 
 mod authoring;
+mod mcp;
 mod result;
 mod workflow;
 
@@ -12,6 +13,7 @@ use pyo3::prelude::*;
 #[pymodule]
 fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     authoring::register(module)?;
+    mcp::register(module)?;
     result::register(module)?;
     workflow::register(module)?;
     Ok(())

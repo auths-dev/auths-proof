@@ -164,6 +164,7 @@ fn write_scenario_vectors(output: &std::path::Path) -> Result<(), Box<dyn std::e
 fn write_mcp_workflow_vectors(output: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
     let root_key = SigningKey::from_bytes(&[11; 32]);
     let actor_key = SigningKey::from_bytes(&[12; 32]);
+    let child_key = SigningKey::from_bytes(&[13; 32]);
     let root_descriptor = auths_raw_key::RawKeyDescriptor::new(
         auths_raw_key::RawKeyType::Ed25519,
         root_key.verifying_key().to_bytes().to_vec(),
@@ -174,8 +175,14 @@ fn write_mcp_workflow_vectors(output: &std::path::Path) -> Result<(), Box<dyn st
         actor_key.verifying_key().to_bytes().to_vec(),
     )
     .map_err(|_| std::io::Error::other("invalid fixed actor key"))?;
+    let child_descriptor = auths_raw_key::RawKeyDescriptor::new(
+        auths_raw_key::RawKeyType::Ed25519,
+        child_key.verifying_key().to_bytes().to_vec(),
+    )
+    .map_err(|_| std::io::Error::other("invalid fixed child key"))?;
     let root = root_descriptor.principal()?;
     let actor = actor_descriptor.principal()?;
+    let child = child_descriptor.principal()?;
     let call = auths_profile_mcp::McpToolCall::new(
         "reports",
         "update_demo_record",
@@ -202,7 +209,7 @@ fn write_mcp_workflow_vectors(output: &std::path::Path) -> Result<(), Box<dyn st
             auths_model::BudgetAlgebraId::parse("numeric-ceiling-v1")?,
             20,
         )),
-        1,
+        2,
         auths_model::AssurancePolicyId::parse("raw-key-baseline")?,
         auths_model::StatusPolicy::ExpiryOnly,
     )?;
@@ -228,7 +235,7 @@ fn write_mcp_workflow_vectors(output: &std::path::Path) -> Result<(), Box<dyn st
     )?;
     let statement = auths_model::GrantStatement::new(
         root.clone(),
-        actor,
+        actor.clone(),
         canonical.profile().clone(),
         auths_model::PermissionSet::new(vec![canonical.permission().clone()])?,
         auths_model::ValidityWindow::new(
@@ -241,7 +248,7 @@ fn write_mcp_workflow_vectors(output: &std::path::Path) -> Result<(), Box<dyn st
             auths_model::BudgetAlgebraId::parse("numeric-ceiling-v1")?,
             20,
         )),
-        0,
+        1,
         None,
         auths_model::StatusPolicy::ExpiryOnly,
         auths_model::AssurancePolicyId::parse("raw-key-baseline")?,
@@ -264,6 +271,94 @@ fn write_mcp_workflow_vectors(output: &std::path::Path) -> Result<(), Box<dyn st
         output.join("mcp.signed-root-grant.cbor"),
         auths_codec::encode_signed_grant(&signed)?,
     )?;
+    let actor_signature = auths_model::SignatureDescriptor::new(
+        auths_model::PrincipalMethodId::parse(auths_raw_key::RAW_KEY_V1)?,
+        auths_model::VerificationMethod::parse(actor.as_str())?,
+        auths_model::SignatureSuiteId::parse("ed25519-v1")?,
+    );
+    for (name, file) in [
+        ("update_demo_record", "mcp.action-signature.bin"),
+        ("delete_demo_record", "mcp.denied-action-signature.bin"),
+    ] {
+        let action_call = auths_profile_mcp::McpToolCall::new(
+            "reports",
+            name,
+            serde_json::from_value(serde_json::json!({"value": "reviewed"}))?,
+        )?;
+        let action_canonical =
+            auths_profile_mcp::McpProfile.canonicalize(&action_call.canonical_bytes()?)?;
+        let prepared = auths_author::prepare_profile_action(
+            action_canonical,
+            action_call.audience()?,
+            actor.clone(),
+            &signed,
+            [0x22; 32],
+            50,
+        )?;
+        let signing =
+            auths_author::prepare_action(prepared.envelope().clone(), actor_signature.clone())?;
+        fs::write(
+            output.join(file),
+            actor_key.sign(signing.signing_preimage()).to_bytes(),
+        )?;
+    }
+    let child_plan = auths_author::plan_child_grant(
+        signed.statement(),
+        auths_author::GrantRequest::new(
+            child.clone(),
+            canonical.profile().clone(),
+            auths_model::PermissionSet::new(vec![canonical.permission().clone()])?,
+            auths_model::ValidityWindow::new(
+                auths_model::Timestamp::new(30),
+                auths_model::Timestamp::new(70),
+            )?,
+            auths_model::AudienceSet::new(vec![call.audience()?])?,
+            auths_model::ActionConstraint::AnyBody,
+            Some(auths_model::BudgetCeiling::new(
+                auths_model::BudgetAlgebraId::parse("numeric-ceiling-v1")?,
+                10,
+            )),
+            0,
+            auths_model::StatusPolicy::ExpiryOnly,
+            auths_model::AssurancePolicyId::parse("raw-key-baseline")?,
+            auths_model::CriticalExtensions::empty(),
+        ),
+    )?;
+    let child_signing = auths_author::prepare_grant(child_plan.into_statement(), actor_signature)?;
+    let child_grant_signature = actor_key.sign(child_signing.signing_preimage()).to_bytes();
+    let signed_child = child_signing.complete(auths_model::SignatureBytes::new(
+        child_grant_signature.to_vec(),
+    )?);
+    fs::write(
+        output.join("mcp.child-grant-signature.bin"),
+        child_grant_signature,
+    )?;
+    fs::write(
+        output.join("mcp.signed-child-grant.cbor"),
+        auths_codec::encode_signed_grant(&signed_child)?,
+    )?;
+    let child_action = auths_author::prepare_profile_action(
+        canonical,
+        call.audience()?,
+        child.clone(),
+        &signed_child,
+        [0x22; 32],
+        50,
+    )?;
+    let child_action_signing = auths_author::prepare_action(
+        child_action.envelope().clone(),
+        auths_model::SignatureDescriptor::new(
+            auths_model::PrincipalMethodId::parse(auths_raw_key::RAW_KEY_V1)?,
+            auths_model::VerificationMethod::parse(child.as_str())?,
+            auths_model::SignatureSuiteId::parse("ed25519-v1")?,
+        ),
+    )?;
+    fs::write(
+        output.join("mcp.child-action-signature.bin"),
+        child_key
+            .sign(child_action_signing.signing_preimage())
+            .to_bytes(),
+    )?;
     fs::write(
         output.join("mcp.root-evidence.bin"),
         root_descriptor.encode(),
@@ -272,8 +367,14 @@ fn write_mcp_workflow_vectors(output: &std::path::Path) -> Result<(), Box<dyn st
         output.join("mcp.actor-evidence.bin"),
         actor_descriptor.encode(),
     )?;
+    fs::write(
+        output.join("mcp.child-evidence.bin"),
+        child_descriptor.encode(),
+    )?;
     fs::write(output.join("mcp.root-seed.bin"), [11; 32])?;
     fs::write(output.join("mcp.actor-seed.bin"), [12; 32])?;
+    fs::write(output.join("mcp.child-seed.bin"), [13; 32])?;
+    fs::write(output.join("mcp.child-principal.txt"), child.as_str())?;
     Ok(())
 }
 

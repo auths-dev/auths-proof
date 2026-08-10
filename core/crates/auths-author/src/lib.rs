@@ -9,22 +9,340 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use auths_authority::{AuthorScopeDecision, evaluate_author_scope_view};
 use auths_codec::{
-    CodecError, action_id, action_signing_preimage, domain_commitment, encode_canonical_action,
-    grant_id, grant_signing_preimage, grant_status_id, grant_status_signing_preimage,
-    principal_status_id, principal_status_signing_preimage, transaction_binding,
+    CodecError, action_id, action_signing_preimage, body_digest, domain_commitment,
+    encode_canonical_action, evidence_id, grant_id, grant_signing_preimage, grant_status_id,
+    grant_status_signing_preimage, plan_id, principal_status_id, principal_status_signing_preimage,
+    transaction_binding,
 };
 use auths_model::{
     ActionConstraint, ActionEnvelope, ActionId, AssurancePolicyId, Audience, AudienceSet,
-    AuthorizationPlan, BudgetCeiling, CanonicalAction, CriticalExtensions, Digest, GrantId,
-    GrantStatement, GrantStatusId, GrantStatusStatement, ModelError, PermissionSet, PrincipalId,
-    PrincipalStatusId, PrincipalStatusStatement, ProfileRef, ProofRef, ResourceId,
-    ScopeAuthorityView, SignatureBytes, SignatureDescriptor, SignatureEnvelope, SignedAction,
-    SignedGrant, SignedGrantStatus, SignedPrincipalStatus, StatusPolicy, ValidityWindow,
+    AuthorizationPlan, BudgetCeiling, BundleHeader, CanonicalAction, Challenge, ChannelBindingId,
+    CompositionRequirement, ControlBinding, CriticalExtensions, Digest, EvidenceId, EvidenceObject,
+    EvidenceTypeId, GrantId, GrantStatement, GrantStatusId, GrantStatusStatement, LimitKind,
+    MediaType, ModelError, PermissionSet, PrincipalId, PrincipalStatusId, PrincipalStatusStatement,
+    ProfileRef, ProofBundle, ProofRef, ResourceId, ScopeAuthorityView, SignatureBytes,
+    SignatureDescriptor, SignatureEnvelope, SignedAction, SignedGrant, SignedGrantStatus,
+    SignedPrincipalStatus, StatementRef, StatusPolicy, Timestamp, ValidityWindow, VerifierContext,
     VerifierLimits, grant_authority_view, scope_authority_view,
 };
 use core::fmt;
 
 pub use auths_authority::AuthorityDimension;
+
+/// Profile-owned action meaning paired with its verifier envelope.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PreparedAction {
+    canonical: CanonicalAction,
+    envelope: ActionEnvelope,
+}
+
+impl PreparedAction {
+    /// Returns the canonical profile action.
+    #[must_use]
+    pub const fn canonical(&self) -> &CanonicalAction {
+        &self.canonical
+    }
+
+    /// Returns the exact unsigned action envelope.
+    #[must_use]
+    pub const fn envelope(&self) -> &ActionEnvelope {
+        &self.envelope
+    }
+
+    /// Consumes the preparation into its canonical action and envelope.
+    #[must_use]
+    pub fn into_parts(self) -> (CanonicalAction, ActionEnvelope) {
+        (self.canonical, self.envelope)
+    }
+}
+
+/// Constructs the shared target V1 envelope for a profile-owned action.
+///
+/// # Errors
+///
+/// Returns a typed error if any deterministic identifier cannot be derived.
+pub fn prepare_profile_action(
+    canonical: CanonicalAction,
+    audience: Audience,
+    actor: PrincipalId,
+    terminal_grant: &SignedGrant,
+    challenge: [u8; 32],
+    evaluation_time: u64,
+) -> Result<PreparedAction, WorkflowAssemblyError> {
+    let proof_ref = ProofRef::new(challenge);
+    let plan = AuthorizationPlan::proof(proof_ref);
+    let envelope = ActionEnvelope::new(
+        canonical.profile().clone(),
+        canonical.media_type().clone(),
+        body_digest(canonical.body()),
+        canonical.permission().clone(),
+        canonical.requested_budget().cloned(),
+        audience,
+        Challenge::new(challenge),
+        ValidityWindow::new(
+            Timestamp::new(evaluation_time),
+            Timestamp::new(evaluation_time),
+        )?,
+        actor,
+        Some(grant_id(terminal_grant.statement())?),
+        plan_id(&plan)?,
+        ChannelBindingId::parse("none-v1")?,
+        proof_ref,
+        Vec::new(),
+        CriticalExtensions::empty(),
+    );
+    Ok(PreparedAction {
+        canonical,
+        envelope,
+    })
+}
+
+#[derive(Clone, Debug)]
+struct GrantProofMaterial {
+    grant: SignedGrant,
+    evidence: Vec<EvidenceObject>,
+}
+
+/// Native-owned result of exact proof and request-context assembly.
+#[derive(Clone, Debug)]
+pub struct WorkflowAuthorizationArtifacts {
+    proof: ProofBundle,
+    context: VerifierContext,
+}
+
+impl WorkflowAuthorizationArtifacts {
+    /// Returns the assembled proof bundle.
+    #[must_use]
+    pub const fn proof(&self) -> &ProofBundle {
+        &self.proof
+    }
+
+    /// Returns the request-bound verifier context.
+    #[must_use]
+    pub const fn context(&self) -> &VerifierContext {
+        &self.context
+    }
+}
+
+/// Bounded collector for signed grants and their public control evidence.
+#[derive(Clone, Debug)]
+pub struct WorkflowProofBuilder {
+    grants: Vec<GrantProofMaterial>,
+    action_evidence: Vec<EvidenceObject>,
+    limits: VerifierLimits,
+}
+
+impl WorkflowProofBuilder {
+    /// Creates a collector using the deployment verifier limits.
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            grants: Vec::new(),
+            action_evidence: Vec::new(),
+            limits: VerifierLimits::default_deployment(),
+        }
+    }
+
+    /// Appends one signed grant and returns its evidence-binding index.
+    ///
+    /// # Errors
+    ///
+    /// Returns a collection-limit error before retaining excessive material.
+    pub fn push_grant(&mut self, grant: SignedGrant) -> Result<usize, WorkflowAssemblyError> {
+        if self.grants.len() >= self.limits.get(LimitKind::Grants) {
+            return Err(WorkflowAssemblyError::CollectionLimit);
+        }
+        let index = self.grants.len();
+        self.grants.push(GrantProofMaterial {
+            grant,
+            evidence: Vec::new(),
+        });
+        Ok(index)
+    }
+
+    /// Binds one addressed evidence object to a grant.
+    ///
+    /// # Errors
+    ///
+    /// Returns an invalid-index or collection-limit error.
+    pub fn bind_grant_evidence(
+        &mut self,
+        index: usize,
+        evidence: EvidenceObject,
+    ) -> Result<(), WorkflowAssemblyError> {
+        let material = self
+            .grants
+            .get_mut(index)
+            .ok_or(WorkflowAssemblyError::InvalidGrantIndex)?;
+        if material.evidence.len() >= self.limits.get(LimitKind::EvidenceObjects) {
+            return Err(WorkflowAssemblyError::CollectionLimit);
+        }
+        material.evidence.push(evidence);
+        Ok(())
+    }
+
+    /// Binds one addressed evidence object to the signed action.
+    ///
+    /// # Errors
+    ///
+    /// Returns a collection-limit error before retaining excessive material.
+    pub fn bind_action_evidence(
+        &mut self,
+        evidence: EvidenceObject,
+    ) -> Result<(), WorkflowAssemblyError> {
+        if self.action_evidence.len() >= self.limits.get(LimitKind::EvidenceObjects) {
+            return Err(WorkflowAssemblyError::CollectionLimit);
+        }
+        self.action_evidence.push(evidence);
+        Ok(())
+    }
+
+    /// Assembles the proof and exact request-bound verifier context.
+    ///
+    /// # Errors
+    ///
+    /// Returns a typed failure for inconsistent bindings or invalid model data.
+    pub fn finish(
+        &self,
+        action: &SignedAction,
+        canonical: &CanonicalAction,
+        context: &VerifierContext,
+    ) -> Result<WorkflowAuthorizationArtifacts, WorkflowAssemblyError> {
+        let plan = AuthorizationPlan::proof(action.envelope().proof_ref());
+        let exact_plan = plan_id(&plan)?;
+        if exact_plan != action.envelope().authorization_plan() {
+            return Err(WorkflowAssemblyError::ActionPlanMismatch);
+        }
+        let mut evidence = Vec::new();
+        let mut bindings = Vec::new();
+        for material in &self.grants {
+            let ids = unique_evidence(&mut evidence, &material.evidence);
+            if !ids.is_empty() {
+                bindings.push(ControlBinding::new(
+                    StatementRef::Grant(grant_id(material.grant.statement())?),
+                    ids,
+                )?);
+            }
+        }
+        let action_ids = unique_evidence(&mut evidence, &self.action_evidence);
+        if !action_ids.is_empty() {
+            bindings.push(ControlBinding::new(
+                StatementRef::Action(action_id(action.envelope())?),
+                action_ids,
+            )?);
+        }
+        if evidence.len() > self.limits.get(LimitKind::EvidenceObjects) {
+            return Err(WorkflowAssemblyError::CollectionLimit);
+        }
+        let proof = ProofBundle::new(
+            BundleHeader::v1(),
+            self.grants.iter().map(|item| item.grant.clone()).collect(),
+            vec![action.clone()],
+            plan,
+            evidence,
+            bindings,
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Some(canonical.body().to_vec()),
+        )?;
+        let context = context
+            .for_request(
+                action.envelope().audience().clone(),
+                action.envelope().challenge(),
+                action.envelope().validity().not_before(),
+            )?
+            .with_composition(CompositionRequirement::exact(exact_plan))?;
+        Ok(WorkflowAuthorizationArtifacts { proof, context })
+    }
+}
+
+impl Default for WorkflowProofBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Constructs a content-addressed evidence object from typed public bytes.
+///
+/// # Errors
+///
+/// Returns a typed failure for invalid identifiers, media, or evidence bytes.
+pub fn address_evidence(
+    evidence_type: EvidenceTypeId,
+    media_type: MediaType,
+    bytes: Vec<u8>,
+) -> Result<EvidenceObject, WorkflowAssemblyError> {
+    let unaddressed = EvidenceObject::new(
+        EvidenceId::new([0; 32]),
+        evidence_type.clone(),
+        media_type.clone(),
+        bytes.clone(),
+    )?;
+    Ok(EvidenceObject::new(
+        evidence_id(&unaddressed)?,
+        evidence_type,
+        media_type,
+        bytes,
+    )?)
+}
+
+fn unique_evidence(all: &mut Vec<EvidenceObject>, additions: &[EvidenceObject]) -> Vec<EvidenceId> {
+    let mut ids = Vec::with_capacity(additions.len());
+    for object in additions {
+        if !all.iter().any(|candidate| candidate.id() == object.id()) {
+            all.push(object.clone());
+        }
+        if !ids.contains(&object.id()) {
+            ids.push(object.id());
+        }
+    }
+    ids
+}
+
+/// Failure to prepare an action or assemble its authorization proof.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum WorkflowAssemblyError {
+    /// A target V1 model invariant was violated.
+    Model(ModelError),
+    /// Deterministic encoding or identifier derivation failed.
+    Codec(CodecError),
+    /// A bounded material collection exceeded deployment limits.
+    CollectionLimit,
+    /// Evidence targeted a grant index that does not exist.
+    InvalidGrantIndex,
+    /// The signed action did not bind the derived authorization plan.
+    ActionPlanMismatch,
+}
+
+impl From<ModelError> for WorkflowAssemblyError {
+    fn from(error: ModelError) -> Self {
+        Self::Model(error)
+    }
+}
+
+impl From<CodecError> for WorkflowAssemblyError {
+    fn from(error: CodecError) -> Self {
+        Self::Codec(error)
+    }
+}
+
+impl fmt::Display for WorkflowAssemblyError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Model(_) => formatter.write_str("invalid authorization workflow value"),
+            Self::Codec(_) => formatter.write_str("could not derive authorization binding"),
+            Self::CollectionLimit => formatter.write_str("authorization material exceeds limits"),
+            Self::InvalidGrantIndex => formatter.write_str("grant evidence index is invalid"),
+            Self::ActionPlanMismatch => {
+                formatter.write_str("signed action does not bind its authorization plan")
+            }
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for WorkflowAssemblyError {}
 
 /// Requested child authority before issuer/linkage fields are derived.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -818,7 +1136,8 @@ mod tests {
     use super::*;
     use auths_model::{
         Audience, CapabilityId, CriticalExtension, CriticalExtensions, ExtensionId, LimitKind,
-        Permission, ProfileId, ResourceId, StatusPolicy, Timestamp,
+        MediaType, Permission, PrincipalMethodId, ProfileId, ResourceId, SignatureSuiteId,
+        StatusPolicy, Timestamp, VerificationMethod,
     };
 
     fn permissions(resource: &str) -> PermissionSet {
@@ -844,6 +1163,20 @@ mod tests {
             StatusPolicy::ExpiryOnly,
             AssurancePolicyId::parse("production-v1").unwrap(),
             CriticalExtensions::empty(),
+        )
+    }
+
+    fn signed_parent() -> SignedGrant {
+        SignedGrant::new(
+            parent(),
+            SignatureEnvelope::new(
+                SignatureDescriptor::new(
+                    PrincipalMethodId::parse("raw-key-v1").unwrap(),
+                    VerificationMethod::parse("did:key:root").unwrap(),
+                    SignatureSuiteId::parse("ed25519-v1").unwrap(),
+                ),
+                SignatureBytes::new(vec![1; 64]).unwrap(),
+            ),
         )
     }
 
@@ -949,6 +1282,69 @@ mod tests {
             builder.all_of(vec![left, right]),
             Err(PlanningError::InvalidPlan)
         );
+    }
+
+    #[test]
+    fn profile_action_preparation_derives_exact_shared_bindings() {
+        let grant = signed_parent();
+        let canonical = CanonicalAction::new(
+            grant.statement().profile().clone(),
+            MediaType::parse("application/json").unwrap(),
+            br#"{"value":1}"#.to_vec(),
+            grant.statement().permissions().as_slice()[0].clone(),
+            None,
+        )
+        .unwrap();
+        let prepared = prepare_profile_action(
+            canonical.clone(),
+            Audience::parse("deploy://production").unwrap(),
+            grant.statement().subject().clone(),
+            &grant,
+            [7; 32],
+            42,
+        )
+        .unwrap();
+        assert_eq!(prepared.canonical(), &canonical);
+        assert_eq!(
+            prepared.envelope().terminal_grant(),
+            Some(grant_id(grant.statement()).unwrap())
+        );
+        assert_eq!(prepared.envelope().challenge(), Challenge::new([7; 32]));
+        assert_eq!(
+            prepared.envelope().validity().not_before(),
+            Timestamp::new(42)
+        );
+    }
+
+    #[test]
+    fn proof_builder_bounds_grants_before_retaining_overflow() {
+        let mut builder = WorkflowProofBuilder::new();
+        let limit = VerifierLimits::default_deployment().get(LimitKind::Grants);
+        for _ in 0..limit {
+            builder.push_grant(signed_parent()).unwrap();
+        }
+        assert_eq!(
+            builder.push_grant(signed_parent()),
+            Err(WorkflowAssemblyError::CollectionLimit)
+        );
+    }
+
+    #[test]
+    fn public_evidence_is_content_addressed_deterministically() {
+        let first = address_evidence(
+            EvidenceTypeId::parse("raw-key-v1").unwrap(),
+            MediaType::parse("application/vnd.auths.raw-key.v1").unwrap(),
+            vec![1, 2, 3],
+        )
+        .unwrap();
+        let second = address_evidence(
+            EvidenceTypeId::parse("raw-key-v1").unwrap(),
+            MediaType::parse("application/vnd.auths.raw-key.v1").unwrap(),
+            vec![1, 2, 3],
+        )
+        .unwrap();
+        assert_eq!(first.id(), second.id());
+        assert_ne!(first.id(), EvidenceId::new([0; 32]));
     }
     #[test]
     fn approval_policy_commitment_separates_every_field() {

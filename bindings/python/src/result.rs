@@ -12,7 +12,7 @@ pub const NATIVE_ABI_V1: u16 = 1;
 
 #[pyclass(name = "VerifiedAction", frozen, module = "auths._native")]
 pub struct PyVerifiedAction {
-    inner: auths_verifier::VerifiedAction,
+    pub(crate) inner: auths_verifier::VerifiedAction,
 }
 
 #[pymethods]
@@ -115,6 +115,15 @@ fn verify_v1(
     canonical_action_cbor: &[u8],
     trusted_context_cbor: &[u8],
 ) -> PyResult<NativeVerificationResult> {
+    let sealed = verify_sealed(proof_cbor, canonical_action_cbor, trusted_context_cbor)?;
+    native_result(py, sealed)
+}
+
+pub(crate) fn verify_sealed(
+    proof_cbor: &[u8],
+    canonical_action_cbor: &[u8],
+    trusted_context_cbor: &[u8],
+) -> PyResult<auths_verifier::SealedVerificationResult> {
     let raw_key = auths_raw_key::RawKeyMethod::new().map_err(runtime_error)?;
     let did_key = auths_did_key::DidKeyMethod::new().map_err(runtime_error)?;
     let did_keri = auths_did_keri::DidKeriMethod::new().map_err(runtime_error)?;
@@ -124,13 +133,19 @@ fn verify_v1(
     let suites: [&dyn SignatureSuite; 2] = [&ed25519, &p256];
     let registries =
         auths_registries::ImmutableRegistries::new(&methods, &suites).map_err(runtime_error)?;
-    let sealed = auths_verifier::verify_v1_sealed(
+    auths_verifier::verify_v1_sealed(
         proof_cbor,
         canonical_action_cbor,
         trusted_context_cbor,
         &registries,
     )
-    .map_err(runtime_error)?;
+    .map_err(runtime_error)
+}
+
+pub(crate) fn native_result(
+    py: Python<'_>,
+    sealed: auths_verifier::SealedVerificationResult,
+) -> PyResult<NativeVerificationResult> {
     let (portable, result_cbor, action) = sealed.into_parts();
     let action = action
         .map(|action| Py::new(py, PyVerifiedAction { inner: *action }))

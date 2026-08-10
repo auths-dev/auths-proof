@@ -114,16 +114,48 @@ lifetime. Cancellation and every partial failure close the child signer and
 leave no reusable signing transaction.
 
 No production signer or approval adapter is bundled. Proof assembly,
-profile-action authorization, and the sealed profile-command gateway remain
-Milestone C.
+profile-action authorization, and command decoding remain native Rust
+operations.
+
+## Authorize and execute MCP
+
+The MCP facade closes the path from an untrusted application mapping to one
+profile-bound executor call:
+
+```python
+from auths import AuthorizationRequest, mcp
+
+profile = mcp.profile(service="reports")
+agent = await client.attach_agent(
+    name="reports-agent",
+    profile=profile,
+    authority=root_grant,
+    approval=approval,
+)
+result = await agent.authorize(
+    profile.call("update_demo_record", {"value": "reviewed"}),
+    request=AuthorizationRequest(),
+)
+
+if result.kind == "authorized":
+    response = await profile.gateway(execute).execute(result.command)
+```
+
+Rust parses and canonicalizes the call, constructs its action envelope,
+assembles the bounded proof and exact request context, runs the local
+three-input verifier, and decodes an executor command only from the sealed
+authorized action. The native command has no public constructor, is bound to
+the configured service, cannot be copied or serialized, and is consumed by the
+gateway before the application callback runs. Denied and indeterminate results
+contain no command.
 
 ## Adoption layer
 
 The promoted claim remains the deterministic delegated-authority verifier
-(Level 3 of the repository's adoption ladder). Milestone A adds a
-repository-local attach-and-delegate workflow but does not promote Python to a
-Full Workflow SDK. Importing `auths` performs no identity exchange, approval,
-gateway effect, receipt, or provider setup.
+(Level 3 of the repository's adoption ladder). The Python SDK now has the
+minimum attach, delegate, authorize, and MCP gateway vertical, but this does
+not promote it to a Full Workflow SDK. Importing `auths` performs no identity
+exchange, approval, gateway effect, receipt, or provider setup.
 
 Supported wheels use the CPython 3.9 abi3 floor. PyPy, free-threaded CPython,
 alternative interpreters, production readiness, stable-v1 compatibility, and

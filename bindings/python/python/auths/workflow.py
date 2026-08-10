@@ -19,7 +19,11 @@ from typing import (
     Union,
     cast,
     runtime_checkable,
+    TYPE_CHECKING,
 )
+
+if TYPE_CHECKING:
+    from .mcp import AuthorizationRequest, McpAction, McpAuthorizationResult
 
 from ._native import (
     ApprovalPolicyReference,
@@ -776,7 +780,7 @@ class AuthsClient:
     ) -> AttachedAgent:
         self._assert_open()
         name = _agent_name(name)
-        if type(profile) is not Profile:
+        if not isinstance(profile, Profile):
             raise TypeError("profile must be a Profile")
         _validate_approval(approval)
         if not self._configured_authority.required_approval.matches(
@@ -1069,6 +1073,16 @@ class AttachedAgent:
         finally:
             if not transferred:
                 await _close_signer(signer)
+
+    async def authorize(
+        self,
+        action: McpAction,
+        *,
+        request: Optional[AuthorizationRequest] = None,
+    ) -> McpAuthorizationResult:
+        from .mcp import _authorize_mcp
+
+        return await _authorize_mcp(self, action, request)
 
     async def aclose(self) -> None:
         if not await self._close(suppress_errors=False):

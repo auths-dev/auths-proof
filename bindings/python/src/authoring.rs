@@ -8,7 +8,7 @@
 use auths_author::{
     AuthorityDiff, ExternalSigningRequest, GrantPlan, GrantRequest, OverGrantingWarning,
     PlanBuilder, plan_child_grant, prepare_action, prepare_grant, prepare_grant_status,
-    prepare_principal_status,
+    prepare_principal_status, prepare_profile_action,
 };
 use auths_model::{
     ActionConstraint, ActionEnvelope, AssuranceClaimId, AssurancePolicy, AssurancePolicyId,
@@ -634,12 +634,14 @@ impl PyAuthorizationPlanBuilder {
 
 #[pyclass(name = "McpAction", frozen, module = "auths._native")]
 pub struct PyMcpAction {
-    canonical: CanonicalAction,
-    envelope: ActionEnvelope,
-    arguments_json: Vec<u8>,
-    audience: String,
-    resource: String,
-    display_digest_hex: String,
+    pub(crate) canonical: CanonicalAction,
+    pub(crate) envelope: ActionEnvelope,
+    pub(crate) arguments_json: Vec<u8>,
+    pub(crate) audience: String,
+    pub(crate) resource: String,
+    pub(crate) display_digest_hex: String,
+    pub(crate) review_title: String,
+    pub(crate) review_fields: Vec<(String, String)>,
 }
 
 #[pymethods]
@@ -664,6 +666,16 @@ impl PyMcpAction {
     #[getter]
     fn display_digest_hex(&self) -> &str {
         &self.display_digest_hex
+    }
+
+    #[getter]
+    fn review_title(&self) -> &str {
+        &self.review_title
+    }
+
+    #[getter]
+    fn review_fields(&self) -> Vec<(String, String)> {
+        self.review_fields.clone()
     }
 }
 
@@ -700,35 +712,23 @@ fn prepare_mcp_action(
         .canonicalize(&call.canonical_bytes().map_err(value_error)?)
         .map_err(value_error)?;
     let display = profile.review_display(&canonical).map_err(value_error)?;
-    let challenge = array32(challenge, "challenge")?;
-    let proof_ref = ProofRef::new(challenge);
-    let plan = AuthorizationPlan::proof(proof_ref);
-    let envelope = ActionEnvelope::new(
-        canonical.profile().clone(),
-        canonical.media_type().clone(),
-        auths_codec::body_digest(canonical.body()),
-        canonical.permission().clone(),
-        canonical.requested_budget().cloned(),
+    let prepared = prepare_profile_action(
+        canonical,
         call.audience().map_err(value_error)?,
-        Challenge::new(challenge),
-        ValidityWindow::new(
-            Timestamp::new(evaluation_time),
-            Timestamp::new(evaluation_time),
-        )
-        .map_err(value_error)?,
         actor.inner.clone(),
-        Some(auths_codec::grant_id(terminal_grant.statement()).map_err(value_error)?),
-        auths_codec::plan_id(&plan).map_err(value_error)?,
-        ChannelBindingId::parse("none-v1").map_err(value_error)?,
-        proof_ref,
-        Vec::new(),
-        CriticalExtensions::empty(),
-    );
+        terminal_grant,
+        array32(challenge, "challenge")?,
+        evaluation_time,
+    )
+    .map_err(value_error)?;
+    let (canonical, envelope) = prepared.into_parts();
     Ok(PyMcpAction {
         arguments_json: canonical_arguments,
         audience: call.audience().map_err(value_error)?.to_string(),
         resource: canonical.permission().resource().to_string(),
         display_digest_hex: display.canonical_digest_hex().to_owned(),
+        review_title: display.title().to_owned(),
+        review_fields: display.fields().to_vec(),
         canonical,
         envelope,
     })
@@ -1150,6 +1150,13 @@ fn parse_unsigned(kind: &str, value: &[u8]) -> PyResult<PyUnsignedObject> {
 }
 
 #[pyfunction]
+fn parse_trusted_context(value: &[u8]) -> PyResult<PyTrustedContext> {
+    Ok(PyTrustedContext {
+        inner: auths_codec::decode_verifier_context(value).map_err(value_error)?,
+    })
+}
+
+#[pyfunction]
 fn unsigned_from_signed(value: PyRef<'_, PySignedObject>) -> PyUnsignedObject {
     let inner = match &value.inner {
         SignedObject::Grant(value) => UnsignedObject::Grant(value.statement().clone()),
@@ -1195,6 +1202,7 @@ pub fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(inspect_trusted_context, module)?)?;
     module.add_function(wrap_pyfunction!(parse_signed, module)?)?;
     module.add_function(wrap_pyfunction!(parse_unsigned, module)?)?;
+    module.add_function(wrap_pyfunction!(parse_trusted_context, module)?)?;
     module.add_function(wrap_pyfunction!(unsigned_from_signed, module)?)?;
     Ok(())
 }
