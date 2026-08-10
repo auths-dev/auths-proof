@@ -3,6 +3,9 @@
 **Status:** Repository-local complete; external gates pending
 **Baseline:** `main` at `c47af745`
 **Branch:** `codex/typescript-rust-surface-parity`
+**Implementation scope:** TypeScript SDK only. Rust/WASM changes are limited to
+the semantic operations required by the TypeScript binding. Python SDK
+implementation is a separate follow-up branch and pull request after this work.
 
 ## UX
 

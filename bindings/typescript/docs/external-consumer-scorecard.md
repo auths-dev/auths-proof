@@ -61,7 +61,8 @@ release, provenance, independent-review, or clean-clone evidence.
 
 - Obtain passing macOS, Linux, and Windows CI evidence on the exact revision.
 - Obtain passing packed-Chromium CI evidence on the exact revision.
-- Reconcile Python parity with AP-SPEC-035 and issue 73.
+- Keep Python parity under AP-SPEC-035 and issue 73 in a separate follow-up
+  branch and pull request.
 - Publish or promote nothing until the governing release and review gates
   permit it.
 

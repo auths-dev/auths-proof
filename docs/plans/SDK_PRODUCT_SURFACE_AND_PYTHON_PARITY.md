@@ -5,6 +5,12 @@
 **Decision:** Python is a target **Full Workflow SDK**, not a verifier-only binding
 **Primary references:** [AP-SPEC-027](../specs/0027-product-grade-typescript-sdk.md), [AP-SPEC-035](../specs/0035-python-full-workflow-sdk.md), [AP-SPEC-036](../specs/0036_sdk_ergonomics.md), [AP-SPEC-037](../specs/0037_sdk_ergonomics_2.md), [issue 72](https://github.com/auths-dev/auths-proof/issues/72), and [issue 73](https://github.com/auths-dev/auths-proof/issues/73)
 
+**Execution boundary:** The current implementation branch and pull request are
+TypeScript-only. This document maps Python as the next product program; it does
+not place Python implementation in the TypeScript branch. Python work begins
+only after the TypeScript pull request is complete, on its own branch and pull
+request.
+
 ## 1. Executive summary
 
 Auths has three different language-product states today:
