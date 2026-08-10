@@ -9,8 +9,11 @@ use auths_signature_ed25519::{ED25519_V1, Ed25519Verifier};
 use axum::{
     Json, Router,
     extract::{DefaultBodyLimit, State},
-    http::{HeaderValue, Method, StatusCode, header::CONTENT_TYPE},
-    response::{Html, IntoResponse, Response},
+    http::{
+        HeaderValue, Method, StatusCode,
+        header::{CACHE_CONTROL, CONTENT_TYPE},
+    },
+    response::{IntoResponse, Response},
     routing::{get, post},
 };
 use ed25519_dalek::{Signer as _, SigningKey};
@@ -146,8 +149,11 @@ pub async fn serve(config: AppConfig, address: SocketAddr) -> Result<(), Startup
         .map_err(|_| StartupError)
 }
 
-async fn index() -> Html<&'static str> {
-    Html(include_str!("../web/index.html"))
+async fn index() -> Response {
+    static_asset(
+        include_str!("../web/index.html"),
+        "text/html; charset=utf-8",
+    )
 }
 
 async fn javascript() -> Response {
@@ -162,7 +168,14 @@ async fn styles() -> Response {
 }
 
 fn static_asset(content: &'static str, content_type: &'static str) -> Response {
-    ([(CONTENT_TYPE, content_type)], content).into_response()
+    (
+        [
+            (CONTENT_TYPE, content_type),
+            (CACHE_CONTROL, "no-store, max-age=0"),
+        ],
+        content,
+    )
+        .into_response()
 }
 
 async fn health(State(state): State<AppState>) -> Json<serde_json::Value> {
@@ -634,9 +647,37 @@ mod tests {
             .oneshot(Request::get("/").body(Body::empty()).unwrap())
             .await
             .unwrap();
+        assert_eq!(
+            response.headers().get(CACHE_CONTROL).unwrap(),
+            "no-store, max-age=0"
+        );
         let body = to_bytes(response.into_body(), 128 * 1024).await.unwrap();
         let html = std::str::from_utf8(&body).unwrap();
         assert!(html.contains("No grants. No approvals."));
         assert!(html.contains("data-experiment=\"public-identity\""));
+        assert!(html.contains("<script defer src=\"./app.js?v=2\"></script>"));
+    }
+
+    #[tokio::test]
+    async fn browser_script_is_executable_javascript_and_never_cached() {
+        let response = app(AppConfig::test())
+            .await
+            .unwrap()
+            .oneshot(Request::get("/app.js?v=2").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response.headers().get(CONTENT_TYPE).unwrap(),
+            "application/javascript; charset=utf-8"
+        );
+        assert_eq!(
+            response.headers().get(CACHE_CONTROL).unwrap(),
+            "no-store, max-age=0"
+        );
+        let body = to_bytes(response.into_body(), 128 * 1024).await.unwrap();
+        let javascript = std::str::from_utf8(&body).unwrap();
+        assert!(javascript.contains("connect();"));
+        assert!(javascript.contains("button.addEventListener(\"click\""));
     }
 }
