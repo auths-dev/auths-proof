@@ -11,6 +11,8 @@ digraph auths_architecture {
   "auths-bench-wasm" [group="demos"];
   "auths-bounded-policy" [group="product"];
   "auths-bounded-policy-fuzz" [group="product"];
+  "auths-byte-channel" [group="exchange"];
+  "auths-byte-channel-memory" [group="exchange"];
   "auths-cache" [group="product"];
   "auths-ci-plan" [group="tooling"];
   "auths-codec" [group="core"];
@@ -148,6 +150,7 @@ digraph auths_architecture {
   "auths-bench-native" -> "auths-webauthn" [label="normal"];
   "auths-bench-wasm" -> "auths-bench-model" [label="normal"];
   "auths-bounded-policy-fuzz" -> "auths-bounded-policy" [label="normal"];
+  "auths-byte-channel-memory" -> "auths-byte-channel" [label="normal"];
   "auths-cache" -> "auths-model" [label="normal"];
   "auths-cache" -> "auths-verifier" [label="normal"];
   "auths-codec" -> "auths-model" [label="normal"];
@@ -220,12 +223,15 @@ digraph auths_architecture {
   "auths-identity-authority" -> "auths-identity" [label="normal"];
   "auths-identity-authority" -> "auths-model" [label="normal"];
   "auths-identity-authority" -> "auths-raw-key-core" [label="normal"];
+  "auths-identity-iroh-demo" -> "auths-byte-channel" [label="normal"];
+  "auths-identity-iroh-demo" -> "auths-byte-channel-memory" [label="dev"];
   "auths-identity-iroh-demo" -> "auths-identity" [label="normal"];
   "auths-identity-iroh-demo" -> "auths-identity-raw-key" [label="normal"];
   "auths-identity-iroh-demo" -> "auths-iroh" [label="normal"];
   "auths-identity-iroh-demo" -> "auths-signature-ed25519" [label="normal"];
   "auths-identity-raw-key" -> "auths-identity" [label="normal"];
   "auths-identity-raw-key" -> "auths-raw-key-core" [label="normal"];
+  "auths-iroh" -> "auths-byte-channel" [label="normal"];
   "auths-kubernetes" -> "auths-bounded-policy" [label="normal"];
   "auths-kubernetes" -> "auths-lifecycle" [label="normal"];
   "auths-kubernetes" -> "auths-model" [label="normal"];

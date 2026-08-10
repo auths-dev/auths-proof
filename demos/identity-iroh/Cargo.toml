@@ -10,6 +10,7 @@ description = "Interactive capability-free algorithm-neutral identity exchange o
 publish = false
 
 [dependencies]
+auths-byte-channel.workspace = true
 auths-identity.workspace = true
 auths-identity-raw-key.workspace = true
 auths-iroh.workspace = true
@@ -25,6 +26,7 @@ tokio.workspace = true
 tower-http.workspace = true
 
 [dev-dependencies]
+auths-byte-channel-memory.workspace = true
 tower.workspace = true
 
 [lints]

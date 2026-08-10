@@ -1,22 +1,17 @@
 [package]
-name = "auths-iroh"
+name = "auths-byte-channel-memory"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
 repository.workspace = true
 homepage.workspace = true
-description = "Semantics-free bounded byte exchange over Iroh"
-publish = false
+description = "In-memory adapter for the bounded opaque byte-channel port"
 
 [dependencies]
 async-trait.workspace = true
 auths-byte-channel.workspace = true
-iroh.workspace = true
 tokio.workspace = true
-
-[dev-dependencies]
-hex.workspace = true
 
 [lints]
 workspace = true

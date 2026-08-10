@@ -330,6 +330,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "auths-byte-channel"
+version = "1.0.0-rc.1"
+dependencies = [
+ "async-trait",
+]
+
+[[package]]
+name = "auths-byte-channel-memory"
+version = "1.0.0-rc.1"
+dependencies = [
+ "async-trait",
+ "auths-byte-channel",
+ "tokio",
+]
+
+[[package]]
 name = "auths-cache"
 version = "1.0.0-rc.1"
 dependencies = [
@@ -574,6 +590,8 @@ dependencies = [
 name = "auths-identity-iroh-demo"
 version = "1.0.0-rc.1"
 dependencies = [
+ "auths-byte-channel",
+ "auths-byte-channel-memory",
  "auths-identity",
  "auths-identity-raw-key",
  "auths-iroh",
@@ -602,6 +620,8 @@ dependencies = [
 name = "auths-iroh"
 version = "1.0.0-rc.1"
 dependencies = [
+ "async-trait",
+ "auths-byte-channel",
  "hex",
  "iroh",
  "tokio",

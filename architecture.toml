@@ -99,6 +99,8 @@ auths-iroh = "exchange"
 auths-bench-model = "demos"
 auths-bench-native = "demos"
 auths-bench-wasm = "demos"
+auths-byte-channel = "exchange"
+auths-byte-channel-memory = "exchange"
 auths-assurance = "core"
 auths-author = "core"
 auths-authority = "core"
@@ -208,7 +210,15 @@ allowed_workspace_dependencies = ["auths-identity", "auths-model", "auths-raw-ke
 
 [dependency_boundaries.iroh-transport]
 roots = ["auths-iroh"]
+allowed_workspace_dependencies = ["auths-byte-channel"]
+
+[dependency_boundaries.byte-channel]
+roots = ["auths-byte-channel"]
 allowed_workspace_dependencies = []
+
+[dependency_boundaries.byte-channel-adapters]
+roots = ["auths-byte-channel-memory"]
+allowed_workspace_dependencies = ["auths-byte-channel"]
 
 [exceptions]
 

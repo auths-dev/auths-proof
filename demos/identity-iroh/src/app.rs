@@ -1,5 +1,6 @@
 use std::{env, net::SocketAddr, sync::Arc, time::Duration};
 
+use auths_byte_channel::BoundedByteChannel;
 use auths_identity::{
     IdentityError, IdentityPacket, MAX_IDENTITY_PACKET_BYTES, PublicIdentity,
     SignedIdentityMessage, ValidatedIdentity,
@@ -308,31 +309,24 @@ async fn exchange(
     let server_config = config.clone();
 
     let server_task = tokio::spawn(async move {
-        let mut channel = IrohChannel::accept(&server_endpoint, server_config).await?;
-        let received = channel.receive().await?;
-        let packet = IdentityPacket::decode(received.payload()).map_err(ExchangeError::Identity)?;
-        let signature_verified = verify_packet(&packet)?;
-        let response = response_packet(&server_signing, &server_identity, signature_verified)?;
-        channel.send(&response.encode()?).await?;
-        channel.finish_send_and_wait().await?;
-        Ok::<_, ExchangeError>((received, packet, signature_verified))
+        let mut channel = IrohChannel::accept(&server_endpoint, server_config)
+            .await
+            .map_err(ChannelExchangeError::Transport)?;
+        let peer_endpoint_id = *channel.peer_endpoint_id();
+        let (packet, signature_verified) =
+            serve_identity_channel(&mut channel, &server_signing, &server_identity).await?;
+        Ok::<_, ChannelExchangeError<IrohError>>((peer_endpoint_id, packet, signature_verified))
     });
 
     let mut client = IrohChannel::connect(&client_endpoint, state.server_target.clone(), config)
         .await
         .map_err(ApiError::transport)?;
     let path = client.path_observation();
-    client
-        .send(&outbound.encode().map_err(ApiError::identity)?)
+    let client_observed_server_endpoint_id = *client.peer_endpoint_id();
+    let response_packet = request_identity_channel(&mut client, &outbound)
         .await
-        .map_err(ApiError::transport)?;
-    client.finish_send().map_err(ApiError::transport)?;
-    let response = client.receive().await.map_err(ApiError::transport)?;
-    let response_packet = IdentityPacket::decode(response.payload()).map_err(ApiError::identity)?;
-    if !verify_packet(&response_packet).map_err(ApiError::identity)? {
-        return Err(ApiError::internal());
-    }
-    let (server_received, server_packet, signature_verified) = server_task
+        .map_err(ApiError::exchange)?;
+    let (server_observed_client_endpoint_id, server_packet, signature_verified) = server_task
         .await
         .map_err(|_| ApiError::internal())?
         .map_err(ApiError::exchange)?;
@@ -358,8 +352,8 @@ async fn exchange(
             path: path_name(path),
             client_endpoint_id: hex::encode(client_endpoint_id),
             server_endpoint_id: hex::encode(server_endpoint_id),
-            server_observed_client_endpoint_id: hex::encode(server_received.peer_endpoint_id()),
-            client_observed_server_endpoint_id: hex::encode(response.peer_endpoint_id()),
+            server_observed_client_endpoint_id: hex::encode(server_observed_client_endpoint_id),
+            client_observed_server_endpoint_id: hex::encode(client_observed_server_endpoint_id),
         },
         message: (!matches!(experiment, Experiment::PublicIdentity)).then_some(message),
         signature,
@@ -370,6 +364,61 @@ async fn exchange(
         policy_loaded: false,
         lifecycle_state_created: false,
     }))
+}
+
+async fn serve_identity_channel<C>(
+    channel: &mut C,
+    signing: &SigningKey,
+    identity: &ValidatedIdentity,
+) -> Result<(IdentityPacket, bool), ChannelExchangeError<C::Error>>
+where
+    C: BoundedByteChannel + Send,
+{
+    let received = channel
+        .receive_frame()
+        .await
+        .map_err(ChannelExchangeError::Transport)?;
+    let packet = IdentityPacket::decode(&received).map_err(ChannelExchangeError::Identity)?;
+    let signature_verified = verify_packet(&packet).map_err(ChannelExchangeError::Identity)?;
+    let response = response_packet(signing, identity, signature_verified)
+        .map_err(ChannelExchangeError::Identity)?;
+    channel
+        .send_frame(&response.encode().map_err(ChannelExchangeError::Identity)?)
+        .await
+        .map_err(ChannelExchangeError::Transport)?;
+    channel
+        .finish_send()
+        .await
+        .map_err(ChannelExchangeError::Transport)?;
+    Ok((packet, signature_verified))
+}
+
+async fn request_identity_channel<C>(
+    channel: &mut C,
+    outbound: &IdentityPacket,
+) -> Result<IdentityPacket, ChannelExchangeError<C::Error>>
+where
+    C: BoundedByteChannel + Send,
+{
+    channel
+        .send_frame(&outbound.encode().map_err(ChannelExchangeError::Identity)?)
+        .await
+        .map_err(ChannelExchangeError::Transport)?;
+    channel
+        .finish_send()
+        .await
+        .map_err(ChannelExchangeError::Transport)?;
+    let response = channel
+        .receive_frame()
+        .await
+        .map_err(ChannelExchangeError::Transport)?;
+    let packet = IdentityPacket::decode(&response).map_err(ChannelExchangeError::Identity)?;
+    if !verify_packet(&packet).map_err(ChannelExchangeError::Identity)? {
+        return Err(ChannelExchangeError::Identity(
+            IdentityError::VerificationFailed,
+        ));
+    }
+    Ok(packet)
 }
 
 fn packet_for_experiment(
@@ -517,6 +566,7 @@ impl std::fmt::Display for StartupError {
 
 impl std::error::Error for StartupError {}
 
+#[derive(Debug)]
 struct ApiError {
     status: StatusCode,
     code: &'static str,
@@ -564,30 +614,18 @@ impl ApiError {
         }
     }
 
-    const fn exchange(error: ExchangeError) -> Self {
+    const fn exchange(error: ChannelExchangeError<IrohError>) -> Self {
         match error {
-            ExchangeError::Identity(error) => Self::identity(error),
-            ExchangeError::Transport(error) => Self::transport(error),
+            ChannelExchangeError::Identity(error) => Self::identity(error),
+            ChannelExchangeError::Transport(error) => Self::transport(error),
         }
     }
 }
 
-#[derive(Clone, Copy)]
-enum ExchangeError {
+#[derive(Clone, Copy, Debug)]
+enum ChannelExchangeError<E> {
     Identity(IdentityError),
-    Transport(IrohError),
-}
-
-impl From<IdentityError> for ExchangeError {
-    fn from(error: IdentityError) -> Self {
-        Self::Identity(error)
-    }
-}
-
-impl From<IrohError> for ExchangeError {
-    fn from(error: IrohError) -> Self {
-        Self::Transport(error)
-    }
+    Transport(E),
 }
 
 impl IntoResponse for ApiError {
@@ -606,6 +644,8 @@ impl IntoResponse for ApiError {
 
 #[cfg(test)]
 mod tests {
+    use auths_byte_channel::{ChannelLimits, PeerObservation};
+    use auths_byte_channel_memory::MemoryByteChannel;
     use axum::{
         body::{Body, to_bytes},
         http::Request,
@@ -614,6 +654,46 @@ mod tests {
     use tower::ServiceExt as _;
 
     use super::*;
+
+    #[tokio::test]
+    async fn identity_protocol_is_unchanged_over_the_memory_adapter() {
+        let limits = ChannelLimits::new(MAX_IDENTITY_PACKET_BYTES, Duration::from_secs(1)).unwrap();
+        let (mut client, mut server) = MemoryByteChannel::pair(
+            limits,
+            PeerObservation::Unauthenticated,
+            PeerObservation::Unauthenticated,
+        );
+        let client_signing = SigningKey::from_bytes(&[21; 32]);
+        let client_identity = RawKeyIdentityMethod::identity(
+            ED25519_V1,
+            client_signing.verifying_key().to_bytes().to_vec(),
+        )
+        .unwrap();
+        let outbound = packet_for_experiment(
+            Experiment::SignedMessage,
+            &client_signing,
+            &client_identity,
+            "same identity protocol",
+        )
+        .unwrap();
+        let server_signing = SigningKey::from_bytes(&[22; 32]);
+        let server_identity = RawKeyIdentityMethod::identity(
+            ED25519_V1,
+            server_signing.verifying_key().to_bytes().to_vec(),
+        )
+        .unwrap();
+        let server_task = tokio::spawn(async move {
+            serve_identity_channel(&mut server, &server_signing, &server_identity).await
+        });
+
+        let response = request_identity_channel(&mut client, &outbound)
+            .await
+            .unwrap();
+        let (received, verified) = server_task.await.unwrap().unwrap();
+        assert_eq!(received, outbound);
+        assert!(verified);
+        assert!(verify_packet(&response).unwrap());
+    }
 
     #[tokio::test]
     async fn public_and_signed_identity_paths_use_real_iroh_without_authorization() {

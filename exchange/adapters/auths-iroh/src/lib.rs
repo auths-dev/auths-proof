@@ -8,19 +8,21 @@
 
 use std::{fmt, sync::Arc, time::Duration};
 
+use async_trait::async_trait;
+use auths_byte_channel::{
+    BoundedByteChannel, ChannelLimits, PeerObservation as BytePeerObservation,
+};
 use iroh::endpoint::{Connection, RecvStream, SendStream};
 pub use iroh::{Endpoint, EndpointAddr};
 use tokio::time::timeout;
 
 const MAX_ALPN_BYTES: usize = 255;
-const MAX_CONFIGURED_FRAME_BYTES: usize = u32::MAX as usize;
 
 /// Caller-owned protocol and resource bounds for one byte exchange.
 #[derive(Clone, Debug)]
 pub struct IrohConfig {
     alpn: Arc<[u8]>,
-    max_frame_bytes: usize,
-    io_timeout: Duration,
+    limits: ChannelLimits,
     stream_initiator: StreamInitiator,
 }
 
@@ -39,7 +41,7 @@ impl IrohConfig {
     /// # Errors
     ///
     /// Rejects an empty or oversized ALPN, a zero or oversized frame limit,
-    /// and deadlines outside one nanosecond through one minute.
+    /// and deadlines outside the neutral channel port's hard bounds.
     pub fn new(
         alpn: impl Into<Arc<[u8]>>,
         max_frame_bytes: usize,
@@ -47,19 +49,14 @@ impl IrohConfig {
         stream_initiator: StreamInitiator,
     ) -> Result<Self, IrohError> {
         let alpn = alpn.into();
-        if alpn.is_empty()
-            || alpn.len() > MAX_ALPN_BYTES
-            || max_frame_bytes == 0
-            || max_frame_bytes > MAX_CONFIGURED_FRAME_BYTES
-            || io_timeout.is_zero()
-            || io_timeout > Duration::from_mins(1)
-        {
+        if alpn.is_empty() || alpn.len() > MAX_ALPN_BYTES {
             return Err(IrohError::Configuration);
         }
+        let limits = ChannelLimits::new(max_frame_bytes, io_timeout)
+            .map_err(|_| IrohError::Configuration)?;
         Ok(Self {
             alpn,
-            max_frame_bytes,
-            io_timeout,
+            limits,
             stream_initiator,
         })
     }
@@ -73,13 +70,13 @@ impl IrohConfig {
     /// Returns the largest accepted payload.
     #[must_use]
     pub const fn max_frame_bytes(&self) -> usize {
-        self.max_frame_bytes
+        self.limits.max_frame_bytes()
     }
 
     /// Returns the per-operation deadline.
     #[must_use]
     pub const fn io_timeout(&self) -> Duration {
-        self.io_timeout
+        self.limits.operation_timeout()
     }
 
     /// Returns which endpoint opens the bidirectional stream.
@@ -135,6 +132,7 @@ pub struct IrohChannel {
     recv: RecvStream,
     config: IrohConfig,
     path: PathObservation,
+    peer_observation: BytePeerObservation,
     send_finished: bool,
 }
 
@@ -159,6 +157,9 @@ impl IrohChannel {
             return Err(IrohError::Protocol);
         }
         let peer_endpoint_id = *connection.remote_id().as_bytes();
+        let peer_observation =
+            BytePeerObservation::transport_authenticated(peer_endpoint_id.to_vec())
+                .map_err(|_| IrohError::Configuration)?;
         let (send, recv) = match config.stream_initiator() {
             StreamInitiator::ConnectingEndpoint => connection.open_bi().await,
             StreamInitiator::AcceptingEndpoint => connection.accept_bi().await,
@@ -171,6 +172,7 @@ impl IrohChannel {
             recv,
             config,
             path,
+            peer_observation,
             send_finished: false,
         })
     }
@@ -187,6 +189,9 @@ impl IrohChannel {
             return Err(IrohError::Protocol);
         }
         let peer_endpoint_id = *connection.remote_id().as_bytes();
+        let peer_observation =
+            BytePeerObservation::transport_authenticated(peer_endpoint_id.to_vec())
+                .map_err(|_| IrohError::Configuration)?;
         let (send, recv) = match config.stream_initiator() {
             StreamInitiator::ConnectingEndpoint => connection.accept_bi().await,
             StreamInitiator::AcceptingEndpoint => connection.open_bi().await,
@@ -199,6 +204,7 @@ impl IrohChannel {
             recv,
             config,
             path: PathObservation::MixedOrUnknown,
+            peer_observation,
             send_finished: false,
         })
     }
@@ -272,6 +278,33 @@ impl IrohChannel {
             .map_err(|_| IrohError::Timeout)?
             .map(|_| ())
             .map_err(|_| IrohError::Connection)
+    }
+}
+
+#[async_trait]
+impl BoundedByteChannel for IrohChannel {
+    type Error = IrohError;
+
+    fn limits(&self) -> ChannelLimits {
+        self.config.limits
+    }
+
+    fn peer_observation(&self) -> &BytePeerObservation {
+        &self.peer_observation
+    }
+
+    async fn send_frame(&mut self, payload: &[u8]) -> Result<(), Self::Error> {
+        IrohChannel::send(self, payload).await
+    }
+
+    async fn receive_frame(&mut self) -> Result<Vec<u8>, Self::Error> {
+        IrohChannel::receive(self)
+            .await
+            .map(ReceivedBytes::into_payload)
+    }
+
+    async fn finish_send(&mut self) -> Result<(), Self::Error> {
+        IrohChannel::finish_send_and_wait(self).await
     }
 }
 

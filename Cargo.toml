@@ -36,10 +36,12 @@ members = [
     "core/fuzz",
     "exchange/crates/auths-proof-exchange",
     "exchange/crates/auths-proof-exchange-model",
+    "exchange/crates/auths-byte-channel",
     "exchange/crates/auths-proof-exchange-codec",
     "exchange/crates/auths-proof-exchange-port",
     "exchange/crates/auths-proof-exchange-framing",
     "exchange/adapters/auths-proof-exchange-memory",
+    "exchange/adapters/auths-byte-channel-memory",
     "exchange/adapters/auths-proof-exchange-iroh",
     "exchange/adapters/auths-iroh",
     "exchange/adapters/auths-proof-exchange-tcp",
@@ -144,11 +146,13 @@ auths-webauthn = { version = "1.0.0-rc.1", path = "core/adapters/auths-webauthn"
 auths-hsm-attested = { version = "1.0.0-rc.1", path = "core/adapters/auths-hsm-attested", default-features = false }
 auths-spiffe-x509 = { version = "1.0.0-rc.1", path = "core/adapters/auths-spiffe-x509", default-features = false }
 auths-proof-exchange = { version = "1.0.0-rc.1", path = "exchange/crates/auths-proof-exchange" }
+auths-byte-channel = { version = "1.0.0-rc.1", path = "exchange/crates/auths-byte-channel" }
 auths-proof-exchange-model = { version = "1.0.0-rc.1", path = "exchange/crates/auths-proof-exchange-model" }
 auths-proof-exchange-codec = { version = "1.0.0-rc.1", path = "exchange/crates/auths-proof-exchange-codec" }
 auths-proof-exchange-port = { version = "1.0.0-rc.1", path = "exchange/crates/auths-proof-exchange-port" }
 auths-proof-exchange-framing = { version = "1.0.0-rc.1", path = "exchange/crates/auths-proof-exchange-framing" }
 auths-proof-exchange-memory = { version = "1.0.0-rc.1", path = "exchange/adapters/auths-proof-exchange-memory" }
+auths-byte-channel-memory = { version = "1.0.0-rc.1", path = "exchange/adapters/auths-byte-channel-memory" }
 auths-proof-exchange-iroh = { version = "1.0.0-rc.1", path = "exchange/adapters/auths-proof-exchange-iroh" }
 auths-iroh = { version = "1.0.0-rc.1", path = "exchange/adapters/auths-iroh" }
 auths-proof-exchange-tcp = { version = "1.0.0-rc.1", path = "exchange/adapters/auths-proof-exchange-tcp" }

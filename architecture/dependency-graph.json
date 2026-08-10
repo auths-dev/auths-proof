@@ -57,6 +57,16 @@
       "path": "product/policy/auths-bounded-policy/fuzz"
     },
     {
+      "name": "auths-byte-channel",
+      "layer": "exchange",
+      "path": "exchange/crates/auths-byte-channel"
+    },
+    {
+      "name": "auths-byte-channel-memory",
+      "layer": "exchange",
+      "path": "exchange/adapters/auths-byte-channel-memory"
+    },
+    {
       "name": "auths-cache",
       "layer": "product",
       "path": "product/cache/auths-cache"
@@ -1310,6 +1320,63 @@
       "optional": false,
       "default_features": true,
       "features": []
+    },
+    {
+      "source": "auths-byte-channel",
+      "source_layer": "exchange",
+      "target": "async-trait",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-byte-channel-memory",
+      "source_layer": "exchange",
+      "target": "async-trait",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-byte-channel-memory",
+      "source_layer": "exchange",
+      "target": "auths-byte-channel",
+      "target_layer": "exchange",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-byte-channel-memory",
+      "source_layer": "exchange",
+      "target": "tokio",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": [
+        "fs",
+        "io-util",
+        "macros",
+        "net",
+        "rt-multi-thread",
+        "signal",
+        "sync",
+        "time"
+      ]
     },
     {
       "source": "auths-cache",
@@ -2985,6 +3052,30 @@
     {
       "source": "auths-identity-iroh-demo",
       "source_layer": "demos",
+      "target": "auths-byte-channel",
+      "target_layer": "exchange",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-identity-iroh-demo",
+      "source_layer": "demos",
+      "target": "auths-byte-channel-memory",
+      "target_layer": "exchange",
+      "scope": "internal",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-identity-iroh-demo",
+      "source_layer": "demos",
       "target": "auths-identity",
       "target_layer": "core",
       "scope": "internal",
@@ -3195,6 +3286,30 @@
       "target_condition": null,
       "optional": false,
       "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-iroh",
+      "source_layer": "exchange",
+      "target": "async-trait",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-iroh",
+      "source_layer": "exchange",
+      "target": "auths-byte-channel",
+      "target_layer": "exchange",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
       "features": []
     },
     {
