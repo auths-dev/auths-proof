@@ -628,6 +628,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "auths-kernel-runtime"
+version = "1.0.0-rc.1"
+dependencies = [
+ "auths-model",
+ "auths-ports",
+ "auths-registries",
+ "auths-verifier",
+]
+
+[[package]]
 name = "auths-kubernetes"
 version = "1.0.0-rc.1"
 dependencies = [
@@ -1336,15 +1346,14 @@ version = "1.0.0-rc.1"
 dependencies = [
  "async-trait",
  "auths-codec",
+ "auths-kernel-runtime",
  "auths-model",
  "auths-operations",
- "auths-ports",
  "auths-profile-api",
  "auths-profile-mcp",
  "auths-proof-exchange-model",
  "auths-proof-exchange-port",
  "auths-receipts",
- "auths-registries",
  "auths-verifier",
  "getrandom 0.3.4",
  "sha2 0.10.9",
@@ -1360,6 +1369,7 @@ dependencies = [
  "auths-custody",
  "auths-did-keri",
  "auths-did-key",
+ "auths-kernel-runtime",
  "auths-model",
  "auths-ports",
  "auths-profile-api",
@@ -1367,7 +1377,6 @@ dependencies = [
  "auths-profile-mcp",
  "auths-raw-key",
  "auths-registries",
- "auths-runtime",
  "auths-signature",
  "auths-testkit",
  "auths-verifier",

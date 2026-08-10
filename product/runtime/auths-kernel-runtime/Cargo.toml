@@ -1,0 +1,18 @@
+[package]
+name = "auths-kernel-runtime"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Minimal profile-free in-process Auths verification kernel"
+
+[dependencies]
+auths-model.workspace = true
+auths-ports.workspace = true
+auths-registries.workspace = true
+auths-verifier.workspace = true
+
+[lints]
+workspace = true

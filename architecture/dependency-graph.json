@@ -177,6 +177,11 @@
       "path": "exchange/adapters/auths-iroh"
     },
     {
+      "name": "auths-kernel-runtime",
+      "layer": "product",
+      "path": "product/runtime/auths-kernel-runtime"
+    },
+    {
       "name": "auths-kubernetes",
       "layer": "product",
       "path": "product/integrations/auths-kubernetes"
@@ -3358,6 +3363,54 @@
         "sync",
         "time"
       ]
+    },
+    {
+      "source": "auths-kernel-runtime",
+      "source_layer": "product",
+      "target": "auths-model",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-kernel-runtime",
+      "source_layer": "product",
+      "target": "auths-ports",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-kernel-runtime",
+      "source_layer": "product",
+      "target": "auths-registries",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-kernel-runtime",
+      "source_layer": "product",
+      "target": "auths-verifier",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
     },
     {
       "source": "auths-kubernetes",
@@ -8899,6 +8952,18 @@
     {
       "source": "auths-runtime",
       "source_layer": "product",
+      "target": "auths-kernel-runtime",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-runtime",
+      "source_layer": "product",
       "target": "auths-model",
       "target_layer": "core",
       "scope": "internal",
@@ -8918,18 +8983,6 @@
       "target_condition": null,
       "optional": false,
       "default_features": true,
-      "features": []
-    },
-    {
-      "source": "auths-runtime",
-      "source_layer": "product",
-      "target": "auths-ports",
-      "target_layer": "core",
-      "scope": "internal",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": false,
       "features": []
     },
     {
@@ -8990,18 +9043,6 @@
       "target_condition": null,
       "optional": false,
       "default_features": true,
-      "features": []
-    },
-    {
-      "source": "auths-runtime",
-      "source_layer": "product",
-      "target": "auths-registries",
-      "target_layer": "core",
-      "scope": "internal",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": false,
       "features": []
     },
     {
@@ -9117,6 +9158,18 @@
     {
       "source": "auths-sdk",
       "source_layer": "product",
+      "target": "auths-kernel-runtime",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-sdk",
+      "source_layer": "product",
       "target": "auths-model",
       "target_layer": "core",
       "scope": "internal",
@@ -9196,18 +9249,6 @@
       "target_condition": null,
       "optional": false,
       "default_features": false,
-      "features": []
-    },
-    {
-      "source": "auths-sdk",
-      "source_layer": "product",
-      "target": "auths-runtime",
-      "target_layer": "product",
-      "scope": "internal",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": true,
       "features": []
     },
     {

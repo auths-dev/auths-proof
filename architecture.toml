@@ -180,6 +180,7 @@ auths-stripe-subscription-modify-demo = "demos"
 auths-stripe-payment-capture-demo = "demos"
 auths-kubernetes = "product"
 auths-kubernetes-demo = "demos"
+auths-kernel-runtime = "product"
 auths-receipts = "product"
 auths-registries = "core"
 auths-resolver-did-web = "product"
@@ -219,6 +220,37 @@ allowed_workspace_dependencies = []
 [dependency_boundaries.byte-channel-adapters]
 roots = ["auths-byte-channel-memory"]
 allowed_workspace_dependencies = ["auths-byte-channel"]
+
+[dependency_boundaries.kernel-runtime]
+roots = ["auths-kernel-runtime"]
+allowed_workspace_dependencies = [
+  "auths-algebra-kernel",
+  "auths-assurance",
+  "auths-author",
+  "auths-authority",
+  "auths-codec",
+  "auths-composition",
+  "auths-did-keri",
+  "auths-did-key",
+  "auths-did-web",
+  "auths-hsm-attested",
+  "auths-identity",
+  "auths-identity-authority",
+  "auths-identity-raw-key",
+  "auths-model",
+  "auths-multikey",
+  "auths-ports",
+  "auths-raw-key",
+  "auths-raw-key-core",
+  "auths-registries",
+  "auths-signature",
+  "auths-signature-core",
+  "auths-signature-ed25519",
+  "auths-spiffe-x509",
+  "auths-testkit",
+  "auths-verifier",
+  "auths-webauthn",
+]
 
 [exceptions]
 

@@ -2,6 +2,7 @@
 
 #![forbid(unsafe_code)]
 
+use auths_kernel_runtime::AuthsKernel;
 use auths_model::{
     AcceptedRegistries, AssuranceClaimId, AssurancePolicy, Audience, BudgetAlgebraId, Challenge,
     ChannelBindingId, CompositionRequirement, EvidenceTypeId, ExtensionId, GrantStatusSnapshot,
@@ -10,7 +11,6 @@ use auths_model::{
     VerifierConfigurationId, VerifierContext, VerifierLimits,
 };
 use auths_profile_api::{ActionProfile, ProfileContractError};
-use auths_runtime::AuthsKernel;
 use auths_verifier::VerificationOutcome;
 use std::{collections::BTreeSet, sync::Arc};
 use thiserror::Error;
@@ -442,7 +442,7 @@ pub enum SdkError {
     Keri(#[from] auths_did_keri::KeriError),
     /// Immutable runtime kernel configuration is invalid.
     #[error("invalid embedded verifier configuration: {0}")]
-    Runtime(#[from] auths_runtime::ServiceConfigurationError),
+    Runtime(#[from] auths_kernel_runtime::KernelConfigurationError),
     /// Authorized bytes could not be decoded by the selected profile.
     #[error("verified action does not satisfy the selected profile: {0}")]
     Profile(#[from] ProfileContractError),
