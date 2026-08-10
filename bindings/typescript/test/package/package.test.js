@@ -13,11 +13,15 @@ test("package exposes bounded public surfaces and includes contributor docs", as
     "./advanced",
     "./approvals",
     "./authority",
+    "./custody",
     "./identity",
+    "./lifecycle",
     "./mcp",
     "./profile-kit",
     "./profiles",
+    "./runtime",
     "./testkit",
+    "./trust",
   ]);
   assert.ok(manifest.files.includes("docs"));
   assert.ok(manifest.files.includes("wasm/auths_proof_wasm_bg.wasm"));
@@ -51,11 +55,15 @@ test("packed contents carry the published artifacts and no source or tests", asy
     "dist/advanced.d.ts",
     "dist/approvals.js",
     "dist/authority.js",
+    "dist/custody.js",
     "dist/identity.js",
+    "dist/lifecycle.js",
     "dist/mcp.js",
     "dist/profile-kit.js",
     "dist/profiles.js",
+    "dist/runtime.js",
     "dist/testkit/index.js",
+    "dist/trust.js",
     "wasm/auths_proof_wasm.js",
     "wasm/auths_proof_wasm_bg.wasm",
     "README.md",
@@ -77,7 +85,7 @@ test("packed contents carry the published artifacts and no source or tests", asy
 });
 
 test("compatibility barrels contain exports only", async () => {
-  for (const name of ["authority.ts", "index.ts", "mcp.ts", "profile-kit.ts", "profiles.ts", "workflow.ts"]) {
+  for (const name of ["authority.ts", "custody.ts", "index.ts", "mcp.ts", "profile-kit.ts", "profiles.ts", "workflow.ts"]) {
     const source = await readFile(new URL(`../../src/${name}`, import.meta.url), "utf8");
     assert.doesNotMatch(
       source,

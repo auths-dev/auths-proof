@@ -44,6 +44,7 @@ export interface SigningRequest {
   readonly signingPreimage: Uint8Array;
   readonly expiresAt: bigint;
   readonly display: readonly ReviewField[];
+  readonly signal?: AbortSignal;
 }
 
 export interface SigningResponse {
@@ -326,12 +327,50 @@ export interface DelegationReview {
 export interface WorkflowWasmEngine {
   authoringAbiVersionV1(): number;
   canonicalPrincipalV1(principal: string): string;
+  encodePrincipalStatusStatementV1(
+    method: string,
+    principal: string,
+    purpose: string,
+    state: string,
+    sequence: bigint,
+    observedAt: bigint,
+    validUntil: bigint,
+    issuer: string,
+    extensions: unknown,
+  ): Uint8Array;
+  encodeGrantStatusStatementV1(
+    method: string,
+    grantId: Uint8Array,
+    state: string,
+    sequence: bigint,
+    observedAt: bigint,
+    validUntil: bigint,
+    issuer: string,
+    extensions: unknown,
+  ): Uint8Array;
+  parsePrincipalStatusSnapshotV1(input: unknown): WorkflowStatusSnapshot;
+  parseGrantStatusSnapshotV1(input: unknown): WorkflowStatusSnapshot;
+  compileTrustedContextV1(
+    input: unknown,
+    principalStatus: Uint8Array,
+    grantStatus: Uint8Array,
+  ): WorkflowTrustedContextCompilation;
   configurationV1(): Uint8Array;
   validateTrustedContextV1(
     trustedContext: Uint8Array,
     rootPrincipal: string,
     verifierConfiguration: Uint8Array,
   ): Uint8Array;
+  parseHttpActionV1(input: unknown): WorkflowDomainActionFields;
+  parseGitActionV1(input: unknown): WorkflowDomainActionFields;
+  parseDeploymentActionV1(input: unknown): WorkflowDomainActionFields;
+  parseSupplyChainActionV1(input: unknown): WorkflowDomainActionFields;
+  parseEdgeActionV1(input: unknown): WorkflowDomainActionFields;
+  parseCanonicalHttpActionV1(body: Uint8Array): WorkflowDomainActionFields;
+  parseCanonicalGitActionV1(body: Uint8Array): WorkflowDomainActionFields;
+  parseCanonicalDeploymentActionV1(body: Uint8Array): WorkflowDomainActionFields;
+  parseCanonicalSupplyChainActionV1(body: Uint8Array): WorkflowDomainActionFields;
+  parseCanonicalEdgeActionV1(body: Uint8Array): WorkflowDomainActionFields;
   prepareMcpActionV1(
     service: string,
     name: string,
@@ -392,6 +431,7 @@ export interface WorkflowWasmEngine {
     remainingDepth: number,
   ): WorkflowRawKeyAuthorityPreparation;
   deriveEd25519RawKeyIdentityV1(publicKey: Uint8Array): WorkflowRawKeyIdentity;
+  AuthorizationPlanBuilderV1: new () => WorkflowAuthorizationPlanBuilder;
   WorkflowProofBuilderV1: new () => WorkflowProofBuilder;
   commitCanonicalV1(domain: string, canonical: Uint8Array): Uint8Array;
   commitApprovalPolicyV1(
@@ -498,6 +538,52 @@ export interface WorkflowWasmEngine {
     suite: string,
     signature: Uint8Array,
   ): Uint8Array;
+}
+
+export interface WorkflowAuthorizationPlanBuilder {
+  proof(reference: Uint8Array): number;
+  allOf(members: Uint32Array): number;
+  anyOf(members: Uint32Array): number;
+  threshold(required: number, members: Uint32Array): number;
+  summarize(handle: number): WorkflowAuthorizationPlanSummary;
+  free?(): void;
+}
+
+export interface WorkflowStatusSnapshot {
+  readonly cbor: Uint8Array;
+  readonly id: Uint8Array;
+  readonly statementCount: number;
+  free?(): void;
+}
+
+export interface WorkflowTrustedContextCompilation {
+  readonly cbor: Uint8Array;
+  readonly verifierConfiguration: Uint8Array;
+  free?(): void;
+}
+
+export interface WorkflowAuthorizationPlanSummary {
+  readonly planCbor: Uint8Array;
+  readonly planId: Uint8Array;
+  readonly proofReferences: Uint8Array;
+  readonly leafCount: number;
+  readonly maximumDepth: number;
+  free?(): void;
+}
+
+export interface WorkflowDomainActionFields {
+  readonly body: Uint8Array;
+  readonly mediaType: string;
+  readonly capability: string;
+  readonly resource: string;
+  readonly hasBudget: boolean;
+  readonly budgetAlgebra: string;
+  readonly budgetValue: bigint;
+  readonly reviewTitle: string;
+  readonly reviewLabels: readonly string[];
+  readonly reviewValues: readonly string[];
+  readonly normalized: unknown;
+  free?(): void;
 }
 
 export interface WorkflowMcpActionPreparation {

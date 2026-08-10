@@ -1371,6 +1371,26 @@ fn encode_grant_snapshot(
     Ok(())
 }
 
+/// Encodes one canonical principal-status snapshot.
+///
+/// # Errors
+///
+/// Returns a codec error if a collection length cannot be represented canonically.
+pub fn encode_principal_status_snapshot(
+    snapshot: &PrincipalStatusSnapshot,
+) -> Result<Vec<u8>, CodecError> {
+    finish(|encoder| encode_principal_snapshot(encoder, snapshot))
+}
+
+/// Encodes one canonical grant-status snapshot.
+///
+/// # Errors
+///
+/// Returns a codec error if a collection length cannot be represented canonically.
+pub fn encode_grant_status_snapshot(snapshot: &GrantStatusSnapshot) -> Result<Vec<u8>, CodecError> {
+    finish(|encoder| encode_grant_snapshot(encoder, snapshot))
+}
+
 fn encode_limits(encoder: &mut V1Encoder, limits: &VerifierLimits) -> Result<(), CodecError> {
     const LIMITS: [LimitKind; 26] = [
         LimitKind::BundleBytes,

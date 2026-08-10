@@ -14,3 +14,12 @@ export {
   type VerificationResult,
   type VerifiedAction,
 } from "./advanced.js";
+export {
+  AuthorizationPlan,
+  AuthorizationPlanBuilder,
+  ProofReference,
+  loadAuthorizationPlanBuilder,
+  proofReference,
+  type AuthorizationPlanKind,
+  type AuthorizationPlanSummary,
+} from "./authorization-plans.js";

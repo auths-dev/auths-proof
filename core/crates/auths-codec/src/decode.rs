@@ -4,8 +4,10 @@ use crate::{
     CodecError,
     encode::{
         encode_action_envelope, encode_bundle, encode_grant_statement,
-        encode_grant_status_statement, encode_principal_status_statement, encode_signed_action,
-        encode_signed_grant, encode_verifier_context,
+        encode_grant_status_snapshot, encode_grant_status_statement,
+        encode_principal_status_snapshot, encode_principal_status_statement, encode_signed_action,
+        encode_signed_grant, encode_signed_grant_status, encode_signed_principal_status,
+        encode_verifier_context,
     },
     hash::evidence_id,
 };
@@ -1341,6 +1343,29 @@ pub fn decode_principal_status_statement(
     Ok(statement)
 }
 
+/// Decodes one canonical signed principal-status statement under explicit limits.
+///
+/// # Errors
+///
+/// Returns a typed codec error for malformed, non-canonical, over-limit, or
+/// semantically invalid input.
+pub fn decode_signed_principal_status(
+    input: &[u8],
+    limits: &VerifierLimits,
+) -> Result<SignedPrincipalStatus, CodecError> {
+    limits.validate()?;
+    if input.len() > limits.get(LimitKind::BundleBytes) {
+        return Err(CodecError::LimitExceeded);
+    }
+    let mut decoder = Decoder::new(input);
+    let status = signed_principal_status(&mut decoder, limits)?;
+    ensure_complete(&decoder, input)?;
+    if encode_signed_principal_status(&status)?.as_slice() != input {
+        return Err(CodecError::NonCanonical);
+    }
+    Ok(status)
+}
+
 /// Decodes one canonical unsigned grant-status statement.
 ///
 /// # Errors
@@ -1362,6 +1387,75 @@ pub fn decode_grant_status_statement(
         return Err(CodecError::NonCanonical);
     }
     Ok(statement)
+}
+
+/// Decodes one canonical signed grant-status statement under explicit limits.
+///
+/// # Errors
+///
+/// Returns a typed codec error for malformed, non-canonical, over-limit, or
+/// semantically invalid input.
+pub fn decode_signed_grant_status(
+    input: &[u8],
+    limits: &VerifierLimits,
+) -> Result<SignedGrantStatus, CodecError> {
+    limits.validate()?;
+    if input.len() > limits.get(LimitKind::BundleBytes) {
+        return Err(CodecError::LimitExceeded);
+    }
+    let mut decoder = Decoder::new(input);
+    let status = signed_grant_status(&mut decoder, limits)?;
+    ensure_complete(&decoder, input)?;
+    if encode_signed_grant_status(&status)?.as_slice() != input {
+        return Err(CodecError::NonCanonical);
+    }
+    Ok(status)
+}
+
+/// Decodes one canonical principal-status snapshot under explicit limits.
+///
+/// # Errors
+///
+/// Returns a typed codec error for malformed, non-canonical, over-limit, or
+/// semantically invalid input.
+pub fn decode_principal_status_snapshot(
+    input: &[u8],
+    limits: &VerifierLimits,
+) -> Result<PrincipalStatusSnapshot, CodecError> {
+    limits.validate()?;
+    if input.len() > limits.get(LimitKind::ContextBytes) {
+        return Err(CodecError::LimitExceeded);
+    }
+    let mut decoder = Decoder::new(input);
+    let snapshot = principal_snapshot(&mut decoder, limits)?;
+    ensure_complete(&decoder, input)?;
+    if encode_principal_status_snapshot(&snapshot)?.as_slice() != input {
+        return Err(CodecError::NonCanonical);
+    }
+    Ok(snapshot)
+}
+
+/// Decodes one canonical grant-status snapshot under explicit limits.
+///
+/// # Errors
+///
+/// Returns a typed codec error for malformed, non-canonical, over-limit, or
+/// semantically invalid input.
+pub fn decode_grant_status_snapshot(
+    input: &[u8],
+    limits: &VerifierLimits,
+) -> Result<GrantStatusSnapshot, CodecError> {
+    limits.validate()?;
+    if input.len() > limits.get(LimitKind::ContextBytes) {
+        return Err(CodecError::LimitExceeded);
+    }
+    let mut decoder = Decoder::new(input);
+    let snapshot = grant_snapshot(&mut decoder, limits)?;
+    ensure_complete(&decoder, input)?;
+    if encode_grant_status_snapshot(&snapshot)?.as_slice() != input {
+        return Err(CodecError::NonCanonical);
+    }
+    Ok(snapshot)
 }
 
 /// Decodes the complete portable canonical-action verifier input.

@@ -11,6 +11,19 @@ import {
 } from "../workflow.js";
 import { loadPackagedWorkflowEngine } from "../verifier/wasm.js";
 export { profileConformance } from "./profile-conformance.js";
+export {
+  custodyConformance,
+  type CustodyConformanceCase,
+  type CustodyConformanceOptions,
+  type CustodyConformanceReport,
+  type CustodyConformanceResult,
+} from "./custody-conformance.js";
+export {
+  InMemoryBudgetPort,
+  InMemoryChallengePort,
+  InMemoryReceiptPort,
+  InMemoryReplayPort,
+} from "./runtime.js";
 
 class DevelopmentEd25519Signer implements Signer {
   readonly kind = "auths-development-ed25519";

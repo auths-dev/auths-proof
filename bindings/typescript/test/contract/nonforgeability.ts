@@ -6,6 +6,19 @@ import { McpCommand } from "../../src/mcp.js";
 import { ProfilePlan, VerifiedPlanCommand } from "../../src/plans.js";
 import * as publicRoot from "../../src/index.js";
 import * as advanced from "../../src/advanced.js";
+import type {
+  AuthenticatedIdentityMessage,
+  DecodedIdentity,
+  ValidatedIdentity,
+} from "../../src/identity.js";
+import { AuthorizationPlan, type ProofReference } from "../../src/authorization-plans.js";
+import type {
+  GitCommand,
+  GitGateway,
+  HttpCommand,
+  HttpGateway,
+} from "../../src/profiles/domains/index.js";
+import type { TrustedContextConfiguration } from "../../src/trust.js";
 
 // @ts-expect-error package coordination is not part of the public root
 publicRoot.registerProfileRuntime;
@@ -103,3 +116,65 @@ const invalidSigner: Signer = {
 };
 
 void invalidSigner;
+
+// @ts-expect-error decoded identities require package-owned parsing
+const forgedDecodedIdentity: DecodedIdentity = {
+  validation: "decoded",
+  methodId: "raw-key-v2",
+  identityId: "raw-key-v2:forged",
+  suiteId: "ed25519-v1",
+  publicKey: new Uint8Array(32),
+  packet: new Uint8Array(),
+};
+
+// @ts-expect-error validated identities cannot be promoted structurally
+const forgedValidatedIdentity: ValidatedIdentity = {
+  validation: "validated",
+  methodId: forgedDecodedIdentity.methodId,
+  identityId: forgedDecodedIdentity.identityId,
+  suiteId: forgedDecodedIdentity.suiteId,
+  publicKey: forgedDecodedIdentity.publicKey,
+  packet: forgedDecodedIdentity.packet,
+};
+
+// @ts-expect-error authenticated messages require a suite parse transition
+const forgedAuthenticatedMessage: AuthenticatedIdentityMessage = {
+  identity: forgedValidatedIdentity,
+  message: new Uint8Array(),
+};
+
+void forgedAuthenticatedMessage;
+
+// @ts-expect-error authorization plans require a native builder token
+new AuthorizationPlan(Symbol(), "proof", {}, 0);
+
+// @ts-expect-error proof references are parsed nominal values, not raw bytes
+const rawProofReference: ProofReference = new Uint8Array(32);
+void rawProofReference;
+
+declare const httpCommand: HttpCommand;
+declare const gitCommand: GitCommand;
+declare const httpGateway: HttpGateway<void>;
+declare const gitGateway: GitGateway<void>;
+
+// @ts-expect-error domain command types are profile-specific
+const substitutedGitCommand: GitCommand = httpCommand;
+void substitutedGitCommand;
+
+// @ts-expect-error an HTTP gateway cannot parse a Git command
+httpGateway.parse(gitCommand);
+
+// @ts-expect-error a Git gateway cannot parse an HTTP command
+gitGateway.parse(httpCommand);
+
+declare const trustWithoutPrincipalStatus: Omit<
+  TrustedContextConfiguration,
+  "principalStatus"
+>;
+
+const rawTrustConfiguration: TrustedContextConfiguration = {
+  ...trustWithoutPrincipalStatus,
+  // @ts-expect-error typed trust configuration does not accept raw snapshot bytes
+  principalStatus: new Uint8Array(),
+};
+void rawTrustConfiguration;

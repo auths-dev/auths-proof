@@ -136,6 +136,21 @@ response. Rust derives evidence identifiers, statement bindings, the exact
 authorization plan, proof bundle, and per-request context; JavaScript cannot
 assert those relationships with a digest, Boolean, or hand-authored CBOR.
 
+The typed trust compiler copies every collection before loading WASM and gives
+Rust the complete configuration as structured values. Status snapshots are
+accepted only through package-owned objects created by Rust parsing. Raw context
+bytes, forged snapshots, unsupported adapters, duplicate registry entries, and
+invalid limits cannot enter the normal trust builder.
+
+### Identity-adapter substitution
+
+Identity exchange does not initialize authority. A decoded packet becomes a
+validated identity only through an adapter whose method identifier matches the
+packet, and an authenticated message only through a suite adapter whose suite
+and exact returned fields match the validated identity and message. Caller-owned
+adapters are trusted to implement their registered cryptography correctly;
+their outputs still cannot create a grant, authorization verdict, or command.
+
 ### Delegation widening
 
 A child request may widen permissions, resources, audiences, validity, budget,
@@ -187,6 +202,15 @@ Advanced verification intentionally exposes canonical bytes and diagnostic
 results. No advanced type or function can construct, deserialize, or convert
 to a profile command. The gateway cannot accept `VerifiedAction` from an
 arbitrary engine, raw bytes, or a verdict Boolean.
+
+### Runtime claim or effect substitution
+
+The optional runtime parses a sealed authorized command through its matching
+closed executor before issuing a challenge or claiming replay/budget state.
+Denied, indeterminate, forged, copied, or cross-profile commands cause no state
+claim and no gateway call. Replay and budget results are closed unions, and an
+executor error must distinguish known non-execution from an unknown outcome.
+An unavailable success receipt is outcome-unknown rather than successful.
 
 ### Resource exhaustion
 

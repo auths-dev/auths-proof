@@ -1,6 +1,6 @@
 {
   "schema": "auths.semantic-freeze/1",
-  "freezeVersion": 45,
+  "freezeVersion": 46,
   "publicSurface": {
     "rustRoots": [
       "auths",
@@ -66,7 +66,7 @@
   "entries": [
     {
       "id": "auths.core.protocol",
-      "version": 12,
+      "version": 13,
       "classification": "frozen-meaning",
       "categories": [
         "protocol-versions",
@@ -83,11 +83,11 @@
         "core/crates/auths-verifier/src",
         "core/spec/v1"
       ],
-      "sha256": "b5e61649a6cceaa1528af4a00ff1f4b8c1e9e731dc1ef693855b785f24b66809"
+      "sha256": "d84577baa59755f65364bf317bcbbbb5ffe810937b39ee961935d1dc43933a10"
     },
     {
       "id": "auths.frozen-bytes/architecture/dependency-graph.json",
-      "version": 11,
+      "version": 12,
       "classification": "frozen-bytes",
       "categories": [
         "canonical-generated-evidence"
@@ -95,11 +95,11 @@
       "owners": [
         "architecture/dependency-graph.json"
       ],
-      "sha256": "88c4b7f59486edce0312b57a849a2f007684e3f5e085c4b814b141be43130d5e"
+      "sha256": "f8fbd1f49da0c12529cd30a3cf17cf1c4b9449d0df88b6d6411ddbf8ba27965a"
     },
     {
       "id": "auths.frozen-bytes/bindings/wasm/auths-proof-wasm/identity-abi-v1.json",
-      "version": 1,
+      "version": 2,
       "classification": "frozen-bytes",
       "categories": [
         "canonical-generated-evidence"
@@ -107,7 +107,7 @@
       "owners": [
         "bindings/wasm/auths-proof-wasm/identity-abi-v1.json"
       ],
-      "sha256": "4b1ded8b75fb101d721f35a6484bc96baf10c68e34239f1ea7445a6d33589eff"
+      "sha256": "7f17fa349f370ff7461fb714672d1faf0928b86e8e3787f86c7004d8d689fe0e"
     },
     {
       "id": "auths.frozen-bytes/bounded-domains.toml",
@@ -495,7 +495,7 @@
     },
     {
       "id": "auths.identity.protocol",
-      "version": 2,
+      "version": 3,
       "classification": "frozen-meaning",
       "categories": [
         "identity-protocol-versions",
@@ -518,7 +518,7 @@
         "core/fixtures/identity/v1/vectors.json",
         "core/spec/identity/v1"
       ],
-      "sha256": "00570e37e4d1722be180423054b69de82dc29c6c86d969d475327f4ea8d54646"
+      "sha256": "c1b8617831fa2679fed45ed087f21d01b9ddcfee46d0f4e46ce9c748c9825728"
     },
     {
       "id": "auths.modular-components",
@@ -556,7 +556,7 @@
     },
     {
       "id": "auths.portable-abi-bindings",
-      "version": 16,
+      "version": 17,
       "classification": "frozen-meaning",
       "categories": [
         "portable-abi",
@@ -571,7 +571,7 @@
         "core/crates/auths-model/src/lib.rs",
         "core/spec/v1/auths-proof.cddl"
       ],
-      "sha256": "1672b82d4f322ba97b1d346af881d71d4772feeb624fa86f0ed74be9c80ee8f7"
+      "sha256": "45f6331f106d28515cf602257903e4daaf081d6f7efbf039b115252b05b6f1f1"
     },
     {
       "id": "auths.product.bounded-domains",
@@ -700,7 +700,7 @@
     },
     {
       "id": "auths.release.public-surface",
-      "version": 45,
+      "version": 46,
       "classification": "release-metadata",
       "categories": [
         "package-names",
@@ -782,7 +782,7 @@
         "xtask/src/release_control.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "8711edfeebfd92af83ef362bbd04d4099330e3179f7d89d7bc431cdb0da6f3de"
+      "sha256": "c34d3d601d6d7c9902fc0f2800836d326c59685b09d6b2a7d1834811d71c12d0"
     }
   ]
 }

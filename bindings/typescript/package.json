@@ -39,6 +39,22 @@
     "./profiles": {
       "types": "./dist/profiles.d.ts",
       "import": "./dist/profiles.js"
+    },
+    "./lifecycle": {
+      "types": "./dist/lifecycle.d.ts",
+      "import": "./dist/lifecycle.js"
+    },
+    "./trust": {
+      "types": "./dist/trust.d.ts",
+      "import": "./dist/trust.js"
+    },
+    "./runtime": {
+      "types": "./dist/runtime.d.ts",
+      "import": "./dist/runtime.js"
+    },
+    "./custody": {
+      "types": "./dist/custody.d.ts",
+      "import": "./dist/custody.js"
     }
   },
   "files": [
@@ -56,9 +72,10 @@
     "build:vectors": "cargo run -p auths-proof-wasm --example generate-node-vectors -- ../../target/binding-vectors",
     "build:wasm": "wasm-pack build ../wasm/auths-proof-wasm --target web --out-dir ../../typescript/wasm",
     "test": "npm run test:all",
-    "test:all": "npm run test:contract && npm run test:integration && npm run test:unit && npm run test:package && npm run test:examples && npm run test:api",
+    "test:all": "npm run test:contract && npm run test:integration && npm run test:unit && npm run test:package && npm run test:examples && npm run test:api && npm run test:capability",
     "test:api": "npm run build && node tools/public-api.mjs",
     "test:browser": "npm run build && node test/package/packed-browser.mjs",
+    "test:capability": "node tools/capability-metadata.mjs",
     "test:contract": "tsc -p test/contract/tsconfig.json",
     "test:examples": "npm run build && tsc -p examples/tsconfig.json",
     "test:integration": "npm run build && npm run build:wasm && npm run build:vectors && node --test \"test/integration/**/*.test.js\"",

@@ -10,21 +10,32 @@ use auths_author::{
 use auths_identity::{IdentityPacket, PublicIdentity, SignedIdentityMessage};
 use auths_identity_raw_key::RawKeyIdentityMethod;
 use auths_model::{
-    ActionConstraint, ActionEnvelope, AssurancePolicyId, Audience, AudienceSet, AuthorizationPlan,
-    BodyDigestSet, BudgetAlgebraId, BudgetCeiling, BundleHeader, CapabilityId, Challenge,
-    ChannelBindingId, CompositionRequirement, ControlBinding, CriticalExtensions, Digest,
-    EvidenceId, EvidenceObject, EvidenceTypeId, FreshnessLimit, MediaType, Permission,
-    PermissionSet, PrincipalId, PrincipalMethodId, ProfileId, ProofBundle, ProofRef, ResourceId,
-    SignatureBytes, SignatureDescriptor, SignatureSuiteId, SignedGrant, StatementRef,
-    StatusMethodId, StatusPolicy, Timestamp, ValidityWindow, VerificationMethod,
-    VerifierConfigurationId, VerifierLimits,
+    AcceptedRegistries, ActionConstraint, ActionEnvelope, AssuranceClaimId, AssuranceImplicationId,
+    AssurancePolicy, AssurancePolicyId, AssuranceQuantifier, AssuranceRequirement, Audience,
+    AudienceSet, AuthorizationPlan, BodyDigestSet, BudgetAlgebraId, BudgetCeiling, BundleHeader,
+    CapabilityId, Challenge, ChannelBindingId, CompositionRequirement, ControlBinding,
+    CriticalExtension, CriticalExtensions, Digest, EvidenceId, EvidenceObject, EvidenceTypeId,
+    ExtensionId, FreshnessLimit, GrantId, GrantState, GrantStatusSnapshot, GrantStatusStatement,
+    LimitKind, MediaType, ParticipantRole, Permission, PermissionSet, PrincipalId,
+    PrincipalMethodId, PrincipalState, PrincipalStatusSnapshot, PrincipalStatusStatement,
+    ProfileId, ProfilePolicyId, ProfileRef, ProofBundle, ProofRef, PurposeId, ResourceId,
+    ResourceMatcherId, SignatureBytes, SignatureDescriptor, SignatureSuiteId, SignedGrant,
+    StatementRef, StatusMethodId, StatusPolicy, StatusSnapshotId, StatusTrustRule, Timestamp,
+    TrustAnchor, TrustAnchorId, ValidityWindow, VerificationMethod, VerifierConfigurationId,
+    VerifierContext, VerifierLimits,
 };
 use auths_ports::{PrincipalMethod, SignatureSuite};
 use auths_profile_api::ActionProfile;
+use auths_profile_domains::{
+    DeploymentProfile, EdgeProfile, GitProfile, HttpProfile, SupplyChainProfile,
+    reference_canonicalize_deployment, reference_canonicalize_edge, reference_canonicalize_git,
+    reference_canonicalize_http, reference_canonicalize_supply_chain,
+};
 use auths_profile_mcp::{McpProfile, McpToolCall};
 use auths_registries::ImmutableRegistries;
+use serde::{Deserialize, Serialize as _};
 use serde_json::{Map, Value};
-use std::fmt;
+use std::{collections::BTreeSet, fmt};
 use wasm_bindgen::prelude::*;
 
 /// Version of the repository-owned authoring ABI exposed by this WASM module.
@@ -64,6 +75,738 @@ pub fn canonical_principal_v1(principal: &str) -> Result<String, JsValue> {
     PrincipalId::parse(principal)
         .map(|value| value.as_str().to_owned())
         .map_err(js_error)
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct CriticalExtensionInput {
+    id: String,
+    bytes: Vec<u8>,
+}
+
+fn critical_extensions(value: JsValue) -> Result<CriticalExtensions, EngineError> {
+    let inputs: Vec<CriticalExtensionInput> = serde_wasm_bindgen::from_value(value)
+        .map_err(|_| EngineError::Abi("invalid critical extensions"))?;
+    CriticalExtensions::new(
+        inputs
+            .into_iter()
+            .map(|input| {
+                Ok(CriticalExtension::new(
+                    ExtensionId::parse(&input.id)?,
+                    input.bytes,
+                )?)
+            })
+            .collect::<Result<Vec<_>, EngineError>>()?,
+    )
+    .map_err(EngineError::from)
+}
+
+fn principal_state(value: &str) -> Result<PrincipalState, EngineError> {
+    match value {
+        "active" => Ok(PrincipalState::Active),
+        "revoked" => Ok(PrincipalState::Revoked),
+        "superseded" => Ok(PrincipalState::Superseded),
+        _ => Err(EngineError::Abi("invalid principal status state")),
+    }
+}
+
+fn grant_state(value: &str) -> Result<GrantState, EngineError> {
+    match value {
+        "active" => Ok(GrantState::Active),
+        "revoked" => Ok(GrantState::Revoked),
+        "superseded" => Ok(GrantState::Superseded),
+        _ => Err(EngineError::Abi("invalid grant status state")),
+    }
+}
+
+/// Constructs canonical unsigned principal-status bytes from typed fields.
+///
+/// # Errors
+///
+/// Returns a JavaScript error when an identifier, state, window, or extension is invalid.
+#[allow(clippy::too_many_arguments)]
+#[wasm_bindgen(js_name = encodePrincipalStatusStatementV1)]
+pub fn encode_principal_status_statement_v1(
+    method: &str,
+    principal: &str,
+    purpose: &str,
+    state: &str,
+    sequence: u64,
+    observed_at: u64,
+    valid_until: u64,
+    issuer: &str,
+    extensions: JsValue,
+) -> Result<Vec<u8>, JsValue> {
+    let statement = PrincipalStatusStatement::new(
+        StatusMethodId::parse(method).map_err(js_error)?,
+        PrincipalId::parse(principal).map_err(js_error)?,
+        PurposeId::parse(purpose).map_err(js_error)?,
+        principal_state(state).map_err(js_error)?,
+        sequence,
+        Timestamp::new(observed_at),
+        Timestamp::new(valid_until),
+        PrincipalId::parse(issuer).map_err(js_error)?,
+        critical_extensions(extensions).map_err(js_error)?,
+    )
+    .map_err(js_error)?;
+    auths_codec::encode_principal_status_statement(&statement).map_err(js_error)
+}
+
+/// Constructs canonical unsigned grant-status bytes from typed fields.
+///
+/// # Errors
+///
+/// Returns a JavaScript error when an identifier, state, window, or extension is invalid.
+#[allow(clippy::too_many_arguments)]
+#[wasm_bindgen(js_name = encodeGrantStatusStatementV1)]
+pub fn encode_grant_status_statement_v1(
+    method: &str,
+    grant_id: &[u8],
+    state: &str,
+    sequence: u64,
+    observed_at: u64,
+    valid_until: u64,
+    issuer: &str,
+    extensions: JsValue,
+) -> Result<Vec<u8>, JsValue> {
+    let grant_id = <[u8; 32]>::try_from(grant_id)
+        .map(GrantId::new)
+        .map_err(|_| js_error(EngineError::Abi("grant id must contain 32 bytes")))?;
+    let statement = GrantStatusStatement::new(
+        StatusMethodId::parse(method).map_err(js_error)?,
+        grant_id,
+        grant_state(state).map_err(js_error)?,
+        sequence,
+        Timestamp::new(observed_at),
+        Timestamp::new(valid_until),
+        PrincipalId::parse(issuer).map_err(js_error)?,
+        critical_extensions(extensions).map_err(js_error)?,
+    )
+    .map_err(js_error)?;
+    auths_codec::encode_grant_status_statement(&statement).map_err(js_error)
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct StatusTrustInput {
+    method: String,
+    issuer: String,
+    sequence_floor: u64,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct StatusSnapshotInput {
+    id: Vec<u8>,
+    observed_at: u64,
+    valid_until: u64,
+    statements: Vec<Vec<u8>>,
+    checkpoints: Vec<Vec<u8>>,
+    trust: Vec<StatusTrustInput>,
+}
+
+fn snapshot_id(bytes: &[u8]) -> Result<StatusSnapshotId, EngineError> {
+    <[u8; 32]>::try_from(bytes)
+        .map(StatusSnapshotId::new)
+        .map_err(|_| EngineError::Abi("status snapshot id must contain 32 bytes"))
+}
+
+fn checkpoints(values: Vec<Vec<u8>>) -> Result<Vec<EvidenceId>, EngineError> {
+    values
+        .into_iter()
+        .map(|value| {
+            <[u8; 32]>::try_from(value.as_slice())
+                .map(EvidenceId::new)
+                .map_err(|_| EngineError::Abi("status checkpoint must contain 32 bytes"))
+        })
+        .collect()
+}
+
+fn status_trust(values: Vec<StatusTrustInput>) -> Result<Vec<StatusTrustRule>, EngineError> {
+    values
+        .into_iter()
+        .map(|value| {
+            Ok(StatusTrustRule::new(
+                StatusMethodId::parse(&value.method)?,
+                PrincipalId::parse(&value.issuer)?,
+                value.sequence_floor,
+            ))
+        })
+        .collect()
+}
+
+fn principal_status_snapshot(value: JsValue) -> Result<PrincipalStatusSnapshot, EngineError> {
+    let input: StatusSnapshotInput = serde_wasm_bindgen::from_value(value)
+        .map_err(|_| EngineError::Abi("invalid principal status snapshot"))?;
+    let limits = VerifierLimits::default_deployment();
+    PrincipalStatusSnapshot::with_trust(
+        snapshot_id(&input.id)?,
+        Timestamp::new(input.observed_at),
+        Timestamp::new(input.valid_until),
+        input
+            .statements
+            .into_iter()
+            .map(|statement| auths_codec::decode_signed_principal_status(&statement, &limits))
+            .collect::<Result<Vec<_>, _>>()?,
+        checkpoints(input.checkpoints)?,
+        status_trust(input.trust)?,
+    )
+    .map_err(EngineError::from)
+}
+
+fn grant_status_snapshot(value: JsValue) -> Result<GrantStatusSnapshot, EngineError> {
+    let input: StatusSnapshotInput = serde_wasm_bindgen::from_value(value)
+        .map_err(|_| EngineError::Abi("invalid grant status snapshot"))?;
+    let limits = VerifierLimits::default_deployment();
+    GrantStatusSnapshot::with_trust(
+        snapshot_id(&input.id)?,
+        Timestamp::new(input.observed_at),
+        Timestamp::new(input.valid_until),
+        input
+            .statements
+            .into_iter()
+            .map(|statement| auths_codec::decode_signed_grant_status(&statement, &limits))
+            .collect::<Result<Vec<_>, _>>()?,
+        checkpoints(input.checkpoints)?,
+        status_trust(input.trust)?,
+    )
+    .map_err(EngineError::from)
+}
+
+/// Canonical status snapshot accepted by trusted-context composition.
+#[wasm_bindgen]
+pub struct StatusSnapshotV1 {
+    cbor: Vec<u8>,
+    id: Vec<u8>,
+    statement_count: usize,
+}
+
+#[wasm_bindgen]
+impl StatusSnapshotV1 {
+    #[must_use]
+    #[wasm_bindgen(getter)]
+    pub fn cbor(&self) -> Vec<u8> {
+        self.cbor.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter)]
+    pub fn id(&self) -> Vec<u8> {
+        self.id.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = statementCount)]
+    pub fn statement_count(&self) -> usize {
+        self.statement_count
+    }
+}
+
+/// Parses, canonicalizes, and bounds a principal-status snapshot.
+///
+/// # Errors
+///
+/// Returns a JavaScript error for malformed, duplicate, stale, or reordered input.
+#[wasm_bindgen(js_name = parsePrincipalStatusSnapshotV1)]
+pub fn parse_principal_status_snapshot_v1(value: JsValue) -> Result<StatusSnapshotV1, JsValue> {
+    let snapshot = principal_status_snapshot(value).map_err(js_error)?;
+    Ok(StatusSnapshotV1 {
+        cbor: auths_codec::encode_principal_status_snapshot(&snapshot).map_err(js_error)?,
+        id: snapshot.id().as_bytes().to_vec(),
+        statement_count: snapshot.statements().len(),
+    })
+}
+
+/// Parses, canonicalizes, and bounds a grant-status snapshot.
+///
+/// # Errors
+///
+/// Returns a JavaScript error for malformed, duplicate, stale, or reordered input.
+#[wasm_bindgen(js_name = parseGrantStatusSnapshotV1)]
+pub fn parse_grant_status_snapshot_v1(value: JsValue) -> Result<StatusSnapshotV1, JsValue> {
+    let snapshot = grant_status_snapshot(value).map_err(js_error)?;
+    Ok(StatusSnapshotV1 {
+        cbor: auths_codec::encode_grant_status_snapshot(&snapshot).map_err(js_error)?,
+        id: snapshot.id().as_bytes().to_vec(),
+        statement_count: snapshot.statements().len(),
+    })
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct CompositionInput {
+    expected_plan: Option<Vec<u8>>,
+    minimum_authorized_branches: u16,
+    minimum_distinct_actors: u16,
+    minimum_distinct_roots: u16,
+}
+
+#[derive(Clone, Deserialize, Eq, Ord, PartialEq, PartialOrd)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ProfileInput {
+    id: String,
+    version: u16,
+}
+
+#[derive(Clone, Deserialize, Eq, Ord, PartialEq, PartialOrd)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct PermissionInput {
+    capability: String,
+    resource: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct BudgetInput {
+    algebra: String,
+    value: u64,
+}
+
+#[derive(Deserialize)]
+#[serde(tag = "mode", rename_all = "kebab-case", deny_unknown_fields)]
+enum StatusPolicyInput {
+    ExpiryOnly,
+    SnapshotRequired {
+        method: String,
+        #[serde(rename = "maxAge")]
+        max_age: u64,
+    },
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct TrustAnchorInput {
+    id: String,
+    principal: String,
+    accepted_methods: Vec<String>,
+    profiles: Vec<ProfileInput>,
+    permissions: Vec<PermissionInput>,
+    resource_namespaces: Vec<String>,
+    audiences: Vec<String>,
+    not_before: u64,
+    expires_at: u64,
+    budget: Option<BudgetInput>,
+    max_delegation_depth: u16,
+    assurance_policy: String,
+    status_policy: StatusPolicyInput,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct AssuranceRequirementInput {
+    role: String,
+    quantifier: String,
+    claim_kind: String,
+    maximum_age: Option<u64>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct AssuranceInput {
+    id: String,
+    requirements: Vec<AssuranceRequirementInput>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct RegistryInput {
+    principal_methods: Vec<String>,
+    signature_suites: Vec<String>,
+    evidence_types: Vec<String>,
+    principal_status_methods: Vec<String>,
+    grant_status_methods: Vec<String>,
+    assurance_claims: Vec<String>,
+    assurance_implications: Vec<String>,
+    resource_matchers: Vec<String>,
+    budget_algebras: Vec<String>,
+    critical_extensions: Vec<String>,
+    profiles: Vec<ProfileInput>,
+    profile_policies: Vec<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct LimitInput {
+    kind: String,
+    value: usize,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct TrustedContextInput {
+    composition: CompositionInput,
+    trust_anchors: Vec<TrustAnchorInput>,
+    registries: RegistryInput,
+    expected_audience: String,
+    evaluation_time: u64,
+    assurance: AssuranceInput,
+    resource_matcher: String,
+    profile_policy: String,
+    channel_policy: String,
+    limits: Vec<LimitInput>,
+    work_units: u64,
+}
+
+fn profile_ref(input: &ProfileInput) -> Result<ProfileRef, EngineError> {
+    ProfileRef::new(ProfileId::parse(&input.id)?, input.version).map_err(EngineError::from)
+}
+
+fn status_policy(input: StatusPolicyInput) -> Result<StatusPolicy, EngineError> {
+    match input {
+        StatusPolicyInput::ExpiryOnly => Ok(StatusPolicy::ExpiryOnly),
+        StatusPolicyInput::SnapshotRequired { method, max_age } => {
+            Ok(StatusPolicy::SnapshotRequired {
+                method: StatusMethodId::parse(&method)?,
+                max_age: FreshnessLimit::new(max_age)?,
+            })
+        }
+    }
+}
+
+fn trust_anchor(input: TrustAnchorInput) -> Result<TrustAnchor, EngineError> {
+    if contains_duplicates(&input.accepted_methods)
+        || contains_duplicates(&input.profiles)
+        || contains_duplicates(&input.permissions)
+        || contains_duplicates(&input.resource_namespaces)
+        || contains_duplicates(&input.audiences)
+    {
+        return Err(EngineError::Abi("trust anchor contains duplicate entries"));
+    }
+    TrustAnchor::new(
+        TrustAnchorId::parse(&input.id)?,
+        PrincipalId::parse(&input.principal)?,
+        input
+            .accepted_methods
+            .into_iter()
+            .map(|value| PrincipalMethodId::parse(&value))
+            .collect::<Result<Vec<_>, _>>()?,
+        input
+            .profiles
+            .into_iter()
+            .map(|input| profile_ref(&input))
+            .collect::<Result<Vec<_>, _>>()?,
+        PermissionSet::new(
+            input
+                .permissions
+                .into_iter()
+                .map(|value| {
+                    Ok(Permission::new(
+                        CapabilityId::parse(&value.capability)?,
+                        ResourceId::parse(&value.resource)?,
+                    ))
+                })
+                .collect::<Result<Vec<_>, EngineError>>()?,
+        )?,
+        input
+            .resource_namespaces
+            .into_iter()
+            .map(|value| ResourceId::parse(&value))
+            .collect::<Result<Vec<_>, _>>()?,
+        AudienceSet::new(
+            input
+                .audiences
+                .into_iter()
+                .map(|value| Audience::parse(&value))
+                .collect::<Result<Vec<_>, _>>()?,
+        )?,
+        ValidityWindow::new(
+            Timestamp::new(input.not_before),
+            Timestamp::new(input.expires_at),
+        )?,
+        match input.budget {
+            Some(value) => Some(BudgetCeiling::new(
+                BudgetAlgebraId::parse(&value.algebra)?,
+                value.value,
+            )),
+            None => None,
+        },
+        input.max_delegation_depth,
+        AssurancePolicyId::parse(&input.assurance_policy)?,
+        status_policy(input.status_policy)?,
+    )
+    .map_err(EngineError::from)
+}
+
+fn participant_role(value: &str) -> Result<ParticipantRole, EngineError> {
+    match value {
+        "root" => Ok(ParticipantRole::Root),
+        "intermediate" => Ok(ParticipantRole::Intermediate),
+        "actor" => Ok(ParticipantRole::Actor),
+        "external-issuer" => Ok(ParticipantRole::ExternalIssuer),
+        _ => Err(EngineError::Abi("invalid assurance participant role")),
+    }
+}
+
+fn assurance_quantifier(value: &str) -> Result<AssuranceQuantifier, EngineError> {
+    match value {
+        "any" => Ok(AssuranceQuantifier::Any),
+        "every" => Ok(AssuranceQuantifier::Every),
+        _ => Err(EngineError::Abi("invalid assurance quantifier")),
+    }
+}
+
+fn assurance_policy(input: AssuranceInput) -> Result<AssurancePolicy, EngineError> {
+    AssurancePolicy::new(
+        AssurancePolicyId::parse(&input.id)?,
+        input
+            .requirements
+            .into_iter()
+            .map(|value| {
+                Ok(AssuranceRequirement::new(
+                    participant_role(&value.role)?,
+                    assurance_quantifier(&value.quantifier)?,
+                    AssuranceClaimId::parse(&value.claim_kind)?,
+                    value.maximum_age.map(FreshnessLimit::new).transpose()?,
+                ))
+            })
+            .collect::<Result<Vec<_>, EngineError>>()?,
+    )
+    .map_err(EngineError::from)
+}
+
+fn accepted_registries(input: RegistryInput) -> Result<AcceptedRegistries, EngineError> {
+    if contains_duplicates(&input.principal_methods)
+        || contains_duplicates(&input.signature_suites)
+        || contains_duplicates(&input.evidence_types)
+        || contains_duplicates(&input.principal_status_methods)
+        || contains_duplicates(&input.grant_status_methods)
+        || contains_duplicates(&input.assurance_claims)
+        || contains_duplicates(&input.assurance_implications)
+        || contains_duplicates(&input.resource_matchers)
+        || contains_duplicates(&input.budget_algebras)
+        || contains_duplicates(&input.critical_extensions)
+        || contains_duplicates(&input.profiles)
+        || contains_duplicates(&input.profile_policies)
+    {
+        return Err(EngineError::Abi(
+            "trusted context registries contain duplicate entries",
+        ));
+    }
+    if input.principal_methods.iter().any(|value| {
+        ![
+            auths_raw_key::RAW_KEY_V1,
+            auths_did_key::DID_KEY_V1,
+            auths_did_keri::ADAPTER_ID,
+        ]
+        .contains(&value.as_str())
+    }) || input.signature_suites.iter().any(|value| {
+        ![auths_signature::ED25519_V1, auths_signature::P256_SHA256_V1].contains(&value.as_str())
+    }) {
+        return Err(EngineError::Abi(
+            "trusted context selected an adapter not installed in this SDK",
+        ));
+    }
+    Ok(AcceptedRegistries::new(
+        auths_registries::TARGET_V1_REGISTRY_MANIFEST,
+        input
+            .principal_methods
+            .into_iter()
+            .map(|value| PrincipalMethodId::parse(&value))
+            .collect::<Result<Vec<_>, _>>()?,
+        input
+            .signature_suites
+            .into_iter()
+            .map(|value| SignatureSuiteId::parse(&value))
+            .collect::<Result<Vec<_>, _>>()?,
+        input
+            .evidence_types
+            .into_iter()
+            .map(|value| EvidenceTypeId::parse(&value))
+            .collect::<Result<Vec<_>, _>>()?,
+        input
+            .principal_status_methods
+            .into_iter()
+            .map(|value| StatusMethodId::parse(&value))
+            .collect::<Result<Vec<_>, _>>()?,
+        input
+            .grant_status_methods
+            .into_iter()
+            .map(|value| StatusMethodId::parse(&value))
+            .collect::<Result<Vec<_>, _>>()?,
+        input
+            .assurance_claims
+            .into_iter()
+            .map(|value| AssuranceClaimId::parse(&value))
+            .collect::<Result<Vec<_>, _>>()?,
+        input
+            .assurance_implications
+            .into_iter()
+            .map(|value| AssuranceImplicationId::parse(&value))
+            .collect::<Result<Vec<_>, _>>()?,
+        input
+            .resource_matchers
+            .into_iter()
+            .map(|value| ResourceMatcherId::parse(&value))
+            .collect::<Result<Vec<_>, _>>()?,
+        input
+            .budget_algebras
+            .into_iter()
+            .map(|value| BudgetAlgebraId::parse(&value))
+            .collect::<Result<Vec<_>, _>>()?,
+        input
+            .critical_extensions
+            .into_iter()
+            .map(|value| ExtensionId::parse(&value))
+            .collect::<Result<Vec<_>, _>>()?,
+        input
+            .profiles
+            .into_iter()
+            .map(|input| profile_ref(&input))
+            .collect::<Result<Vec<_>, _>>()?,
+        input
+            .profile_policies
+            .into_iter()
+            .map(|value| ProfilePolicyId::parse(&value))
+            .collect::<Result<Vec<_>, _>>()?,
+    )?)
+}
+
+fn limit_kind(value: &str) -> Result<LimitKind, EngineError> {
+    match value {
+        "bundle-bytes" => Ok(LimitKind::BundleBytes),
+        "action-bytes" => Ok(LimitKind::ActionBytes),
+        "context-bytes" => Ok(LimitKind::ContextBytes),
+        "grants" => Ok(LimitKind::Grants),
+        "actions" => Ok(LimitKind::Actions),
+        "plan-leaves" => Ok(LimitKind::PlanLeaves),
+        "plan-depth" => Ok(LimitKind::PlanDepth),
+        "plan-branching" => Ok(LimitKind::PlanBranching),
+        "evidence-objects" => Ok(LimitKind::EvidenceObjects),
+        "evidence-bytes" => Ok(LimitKind::EvidenceBytes),
+        "control-bindings" => Ok(LimitKind::ControlBindings),
+        "principal-status-statements" => Ok(LimitKind::PrincipalStatusStatements),
+        "grant-status-statements" => Ok(LimitKind::GrantStatusStatements),
+        "attachments" => Ok(LimitKind::Attachments),
+        "attachment-bytes" => Ok(LimitKind::AttachmentBytes),
+        "signatures" => Ok(LimitKind::Signatures),
+        "signature-bytes" => Ok(LimitKind::SignatureBytes),
+        "permissions" => Ok(LimitKind::Permissions),
+        "audiences" => Ok(LimitKind::Audiences),
+        "critical-extensions" => Ok(LimitKind::CriticalExtensions),
+        "critical-extension-bytes" => Ok(LimitKind::CriticalExtensionBytes),
+        "allowed-body-digests" => Ok(LimitKind::AllowedBodyDigests),
+        "binding-evidence" => Ok(LimitKind::BindingEvidence),
+        "canonical-body-bytes" => Ok(LimitKind::CanonicalBodyBytes),
+        "registry-entries" => Ok(LimitKind::RegistryEntries),
+        "trust-anchors" => Ok(LimitKind::TrustAnchors),
+        _ => Err(EngineError::Abi("invalid verifier limit kind")),
+    }
+}
+
+fn verifier_limits(
+    inputs: Vec<LimitInput>,
+    work_units: u64,
+) -> Result<VerifierLimits, EngineError> {
+    if contains_duplicates(
+        &inputs
+            .iter()
+            .map(|input| input.kind.as_str())
+            .collect::<Vec<_>>(),
+    ) {
+        return Err(EngineError::Abi(
+            "verifier limits contain duplicate entries",
+        ));
+    }
+    let mut limits = VerifierLimits::default_deployment();
+    for input in inputs {
+        limits = limits.with_limit(limit_kind(&input.kind)?, input.value)?;
+    }
+    limits
+        .with_work_units(work_units)
+        .map_err(EngineError::from)
+}
+
+fn contains_duplicates<T: Ord>(values: &[T]) -> bool {
+    let mut seen = BTreeSet::new();
+    values.iter().any(|value| !seen.insert(value))
+}
+
+fn composition(input: CompositionInput) -> Result<CompositionRequirement, EngineError> {
+    let expected_plan = input
+        .expected_plan
+        .map(|bytes| {
+            <[u8; 32]>::try_from(bytes.as_slice())
+                .map(auths_model::PlanId::new)
+                .map_err(|_| EngineError::Abi("expected plan id must contain 32 bytes"))
+        })
+        .transpose()?;
+    CompositionRequirement::new(
+        expected_plan,
+        input.minimum_authorized_branches,
+        input.minimum_distinct_actors,
+        input.minimum_distinct_roots,
+    )
+    .map_err(EngineError::from)
+}
+
+/// Rust-compiled immutable trusted context and executable registry configuration.
+#[wasm_bindgen]
+pub struct TrustedContextCompilationV1 {
+    cbor: Vec<u8>,
+    verifier_configuration: Vec<u8>,
+}
+
+#[wasm_bindgen]
+impl TrustedContextCompilationV1 {
+    #[must_use]
+    #[wasm_bindgen(getter)]
+    pub fn cbor(&self) -> Vec<u8> {
+        self.cbor.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = verifierConfiguration)]
+    pub fn verifier_configuration(&self) -> Vec<u8> {
+        self.verifier_configuration.clone()
+    }
+}
+
+/// Compiles typed roots, registries, lifecycle, assurance, and limits into a verifier context.
+///
+/// # Errors
+///
+/// Returns a JavaScript error for any malformed or mutually inconsistent field.
+#[wasm_bindgen(js_name = compileTrustedContextV1)]
+pub fn compile_trusted_context_v1(
+    value: JsValue,
+    principal_status_cbor: &[u8],
+    grant_status_cbor: &[u8],
+) -> Result<TrustedContextCompilationV1, JsValue> {
+    let input: TrustedContextInput = serde_wasm_bindgen::from_value(value)
+        .map_err(|_| js_error(EngineError::Abi("invalid trusted context configuration")))?;
+    let limits = verifier_limits(input.limits, input.work_units).map_err(js_error)?;
+    let principal_status =
+        auths_codec::decode_principal_status_snapshot(principal_status_cbor, &limits)
+            .map_err(js_error)?;
+    let grant_status =
+        auths_codec::decode_grant_status_snapshot(grant_status_cbor, &limits).map_err(js_error)?;
+    let configuration = self_contained_v1_configuration().map_err(js_error)?;
+    let context = VerifierContext::new(
+        VerifierConfigurationId::new(configuration),
+        composition(input.composition).map_err(js_error)?,
+        input
+            .trust_anchors
+            .into_iter()
+            .map(trust_anchor)
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(js_error)?,
+        accepted_registries(input.registries).map_err(js_error)?,
+        Audience::parse(&input.expected_audience).map_err(js_error)?,
+        Challenge::new([0; 32]),
+        Timestamp::new(input.evaluation_time),
+        assurance_policy(input.assurance).map_err(js_error)?,
+        principal_status,
+        grant_status,
+        ResourceMatcherId::parse(&input.resource_matcher).map_err(js_error)?,
+        ProfilePolicyId::parse(&input.profile_policy).map_err(js_error)?,
+        ChannelBindingId::parse(&input.channel_policy).map_err(js_error)?,
+        limits,
+    )
+    .map_err(js_error)?;
+    Ok(TrustedContextCompilationV1 {
+        cbor: auths_codec::encode_verifier_context(&context).map_err(js_error)?,
+        verifier_configuration: configuration.to_vec(),
+    })
 }
 
 /// Structurally decoded fields from the neutral compact identity protocol.
@@ -156,6 +899,52 @@ impl AuthenticatedIdentityMessageV2 {
     }
 }
 
+#[wasm_bindgen]
+pub struct SignedIdentityMessageFieldsV2 {
+    identity: IdentityFieldsV2,
+    message: Vec<u8>,
+    signature: Vec<u8>,
+}
+
+#[wasm_bindgen]
+impl SignedIdentityMessageFieldsV2 {
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = methodId)]
+    pub fn method_id(&self) -> String {
+        self.identity.method_id.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = identityId)]
+    pub fn identity_id(&self) -> String {
+        self.identity.identity_id.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = suiteId)]
+    pub fn suite_id(&self) -> String {
+        self.identity.suite_id.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = publicKey)]
+    pub fn public_key(&self) -> Vec<u8> {
+        self.identity.public_key.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter)]
+    pub fn message(&self) -> Vec<u8> {
+        self.message.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter)]
+    pub fn signature(&self) -> Vec<u8> {
+        self.signature.clone()
+    }
+}
+
 /// Encodes canonical public-identity packet bytes without selecting an identity adapter.
 ///
 /// The caller supplies a method-derived stable identifier. Decoding the resulting bytes remains
@@ -207,6 +996,25 @@ pub fn decode_public_identity_v2(packet: &[u8]) -> Result<IdentityFieldsV2, JsVa
     match IdentityPacket::decode(packet).map_err(js_error)? {
         IdentityPacket::PublicIdentity(identity) => Ok(IdentityFieldsV2::from(&identity)),
         IdentityPacket::SignedMessage(_) => Err(js_error("expected a public-identity packet")),
+    }
+}
+
+#[wasm_bindgen(js_name = decodeSignedIdentityMessageV2)]
+/// Decodes one canonical signed identity message without authenticating it.
+///
+/// # Errors
+///
+/// Rejects malformed, non-canonical, public-identity, trailing, or oversized packets.
+pub fn decode_signed_identity_message_v2(
+    packet: &[u8],
+) -> Result<SignedIdentityMessageFieldsV2, JsValue> {
+    match IdentityPacket::decode(packet).map_err(js_error)? {
+        IdentityPacket::PublicIdentity(_) => Err(js_error("expected a signed identity message")),
+        IdentityPacket::SignedMessage(signed) => Ok(SignedIdentityMessageFieldsV2 {
+            identity: IdentityFieldsV2::from(signed.identity()),
+            message: signed.message().to_vec(),
+            signature: signed.signature().to_vec(),
+        }),
     }
 }
 
@@ -886,6 +1694,178 @@ pub struct ProfilePlanCommitmentV1 {
 }
 
 #[wasm_bindgen]
+pub struct AuthorizationPlanBuilderV1 {
+    plans: Vec<AuthorizationPlan>,
+}
+
+#[wasm_bindgen]
+impl AuthorizationPlanBuilderV1 {
+    #[wasm_bindgen(constructor)]
+    #[must_use]
+    pub fn new() -> Self {
+        Self { plans: Vec::new() }
+    }
+
+    /// Adds one exact proof reference.
+    ///
+    /// # Errors
+    ///
+    /// Rejects a reference with any width other than 32 bytes.
+    pub fn proof(&mut self, reference: &[u8]) -> Result<u32, JsValue> {
+        let reference: [u8; 32] = reference
+            .try_into()
+            .map_err(|_| js_error("proof reference must contain exactly 32 bytes"))?;
+        self.push(AuthorizationPlan::proof(ProofRef::new(reference)))
+    }
+
+    #[wasm_bindgen(js_name = allOf)]
+    /// Composes plans that must all authorize.
+    ///
+    /// # Errors
+    ///
+    /// Rejects unknown, empty, duplicate, or over-limit membership.
+    pub fn all_of(&mut self, members: &[u32]) -> Result<u32, JsValue> {
+        let members = self.members(members)?;
+        let plan = AuthorizationPlan::all_of(members)
+            .map_err(EngineError::from)
+            .map_err(js_error)?;
+        self.push(plan)
+    }
+
+    #[wasm_bindgen(js_name = anyOf)]
+    /// Composes plans where any member may authorize.
+    ///
+    /// # Errors
+    ///
+    /// Rejects unknown, empty, duplicate, or over-limit membership.
+    pub fn any_of(&mut self, members: &[u32]) -> Result<u32, JsValue> {
+        let members = self.members(members)?;
+        let plan = AuthorizationPlan::any_of(members)
+            .map_err(EngineError::from)
+            .map_err(js_error)?;
+        self.push(plan)
+    }
+
+    #[wasm_bindgen(js_name = threshold)]
+    /// Composes a bounded threshold over exact members.
+    ///
+    /// # Errors
+    ///
+    /// Rejects unknown, duplicate, impossible, or over-limit membership.
+    pub fn threshold(&mut self, required: u16, members: &[u32]) -> Result<u32, JsValue> {
+        let members = self.members(members)?;
+        let plan = AuthorizationPlan::k_of_n(required, members)
+            .map_err(EngineError::from)
+            .map_err(js_error)?;
+        self.push(plan)
+    }
+
+    /// Returns the canonical plan and bounded shape summary.
+    ///
+    /// # Errors
+    ///
+    /// Rejects unknown or over-limit plans.
+    pub fn summarize(&self, handle: u32) -> Result<AuthorizationPlanSummaryV1, JsValue> {
+        let plan = self.plan(handle)?;
+        let shape = plan
+            .validate(&VerifierLimits::default_deployment())
+            .map_err(EngineError::from)
+            .map_err(js_error)?;
+        Ok(AuthorizationPlanSummaryV1 {
+            plan_cbor: auths_codec::encode_authorization_plan(plan)
+                .map_err(EngineError::from)
+                .map_err(js_error)?,
+            plan_id: auths_codec::plan_id(plan)
+                .map_err(EngineError::from)
+                .map_err(js_error)?
+                .as_bytes()
+                .to_vec(),
+            proof_references: shape
+                .leaves()
+                .iter()
+                .flat_map(auths_model::ProofRef::as_bytes)
+                .copied()
+                .collect(),
+            leaf_count: u32::try_from(shape.leaves().len())
+                .map_err(|_| js_error("authorization plan leaf count exceeds the ABI"))?,
+            maximum_depth: u32::try_from(shape.maximum_depth())
+                .map_err(|_| js_error("authorization plan depth exceeds the ABI"))?,
+        })
+    }
+
+    fn push(&mut self, plan: AuthorizationPlan) -> Result<u32, JsValue> {
+        plan.validate(&VerifierLimits::default_deployment())
+            .map_err(EngineError::from)
+            .map_err(js_error)?;
+        let handle = u32::try_from(self.plans.len())
+            .map_err(|_| js_error("authorization plan builder is full"))?;
+        self.plans.push(plan);
+        Ok(handle)
+    }
+
+    fn plan(&self, handle: u32) -> Result<&AuthorizationPlan, JsValue> {
+        self.plans
+            .get(handle as usize)
+            .ok_or_else(|| js_error("authorization plan handle is unknown"))
+    }
+
+    fn members(&self, handles: &[u32]) -> Result<Vec<AuthorizationPlan>, JsValue> {
+        handles
+            .iter()
+            .map(|handle| self.plan(*handle).cloned())
+            .collect()
+    }
+}
+
+impl Default for AuthorizationPlanBuilderV1 {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[wasm_bindgen]
+pub struct AuthorizationPlanSummaryV1 {
+    plan_cbor: Vec<u8>,
+    plan_id: Vec<u8>,
+    proof_references: Vec<u8>,
+    leaf_count: u32,
+    maximum_depth: u32,
+}
+
+#[wasm_bindgen]
+impl AuthorizationPlanSummaryV1 {
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = planCbor)]
+    pub fn plan_cbor(&self) -> Vec<u8> {
+        self.plan_cbor.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = planId)]
+    pub fn plan_id(&self) -> Vec<u8> {
+        self.plan_id.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = proofReferences)]
+    pub fn proof_references(&self) -> Vec<u8> {
+        self.proof_references.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = leafCount)]
+    pub fn leaf_count(&self) -> u32 {
+        self.leaf_count
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = maximumDepth)]
+    pub fn maximum_depth(&self) -> u32 {
+        self.maximum_depth
+    }
+}
+
+#[wasm_bindgen]
 impl ProfilePlanCommitmentV1 {
     /// Returns the commitment over the whole ordered plan.
     #[must_use]
@@ -1364,6 +2344,288 @@ pub struct ProfileActionPreparationV1 {
     action_envelope_cbor: Vec<u8>,
     audience: String,
     resource: String,
+}
+
+#[wasm_bindgen]
+pub struct DomainActionFieldsV1 {
+    body: Vec<u8>,
+    media_type: String,
+    capability: String,
+    resource: String,
+    has_budget: bool,
+    budget_algebra: String,
+    budget_value: u64,
+    review_title: String,
+    review_labels: Vec<String>,
+    review_values: Vec<String>,
+    normalized: JsValue,
+}
+
+#[wasm_bindgen]
+impl DomainActionFieldsV1 {
+    #[must_use]
+    #[wasm_bindgen(getter)]
+    pub fn body(&self) -> Vec<u8> {
+        self.body.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = mediaType)]
+    pub fn media_type(&self) -> String {
+        self.media_type.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter)]
+    pub fn capability(&self) -> String {
+        self.capability.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter)]
+    pub fn resource(&self) -> String {
+        self.resource.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = hasBudget)]
+    pub fn has_budget(&self) -> bool {
+        self.has_budget
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = budgetAlgebra)]
+    pub fn budget_algebra(&self) -> String {
+        self.budget_algebra.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = budgetValue)]
+    pub fn budget_value(&self) -> u64 {
+        self.budget_value
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = reviewTitle)]
+    pub fn review_title(&self) -> String {
+        self.review_title.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = reviewLabels)]
+    pub fn review_labels(&self) -> Vec<String> {
+        self.review_labels.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = reviewValues)]
+    pub fn review_values(&self) -> Vec<String> {
+        self.review_values.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter)]
+    pub fn normalized(&self) -> JsValue {
+        self.normalized.clone()
+    }
+}
+
+fn domain_input(input: JsValue, profile: &str) -> Result<Vec<u8>, EngineError> {
+    let Value::Object(mut fields) = serde_wasm_bindgen::from_value(input)
+        .map_err(|_| EngineError::Abi("domain action must be an object"))?
+    else {
+        return Err(EngineError::Abi("domain action must be an object"));
+    };
+    if fields.contains_key("profile") || fields.contains_key("profile_version") {
+        return Err(EngineError::Abi(
+            "domain profile identity is not caller-selectable",
+        ));
+    }
+    fields.insert("profile".into(), Value::String(profile.into()));
+    fields.insert("profile_version".into(), Value::Number(1.into()));
+    serde_json::to_vec(&Value::Object(fields))
+        .map_err(|_| EngineError::Abi("invalid domain action"))
+}
+
+fn domain_fields<P: ActionProfile>(
+    profile: &P,
+    canonical: &auths_model::CanonicalAction,
+) -> Result<DomainActionFieldsV1, EngineError> {
+    let review = profile.review_display(canonical)?;
+    let (has_budget, budget_algebra, budget_value) = canonical.requested_budget().map_or_else(
+        || (false, String::new(), 0),
+        |budget| (true, budget.algebra().as_str().to_owned(), budget.value()),
+    );
+    let (review_labels, review_values) = review.fields().iter().cloned().unzip();
+    let normalized: Value = serde_json::from_slice(canonical.body())
+        .map_err(|_| EngineError::Abi("canonical domain action is not JSON"))?;
+    let serializer =
+        serde_wasm_bindgen::Serializer::new().serialize_large_number_types_as_bigints(true);
+    let normalized = normalized
+        .serialize(&serializer)
+        .map_err(|_| EngineError::Abi("canonical domain action cannot cross the ABI"))?;
+    Ok(DomainActionFieldsV1 {
+        body: canonical.body().to_vec(),
+        media_type: canonical.media_type().as_str().to_owned(),
+        capability: canonical.permission().capability().as_str().to_owned(),
+        resource: canonical.permission().resource().as_str().to_owned(),
+        has_budget,
+        budget_algebra,
+        budget_value,
+        review_title: review.title().to_owned(),
+        review_labels,
+        review_values,
+        normalized,
+    })
+}
+
+fn canonical_domain<P: ActionProfile>(
+    body: &[u8],
+    profile: &P,
+    parse: fn(
+        &[u8],
+    ) -> Result<auths_model::CanonicalAction, auths_profile_api::ProfileContractError>,
+) -> Result<DomainActionFieldsV1, JsValue> {
+    let canonical = parse(body).map_err(EngineError::from).map_err(js_error)?;
+    if canonical.body() != body {
+        return Err(js_error("domain action is not canonical"));
+    }
+    domain_fields(profile, &canonical).map_err(js_error)
+}
+
+/// Parses one HTTP action through the maintained Rust profile.
+///
+/// # Errors
+///
+/// Rejects malformed, non-canonical, or out-of-profile input.
+#[wasm_bindgen(js_name = parseHttpActionV1)]
+pub fn parse_http_action_v1(input: JsValue) -> Result<DomainActionFieldsV1, JsValue> {
+    let bytes = domain_input(input, "auths.http").map_err(js_error)?;
+    let profile = HttpProfile::default();
+    let canonical = reference_canonicalize_http(&bytes)
+        .map_err(EngineError::from)
+        .map_err(js_error)?;
+    domain_fields(&profile, &canonical).map_err(js_error)
+}
+
+/// Parses one Git action through the maintained Rust profile.
+///
+/// # Errors
+///
+/// Rejects malformed, non-canonical, or out-of-profile input.
+#[wasm_bindgen(js_name = parseGitActionV1)]
+pub fn parse_git_action_v1(input: JsValue) -> Result<DomainActionFieldsV1, JsValue> {
+    let bytes = domain_input(input, "auths.git").map_err(js_error)?;
+    let profile = GitProfile::default();
+    let canonical = reference_canonicalize_git(&bytes)
+        .map_err(EngineError::from)
+        .map_err(js_error)?;
+    domain_fields(&profile, &canonical).map_err(js_error)
+}
+
+/// Parses one deployment action through the maintained Rust profile.
+///
+/// # Errors
+///
+/// Rejects malformed, non-canonical, or out-of-profile input.
+#[wasm_bindgen(js_name = parseDeploymentActionV1)]
+pub fn parse_deployment_action_v1(input: JsValue) -> Result<DomainActionFieldsV1, JsValue> {
+    let bytes = domain_input(input, "auths.deploy").map_err(js_error)?;
+    let profile = DeploymentProfile::default();
+    let canonical = reference_canonicalize_deployment(&bytes)
+        .map_err(EngineError::from)
+        .map_err(js_error)?;
+    domain_fields(&profile, &canonical).map_err(js_error)
+}
+
+/// Parses one supply-chain action through the maintained Rust profile.
+///
+/// # Errors
+///
+/// Rejects malformed, non-canonical, or out-of-profile input.
+#[wasm_bindgen(js_name = parseSupplyChainActionV1)]
+pub fn parse_supply_chain_action_v1(input: JsValue) -> Result<DomainActionFieldsV1, JsValue> {
+    let bytes = domain_input(input, "auths.supply-chain").map_err(js_error)?;
+    let profile = SupplyChainProfile::default();
+    let canonical = reference_canonicalize_supply_chain(&bytes)
+        .map_err(EngineError::from)
+        .map_err(js_error)?;
+    domain_fields(&profile, &canonical).map_err(js_error)
+}
+
+/// Parses one edge action through the maintained Rust profile.
+///
+/// # Errors
+///
+/// Rejects malformed, non-canonical, or out-of-profile input.
+#[wasm_bindgen(js_name = parseEdgeActionV1)]
+pub fn parse_edge_action_v1(input: JsValue) -> Result<DomainActionFieldsV1, JsValue> {
+    let bytes = domain_input(input, "auths.edge").map_err(js_error)?;
+    let profile = EdgeProfile::default();
+    let canonical = reference_canonicalize_edge(&bytes)
+        .map_err(EngineError::from)
+        .map_err(js_error)?;
+    domain_fields(&profile, &canonical).map_err(js_error)
+}
+
+/// Parses canonical HTTP action bytes through the maintained Rust profile.
+///
+/// # Errors
+///
+/// Rejects malformed, non-canonical, or out-of-profile input.
+#[wasm_bindgen(js_name = parseCanonicalHttpActionV1)]
+pub fn parse_canonical_http_action_v1(body: &[u8]) -> Result<DomainActionFieldsV1, JsValue> {
+    canonical_domain(body, &HttpProfile::default(), reference_canonicalize_http)
+}
+
+/// Parses canonical Git action bytes through the maintained Rust profile.
+///
+/// # Errors
+///
+/// Rejects malformed, non-canonical, or out-of-profile input.
+#[wasm_bindgen(js_name = parseCanonicalGitActionV1)]
+pub fn parse_canonical_git_action_v1(body: &[u8]) -> Result<DomainActionFieldsV1, JsValue> {
+    canonical_domain(body, &GitProfile::default(), reference_canonicalize_git)
+}
+
+/// Parses canonical deployment action bytes through the maintained Rust profile.
+///
+/// # Errors
+///
+/// Rejects malformed, non-canonical, or out-of-profile input.
+#[wasm_bindgen(js_name = parseCanonicalDeploymentActionV1)]
+pub fn parse_canonical_deployment_action_v1(body: &[u8]) -> Result<DomainActionFieldsV1, JsValue> {
+    canonical_domain(
+        body,
+        &DeploymentProfile::default(),
+        reference_canonicalize_deployment,
+    )
+}
+
+/// Parses canonical supply-chain action bytes through the maintained Rust profile.
+///
+/// # Errors
+///
+/// Rejects malformed, non-canonical, or out-of-profile input.
+#[wasm_bindgen(js_name = parseCanonicalSupplyChainActionV1)]
+pub fn parse_canonical_supply_chain_action_v1(
+    body: &[u8],
+) -> Result<DomainActionFieldsV1, JsValue> {
+    canonical_domain(
+        body,
+        &SupplyChainProfile::default(),
+        reference_canonicalize_supply_chain,
+    )
+}
+
+/// Parses canonical edge action bytes through the maintained Rust profile.
+///
+/// # Errors
+///
+/// Rejects malformed, non-canonical, or out-of-profile input.
+#[wasm_bindgen(js_name = parseCanonicalEdgeActionV1)]
+pub fn parse_canonical_edge_action_v1(body: &[u8]) -> Result<DomainActionFieldsV1, JsValue> {
+    canonical_domain(body, &EdgeProfile::default(), reference_canonicalize_edge)
 }
 
 /// Unsigned root grant and matching self-contained raw-key trust context.

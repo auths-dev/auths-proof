@@ -61,6 +61,32 @@ release, provenance, independent-review, or clean-clone evidence.
 
 - Obtain passing macOS, Linux, and Windows CI evidence on the exact revision.
 - Obtain passing packed-Chromium CI evidence on the exact revision.
-- Reconcile Python parity with AP-SPEC-035 and issue 73.
+- Keep Python parity under AP-SPEC-035 and issue 73 in a separate follow-up
+  branch and pull request.
 - Publish or promote nothing until the governing release and review gates
   permit it.
+
+## TypeScript Rust-surface parity branch
+
+Repository-local evidence on `codex/typescript-rust-surface-parity`:
+
+| Evidence | Result |
+| --- | --- |
+| Compile-time contract | passed |
+| Real-WASM integration | 77 tests passed |
+| Fast unit suite | 12 tests passed |
+| Packed-package suite | 8 tests passed |
+| Examples, installed API snapshot, and capability consistency | passed |
+| Packed Chromium workflow | passed locally |
+| Focused `auths-codec` and `auths-proof-wasm` tests | 19 tests passed |
+| Focused Rust clippy | passed with warnings denied |
+| Binding semantics | 52 files, 14 patterns, 3 declared allowances, none temporary |
+| Architecture and semantic freeze | passed after generated snapshots were refreshed |
+| Product/core compliance | 62 packages, 126 claims, 9 checks passed |
+
+This evidence covers the typed trust builder, identity adapters, maintained
+domain profiles, lifecycle authoring, general proof plans, optional runtime
+ports, and custody conformance in the local working revision. It is not an
+independent review, exact-revision hosted CI result, publication authorization,
+or production-readiness claim. Those gates remain blocked by the issues named
+in `sdk-capability.json`.

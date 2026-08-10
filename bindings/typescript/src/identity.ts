@@ -6,8 +6,13 @@
  * callers select concrete identity-method and signature-suite adapters explicitly.
  */
 
-/** Structurally decoded identity data. It is safe to inspect or forward, but not yet trust. */
+const DECODED_IDENTITY = Symbol("auths-decoded-identity");
+const VALIDATED_IDENTITY = Symbol("auths-validated-identity");
+const DECODED_MESSAGE = Symbol("auths-decoded-identity-message");
+const AUTHENTICATED_MESSAGE = Symbol("auths-authenticated-identity-message");
+
 export interface DecodedIdentity {
+  readonly [DECODED_IDENTITY]: true;
   readonly validation: "decoded";
   readonly methodId: string;
   readonly identityId: string;
@@ -16,8 +21,8 @@ export interface DecodedIdentity {
   readonly packet: Uint8Array;
 }
 
-/** Identity data whose method-specific identifier/material relationship has been validated. */
 export interface ValidatedIdentity {
+  readonly [VALIDATED_IDENTITY]: true;
   readonly validation: "validated";
   readonly methodId: string;
   readonly identityId: string;
@@ -26,10 +31,40 @@ export interface ValidatedIdentity {
   readonly packet: Uint8Array;
 }
 
-/** Exact application bytes authenticated by a validated public identity. */
+export interface DecodedSignedIdentityMessage {
+  readonly [DECODED_MESSAGE]: true;
+  readonly identity: DecodedIdentity;
+  readonly message: Uint8Array;
+  readonly signature: Uint8Array;
+  readonly packet: Uint8Array;
+}
+
 export interface AuthenticatedIdentityMessage {
+  readonly [AUTHENTICATED_MESSAGE]: true;
   readonly identity: ValidatedIdentity;
   readonly message: Uint8Array;
+}
+
+export interface IdentityMethodParse {
+  readonly methodId: string;
+  readonly identityId: string;
+  readonly suiteId: string;
+  readonly publicKey: Uint8Array;
+}
+
+export interface IdentityMethodAdapter {
+  readonly methodId: string;
+  parse(identity: DecodedIdentity): IdentityMethodParse;
+}
+
+export interface SignatureSuiteParse {
+  readonly identityId: string;
+  readonly message: Uint8Array;
+}
+
+export interface SignatureSuiteAdapter {
+  readonly suiteId: string;
+  parse(message: DecodedSignedIdentityMessage): SignatureSuiteParse;
 }
 
 interface WasmIdentityFields {
@@ -44,6 +79,10 @@ interface WasmAuthenticatedIdentityMessage extends WasmIdentityFields {
   readonly message: Uint8Array;
 }
 
+interface WasmSignedIdentityMessage extends WasmAuthenticatedIdentityMessage {
+  readonly signature: Uint8Array;
+}
+
 interface IdentityWasmEngine {
   identityAbiVersionV1(): number;
   encodePublicIdentityV2(
@@ -54,6 +93,7 @@ interface IdentityWasmEngine {
   ): Uint8Array;
   createRawKeyPublicIdentityV2(suiteId: string, publicKey: Uint8Array): Uint8Array;
   decodePublicIdentityV2(packet: Uint8Array): WasmIdentityFields;
+  decodeSignedIdentityMessageV2(packet: Uint8Array): WasmSignedIdentityMessage;
   validateRawKeyPublicIdentityV2(packet: Uint8Array): WasmIdentityFields;
   identityMessageSigningPreimageV2(packet: Uint8Array, message: Uint8Array): Uint8Array;
   encodeSignedIdentityMessageV2(
@@ -64,7 +104,10 @@ interface IdentityWasmEngine {
   verifyEd25519IdentityMessageV2(packet: Uint8Array): WasmAuthenticatedIdentityMessage;
 }
 
-type IdentityFields = Omit<DecodedIdentity, "validation" | "packet">;
+type IdentityFields = Pick<
+  DecodedIdentity,
+  "methodId" | "identityId" | "suiteId" | "publicKey"
+>;
 
 function copyFields(fields: WasmIdentityFields): IdentityFields {
   return {
@@ -73,6 +116,37 @@ function copyFields(fields: WasmIdentityFields): IdentityFields {
     suiteId: fields.suiteId,
     publicKey: new Uint8Array(fields.publicKey),
   };
+}
+
+function decodedIdentity(fields: IdentityFields, packet: Uint8Array): DecodedIdentity {
+  return Object.freeze({
+    [DECODED_IDENTITY]: true as const,
+    validation: "decoded",
+    ...fields,
+    publicKey: fields.publicKey.slice(),
+    packet: packet.slice(),
+  });
+}
+
+function validatedIdentity(fields: IdentityFields, packet: Uint8Array): ValidatedIdentity {
+  return Object.freeze({
+    [VALIDATED_IDENTITY]: true as const,
+    validation: "validated",
+    ...fields,
+    publicKey: fields.publicKey.slice(),
+    packet: packet.slice(),
+  });
+}
+
+function equalBytes(left: Uint8Array, right: Uint8Array): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function sameIdentity(left: IdentityFields, right: IdentityFields): boolean {
+  return left.methodId === right.methodId &&
+    left.identityId === right.identityId &&
+    left.suiteId === right.suiteId &&
+    equalBytes(left.publicKey, right.publicKey);
 }
 
 /** Adapter-neutral canonical identity packet operations. */
@@ -96,18 +170,71 @@ export class IdentityClient {
     );
   }
 
-  /** Decodes canonical bytes without claiming identity validation. */
   decodePublicIdentity(packet: Uint8Array): DecodedIdentity {
     const fields = this.#engine.decodePublicIdentityV2(packet);
     try {
-      return {
-        validation: "decoded",
-        ...copyFields(fields),
-        packet: new Uint8Array(packet),
-      };
+      return decodedIdentity(copyFields(fields), packet);
     } finally {
       fields.free();
     }
+  }
+
+  parseIdentity(
+    identity: DecodedIdentity,
+    adapter: IdentityMethodAdapter,
+  ): ValidatedIdentity {
+    if (adapter.methodId !== identity.methodId) {
+      throw new TypeError("identity method does not match the decoded packet");
+    }
+    const parsed = adapter.parse(identity);
+    if (!sameIdentity(identity, parsed)) {
+      throw new TypeError("identity method changed canonical identity fields");
+    }
+    return validatedIdentity(parsed, identity.packet);
+  }
+
+  decodeSignedMessage(packet: Uint8Array): DecodedSignedIdentityMessage {
+    const decoded = this.#engine.decodeSignedIdentityMessageV2(packet);
+    try {
+      const fields = copyFields(decoded);
+      const identityPacket = this.#engine.encodePublicIdentityV2(
+        fields.methodId,
+        fields.identityId,
+        fields.suiteId,
+        fields.publicKey,
+      );
+      return Object.freeze({
+        [DECODED_MESSAGE]: true as const,
+        identity: decodedIdentity(fields, identityPacket),
+        message: new Uint8Array(decoded.message),
+        signature: new Uint8Array(decoded.signature),
+        packet: packet.slice(),
+      });
+    } finally {
+      decoded.free();
+    }
+  }
+
+  authenticate(
+    message: DecodedSignedIdentityMessage,
+    identity: ValidatedIdentity,
+    adapter: SignatureSuiteAdapter,
+  ): AuthenticatedIdentityMessage {
+    if (!sameIdentity(message.identity, identity)) {
+      throw new TypeError("signed message identity does not match the validated identity");
+    }
+    if (adapter.suiteId !== identity.suiteId) {
+      throw new TypeError("signature suite does not match the validated identity");
+    }
+    const parsed = adapter.parse(message);
+    if (parsed.identityId !== identity.identityId || !equalBytes(parsed.message, message.message)) {
+      throw new TypeError("signature suite changed authenticated message fields");
+    }
+    return Object.freeze({
+      [AUTHENTICATED_MESSAGE]: true as const,
+      identity,
+      message: message.message.slice(),
+    });
   }
 
   /** Produces the exact domain-separated bytes that caller-owned custody must sign. */
@@ -131,6 +258,7 @@ export class IdentityClient {
 
 /** Explicit opt-in adapter for suite-labelled self-certifying raw-key identities. */
 export class RawKeyIdentityAdapter {
+  readonly methodId = "raw-key-v2";
   readonly #engine: IdentityWasmEngine;
 
   /** @internal Construct through {@link loadRawKeyIdentityAdapter}. */
@@ -143,18 +271,18 @@ export class RawKeyIdentityAdapter {
     const packet = new Uint8Array(
       this.#engine.createRawKeyPublicIdentityV2(suiteId, publicKey),
     );
-    return this.validate(packet);
+    const decoded = this.#engine.decodePublicIdentityV2(packet);
+    try {
+      return validatedIdentity(this.parse(decodedIdentity(copyFields(decoded), packet)), packet);
+    } finally {
+      decoded.free();
+    }
   }
 
-  /** Validates the raw-key identifier against the suite and public key. */
-  validate(packet: Uint8Array): ValidatedIdentity {
-    const fields = this.#engine.validateRawKeyPublicIdentityV2(packet);
+  parse(identity: DecodedIdentity): IdentityMethodParse {
+    const fields = this.#engine.validateRawKeyPublicIdentityV2(identity.packet);
     try {
-      return {
-        validation: "validated",
-        ...copyFields(fields),
-        packet: new Uint8Array(packet),
-      };
+      return copyFields(fields);
     } finally {
       fields.free();
     }
@@ -163,6 +291,7 @@ export class RawKeyIdentityAdapter {
 
 /** Explicit opt-in authentication adapter for raw-key Ed25519 signed messages. */
 export class Ed25519RawKeyAuthentication {
+  readonly suiteId = "ed25519-v1";
   readonly #engine: IdentityWasmEngine;
 
   /** @internal Construct through {@link loadEd25519RawKeyAuthentication}. */
@@ -170,18 +299,33 @@ export class Ed25519RawKeyAuthentication {
     this.#engine = engine;
   }
 
-  /** Verifies the identity relationship and signature, returning exact authenticated bytes. */
+  parse(message: DecodedSignedIdentityMessage): SignatureSuiteParse {
+    const authenticated = this.#engine.verifyEd25519IdentityMessageV2(message.packet);
+    try {
+      return {
+        identityId: authenticated.identityId,
+        message: new Uint8Array(authenticated.message),
+      };
+    } finally {
+      authenticated.free();
+    }
+  }
+
   verify(packet: Uint8Array): AuthenticatedIdentityMessage {
     const authenticated = this.#engine.verifyEd25519IdentityMessageV2(packet);
     try {
-      return {
-        identity: {
-          validation: "validated",
-          ...copyFields(authenticated),
-          packet: new Uint8Array(packet),
-        },
+      const fields = copyFields(authenticated);
+      const identityPacket = this.#engine.encodePublicIdentityV2(
+        fields.methodId,
+        fields.identityId,
+        fields.suiteId,
+        fields.publicKey,
+      );
+      return Object.freeze({
+        [AUTHENTICATED_MESSAGE]: true as const,
+        identity: validatedIdentity(fields, identityPacket),
         message: new Uint8Array(authenticated.message),
-      };
+      });
     } finally {
       authenticated.free();
     }
@@ -212,6 +356,7 @@ async function loadPackagedIdentityEngine(): Promise<IdentityWasmEngine> {
       "encodePublicIdentityV2",
       "createRawKeyPublicIdentityV2",
       "decodePublicIdentityV2",
+      "decodeSignedIdentityMessageV2",
       "validateRawKeyPublicIdentityV2",
       "identityMessageSigningPreimageV2",
       "encodeSignedIdentityMessageV2",
