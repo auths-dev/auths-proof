@@ -1,5 +1,11 @@
 # WASM supported profiles
 
+The WASM module also exposes the neutral identity Level 1/2 operations used by
+`@auths-dev/sdk/identity`: structural V2 packet encode/decode, explicit raw-key
+validation, external-custody signing preimages, signed-message encoding, and an
+explicit Ed25519 authentication adapter. Those operations create no grant,
+capability, approval, policy, or execution authority.
+
 The prebuilt self-contained distribution exposes:
 
 | Principal method | Configuration source | Signature suites |

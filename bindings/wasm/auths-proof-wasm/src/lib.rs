@@ -7,6 +7,8 @@ use auths_author::{
     ProfilePlanCommitment, ProfilePlanMember, commit_plan_approval, plan_child_grant,
     prepare_action, prepare_grant, prepare_grant_status, prepare_principal_status,
 };
+use auths_identity::{IdentityPacket, PublicIdentity, SignedIdentityMessage};
+use auths_identity_raw_key::RawKeyIdentityMethod;
 use auths_model::{
     ActionConstraint, ActionEnvelope, AssurancePolicyId, Audience, AudienceSet, AuthorizationPlan,
     BodyDigestSet, BudgetAlgebraId, BudgetCeiling, BundleHeader, CapabilityId, Challenge,
@@ -53,6 +55,238 @@ pub fn canonical_principal_v1(principal: &str) -> Result<String, JsValue> {
     PrincipalId::parse(principal)
         .map(|value| value.as_str().to_owned())
         .map_err(js_error)
+}
+
+/// Structurally decoded fields from the neutral compact identity protocol.
+///
+/// Receiving this value does not claim that the identity relationship was validated. Call the
+/// explicitly named raw-key validation export before trusting a self-certifying raw-key identity.
+#[wasm_bindgen]
+pub struct IdentityFieldsV2 {
+    method_id: String,
+    identity_id: String,
+    suite_id: String,
+    public_key: Vec<u8>,
+}
+
+impl From<&PublicIdentity> for IdentityFieldsV2 {
+    fn from(identity: &PublicIdentity) -> Self {
+        Self {
+            method_id: identity.method_id().to_owned(),
+            identity_id: identity.identity_id().to_owned(),
+            suite_id: identity.suite_id().to_owned(),
+            public_key: identity.public_key().to_vec(),
+        }
+    }
+}
+
+#[wasm_bindgen]
+impl IdentityFieldsV2 {
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = methodId)]
+    pub fn method_id(&self) -> String {
+        self.method_id.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = identityId)]
+    pub fn identity_id(&self) -> String {
+        self.identity_id.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = suiteId)]
+    pub fn suite_id(&self) -> String {
+        self.suite_id.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = publicKey)]
+    pub fn public_key(&self) -> Vec<u8> {
+        self.public_key.clone()
+    }
+}
+
+/// An Ed25519-authenticated message from the neutral identity protocol.
+#[wasm_bindgen]
+pub struct AuthenticatedIdentityMessageV2 {
+    identity: IdentityFieldsV2,
+    message: Vec<u8>,
+}
+
+#[wasm_bindgen]
+impl AuthenticatedIdentityMessageV2 {
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = methodId)]
+    pub fn method_id(&self) -> String {
+        self.identity.method_id.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = identityId)]
+    pub fn identity_id(&self) -> String {
+        self.identity.identity_id.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = suiteId)]
+    pub fn suite_id(&self) -> String {
+        self.identity.suite_id.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = publicKey)]
+    pub fn public_key(&self) -> Vec<u8> {
+        self.identity.public_key.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter)]
+    pub fn message(&self) -> Vec<u8> {
+        self.message.clone()
+    }
+}
+
+/// Encodes canonical public-identity packet bytes without selecting an identity adapter.
+///
+/// The caller supplies a method-derived stable identifier. Decoding the resulting bytes remains
+/// structural; a matching method adapter must validate the relationship separately.
+///
+/// # Errors
+///
+/// Rejects malformed identifiers, empty or oversized keys, and encoding failures.
+#[wasm_bindgen(js_name = encodePublicIdentityV2)]
+pub fn encode_public_identity_v2(
+    method_id: &str,
+    identity_id: &str,
+    suite_id: &str,
+    public_key: &[u8],
+) -> Result<Vec<u8>, JsValue> {
+    let identity = PublicIdentity::new(method_id, identity_id, suite_id, public_key.to_vec())
+        .map_err(js_error)?;
+    IdentityPacket::PublicIdentity(identity)
+        .encode()
+        .map_err(js_error)
+}
+
+/// Creates canonical public-identity packet bytes for the suite-labelled raw-key adapter.
+///
+/// This is identity only: it creates no grant, capability, approval, policy, or authority.
+///
+/// # Errors
+///
+/// Rejects malformed suite identifiers, empty or oversized keys, and encoding failures.
+#[wasm_bindgen(js_name = createRawKeyPublicIdentityV2)]
+pub fn create_raw_key_public_identity_v2(
+    suite_id: &str,
+    public_key: &[u8],
+) -> Result<Vec<u8>, JsValue> {
+    let validated =
+        RawKeyIdentityMethod::identity(suite_id, public_key.to_vec()).map_err(js_error)?;
+    IdentityPacket::PublicIdentity(validated.into_public_identity())
+        .encode()
+        .map_err(js_error)
+}
+
+/// Decodes one canonical public-identity packet without claiming method validation.
+///
+/// # Errors
+///
+/// Rejects non-canonical, signed-message, unknown-version, trailing, or oversized packets.
+#[wasm_bindgen(js_name = decodePublicIdentityV2)]
+pub fn decode_public_identity_v2(packet: &[u8]) -> Result<IdentityFieldsV2, JsValue> {
+    match IdentityPacket::decode(packet).map_err(js_error)? {
+        IdentityPacket::PublicIdentity(identity) => Ok(IdentityFieldsV2::from(&identity)),
+        IdentityPacket::SignedMessage(_) => Err(js_error("expected a public-identity packet")),
+    }
+}
+
+/// Validates a decoded public identity with the self-certifying raw-key method.
+///
+/// # Errors
+///
+/// Rejects any non-public packet or invalid method/key/identifier relationship.
+#[wasm_bindgen(js_name = validateRawKeyPublicIdentityV2)]
+pub fn validate_raw_key_public_identity_v2(packet: &[u8]) -> Result<IdentityFieldsV2, JsValue> {
+    match IdentityPacket::decode(packet).map_err(js_error)? {
+        IdentityPacket::PublicIdentity(identity) => identity
+            .validate(&RawKeyIdentityMethod)
+            .map(|validated| IdentityFieldsV2::from(validated.as_public_identity()))
+            .map_err(js_error),
+        IdentityPacket::SignedMessage(_) => Err(js_error("expected a public-identity packet")),
+    }
+}
+
+/// Returns exact domain-separated bytes for caller-owned signing custody.
+///
+/// # Errors
+///
+/// Rejects a non-public identity packet or invalid message bounds.
+#[wasm_bindgen(js_name = identityMessageSigningPreimageV2)]
+pub fn identity_message_signing_preimage_v2(
+    public_identity_packet: &[u8],
+    message: &[u8],
+) -> Result<Vec<u8>, JsValue> {
+    match IdentityPacket::decode(public_identity_packet).map_err(js_error)? {
+        IdentityPacket::PublicIdentity(identity) => {
+            SignedIdentityMessage::signing_preimage(&identity, message).map_err(js_error)
+        }
+        IdentityPacket::SignedMessage(_) => Err(js_error("expected a public-identity packet")),
+    }
+}
+
+/// Encodes a signed identity message after external custody returns signature bytes.
+///
+/// This performs structural checks only. Use the suite-specific verification export before
+/// treating the application bytes as authenticated.
+///
+/// # Errors
+///
+/// Rejects invalid packet, message, signature, or resource bounds.
+#[wasm_bindgen(js_name = encodeSignedIdentityMessageV2)]
+pub fn encode_signed_identity_message_v2(
+    public_identity_packet: &[u8],
+    message: &[u8],
+    signature: &[u8],
+) -> Result<Vec<u8>, JsValue> {
+    let identity = match IdentityPacket::decode(public_identity_packet).map_err(js_error)? {
+        IdentityPacket::PublicIdentity(identity) => identity,
+        IdentityPacket::SignedMessage(_) => {
+            return Err(js_error("expected a public-identity packet"));
+        }
+    };
+    IdentityPacket::SignedMessage(
+        SignedIdentityMessage::new(identity, message.to_vec(), signature.to_vec())
+            .map_err(js_error)?,
+    )
+    .encode()
+    .map_err(js_error)
+}
+
+/// Verifies a signed identity message with the raw-key method and Ed25519 suite adapter.
+///
+/// Success authenticates the exact message bytes. It grants no capability or authority.
+///
+/// # Errors
+///
+/// Rejects public-only packets, invalid identity relationships, suite mismatches, and signatures.
+#[wasm_bindgen(js_name = verifyEd25519IdentityMessageV2)]
+pub fn verify_ed25519_identity_message_v2(
+    packet: &[u8],
+) -> Result<AuthenticatedIdentityMessageV2, JsValue> {
+    match IdentityPacket::decode(packet).map_err(js_error)? {
+        IdentityPacket::PublicIdentity(_) => Err(js_error("expected a signed identity message")),
+        IdentityPacket::SignedMessage(signed) => signed
+            .verify(
+                &RawKeyIdentityMethod,
+                &auths_signature_ed25519::Ed25519Verifier,
+            )
+            .map(|authenticated| AuthenticatedIdentityMessageV2 {
+                identity: IdentityFieldsV2::from(authenticated.identity().as_public_identity()),
+                message: authenticated.message().to_vec(),
+            })
+            .map_err(js_error),
+    }
 }
 
 /// Lossless bounded authority projection for one canonical signed grant.

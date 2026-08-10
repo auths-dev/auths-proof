@@ -392,6 +392,8 @@ digraph auths_architecture {
   "auths-proof-wasm" -> "auths-codec" [label="normal"];
   "auths-proof-wasm" -> "auths-did-keri" [label="normal"];
   "auths-proof-wasm" -> "auths-did-key" [label="normal"];
+  "auths-proof-wasm" -> "auths-identity" [label="normal"];
+  "auths-proof-wasm" -> "auths-identity-raw-key" [label="normal"];
   "auths-proof-wasm" -> "auths-model" [label="normal"];
   "auths-proof-wasm" -> "auths-ports" [label="normal"];
   "auths-proof-wasm" -> "auths-profile-api" [label="normal"];
@@ -399,6 +401,7 @@ digraph auths_architecture {
   "auths-proof-wasm" -> "auths-raw-key" [label="normal"];
   "auths-proof-wasm" -> "auths-registries" [label="normal"];
   "auths-proof-wasm" -> "auths-signature" [label="normal"];
+  "auths-proof-wasm" -> "auths-signature-ed25519" [label="normal"];
   "auths-proof-wasm" -> "auths-testkit" [label="dev"];
   "auths-proof-wasm" -> "auths-verifier" [label="normal"];
   "auths-radicle" -> "auths-author" [label="dev"];
