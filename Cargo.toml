@@ -25,6 +25,7 @@ members = [
     "core/testkit/auths-testkit",
     "core/adapters/auths-raw-key",
     "core/adapters/auths-identity-raw-key",
+    "core/adapters/auths-identity-authority",
     "core/adapters/auths-signature-ed25519",
     "core/adapters/auths-did-key",
     "core/adapters/auths-did-keri",
@@ -195,6 +196,7 @@ auths-records-api = { version = "1.0.0-rc.1", path = "product/integrations/auths
 auths-apps-testkit = { version = "1.0.0-rc.1", path = "demos/testkit/auths-apps-testkit" }
 auths-raw-key-core = { version = "1.0.0-rc.1", path = "core/crates/auths-raw-key-core", default-features = false }
 auths-signature-core = { version = "1.0.0-rc.1", path = "core/crates/auths-signature-core", default-features = false }
+auths-identity-authority = { version = "1.0.0-rc.1", path = "core/adapters/auths-identity-authority", default-features = false }
 auths-live-lab = { version = "1.0.0-rc.1", path = "demos/live-lab" }
 auths-lab-matrix = { version = "1.0.0-rc.1", path = "demos/matrix/auths-lab-matrix" }
 auths-bench-model = { version = "1.0.0-rc.1", path = "demos/benchmarks/auths-bench-model" }

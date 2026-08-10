@@ -561,6 +561,16 @@ name = "auths-identity"
 version = "1.0.0-rc.1"
 
 [[package]]
+name = "auths-identity-authority"
+version = "1.0.0-rc.1"
+dependencies = [
+ "auths-identity",
+ "auths-model",
+ "auths-raw-key-core",
+ "sha2 0.10.9",
+]
+
+[[package]]
 name = "auths-identity-iroh-demo"
 version = "1.0.0-rc.1"
 dependencies = [
@@ -1191,6 +1201,8 @@ dependencies = [
 name = "auths-raw-key"
 version = "1.0.0-rc.1"
 dependencies = [
+ "auths-identity-authority",
+ "auths-identity-raw-key",
  "auths-model",
  "auths-ports",
  "auths-raw-key-core",

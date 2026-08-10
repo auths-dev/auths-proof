@@ -147,6 +147,11 @@
       "path": "core/crates/auths-identity"
     },
     {
+      "name": "auths-identity-authority",
+      "layer": "core",
+      "path": "core/adapters/auths-identity-authority"
+    },
+    {
       "name": "auths-identity-iroh-demo",
       "layer": "demos",
       "path": "demos/identity-iroh"
@@ -2919,6 +2924,54 @@
     },
     {
       "source": "auths-hsm-attested",
+      "source_layer": "core",
+      "target": "sha2",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-identity-authority",
+      "source_layer": "core",
+      "target": "auths-identity",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-identity-authority",
+      "source_layer": "core",
+      "target": "auths-model",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-identity-authority",
+      "source_layer": "core",
+      "target": "auths-raw-key-core",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-identity-authority",
       "source_layer": "core",
       "target": "sha2",
       "target_layer": null,
@@ -7805,6 +7858,30 @@
       "features": [
         "cors"
       ]
+    },
+    {
+      "source": "auths-raw-key",
+      "source_layer": "core",
+      "target": "auths-identity-authority",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-raw-key",
+      "source_layer": "core",
+      "target": "auths-identity-raw-key",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
     },
     {
       "source": "auths-raw-key",
