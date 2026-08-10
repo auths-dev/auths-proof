@@ -7,7 +7,10 @@ rust-version.workspace = true
 repository.workspace = true
 homepage.workspace = true
 description = "Algorithm-neutral self-certifying raw-key identities"
-publish = false
+readme = "README.md"
+
+[package.metadata.docs.rs]
+all-features = true
 
 [dependencies]
 auths-identity.workspace = true

@@ -1293,7 +1293,179 @@ pub(crate) fn package_check() -> Result<(), String> {
     }
     arguments.extend(["--allow-dirty".to_owned(), "--no-verify".to_owned()]);
     let argument_refs = arguments.iter().map(String::as_str).collect::<Vec<_>>();
-    cargo(&argument_refs)
+    cargo(&argument_refs)?;
+    modular_package_smoke()
+}
+
+fn modular_package_smoke() -> Result<(), String> {
+    let version = env!("CARGO_PKG_VERSION");
+    let smoke_root = root().join("target/modular-package-smoke");
+    if smoke_root.exists() {
+        fs::remove_dir_all(&smoke_root).map_err(|error| {
+            format!(
+                "could not clear modular package smoke directory {}: {error}",
+                smoke_root.display()
+            )
+        })?;
+    }
+    let unpacked = smoke_root.join("unpacked");
+    fs::create_dir_all(&unpacked)
+        .map_err(|error| format!("could not create {}: {error}", unpacked.display()))?;
+
+    let identity = unpack_packaged_crate("auths-identity", version, &unpacked)?;
+    let byte_channel = unpack_packaged_crate("auths-byte-channel", version, &unpacked)?;
+    let iroh = unpack_packaged_crate("auths-iroh", version, &unpacked)?;
+    let build_directory = root().join("target/modular-package-smoke-build");
+
+    let identity_consumer = smoke_root.join("identity-consumer");
+    write_external_consumer(
+        &identity_consumer,
+        &format!(
+            "[package]\nname = \"identity-consumer\"\nversion = \"0.0.0\"\nedition = \"2024\"\npublish = false\n\n[workspace]\n\n[dependencies]\nauths-identity = {{ path = {:?} }}\n",
+            identity
+        ),
+        r#"use auths_identity::{IdentityError, IdentityMethod, PublicIdentity};
+
+struct CustomerMethod;
+
+impl IdentityMethod for CustomerMethod {
+    fn method_id(&self) -> &'static str {
+        "customer:p256:v1"
+    }
+
+    fn validate(&self, identity: &PublicIdentity) -> Result<(), IdentityError> {
+        if identity.public_key().len() == 33 {
+            Ok(())
+        } else {
+            Err(IdentityError::InvalidPublicKey)
+        }
+    }
+}
+
+fn main() -> Result<(), IdentityError> {
+    let decoded = PublicIdentity::new(
+        "customer:p256:v1",
+        "customer-key-7",
+        "p256-sha256:v1",
+        vec![2; 33],
+    )?;
+    let validated = decoded.validate(&CustomerMethod)?;
+    assert_eq!(validated.identity_id(), "customer-key-7");
+    Ok(())
+}
+"#,
+    )?;
+    run_external_consumer(&identity_consumer, &build_directory, &["auths-identity"])?;
+
+    let transport_consumer = smoke_root.join("transport-consumer");
+    write_external_consumer(
+        &transport_consumer,
+        &format!(
+            "[package]\nname = \"transport-consumer\"\nversion = \"0.0.0\"\nedition = \"2024\"\npublish = false\n\n[workspace]\n\n[dependencies]\nauths-byte-channel = {{ path = {:?} }}\nauths-iroh = {{ path = {:?} }}\n\n[patch.crates-io]\nauths-byte-channel = {{ path = {:?} }}\n",
+            byte_channel, iroh, byte_channel
+        ),
+        r#"use auths_iroh::{IrohConfig, StreamInitiator};
+use std::{sync::Arc, time::Duration};
+
+fn main() -> Result<(), auths_iroh::IrohError> {
+    let config = IrohConfig::new(
+        Arc::<[u8]>::from(&b"/customer/arbitrary-bytes/1"[..]),
+        4096,
+        Duration::from_secs(2),
+        StreamInitiator::ConnectingEndpoint,
+    )?;
+    assert_eq!(config.alpn(), b"/customer/arbitrary-bytes/1");
+    Ok(())
+}
+"#,
+    )?;
+    run_external_consumer(
+        &transport_consumer,
+        &build_directory,
+        &["auths-byte-channel", "auths-iroh"],
+    )?;
+
+    println!("modular packed-artifact smoke passed (custom identity method; identity-free Iroh)");
+    Ok(())
+}
+
+fn unpack_packaged_crate(name: &str, version: &str, output: &Path) -> Result<PathBuf, String> {
+    let archive = root()
+        .join("target/package")
+        .join(format!("{name}-{version}.crate"));
+    if !archive.is_file() {
+        return Err(format!(
+            "modular package archive is absent: {}",
+            archive.display()
+        ));
+    }
+    command_in(
+        "tar",
+        &["-xzf", path_text(&archive)?, "-C", path_text(output)?],
+        &root(),
+        None,
+    )?;
+    let package = output.join(format!("{name}-{version}"));
+    if !package.join("Cargo.toml").is_file() {
+        return Err(format!(
+            "modular package archive did not contain {}",
+            package.display()
+        ));
+    }
+    Ok(package)
+}
+
+fn write_external_consumer(directory: &Path, manifest: &str, source: &str) -> Result<(), String> {
+    fs::create_dir_all(directory.join("src"))
+        .map_err(|error| format!("could not create {}: {error}", directory.display()))?;
+    fs::write(directory.join("Cargo.toml"), manifest)
+        .map_err(|error| format!("could not write external consumer manifest: {error}"))?;
+    fs::write(directory.join("src/main.rs"), source)
+        .map_err(|error| format!("could not write external consumer source: {error}"))
+}
+
+fn run_external_consumer(
+    directory: &Path,
+    build_directory: &Path,
+    allowed_auths_packages: &[&str],
+) -> Result<(), String> {
+    command_in(
+        "cargo",
+        &["generate-lockfile", "--offline"],
+        directory,
+        None,
+    )?;
+    command_in(
+        "cargo",
+        &["run", "--offline", "--locked"],
+        directory,
+        Some(("CARGO_TARGET_DIR", build_directory)),
+    )?;
+    let metadata = command_output_in(
+        "cargo",
+        &["metadata", "--format-version", "1", "--offline", "--locked"],
+        directory,
+        None,
+    )?;
+    let metadata: Value = serde_json::from_str(&metadata)
+        .map_err(|error| format!("external consumer metadata is invalid: {error}"))?;
+    let allowed = allowed_auths_packages
+        .iter()
+        .copied()
+        .collect::<BTreeSet<_>>();
+    let unexpected = metadata["packages"]
+        .as_array()
+        .ok_or("external consumer metadata has no packages")?
+        .iter()
+        .filter_map(|package| package["name"].as_str())
+        .filter(|name| name.starts_with("auths-") && !allowed.contains(name))
+        .collect::<BTreeSet<_>>();
+    if !unexpected.is_empty() {
+        return Err(format!(
+            "external modular consumer acquired unrelated Auths packages: {unexpected:?}"
+        ));
+    }
+    Ok(())
 }
 
 pub(crate) fn package_is_publishable(package: &Value) -> bool {

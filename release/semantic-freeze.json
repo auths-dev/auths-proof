@@ -1,11 +1,18 @@
 {
   "schema": "auths.semantic-freeze/1",
-  "freezeVersion": 42,
+  "freezeVersion": 45,
   "publicSurface": {
     "rustRoots": [
       "auths",
+      "auths-byte-channel",
+      "auths-byte-channel-memory",
+      "auths-identity",
+      "auths-identity-authority",
+      "auths-identity-raw-key",
+      "auths-iroh",
+      "auths-runtime",
       "auths-sdk",
-      "auths-runtime"
+      "auths-signature-ed25519"
     ],
     "rustPublishableClosure": [
       "auths",
@@ -13,12 +20,18 @@
       "auths-assurance",
       "auths-author",
       "auths-authority",
+      "auths-byte-channel",
+      "auths-byte-channel-memory",
       "auths-codec",
       "auths-composition",
       "auths-config",
       "auths-custody",
       "auths-did-keri",
       "auths-did-key",
+      "auths-identity",
+      "auths-identity-authority",
+      "auths-identity-raw-key",
+      "auths-iroh",
       "auths-kernel-runtime",
       "auths-model",
       "auths-multikey",
@@ -38,6 +51,7 @@
       "auths-sdk",
       "auths-signature",
       "auths-signature-core",
+      "auths-signature-ed25519",
       "auths-verifier"
     ],
     "releaseArtifactFamilies": [
@@ -481,7 +495,7 @@
     },
     {
       "id": "auths.identity.protocol",
-      "version": 1,
+      "version": 2,
       "classification": "frozen-meaning",
       "categories": [
         "identity-protocol-versions",
@@ -504,7 +518,41 @@
         "core/fixtures/identity/v1/vectors.json",
         "core/spec/identity/v1"
       ],
-      "sha256": "ad5c98cc25f5c502888c316c0cdbb274513b120fac628562762709c637080490"
+      "sha256": "00570e37e4d1722be180423054b69de82dc29c6c86d969d475327f4ea8d54646"
+    },
+    {
+      "id": "auths.modular-components",
+      "version": 2,
+      "classification": "frozen-meaning",
+      "categories": [
+        "published-neutral-ports",
+        "reference-adapter-contracts",
+        "negative-security-claims",
+        "adapter-conformance",
+        "packaged-consumer-qualification"
+      ],
+      "owners": [
+        "core/adapters/auths-identity-authority/Cargo.toml",
+        "core/adapters/auths-identity-authority/README.md",
+        "core/adapters/auths-identity-raw-key/Cargo.toml",
+        "core/adapters/auths-identity-raw-key/README.md",
+        "core/adapters/auths-signature-ed25519/Cargo.toml",
+        "core/adapters/auths-signature-ed25519/README.md",
+        "core/crates/auths-identity/Cargo.toml",
+        "core/crates/auths-identity/README.md",
+        "core/crates/auths-identity/examples",
+        "docs/adapter-conformance.md",
+        "docs/modular-components.md",
+        "exchange/adapters/auths-byte-channel-memory/Cargo.toml",
+        "exchange/adapters/auths-byte-channel-memory/README.md",
+        "exchange/adapters/auths-iroh/Cargo.toml",
+        "exchange/adapters/auths-iroh/README.md",
+        "exchange/adapters/auths-iroh/examples",
+        "exchange/crates/auths-byte-channel/Cargo.toml",
+        "exchange/crates/auths-byte-channel/README.md",
+        "xtask/src/fixtures.rs"
+      ],
+      "sha256": "975e176278b8c88804014ea8d33ae3c49c36fef7c5ec8f91309ef42c1a6ff6fb"
     },
     {
       "id": "auths.portable-abi-bindings",
@@ -652,7 +700,7 @@
     },
     {
       "id": "auths.release.public-surface",
-      "version": 42,
+      "version": 45,
       "classification": "release-metadata",
       "categories": [
         "package-names",
@@ -675,13 +723,17 @@
         "bindings/typescript/package.json",
         "core/adapters/auths-did-keri/Cargo.toml",
         "core/adapters/auths-did-key/Cargo.toml",
+        "core/adapters/auths-identity-authority/Cargo.toml",
+        "core/adapters/auths-identity-raw-key/Cargo.toml",
         "core/adapters/auths-raw-key/Cargo.toml",
+        "core/adapters/auths-signature-ed25519/Cargo.toml",
         "core/crates/auths-algebra-kernel/Cargo.toml",
         "core/crates/auths-assurance/Cargo.toml",
         "core/crates/auths-author/Cargo.toml",
         "core/crates/auths-authority/Cargo.toml",
         "core/crates/auths-codec/Cargo.toml",
         "core/crates/auths-composition/Cargo.toml",
+        "core/crates/auths-identity/Cargo.toml",
         "core/crates/auths-model/Cargo.toml",
         "core/crates/auths-multikey/Cargo.toml",
         "core/crates/auths-ports/Cargo.toml",
@@ -693,6 +745,9 @@
         "core/crates/auths-verifier/Cargo.toml",
         "core/crates/auths/Cargo.toml",
         "docs/plans/PHASE_7_RELEASE_OWNER_DECISIONS.md",
+        "exchange/adapters/auths-byte-channel-memory/Cargo.toml",
+        "exchange/adapters/auths-iroh/Cargo.toml",
+        "exchange/crates/auths-byte-channel/Cargo.toml",
         "exchange/crates/auths-proof-exchange-model/Cargo.toml",
         "exchange/crates/auths-proof-exchange-port/Cargo.toml",
         "product/config/auths-config/Cargo.toml",
@@ -727,7 +782,7 @@
         "xtask/src/release_control.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "771ac2e049bc6a5963c78fdbf46f9404897ab72666db5980d5bcea71e1f209fa"
+      "sha256": "8711edfeebfd92af83ef362bbd04d4099330e3179f7d89d7bc431cdb0da6f3de"
     }
   ]
 }

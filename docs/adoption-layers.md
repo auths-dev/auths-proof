@@ -4,6 +4,11 @@ Auths is a set of composable security layers, not a requirement to adopt the ent
 product. Start at the lowest layer that solves the problem and add higher layers only when the
 application needs them.
 
+The supported package/version matrix is in [Modular Rust components](modular-components.md).
+Teams publishing their own identity, suite, or transport integration can use the
+[third-party adapter conformance process](adapter-conformance.md) without contributing that
+adapter to Auths.
+
 | Level | Purpose | Rust | TypeScript | Does not initialize |
 | --- | --- | --- | --- | --- |
 | 0 | Bounded opaque data movement | `auths-byte-channel` plus an explicitly selected adapter | application-owned byte channel | identity, cryptography, authority, approval |

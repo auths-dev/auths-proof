@@ -206,6 +206,15 @@ compatibility = "These names describe exchange of proof objects and are not the 
 owner_pr = "AP34-PR2"
 
 [[surfaces]]
+id = "modular-rust-components"
+kind = "cargo"
+current = "unpublished workspace components"
+target = "auths-identity, auths-identity-raw-key, auths-signature-ed25519, auths-identity-authority, auths-byte-channel, auths-byte-channel-memory, auths-iroh"
+state = "publish-neutral-ports-and-reference-adapters"
+compatibility = "The 1.0.0-rc.1 coordinates expose identity and transport independently. Reference adapters and the authority bridge remain optional; all packages are versioned in the release order and semantic freeze."
+owner_pr = "ISSUE-98-SPEC-11"
+
+[[surfaces]]
 id = "container-images"
 kind = "oci"
 current = "ghcr.io/auths-dev/auths-*"
@@ -225,11 +234,11 @@ owner_pr = "AP34-PR3"
 
 [[release_order]]
 tier = 0
-packages = ["auths-algebra-kernel", "auths-model", "auths-multikey", "auths-proof-exchange-model"]
+packages = ["auths-algebra-kernel", "auths-byte-channel", "auths-identity", "auths-model", "auths-multikey", "auths-proof-exchange-model", "auths-raw-key-core", "auths-signature-core"]
 
 [[release_order]]
 tier = 1
-packages = ["auths-assurance", "auths-codec", "auths-composition", "auths-ports", "auths-proof-exchange-port"]
+packages = ["auths-assurance", "auths-byte-channel-memory", "auths-codec", "auths-composition", "auths-identity-authority", "auths-identity-raw-key", "auths-iroh", "auths-ports", "auths-proof-exchange-port", "auths-signature-ed25519"]
 
 [[release_order]]
 tier = 2
@@ -241,7 +250,7 @@ packages = ["auths-author", "auths-verifier"]
 
 [[release_order]]
 tier = 4
-packages = ["auths-custody", "auths-proof", "auths-profile-api"]
+packages = ["auths-custody", "auths-kernel-runtime", "auths-proof", "auths-profile-api"]
 
 [[release_order]]
 tier = 5

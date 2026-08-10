@@ -4,20 +4,37 @@ use crate::*;
 
 const INVENTORY_PATH: &str = "release/semantic-freeze.json";
 const INVENTORY_SCHEMA: &str = "auths.semantic-freeze/1";
-const FREEZE_VERSION: u64 = 42;
-const PUBLIC_RUST_ROOTS: [&str; 3] = ["auths", "auths-sdk", "auths-runtime"];
-const PUBLIC_RUST_CLOSURE: [&str; 31] = [
+const FREEZE_VERSION: u64 = 45;
+const PUBLIC_RUST_ROOTS: [&str; 10] = [
+    "auths",
+    "auths-byte-channel",
+    "auths-byte-channel-memory",
+    "auths-identity",
+    "auths-identity-authority",
+    "auths-identity-raw-key",
+    "auths-iroh",
+    "auths-runtime",
+    "auths-sdk",
+    "auths-signature-ed25519",
+];
+const PUBLIC_RUST_CLOSURE: [&str; 38] = [
     "auths",
     "auths-algebra-kernel",
     "auths-assurance",
     "auths-author",
     "auths-authority",
+    "auths-byte-channel",
+    "auths-byte-channel-memory",
     "auths-codec",
     "auths-composition",
     "auths-config",
     "auths-custody",
     "auths-did-keri",
     "auths-did-key",
+    "auths-identity",
+    "auths-identity-authority",
+    "auths-identity-raw-key",
+    "auths-iroh",
     "auths-kernel-runtime",
     "auths-model",
     "auths-multikey",
@@ -37,6 +54,7 @@ const PUBLIC_RUST_CLOSURE: [&str; 31] = [
     "auths-runtime",
     "auths-signature",
     "auths-signature-core",
+    "auths-signature-ed25519",
     "auths-verifier",
 ];
 
@@ -165,7 +183,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.identity.protocol",
-            1,
+            2,
             FreezeClassification::FrozenMeaning,
             &[
                 "identity-protocol-versions",
@@ -187,6 +205,39 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
                 "bindings/wasm/auths-proof-wasm/identity-abi-v1.json".to_owned(),
                 "bindings/typescript/api/public-api.txt".to_owned(),
                 "compliance.toml".to_owned(),
+            ],
+        )?,
+        freeze_entry(
+            "auths.modular-components",
+            2,
+            FreezeClassification::FrozenMeaning,
+            &[
+                "published-neutral-ports",
+                "reference-adapter-contracts",
+                "negative-security-claims",
+                "adapter-conformance",
+                "packaged-consumer-qualification",
+            ],
+            vec![
+                "core/crates/auths-identity/Cargo.toml".to_owned(),
+                "core/crates/auths-identity/README.md".to_owned(),
+                "core/crates/auths-identity/examples".to_owned(),
+                "core/adapters/auths-identity-raw-key/Cargo.toml".to_owned(),
+                "core/adapters/auths-identity-raw-key/README.md".to_owned(),
+                "core/adapters/auths-identity-authority/Cargo.toml".to_owned(),
+                "core/adapters/auths-identity-authority/README.md".to_owned(),
+                "core/adapters/auths-signature-ed25519/Cargo.toml".to_owned(),
+                "core/adapters/auths-signature-ed25519/README.md".to_owned(),
+                "exchange/crates/auths-byte-channel/Cargo.toml".to_owned(),
+                "exchange/crates/auths-byte-channel/README.md".to_owned(),
+                "exchange/adapters/auths-byte-channel-memory/Cargo.toml".to_owned(),
+                "exchange/adapters/auths-byte-channel-memory/README.md".to_owned(),
+                "exchange/adapters/auths-iroh/Cargo.toml".to_owned(),
+                "exchange/adapters/auths-iroh/README.md".to_owned(),
+                "exchange/adapters/auths-iroh/examples".to_owned(),
+                "docs/adapter-conformance.md".to_owned(),
+                "docs/modular-components.md".to_owned(),
+                "xtask/src/fixtures.rs".to_owned(),
             ],
         )?,
         freeze_entry(
@@ -363,7 +414,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
     ]);
     entries.push(freeze_entry(
         "auths.release.public-surface",
-        42,
+        45,
         FreezeClassification::ReleaseMetadata,
         &[
             "package-names",

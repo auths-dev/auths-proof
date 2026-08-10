@@ -10,9 +10,6 @@ use auths_identity::{IdentityError, IdentityMethod, PublicIdentity, ValidatedIde
 use auths_raw_key_core::RawKeyDescriptorV2;
 
 pub use auths_raw_key_core::{RAW_KEY_V2, V2_PRINCIPAL_PREFIX as PRINCIPAL_PREFIX};
-/// Compatibility name for the experimental pre-release identity adapter.
-#[deprecated(note = "use RAW_KEY_V2; the old experimental derivation was never published")]
-pub const RAW_KEY_IDENTITY_V1: &str = RAW_KEY_V2;
 
 pub struct RawKeyIdentityMethod;
 
