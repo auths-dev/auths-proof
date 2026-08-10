@@ -1,0 +1,44 @@
+{
+  "schema": "auths.python-differential-fixtures/1",
+  "nativeAbiVersion": 1,
+  "generator": "auths-proof-wasm/generate-node-vectors",
+  "consumers": [
+    "Rust",
+    "Python",
+    "TypeScript"
+  ],
+  "fixtures": [
+    {
+      "name": "authorized-portable-result",
+      "inputs": [
+        "core/fixtures/v1/valid/raw-key-chain.proof.cbor",
+        "core/fixtures/v1/valid/raw-key-chain.action.cbor",
+        "authorized.context.cbor"
+      ],
+      "projection": "authorized.result.cbor"
+    },
+    {
+      "name": "child-grant-attenuation",
+      "inputs": [
+        "authoring.delegation-root-grant.cbor",
+        "authoring.proposed-grant.cbor"
+      ],
+      "projection": "authoring.planned-grant.cbor"
+    },
+    {
+      "name": "exact-action-signing",
+      "inputs": [
+        "core/fixtures/v1/valid/raw-key-chain.proof.cbor"
+      ],
+      "projection": "authoring.action-signing-preimage.cbor"
+    },
+    {
+      "name": "mcp-profile-action",
+      "inputs": [
+        "mcp.signed-root-grant.cbor",
+        "{\"value\":\"reviewed\"}"
+      ],
+      "projection": "profile, permission, audience, resource, canonical arguments and signing request"
+    }
+  ]
+}

@@ -1143,8 +1143,22 @@ dependencies = [
 name = "auths-proof-python"
 version = "1.0.0-rc.1"
 dependencies = [
- "auths-proof-wasm",
+ "auths-author",
+ "auths-codec",
+ "auths-did-keri",
+ "auths-did-key",
+ "auths-model",
+ "auths-ports",
+ "auths-profile-api",
+ "auths-profile-mcp",
+ "auths-raw-key",
+ "auths-registries",
+ "auths-sdk",
+ "auths-signature",
+ "auths-verifier",
  "pyo3",
+ "serde_json",
+ "serde_json_canonicalizer",
 ]
 
 [[package]]

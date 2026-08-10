@@ -1,0 +1,31 @@
+{
+  "schema": "auths.sdk-capability/2",
+  "package": "auths",
+  "language": "python",
+  "implementationTier": "native-authoring-waist",
+  "evidenceStatus": "repository-local-milestone-a",
+  "promotedTier": "verifier-binding",
+  "targetTier": "full-workflow-sdk",
+  "governingSpec": "AP-SPEC-035",
+  "implementationStatus": "authorized-pre-review",
+  "publicationStatus": "blocked",
+  "promotionStatus": "blocked",
+  "claims": {
+    "supported": [
+      "bounded three-input local verification",
+      "three-valued native result projection",
+      "non-constructible native verified action",
+      "repository-local native principal, grant, status, plan, profile, trust and signing operations"
+    ],
+    "excluded": [
+      "provider protocols and async lifecycle",
+      "attach-agent orchestration",
+      "complete delegation workflow",
+      "sealed profile command and gateway",
+      "promoted full workflow SDK release claim",
+      "independent review",
+      "production readiness",
+      "stable-v1 compatibility"
+    ]
+  }
+}

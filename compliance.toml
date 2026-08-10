@@ -1126,20 +1126,21 @@ demo-conformance-fixture = ["core/crates/auths-proof/src/lib.rs#facade_returns_n
 kind = "cargo"
 layer = "bindings"
 path = "bindings/python"
-core_apis = []
+core_apis = ["auths-author", "auths-codec", "auths-did-keri", "auths-did-key", "auths-model", "auths-ports", "auths-profile-api", "auths-profile-mcp", "auths-raw-key", "auths-registries", "auths-sdk", "auths-signature", "auths-verifier"]
 protocol_versions = ["auths-proof/v1"]
-wire_objects = ["CanonicalAction", "PortableVerificationResult", "ProofBundle", "VerifierContext"]
+wire_objects = ["ActionEnvelope", "AuthorizationPlan", "CanonicalAction", "GrantStatement", "GrantStatusSnapshot", "GrantStatusStatement", "PortableVerificationResult", "PrincipalStatusSnapshot", "PrincipalStatusStatement", "ProofBundle", "SignedAction", "SignedGrant", "SignedGrantStatus", "SignedPrincipalStatus", "VerifierContext"]
 fixture_suites = ["core/fixtures/v1"]
 principal_families = ["self-contained-v1"]
 signature_families = ["ed25519-v1", "p256-sha256-v1"]
-profiles = ["core-corpus"]
+profiles = ["auths.mcp/1", "core-corpus"]
 transports = []
-configuration_inputs = ["executed-verifier-configuration", "required-verifier-configuration"]
-security_state = []
+configuration_inputs = ["executed-verifier-configuration", "required-verifier-configuration", "trusted-authority-configuration", "trusted-context-template"]
+security_state = ["delegated-authority-chain", "profile-owned-action", "typed-control-evidence"]
 
 [packages.auths-proof-python.claims]
-core-wire-consumer = ["bindings/python/tests/test_api.py#test_portable_decoder_rejects_shape_version_and_trailing_data"]
-language-binding = ["bindings/python/tests/test_api.py#test_configuration_mismatch_reports_required_and_executed_commitments"]
+core-wire-consumer = ["bindings/python/tests/test_api.py#test_native_result_parser_preserves_decode_failure_codes", "bindings/python/tests/test_native_authoring.py#test_child_planning_matches_the_shared_rust_typescript_fixture"]
+language-binding = ["bindings/python/tests/test_api.py#test_configuration_mismatch_has_no_authorization_handle", "bindings/python/tests/test_native_authoring.py#test_trust_compilation_and_request_binding_stay_native"]
+runtime-enforcement-boundary = ["bindings/python/tests/test_api.py#test_verified_action_has_no_python_construction_path", "bindings/python/tests/test_api.py#test_verified_action_rejects_copy_pickle_reduce_and_mutation", "bindings/python/tests/test_api.py#test_canonical_bytes_do_not_promote_to_a_capability", "bindings/python/tests/test_api.py#test_configuration_mismatch_has_no_authorization_handle"]
 
 [packages.auths-proof-wasm]
 kind = "cargo"

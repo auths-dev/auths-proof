@@ -292,6 +292,46 @@ pub struct VerifiedAction {
     work_units: u64,
 }
 
+/// Portable decision data paired with the sealed action from the same run.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SealedVerificationResult {
+    portable: PortableVerificationResult,
+    cbor: Vec<u8>,
+    action: Option<Box<VerifiedAction>>,
+}
+
+impl SealedVerificationResult {
+    /// Returns the language-neutral decision data.
+    #[must_use]
+    pub const fn portable(&self) -> &PortableVerificationResult {
+        &self.portable
+    }
+
+    /// Returns the canonical portable decision bytes.
+    #[must_use]
+    pub fn cbor(&self) -> &[u8] {
+        &self.cbor
+    }
+
+    /// Returns the sealed action only when the decision is authorized.
+    #[must_use]
+    pub fn action(&self) -> Option<&VerifiedAction> {
+        self.action.as_deref()
+    }
+
+    /// Consumes the result into decision data, canonical bytes, and capability.
+    #[must_use]
+    pub fn into_parts(
+        self,
+    ) -> (
+        PortableVerificationResult,
+        Vec<u8>,
+        Option<Box<VerifiedAction>>,
+    ) {
+        (self.portable, self.cbor, self.action)
+    }
+}
+
 impl VerifiedAction {
     /// Returns exact profile-canonical bytes and derived meaning.
     #[must_use]
@@ -851,6 +891,27 @@ pub fn verify_v1(
     trusted_context_cbor: &[u8],
     registries: &ImmutableRegistries<'_>,
 ) -> Result<Vec<u8>, CodecError> {
+    verify_v1_sealed(
+        proof_cbor,
+        canonical_action_cbor,
+        trusted_context_cbor,
+        registries,
+    )
+    .map(|result| result.cbor)
+}
+
+/// Executes the byte-oriented V1 ABI without discarding native authority.
+///
+/// # Errors
+///
+/// Returns [`CodecError`] only if the constructed portable result cannot be
+/// canonically encoded.
+pub fn verify_v1_sealed(
+    proof_cbor: &[u8],
+    canonical_action_cbor: &[u8],
+    trusted_context_cbor: &[u8],
+    registries: &ImmutableRegistries<'_>,
+) -> Result<SealedVerificationResult, CodecError> {
     let proof_input_digest = body_digest(proof_cbor);
     let action_input_digest = body_digest(canonical_action_cbor);
     let input_resources = VerificationResources::new(
@@ -877,7 +938,7 @@ pub fn verify_v1(
                 None,
                 registries.configuration_id(),
             );
-            return encode_verification_result(&result);
+            return seal_portable(result, None);
         }
     };
     let canonical_action = match decode_canonical_action(canonical_action_cbor, context.limits()) {
@@ -895,15 +956,12 @@ pub fn verify_v1(
                 Some(context.configuration()),
                 registries.configuration_id(),
             );
-            return encode_verification_result(&result);
+            return seal_portable(result, None);
         }
     };
-    encode_verification_result(&verify_portable(
-        proof_cbor,
-        &canonical_action,
-        &context,
-        registries,
-    ))
+    let (portable, action) =
+        verify_portable_sealed(proof_cbor, &canonical_action, &context, registries);
+    seal_portable(portable, action)
 }
 
 /// Runs the complete `verify_v1` contract and returns a canonically encodable
@@ -916,6 +974,16 @@ pub fn verify_portable(
     context: &VerifierContext,
     registries: &ImmutableRegistries<'_>,
 ) -> PortableVerificationResult {
+    verify_portable_sealed(proof_bytes, canonical_action, context, registries).0
+}
+
+#[allow(clippy::too_many_lines)]
+fn verify_portable_sealed(
+    proof_bytes: &[u8],
+    canonical_action: &CanonicalAction,
+    context: &VerifierContext,
+    registries: &ImmutableRegistries<'_>,
+) -> (PortableVerificationResult, Option<Box<VerifiedAction>>) {
     let action_bytes = encode_canonical_action(canonical_action).unwrap_or_default();
     let context_bytes = encode_verifier_context(context).unwrap_or_default();
     let proof_input_digest = body_digest(proof_bytes);
@@ -936,17 +1004,20 @@ pub fn verify_portable(
     let decoded = match decode_proof(proof_bytes, context) {
         Ok(decoded) => decoded,
         Err(failure) => {
-            return portable_failure(
-                failure,
-                VerificationStage::Decode,
-                proof_input_digest,
-                action_digest,
-                public_context_digest,
+            return (
+                portable_failure(
+                    failure,
+                    VerificationStage::Decode,
+                    proof_input_digest,
+                    action_digest,
+                    public_context_digest,
+                    None,
+                    resources,
+                    context.accepted_registries().manifest_id(),
+                    Some(context.configuration()),
+                    local_configuration,
+                ),
                 None,
-                resources,
-                context.accepted_registries().manifest_id(),
-                Some(context.configuration()),
-                local_configuration,
             );
         }
     };
@@ -977,17 +1048,20 @@ pub fn verify_portable(
     let resolved = match resolve_proof(decoded, context) {
         Ok(resolved) => resolved,
         Err(failure) => {
-            return portable_failure(
-                failure,
-                VerificationStage::Resolve,
-                proof_input_digest,
-                action_digest,
-                public_context_digest,
+            return (
+                portable_failure(
+                    failure,
+                    VerificationStage::Resolve,
+                    proof_input_digest,
+                    action_digest,
+                    public_context_digest,
+                    None,
+                    resources,
+                    context.accepted_registries().manifest_id(),
+                    Some(context.configuration()),
+                    local_configuration,
+                ),
                 None,
-                resources,
-                context.accepted_registries().manifest_id(),
-                Some(context.configuration()),
-                local_configuration,
             );
         }
     };
@@ -995,17 +1069,20 @@ pub fn verify_portable(
     let controlled = match verify_principal_control(resolved, context, registries) {
         Ok(controlled) => controlled,
         Err(failure) => {
-            return portable_failure(
-                failure,
-                VerificationStage::PrincipalControl,
-                proof_input_digest,
-                action_digest,
-                public_context_digest,
-                resolved_plan,
-                resources,
-                context.accepted_registries().manifest_id(),
-                Some(context.configuration()),
-                local_configuration,
+            return (
+                portable_failure(
+                    failure,
+                    VerificationStage::PrincipalControl,
+                    proof_input_digest,
+                    action_digest,
+                    public_context_digest,
+                    resolved_plan,
+                    resources,
+                    context.accepted_registries().manifest_id(),
+                    Some(context.configuration()),
+                    local_configuration,
+                ),
+                None,
             );
         }
     };
@@ -1039,7 +1116,7 @@ pub fn verify_portable(
                 resources.plan_depth(),
                 authority.work_units,
             );
-            finalize_portable(PortableVerificationResult::new(
+            let portable = finalize_portable(PortableVerificationResult::new(
                 VerificationDecision::Authorized,
                 VerificationStage::Complete,
                 VerificationCode::Authorized,
@@ -1047,14 +1124,15 @@ pub fn verify_portable(
                 action_digest,
                 public_context_digest,
                 Some(authority.plan_id),
-                authority.authorized_branches,
-                authority.assurance,
-                authority.assurance_satisfactions,
+                authority.authorized_branches.clone(),
+                authority.assurance.clone(),
+                authority.assurance_satisfactions.clone(),
                 resources,
                 context.accepted_registries().manifest_id(),
                 Some(context.configuration()),
                 local_configuration,
-            ))
+            ));
+            (portable, Some(Box::new(bind_verified_action(authority))))
         }
         Err(failure) => {
             let resources = VerificationResources::new(
@@ -1066,20 +1144,35 @@ pub fn verify_portable(
                 resources.plan_depth(),
                 authority_meter.used,
             );
-            portable_failure(
-                failure,
-                VerificationStage::Authority,
-                proof_input_digest,
-                action_digest,
-                public_context_digest,
-                resolved_plan,
-                resources,
-                context.accepted_registries().manifest_id(),
-                Some(context.configuration()),
-                local_configuration,
+            (
+                portable_failure(
+                    failure,
+                    VerificationStage::Authority,
+                    proof_input_digest,
+                    action_digest,
+                    public_context_digest,
+                    resolved_plan,
+                    resources,
+                    context.accepted_registries().manifest_id(),
+                    Some(context.configuration()),
+                    local_configuration,
+                ),
+                None,
             )
         }
     }
+}
+
+fn seal_portable(
+    portable: PortableVerificationResult,
+    action: Option<Box<VerifiedAction>>,
+) -> Result<SealedVerificationResult, CodecError> {
+    let cbor = encode_verification_result(&portable)?;
+    Ok(SealedVerificationResult {
+        portable,
+        cbor,
+        action,
+    })
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -2895,6 +2988,56 @@ mod tests {
             malformed.result_digest(),
             auths_codec::verification_result_digest(&malformed).unwrap()
         );
+    }
+
+    #[test]
+    fn sealed_portable_result_releases_authority_only_on_success() {
+        let fixture = target_fixture(false);
+        let method = RawKeyMethod::new().unwrap();
+        let suite = Ed25519Suite::new().unwrap();
+        let methods: [&dyn auths_ports::PrincipalMethod; 1] = [&method];
+        let suites: [&dyn auths_ports::SignatureSuite; 1] = [&suite];
+        let registries = ImmutableRegistries::new(&methods, &suites).unwrap();
+        let action_bytes = auths_codec::encode_canonical_action(&fixture.canonical).unwrap();
+        let context_bytes = auths_codec::encode_verifier_context(&fixture.context).unwrap();
+
+        let authorized =
+            verify_v1_sealed(&fixture.bytes, &action_bytes, &context_bytes, &registries).unwrap();
+        assert_eq!(
+            authorized.cbor(),
+            verify_v1(&fixture.bytes, &action_bytes, &context_bytes, &registries).unwrap()
+        );
+        assert_eq!(
+            authorized.action().unwrap().canonical_action(),
+            &fixture.canonical
+        );
+
+        let denied =
+            verify_v1_sealed(&fixture.bytes, b"invalid", &context_bytes, &registries).unwrap();
+        assert_eq!(denied.portable().decision(), VerificationDecision::Denied);
+        assert!(denied.action().is_none());
+
+        let no_methods: [&dyn auths_ports::PrincipalMethod; 0] = [];
+        let no_suites: [&dyn auths_ports::SignatureSuite; 0] = [];
+        let empty_registries = ImmutableRegistries::new(&no_methods, &no_suites).unwrap();
+        let unsupported_context = fixture
+            .context
+            .with_configuration(empty_registries.configuration_id())
+            .unwrap();
+        let unsupported_context =
+            auths_codec::encode_verifier_context(&unsupported_context).unwrap();
+        let indeterminate = verify_v1_sealed(
+            &fixture.bytes,
+            &action_bytes,
+            &unsupported_context,
+            &empty_registries,
+        )
+        .unwrap();
+        assert_eq!(
+            indeterminate.portable().decision(),
+            VerificationDecision::Indeterminate
+        );
+        assert!(indeterminate.action().is_none());
     }
 
     fn verify_composition_fixture(

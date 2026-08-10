@@ -254,14 +254,22 @@ This is the first implementation dependency because building `attach_agent`, del
 
 ### 7.4 Python assessment
 
-Python currently covers roughly the last third of the internal authorization pipeline but only the first product tier. It can evaluate already-assembled inputs; it cannot safely create those inputs or release a protected effect.
+Python now covers the safe native waist beneath the authorization workflow but
+still exposes only the first promoted product tier. It can evaluate assembled
+inputs and call Rust-owned principal, authoring, attenuation, status, plan,
+profile, trust, and signing-request operations. It cannot yet coordinate the
+provider lifecycle, assemble the complete workflow, or release a protected
+profile effect.
 
-The missing work is substantial but bounded. Most semantic machinery already exists in Rust, and TypeScript has already tested the product vocabulary. The Python program is primarily:
+The remaining work is substantial but bounded. Most semantic machinery exists
+in Rust, the native Python boundary now exposes the required Milestone A
+operations, and TypeScript has tested the product vocabulary. The remaining
+Python program is primarily:
 
-1. exposing the existing Rust operations through a safe native ABI;
-2. designing an idiomatic asynchronous Python workflow around them;
-3. enforcing native capability ownership at the gateway boundary; and
-4. producing wheel, typing, adversarial, and cross-language evidence.
+1. designing an idiomatic asynchronous Python workflow around the native ABI;
+2. enforcing native command ownership at the profile gateway boundary; and
+3. producing complete provider, wheel-matrix, typing, and cross-language
+   workflow evidence.
 
 It should not require new protocol semantics.
 
@@ -272,6 +280,9 @@ The existing AP-SPEC-035 nine-unit plan is directionally correct. From an EPM pe
 ### Milestone A — Establish a safe native waist
 
 Includes AP35-PR1 through AP35-PR3.
+
+**Implementation status:** complete in the repository-local pre-review surface;
+the promoted package claim remains Verifier Binding.
 
 Deliver:
 

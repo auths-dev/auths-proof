@@ -1,0 +1,58 @@
+{
+  "schema": "auths.python-native-abi/1",
+  "abiVersion": 1,
+  "pythonFloor": "CPython 3.9",
+  "wheelAbi": "abi3-py39",
+  "semanticOwner": "Rust",
+  "types": [
+    "Principal",
+    "UnsignedObject",
+    "SignedObject",
+    "GrantRequest",
+    "AuthorityDiff",
+    "GrantPlan",
+    "SigningRequest",
+    "AuthorizationPlan",
+    "AuthorizationPlanBuilder",
+    "McpAction",
+    "AssurancePolicy",
+    "TrustAnchor",
+    "StatusSnapshot",
+    "TrustedContext",
+    "VerifiedAction",
+    "NativeVerificationResult"
+  ],
+  "operations": [
+    "native_abi_version_v1",
+    "root_grant",
+    "grant_request_from_statement",
+    "plan_child",
+    "plan_child_statement",
+    "principal_status_statement",
+    "grant_status_statement",
+    "prepare_signing",
+    "prepare_mcp_action",
+    "status_snapshot",
+    "compile_trusted_context",
+    "self_contained_configuration",
+    "verify_v1"
+  ],
+  "advancedInspection": [
+    "inspect_verified_action",
+    "inspect_unsigned",
+    "inspect_signed",
+    "inspect_plan",
+    "inspect_mcp_action",
+    "inspect_trusted_context",
+    "parse_unsigned",
+    "parse_signed",
+    "unsigned_from_signed"
+  ],
+  "capabilityInvariants": [
+    "VerifiedAction has no Python constructor",
+    "VerifiedAction has no copy, pickle, subclass, mutation, or buffer path",
+    "only an authorized native verifier branch returns VerifiedAction",
+    "denied and indeterminate results contain no capability",
+    "canonical bytes cannot be promoted into VerifiedAction"
+  ]
+}

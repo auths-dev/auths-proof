@@ -12,8 +12,22 @@ name = "_native"
 crate-type = ["cdylib"]
 
 [dependencies]
-auths-proof-wasm.workspace = true
+auths-author = { workspace = true, features = ["std"] }
+auths-codec = { workspace = true, features = ["std"] }
+auths-did-keri = { workspace = true, features = ["std"] }
+auths-did-key = { workspace = true, features = ["std"] }
+auths-model = { workspace = true, features = ["std"] }
+auths-ports = { workspace = true, features = ["std"] }
+auths-profile-api.workspace = true
+auths-profile-mcp.workspace = true
+auths-raw-key = { workspace = true, features = ["std"] }
+auths-registries = { workspace = true, features = ["std"] }
+auths-signature = { workspace = true, features = ["std"] }
+auths-sdk.workspace = true
+auths-verifier = { workspace = true, features = ["std"] }
 pyo3.workspace = true
+serde_json.workspace = true
+serde_json_canonicalizer.workspace = true
 
 [lints]
 workspace = true

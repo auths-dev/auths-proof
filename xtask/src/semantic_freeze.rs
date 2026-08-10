@@ -163,7 +163,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
     let mut entries = vec![
         freeze_entry(
             "auths.core.protocol",
-            13,
+            14,
             FreezeClassification::FrozenMeaning,
             &[
                 "protocol-versions",
@@ -246,6 +246,8 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
             FreezeClassification::FrozenMeaning,
             &["portable-abi", "authoring-abi", "binding-contracts"],
             vec![
+                "bindings/python/native-abi-v1.json".to_owned(),
+                "bindings/python/python/auths".to_owned(),
                 "core/crates/auths-model/src/lib.rs".to_owned(),
                 "core/spec/v1/auths-proof.cddl".to_owned(),
                 "bindings/wasm/auths-proof-wasm/authoring-abi-v1.json".to_owned(),
@@ -256,7 +258,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.public-sdk-contract",
-            16,
+            17,
             FreezeClassification::FrozenMeaning,
             &[
                 "rust-sdk-contract",
@@ -362,7 +364,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
 
     for (id, path) in frozen_byte_inventories()? {
         let version = match path.as_str() {
-            "architecture/dependency-graph.json" => 12,
+            "architecture/dependency-graph.json" => 13,
             "bindings/wasm/auths-proof-wasm/identity-abi-v1.json" => 3,
             "core/fixtures/v1/manifest.json" => 3,
             "formal/assurance-manifest-v1.toml"

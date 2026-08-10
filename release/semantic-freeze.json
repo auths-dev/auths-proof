@@ -66,7 +66,7 @@
   "entries": [
     {
       "id": "auths.core.protocol",
-      "version": 13,
+      "version": 14,
       "classification": "frozen-meaning",
       "categories": [
         "protocol-versions",
@@ -83,11 +83,11 @@
         "core/crates/auths-verifier/src",
         "core/spec/v1"
       ],
-      "sha256": "d84577baa59755f65364bf317bcbbbb5ffe810937b39ee961935d1dc43933a10"
+      "sha256": "bbf5806c829bd6b606fc8683d8b039dbbdbee82ccb15558506c814af3e0e1dfd"
     },
     {
       "id": "auths.frozen-bytes/architecture/dependency-graph.json",
-      "version": 12,
+      "version": 13,
       "classification": "frozen-bytes",
       "categories": [
         "canonical-generated-evidence"
@@ -95,7 +95,7 @@
       "owners": [
         "architecture/dependency-graph.json"
       ],
-      "sha256": "f8fbd1f49da0c12529cd30a3cf17cf1c4b9449d0df88b6d6411ddbf8ba27965a"
+      "sha256": "064abbb5ad2fe9a02c5eacfc30647bb7c8b39519dc1d2074ab7c1ff7634bc976"
     },
     {
       "id": "auths.frozen-bytes/bindings/wasm/auths-proof-wasm/identity-abi-v1.json",
@@ -564,6 +564,8 @@
         "binding-contracts"
       ],
       "owners": [
+        "bindings/python/native-abi-v1.json",
+        "bindings/python/python/auths",
         "bindings/python/src",
         "bindings/typescript/src",
         "bindings/wasm/auths-proof-wasm/authoring-abi-v1.json",
@@ -648,7 +650,7 @@
     },
     {
       "id": "auths.product.public-sdk-contract",
-      "version": 16,
+      "version": 17,
       "classification": "frozen-meaning",
       "categories": [
         "rust-sdk-contract",
@@ -665,7 +667,7 @@
         "product/runtime/auths-runtime/src",
         "product/sdk/auths-sdk/src"
       ],
-      "sha256": "09b11d8db99b1bf7f85a8ae4562b7ee8449181548759f5f3beea78753018ea89"
+      "sha256": "af15b18a2bd0a9bdd1addf5cc1cc1b2506c22371df5d31f70318456dd470795c"
     },
     {
       "id": "auths.product.receipts",
