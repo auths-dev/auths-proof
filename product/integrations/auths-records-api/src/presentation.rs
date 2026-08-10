@@ -1,6 +1,7 @@
 //! Short-lived presenter-bound proof presentation.
 
-use ed25519_dalek::{Signature, Signer as _, SigningKey, Verifier as _, VerifyingKey};
+use auths_signature_core::verify_ed25519;
+use ed25519_dalek::{Signer as _, SigningKey};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -105,12 +106,8 @@ impl RecordsPresentationV1 {
         if self.input.presenter_principal != format!("key:ed25519:{}", self.presenter_public_key) {
             return Err(RecordsError::MeaningMismatch);
         }
-        let key = VerifyingKey::from_bytes(&key_bytes).map_err(|_| RecordsError::Malformed)?;
-        let signature = Signature::from_slice(
-            &hex::decode(&self.signature).map_err(|_| RecordsError::Malformed)?,
-        )
-        .map_err(|_| RecordsError::Malformed)?;
-        key.verify(&canonical_json(&self.input)?, &signature)
+        let signature = hex::decode(&self.signature).map_err(|_| RecordsError::Malformed)?;
+        verify_ed25519(&key_bytes, &canonical_json(&self.input)?, &signature)
             .map_err(|_| RecordsError::MeaningMismatch)
     }
 }

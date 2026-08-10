@@ -80,6 +80,7 @@ no_std_packages = [
   "auths-raw-key-core",
   "auths-registries",
   "auths-signature",
+  "auths-signature-core",
   "auths-signature-ed25519",
   "auths-spiffe-x509",
   "auths-verifier",
@@ -182,6 +183,7 @@ auths-runtime = "product"
 auths = "core"
 auths-sdk = "product"
 auths-signature = "core"
+auths-signature-core = "core"
 auths-signature-ed25519 = "core"
 auths-spiffe-x509 = "core"
 auths-stores = "product"
@@ -199,7 +201,7 @@ roots = [
   "auths-identity-raw-key",
   "auths-signature-ed25519",
 ]
-allowed_workspace_dependencies = ["auths-identity", "auths-raw-key-core"]
+allowed_workspace_dependencies = ["auths-identity", "auths-raw-key-core", "auths-signature-core"]
 
 [dependency_boundaries.iroh-transport]
 roots = ["auths-iroh"]

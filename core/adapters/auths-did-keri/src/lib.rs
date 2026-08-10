@@ -23,17 +23,15 @@ use auths_model::{
     Timestamp, VerificationMethod,
 };
 use auths_ports::{ControlEvidence, PrincipalControlError, PrincipalControlInput, PrincipalMethod};
+pub use auths_signature_core::{ED25519_V1 as ED25519_SUITE, P256_SHA256_V1 as P256_SUITE};
+use auths_signature_core::{validate_p256_key, verify_ed25519, verify_p256_sha256};
 use base64ct::{Base64UrlUnpadded, Encoding};
 use core::{fmt, str};
-use ed25519_dalek::{Signature as Ed25519Signature, Verifier as _, VerifyingKey as Ed25519Key};
-use p256::ecdsa::{Signature as P256Signature, VerifyingKey as P256Key};
 use serde_json::{Map, Value};
 
 pub const ADAPTER_ID: &str = "did-keri-v1";
 pub const EVIDENCE_MEDIA_TYPE: &str = "application/vnd.auths.did-keri-kel.v1";
 pub const PRINCIPAL_PREFIX: &str = "did:keri:";
-pub const ED25519_SUITE: &str = "ed25519-v1";
-pub const P256_SUITE: &str = "p256-sha256-v1";
 pub const EVIDENCE_DOMAIN: &[u8] = b"AUTHS-DID-KERI\x00\x01";
 
 const SAID_PLACEHOLDER: &str = "############################################";
@@ -662,7 +660,7 @@ impl KeriKey {
             let decoded =
                 Base64UrlUnpadded::decode_vec(payload).map_err(|_| KeriError::InvalidKey)?;
             let key: [u8; 33] = decoded.try_into().map_err(|_| KeriError::InvalidKey)?;
-            P256Key::from_sec1_bytes(&key).map_err(|_| KeriError::InvalidKey)?;
+            validate_p256_key(&key).map_err(|_| KeriError::InvalidKey)?;
             return Ok(Self::P256(key));
         }
         Err(KeriError::UnsupportedKey)
@@ -692,22 +690,10 @@ impl KeriKey {
     fn verify(&self, message: &[u8], signature: &[u8]) -> Result<(), KeriError> {
         match self {
             Self::Ed25519(bytes) => {
-                let key = Ed25519Key::from_bytes(bytes).map_err(|_| KeriError::InvalidKey)?;
-                let signature = Ed25519Signature::from_slice(signature)
-                    .map_err(|_| KeriError::InvalidSignature)?;
-                key.verify_strict(message, &signature)
-                    .map_err(|_| KeriError::InvalidSignature)
+                verify_ed25519(bytes, message, signature).map_err(|_| KeriError::InvalidSignature)
             }
-            Self::P256(bytes) => {
-                let key = P256Key::from_sec1_bytes(bytes).map_err(|_| KeriError::InvalidKey)?;
-                let signature = P256Signature::from_slice(signature)
-                    .map_err(|_| KeriError::InvalidSignature)?;
-                if signature.normalize_s().is_some() {
-                    return Err(KeriError::InvalidSignature);
-                }
-                key.verify(message, &signature)
-                    .map_err(|_| KeriError::InvalidSignature)
-            }
+            Self::P256(bytes) => verify_p256_sha256(bytes, message, signature)
+                .map_err(|_| KeriError::InvalidSignature),
         }
     }
 }

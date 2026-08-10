@@ -11,6 +11,9 @@ publish = false
 
 [dependencies]
 auths-identity.workspace = true
+auths-signature-core.workspace = true
+
+[dev-dependencies]
 ed25519-dalek.workspace = true
 
 [lints]

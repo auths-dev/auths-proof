@@ -11,6 +11,7 @@ members = [
     "core/crates/auths-ports",
     "core/crates/auths-registries",
     "core/crates/auths-signature",
+    "core/crates/auths-signature-core",
     "core/crates/auths-identity",
     "core/crates/auths-raw-key-core",
     "core/crates/auths-algebra-kernel",
@@ -193,6 +194,7 @@ auths-postgresql = { version = "1.0.0-rc.1", path = "product/integrations/auths-
 auths-records-api = { version = "1.0.0-rc.1", path = "product/integrations/auths-records-api" }
 auths-apps-testkit = { version = "1.0.0-rc.1", path = "demos/testkit/auths-apps-testkit" }
 auths-raw-key-core = { version = "1.0.0-rc.1", path = "core/crates/auths-raw-key-core", default-features = false }
+auths-signature-core = { version = "1.0.0-rc.1", path = "core/crates/auths-signature-core", default-features = false }
 auths-live-lab = { version = "1.0.0-rc.1", path = "demos/live-lab" }
 auths-lab-matrix = { version = "1.0.0-rc.1", path = "demos/matrix/auths-lab-matrix" }
 auths-bench-model = { version = "1.0.0-rc.1", path = "demos/benchmarks/auths-bench-model" }

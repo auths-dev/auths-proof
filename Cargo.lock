@@ -406,10 +406,10 @@ dependencies = [
  "auths-codec",
  "auths-model",
  "auths-ports",
+ "auths-signature-core",
  "base64ct",
  "blake3",
  "ed25519-dalek 2.2.0",
- "p256",
  "serde",
  "serde_json",
 ]
@@ -1224,6 +1224,7 @@ dependencies = [
  "auths-model",
  "auths-profile-api",
  "auths-sdk",
+ "auths-signature-core",
  "auths-stores",
  "ed25519-dalek 2.2.0",
  "hex",
@@ -1345,8 +1346,18 @@ dependencies = [
 name = "auths-signature"
 version = "1.0.0-rc.1"
 dependencies = [
+ "auths-identity",
  "auths-model",
  "auths-ports",
+ "auths-signature-core",
+ "auths-signature-ed25519",
+ "ed25519-dalek 2.2.0",
+]
+
+[[package]]
+name = "auths-signature-core"
+version = "1.0.0-rc.1"
+dependencies = [
  "ed25519-dalek 2.2.0",
  "p256",
 ]
@@ -1356,6 +1367,7 @@ name = "auths-signature-ed25519"
 version = "1.0.0-rc.1"
 dependencies = [
  "auths-identity",
+ "auths-signature-core",
  "ed25519-dalek 2.2.0",
 ]
 

@@ -407,6 +407,11 @@
       "path": "core/crates/auths-signature"
     },
     {
+      "name": "auths-signature-core",
+      "layer": "core",
+      "path": "core/crates/auths-signature-core"
+    },
+    {
       "name": "auths-signature-ed25519",
       "layer": "core",
       "path": "core/adapters/auths-signature-ed25519"
@@ -1691,6 +1696,18 @@
     {
       "source": "auths-did-keri",
       "source_layer": "core",
+      "target": "auths-signature-core",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-did-keri",
+      "source_layer": "core",
       "target": "base64ct",
       "target_layer": null,
       "scope": "external",
@@ -1728,20 +1745,6 @@
       "default_features": false,
       "features": [
         "alloc"
-      ]
-    },
-    {
-      "source": "auths-did-keri",
-      "source_layer": "core",
-      "target": "p256",
-      "target_layer": null,
-      "scope": "external",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": false,
-      "features": [
-        "ecdsa"
       ]
     },
     {
@@ -7992,6 +7995,18 @@
     {
       "source": "auths-records-api",
       "source_layer": "product",
+      "target": "auths-signature-core",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-records-api",
+      "source_layer": "product",
       "target": "auths-stores",
       "target_layer": "product",
       "scope": "internal",
@@ -9054,6 +9069,18 @@
     {
       "source": "auths-signature",
       "source_layer": "core",
+      "target": "auths-identity",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-signature",
+      "source_layer": "core",
       "target": "auths-model",
       "target_layer": "core",
       "scope": "internal",
@@ -9078,6 +9105,59 @@
     {
       "source": "auths-signature",
       "source_layer": "core",
+      "target": "auths-signature-core",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-signature",
+      "source_layer": "core",
+      "target": "auths-signature-ed25519",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-signature",
+      "source_layer": "core",
+      "target": "ed25519-dalek",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc"
+      ]
+    },
+    {
+      "source": "auths-signature-core",
+      "source_layer": "core",
+      "target": "ed25519-dalek",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "rand_core"
+      ]
+    },
+    {
+      "source": "auths-signature-core",
+      "source_layer": "core",
       "target": "ed25519-dalek",
       "target_layer": null,
       "scope": "external",
@@ -9090,7 +9170,7 @@
       ]
     },
     {
-      "source": "auths-signature",
+      "source": "auths-signature-core",
       "source_layer": "core",
       "target": "p256",
       "target_layer": null,
@@ -9118,10 +9198,22 @@
     {
       "source": "auths-signature-ed25519",
       "source_layer": "core",
+      "target": "auths-signature-core",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-signature-ed25519",
+      "source_layer": "core",
       "target": "ed25519-dalek",
       "target_layer": null,
       "scope": "external",
-      "kind": "normal",
+      "kind": "dev",
       "target_condition": null,
       "optional": false,
       "default_features": false,

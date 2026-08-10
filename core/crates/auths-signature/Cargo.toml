@@ -13,15 +13,18 @@ default = ["std"]
 std = [
     "auths-model/std",
     "auths-ports/std",
-    "ed25519-dalek/std",
-    "p256/std",
+    "auths-signature-core/std",
 ]
 
 [dependencies]
 auths-model.workspace = true
 auths-ports.workspace = true
+auths-signature-core.workspace = true
+
+[dev-dependencies]
+auths-identity.workspace = true
+auths-signature-ed25519.workspace = true
 ed25519-dalek.workspace = true
-p256.workspace = true
 
 [lints]
 workspace = true
