@@ -5,14 +5,14 @@
 
 extern crate alloc;
 
-use alloc::{format, vec::Vec};
+use alloc::vec::Vec;
 use auths_identity::{IdentityError, IdentityMethod, PublicIdentity, ValidatedIdentity};
-use base64ct::{Base64UrlUnpadded, Encoding};
-use sha2::{Digest as _, Sha256};
+use auths_raw_key_core::RawKeyDescriptorV2;
 
-pub const RAW_KEY_IDENTITY_V1: &str = "raw-key-identity-v1";
-pub const PRINCIPAL_PREFIX: &str = "key:sha256:";
-const DESCRIPTOR_DOMAIN: &[u8] = b"AUTHS-IDENTITY-RAW-KEY\0\x01";
+pub use auths_raw_key_core::{RAW_KEY_V2, V2_PRINCIPAL_PREFIX as PRINCIPAL_PREFIX};
+/// Compatibility name for the experimental pre-release identity adapter.
+#[deprecated(note = "use RAW_KEY_V2; the old experimental derivation was never published")]
+pub const RAW_KEY_IDENTITY_V1: &str = RAW_KEY_V2;
 
 pub struct RawKeyIdentityMethod;
 
@@ -26,21 +26,31 @@ impl RawKeyIdentityMethod {
         suite_id: &str,
         public_key: Vec<u8>,
     ) -> Result<ValidatedIdentity, IdentityError> {
-        let identifier = derive_identifier(suite_id, &public_key)?;
-        PublicIdentity::new(RAW_KEY_IDENTITY_V1, &identifier, suite_id, public_key)?.validate(&Self)
+        let descriptor =
+            RawKeyDescriptorV2::new(suite_id, public_key).map_err(map_raw_key_error)?;
+        PublicIdentity::new(
+            RAW_KEY_V2,
+            &descriptor.identifier(),
+            descriptor.suite_id(),
+            descriptor.public_key().to_vec(),
+        )?
+        .validate(&Self)
     }
 }
 
 impl IdentityMethod for RawKeyIdentityMethod {
     fn method_id(&self) -> &'static str {
-        RAW_KEY_IDENTITY_V1
+        RAW_KEY_V2
     }
 
     fn validate(&self, identity: &PublicIdentity) -> Result<(), IdentityError> {
-        if identity.method_id() != RAW_KEY_IDENTITY_V1 {
+        if identity.method_id() != RAW_KEY_V2 {
             return Err(IdentityError::UnsupportedIdentityMethod);
         }
-        let expected = derive_identifier(identity.suite_id(), identity.public_key())?;
+        let descriptor =
+            RawKeyDescriptorV2::new(identity.suite_id(), identity.public_key().to_vec())
+                .map_err(map_raw_key_error)?;
+        let expected = descriptor.identifier();
         if expected != identity.identity_id() {
             return Err(IdentityError::InvalidIdentity);
         }
@@ -48,26 +58,13 @@ impl IdentityMethod for RawKeyIdentityMethod {
     }
 }
 
-fn derive_identifier(
-    suite_id: &str,
-    public_key: &[u8],
-) -> Result<alloc::string::String, IdentityError> {
-    if suite_id.is_empty() || public_key.is_empty() {
-        return Err(IdentityError::InvalidIdentity);
+fn map_raw_key_error(error: auths_raw_key_core::RawKeyError) -> IdentityError {
+    match error {
+        auths_raw_key_core::RawKeyError::InvalidSuite
+        | auths_raw_key_core::RawKeyError::InvalidEncoding => IdentityError::InvalidIdentity,
+        auths_raw_key_core::RawKeyError::InvalidKey => IdentityError::InvalidPublicKey,
+        auths_raw_key_core::RawKeyError::Limit => IdentityError::Limit,
     }
-    let suite_length = u16::try_from(suite_id.len()).map_err(|_| IdentityError::Limit)?;
-    let key_length = u32::try_from(public_key.len()).map_err(|_| IdentityError::Limit)?;
-    let mut descriptor = Vec::new();
-    descriptor.extend_from_slice(DESCRIPTOR_DOMAIN);
-    descriptor.extend_from_slice(&suite_length.to_be_bytes());
-    descriptor.extend_from_slice(suite_id.as_bytes());
-    descriptor.extend_from_slice(&key_length.to_be_bytes());
-    descriptor.extend_from_slice(public_key);
-    let digest: [u8; 32] = Sha256::digest(descriptor).into();
-    Ok(format!(
-        "{PRINCIPAL_PREFIX}{}",
-        Base64UrlUnpadded::encode_string(&digest)
-    ))
 }
 
 #[cfg(test)]
@@ -85,6 +82,7 @@ mod tests {
             let identity = RawKeyIdentityMethod::identity(suite, alloc::vec![7; length]).unwrap();
             identity.as_public_identity().validate(&method).unwrap();
             assert_eq!(identity.suite_id(), suite);
+            assert!(identity.identity_id().starts_with(PRINCIPAL_PREFIX));
         }
     }
 }

@@ -701,8 +701,8 @@ mod tests {
     #[test]
     fn structurally_canonical_public_identity_is_not_implicitly_trusted() {
         let forged = PublicIdentity::new(
-            auths_identity_raw_key::RAW_KEY_IDENTITY_V1,
-            "key:sha256:forged",
+            auths_identity_raw_key::RAW_KEY_V2,
+            "key:sha256-v2:forged",
             ED25519_V1,
             vec![7; 32],
         )

@@ -362,6 +362,11 @@
       "path": "core/adapters/auths-raw-key"
     },
     {
+      "name": "auths-raw-key-core",
+      "layer": "core",
+      "path": "core/crates/auths-raw-key-core"
+    },
+    {
       "name": "auths-receipts",
       "layer": "product",
       "path": "product/receipts/auths-receipts"
@@ -3127,23 +3132,9 @@
     {
       "source": "auths-identity-raw-key",
       "source_layer": "core",
-      "target": "base64ct",
-      "target_layer": null,
-      "scope": "external",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": false,
-      "features": [
-        "alloc"
-      ]
-    },
-    {
-      "source": "auths-identity-raw-key",
-      "source_layer": "core",
-      "target": "sha2",
-      "target_layer": null,
-      "scope": "external",
+      "target": "auths-raw-key-core",
+      "target_layer": "core",
+      "scope": "internal",
       "kind": "normal",
       "target_condition": null,
       "optional": false,
@@ -7839,16 +7830,14 @@
     {
       "source": "auths-raw-key",
       "source_layer": "core",
-      "target": "base64ct",
-      "target_layer": null,
-      "scope": "external",
+      "target": "auths-raw-key-core",
+      "target_layer": "core",
+      "scope": "internal",
       "kind": "normal",
       "target_condition": null,
       "optional": false,
       "default_features": false,
-      "features": [
-        "alloc"
-      ]
+      "features": []
     },
     {
       "source": "auths-raw-key",
@@ -7865,7 +7854,21 @@
       ]
     },
     {
-      "source": "auths-raw-key",
+      "source": "auths-raw-key-core",
+      "source_layer": "core",
+      "target": "base64ct",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc"
+      ]
+    },
+    {
+      "source": "auths-raw-key-core",
       "source_layer": "core",
       "target": "sha2",
       "target_layer": null,

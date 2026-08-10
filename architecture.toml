@@ -77,6 +77,7 @@ no_std_packages = [
   "auths-ports",
   "auths-proof",
   "auths-raw-key",
+  "auths-raw-key-core",
   "auths-registries",
   "auths-signature",
   "auths-signature-ed25519",
@@ -155,6 +156,7 @@ auths-proof-offline-example = "demos"
 auths-proof-python = "bindings"
 auths-proof-wasm = "bindings"
 auths-raw-key = "core"
+auths-raw-key-core = "core"
 auths-radicle = "product"
 auths-radicle-demo = "demos"
 auths-stripe = "product"
@@ -197,7 +199,7 @@ roots = [
   "auths-identity-raw-key",
   "auths-signature-ed25519",
 ]
-allowed_workspace_dependencies = ["auths-identity"]
+allowed_workspace_dependencies = ["auths-identity", "auths-raw-key-core"]
 
 [dependency_boundaries.iroh-transport]
 roots = ["auths-iroh"]

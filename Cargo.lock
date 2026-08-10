@@ -585,8 +585,7 @@ name = "auths-identity-raw-key"
 version = "1.0.0-rc.1"
 dependencies = [
  "auths-identity",
- "base64ct",
- "sha2 0.10.9",
+ "auths-raw-key-core",
 ]
 
 [[package]]
@@ -1194,8 +1193,15 @@ version = "1.0.0-rc.1"
 dependencies = [
  "auths-model",
  "auths-ports",
- "base64ct",
+ "auths-raw-key-core",
  "ed25519-dalek 2.2.0",
+]
+
+[[package]]
+name = "auths-raw-key-core"
+version = "1.0.0-rc.1"
+dependencies = [
+ "base64ct",
  "sha2 0.10.9",
 ]
 

@@ -72,6 +72,7 @@ digraph auths_architecture {
   "auths-radicle" [group="product"];
   "auths-radicle-demo" [group="demos"];
   "auths-raw-key" [group="core"];
+  "auths-raw-key-core" [group="core"];
   "auths-receipts" [group="product"];
   "auths-records-api" [group="product"];
   "auths-records-demo" [group="demos"];
@@ -218,6 +219,7 @@ digraph auths_architecture {
   "auths-identity-iroh-demo" -> "auths-iroh" [label="normal"];
   "auths-identity-iroh-demo" -> "auths-signature-ed25519" [label="normal"];
   "auths-identity-raw-key" -> "auths-identity" [label="normal"];
+  "auths-identity-raw-key" -> "auths-raw-key-core" [label="normal"];
   "auths-kubernetes" -> "auths-bounded-policy" [label="normal"];
   "auths-kubernetes" -> "auths-lifecycle" [label="normal"];
   "auths-kubernetes" -> "auths-model" [label="normal"];
@@ -410,6 +412,7 @@ digraph auths_architecture {
   "auths-radicle-demo" -> "auths-stores" [label="normal"];
   "auths-raw-key" -> "auths-model" [label="normal"];
   "auths-raw-key" -> "auths-ports" [label="normal"];
+  "auths-raw-key" -> "auths-raw-key-core" [label="normal"];
   "auths-receipts" -> "auths-model" [label="normal"];
   "auths-receipts" -> "auths-ports" [label="normal"];
   "auths-records-api" -> "auths-bounded-policy" [label="normal"];

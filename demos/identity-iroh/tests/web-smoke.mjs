@@ -71,7 +71,7 @@ test("frontend starts, enables execution, and changes the selected experiment", 
       ok: true,
       json: async () => ({
         server_principal: "key:test",
-        server_identity_method: "raw-key-identity-v1",
+        server_identity_method: "raw-key-v2",
         server_signature_suite: "ed25519-v1",
         server_public_key: "00",
       }),
