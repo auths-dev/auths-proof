@@ -6,7 +6,7 @@
 extern crate alloc;
 
 use alloc::{format, vec::Vec};
-use auths_identity::{IdentityError, IdentityMethod, PublicIdentity};
+use auths_identity::{IdentityError, IdentityMethod, PublicIdentity, ValidatedIdentity};
 use base64ct::{Base64UrlUnpadded, Encoding};
 use sha2::{Digest as _, Sha256};
 
@@ -22,9 +22,12 @@ impl RawKeyIdentityMethod {
     /// # Errors
     ///
     /// Rejects invalid suite identifiers, empty keys, or oversized fields.
-    pub fn identity(suite_id: &str, public_key: Vec<u8>) -> Result<PublicIdentity, IdentityError> {
+    pub fn identity(
+        suite_id: &str,
+        public_key: Vec<u8>,
+    ) -> Result<ValidatedIdentity, IdentityError> {
         let identifier = derive_identifier(suite_id, &public_key)?;
-        PublicIdentity::new(RAW_KEY_IDENTITY_V1, &identifier, suite_id, public_key)
+        PublicIdentity::new(RAW_KEY_IDENTITY_V1, &identifier, suite_id, public_key)?.validate(&Self)
     }
 }
 
@@ -80,7 +83,7 @@ mod tests {
             ("example-pq-v1", 4096),
         ] {
             let identity = RawKeyIdentityMethod::identity(suite, alloc::vec![7; length]).unwrap();
-            identity.validate(&method).unwrap();
+            identity.as_public_identity().validate(&method).unwrap();
             assert_eq!(identity.suite_id(), suite);
         }
     }

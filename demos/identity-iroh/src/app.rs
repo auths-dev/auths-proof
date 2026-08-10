@@ -1,7 +1,8 @@
 use std::{env, net::SocketAddr, sync::Arc, time::Duration};
 
 use auths_identity::{
-    IdentityError, IdentityPacket, MAX_IDENTITY_PACKET_BYTES, PublicIdentity, SignedIdentityMessage,
+    IdentityError, IdentityPacket, MAX_IDENTITY_PACKET_BYTES, PublicIdentity,
+    SignedIdentityMessage, ValidatedIdentity,
 };
 use auths_identity_raw_key::RawKeyIdentityMethod;
 use auths_iroh::{IrohChannel, IrohConfig, IrohError, PathObservation, StreamInitiator};
@@ -67,7 +68,7 @@ struct AppState {
     server_endpoint: Endpoint,
     server_target: EndpointAddr,
     server_signing: Arc<SigningKey>,
-    server_identity: PublicIdentity,
+    server_identity: ValidatedIdentity,
     transport_config: IrohConfig,
     config: AppConfig,
 }
@@ -310,7 +311,7 @@ async fn exchange(
         let mut channel = IrohChannel::accept(&server_endpoint, server_config).await?;
         let received = channel.receive().await?;
         let packet = IdentityPacket::decode(received.payload()).map_err(ExchangeError::Identity)?;
-        let signature_verified = verify_packet(&packet);
+        let signature_verified = verify_packet(&packet)?;
         let response = response_packet(&server_signing, &server_identity, signature_verified)?;
         channel.send(&response.encode()?).await?;
         channel.finish_send_and_wait().await?;
@@ -328,6 +329,9 @@ async fn exchange(
     client.finish_send().map_err(ApiError::transport)?;
     let response = client.receive().await.map_err(ApiError::transport)?;
     let response_packet = IdentityPacket::decode(response.payload()).map_err(ApiError::identity)?;
+    if !verify_packet(&response_packet).map_err(ApiError::identity)? {
+        return Err(ApiError::internal());
+    }
     let (server_received, server_packet, signature_verified) = server_task
         .await
         .map_err(|_| ApiError::internal())?
@@ -371,27 +375,33 @@ async fn exchange(
 fn packet_for_experiment(
     experiment: Experiment,
     signing: &SigningKey,
-    identity: &PublicIdentity,
+    identity: &ValidatedIdentity,
     message: &str,
 ) -> Result<IdentityPacket, ApiError> {
     if matches!(experiment, Experiment::PublicIdentity) {
-        return Ok(IdentityPacket::PublicIdentity(identity.clone()));
+        return Ok(IdentityPacket::PublicIdentity(
+            identity.as_public_identity().clone(),
+        ));
     }
     let signed_message = if matches!(experiment, Experiment::TamperedMessage) {
         let mut original = message.as_bytes().to_vec();
         original.extend_from_slice(b"\0before-tampering");
-        let preimage = SignedIdentityMessage::signing_preimage(identity, &original)
-            .map_err(ApiError::identity)?;
+        let preimage =
+            SignedIdentityMessage::signing_preimage(identity.as_public_identity(), &original)
+                .map_err(ApiError::identity)?;
         SignedIdentityMessage::new(
-            identity.clone(),
+            identity.as_public_identity().clone(),
             message.as_bytes().to_vec(),
             signing.sign(&preimage).to_bytes().to_vec(),
         )
     } else {
-        let preimage = SignedIdentityMessage::signing_preimage(identity, message.as_bytes())
-            .map_err(ApiError::identity)?;
+        let preimage = SignedIdentityMessage::signing_preimage(
+            identity.as_public_identity(),
+            message.as_bytes(),
+        )
+        .map_err(ApiError::identity)?;
         SignedIdentityMessage::new(
-            identity.clone(),
+            identity.as_public_identity().clone(),
             message.as_bytes().to_vec(),
             signing.sign(&preimage).to_bytes().to_vec(),
         )
@@ -402,7 +412,7 @@ fn packet_for_experiment(
 
 fn response_packet(
     signing: &SigningKey,
-    identity: &PublicIdentity,
+    identity: &ValidatedIdentity,
     request_verified: bool,
 ) -> Result<IdentityPacket, IdentityError> {
     let message = if request_verified {
@@ -410,20 +420,27 @@ fn response_packet(
     } else {
         b"server received a public or unverified identity".as_slice()
     };
-    let preimage = SignedIdentityMessage::signing_preimage(identity, message)?;
+    let preimage = SignedIdentityMessage::signing_preimage(identity.as_public_identity(), message)?;
     Ok(IdentityPacket::SignedMessage(SignedIdentityMessage::new(
-        identity.clone(),
+        identity.as_public_identity().clone(),
         message.to_vec(),
         signing.sign(&preimage).to_bytes().to_vec(),
     )?))
 }
 
-fn verify_packet(packet: &IdentityPacket) -> bool {
+fn verify_packet(packet: &IdentityPacket) -> Result<bool, IdentityError> {
     match packet {
-        IdentityPacket::PublicIdentity(_) => false,
-        IdentityPacket::SignedMessage(message) => message
-            .verify(&RawKeyIdentityMethod, &Ed25519Verifier)
-            .is_ok(),
+        IdentityPacket::PublicIdentity(identity) => {
+            identity.validate(&RawKeyIdentityMethod)?;
+            Ok(false)
+        }
+        IdentityPacket::SignedMessage(message) => {
+            match message.verify(&RawKeyIdentityMethod, &Ed25519Verifier) {
+                Ok(_) => Ok(true),
+                Err(IdentityError::VerificationFailed) => Ok(false),
+                Err(error) => Err(error),
+            }
+        }
     }
 }
 
@@ -679,5 +696,20 @@ mod tests {
         let javascript = std::str::from_utf8(&body).unwrap();
         assert!(javascript.contains("connect();"));
         assert!(javascript.contains("button.addEventListener(\"click\""));
+    }
+
+    #[test]
+    fn structurally_canonical_public_identity_is_not_implicitly_trusted() {
+        let forged = PublicIdentity::new(
+            auths_identity_raw_key::RAW_KEY_IDENTITY_V1,
+            "key:sha256:forged",
+            ED25519_V1,
+            vec![7; 32],
+        )
+        .unwrap();
+        let packet =
+            IdentityPacket::decode(&IdentityPacket::PublicIdentity(forged).encode().unwrap())
+                .unwrap();
+        assert_eq!(verify_packet(&packet), Err(IdentityError::InvalidIdentity));
     }
 }

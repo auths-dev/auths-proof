@@ -93,16 +93,22 @@ impl PublicIdentity {
         &self.public_key
     }
 
-    /// Validates this descriptor with one caller-selected identity method.
+    /// Promotes this structural descriptor into a method-validated identity.
     ///
     /// # Errors
     ///
     /// Rejects a mismatched method or method-specific validation failure.
-    pub fn validate<M: IdentityMethod + ?Sized>(&self, method: &M) -> Result<(), IdentityError> {
+    pub fn validate<M: IdentityMethod + ?Sized>(
+        &self,
+        method: &M,
+    ) -> Result<ValidatedIdentity, IdentityError> {
         if method.method_id() != self.method_id {
             return Err(IdentityError::UnsupportedIdentityMethod);
         }
-        method.validate(self)
+        method.validate(self)?;
+        Ok(ValidatedIdentity {
+            identity: self.clone(),
+        })
     }
 
     fn encode_descriptor(&self) -> Result<Vec<u8>, IdentityError> {
@@ -112,6 +118,55 @@ impl PublicIdentity {
         encode_text(&mut output, &self.suite_id)?;
         encode_bytes(&mut output, &self.public_key)?;
         Ok(output)
+    }
+}
+
+/// A public identity whose method-specific identifier and material relationship
+/// has been validated.
+///
+/// This wrapper cannot be constructed directly. Canonical decoding produces a
+/// structural [`PublicIdentity`]; callers must explicitly promote it through
+/// [`PublicIdentity::validate`].
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ValidatedIdentity {
+    identity: PublicIdentity,
+}
+
+impl ValidatedIdentity {
+    /// Returns the structural identity whose relationship was validated.
+    #[must_use]
+    pub const fn as_public_identity(&self) -> &PublicIdentity {
+        &self.identity
+    }
+
+    /// Returns the validated identity method identifier.
+    #[must_use]
+    pub fn method_id(&self) -> &str {
+        self.identity.method_id()
+    }
+
+    /// Returns the validated stable identity identifier.
+    #[must_use]
+    pub fn identity_id(&self) -> &str {
+        self.identity.identity_id()
+    }
+
+    /// Returns the validated signature-suite identifier.
+    #[must_use]
+    pub fn suite_id(&self) -> &str {
+        self.identity.suite_id()
+    }
+
+    /// Returns the validated public verification material.
+    #[must_use]
+    pub fn public_key(&self) -> &[u8] {
+        self.identity.public_key()
+    }
+
+    /// Consumes the validation witness and returns its structural identity.
+    #[must_use]
+    pub fn into_public_identity(self) -> PublicIdentity {
+        self.identity
     }
 }
 
@@ -197,17 +252,25 @@ impl SignedIdentityMessage {
     /// # Errors
     ///
     /// Rejects method or suite mismatches and failed validation or verification.
-    pub fn verify<M, S>(&self, method: &M, suite: &S) -> Result<(), IdentityError>
+    pub fn verify<M, S>(
+        &self,
+        method: &M,
+        suite: &S,
+    ) -> Result<AuthenticatedIdentityMessage, IdentityError>
     where
         M: IdentityMethod + ?Sized,
         S: SignatureVerifier + ?Sized,
     {
-        self.identity.validate(method)?;
+        let identity = self.identity.validate(method)?;
         if suite.suite_id() != self.identity.suite_id {
             return Err(IdentityError::UnsupportedSignatureSuite);
         }
         let preimage = Self::signing_preimage(&self.identity, &self.message)?;
-        suite.verify(&self.identity.public_key, &preimage, &self.signature)
+        suite.verify(&self.identity.public_key, &preimage, &self.signature)?;
+        Ok(AuthenticatedIdentityMessage {
+            signed: self.clone(),
+            identity,
+        })
     }
 
     #[must_use]
@@ -223,6 +286,42 @@ impl SignedIdentityMessage {
     #[must_use]
     pub fn signature(&self) -> &[u8] {
         &self.signature
+    }
+}
+
+/// An exact message authenticated to a method-validated public identity.
+///
+/// Construction is private so neither decoding nor application code can mint
+/// authentication without running both method and signature verification.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AuthenticatedIdentityMessage {
+    signed: SignedIdentityMessage,
+    identity: ValidatedIdentity,
+}
+
+impl AuthenticatedIdentityMessage {
+    /// Returns the validated identity that authenticated the message.
+    #[must_use]
+    pub const fn identity(&self) -> &ValidatedIdentity {
+        &self.identity
+    }
+
+    /// Returns the exact authenticated application bytes.
+    #[must_use]
+    pub fn message(&self) -> &[u8] {
+        self.signed.message()
+    }
+
+    /// Returns the verified signature bytes.
+    #[must_use]
+    pub fn signature(&self) -> &[u8] {
+        self.signed.signature()
+    }
+
+    /// Consumes the witness and returns the structurally signed carrier.
+    #[must_use]
+    pub fn into_signed_message(self) -> SignedIdentityMessage {
+        self.signed
     }
 }
 
@@ -471,7 +570,9 @@ mod tests {
         let signed =
             SignedIdentityMessage::new(identity, message.to_vec(), preimage[..96].to_vec())
                 .unwrap();
-        signed.verify(&AnyMethod, &VariableLengthSuite).unwrap();
+        let authenticated = signed.verify(&AnyMethod, &VariableLengthSuite).unwrap();
+        assert_eq!(authenticated.identity().identity_id(), "example:alice");
+        assert_eq!(authenticated.message(), message);
         let packet = IdentityPacket::SignedMessage(signed);
         assert_eq!(
             IdentityPacket::decode(&packet.encode().unwrap()).unwrap(),
@@ -491,6 +592,23 @@ mod tests {
         assert_eq!(
             identity.validate(&AnyMethod),
             Err(IdentityError::UnsupportedIdentityMethod)
+        );
+    }
+
+    #[test]
+    fn canonical_decoding_does_not_mint_method_validation() {
+        let forged = PublicIdentity::new(
+            "example-method-v1",
+            "example:mallory",
+            "example-pq-v1",
+            alloc::vec![7; 4096],
+        )
+        .unwrap();
+        let encoded = IdentityPacket::PublicIdentity(forged).encode().unwrap();
+        let decoded = IdentityPacket::decode(&encoded).unwrap();
+        assert_eq!(
+            decoded.identity().validate(&AnyMethod),
+            Err(IdentityError::InvalidIdentity)
         );
     }
 }
