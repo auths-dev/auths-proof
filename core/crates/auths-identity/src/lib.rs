@@ -15,6 +15,12 @@ pub const MAX_METHOD_ID_BYTES: usize = 128;
 pub const MAX_SUITE_ID_BYTES: usize = 128;
 pub const MAX_IDENTITY_ID_BYTES: usize = 512;
 pub const MAX_PUBLIC_KEY_BYTES: usize = 128 * 1024;
+pub const MAX_METHOD_MATERIAL_BYTES: usize = 128 * 1024;
+pub const MAX_VERIFICATION_MATERIAL_BYTES: usize = MAX_PUBLIC_KEY_BYTES;
+pub const MAX_RELATIONSHIPS: usize = 16;
+pub const MAX_MATERIALS_PER_RELATIONSHIP: usize = 16;
+pub const MAX_RELATIONSHIP_ID_BYTES: usize = 128;
+pub const MAX_PURPOSE_ID_BYTES: usize = 128;
 pub const MAX_SIGNATURE_BYTES: usize = 128 * 1024;
 pub const MAX_IDENTITY_MESSAGE_BYTES: usize = 64 * 1024;
 pub const MAX_IDENTITY_PACKET_BYTES: usize = WIRE_MAGIC.len()
@@ -36,6 +42,247 @@ const WIRE_MAGIC: &[u8] = b"AUTHS-IDENTITY\0\x02";
 const SIGNING_DOMAIN: &[u8] = b"AUTHS-IDENTITY-MESSAGE\0\x02";
 const PUBLIC_IDENTITY_TAG: u8 = 1;
 const SIGNED_MESSAGE_TAG: u8 = 2;
+
+/// Method-owned identity data that does not assume an embedded key or credential shape.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct IdentityDescriptor {
+    method_id: String,
+    identity_id: String,
+    method_material: Vec<u8>,
+    relationships: Vec<VerificationRelationship>,
+}
+
+impl IdentityDescriptor {
+    /// Constructs a bounded general identity descriptor.
+    ///
+    /// Method material may be empty, allowing methods whose stable identifier is sufficient or
+    /// whose verification state is obtained through an explicit resolver.
+    ///
+    /// # Errors
+    ///
+    /// Rejects malformed identifiers, duplicate relationships, excessive counts, and excessive
+    /// aggregate verification material.
+    pub fn new(
+        method_id: &str,
+        identity_id: &str,
+        method_material: Vec<u8>,
+        relationships: Vec<VerificationRelationship>,
+    ) -> Result<Self, IdentityError> {
+        validate_identifier(method_id, MAX_METHOD_ID_BYTES)?;
+        validate_identifier(identity_id, MAX_IDENTITY_ID_BYTES)?;
+        if method_material.len() > MAX_METHOD_MATERIAL_BYTES
+            || relationships.len() > MAX_RELATIONSHIPS
+        {
+            return Err(IdentityError::Limit);
+        }
+        let mut total_material = 0_usize;
+        for (index, relationship) in relationships.iter().enumerate() {
+            if relationships[..index]
+                .iter()
+                .any(|prior| prior.relationship_id == relationship.relationship_id)
+            {
+                return Err(IdentityError::InvalidIdentity);
+            }
+            for material in &relationship.verification_material {
+                total_material = total_material
+                    .checked_add(material.bytes.len())
+                    .ok_or(IdentityError::Limit)?;
+            }
+        }
+        if total_material > MAX_VERIFICATION_MATERIAL_BYTES {
+            return Err(IdentityError::Limit);
+        }
+        Ok(Self {
+            method_id: method_id.into(),
+            identity_id: identity_id.into(),
+            method_material,
+            relationships,
+        })
+    }
+
+    /// Returns the identity method selected by the descriptor.
+    #[must_use]
+    pub fn method_id(&self) -> &str {
+        &self.method_id
+    }
+
+    /// Returns the stable identity identifier, independent of current keys.
+    #[must_use]
+    pub fn identity_id(&self) -> &str {
+        &self.identity_id
+    }
+
+    /// Returns bounded opaque bytes interpreted only by the identity method.
+    #[must_use]
+    pub fn method_material(&self) -> &[u8] {
+        &self.method_material
+    }
+
+    /// Returns the descriptor's explicit verification relationships.
+    #[must_use]
+    pub fn relationships(&self) -> &[VerificationRelationship] {
+        &self.relationships
+    }
+
+    /// Returns a relationship by its stable local identifier.
+    #[must_use]
+    pub fn relationship(&self, relationship_id: &str) -> Option<&VerificationRelationship> {
+        self.relationships
+            .iter()
+            .find(|relationship| relationship.relationship_id == relationship_id)
+    }
+
+    /// Promotes the descriptor into method-validated general identity state.
+    ///
+    /// # Errors
+    ///
+    /// Rejects a mismatched method or method-specific validation failure.
+    pub fn validate<M: IdentityDescriptorMethod + ?Sized>(
+        &self,
+        method: &M,
+    ) -> Result<ValidatedIdentityDescriptor, IdentityError> {
+        if method.method_id() != self.method_id {
+            return Err(IdentityError::UnsupportedIdentityMethod);
+        }
+        method.validate(self)?;
+        Ok(ValidatedIdentityDescriptor {
+            descriptor: self.clone(),
+        })
+    }
+}
+
+/// One explicit purpose- and suite-labelled verification relationship.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationRelationship {
+    relationship_id: String,
+    purpose: String,
+    suite_id: String,
+    verification_material: Vec<VerificationMaterial>,
+}
+
+impl VerificationRelationship {
+    /// Constructs a relationship containing one or more separately labelled material objects.
+    ///
+    /// # Errors
+    ///
+    /// Rejects malformed identifiers, empty or excessive material sets, and duplicate material
+    /// identifiers.
+    pub fn new(
+        relationship_id: &str,
+        purpose: &str,
+        suite_id: &str,
+        verification_material: Vec<VerificationMaterial>,
+    ) -> Result<Self, IdentityError> {
+        validate_identifier(relationship_id, MAX_RELATIONSHIP_ID_BYTES)?;
+        validate_identifier(purpose, MAX_PURPOSE_ID_BYTES)?;
+        validate_identifier(suite_id, MAX_SUITE_ID_BYTES)?;
+        if verification_material.is_empty()
+            || verification_material.len() > MAX_MATERIALS_PER_RELATIONSHIP
+        {
+            return Err(IdentityError::InvalidVerificationMaterial);
+        }
+        for (index, material) in verification_material.iter().enumerate() {
+            if verification_material[..index]
+                .iter()
+                .any(|prior| prior.material_id == material.material_id)
+            {
+                return Err(IdentityError::InvalidVerificationMaterial);
+            }
+        }
+        Ok(Self {
+            relationship_id: relationship_id.into(),
+            purpose: purpose.into(),
+            suite_id: suite_id.into(),
+            verification_material,
+        })
+    }
+
+    #[must_use]
+    pub fn relationship_id(&self) -> &str {
+        &self.relationship_id
+    }
+
+    #[must_use]
+    pub fn purpose(&self) -> &str {
+        &self.purpose
+    }
+
+    #[must_use]
+    pub fn suite_id(&self) -> &str {
+        &self.suite_id
+    }
+
+    #[must_use]
+    pub fn verification_material(&self) -> &[VerificationMaterial] {
+        &self.verification_material
+    }
+}
+
+/// One separately labelled opaque input to a signature suite.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerificationMaterial {
+    material_id: String,
+    bytes: Vec<u8>,
+}
+
+impl VerificationMaterial {
+    /// Constructs one bounded non-empty verification-material object.
+    ///
+    /// # Errors
+    ///
+    /// Rejects malformed identifiers and empty or oversized material.
+    pub fn new(material_id: &str, bytes: Vec<u8>) -> Result<Self, IdentityError> {
+        validate_identifier(material_id, MAX_RELATIONSHIP_ID_BYTES)?;
+        if bytes.is_empty() || bytes.len() > MAX_VERIFICATION_MATERIAL_BYTES {
+            return Err(IdentityError::InvalidVerificationMaterial);
+        }
+        Ok(Self {
+            material_id: material_id.into(),
+            bytes,
+        })
+    }
+
+    #[must_use]
+    pub fn material_id(&self) -> &str {
+        &self.material_id
+    }
+
+    #[must_use]
+    pub fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+}
+
+/// Replaceable validator for a general, method-owned identity descriptor.
+pub trait IdentityDescriptorMethod {
+    fn method_id(&self) -> &str;
+    /// Validates stable identity, method material, and relationship semantics.
+    ///
+    /// # Errors
+    ///
+    /// Returns a typed failure for an invalid or unsupported descriptor.
+    fn validate(&self, descriptor: &IdentityDescriptor) -> Result<(), IdentityError>;
+}
+
+/// A general descriptor whose method-specific relationships have been validated.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ValidatedIdentityDescriptor {
+    descriptor: IdentityDescriptor,
+}
+
+impl ValidatedIdentityDescriptor {
+    /// Returns the validated general descriptor.
+    #[must_use]
+    pub const fn as_descriptor(&self) -> &IdentityDescriptor {
+        &self.descriptor
+    }
+
+    /// Consumes the witness and returns the structural descriptor.
+    #[must_use]
+    pub fn into_descriptor(self) -> IdentityDescriptor {
+        self.descriptor
+    }
+}
 
 /// Algorithm-neutral public identity and verification key.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -91,6 +338,29 @@ impl PublicIdentity {
     #[must_use]
     pub fn public_key(&self) -> &[u8] {
         &self.public_key
+    }
+
+    /// Expands the compact V2 single-key profile into the general descriptor model.
+    ///
+    /// # Errors
+    ///
+    /// Returns a typed error only if the already-bounded compact fields cannot satisfy the
+    /// general model's stricter relationship construction.
+    pub fn to_descriptor(&self) -> Result<IdentityDescriptor, IdentityError> {
+        IdentityDescriptor::new(
+            &self.method_id,
+            &self.identity_id,
+            Vec::new(),
+            alloc::vec![VerificationRelationship::new(
+                "default-signing",
+                "authentication",
+                &self.suite_id,
+                alloc::vec![VerificationMaterial::new(
+                    "default-key",
+                    self.public_key.clone(),
+                )?],
+            )?],
+        )
     }
 
     /// Promotes this structural descriptor into a method-validated identity.
@@ -494,6 +764,7 @@ fn take<'a>(input: &'a [u8], cursor: &mut usize, length: usize) -> Result<&'a [u
 pub enum IdentityError {
     InvalidIdentity,
     InvalidPublicKey,
+    InvalidVerificationMaterial,
     InvalidMessage,
     InvalidSignature,
     UnsupportedIdentityMethod,
@@ -509,6 +780,7 @@ impl fmt::Display for IdentityError {
         formatter.write_str(match self {
             Self::InvalidIdentity => "invalid public identity",
             Self::InvalidPublicKey => "invalid public verification key",
+            Self::InvalidVerificationMaterial => "invalid identity verification material",
             Self::InvalidMessage => "invalid identity message length",
             Self::InvalidSignature => "invalid identity signature encoding",
             Self::UnsupportedIdentityMethod => "unsupported identity method",
@@ -553,6 +825,22 @@ mod tests {
             (key.len() == 4096 && signature == preimage.get(..96).unwrap_or(preimage))
                 .then_some(())
                 .ok_or(IdentityError::VerificationFailed)
+        }
+    }
+
+    struct GeneralMethod;
+
+    impl IdentityDescriptorMethod for GeneralMethod {
+        fn method_id(&self) -> &'static str {
+            "example-method-v2"
+        }
+
+        fn validate(&self, descriptor: &IdentityDescriptor) -> Result<(), IdentityError> {
+            descriptor
+                .identity_id()
+                .starts_with("example:")
+                .then_some(())
+                .ok_or(IdentityError::InvalidIdentity)
         }
     }
 
@@ -609,6 +897,93 @@ mod tests {
         assert_eq!(
             decoded.identity().validate(&AnyMethod),
             Err(IdentityError::InvalidIdentity)
+        );
+    }
+
+    #[test]
+    fn compact_single_key_profile_expands_concisely() {
+        let compact = PublicIdentity::new(
+            "example-method-v1",
+            "example:alice",
+            "ed25519-v1",
+            alloc::vec![7; 32],
+        )
+        .unwrap();
+        let descriptor = compact.to_descriptor().unwrap();
+        let relationship = descriptor.relationship("default-signing").unwrap();
+        assert_eq!(descriptor.identity_id(), "example:alice");
+        assert_eq!(relationship.purpose(), "authentication");
+        assert_eq!(relationship.verification_material().len(), 1);
+        assert_eq!(relationship.verification_material()[0].bytes(), &[7; 32]);
+    }
+
+    #[test]
+    fn key_rotation_preserves_the_stable_identity() {
+        let relationship = |key_byte| {
+            VerificationRelationship::new(
+                "current-signing-key",
+                "authentication",
+                "ed25519-v1",
+                alloc::vec![
+                    VerificationMaterial::new("rotating-key", alloc::vec![key_byte; 32],).unwrap()
+                ],
+            )
+            .unwrap()
+        };
+        let before = IdentityDescriptor::new(
+            "example-method-v2",
+            "example:stable-alice",
+            Vec::new(),
+            alloc::vec![relationship(1)],
+        )
+        .unwrap();
+        let after = IdentityDescriptor::new(
+            "example-method-v2",
+            "example:stable-alice",
+            Vec::new(),
+            alloc::vec![relationship(2)],
+        )
+        .unwrap();
+        assert_eq!(before.identity_id(), after.identity_id());
+        assert_ne!(before.relationships(), after.relationships());
+    }
+
+    #[test]
+    fn hybrid_and_resolver_shapes_need_no_private_concatenation() {
+        let hybrid = VerificationRelationship::new(
+            "hybrid-signing",
+            "authentication",
+            "example-hybrid-v1",
+            alloc::vec![
+                VerificationMaterial::new("classical", alloc::vec![3; 32]).unwrap(),
+                VerificationMaterial::new("post-quantum", alloc::vec![4; 2048]).unwrap(),
+            ],
+        )
+        .unwrap();
+        let hybrid_identity = IdentityDescriptor::new(
+            "example-method-v2",
+            "example:hybrid",
+            Vec::new(),
+            alloc::vec![hybrid],
+        )
+        .unwrap();
+        assert_eq!(
+            hybrid_identity.relationships()[0].verification_material()[1].material_id(),
+            "post-quantum"
+        );
+
+        let resolver_identity = IdentityDescriptor::new(
+            "example-method-v2",
+            "example:resolver-backed",
+            b"https://resolver.example/identities/alice".to_vec(),
+            Vec::new(),
+        )
+        .unwrap();
+        let validated = resolver_identity.validate(&GeneralMethod).unwrap();
+        assert!(validated.as_descriptor().relationships().is_empty());
+        assert_eq!(
+            validated.as_descriptor().method_material(),
+            b"https://resolver.example/identities/alice"
         );
     }
 }
