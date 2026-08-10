@@ -1,15 +1,16 @@
 {
-  "schema": "auths.sdk-capability/1",
+  "schema": "auths.sdk-capability/2",
   "package": "@auths-dev/sdk",
   "language": "typescript",
-  "currentTier": "verifier-binding",
+  "implementationTier": "full-workflow-sdk",
+  "evidenceStatus": "repository-local-complete",
+  "promotedTier": "verifier-binding",
   "targetTier": "full-workflow-sdk",
   "governingSpec": "AP-SPEC-027",
   "implementationStatus": "authorized-pre-review",
   "publicationStatus": "blocked",
   "promotionStatus": "blocked",
   "blockingIssues": [
-    "https://github.com/auths-dev/auths-proof/issues/71",
     "https://github.com/auths-dev/auths-proof/issues/74",
     "https://github.com/auths-dev/auths-proof/issues/76"
   ],
@@ -19,11 +20,16 @@
       "three-valued result projection",
       "stable code and configuration commitment projection",
       "repository-local pre-review principal and trusted-authority loading",
-      "repository-local transaction-bound signer and approval ports"
+      "repository-local transaction-bound signer and approval ports",
+      "repository-local pre-review attach, delegate, authorize, and explain workflow",
+      "repository-local pre-review sealed profile commands",
+      "repository-local Rust-compiled typed trust and lifecycle surfaces",
+      "repository-local native authorization-plan composition",
+      "repository-local maintained HTTP, Git, deployment, supply-chain, and edge profiles",
+      "repository-local optional runtime ports and custody conformance contracts"
     ],
     "excluded": [
-      "full workflow SDK",
-      "non-forgeable effect command",
+      "promoted full workflow SDK release claim",
       "independent review of workflow surfaces",
       "production readiness",
       "package publication authorization"

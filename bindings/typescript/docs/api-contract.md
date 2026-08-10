@@ -27,19 +27,77 @@ No normal-path operation accepts caller-constructed protocol CBOR.
 
 ## Module surface
 
-The package has four explicit surfaces:
+The package separates semantic roles into explicit entry points:
 
 ```text
-@auths-dev/sdk             workflow, results, identity, provider ports
-@auths-dev/sdk/mcp         closed MCP profile actions and commands
-@auths-dev/sdk/profile-kit application-owned closed profile authoring
-@auths-dev/sdk/advanced    raw verifier and bounded inspection
+@auths-dev/sdk                 integrated attach/delegate/authorize workflow
+@auths-dev/sdk/identity        decoded, validated, and authenticated identity states
+@auths-dev/sdk/trust           typed trusted-context composition
+@auths-dev/sdk/authority       authority projection and proof-plan authoring
+@auths-dev/sdk/lifecycle       principal/grant status authoring and snapshots
+@auths-dev/sdk/profiles        maintained and application profile facades
+@auths-dev/sdk/runtime         optional effect-lifecycle ports
+@auths-dev/sdk/custody         signer and custody provider contracts
+@auths-dev/sdk/testkit         non-production adapters and conformance harnesses
+@auths-dev/sdk/advanced        raw verifier and bounded inspection
 ```
 
 The root does not export protocol constructors, raw registry mutation,
 arbitrary engines, generic operations, or provider executors. Profile facades
 remain separate exports so adding a profile does not expand a global action,
 command, or receipt union.
+
+## Type-driven boundaries
+
+Fallible boundaries parse into narrower types. Decoded identities, validated
+identities, authenticated messages, signed status statements, status
+snapshots, proof references, authorization plans, and profile commands are
+distinct states. Public APIs do not return a Boolean that callers can attach
+to their original input, and application code cannot construct a later state
+from the fields of an earlier one.
+
+Opaque objects carry package-owned state outside their visible properties.
+Discriminated unions make authorization and runtime terminal states exhaustive.
+Mutable byte and collection inputs are copied before an asynchronous provider
+or loader boundary.
+
+## Independent identity API
+
+`@auths-dev/sdk/identity` loads without authority, grants, approvals, profiles,
+or lifecycle configuration. Rust/WASM decodes the canonical packet. An
+explicit identity-method adapter parses a decoded identity into a validated
+identity, and an explicit signature-suite adapter parses a signed packet into
+an authenticated message. The package includes raw-key and Ed25519 adapters;
+callers may supply other method and suite adapters through the same typed ports.
+
+## Typed trust and lifecycle API
+
+`compileTrustedContext` accepts typed roots, profiles, permissions, registries,
+status snapshots, assurance policy, and limits. Rust parses and compiles these
+values into a sealed `TrustedContextSource`; the normal builder accepts no
+protocol bytes. Principal and grant status requests become signed status types
+only after the exact native signing transaction completes. Rust then parses
+those types into immutable status snapshots accepted by trust composition.
+
+## General proof plans
+
+`AuthorizationPlanBuilder` owns every plan node. It accepts opaque proof
+references and composes native `proof`, `all-of`, `any-of`, and `threshold`
+nodes. Rust rejects empty, duplicate, impossible, excessive-depth, and
+excessive-work plans during construction. A plan cannot cross builders or
+survive builder disposal.
+
+## Optional runtime and custody ports
+
+`@auths-dev/sdk/runtime` coordinates challenge, replay, budget, receipt, and
+closed-executor ports only after a matching gateway parses an authorized
+profile command. Denied, indeterminate, forged, or mismatched commands claim no
+state and invoke no executor. Execution failure distinguishes a known
+non-effect from an unknown outcome.
+
+`@auths-dev/sdk/custody` publishes provider-neutral signing contracts. Provider
+conformance and in-memory runtime implementations live under `testkit`; no
+production custody, replay, budget, receipt, or effect provider is bundled.
 
 ## Normal workflow API
 
@@ -165,6 +223,7 @@ export interface SigningRequest {
   readonly signingPreimage: Uint8Array;
   readonly expiresAt: bigint;
   readonly display: readonly ReviewField[];
+  readonly signal?: AbortSignal;
 }
 
 export interface SigningResponse {

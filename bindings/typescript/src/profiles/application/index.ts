@@ -18,18 +18,18 @@ const ACTION_TOKEN: unique symbol = Symbol("auths-application-action");
 const COMMAND_TOKEN: unique symbol = Symbol("auths-application-command");
 
 let mintApplicationCommand: <Command>(
-  profile: ApplicationProfile<unknown, Command>,
+  profile: object,
   command: Command,
 ) => ApplicationCommand<Command>;
 let mintApplicationAction: <Input>(
-  profile: ApplicationProfile<Input, unknown>,
+  profile: object,
   canonical: CanonicalProfileAction,
 ) => ApplicationAction<Input>;
 let mintApplicationProfile: <Input, Command>(
   definition: ProfileDefinition<Input, Command>,
 ) => ApplicationProfile<Input, Command>;
 let mintVerifiedApplicationCommand: <Command>(
-  profile: ApplicationProfile<unknown, Command>,
+  profile: object,
   canonical: CanonicalProfileAction,
 ) => ApplicationCommand<Command>;
 
@@ -67,36 +67,43 @@ export interface ProfileDefinition<Input, Command = CanonicalProfileAction> {
   decodeVerified?(canonical: CanonicalProfileAction): Command;
 }
 
-interface ActionResources<Input> {
-  readonly profile: ApplicationProfile<Input, unknown>;
+interface ActionResources {
+  readonly profile: object;
   readonly canonical: CanonicalProfileAction;
 }
 
-const actionResources = new WeakMap<ApplicationAction<unknown>, ActionResources<unknown>>();
-const commandResources = new WeakMap<ApplicationCommand<unknown>, {
-  readonly profile: ApplicationProfile<unknown, unknown>;
+interface ApplicationProfileRuntime {
+  readonly id: string;
+  readonly version: number;
+}
+
+const actionResources = new WeakMap<object, ActionResources>();
+const commandResources = new WeakMap<object, {
+  readonly profile: object;
   readonly command: unknown;
 }>();
 const profileDecoders = new WeakMap<
-  ApplicationProfile<unknown, unknown>,
+  object,
   (canonical: CanonicalProfileAction) => unknown
 >();
 
 /** A verified application-profile command that cannot be constructed or serialized. */
 export class ApplicationCommand<Command> {
+  declare private readonly __commandType: (command: Command) => Command;
+
   private constructor(
     token: typeof COMMAND_TOKEN,
-    profile: ApplicationProfile<unknown, Command>,
+    profile: object,
     command: Command,
   ) {
     if (token !== COMMAND_TOKEN) throw new TypeError("sealed Auths application command");
-    commandResources.set(this as ApplicationCommand<unknown>, { profile, command });
+    commandResources.set(this, { profile, command });
     Object.freeze(this);
   }
 
   private static create<Command>(
     token: typeof COMMAND_TOKEN,
-    profile: ApplicationProfile<unknown, Command>,
+    profile: object,
     command: Command,
   ): ApplicationCommand<Command> {
     return new ApplicationCommand(token, profile, command);
@@ -113,19 +120,22 @@ export class ApplicationCommand<Command> {
 }
 
 export interface ApplicationGateway<Command, Result> {
+  parse(command: ApplicationCommand<Command>): ApplicationCommand<Command>;
   execute(command: ApplicationCommand<Command>): Promise<Result>;
 }
 
 /** A profile-owned action that cannot be detached from its canonicalizer. */
 export class ApplicationAction<Input> {
+  declare private readonly __inputType: (input: Input) => Input;
+
   private constructor(
     token: typeof ACTION_TOKEN,
-    profile: ApplicationProfile<Input, unknown>,
+    profile: object,
     canonical: CanonicalProfileAction,
   ) {
     if (token !== ACTION_TOKEN) throw new TypeError("sealed Auths profile action");
     actionResources.set(this, {
-      profile: profile as ApplicationProfile<unknown>,
+      profile,
       canonical: copyCanonical(canonical),
     });
     Object.freeze(this);
@@ -133,7 +143,7 @@ export class ApplicationAction<Input> {
 
   private static create<Input>(
     token: typeof ACTION_TOKEN,
-    profile: ApplicationProfile<Input, unknown>,
+    profile: object,
     canonical: CanonicalProfileAction,
   ): ApplicationAction<Input> {
     if (token !== ACTION_TOKEN) throw new TypeError("sealed Auths profile action");
@@ -168,13 +178,13 @@ export class ApplicationProfile<Input, Command = CanonicalProfileAction>
     this.version = definition.version;
     this.#canonicalize = definition.canonicalize;
     profileDecoders.set(
-      this as ApplicationProfile<unknown, unknown>,
+      this,
       definition.decodeVerified ?? ((canonical) => canonical as Command),
     );
     registerProfileRuntime(this, {
       authorize: (agent, action, approvalOverride) => authorizeApplication(
         agent,
-        this as ApplicationProfile<unknown, unknown>,
+        this,
         action,
         approvalOverride,
       ),
@@ -210,7 +220,7 @@ export class ApplicationProfile<Input, Command = CanonicalProfileAction>
 
   /** Returns profile-derived grant inputs for this exact sealed action. */
   authorityFor(action: ApplicationAction<Input>): ProfileAuthorityRequirement {
-    const resources = actionResources.get(action as ApplicationAction<unknown>);
+    const resources = actionResources.get(action);
     if (resources === undefined || resources.profile !== this) {
       throw new AuthsWorkflowError(
         "invalid-profile",
@@ -265,10 +275,17 @@ export class ApplicationProfile<Input, Command = CanonicalProfileAction>
     if (typeof execute !== "function") {
       throw new AuthsWorkflowError("invalid-profile", "application gateway executor is missing");
     }
-    const profile = this as ApplicationProfile<unknown, Command>;
+    const profile = this;
     return Object.freeze({
+      parse(sealed: ApplicationCommand<Command>): ApplicationCommand<Command> {
+        const resources = commandResources.get(sealed);
+        if (resources === undefined || resources.profile !== profile) {
+          throw new AuthsWorkflowError("invalid-profile", "application command is forged or belongs to another profile");
+        }
+        return sealed;
+      },
       async execute(sealed: ApplicationCommand<Command>): Promise<Result> {
-        const resources = commandResources.get(sealed as ApplicationCommand<unknown>);
+        const resources = commandResources.get(sealed);
         if (resources === undefined || resources.profile !== profile) {
           throw new AuthsWorkflowError("invalid-profile", "application command is forged or belongs to another profile");
         }
@@ -278,7 +295,7 @@ export class ApplicationProfile<Input, Command = CanonicalProfileAction>
   }
 
   private canonicalFor(action: ApplicationAction<Input>): CanonicalProfileAction {
-    const resources = actionResources.get(action as ApplicationAction<unknown>);
+    const resources = actionResources.get(action);
     if (resources === undefined || resources.profile !== this) {
       throw new AuthsWorkflowError("invalid-profile", "action was not created by this application profile");
     }
@@ -288,10 +305,10 @@ export class ApplicationProfile<Input, Command = CanonicalProfileAction>
 }
 
 function createVerifiedCommandFor<Command>(
-  profile: ApplicationProfile<unknown, Command>,
+  profile: object,
   canonical: CanonicalProfileAction,
 ): ApplicationCommand<Command> {
-  const decoder = profileDecoders.get(profile as ApplicationProfile<unknown, unknown>);
+  const decoder = profileDecoders.get(profile);
   if (decoder === undefined) {
     throw new AuthsWorkflowError("invalid-profile", "application profile decoder is unavailable");
   }
@@ -316,7 +333,7 @@ export function defineProfile<Input, Command = CanonicalProfileAction>(
 
 async function authorizeApplication(
   agent: AttachedAgent<Profile>,
-  profile: ApplicationProfile<unknown, unknown>,
+  profile: ApplicationProfileRuntime,
   candidate: unknown,
   approvalOverride?: ApprovalConfiguration,
 ): Promise<AuthorizationResult<ApplicationCommand<unknown>>> {

@@ -36,14 +36,30 @@ async function loadPackagedWorkflowEngineOnce(): Promise<PackagedWorkflowEngine>
   if (
     typeof loaded.authoringAbiVersionV1 !== "function" ||
     typeof loaded.canonicalPrincipalV1 !== "function" ||
+    typeof loaded.encodePrincipalStatusStatementV1 !== "function" ||
+    typeof loaded.encodeGrantStatusStatementV1 !== "function" ||
+    typeof loaded.parsePrincipalStatusSnapshotV1 !== "function" ||
+    typeof loaded.parseGrantStatusSnapshotV1 !== "function" ||
+    typeof loaded.compileTrustedContextV1 !== "function" ||
     typeof loaded.configurationV1 !== "function" ||
     typeof loaded.validateTrustedContextV1 !== "function" ||
+    typeof loaded.parseHttpActionV1 !== "function" ||
+    typeof loaded.parseGitActionV1 !== "function" ||
+    typeof loaded.parseDeploymentActionV1 !== "function" ||
+    typeof loaded.parseSupplyChainActionV1 !== "function" ||
+    typeof loaded.parseEdgeActionV1 !== "function" ||
+    typeof loaded.parseCanonicalHttpActionV1 !== "function" ||
+    typeof loaded.parseCanonicalGitActionV1 !== "function" ||
+    typeof loaded.parseCanonicalDeploymentActionV1 !== "function" ||
+    typeof loaded.parseCanonicalSupplyChainActionV1 !== "function" ||
+    typeof loaded.parseCanonicalEdgeActionV1 !== "function" ||
     typeof loaded.prepareMcpActionV1 !== "function" ||
     typeof loaded.canonicalizeMcpPlanMemberV1 !== "function" ||
     typeof loaded.canonicalizeProfilePlanMemberV1 !== "function" ||
     typeof loaded.prepareProfileActionV1 !== "function" ||
     typeof loaded.prepareRawKeyAuthorityV1 !== "function" ||
     typeof loaded.deriveEd25519RawKeyIdentityV1 !== "function" ||
+    typeof loaded.AuthorizationPlanBuilderV1 !== "function" ||
     typeof loaded.WorkflowProofBuilderV1 !== "function" ||
     typeof loaded.inspectSignedGrantV1 !== "function" ||
     typeof loaded.validateRootAuthorityV1 !== "function" ||

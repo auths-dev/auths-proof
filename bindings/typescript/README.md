@@ -5,6 +5,15 @@ typed attach, delegate, authorize, inspect, and closed-gateway workflow. Exact
 release capability and assurance labels belong to repository release evidence;
 this README does not upgrade those claims.
 
+Publication, promotion, and independent-review status is recorded separately
+from repository-local implementation capability in `sdk-capability.json`.
+
+- Implementation tier: `full-workflow-sdk`
+- Evidence status: `repository-local-complete`
+- Promoted tier: `verifier-binding`
+- Publication status: `blocked`
+- Promotion status: `blocked`
+
 ```ts
 const auths = await loadAuths({ signer, trustedAuthority });
 const agent = await auths.attachAgent({ name: "worker", profile, authority, approval });
@@ -24,6 +33,25 @@ capabilities, approvals, policy, profiles, or lifecycle workflows. Authority,
 approvals, and profiles are separate `@auths-dev/sdk/authority`,
 `@auths-dev/sdk/approvals`, and `@auths-dev/sdk/profiles` entry points. The
 package root remains the integrated compatibility workflow.
+
+The broader typed surface is split by responsibility:
+
+- `@auths-dev/sdk/trust` compiles typed roots, accepted registries, assurance,
+  lifecycle snapshots, and verifier limits through Rust into a sealed context
+  source. It does not accept context CBOR as configuration.
+- `@auths-dev/sdk/lifecycle` authors principal and grant status through exact
+  signer transactions and produces Rust-parsed status snapshots.
+- `@auths-dev/sdk/authority` provides opaque proof references plus native
+  `proof`, `all-of`, `any-of`, and `threshold` authorization plans.
+- `@auths-dev/sdk/profiles` exposes the maintained HTTP, Git, deployment,
+  supply-chain, and edge profile families. Each retains a distinct action,
+  command, and gateway type.
+- `@auths-dev/sdk/runtime` defines optional challenge, replay, budget, receipt,
+  and closed-executor ports. These effects are not part of verification and
+  run only after the matching gateway parses an authorized command.
+- `@auths-dev/sdk/custody` publishes the provider-neutral signer contract. The
+  conformance harness and development-only custody remain under
+  `@auths-dev/sdk/testkit`; no production vendor is bundled or implied.
 
 The complete [local quickstart](examples/quickstart/index.ts) shows a bounded
 root grant, narrower child delegation, visible approval, exact authorization,

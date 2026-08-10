@@ -77,6 +77,7 @@ export interface McpGatewayCall {
 }
 
 export interface McpGateway<Result> {
+  parse(command: McpCommand): McpCommand;
   execute(command: McpCommand): Promise<Result>;
 }
 
@@ -197,6 +198,13 @@ export class McpProfile implements Profile<McpAction, McpCommand> {
     }
     const profile = this;
     return Object.freeze({
+      parse(command: McpCommand): McpCommand {
+        const resources = commandResources.get(command);
+        if (resources === undefined || resources.profile !== profile) {
+          throw new AuthsWorkflowError("invalid-profile", "MCP command is forged or belongs to another profile");
+        }
+        return command;
+      },
       async execute(command: McpCommand): Promise<Result> {
         const resources = commandResources.get(command);
         if (resources === undefined || resources.profile !== profile) {

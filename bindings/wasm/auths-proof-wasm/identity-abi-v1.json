@@ -13,6 +13,7 @@
     "validateRawKeyPublicIdentityV2",
     "identityMessageSigningPreimageV2",
     "encodeSignedIdentityMessageV2",
+    "decodeSignedIdentityMessageV2",
     "verifyEd25519IdentityMessageV2"
   ],
   "stateTransitions": [
