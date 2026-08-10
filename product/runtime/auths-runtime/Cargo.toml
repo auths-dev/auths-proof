@@ -9,6 +9,7 @@ homepage.workspace = true
 description = "Authorization-before-execution service for Auths-protected MCP tools"
 
 [dependencies]
+auths-kernel-runtime.workspace = true
 auths-profile-mcp.workspace = true
 auths-profile-api.workspace = true
 auths-receipts.workspace = true
@@ -17,8 +18,6 @@ auths-proof-exchange-port.workspace = true
 auths-model.workspace = true
 auths-operations.workspace = true
 auths-codec.workspace = true
-auths-ports.workspace = true
-auths-registries.workspace = true
 auths-verifier.workspace = true
 async-trait.workspace = true
 getrandom.workspace = true

@@ -1,0 +1,33 @@
+schema = "auths.identity-compatibility/1"
+identity_protocol = "auths-identity/v1"
+identity_model_version = 1
+wire_version = 2
+wire_magic_hex = "41555448532d4944454e544954590002"
+signing_domain_version = 2
+signing_domain_hex = "41555448532d4944454e544954592d4d4553534147450002"
+rust_api_version = "1.0.0-rc.1"
+vector_schema = "auths.identity-vectors/1"
+vector_path = "core/fixtures/identity/v1/vectors.json"
+
+[methods.raw_key]
+identifier = "raw-key-v2"
+descriptor_domain_hex = "41555448532d5241572d4b45590002"
+principal_prefix = "key:sha256-v2:"
+compatibility = "distinct-from-auths-proof-raw-key-v1"
+
+[suites.ed25519]
+identifier = "ed25519-v1"
+verification_semantics_owner = "auths-signature-core"
+
+[bindings.wasm]
+identity_abi = "auths.identity-wasm-abi/1"
+manifest = "bindings/wasm/auths-proof-wasm/identity-abi-v1.json"
+
+[transports.iroh_demo]
+application_protocol = "/auths/identity/1"
+required_for_identity_interoperability = false
+
+[migration]
+wire_v1_status = "unpublished-experimental"
+raw_key_identity_v1_status = "unpublished-experimental-alias-removed"
+proof_raw_key_v1_interoperability = "explicit-authority-bridge-only"

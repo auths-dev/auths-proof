@@ -6,6 +6,8 @@
 #![forbid(unsafe_code)]
 
 use async_trait::async_trait;
+pub use auths_iroh::PathObservation;
+use auths_iroh::{Endpoint, EndpointAddr, IrohChannel, IrohConfig, IrohError, StreamInitiator};
 use auths_proof_exchange_codec::{
     CodecError, decode_challenge, decode_request, decode_response, encode_challenge,
     encode_request, encode_response,
@@ -15,17 +17,13 @@ use auths_proof_exchange_model::{
     MAX_RESULT_BYTES, PeerObservation,
 };
 use auths_proof_exchange_port::{ClientProofChannel, ServerProofChannel};
-use iroh::{
-    Endpoint, EndpointAddr,
-    endpoint::{Connection, RecvStream, SendStream},
-};
-use std::{fmt, time::Duration};
-use tokio::time::timeout;
+use std::{fmt, sync::Arc, time::Duration};
 
 pub const ALPN_V1: &[u8] = b"/auths-proof/action/1";
 const MAX_CHALLENGE_FRAME: usize = 2048;
 const MAX_REQUEST_FRAME: usize = MAX_BODY_BYTES as usize + MAX_PROOF_BYTES as usize + 1024;
 const MAX_RESPONSE_FRAME: usize = MAX_RESULT_BYTES + 8192;
+const MAX_PROTOCOL_FRAME: usize = MAX_REQUEST_FRAME;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum ChannelState {
@@ -33,13 +31,6 @@ enum ChannelState {
     Challenged,
     Submitted,
     Completed,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum PathObservation {
-    Direct,
-    Relayed,
-    MixedOrUnknown,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -78,23 +69,17 @@ impl Default for IrohChannelConfig {
 }
 
 pub struct IrohClientChannel {
-    _connection: Connection,
+    channel: IrohChannel,
     peer: PeerObservation,
-    send: SendStream,
-    recv: RecvStream,
     state: ChannelState,
-    config: IrohChannelConfig,
     path: PathObservation,
     challenge: Option<ActionChallenge>,
 }
 
 pub struct IrohServerChannel {
-    _connection: Connection,
+    channel: IrohChannel,
     peer: PeerObservation,
-    send: SendStream,
-    recv: RecvStream,
     state: ChannelState,
-    config: IrohChannelConfig,
     path: PathObservation,
     challenge: Option<ActionChallenge>,
 }
@@ -112,29 +97,16 @@ impl IrohClientChannel {
         target: EndpointAddr,
         config: IrohChannelConfig,
     ) -> Result<Self, IrohTransportError> {
-        let target_path = classify_target(&target);
-        let connection = endpoint
-            .connect(target, ALPN_V1)
+        let channel = IrohChannel::connect(endpoint, target, transport_config(config)?)
             .await
             .map_err(|error| IrohTransportError::iroh("connect", error))?;
-        if connection.alpn() != ALPN_V1 {
-            return Err(IrohTransportError::protocol("unexpected negotiated ALPN"));
-        }
-        let peer = PeerObservation::IrohEndpoint(*connection.remote_id().as_bytes());
-        // The accepting side opens the V1 stream and sends the challenge. Waiting
-        // here cannot expose application data before the completed handshake.
-        let (send, recv) = connection
-            .accept_bi()
-            .await
-            .map_err(|error| IrohTransportError::iroh("accept V1 stream", error))?;
+        let peer = PeerObservation::IrohEndpoint(*channel.peer_endpoint_id());
+        let path = channel.path_observation();
         Ok(Self {
-            _connection: connection,
+            channel,
             peer,
-            send,
-            recv,
             state: ChannelState::Connected,
-            config,
-            path: target_path,
+            path,
             challenge: None,
         })
     }
@@ -156,28 +128,14 @@ impl IrohServerChannel {
         endpoint: &Endpoint,
         config: IrohChannelConfig,
     ) -> Result<Self, IrohTransportError> {
-        let incoming = endpoint
-            .accept()
+        let channel = IrohChannel::accept(endpoint, transport_config(config)?)
             .await
-            .ok_or_else(|| IrohTransportError::protocol("endpoint closed"))?;
-        let connection = incoming
-            .await
-            .map_err(|error| IrohTransportError::iroh("handshake", error))?;
-        if connection.alpn() != ALPN_V1 {
-            return Err(IrohTransportError::protocol("unexpected negotiated ALPN"));
-        }
-        let peer = PeerObservation::IrohEndpoint(*connection.remote_id().as_bytes());
-        let (send, recv) = connection
-            .open_bi()
-            .await
-            .map_err(|error| IrohTransportError::iroh("open V1 stream", error))?;
+            .map_err(|error| IrohTransportError::iroh("accept", error))?;
+        let peer = PeerObservation::IrohEndpoint(*channel.peer_endpoint_id());
         Ok(Self {
-            _connection: connection,
+            channel,
             peer,
-            send,
-            recv,
             state: ChannelState::Connected,
-            config,
             path: PathObservation::MixedOrUnknown,
             challenge: None,
         })
@@ -201,9 +159,14 @@ impl ClientProofChannel for IrohClientChannel {
         if self.state != ChannelState::Connected {
             return Err(IrohTransportError::sequence());
         }
-        let frame = read_frame(&mut self.recv, MAX_CHALLENGE_FRAME, self.config.io_timeout).await?;
+        let frame = self
+            .channel
+            .receive()
+            .await
+            .map_err(|error| IrohTransportError::iroh("receive challenge", error))?;
+        check_frame(frame.payload(), MAX_CHALLENGE_FRAME)?;
         let challenge =
-            decode_challenge(&frame).map_err(|error| IrohTransportError::codec(&error))?;
+            decode_challenge(frame.payload()).map_err(|error| IrohTransportError::codec(&error))?;
         self.challenge = Some(challenge.clone());
         self.state = ChannelState::Challenged;
         Ok(challenge)
@@ -223,17 +186,24 @@ impl ClientProofChannel for IrohClientChannel {
         {
             return Err(IrohTransportError::binding());
         }
-        write_frame(
-            &mut self.send,
-            &encode_request(&request),
-            MAX_REQUEST_FRAME,
-            self.config.io_timeout,
-        )
-        .await?;
+        let encoded = encode_request(&request);
+        check_frame(&encoded, MAX_REQUEST_FRAME)?;
+        self.channel
+            .send(&encoded)
+            .await
+            .map_err(|error| IrohTransportError::iroh("send request", error))?;
+        self.channel
+            .finish_send()
+            .map_err(|error| IrohTransportError::iroh("finish request", error))?;
         self.state = ChannelState::Submitted;
-        let frame = read_frame(&mut self.recv, MAX_RESPONSE_FRAME, self.config.io_timeout).await?;
+        let frame = self
+            .channel
+            .receive()
+            .await
+            .map_err(|error| IrohTransportError::iroh("receive response", error))?;
+        check_frame(frame.payload(), MAX_RESPONSE_FRAME)?;
         let response =
-            decode_response(&frame).map_err(|error| IrohTransportError::codec(&error))?;
+            decode_response(frame.payload()).map_err(|error| IrohTransportError::codec(&error))?;
         self.state = ChannelState::Completed;
         Ok(response)
     }
@@ -251,13 +221,12 @@ impl ServerProofChannel for IrohServerChannel {
         if self.state != ChannelState::Connected {
             return Err(IrohTransportError::sequence());
         }
-        write_frame(
-            &mut self.send,
-            &encode_challenge(&challenge),
-            MAX_CHALLENGE_FRAME,
-            self.config.io_timeout,
-        )
-        .await?;
+        let encoded = encode_challenge(&challenge);
+        check_frame(&encoded, MAX_CHALLENGE_FRAME)?;
+        self.channel
+            .send(&encoded)
+            .await
+            .map_err(|error| IrohTransportError::iroh("send challenge", error))?;
         self.challenge = Some(challenge);
         self.state = ChannelState::Challenged;
         Ok(())
@@ -273,9 +242,14 @@ impl ServerProofChannel for IrohServerChannel {
         if self.challenge.as_ref() != Some(challenge) {
             return Err(IrohTransportError::binding());
         }
-        let frame = read_frame(&mut self.recv, MAX_REQUEST_FRAME, self.config.io_timeout).await?;
-        let request =
-            decode_request(&frame, challenge).map_err(|error| IrohTransportError::codec(&error))?;
+        let frame = self
+            .channel
+            .receive()
+            .await
+            .map_err(|error| IrohTransportError::iroh("receive request", error))?;
+        check_frame(frame.payload(), MAX_REQUEST_FRAME)?;
+        let request = decode_request(frame.payload(), challenge)
+            .map_err(|error| IrohTransportError::codec(&error))?;
         self.state = ChannelState::Submitted;
         Ok(request)
     }
@@ -284,83 +258,36 @@ impl ServerProofChannel for IrohServerChannel {
         if self.state != ChannelState::Submitted {
             return Err(IrohTransportError::sequence());
         }
-        write_frame(
-            &mut self.send,
-            &encode_response(&response),
-            MAX_RESPONSE_FRAME,
-            self.config.io_timeout,
-        )
-        .await?;
-        self.send
-            .finish()
-            .map_err(|error| IrohTransportError::iroh("finish V1 stream", error))?;
-        timeout(self.config.io_timeout, self.send.stopped())
+        let encoded = encode_response(&response);
+        check_frame(&encoded, MAX_RESPONSE_FRAME)?;
+        self.channel
+            .send(&encoded)
             .await
-            .map_err(|_| IrohTransportError::timeout())?
-            .map_err(|error| IrohTransportError::iroh("acknowledge V1 response", error))?;
+            .map_err(|error| IrohTransportError::iroh("send response", error))?;
+        self.channel
+            .finish_send_and_wait()
+            .await
+            .map_err(|error| IrohTransportError::iroh("finish response", error))?;
         self.state = ChannelState::Completed;
         Ok(())
     }
 }
 
-async fn write_frame(
-    send: &mut SendStream,
-    payload: &[u8],
-    max: usize,
-    deadline: Duration,
-) -> Result<(), IrohTransportError> {
-    if payload.len() > max || payload.len() > u32::MAX as usize {
-        return Err(IrohTransportError::frame("outgoing frame exceeds limit"));
-    }
-    let length = u32::try_from(payload.len())
-        .map_err(|_| IrohTransportError::frame("outgoing frame exceeds u32"))?;
-    let operation = async {
-        send.write_all(&length.to_be_bytes())
-            .await
-            .map_err(|error| IrohTransportError::iroh("write frame length", error))?;
-        send.write_all(payload)
-            .await
-            .map_err(|error| IrohTransportError::iroh("write frame payload", error))
-    };
-    timeout(deadline, operation)
-        .await
-        .map_err(|_| IrohTransportError::timeout())?
+fn transport_config(config: IrohChannelConfig) -> Result<IrohConfig, IrohTransportError> {
+    IrohConfig::new(
+        Arc::<[u8]>::from(ALPN_V1),
+        MAX_PROTOCOL_FRAME,
+        config.io_timeout(),
+        StreamInitiator::AcceptingEndpoint,
+    )
+    .map_err(|error| IrohTransportError::iroh("configuration", error))
 }
 
-async fn read_frame(
-    recv: &mut RecvStream,
-    max: usize,
-    deadline: Duration,
-) -> Result<Vec<u8>, IrohTransportError> {
-    let operation = async {
-        let mut length = [0_u8; 4];
-        recv.read_exact(&mut length)
-            .await
-            .map_err(|error| IrohTransportError::iroh("read frame length", error))?;
-        let length = u32::from_be_bytes(length) as usize;
-        if length == 0 || length > max {
-            return Err(IrohTransportError::frame(
-                "incoming frame length exceeds limit",
-            ));
-        }
-        let mut payload = vec![0_u8; length];
-        recv.read_exact(&mut payload)
-            .await
-            .map_err(|error| IrohTransportError::iroh("read frame payload", error))?;
-        Ok(payload)
-    };
-    timeout(deadline, operation)
-        .await
-        .map_err(|_| IrohTransportError::timeout())?
-}
-
-fn classify_target(target: &EndpointAddr) -> PathObservation {
-    let has_direct = target.ip_addrs().next().is_some();
-    let has_relay = target.relay_urls().next().is_some();
-    match (has_direct, has_relay) {
-        (true, false) => PathObservation::Direct,
-        (false, true) => PathObservation::Relayed,
-        _ => PathObservation::MixedOrUnknown,
+fn check_frame(payload: &[u8], max: usize) -> Result<(), IrohTransportError> {
+    if payload.is_empty() || payload.len() > max {
+        Err(IrohTransportError::frame("frame exceeds message limit"))
+    } else {
+        Ok(())
     }
 }
 
@@ -387,15 +314,16 @@ impl IrohTransportError {
     fn configuration(detail: impl Into<String>) -> Self {
         Self::new(ErrorCategory::Configuration, "configuration", detail)
     }
-    fn iroh(context: &'static str, error: impl fmt::Display) -> Self {
-        Self::new(
-            ErrorCategory::DiscoveryOrConnection,
-            context,
-            error.to_string(),
-        )
-    }
-    fn timeout() -> Self {
-        Self::new(ErrorCategory::Timeout, "I/O", "deadline exceeded")
+    fn iroh(context: &'static str, error: IrohError) -> Self {
+        let category = match error {
+            IrohError::Configuration => ErrorCategory::Configuration,
+            IrohError::Limit => ErrorCategory::Framing,
+            IrohError::Connection => ErrorCategory::DiscoveryOrConnection,
+            IrohError::Timeout => ErrorCategory::Timeout,
+            IrohError::Protocol => ErrorCategory::Protocol,
+            IrohError::Sequence => ErrorCategory::Sequence,
+        };
+        Self::new(category, context, error.to_string())
     }
     fn frame(detail: impl Into<String>) -> Self {
         Self::new(ErrorCategory::Framing, "frame", detail)
@@ -416,9 +344,6 @@ impl IrohTransportError {
     }
     fn codec(error: &CodecError) -> Self {
         Self::new(ErrorCategory::Codec, "message codec", error.to_string())
-    }
-    fn protocol(detail: impl Into<String>) -> Self {
-        Self::new(ErrorCategory::Protocol, "protocol", detail)
     }
     fn new(category: ErrorCategory, context: &'static str, detail: impl Into<String>) -> Self {
         Self {

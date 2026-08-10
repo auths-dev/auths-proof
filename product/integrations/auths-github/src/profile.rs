@@ -4,7 +4,7 @@ use auths_model::{
     BudgetAlgebraId, BudgetCeiling, CanonicalAction, CapabilityId, MediaType, Permission,
     ProfileId, ProfileRef, ResourceId,
 };
-use auths_profile_api::{ActionProfile, ApprovalDisplay, ProfileContractError};
+use auths_profile_api::{ActionProfile, ProfileContractError, ReviewDisplay};
 use auths_sdk::VerifiedAction;
 
 use crate::types::{
@@ -48,16 +48,16 @@ impl ActionProfile for GitHubIssueProfile {
         canonical_action(&action, bytes)
     }
 
-    fn approval_display(
+    fn review_display(
         &self,
         canonical: &CanonicalAction,
-    ) -> Result<ApprovalDisplay, ProfileContractError> {
+    ) -> Result<ReviewDisplay, ProfileContractError> {
         let action = validate_canonical_action(canonical)?;
         let operation = match action.operation() {
             GitHubOperation::PublishBranch => "Publish one exact GitHub branch",
             GitHubOperation::OpenDraftPullRequest => "Open one exact draft pull request",
         };
-        Ok(ApprovalDisplay::new(
+        Ok(ReviewDisplay::new(
             format!("Auths V1 · {operation}"),
             vec![
                 ("Repository".into(), action.repository().slug()),

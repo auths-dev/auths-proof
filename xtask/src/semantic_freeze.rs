@@ -4,20 +4,38 @@ use crate::*;
 
 const INVENTORY_PATH: &str = "release/semantic-freeze.json";
 const INVENTORY_SCHEMA: &str = "auths.semantic-freeze/1";
-const FREEZE_VERSION: u64 = 37;
-const PUBLIC_RUST_ROOTS: [&str; 2] = ["auths", "auths-sdk"];
-const PUBLIC_RUST_CLOSURE: [&str; 28] = [
+const FREEZE_VERSION: u64 = 45;
+const PUBLIC_RUST_ROOTS: [&str; 10] = [
+    "auths",
+    "auths-byte-channel",
+    "auths-byte-channel-memory",
+    "auths-identity",
+    "auths-identity-authority",
+    "auths-identity-raw-key",
+    "auths-iroh",
+    "auths-runtime",
+    "auths-sdk",
+    "auths-signature-ed25519",
+];
+const PUBLIC_RUST_CLOSURE: [&str; 38] = [
     "auths",
     "auths-algebra-kernel",
     "auths-assurance",
     "auths-author",
     "auths-authority",
+    "auths-byte-channel",
+    "auths-byte-channel-memory",
     "auths-codec",
     "auths-composition",
     "auths-config",
     "auths-custody",
     "auths-did-keri",
     "auths-did-key",
+    "auths-identity",
+    "auths-identity-authority",
+    "auths-identity-raw-key",
+    "auths-iroh",
+    "auths-kernel-runtime",
     "auths-model",
     "auths-multikey",
     "auths-operations",
@@ -30,10 +48,13 @@ const PUBLIC_RUST_CLOSURE: [&str; 28] = [
     "auths-proof-exchange-port",
     "auths-sdk",
     "auths-raw-key",
+    "auths-raw-key-core",
     "auths-receipts",
     "auths-registries",
     "auths-runtime",
     "auths-signature",
+    "auths-signature-core",
+    "auths-signature-ed25519",
     "auths-verifier",
 ];
 
@@ -142,7 +163,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
     let mut entries = vec![
         freeze_entry(
             "auths.core.protocol",
-            11,
+            12,
             FreezeClassification::FrozenMeaning,
             &[
                 "protocol-versions",
@@ -161,8 +182,67 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
             ],
         )?,
         freeze_entry(
+            "auths.identity.protocol",
+            2,
+            FreezeClassification::FrozenMeaning,
+            &[
+                "identity-protocol-versions",
+                "identity-wire",
+                "identity-signing-preimages",
+                "identity-method-identifiers",
+                "identity-signature-semantics",
+                "identity-binding-contracts",
+                "identity-transport-labels",
+            ],
+            vec![
+                "core/spec/identity/v1".to_owned(),
+                "core/fixtures/identity/v1/vectors.json".to_owned(),
+                "core/crates/auths-identity/src".to_owned(),
+                "core/crates/auths-raw-key-core/src".to_owned(),
+                "core/crates/auths-signature-core/src".to_owned(),
+                "core/adapters/auths-identity-raw-key/src".to_owned(),
+                "core/adapters/auths-signature-ed25519/src".to_owned(),
+                "bindings/wasm/auths-proof-wasm/identity-abi-v1.json".to_owned(),
+                "bindings/typescript/api/public-api.txt".to_owned(),
+                "compliance.toml".to_owned(),
+            ],
+        )?,
+        freeze_entry(
+            "auths.modular-components",
+            2,
+            FreezeClassification::FrozenMeaning,
+            &[
+                "published-neutral-ports",
+                "reference-adapter-contracts",
+                "negative-security-claims",
+                "adapter-conformance",
+                "packaged-consumer-qualification",
+            ],
+            vec![
+                "core/crates/auths-identity/Cargo.toml".to_owned(),
+                "core/crates/auths-identity/README.md".to_owned(),
+                "core/crates/auths-identity/examples".to_owned(),
+                "core/adapters/auths-identity-raw-key/Cargo.toml".to_owned(),
+                "core/adapters/auths-identity-raw-key/README.md".to_owned(),
+                "core/adapters/auths-identity-authority/Cargo.toml".to_owned(),
+                "core/adapters/auths-identity-authority/README.md".to_owned(),
+                "core/adapters/auths-signature-ed25519/Cargo.toml".to_owned(),
+                "core/adapters/auths-signature-ed25519/README.md".to_owned(),
+                "exchange/crates/auths-byte-channel/Cargo.toml".to_owned(),
+                "exchange/crates/auths-byte-channel/README.md".to_owned(),
+                "exchange/adapters/auths-byte-channel-memory/Cargo.toml".to_owned(),
+                "exchange/adapters/auths-byte-channel-memory/README.md".to_owned(),
+                "exchange/adapters/auths-iroh/Cargo.toml".to_owned(),
+                "exchange/adapters/auths-iroh/README.md".to_owned(),
+                "exchange/adapters/auths-iroh/examples".to_owned(),
+                "docs/adapter-conformance.md".to_owned(),
+                "docs/modular-components.md".to_owned(),
+                "xtask/src/fixtures.rs".to_owned(),
+            ],
+        )?,
+        freeze_entry(
             "auths.portable-abi-bindings",
-            15,
+            16,
             FreezeClassification::FrozenMeaning,
             &["portable-abi", "authoring-abi", "binding-contracts"],
             vec![
@@ -176,7 +256,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.public-sdk-contract",
-            11,
+            16,
             FreezeClassification::FrozenMeaning,
             &[
                 "rust-sdk-contract",
@@ -210,7 +290,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.bounded-domains",
-            1,
+            2,
             FreezeClassification::FrozenMeaning,
             &[
                 "bounded-domain-inventory",
@@ -282,7 +362,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
 
     for (id, path) in frozen_byte_inventories()? {
         let version = match path.as_str() {
-            "architecture/dependency-graph.json" => 6,
+            "architecture/dependency-graph.json" => 11,
             "core/fixtures/v1/manifest.json" => 3,
             "formal/assurance-manifest-v1.toml"
             | "formal/qualification/aeneas/qualification.toml" => 3,
@@ -334,7 +414,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
     ]);
     entries.push(freeze_entry(
         "auths.release.public-surface",
-        37,
+        45,
         FreezeClassification::ReleaseMetadata,
         &[
             "package-names",
@@ -562,6 +642,8 @@ fn frozen_byte_inventories() -> Result<Vec<(String, String)>, String> {
         "core/explanations/v1/fact-inventory.json".to_owned(),
         "core/fixtures/v1/manifest.json".to_owned(),
         "core/formal-vectors/v1/manifest.json".to_owned(),
+        "core/fixtures/identity/v1/vectors.json".to_owned(),
+        "bindings/wasm/auths-proof-wasm/identity-abi-v1.json".to_owned(),
         "formal/assurance-manifest-v1.toml".to_owned(),
         "formal/qualification/aeneas/generated".to_owned(),
         "formal/qualification/aeneas/qualification.toml".to_owned(),
@@ -743,13 +825,20 @@ fn validate_inventory(inventory: &SemanticFreezeInventory) -> Result<(), String>
     if inventory.schema != INVENTORY_SCHEMA || inventory.freeze_version == 0 {
         return Err("semantic freeze schema or version is invalid".to_owned());
     }
-    if inventory.public_surface.rust_roots
-        != PUBLIC_RUST_ROOTS
-            .iter()
-            .map(|name| (*name).to_owned())
-            .collect::<Vec<_>>()
+    if inventory.public_surface.rust_roots.is_empty()
+        || inventory.public_surface.rust_publishable_closure.is_empty()
     {
-        return Err("semantic freeze public Rust roots drifted".to_owned());
+        return Err("semantic freeze public Rust surface is empty".to_owned());
+    }
+    if inventory.public_surface.rust_roots.iter().any(|root| {
+        !inventory
+            .public_surface
+            .rust_publishable_closure
+            .contains(root)
+    }) {
+        return Err(
+            "semantic freeze public Rust root is outside its publishable closure".to_owned(),
+        );
     }
     let mut identities = BTreeSet::new();
     let mut classifications = BTreeSet::new();

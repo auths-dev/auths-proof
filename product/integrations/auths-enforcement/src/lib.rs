@@ -6,7 +6,7 @@
 
 #![forbid(unsafe_code)]
 
-use auths_profile_api::{ActionProfile, ApprovalDisplay, ProfileContractError};
+use auths_profile_api::{ActionProfile, ProfileContractError, ReviewDisplay};
 use auths_sdk::{Authorized, Explanation, RequestContext, SdkError, Verifier, VerifyResult};
 use thiserror::Error;
 
@@ -34,7 +34,7 @@ where
     /// unsupported, oversized, or non-canonical application input.
     pub fn prepare(&self, untrusted_action: &[u8]) -> Result<PreparedAction, EnforcementError> {
         let canonical = self.profile.canonicalize(untrusted_action)?;
-        let display = self.profile.approval_display(&canonical)?;
+        let display = self.profile.review_display(&canonical)?;
         Ok(PreparedAction { canonical, display })
     }
 
@@ -87,7 +87,7 @@ where
 /// Exact canonical request and its human-reviewable representation.
 pub struct PreparedAction {
     canonical: auths_sdk::model::CanonicalAction,
-    display: ApprovalDisplay,
+    display: ReviewDisplay,
 }
 
 impl PreparedAction {
@@ -99,8 +99,15 @@ impl PreparedAction {
 
     /// Returns a review display bound to the canonical action digest.
     #[must_use]
-    pub const fn approval_display(&self) -> &ApprovalDisplay {
+    pub const fn review_display(&self) -> &ReviewDisplay {
         &self.display
+    }
+
+    /// Compatibility accessor for callers migrating to neutral review vocabulary.
+    #[must_use]
+    #[deprecated(note = "use review_display; review data is not evidence of approval")]
+    pub const fn approval_display(&self) -> &ReviewDisplay {
+        self.review_display()
     }
 }
 

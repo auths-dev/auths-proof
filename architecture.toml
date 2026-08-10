@@ -70,13 +70,19 @@ no_std_packages = [
   "auths-did-key",
   "auths-did-web",
   "auths-hsm-attested",
+  "auths-identity",
+  "auths-identity-authority",
+  "auths-identity-raw-key",
   "auths-model",
   "auths-multikey",
   "auths-ports",
   "auths-proof",
   "auths-raw-key",
+  "auths-raw-key-core",
   "auths-registries",
   "auths-signature",
+  "auths-signature-core",
+  "auths-signature-ed25519",
   "auths-spiffe-x509",
   "auths-verifier",
   "auths-webauthn",
@@ -85,9 +91,16 @@ no_std_packages = [
 [packages]
 auths-algebra-kernel = "core"
 auths-apps-testkit = "demos"
+auths-identity = "core"
+auths-identity-authority = "core"
+auths-identity-raw-key = "core"
+auths-identity-iroh-demo = "demos"
+auths-iroh = "exchange"
 auths-bench-model = "demos"
 auths-bench-native = "demos"
 auths-bench-wasm = "demos"
+auths-byte-channel = "exchange"
+auths-byte-channel-memory = "exchange"
 auths-assurance = "core"
 auths-author = "core"
 auths-authority = "core"
@@ -148,6 +161,7 @@ auths-proof-offline-example = "demos"
 auths-proof-python = "bindings"
 auths-proof-wasm = "bindings"
 auths-raw-key = "core"
+auths-raw-key-core = "core"
 auths-radicle = "product"
 auths-radicle-demo = "demos"
 auths-stripe = "product"
@@ -166,6 +180,7 @@ auths-stripe-subscription-modify-demo = "demos"
 auths-stripe-payment-capture-demo = "demos"
 auths-kubernetes = "product"
 auths-kubernetes-demo = "demos"
+auths-kernel-runtime = "product"
 auths-receipts = "product"
 auths-registries = "core"
 auths-resolver-did-web = "product"
@@ -173,12 +188,69 @@ auths-runtime = "product"
 auths = "core"
 auths-sdk = "product"
 auths-signature = "core"
+auths-signature-core = "core"
+auths-signature-ed25519 = "core"
 auths-spiffe-x509 = "core"
 auths-stores = "product"
 auths-testkit = "core"
 auths-verifier = "core"
 auths-webauthn = "core"
 xtask = "tooling"
+
+[dependency_boundaries.identity]
+roots = ["auths-identity"]
+allowed_workspace_dependencies = []
+
+[dependency_boundaries.identity-adapters]
+roots = [
+  "auths-identity-authority",
+  "auths-identity-raw-key",
+  "auths-signature-ed25519",
+]
+allowed_workspace_dependencies = ["auths-identity", "auths-identity-raw-key", "auths-model", "auths-raw-key-core", "auths-signature-core"]
+
+[dependency_boundaries.iroh-transport]
+roots = ["auths-iroh"]
+allowed_workspace_dependencies = ["auths-byte-channel"]
+
+[dependency_boundaries.byte-channel]
+roots = ["auths-byte-channel"]
+allowed_workspace_dependencies = []
+
+[dependency_boundaries.byte-channel-adapters]
+roots = ["auths-byte-channel-memory"]
+allowed_workspace_dependencies = ["auths-byte-channel"]
+
+[dependency_boundaries.kernel-runtime]
+roots = ["auths-kernel-runtime"]
+allowed_workspace_dependencies = [
+  "auths-algebra-kernel",
+  "auths-assurance",
+  "auths-author",
+  "auths-authority",
+  "auths-codec",
+  "auths-composition",
+  "auths-did-keri",
+  "auths-did-key",
+  "auths-did-web",
+  "auths-hsm-attested",
+  "auths-identity",
+  "auths-identity-authority",
+  "auths-identity-raw-key",
+  "auths-model",
+  "auths-multikey",
+  "auths-ports",
+  "auths-raw-key",
+  "auths-raw-key-core",
+  "auths-registries",
+  "auths-signature",
+  "auths-signature-core",
+  "auths-signature-ed25519",
+  "auths-spiffe-x509",
+  "auths-testkit",
+  "auths-verifier",
+  "auths-webauthn",
+]
 
 [exceptions]
 

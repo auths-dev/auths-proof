@@ -11,8 +11,12 @@ test("package exposes bounded public surfaces and includes contributor docs", as
   assert.deepEqual(Object.keys(manifest.exports).sort(), [
     ".",
     "./advanced",
+    "./approvals",
+    "./authority",
+    "./identity",
     "./mcp",
     "./profile-kit",
+    "./profiles",
     "./testkit",
   ]);
   assert.ok(manifest.files.includes("docs"));
@@ -45,8 +49,12 @@ test("packed contents carry the published artifacts and no source or tests", asy
     "dist/index.d.ts",
     "dist/advanced.js",
     "dist/advanced.d.ts",
+    "dist/approvals.js",
+    "dist/authority.js",
+    "dist/identity.js",
     "dist/mcp.js",
     "dist/profile-kit.js",
+    "dist/profiles.js",
     "dist/testkit/index.js",
     "wasm/auths_proof_wasm.js",
     "wasm/auths_proof_wasm_bg.wasm",
@@ -69,7 +77,7 @@ test("packed contents carry the published artifacts and no source or tests", asy
 });
 
 test("compatibility barrels contain exports only", async () => {
-  for (const name of ["index.ts", "mcp.ts", "profile-kit.ts", "workflow.ts"]) {
+  for (const name of ["authority.ts", "index.ts", "mcp.ts", "profile-kit.ts", "profiles.ts", "workflow.ts"]) {
     const source = await readFile(new URL(`../../src/${name}`, import.meta.url), "utf8");
     assert.doesNotMatch(
       source,
@@ -77,6 +85,14 @@ test("compatibility barrels contain exports only", async () => {
       `${name} contains runtime implementation`,
     );
   }
+});
+
+test("identity entry point has no higher-layer imports", async () => {
+  const source = await readFile(new URL("../../src/identity.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(
+    source,
+    /from\s+["'].\/(?:approvals|plans|profiles|workflow|verifier)\b/,
+  );
 });
 
 test("published entry points omit package coordination hooks", async () => {

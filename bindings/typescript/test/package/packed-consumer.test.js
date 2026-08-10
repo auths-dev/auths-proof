@@ -31,7 +31,14 @@ test("packed package installs and executes only through published entry points",
       void inspectDecision;
       await import("@auths-dev/sdk/mcp");
       await import("@auths-dev/sdk/profile-kit");
+      const identityModule = await import("@auths-dev/sdk/identity");
+      await import("@auths-dev/sdk/authority");
+      await import("@auths-dev/sdk/approvals");
+      await import("@auths-dev/sdk/profiles");
       await import("@auths-dev/sdk/testkit");
+      for (const name of ["approvalPolicy", "AuthsClient", "ProfilePlan"]) {
+        if (name in identityModule) throw new Error(name + " leaked onto the identity entry point");
+      }
       const bytes = (name) => readFile(new URL(name, import.meta.url));
       const action = await bytes("action.cbor");
       const verifier = await loadPortableAuths();
@@ -75,9 +82,19 @@ test("packed package installs and executes only through published entry points",
       import { mcp, type McpCommand } from "@auths-dev/sdk/mcp";
       import { defineProfile } from "@auths-dev/sdk/profile-kit";
       import { development } from "@auths-dev/sdk/testkit";
+      import {
+        loadIdentity, loadRawKeyIdentityAdapter, type DecodedIdentity,
+      } from "@auths-dev/sdk/identity";
+      import { loadPortableAuths as loadAuthority } from "@auths-dev/sdk/authority";
+      import { approvalPolicy as layeredApprovalPolicy } from "@auths-dev/sdk/approvals";
+      import { mcp as layeredMcp } from "@auths-dev/sdk/profiles";
       import { loadPortableAuths } from "@auths-dev/sdk/advanced";
       void approvalPolicy; void loadAuths; void mcp; void defineProfile;
       void development; void loadPortableAuths; void createDiagnosticVerifier; void inspectDecision;
+      void loadIdentity; void loadRawKeyIdentityAdapter; void loadAuthority;
+      void layeredApprovalPolicy; void layeredMcp;
+      declare const decodedIdentity: DecodedIdentity;
+      void decodedIdentity;
       declare const diagnostic: DiagnosticResult;
       void diagnostic;
       declare const result: AuthorizationResult<McpCommand>;

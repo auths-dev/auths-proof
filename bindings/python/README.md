@@ -15,3 +15,12 @@ else:
 
 Release wheels include the native verifier; consumers do not need Rust or a C
 compiler.
+
+## Adoption layer
+
+This binding currently exposes the deterministic delegated-authority verifier
+(Level 3 of the repository's adoption ladder). Importing `auths` performs no
+identity exchange, approval, profile-gateway, receipt, or lifecycle setup. The
+neutral identity protocol is owned by the smaller Rust `auths-identity` surface
+and its TypeScript/WASM binding; Python does not claim an independent identity
+encoding implementation.

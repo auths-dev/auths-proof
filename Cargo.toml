@@ -11,6 +11,9 @@ members = [
     "core/crates/auths-ports",
     "core/crates/auths-registries",
     "core/crates/auths-signature",
+    "core/crates/auths-signature-core",
+    "core/crates/auths-identity",
+    "core/crates/auths-raw-key-core",
     "core/crates/auths-algebra-kernel",
     "core/crates/auths-authority",
     "core/crates/auths-composition",
@@ -21,6 +24,9 @@ members = [
     "core/crates/auths-multikey",
     "core/testkit/auths-testkit",
     "core/adapters/auths-raw-key",
+    "core/adapters/auths-identity-raw-key",
+    "core/adapters/auths-identity-authority",
+    "core/adapters/auths-signature-ed25519",
     "core/adapters/auths-did-key",
     "core/adapters/auths-did-keri",
     "core/adapters/auths-did-web",
@@ -30,11 +36,14 @@ members = [
     "core/fuzz",
     "exchange/crates/auths-proof-exchange",
     "exchange/crates/auths-proof-exchange-model",
+    "exchange/crates/auths-byte-channel",
     "exchange/crates/auths-proof-exchange-codec",
     "exchange/crates/auths-proof-exchange-port",
     "exchange/crates/auths-proof-exchange-framing",
     "exchange/adapters/auths-proof-exchange-memory",
+    "exchange/adapters/auths-byte-channel-memory",
     "exchange/adapters/auths-proof-exchange-iroh",
+    "exchange/adapters/auths-iroh",
     "exchange/adapters/auths-proof-exchange-tcp",
     "exchange/adapters/auths-proof-exchange-unix",
     "exchange/adapters/auths-proof-exchange-file",
@@ -60,6 +69,7 @@ members = [
     "product/profiles/auths-profile-mcp",
     "product/profiles/auths-profile-domains",
     "product/runtime/auths-lifecycle",
+    "product/runtime/auths-kernel-runtime",
     "product/runtime/auths-runtime",
     "product/receipts/auths-receipts",
     "product/stores/auths-stores",
@@ -95,6 +105,7 @@ members = [
     "demos/opentofu-plan",
     "demos/postgresql-data-change",
     "demos/rest-api-authorization",
+    "demos/identity-iroh",
     "xtask/ci-plan",
     "xtask",
 ]
@@ -114,6 +125,9 @@ auths-codec = { version = "1.0.0-rc.1", path = "core/crates/auths-codec", defaul
 auths-ports = { version = "1.0.0-rc.1", path = "core/crates/auths-ports", default-features = false }
 auths-registries = { version = "1.0.0-rc.1", path = "core/crates/auths-registries", default-features = false }
 auths-signature = { version = "1.0.0-rc.1", path = "core/crates/auths-signature", default-features = false }
+auths-identity = { version = "1.0.0-rc.1", path = "core/crates/auths-identity", default-features = false }
+auths-identity-raw-key = { version = "1.0.0-rc.1", path = "core/adapters/auths-identity-raw-key" }
+auths-signature-ed25519 = { version = "1.0.0-rc.1", path = "core/adapters/auths-signature-ed25519" }
 auths-algebra-kernel = { version = "1.0.0-rc.1", path = "core/crates/auths-algebra-kernel", default-features = false }
 auths-authority = { version = "1.0.0-rc.1", path = "core/crates/auths-authority", default-features = false }
 auths-composition = { version = "1.0.0-rc.1", path = "core/crates/auths-composition", default-features = false }
@@ -133,12 +147,15 @@ auths-webauthn = { version = "1.0.0-rc.1", path = "core/adapters/auths-webauthn"
 auths-hsm-attested = { version = "1.0.0-rc.1", path = "core/adapters/auths-hsm-attested", default-features = false }
 auths-spiffe-x509 = { version = "1.0.0-rc.1", path = "core/adapters/auths-spiffe-x509", default-features = false }
 auths-proof-exchange = { version = "1.0.0-rc.1", path = "exchange/crates/auths-proof-exchange" }
+auths-byte-channel = { version = "1.0.0-rc.1", path = "exchange/crates/auths-byte-channel" }
 auths-proof-exchange-model = { version = "1.0.0-rc.1", path = "exchange/crates/auths-proof-exchange-model" }
 auths-proof-exchange-codec = { version = "1.0.0-rc.1", path = "exchange/crates/auths-proof-exchange-codec" }
 auths-proof-exchange-port = { version = "1.0.0-rc.1", path = "exchange/crates/auths-proof-exchange-port" }
 auths-proof-exchange-framing = { version = "1.0.0-rc.1", path = "exchange/crates/auths-proof-exchange-framing" }
 auths-proof-exchange-memory = { version = "1.0.0-rc.1", path = "exchange/adapters/auths-proof-exchange-memory" }
+auths-byte-channel-memory = { version = "1.0.0-rc.1", path = "exchange/adapters/auths-byte-channel-memory" }
 auths-proof-exchange-iroh = { version = "1.0.0-rc.1", path = "exchange/adapters/auths-proof-exchange-iroh" }
+auths-iroh = { version = "1.0.0-rc.1", path = "exchange/adapters/auths-iroh" }
 auths-proof-exchange-tcp = { version = "1.0.0-rc.1", path = "exchange/adapters/auths-proof-exchange-tcp" }
 auths-proof-exchange-unix = { version = "1.0.0-rc.1", path = "exchange/adapters/auths-proof-exchange-unix" }
 auths-proof-exchange-file = { version = "1.0.0-rc.1", path = "exchange/adapters/auths-proof-exchange-file" }
@@ -148,6 +165,7 @@ auths-profile-mcp = { version = "1.0.0-rc.1", path = "product/profiles/auths-pro
 auths-profile-api = { version = "1.0.0-rc.1", path = "product/profiles/auths-profile-api" }
 auths-profile-domains = { version = "1.0.0-rc.1", path = "product/profiles/auths-profile-domains" }
 auths-lifecycle = { version = "1.0.0-rc.1", path = "product/runtime/auths-lifecycle", default-features = false }
+auths-kernel-runtime = { version = "1.0.0-rc.1", path = "product/runtime/auths-kernel-runtime" }
 auths-runtime = { version = "1.0.0-rc.1", path = "product/runtime/auths-runtime" }
 auths-receipts = { version = "1.0.0-rc.1", path = "product/receipts/auths-receipts" }
 auths-stores = { version = "1.0.0-rc.1", path = "product/stores/auths-stores" }
@@ -182,6 +200,9 @@ auths-opentofu = { version = "1.0.0-rc.1", path = "product/integrations/auths-op
 auths-postgresql = { version = "1.0.0-rc.1", path = "product/integrations/auths-postgresql" }
 auths-records-api = { version = "1.0.0-rc.1", path = "product/integrations/auths-records-api" }
 auths-apps-testkit = { version = "1.0.0-rc.1", path = "demos/testkit/auths-apps-testkit" }
+auths-raw-key-core = { version = "1.0.0-rc.1", path = "core/crates/auths-raw-key-core", default-features = false }
+auths-signature-core = { version = "1.0.0-rc.1", path = "core/crates/auths-signature-core", default-features = false }
+auths-identity-authority = { version = "1.0.0-rc.1", path = "core/adapters/auths-identity-authority", default-features = false }
 auths-live-lab = { version = "1.0.0-rc.1", path = "demos/live-lab" }
 auths-lab-matrix = { version = "1.0.0-rc.1", path = "demos/matrix/auths-lab-matrix" }
 auths-bench-model = { version = "1.0.0-rc.1", path = "demos/benchmarks/auths-bench-model" }

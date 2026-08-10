@@ -4,6 +4,33 @@ portable_abi_version = 2
 report_schema = "auths-product-core-compliance/v1"
 scope_layers = ["bindings", "demos", "product"]
 
+[packages.auths-identity-iroh-demo]
+kind = "cargo"
+layer = "demos"
+path = "demos/identity-iroh"
+core_apis = [
+  "auths-identity",
+  "auths-identity-raw-key",
+  "auths-signature-ed25519",
+]
+protocol_versions = [
+  "auths-identity/v1",
+  "auths.identity-model/1",
+  "auths.identity-signing-domain/2",
+  "auths.identity-wire/2",
+]
+wire_objects = ["IdentityPacket/PublicIdentityV2", "IdentityPacket/SignedMessageV2"]
+fixture_suites = []
+principal_families = ["raw-key-v2"]
+signature_families = ["ed25519-v1"]
+profiles = []
+transports = ["https", "iroh"]
+configuration_inputs = ["identity-method", "signature-suite", "transport-application-protocol"]
+security_state = ["decoded-identity", "validated-identity", "authenticated-message"]
+
+[packages.auths-identity-iroh-demo.claims]
+principal-evidence-integration = ["demos/identity-iroh/src/app.rs#public_and_signed_identity_paths_use_real_iroh_without_authorization"]
+
 [packages.auths-apps-testkit]
 kind = "cargo"
 layer = "demos"
@@ -836,7 +863,7 @@ stateful-replay-budget-component = [
 kind = "cargo"
 layer = "product"
 path = "product/integrations/auths-records-api"
-core_apis = ["auths-model"]
+core_apis = ["auths-model", "auths-signature-core"]
 protocol_versions = ["auths-proof/v1", "auths.records-api/1"]
 wire_objects = ["CanonicalAction", "RecordsRequestEnvelopeV1", "VerifiedAction"]
 fixture_suites = ["product/fixtures/v1/records-api"]
@@ -1118,11 +1145,11 @@ language-binding = ["bindings/python/tests/test_api.py#test_configuration_mismat
 kind = "cargo"
 layer = "bindings"
 path = "bindings/wasm/auths-proof-wasm"
-core_apis = ["auths-author", "auths-codec", "auths-did-keri", "auths-did-key", "auths-model", "auths-ports", "auths-raw-key", "auths-registries", "auths-signature", "auths-testkit", "auths-verifier"]
-protocol_versions = ["auths-proof/v1"]
-wire_objects = ["ActionEnvelope", "CanonicalAction", "ControlBinding", "EvidenceObject", "GrantStatement", "GrantStatusStatement", "PortableVerificationResult", "PrincipalStatusStatement", "ProofBundle", "SignedAction", "SignedGrant", "VerifierContext"]
-fixture_suites = ["core/fixtures/v1"]
-principal_families = ["did-keri-v1", "did-key-v1", "raw-key-v1"]
+core_apis = ["auths-author", "auths-codec", "auths-did-keri", "auths-did-key", "auths-identity", "auths-identity-raw-key", "auths-model", "auths-ports", "auths-raw-key", "auths-registries", "auths-signature", "auths-signature-ed25519", "auths-testkit", "auths-verifier"]
+protocol_versions = ["auths-identity/v1", "auths-proof/v1"]
+wire_objects = ["ActionEnvelope", "CanonicalAction", "ControlBinding", "EvidenceObject", "GrantStatement", "GrantStatusStatement", "IdentityPacket/PublicIdentityV2", "IdentityPacket/SignedMessageV2", "PortableVerificationResult", "PrincipalStatusStatement", "ProofBundle", "SignedAction", "SignedGrant", "VerifierContext"]
+fixture_suites = ["core/fixtures/identity/v1", "core/fixtures/v1"]
+principal_families = ["did-keri-v1", "did-key-v1", "raw-key-v1", "raw-key-v2"]
 signature_families = ["ed25519-v1", "p256-sha256-v1"]
 profiles = ["auths.mcp/1", "core-corpus"]
 transports = []
@@ -1131,7 +1158,25 @@ security_state = []
 
 [packages.auths-proof-wasm.claims]
 core-wire-consumer = ["bindings/wasm/auths-proof-wasm/src/lib.rs#authoring_abi_planning_matches_the_native_owner", "bindings/wasm/auths-proof-wasm/src/lib.rs#native_mcp_authorization_assembly_matches_profile_and_core_owners", "bindings/wasm/auths-proof-wasm/src/lib.rs#native_wasm_boundary_matches_the_portable_contract"]
-language-binding = ["bindings/typescript/test/integration/verifier.test.js#precompiled WASM matches the canonical Rust result"]
+language-binding = ["bindings/typescript/test/integration/identity.test.js#neutral identity surface keeps decode, validation, and authentication distinct", "bindings/typescript/test/integration/verifier.test.js#precompiled WASM matches the canonical Rust result"]
+
+[packages.auths-kernel-runtime]
+kind = "cargo"
+layer = "product"
+path = "product/runtime/auths-kernel-runtime"
+core_apis = ["auths-model", "auths-ports", "auths-registries", "auths-verifier"]
+protocol_versions = ["auths-proof/v1"]
+wire_objects = ["CanonicalAction", "VerificationOutcome", "VerifierContext"]
+fixture_suites = ["core/fixtures/v1"]
+principal_families = ["registry-provided"]
+signature_families = ["registry-provided"]
+profiles = []
+transports = []
+configuration_inputs = ["principal-method-registry", "signature-suite-registry", "verifier-context"]
+security_state = []
+
+[packages.auths-kernel-runtime.claims]
+core-api-consumer = ["product/runtime/auths-kernel-runtime/src/lib.rs#minimal_kernel_has_no_profile_or_effect_dependencies"]
 
 [packages.auths-receipts]
 kind = "cargo"
@@ -1173,7 +1218,7 @@ principal-evidence-integration = ["product/integrations/auths-resolver-did-web/s
 kind = "cargo"
 layer = "product"
 path = "product/runtime/auths-runtime"
-core_apis = ["auths-codec", "auths-model", "auths-ports", "auths-registries", "auths-verifier"]
+core_apis = ["auths-codec", "auths-model", "auths-verifier"]
 protocol_versions = ["auths-proof/v1"]
 wire_objects = ["ActionSubmission", "PortableVerificationResult", "VerifiedAction", "VerifierContext"]
 fixture_suites = ["core/fixtures/v1", "product/fixtures/v1"]

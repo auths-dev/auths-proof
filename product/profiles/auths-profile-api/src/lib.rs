@@ -8,14 +8,14 @@ use std::fmt;
 
 /// Human-reviewable rendering bound to exact canonical bytes.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ApprovalDisplay {
+pub struct ReviewDisplay {
     title: String,
     fields: Vec<(String, String)>,
     canonical_digest_hex: String,
 }
 
-impl ApprovalDisplay {
-    /// Constructs a profile-owned approval display.
+impl ReviewDisplay {
+    /// Constructs a profile-owned deterministic review display.
     #[must_use]
     pub fn new(
         title: impl Into<String>,
@@ -48,6 +48,10 @@ impl ApprovalDisplay {
     }
 }
 
+/// Compatibility name for the pre-neutralization profile display.
+#[deprecated(note = "use ReviewDisplay; review data is not evidence of approval")]
+pub type ApprovalDisplay = ReviewDisplay;
+
 /// Exact application profile implemented on both sides of verification.
 pub trait ActionProfile {
     /// Command type safe for a profile executor.
@@ -67,10 +71,23 @@ pub trait ActionProfile {
     ///
     /// Returns a closed profile error when the canonical action is not this
     /// exact profile/version.
+    fn review_display(
+        &self,
+        action: &CanonicalAction,
+    ) -> Result<ReviewDisplay, ProfileContractError>;
+
+    /// Compatibility forwarding method for callers migrating to neutral review vocabulary.
+    ///
+    /// # Errors
+    ///
+    /// Forwards the exact profile error from [`Self::review_display`].
+    #[deprecated(note = "use review_display; review data is not evidence of approval")]
     fn approval_display(
         &self,
         action: &CanonicalAction,
-    ) -> Result<ApprovalDisplay, ProfileContractError>;
+    ) -> Result<ReviewDisplay, ProfileContractError> {
+        self.review_display(action)
+    }
 
     /// Decodes only sealed verified data into an executable domain command.
     ///

@@ -253,6 +253,10 @@ fn validate_surfaces(surfaces: &[NamingSurface]) -> Result<(), String> {
         ("internal-wasm-crate", "auths-proof-wasm"),
         ("internal-python-crate", "auths-proof-python"),
         ("proof-exchange-family", "auths-proof-exchange-*"),
+        (
+            "modular-rust-components",
+            "auths-identity, auths-identity-raw-key, auths-signature-ed25519, auths-identity-authority, auths-byte-channel, auths-byte-channel-memory, auths-iroh",
+        ),
         ("container-images", "ghcr.io/auths-dev/auths-*"),
         (
             "deployment-names",
@@ -627,7 +631,19 @@ fn validate_current_coordinates() -> Result<(), String> {
             .map_err(|error| format!("could not read {}: {error}", semantic_path.display()))?,
     )
     .map_err(|error| format!("invalid {}: {error}", semantic_path.display()))?;
-    if semantic["publicSurface"]["rustRoots"] != json!(["auths", "auths-sdk"])
+    if semantic["publicSurface"]["rustRoots"]
+        != json!([
+            "auths",
+            "auths-byte-channel",
+            "auths-byte-channel-memory",
+            "auths-identity",
+            "auths-identity-authority",
+            "auths-identity-raw-key",
+            "auths-iroh",
+            "auths-runtime",
+            "auths-sdk",
+            "auths-signature-ed25519"
+        ])
         || semantic["publicSurface"]["releaseArtifactFamilies"]
             != json!([
                 "source-archive",

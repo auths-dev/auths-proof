@@ -4,6 +4,7 @@
 
 use async_trait::async_trait;
 use auths_codec::context_digest;
+pub use auths_kernel_runtime::AuthsKernel;
 use auths_model::{
     ActionId, Audience, BudgetCeiling, Challenge, Digest, ReceiptId, SignatureBytes, Timestamp,
     VerifierContext,
@@ -11,7 +12,6 @@ use auths_model::{
 use auths_operations::{
     EventSink, NoopEventSink, OperationalEvent, OperationalOutcome, OperationalStage,
 };
-use auths_ports::{PrincipalMethod, SignatureSuite};
 use auths_profile_api::ActionProfile;
 use auths_profile_mcp::{
     McpChannelBindingKind, McpCommand, McpProfile, McpToolCall, PROFILE_ID, PROFILE_VERSION,
@@ -29,8 +29,7 @@ use auths_receipts::{
     decision_receipt_id, decision_signing_preimage, encode_attested_decision,
     encode_attested_execution, execution_receipt_id, execution_signing_preimage,
 };
-use auths_registries::ImmutableRegistries;
-use auths_verifier::{VerificationOutcome, VerifiedAction, verify};
+use auths_verifier::{VerificationOutcome, VerifiedAction};
 use sha2::{Digest as _, Sha256};
 use std::{
     collections::BTreeMap,
@@ -284,115 +283,23 @@ impl fmt::Display for ReceiptStoreError {
 
 impl std::error::Error for ReceiptStoreError {}
 
-/// Owned pure-kernel configuration and exact implementation registries.
-pub struct AuthsKernel {
-    context_template: VerifierContext,
-    principal_methods: Vec<Box<dyn PrincipalMethod + Send + Sync>>,
-    signature_suites: Vec<Box<dyn SignatureSuite + Send + Sync>>,
-}
-
-impl AuthsKernel {
-    /// Constructs a runtime kernel from explicit immutable inputs.
-    ///
-    /// # Errors
-    ///
-    /// Returns a configuration error when either executable registry is
-    /// empty.
-    pub fn new(
-        context_template: VerifierContext,
-        principal_methods: Vec<Box<dyn PrincipalMethod + Send + Sync>>,
-        signature_suites: Vec<Box<dyn SignatureSuite + Send + Sync>>,
-    ) -> Result<Self, ServiceConfigurationError> {
-        if principal_methods.is_empty() || signature_suites.is_empty() {
-            return Err(ServiceConfigurationError::MissingRegistryImplementation);
-        }
-        Ok(Self {
-            context_template,
-            principal_methods,
-            signature_suites,
-        })
-    }
-
-    fn evaluate(
-        &self,
-        proof: &[u8],
-        canonical_action: &auths_model::CanonicalAction,
-        challenge: ChallengeNonce,
-        audience: &ExchangeAudience,
-        now: u64,
-    ) -> Result<(VerificationOutcome, VerifierContext), auths_model::DenialReason> {
-        let Ok(expected_audience) = Audience::parse(audience.as_str()) else {
-            return Err(auths_model::DenialReason::AudienceMismatch);
-        };
-        let Ok(context) = self.context_template.for_request(
-            expected_audience,
-            Challenge::new(*challenge.as_bytes()),
-            Timestamp::new(now),
-        ) else {
-            return Err(auths_model::DenialReason::LocalPolicyDenied);
-        };
-        let methods: Vec<&dyn PrincipalMethod> = self
-            .principal_methods
-            .iter()
-            .map(|method| method.as_ref() as &dyn PrincipalMethod)
-            .collect();
-        let suites: Vec<&dyn SignatureSuite> = self
-            .signature_suites
-            .iter()
-            .map(|suite| suite.as_ref() as &dyn SignatureSuite)
-            .collect();
-        let Ok(registries) = ImmutableRegistries::new(&methods, &suites) else {
-            return Err(auths_model::DenialReason::LocalPolicyDenied);
-        };
-        Ok((
-            verify(proof, canonical_action, &context, &registries),
-            context,
-        ))
-    }
-
-    /// Verifies one canonical action with explicit per-request values.
-    ///
-    /// This is the supported in-process enforcement entry point for
-    /// application SDKs. It performs no I/O and does not claim replay or
-    /// stateful budget; callers that execute commands must apply those gates
-    /// before execution.
-    #[must_use]
-    pub fn verify(
-        &self,
-        proof: &[u8],
-        canonical_action: &auths_model::CanonicalAction,
-        expected_audience: Audience,
-        expected_challenge: Challenge,
-        evaluation_time: Timestamp,
-    ) -> VerificationOutcome {
-        let Ok(context) = self.context_template.for_request(
-            expected_audience,
-            expected_challenge,
-            evaluation_time,
-        ) else {
-            return VerificationOutcome::Denied(auths_model::DenialReason::LocalPolicyDenied);
-        };
-        let methods: Vec<&dyn PrincipalMethod> = self
-            .principal_methods
-            .iter()
-            .map(|method| method.as_ref() as &dyn PrincipalMethod)
-            .collect();
-        let suites: Vec<&dyn SignatureSuite> = self
-            .signature_suites
-            .iter()
-            .map(|suite| suite.as_ref() as &dyn SignatureSuite)
-            .collect();
-        let Ok(registries) = ImmutableRegistries::new(&methods, &suites) else {
-            return VerificationOutcome::Denied(auths_model::DenialReason::LocalPolicyDenied);
-        };
-        verify(proof, canonical_action, &context, &registries)
-    }
-
-    /// Returns the immutable context template.
-    #[must_use]
-    pub const fn context_template(&self) -> &VerifierContext {
-        &self.context_template
-    }
+fn evaluate_kernel(
+    kernel: &AuthsKernel,
+    proof: &[u8],
+    canonical_action: &auths_model::CanonicalAction,
+    challenge: ChallengeNonce,
+    audience: &ExchangeAudience,
+    now: u64,
+) -> Result<(VerificationOutcome, VerifierContext), auths_model::DenialReason> {
+    let expected_audience = Audience::parse(audience.as_str())
+        .map_err(|_| auths_model::DenialReason::AudienceMismatch)?;
+    kernel.verify_with_context(
+        proof,
+        canonical_action,
+        expected_audience,
+        Challenge::new(*challenge.as_bytes()),
+        Timestamp::new(now),
+    )
 }
 
 /// Replay- and budget-bound execution authorization.
@@ -809,7 +716,8 @@ impl ProofExchangeService for McpAuthorizationService {
             );
         };
         let verification_started = Instant::now();
-        let (outcome, request_context) = match self.kernel.evaluate(
+        let (outcome, request_context) = match evaluate_kernel(
+            &self.kernel,
             request.proof(),
             &canonical,
             challenge.challenge(),

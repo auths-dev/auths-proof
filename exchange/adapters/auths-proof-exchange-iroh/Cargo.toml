@@ -11,9 +11,8 @@ description = "Iroh transport adapter for Auths proof exchange"
 auths-proof-exchange-model.workspace = true
 auths-proof-exchange-codec.workspace = true
 auths-proof-exchange-port.workspace = true
+auths-iroh.workspace = true
 async-trait.workspace = true
-iroh.workspace = true
-tokio.workspace = true
 
 [lints]
 workspace = true

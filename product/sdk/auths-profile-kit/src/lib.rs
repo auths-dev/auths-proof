@@ -2,7 +2,7 @@
 
 #![forbid(unsafe_code)]
 
-use auths_profile_api::{ActionProfile, ApprovalDisplay, ProfileContractError};
+use auths_profile_api::{ActionProfile, ProfileContractError, ReviewDisplay};
 use serde::Serialize;
 use sha2::{Digest as _, Sha256};
 use thiserror::Error;
@@ -14,13 +14,13 @@ pub struct ProfileFixture {
     pub canonical_action_cbor: Vec<u8>,
     /// SHA-256 of the canonical profile body.
     pub canonical_body_sha256: String,
-    /// Human-reviewable profile display.
-    pub approval: FixtureApproval,
+    /// Human-reviewable profile display with no workflow decision semantics.
+    pub review: FixtureReview,
 }
 
-/// Serializable approval display included in generated fixtures.
+/// Serializable neutral review display included in generated fixtures.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
-pub struct FixtureApproval {
+pub struct FixtureReview {
     /// Profile-owned display title.
     pub title: String,
     /// Ordered profile-owned display fields.
@@ -29,8 +29,8 @@ pub struct FixtureApproval {
     pub canonical_digest_hex: String,
 }
 
-impl From<&ApprovalDisplay> for FixtureApproval {
-    fn from(display: &ApprovalDisplay) -> Self {
+impl From<&ReviewDisplay> for FixtureReview {
+    fn from(display: &ReviewDisplay) -> Self {
         Self {
             title: display.title().to_owned(),
             fields: display.fields().to_vec(),
@@ -42,7 +42,7 @@ impl From<&ApprovalDisplay> for FixtureApproval {
 /// Builds a reproducible cross-language fixture for one profile input.
 ///
 /// The input is canonicalized twice and both complete actions must be equal.
-/// The approval display must bind the SHA-256 digest of the canonical body.
+/// The review display must bind the SHA-256 digest of the canonical body.
 ///
 /// # Errors
 ///
@@ -57,7 +57,7 @@ pub fn build_fixture<P: ActionProfile>(
     if first != second {
         return Err(ProfileKitError::NondeterministicCanonicalization);
     }
-    let display = profile.approval_display(&first)?;
+    let display = profile.review_display(&first)?;
     let body_digest = hex_digest(first.body());
     if display.canonical_digest_hex() != body_digest {
         return Err(ProfileKitError::DisplayDigestMismatch);
@@ -65,7 +65,7 @@ pub fn build_fixture<P: ActionProfile>(
     Ok(ProfileFixture {
         canonical_action_cbor: auths_codec::encode_canonical_action(&first)?,
         canonical_body_sha256: body_digest,
-        approval: FixtureApproval::from(&display),
+        review: FixtureReview::from(&display),
     })
 }
 
@@ -108,8 +108,8 @@ pub enum ProfileKitError {
     /// Repeated canonicalization returned different complete actions.
     #[error("profile canonicalization is nondeterministic")]
     NondeterministicCanonicalization,
-    /// Approval display did not bind the canonical body digest.
-    #[error("approval display digest does not bind the canonical action body")]
+    /// Review display did not bind the canonical body digest.
+    #[error("review display digest does not bind the canonical action body")]
     DisplayDigestMismatch,
     /// Canonical action CBOR encoding failed.
     #[error("canonical action encoding failed: {0}")]
@@ -157,11 +157,11 @@ mod tests {
             .map_err(|_| ProfileContractError::MeaningMismatch)
         }
 
-        fn approval_display(
+        fn review_display(
             &self,
             action: &CanonicalAction,
-        ) -> Result<ApprovalDisplay, ProfileContractError> {
-            Ok(ApprovalDisplay::new(
+        ) -> Result<ReviewDisplay, ProfileContractError> {
+            Ok(ReviewDisplay::new(
                 "Test",
                 Vec::new(),
                 hex_digest(action.body()),
@@ -189,7 +189,7 @@ mod tests {
         assert!(!fixture.canonical_action_cbor.is_empty());
         assert_eq!(
             fixture.canonical_body_sha256,
-            fixture.approval.canonical_digest_hex
+            fixture.review.canonical_digest_hex
         );
     }
 

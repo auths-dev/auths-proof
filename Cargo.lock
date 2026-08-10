@@ -330,6 +330,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "auths-byte-channel"
+version = "1.0.0-rc.1"
+dependencies = [
+ "async-trait",
+]
+
+[[package]]
+name = "auths-byte-channel-memory"
+version = "1.0.0-rc.1"
+dependencies = [
+ "async-trait",
+ "auths-byte-channel",
+ "tokio",
+]
+
+[[package]]
 name = "auths-cache"
 version = "1.0.0-rc.1"
 dependencies = [
@@ -406,10 +422,10 @@ dependencies = [
  "auths-codec",
  "auths-model",
  "auths-ports",
+ "auths-signature-core",
  "base64ct",
  "blake3",
  "ed25519-dalek 2.2.0",
- "p256",
  "serde",
  "serde_json",
 ]
@@ -554,6 +570,76 @@ dependencies = [
  "ed25519-dalek 2.2.0",
  "p256",
  "sha2 0.10.9",
+]
+
+[[package]]
+name = "auths-identity"
+version = "1.0.0-rc.1"
+
+[[package]]
+name = "auths-identity-authority"
+version = "1.0.0-rc.1"
+dependencies = [
+ "auths-identity",
+ "auths-identity-raw-key",
+ "auths-model",
+ "auths-raw-key-core",
+ "sha2 0.10.9",
+]
+
+[[package]]
+name = "auths-identity-iroh-demo"
+version = "1.0.0-rc.1"
+dependencies = [
+ "auths-byte-channel",
+ "auths-byte-channel-memory",
+ "auths-identity",
+ "auths-identity-raw-key",
+ "auths-iroh",
+ "auths-signature-ed25519",
+ "axum",
+ "ed25519-dalek 2.2.0",
+ "getrandom 0.3.4",
+ "hex",
+ "iroh",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tower",
+ "tower-http 0.7.0",
+]
+
+[[package]]
+name = "auths-identity-raw-key"
+version = "1.0.0-rc.1"
+dependencies = [
+ "auths-identity",
+ "auths-raw-key-core",
+ "auths-signature-core",
+ "ed25519-dalek 2.2.0",
+ "hex",
+ "serde_json",
+]
+
+[[package]]
+name = "auths-iroh"
+version = "1.0.0-rc.1"
+dependencies = [
+ "async-trait",
+ "auths-byte-channel",
+ "hex",
+ "iroh",
+ "tokio",
+]
+
+[[package]]
+name = "auths-kernel-runtime"
+version = "1.0.0-rc.1"
+dependencies = [
+ "auths-model",
+ "auths-ports",
+ "auths-registries",
+ "auths-verifier",
 ]
 
 [[package]]
@@ -953,11 +1039,10 @@ name = "auths-proof-exchange-iroh"
 version = "1.0.0-rc.1"
 dependencies = [
  "async-trait",
+ "auths-iroh",
  "auths-proof-exchange-codec",
  "auths-proof-exchange-model",
  "auths-proof-exchange-port",
- "iroh",
- "tokio",
 ]
 
 [[package]]
@@ -1070,6 +1155,8 @@ dependencies = [
  "auths-codec",
  "auths-did-keri",
  "auths-did-key",
+ "auths-identity",
+ "auths-identity-raw-key",
  "auths-model",
  "auths-ports",
  "auths-profile-api",
@@ -1077,6 +1164,7 @@ dependencies = [
  "auths-raw-key",
  "auths-registries",
  "auths-signature",
+ "auths-signature-ed25519",
  "auths-testkit",
  "auths-verifier",
  "ed25519-dalek 2.2.0",
@@ -1153,8 +1241,15 @@ version = "1.0.0-rc.1"
 dependencies = [
  "auths-model",
  "auths-ports",
- "base64ct",
+ "auths-raw-key-core",
  "ed25519-dalek 2.2.0",
+]
+
+[[package]]
+name = "auths-raw-key-core"
+version = "1.0.0-rc.1"
+dependencies = [
+ "base64ct",
  "sha2 0.10.9",
 ]
 
@@ -1177,6 +1272,7 @@ dependencies = [
  "auths-model",
  "auths-profile-api",
  "auths-sdk",
+ "auths-signature-core",
  "auths-stores",
  "ed25519-dalek 2.2.0",
  "hex",
@@ -1256,15 +1352,14 @@ version = "1.0.0-rc.1"
 dependencies = [
  "async-trait",
  "auths-codec",
+ "auths-kernel-runtime",
  "auths-model",
  "auths-operations",
- "auths-ports",
  "auths-profile-api",
  "auths-profile-mcp",
  "auths-proof-exchange-model",
  "auths-proof-exchange-port",
  "auths-receipts",
- "auths-registries",
  "auths-verifier",
  "getrandom 0.3.4",
  "sha2 0.10.9",
@@ -1280,6 +1375,7 @@ dependencies = [
  "auths-custody",
  "auths-did-keri",
  "auths-did-key",
+ "auths-kernel-runtime",
  "auths-model",
  "auths-ports",
  "auths-profile-api",
@@ -1287,7 +1383,6 @@ dependencies = [
  "auths-profile-mcp",
  "auths-raw-key",
  "auths-registries",
- "auths-runtime",
  "auths-signature",
  "auths-testkit",
  "auths-verifier",
@@ -1298,10 +1393,29 @@ dependencies = [
 name = "auths-signature"
 version = "1.0.0-rc.1"
 dependencies = [
+ "auths-identity",
  "auths-model",
  "auths-ports",
+ "auths-signature-core",
+ "auths-signature-ed25519",
+ "ed25519-dalek 2.2.0",
+]
+
+[[package]]
+name = "auths-signature-core"
+version = "1.0.0-rc.1"
+dependencies = [
  "ed25519-dalek 2.2.0",
  "p256",
+]
+
+[[package]]
+name = "auths-signature-ed25519"
+version = "1.0.0-rc.1"
+dependencies = [
+ "auths-identity",
+ "auths-signature-core",
+ "ed25519-dalek 2.2.0",
 ]
 
 [[package]]

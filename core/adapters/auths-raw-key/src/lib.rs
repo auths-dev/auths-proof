@@ -5,24 +5,24 @@
 
 extern crate alloc;
 
-use alloc::{format, vec, vec::Vec};
+use alloc::{vec, vec::Vec};
 use auths_model::{
     AdapterConfigurationId, AdapterId, AssuranceClaim, AssuranceClaimId, EvidenceId,
     EvidenceSourceId, EvidenceTypeId, MediaType, ModelError, PrincipalId, PrincipalMethodId,
 };
 use auths_ports::{ControlEvidence, PrincipalControlError, PrincipalControlInput, PrincipalMethod};
-use base64ct::{Base64UrlUnpadded, Encoding};
-use sha2::{Digest as _, Sha256};
+pub use auths_raw_key_core::{
+    RAW_KEY_V2, RAW_KEY_V2_MEDIA_TYPE, RawKeyDescriptorV2, V2_PRINCIPAL_PREFIX,
+};
+use auths_raw_key_core::{RawKeyTypeV1, decode_v1, encode_v1, identifier_v1};
 
 /// Exact principal-method and evidence-type identifier.
-pub const RAW_KEY_V1: &str = "raw-key-v1";
+pub use auths_raw_key_core::RAW_KEY_V1;
 /// Deterministic raw-key evidence media type.
-pub const RAW_KEY_MEDIA_TYPE: &str = "application/vnd.auths.raw-key.v1";
+pub use auths_raw_key_core::RAW_KEY_V1_MEDIA_TYPE as RAW_KEY_MEDIA_TYPE;
 /// Self-certifying raw-key principal prefix.
-pub const PRINCIPAL_PREFIX: &str = "key:sha256:";
-const DESCRIPTOR_DOMAIN: &[u8] = b"AUTHS-RAW-KEY\x00\x01";
-const ED25519_V1: &str = "ed25519-v1";
-const P256_SHA256_V1: &str = "p256-sha256-v1";
+pub use auths_raw_key_core::V1_PRINCIPAL_PREFIX as PRINCIPAL_PREFIX;
+use auths_raw_key_core::{ED25519_V1, P256_SHA256_V1};
 
 /// Supported raw public-key form.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -34,10 +34,10 @@ pub enum RawKeyType {
 }
 
 impl RawKeyType {
-    const fn tag(self) -> u8 {
+    const fn core(self) -> RawKeyTypeV1 {
         match self {
-            Self::Ed25519 => 1,
-            Self::P256 => 2,
+            Self::Ed25519 => RawKeyTypeV1::Ed25519,
+            Self::P256 => RawKeyTypeV1::P256,
         }
     }
 
@@ -63,13 +63,7 @@ impl RawKeyDescriptor {
     ///
     /// Returns [`RawKeyError::InvalidKey`] for an incompatible key length.
     pub fn new(key_type: RawKeyType, public_key: Vec<u8>) -> Result<Self, RawKeyError> {
-        let expected = match key_type {
-            RawKeyType::Ed25519 => 32,
-            RawKeyType::P256 => 33,
-        };
-        if public_key.len() != expected {
-            return Err(RawKeyError::InvalidKey);
-        }
+        encode_v1(key_type.core(), &public_key).map_err(|_| RawKeyError::InvalidKey)?;
         Ok(Self {
             key_type,
             public_key,
@@ -77,18 +71,14 @@ impl RawKeyDescriptor {
     }
 
     /// Encodes the unique raw-key evidence bytes.
+    ///
+    /// # Panics
+    ///
+    /// This cannot panic for a descriptor constructed or decoded by this type.
     #[must_use]
     pub fn encode(&self) -> Vec<u8> {
-        let mut output = Vec::with_capacity(DESCRIPTOR_DOMAIN.len() + 3 + self.public_key.len());
-        output.extend_from_slice(DESCRIPTOR_DOMAIN);
-        output.push(self.key_type.tag());
-        let key_length = match self.key_type {
-            RawKeyType::Ed25519 => 32_u16,
-            RawKeyType::P256 => 33_u16,
-        };
-        output.extend_from_slice(&key_length.to_be_bytes());
-        output.extend_from_slice(&self.public_key);
-        output
+        encode_v1(self.key_type.core(), &self.public_key)
+            .expect("validated target-V1 raw-key descriptor")
     }
 
     /// Decodes exact raw-key evidence bytes.
@@ -97,23 +87,14 @@ impl RawKeyDescriptor {
     ///
     /// Returns a typed error for a wrong domain, tag, length, or key.
     pub fn decode(input: &[u8]) -> Result<Self, RawKeyError> {
-        if !input.starts_with(DESCRIPTOR_DOMAIN) || input.len() < DESCRIPTOR_DOMAIN.len() + 3 {
-            return Err(RawKeyError::InvalidEncoding);
-        }
-        let offset = DESCRIPTOR_DOMAIN.len();
-        let key_type = match input[offset] {
-            1 => RawKeyType::Ed25519,
-            2 => RawKeyType::P256,
-            _ => return Err(RawKeyError::InvalidEncoding),
-        };
-        let length = usize::from(u16::from_be_bytes([input[offset + 1], input[offset + 2]]));
-        let public_key = input
-            .get(offset + 3..)
-            .ok_or(RawKeyError::InvalidEncoding)?;
-        if public_key.len() != length {
-            return Err(RawKeyError::InvalidEncoding);
-        }
-        Self::new(key_type, public_key.to_vec())
+        let (key_type, public_key) = decode_v1(input).map_err(|_| RawKeyError::InvalidEncoding)?;
+        Self::new(
+            match key_type {
+                RawKeyTypeV1::Ed25519 => RawKeyType::Ed25519,
+                RawKeyTypeV1::P256 => RawKeyType::P256,
+            },
+            public_key,
+        )
     }
 
     /// Derives the canonical self-certifying principal.
@@ -122,11 +103,10 @@ impl RawKeyDescriptor {
     ///
     /// Returns a model error if the derived principal cannot be represented.
     pub fn principal(&self) -> Result<PrincipalId, ModelError> {
-        let digest: [u8; 32] = Sha256::digest(self.encode()).into();
-        PrincipalId::parse(&format!(
-            "{PRINCIPAL_PREFIX}{}",
-            Base64UrlUnpadded::encode_string(&digest)
-        ))
+        PrincipalId::parse(
+            &identifier_v1(self.key_type.core(), &self.public_key)
+                .map_err(|_| ModelError::InvalidPrincipal)?,
+        )
     }
 
     /// Returns the exact suite required by this key form.
@@ -238,6 +218,101 @@ impl PrincipalMethod for RawKeyMethod {
     }
 }
 
+/// Generalized V2 raw-key principal-control adapter.
+pub struct RawKeyV2Method {
+    id: PrincipalMethodId,
+    evidence_type: EvidenceTypeId,
+    media_type: MediaType,
+    adapter: AdapterId,
+    source: EvidenceSourceId,
+}
+
+impl RawKeyV2Method {
+    /// Constructs the generalized raw-key implementation.
+    ///
+    /// # Errors
+    ///
+    /// Returns a model error only if a compiled identifier is invalid.
+    pub fn new() -> Result<Self, ModelError> {
+        Ok(Self {
+            id: PrincipalMethodId::parse(RAW_KEY_V2)?,
+            evidence_type: EvidenceTypeId::parse(RAW_KEY_V2)?,
+            media_type: MediaType::parse(RAW_KEY_V2_MEDIA_TYPE)?,
+            adapter: AdapterId::parse(RAW_KEY_V2)?,
+            source: EvidenceSourceId::parse(RAW_KEY_V2)?,
+        })
+    }
+}
+
+impl PrincipalMethod for RawKeyV2Method {
+    fn id(&self) -> &PrincipalMethodId {
+        &self.id
+    }
+
+    fn configuration_id(&self) -> AdapterConfigurationId {
+        auths_ports::configuration_id(RAW_KEY_V2.as_bytes(), core::iter::empty())
+    }
+
+    fn maximum_work_units(&self) -> u64 {
+        10
+    }
+
+    fn verify_control(
+        &self,
+        input: PrincipalControlInput<'_>,
+    ) -> Result<ControlEvidence, PrincipalControlError> {
+        let mut selected = None;
+        for evidence in input.evidence {
+            if evidence.evidence_type() == &self.evidence_type {
+                if selected.is_some() || evidence.media_type() != &self.media_type {
+                    return Err(PrincipalControlError::InvalidEvidence);
+                }
+                selected = Some(*evidence);
+            }
+        }
+        let evidence = selected.ok_or(PrincipalControlError::MissingEvidence)?;
+        let descriptor = RawKeyDescriptorV2::decode(evidence.bytes())
+            .map_err(|_| PrincipalControlError::InvalidEvidence)?;
+        if descriptor.suite_id() != input.signature_suite.as_str() {
+            return Err(PrincipalControlError::SignatureSuiteMismatch);
+        }
+        let principal = PrincipalId::parse(&descriptor.identifier())
+            .map_err(|_| PrincipalControlError::InvalidEvidence)?;
+        if &principal != input.principal {
+            return Err(PrincipalControlError::PrincipalMethodMismatch);
+        }
+        if input.verification_method.as_str() != principal.as_str() {
+            return Err(PrincipalControlError::VerificationMethodMismatch);
+        }
+        let claims = vec![
+            AssuranceClaim::new(
+                AssuranceClaimId::parse("self-certifying-identifier")
+                    .map_err(|_| PrincipalControlError::InvalidEvidence)?,
+                Vec::new(),
+                None,
+                self.source.clone(),
+            )
+            .map_err(|_| PrincipalControlError::InvalidEvidence)?,
+            AssuranceClaim::new(
+                AssuranceClaimId::parse("offline-verifiable")
+                    .map_err(|_| PrincipalControlError::InvalidEvidence)?,
+                Vec::new(),
+                None,
+                self.source.clone(),
+            )
+            .map_err(|_| PrincipalControlError::InvalidEvidence)?,
+        ];
+        ControlEvidence::new(
+            descriptor.public_key().to_vec(),
+            claims,
+            vec![EvidenceId::new(*evidence.id().as_bytes())],
+            self.adapter.clone(),
+            2,
+            10,
+        )
+    }
+}
+
 /// Raw-key parsing or construction failure.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RawKeyError {
@@ -271,6 +346,35 @@ mod tests {
                     principal: &principal,
                     verification_method: &VerificationMethod::parse(principal.as_str()).unwrap(),
                     signature_suite: &SignatureSuiteId::parse(ED25519_V1).unwrap(),
+                    purpose: auths_ports::ControlPurpose::CapabilityInvocation,
+                    signing_preimage: b"test",
+                    asserted_signing_time: Timestamp::new(0),
+                    evidence: &refs,
+                    evaluation_time: Timestamp::new(0),
+                })
+                .is_ok()
+        );
+    }
+
+    #[test]
+    fn generalized_descriptor_matches_the_authority_principal() {
+        let descriptor = RawKeyDescriptorV2::new("example-pq-v1", vec![7; 4096]).unwrap();
+        let principal = PrincipalId::parse(&descriptor.identifier()).unwrap();
+        let evidence = EvidenceObject::new(
+            EvidenceId::from_digest(Digest::ZERO),
+            EvidenceTypeId::parse(RAW_KEY_V2).unwrap(),
+            MediaType::parse(RAW_KEY_V2_MEDIA_TYPE).unwrap(),
+            descriptor.encode(),
+        )
+        .unwrap();
+        let refs = [&evidence];
+        let method = RawKeyV2Method::new().unwrap();
+        assert!(
+            method
+                .verify_control(PrincipalControlInput {
+                    principal: &principal,
+                    verification_method: &VerificationMethod::parse(principal.as_str()).unwrap(),
+                    signature_suite: &SignatureSuiteId::parse("example-pq-v1").unwrap(),
                     purpose: auths_ports::ControlPurpose::CapabilityInvocation,
                     signing_preimage: b"test",
                     asserted_signing_time: Timestamp::new(0),

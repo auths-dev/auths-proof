@@ -15,6 +15,7 @@ auths-lifecycle.workspace = true
 auths-model.workspace = true
 auths-profile-api.workspace = true
 auths-sdk.workspace = true
+auths-signature-core.workspace = true
 ed25519-dalek.workspace = true
 hex.workspace = true
 serde.workspace = true

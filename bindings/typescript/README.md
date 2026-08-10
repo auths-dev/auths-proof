@@ -17,6 +17,14 @@ else report(result.kind, result.code);
 The published package contains precompiled WebAssembly. Consumer machines do
 not need Rust, C, a daemon, or network access during verification.
 
+Teams that only need identity exchange should import `@auths-dev/sdk/identity`.
+That subpath exposes decoded, validated, and authenticated states backed by the
+packaged Rust/WASM identity protocol; it does not initialize grants,
+capabilities, approvals, policy, profiles, or lifecycle workflows. Authority,
+approvals, and profiles are separate `@auths-dev/sdk/authority`,
+`@auths-dev/sdk/approvals`, and `@auths-dev/sdk/profiles` entry points. The
+package root remains the integrated compatibility workflow.
+
 The complete [local quickstart](examples/quickstart/index.ts) shows a bounded
 root grant, narrower child delegation, visible approval, exact authorization,
 deterministic disposal, and a closed MCP gateway. Its ephemeral signers are

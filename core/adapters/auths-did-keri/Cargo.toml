@@ -23,10 +23,10 @@ test-signing = []
 [dependencies]
 auths-model.workspace = true
 auths-ports.workspace = true
+auths-signature-core.workspace = true
 base64ct.workspace = true
 blake3.workspace = true
 ed25519-dalek.workspace = true
-p256.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 
