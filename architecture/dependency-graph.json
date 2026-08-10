@@ -152,6 +152,11 @@
       "path": "demos/identity-iroh"
     },
     {
+      "name": "auths-identity-raw-key",
+      "layer": "core",
+      "path": "core/adapters/auths-identity-raw-key"
+    },
+    {
       "name": "auths-iroh",
       "layer": "exchange",
       "path": "exchange/adapters/auths-iroh"
@@ -395,6 +400,11 @@
       "name": "auths-signature",
       "layer": "core",
       "path": "core/crates/auths-signature"
+    },
+    {
+      "name": "auths-signature-ed25519",
+      "layer": "core",
+      "path": "core/adapters/auths-signature-ed25519"
     },
     {
       "name": "auths-spiffe-x509",
@@ -2912,68 +2922,6 @@
       "features": []
     },
     {
-      "source": "auths-identity",
-      "source_layer": "core",
-      "target": "auths-model",
-      "target_layer": "core",
-      "scope": "internal",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": false,
-      "features": []
-    },
-    {
-      "source": "auths-identity",
-      "source_layer": "core",
-      "target": "auths-ports",
-      "target_layer": "core",
-      "scope": "internal",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": false,
-      "features": []
-    },
-    {
-      "source": "auths-identity",
-      "source_layer": "core",
-      "target": "auths-raw-key",
-      "target_layer": "core",
-      "scope": "internal",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": false,
-      "features": []
-    },
-    {
-      "source": "auths-identity",
-      "source_layer": "core",
-      "target": "auths-signature",
-      "target_layer": "core",
-      "scope": "internal",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": false,
-      "features": []
-    },
-    {
-      "source": "auths-identity",
-      "source_layer": "core",
-      "target": "ed25519-dalek",
-      "target_layer": null,
-      "scope": "external",
-      "kind": "dev",
-      "target_condition": null,
-      "optional": false,
-      "default_features": false,
-      "features": [
-        "alloc"
-      ]
-    },
-    {
       "source": "auths-identity-iroh-demo",
       "source_layer": "demos",
       "target": "auths-identity",
@@ -2988,8 +2936,32 @@
     {
       "source": "auths-identity-iroh-demo",
       "source_layer": "demos",
+      "target": "auths-identity-raw-key",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-identity-iroh-demo",
+      "source_layer": "demos",
       "target": "auths-iroh",
       "target_layer": "exchange",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-identity-iroh-demo",
+      "source_layer": "demos",
+      "target": "auths-signature-ed25519",
+      "target_layer": "core",
       "scope": "internal",
       "kind": "normal",
       "target_condition": null,
@@ -3139,6 +3111,44 @@
       "features": [
         "cors"
       ]
+    },
+    {
+      "source": "auths-identity-raw-key",
+      "source_layer": "core",
+      "target": "auths-identity",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-identity-raw-key",
+      "source_layer": "core",
+      "target": "base64ct",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc"
+      ]
+    },
+    {
+      "source": "auths-identity-raw-key",
+      "source_layer": "core",
+      "target": "sha2",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
     },
     {
       "source": "auths-iroh",
@@ -9088,6 +9098,32 @@
       "default_features": false,
       "features": [
         "ecdsa"
+      ]
+    },
+    {
+      "source": "auths-signature-ed25519",
+      "source_layer": "core",
+      "target": "auths-identity",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-signature-ed25519",
+      "source_layer": "core",
+      "target": "ed25519-dalek",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc"
       ]
     },
     {

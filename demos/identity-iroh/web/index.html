@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="Exchange Ed25519 public identities and signed messages over Iroh without adopting capabilities or approvals." />
+    <meta name="description" content="Exchange algorithm-neutral public identities and signed messages over Iroh without adopting capabilities or approvals." />
     <meta name="color-scheme" content="light" />
     <title>Auths × Iroh — Identity without the authority stack</title>
     <link rel="stylesheet" href="./styles.css" />
@@ -26,8 +26,8 @@
             <h1>Exchange keys. Verify messages. <em>No grants. No approvals.</em></h1>
           </div>
           <div class="hero-copy">
-            <p>Start with the smallest useful Auths layer: canonical Ed25519 identities moving over a real Iroh connection. Add delegated authority later—only if you need it.</p>
-            <ul><li>Self-certifying identity</li><li>Real local Iroh</li><li>Ed25519 verification</li></ul>
+            <p>Start with the smallest useful Auths layer: canonical algorithm-neutral identities moving over a real Iroh connection. Choose identity and signature adapters yourself.</p>
+            <ul><li>Algorithm-neutral port</li><li>Real local Iroh</li><li>Replaceable adapters</li></ul>
           </div>
         </div>
       </section>
@@ -40,7 +40,7 @@
               <h2 id="controls-title">See exactly where identity stops.</h2>
               <p class="controls-intro">Every run creates a fresh client key and sends one bounded packet to the native server.</p>
               <div class="variant-list">
-                <button class="variant active" data-experiment="public-identity" type="button"><span><b>Exchange a public identity</b><small>Send a canonical Ed25519 public key with no capability setup</small></span><i>01</i></button>
+                <button class="variant active" data-experiment="public-identity" type="button"><span><b>Exchange a public identity</b><small>Send a canonical method- and suite-labelled key with no capability setup</small></span><i>01</i></button>
                 <button class="variant" data-experiment="signed-message" type="button"><span><b>Verify a signed message</b><small>Bind exact application bytes to the exchanged identity</small></span><i>02</i></button>
                 <button class="variant" data-experiment="tampered-message" type="button"><span><b>Change the message bytes</b><small>The signature fails closed; transport success changes nothing</small></span><i>03</i></button>
               </div>
@@ -77,10 +77,11 @@
       </section>
 
       <section class="boundary-section" id="boundary">
-        <div class="shell boundary-grid"><div><p class="eyebrow"><i></i> A real package boundary</p><h2>Identity is useful before authority exists.</h2><p>The identity transport depends only on canonical raw-key identity, Ed25519 verification, Iroh, and bounded I/O. CI rejects any transitive workspace dependency on proof grants, capabilities, approvals, product policy, or lifecycle state.</p></div><pre>browser
+        <div class="shell boundary-grid"><div><p class="eyebrow"><i></i> A real package boundary</p><h2>Identity is useful before authority exists.</h2><p>The neutral identity port has no workspace, crypto, or network dependency. This demo selects raw-key and Ed25519 adapters, but callers may replace both. CI rejects any path from the port into grants, capabilities, approvals, policy, or lifecycle state.</p></div><pre>browser
   → native demo
     → auths-identity
-      → identity bytes
+      → neutral identity bytes
+      → caller-selected adapters
     → auths-iroh
       → opaque transport
 

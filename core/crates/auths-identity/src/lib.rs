@@ -1,116 +1,170 @@
-//! Transport-independent Ed25519 public identities and signed messages.
+//! Transport-, identity-method-, and signature-suite-independent identities.
 //!
-//! This crate produces and verifies identity facts. It does not perform
-//! networking and does not evaluate grants, capabilities, approvals, policy,
-//! lifecycle state, or authorization.
+//! This crate owns bounded canonical identity packets and extension interfaces.
+//! Concrete identity methods and cryptographic suites live in separate adapters.
 
 #![no_std]
 #![forbid(unsafe_code)]
 
 extern crate alloc;
 
-use alloc::vec::Vec;
+use alloc::{string::String, vec::Vec};
 use core::fmt;
 
-use auths_model::PrincipalId;
-use auths_ports::{SignatureInput, SignatureSuite as _};
-use auths_raw_key::{RawKeyDescriptor, RawKeyType};
-use auths_signature::Ed25519Suite;
-
-/// Maximum application message accepted by the identity protocol.
+pub const MAX_METHOD_ID_BYTES: usize = 128;
+pub const MAX_SUITE_ID_BYTES: usize = 128;
+pub const MAX_IDENTITY_ID_BYTES: usize = 512;
+pub const MAX_PUBLIC_KEY_BYTES: usize = 128 * 1024;
+pub const MAX_SIGNATURE_BYTES: usize = 128 * 1024;
 pub const MAX_IDENTITY_MESSAGE_BYTES: usize = 64 * 1024;
-/// Maximum encoded identity packet size.
-pub const MAX_IDENTITY_PACKET_BYTES: usize =
-    WIRE_MAGIC.len() + 1 + 2 + MAX_DESCRIPTOR_BYTES + 4 + MAX_IDENTITY_MESSAGE_BYTES + 64;
+pub const MAX_IDENTITY_PACKET_BYTES: usize = WIRE_MAGIC.len()
+    + 1
+    + 2
+    + MAX_METHOD_ID_BYTES
+    + 2
+    + MAX_IDENTITY_ID_BYTES
+    + 2
+    + MAX_SUITE_ID_BYTES
+    + 4
+    + MAX_PUBLIC_KEY_BYTES
+    + 4
+    + MAX_IDENTITY_MESSAGE_BYTES
+    + 4
+    + MAX_SIGNATURE_BYTES;
 
-const WIRE_MAGIC: &[u8] = b"AUTHS-IDENTITY\0\x01";
-const SIGNING_DOMAIN: &[u8] = b"AUTHS-IDENTITY-MESSAGE\0\x01";
+const WIRE_MAGIC: &[u8] = b"AUTHS-IDENTITY\0\x02";
+const SIGNING_DOMAIN: &[u8] = b"AUTHS-IDENTITY-MESSAGE\0\x02";
 const PUBLIC_IDENTITY_TAG: u8 = 1;
 const SIGNED_MESSAGE_TAG: u8 = 2;
-const ED25519_SIGNATURE_BYTES: usize = 64;
-const MAX_DESCRIPTOR_BYTES: usize = 256;
 
-/// Canonical self-certifying Ed25519 public identity.
+/// Algorithm-neutral public identity and verification key.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PublicIdentity {
-    descriptor: RawKeyDescriptor,
-    principal: PrincipalId,
-    public_key: [u8; 32],
+    method_id: String,
+    identity_id: String,
+    suite_id: String,
+    public_key: Vec<u8>,
 }
 
 impl PublicIdentity {
-    /// Constructs an identity from an Ed25519 verification key.
+    /// Constructs a structurally valid identity without choosing its method or
+    /// cryptographic implementation.
     ///
     /// # Errors
     ///
-    /// Returns a typed error if the canonical raw-key principal cannot be
-    /// represented.
-    pub fn from_ed25519(public_key: [u8; 32]) -> Result<Self, IdentityError> {
-        let descriptor = RawKeyDescriptor::new(RawKeyType::Ed25519, public_key.to_vec())
-            .map_err(|_| IdentityError::InvalidIdentity)?;
-        Self::from_descriptor(descriptor)
-    }
-
-    fn from_descriptor(descriptor: RawKeyDescriptor) -> Result<Self, IdentityError> {
-        if descriptor.suite() != auths_signature::ED25519_V1 || descriptor.public_key().len() != 32
-        {
-            return Err(IdentityError::InvalidIdentity);
+    /// Rejects empty, control-bearing, oversized, or empty-key fields.
+    pub fn new(
+        method_id: &str,
+        identity_id: &str,
+        suite_id: &str,
+        public_key: Vec<u8>,
+    ) -> Result<Self, IdentityError> {
+        validate_identifier(method_id, MAX_METHOD_ID_BYTES)?;
+        validate_identifier(identity_id, MAX_IDENTITY_ID_BYTES)?;
+        validate_identifier(suite_id, MAX_SUITE_ID_BYTES)?;
+        if public_key.is_empty() || public_key.len() > MAX_PUBLIC_KEY_BYTES {
+            return Err(IdentityError::InvalidPublicKey);
         }
-        let principal = descriptor
-            .principal()
-            .map_err(|_| IdentityError::InvalidIdentity)?;
-        let public_key = descriptor
-            .public_key()
-            .try_into()
-            .map_err(|_| IdentityError::InvalidIdentity)?;
         Ok(Self {
-            descriptor,
-            principal,
+            method_id: method_id.into(),
+            identity_id: identity_id.into(),
+            suite_id: suite_id.into(),
             public_key,
         })
     }
 
-    /// Returns the self-certifying Auths principal identifier.
     #[must_use]
-    pub const fn principal(&self) -> &PrincipalId {
-        &self.principal
+    pub fn method_id(&self) -> &str {
+        &self.method_id
     }
 
-    /// Returns the exact 32-byte Ed25519 verification key.
     #[must_use]
-    pub const fn public_key(&self) -> &[u8; 32] {
+    pub fn identity_id(&self) -> &str {
+        &self.identity_id
+    }
+
+    #[must_use]
+    pub fn suite_id(&self) -> &str {
+        &self.suite_id
+    }
+
+    #[must_use]
+    pub fn public_key(&self) -> &[u8] {
         &self.public_key
     }
 
-    fn descriptor_bytes(&self) -> Vec<u8> {
-        self.descriptor.encode()
+    /// Validates this descriptor with one caller-selected identity method.
+    ///
+    /// # Errors
+    ///
+    /// Rejects a mismatched method or method-specific validation failure.
+    pub fn validate<M: IdentityMethod + ?Sized>(&self, method: &M) -> Result<(), IdentityError> {
+        if method.method_id() != self.method_id {
+            return Err(IdentityError::UnsupportedIdentityMethod);
+        }
+        method.validate(self)
+    }
+
+    fn encode_descriptor(&self) -> Result<Vec<u8>, IdentityError> {
+        let mut output = Vec::new();
+        encode_text(&mut output, &self.method_id)?;
+        encode_text(&mut output, &self.identity_id)?;
+        encode_text(&mut output, &self.suite_id)?;
+        encode_bytes(&mut output, &self.public_key)?;
+        Ok(output)
     }
 }
 
-/// One exact message signed by an Ed25519 public identity.
+/// Replaceable identity-method implementation such as raw key, DID, or X.509.
+pub trait IdentityMethod {
+    fn method_id(&self) -> &str;
+    /// Validates the method-specific identity relationship.
+    ///
+    /// # Errors
+    ///
+    /// Returns a typed failure for an invalid or unsupported identity.
+    fn validate(&self, identity: &PublicIdentity) -> Result<(), IdentityError>;
+}
+
+/// Replaceable signature-suite implementation.
+pub trait SignatureVerifier {
+    fn suite_id(&self) -> &str;
+    /// Verifies one exact signing preimage using suite-specific bytes.
+    ///
+    /// # Errors
+    ///
+    /// Returns a typed key, signature, suite, or verification failure.
+    fn verify(
+        &self,
+        public_key: &[u8],
+        signing_preimage: &[u8],
+        signature: &[u8],
+    ) -> Result<(), IdentityError>;
+}
+
+/// One exact message signed by a public identity.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SignedIdentityMessage {
     identity: PublicIdentity,
     message: Vec<u8>,
-    signature: [u8; ED25519_SIGNATURE_BYTES],
+    signature: Vec<u8>,
 }
 
 impl SignedIdentityMessage {
-    /// Constructs a bounded signed-message carrier.
-    ///
-    /// This constructor does not claim that the supplied signature is valid;
-    /// call [`Self::verify`] at the trust boundary.
+    /// Constructs an unverified bounded signed-message carrier.
     ///
     /// # Errors
     ///
-    /// Returns [`IdentityError::InvalidMessage`] for an empty or oversized
-    /// application message.
+    /// Rejects an empty or oversized message or signature.
     pub fn new(
         identity: PublicIdentity,
         message: Vec<u8>,
-        signature: [u8; ED25519_SIGNATURE_BYTES],
+        signature: Vec<u8>,
     ) -> Result<Self, IdentityError> {
         validate_message(&message)?;
+        if signature.is_empty() || signature.len() > MAX_SIGNATURE_BYTES {
+            return Err(IdentityError::InvalidSignature);
+        }
         Ok(Self {
             identity,
             message,
@@ -118,82 +172,68 @@ impl SignedIdentityMessage {
         })
     }
 
-    /// Constructs the exact domain-separated bytes that custody must sign.
+    /// Constructs the exact domain-separated bytes for external custody.
     ///
     /// # Errors
     ///
-    /// Returns [`IdentityError::InvalidMessage`] for an empty or oversized
-    /// message.
+    /// Rejects invalid identity fields or an invalid message bound.
     pub fn signing_preimage(
         identity: &PublicIdentity,
         message: &[u8],
     ) -> Result<Vec<u8>, IdentityError> {
         validate_message(message)?;
-        let descriptor = identity.descriptor_bytes();
-        let descriptor_length =
-            u16::try_from(descriptor.len()).map_err(|_| IdentityError::InvalidIdentity)?;
-        let message_length =
-            u32::try_from(message.len()).map_err(|_| IdentityError::InvalidMessage)?;
+        let descriptor = identity.encode_descriptor()?;
         let mut output =
-            Vec::with_capacity(SIGNING_DOMAIN.len() + 2 + descriptor.len() + 4 + message.len());
+            Vec::with_capacity(SIGNING_DOMAIN.len() + 4 + descriptor.len() + 4 + message.len());
         output.extend_from_slice(SIGNING_DOMAIN);
-        output.extend_from_slice(&descriptor_length.to_be_bytes());
-        output.extend_from_slice(&descriptor);
-        output.extend_from_slice(&message_length.to_be_bytes());
-        output.extend_from_slice(message);
+        encode_bytes(&mut output, &descriptor)?;
+        encode_bytes(&mut output, message)?;
         Ok(output)
     }
 
-    /// Verifies the exact message with the canonical Ed25519 suite.
-    ///
-    /// Success authenticates these bytes to this public identity. It does not
-    /// authorize an action or provide freshness or replay protection.
+    /// Validates both the identity method and signature using caller-selected
+    /// implementations. Success authenticates bytes; it does not authorize.
     ///
     /// # Errors
     ///
-    /// Returns [`IdentityError::InvalidSignature`] when verification fails.
-    pub fn verify(&self) -> Result<(), IdentityError> {
+    /// Rejects method or suite mismatches and failed validation or verification.
+    pub fn verify<M, S>(&self, method: &M, suite: &S) -> Result<(), IdentityError>
+    where
+        M: IdentityMethod + ?Sized,
+        S: SignatureVerifier + ?Sized,
+    {
+        self.identity.validate(method)?;
+        if suite.suite_id() != self.identity.suite_id {
+            return Err(IdentityError::UnsupportedSignatureSuite);
+        }
         let preimage = Self::signing_preimage(&self.identity, &self.message)?;
-        let suite = Ed25519Suite::new().map_err(|_| IdentityError::InvalidSignature)?;
-        suite
-            .verify(SignatureInput {
-                verification_key: self.identity.public_key(),
-                signing_preimage: &preimage,
-                signature: &self.signature,
-            })
-            .map_err(|_| IdentityError::InvalidSignature)
+        suite.verify(&self.identity.public_key, &preimage, &self.signature)
     }
 
-    /// Returns the identity that signed the message.
     #[must_use]
     pub const fn identity(&self) -> &PublicIdentity {
         &self.identity
     }
 
-    /// Returns the exact application message bytes.
     #[must_use]
     pub fn message(&self) -> &[u8] {
         &self.message
     }
 
-    /// Returns the Ed25519 signature bytes.
     #[must_use]
-    pub const fn signature(&self) -> &[u8; ED25519_SIGNATURE_BYTES] {
+    pub fn signature(&self) -> &[u8] {
         &self.signature
     }
 }
 
-/// Closed, transport-independent identity message family.
+/// Closed packet shapes with open identity-method and signature-suite fields.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum IdentityPacket {
-    /// Carry a canonical public identity without an application signature.
     PublicIdentity(PublicIdentity),
-    /// Carry one application message signed by its public identity.
     SignedMessage(SignedIdentityMessage),
 }
 
 impl IdentityPacket {
-    /// Returns the public identity carried by either packet form.
     #[must_use]
     pub const fn identity(&self) -> &PublicIdentity {
         match self {
@@ -202,92 +242,92 @@ impl IdentityPacket {
         }
     }
 
-    /// Encodes the packet into canonical, transport-independent bytes.
+    /// Encodes canonical transport-independent bytes.
     ///
     /// # Errors
     ///
-    /// Returns a typed error when a field violates the protocol bounds.
+    /// Rejects fields or packets outside the declared resource bounds.
     pub fn encode(&self) -> Result<Vec<u8>, IdentityError> {
-        let descriptor = self.identity().descriptor_bytes();
-        let descriptor_length =
-            u16::try_from(descriptor.len()).map_err(|_| IdentityError::InvalidIdentity)?;
-        let mut output = Vec::with_capacity(MAX_DESCRIPTOR_BYTES + 128);
+        let descriptor = self.identity().encode_descriptor()?;
+        let mut output = Vec::new();
         output.extend_from_slice(WIRE_MAGIC);
         output.push(match self {
             Self::PublicIdentity(_) => PUBLIC_IDENTITY_TAG,
             Self::SignedMessage(_) => SIGNED_MESSAGE_TAG,
         });
-        output.extend_from_slice(&descriptor_length.to_be_bytes());
-        output.extend_from_slice(&descriptor);
+        encode_bytes(&mut output, &descriptor)?;
         if let Self::SignedMessage(message) = self {
-            validate_message(message.message())?;
-            let message_length = u32::try_from(message.message().len())
-                .map_err(|_| IdentityError::InvalidMessage)?;
-            output.extend_from_slice(&message_length.to_be_bytes());
-            output.extend_from_slice(message.message());
-            output.extend_from_slice(message.signature());
+            encode_bytes(&mut output, message.message())?;
+            encode_bytes(&mut output, message.signature())?;
+        }
+        if output.len() > MAX_IDENTITY_PACKET_BYTES {
+            return Err(IdentityError::Limit);
         }
         Ok(output)
     }
 
-    /// Decodes one complete canonical identity packet.
+    /// Decodes one complete canonical packet.
     ///
     /// # Errors
     ///
-    /// Rejects malformed, non-canonical, unknown-version, oversized, or
-    /// trailing input.
+    /// Rejects malformed, non-canonical, unknown, trailing, or oversized input.
     pub fn decode(input: &[u8]) -> Result<Self, IdentityError> {
-        if !input.starts_with(WIRE_MAGIC) {
+        if input.len() > MAX_IDENTITY_PACKET_BYTES || !input.starts_with(WIRE_MAGIC) {
             return Err(IdentityError::Codec);
         }
         let mut cursor = WIRE_MAGIC.len();
         let tag = take(input, &mut cursor, 1)?[0];
-        let descriptor_length = usize::from(u16::from_be_bytes(
-            take(input, &mut cursor, 2)?
-                .try_into()
-                .map_err(|_| IdentityError::Codec)?,
-        ));
-        if descriptor_length == 0 || descriptor_length > MAX_DESCRIPTOR_BYTES {
-            return Err(IdentityError::Limit);
-        }
-        let descriptor_bytes = take(input, &mut cursor, descriptor_length)?;
-        let descriptor = RawKeyDescriptor::decode(descriptor_bytes)
-            .map_err(|_| IdentityError::InvalidIdentity)?;
-        if descriptor.encode() != descriptor_bytes {
+        let descriptor = decode_bytes(input, &mut cursor, descriptor_maximum())?;
+        let identity = decode_descriptor(descriptor)?;
+        let packet = match tag {
+            PUBLIC_IDENTITY_TAG => Self::PublicIdentity(identity),
+            SIGNED_MESSAGE_TAG => {
+                let message =
+                    decode_bytes(input, &mut cursor, MAX_IDENTITY_MESSAGE_BYTES)?.to_vec();
+                let signature = decode_bytes(input, &mut cursor, MAX_SIGNATURE_BYTES)?.to_vec();
+                Self::SignedMessage(SignedIdentityMessage::new(identity, message, signature)?)
+            }
+            _ => return Err(IdentityError::Protocol),
+        };
+        if cursor != input.len() || packet.encode()?.as_slice() != input {
             return Err(IdentityError::Codec);
         }
-        let identity = PublicIdentity::from_descriptor(descriptor)?;
-        match tag {
-            PUBLIC_IDENTITY_TAG => {
-                if cursor != input.len() {
-                    return Err(IdentityError::Codec);
-                }
-                Ok(Self::PublicIdentity(identity))
-            }
-            SIGNED_MESSAGE_TAG => {
-                let message_length = usize::try_from(u32::from_be_bytes(
-                    take(input, &mut cursor, 4)?
-                        .try_into()
-                        .map_err(|_| IdentityError::Codec)?,
-                ))
-                .map_err(|_| IdentityError::Limit)?;
-                if message_length == 0 || message_length > MAX_IDENTITY_MESSAGE_BYTES {
-                    return Err(IdentityError::Limit);
-                }
-                let message = take(input, &mut cursor, message_length)?.to_vec();
-                let signature = take(input, &mut cursor, ED25519_SIGNATURE_BYTES)?
-                    .try_into()
-                    .map_err(|_| IdentityError::Codec)?;
-                if cursor != input.len() {
-                    return Err(IdentityError::Codec);
-                }
-                Ok(Self::SignedMessage(SignedIdentityMessage::new(
-                    identity, message, signature,
-                )?))
-            }
-            _ => Err(IdentityError::Protocol),
-        }
+        Ok(packet)
     }
+}
+
+fn decode_descriptor(input: &[u8]) -> Result<PublicIdentity, IdentityError> {
+    let mut cursor = 0;
+    let method = decode_text(input, &mut cursor, MAX_METHOD_ID_BYTES)?;
+    let identity = decode_text(input, &mut cursor, MAX_IDENTITY_ID_BYTES)?;
+    let suite = decode_text(input, &mut cursor, MAX_SUITE_ID_BYTES)?;
+    let key = decode_bytes(input, &mut cursor, MAX_PUBLIC_KEY_BYTES)?.to_vec();
+    if cursor != input.len() {
+        return Err(IdentityError::Codec);
+    }
+    PublicIdentity::new(method, identity, suite, key)
+}
+
+const fn descriptor_maximum() -> usize {
+    2 + MAX_METHOD_ID_BYTES
+        + 2
+        + MAX_IDENTITY_ID_BYTES
+        + 2
+        + MAX_SUITE_ID_BYTES
+        + 4
+        + MAX_PUBLIC_KEY_BYTES
+}
+
+fn validate_identifier(value: &str, maximum: usize) -> Result<(), IdentityError> {
+    if value.is_empty()
+        || value.len() > maximum
+        || value
+            .bytes()
+            .any(|byte| byte.is_ascii_control() || byte.is_ascii_whitespace())
+    {
+        return Err(IdentityError::InvalidIdentity);
+    }
+    Ok(())
 }
 
 fn validate_message(message: &[u8]) -> Result<(), IdentityError> {
@@ -297,6 +337,53 @@ fn validate_message(message: &[u8]) -> Result<(), IdentityError> {
     Ok(())
 }
 
+fn encode_text(output: &mut Vec<u8>, value: &str) -> Result<(), IdentityError> {
+    let length = u16::try_from(value.len()).map_err(|_| IdentityError::Limit)?;
+    output.extend_from_slice(&length.to_be_bytes());
+    output.extend_from_slice(value.as_bytes());
+    Ok(())
+}
+
+fn encode_bytes(output: &mut Vec<u8>, value: &[u8]) -> Result<(), IdentityError> {
+    let length = u32::try_from(value.len()).map_err(|_| IdentityError::Limit)?;
+    output.extend_from_slice(&length.to_be_bytes());
+    output.extend_from_slice(value);
+    Ok(())
+}
+
+fn decode_text<'a>(
+    input: &'a [u8],
+    cursor: &mut usize,
+    maximum: usize,
+) -> Result<&'a str, IdentityError> {
+    let length = usize::from(u16::from_be_bytes(
+        take(input, cursor, 2)?
+            .try_into()
+            .map_err(|_| IdentityError::Codec)?,
+    ));
+    if length == 0 || length > maximum {
+        return Err(IdentityError::Limit);
+    }
+    core::str::from_utf8(take(input, cursor, length)?).map_err(|_| IdentityError::Codec)
+}
+
+fn decode_bytes<'a>(
+    input: &'a [u8],
+    cursor: &mut usize,
+    maximum: usize,
+) -> Result<&'a [u8], IdentityError> {
+    let length = usize::try_from(u32::from_be_bytes(
+        take(input, cursor, 4)?
+            .try_into()
+            .map_err(|_| IdentityError::Codec)?,
+    ))
+    .map_err(|_| IdentityError::Limit)?;
+    if length == 0 || length > maximum {
+        return Err(IdentityError::Limit);
+    }
+    take(input, cursor, length)
+}
+
 fn take<'a>(input: &'a [u8], cursor: &mut usize, length: usize) -> Result<&'a [u8], IdentityError> {
     let end = cursor.checked_add(length).ok_or(IdentityError::Limit)?;
     let value = input.get(*cursor..end).ok_or(IdentityError::Codec)?;
@@ -304,29 +391,30 @@ fn take<'a>(input: &'a [u8], cursor: &mut usize, length: usize) -> Result<&'a [u
     Ok(value)
 }
 
-/// Typed identity model, signature, and canonical-wire failure.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum IdentityError {
-    /// Public identity is malformed or is not Ed25519.
     InvalidIdentity,
-    /// Application message is empty or exceeds its hard bound.
+    InvalidPublicKey,
     InvalidMessage,
-    /// Ed25519 verification failed.
     InvalidSignature,
-    /// Wire message is malformed or non-canonical.
+    UnsupportedIdentityMethod,
+    UnsupportedSignatureSuite,
+    VerificationFailed,
     Codec,
-    /// Declared or actual input exceeds a hard bound.
     Limit,
-    /// Protocol version or packet tag is unsupported.
     Protocol,
 }
 
 impl fmt::Display for IdentityError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(match self {
-            Self::InvalidIdentity => "invalid Ed25519 public identity",
+            Self::InvalidIdentity => "invalid public identity",
+            Self::InvalidPublicKey => "invalid public verification key",
             Self::InvalidMessage => "invalid identity message length",
-            Self::InvalidSignature => "identity message signature is invalid",
+            Self::InvalidSignature => "invalid identity signature encoding",
+            Self::UnsupportedIdentityMethod => "unsupported identity method",
+            Self::UnsupportedSignatureSuite => "unsupported signature suite",
+            Self::VerificationFailed => "identity signature verification failed",
             Self::Codec => "invalid canonical identity message",
             Self::Limit => "identity message resource limit exceeded",
             Self::Protocol => "unsupported identity protocol",
@@ -339,56 +427,70 @@ impl core::error::Error for IdentityError {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ed25519_dalek::{Signer as _, SigningKey};
 
-    fn signed(message: &[u8]) -> SignedIdentityMessage {
-        let key = SigningKey::from_bytes(&[7; 32]);
-        let identity = PublicIdentity::from_ed25519(key.verifying_key().to_bytes()).unwrap();
-        let preimage = SignedIdentityMessage::signing_preimage(&identity, message).unwrap();
-        SignedIdentityMessage::new(identity, message.to_vec(), key.sign(&preimage).to_bytes())
-            .unwrap()
+    struct AnyMethod;
+    impl IdentityMethod for AnyMethod {
+        fn method_id(&self) -> &'static str {
+            "example-method-v1"
+        }
+        fn validate(&self, identity: &PublicIdentity) -> Result<(), IdentityError> {
+            (identity.identity_id() == "example:alice")
+                .then_some(())
+                .ok_or(IdentityError::InvalidIdentity)
+        }
+    }
+
+    struct VariableLengthSuite;
+    impl SignatureVerifier for VariableLengthSuite {
+        fn suite_id(&self) -> &'static str {
+            "example-pq-v1"
+        }
+        fn verify(
+            &self,
+            key: &[u8],
+            preimage: &[u8],
+            signature: &[u8],
+        ) -> Result<(), IdentityError> {
+            (key.len() == 4096 && signature == preimage.get(..96).unwrap_or(preimage))
+                .then_some(())
+                .ok_or(IdentityError::VerificationFailed)
+        }
     }
 
     #[test]
-    fn public_identity_round_trip_is_canonical_without_a_transport() {
-        let packet = IdentityPacket::PublicIdentity(PublicIdentity::from_ed25519([3; 32]).unwrap());
-        assert_eq!(
-            IdentityPacket::decode(&packet.encode().unwrap()).unwrap(),
-            packet
-        );
-    }
-
-    #[test]
-    fn signed_message_verifies_and_binds_every_byte_without_a_transport() {
-        let signed = signed(b"hello anywhere");
-        signed.verify().unwrap();
-        let packet = IdentityPacket::SignedMessage(signed.clone());
-        assert_eq!(
-            IdentityPacket::decode(&packet.encode().unwrap()).unwrap(),
-            packet
-        );
-        let tampered = SignedIdentityMessage::new(
-            signed.identity().clone(),
-            b"hello anywherE".to_vec(),
-            *signed.signature(),
+    fn variable_length_third_party_methods_and_suites_require_no_core_changes() {
+        let identity = PublicIdentity::new(
+            "example-method-v1",
+            "example:alice",
+            "example-pq-v1",
+            alloc::vec![7; 4096],
         )
         .unwrap();
-        assert_eq!(tampered.verify(), Err(IdentityError::InvalidSignature));
+        let message = b"algorithm neutral";
+        let preimage = SignedIdentityMessage::signing_preimage(&identity, message).unwrap();
+        let signed =
+            SignedIdentityMessage::new(identity, message.to_vec(), preimage[..96].to_vec())
+                .unwrap();
+        signed.verify(&AnyMethod, &VariableLengthSuite).unwrap();
+        let packet = IdentityPacket::SignedMessage(signed);
+        assert_eq!(
+            IdentityPacket::decode(&packet.encode().unwrap()).unwrap(),
+            packet
+        );
     }
 
     #[test]
-    fn decoder_rejects_trailing_and_oversized_input() {
-        let mut encoded = IdentityPacket::SignedMessage(signed(b"hello"))
-            .encode()
-            .unwrap();
-        encoded.push(0);
-        assert_eq!(IdentityPacket::decode(&encoded), Err(IdentityError::Codec));
+    fn unknown_method_or_suite_fails_closed() {
+        let identity = PublicIdentity::new(
+            "other-method-v1",
+            "example:alice",
+            "example-pq-v1",
+            alloc::vec![7; 32],
+        )
+        .unwrap();
         assert_eq!(
-            SignedIdentityMessage::signing_preimage(
-                &PublicIdentity::from_ed25519([1; 32]).unwrap(),
-                &alloc::vec![0; MAX_IDENTITY_MESSAGE_BYTES + 1],
-            ),
-            Err(IdentityError::InvalidMessage)
+            identity.validate(&AnyMethod),
+            Err(IdentityError::UnsupportedIdentityMethod)
         );
     }
 }

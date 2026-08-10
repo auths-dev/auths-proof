@@ -559,20 +559,15 @@ dependencies = [
 [[package]]
 name = "auths-identity"
 version = "1.0.0-rc.1"
-dependencies = [
- "auths-model",
- "auths-ports",
- "auths-raw-key",
- "auths-signature",
- "ed25519-dalek 2.2.0",
-]
 
 [[package]]
 name = "auths-identity-iroh-demo"
 version = "1.0.0-rc.1"
 dependencies = [
  "auths-identity",
+ "auths-identity-raw-key",
  "auths-iroh",
+ "auths-signature-ed25519",
  "axum",
  "ed25519-dalek 2.2.0",
  "getrandom 0.3.4",
@@ -583,6 +578,15 @@ dependencies = [
  "tokio",
  "tower",
  "tower-http 0.7.0",
+]
+
+[[package]]
+name = "auths-identity-raw-key"
+version = "1.0.0-rc.1"
+dependencies = [
+ "auths-identity",
+ "base64ct",
+ "sha2 0.10.9",
 ]
 
 [[package]]
@@ -1339,6 +1343,14 @@ dependencies = [
  "auths-ports",
  "ed25519-dalek 2.2.0",
  "p256",
+]
+
+[[package]]
+name = "auths-signature-ed25519"
+version = "1.0.0-rc.1"
+dependencies = [
+ "auths-identity",
+ "ed25519-dalek 2.2.0",
 ]
 
 [[package]]

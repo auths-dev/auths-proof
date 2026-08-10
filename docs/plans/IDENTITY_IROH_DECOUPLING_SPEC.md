@@ -4,8 +4,8 @@ Issue: #98
 
 ## UX
 
-The primary user is a team that already uses Ed25519 and Iroh and wants an
-Auths-compatible public identity without adopting authorization concepts.
+The primary user is a team with any identity method or signature suite that
+wants canonical identity exchange without adopting authorization concepts.
 
 The demo is a single browser workbench with three experiments:
 
@@ -42,45 +42,47 @@ does not authorize an application action.
               v
 +----------------------------+
 | Native Axum demo           |
-| ephemeral Ed25519 keys     |
+| selects proof adapters     |
 +-------------+--------------+
               | real loopback Iroh exchange
               v
 +---------------------+       +-----------------------+
 | auths-identity      |       | auths-iroh            |
-| identity bytes      |       | bounded opaque bytes  |
+| neutral bytes/ports |       | bounded opaque bytes  |
 +----------+----------+       +-----------+-----------+
            |                              |
            v                              v
 +----------+----------+          +--------------------+
-| raw key + signatures|          | Iroh + Tokio       |
+| optional adapters  |          | Iroh + Tokio       |
 +---------------------+          +--------------------+
 
 No dependency edge reaches proof grants, capabilities, approvals, product
 runtimes, stores, lifecycle services, or governance packages.
 ```
 
-`auths-identity` owns the transport-independent identity model, canonical
-bytes, signing preimage, and verification. `auths-iroh` owns only caller-bound
+`auths-identity` owns the transport- and algorithm-independent identity model,
+canonical bytes, signing preimage, and extension ports. Optional adapters own
+identity derivation and cryptographic verification. `auths-iroh` owns caller-bound
 ALPN negotiation, framed opaque bytes, timeouts, and peer observations. Neither
 package depends on the other. The demo owns their composition, the identity
 ALPN, ephemeral signing keys, and browser presentation.
 
-Independent architecture boundaries pin identity to four lower-level core
-packages and Iroh transport to zero workspace dependencies. CI checks both
-complete transitive closures, so hidden semantic coupling fails before build
-and test fan-out.
+Independent architecture boundaries pin identity and Iroh transport to zero
+workspace dependencies. Optional identity adapters may reach only the neutral
+identity crate. CI checks the complete transitive closures.
 
 ## APIs
 
 ### Rust library
 
-- `PublicIdentity::from_ed25519([u8; 32])`
-- `PublicIdentity::principal()`
+- `PublicIdentity::new(method_id, identity_id, suite_id, public_key)`
+- `PublicIdentity::{method_id, identity_id, suite_id, public_key}`
+- `IdentityMethod::validate(identity)`
+- `SignatureVerifier::verify(public_key, preimage, signature)`
 - `PublicIdentity::public_key()`
 - `SignedIdentityMessage::signing_preimage(identity, message)`
-- `SignedIdentityMessage::new(identity, message, [u8; 64])`
-- `SignedIdentityMessage::verify()`
+- `SignedIdentityMessage::new(identity, message, signature)`
+- `SignedIdentityMessage::verify(identity_method, signature_suite)`
 - `IdentityPacket::{PublicIdentity, SignedMessage}`
 - `IdentityPacket::encode()` / `IdentityPacket::decode(bytes)`
 - `IrohConfig::new(alpn, max_frame_bytes, timeout, stream_initiator)`
@@ -89,12 +91,13 @@ and test fan-out.
 - `IrohChannel::send(bytes)` / `IrohChannel::receive()`
 - `IrohChannel::finish_send()` / `IrohChannel::finish_send_and_wait()`
 
-The identity signing preimage is domain separated and binds the canonical raw-key
-descriptor plus the exact message bytes. Message and frame sizes are bounded.
+The identity signing preimage is domain separated and binds the method ID,
+identity ID, suite ID, opaque public key, and exact message bytes. Key,
+signature, message, and frame sizes are bounded without assuming fixed lengths.
 Malformed, oversized, non-canonical, unknown-version, or invalid-signature
 input fails with a typed error. The generic Iroh component never decodes these
 bytes and supports either peer initiating a multi-frame exchange. Transport
-endpoint identity is reported separately from the exchanged Ed25519 identity
+endpoint identity is reported separately from the exchanged application identity
 and never upgrades it into authorization.
 
 ### Demo HTTP API

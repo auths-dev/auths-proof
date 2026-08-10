@@ -1,13 +1,18 @@
 [package]
-name = "auths-identity"
+name = "auths-identity-raw-key"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
 repository.workspace = true
 homepage.workspace = true
-description = "Transport- and algorithm-independent public identities and signed messages"
+description = "Algorithm-neutral self-certifying raw-key identities"
 publish = false
+
+[dependencies]
+auths-identity.workspace = true
+base64ct.workspace = true
+sha2.workspace = true
 
 [lints]
 workspace = true

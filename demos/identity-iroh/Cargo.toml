@@ -6,12 +6,14 @@ license.workspace = true
 rust-version.workspace = true
 repository.workspace = true
 homepage.workspace = true
-description = "Interactive capability-free Ed25519 identity exchange over Iroh"
+description = "Interactive capability-free algorithm-neutral identity exchange over Iroh"
 publish = false
 
 [dependencies]
 auths-identity.workspace = true
+auths-identity-raw-key.workspace = true
 auths-iroh.workspace = true
+auths-signature-ed25519.workspace = true
 axum.workspace = true
 ed25519-dalek.workspace = true
 getrandom.workspace = true

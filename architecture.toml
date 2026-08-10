@@ -71,6 +71,7 @@ no_std_packages = [
   "auths-did-web",
   "auths-hsm-attested",
   "auths-identity",
+  "auths-identity-raw-key",
   "auths-model",
   "auths-multikey",
   "auths-ports",
@@ -78,6 +79,7 @@ no_std_packages = [
   "auths-raw-key",
   "auths-registries",
   "auths-signature",
+  "auths-signature-ed25519",
   "auths-spiffe-x509",
   "auths-verifier",
   "auths-webauthn",
@@ -87,6 +89,7 @@ no_std_packages = [
 auths-algebra-kernel = "core"
 auths-apps-testkit = "demos"
 auths-identity = "core"
+auths-identity-raw-key = "core"
 auths-identity-iroh-demo = "demos"
 auths-iroh = "exchange"
 auths-bench-model = "demos"
@@ -177,6 +180,7 @@ auths-runtime = "product"
 auths = "core"
 auths-sdk = "product"
 auths-signature = "core"
+auths-signature-ed25519 = "core"
 auths-spiffe-x509 = "core"
 auths-stores = "product"
 auths-testkit = "core"
@@ -186,12 +190,14 @@ xtask = "tooling"
 
 [dependency_boundaries.identity]
 roots = ["auths-identity"]
-allowed_workspace_dependencies = [
-  "auths-model",
-  "auths-ports",
-  "auths-raw-key",
-  "auths-signature",
+allowed_workspace_dependencies = []
+
+[dependency_boundaries.identity-adapters]
+roots = [
+  "auths-identity-raw-key",
+  "auths-signature-ed25519",
 ]
+allowed_workspace_dependencies = ["auths-identity"]
 
 [dependency_boundaries.iroh-transport]
 roots = ["auths-iroh"]

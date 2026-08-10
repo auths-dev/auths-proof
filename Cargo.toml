@@ -22,6 +22,8 @@ members = [
     "core/crates/auths-multikey",
     "core/testkit/auths-testkit",
     "core/adapters/auths-raw-key",
+    "core/adapters/auths-identity-raw-key",
+    "core/adapters/auths-signature-ed25519",
     "core/adapters/auths-did-key",
     "core/adapters/auths-did-keri",
     "core/adapters/auths-did-web",
@@ -118,6 +120,8 @@ auths-ports = { version = "1.0.0-rc.1", path = "core/crates/auths-ports", defaul
 auths-registries = { version = "1.0.0-rc.1", path = "core/crates/auths-registries", default-features = false }
 auths-signature = { version = "1.0.0-rc.1", path = "core/crates/auths-signature", default-features = false }
 auths-identity = { version = "1.0.0-rc.1", path = "core/crates/auths-identity", default-features = false }
+auths-identity-raw-key = { version = "1.0.0-rc.1", path = "core/adapters/auths-identity-raw-key" }
+auths-signature-ed25519 = { version = "1.0.0-rc.1", path = "core/adapters/auths-signature-ed25519" }
 auths-algebra-kernel = { version = "1.0.0-rc.1", path = "core/crates/auths-algebra-kernel", default-features = false }
 auths-authority = { version = "1.0.0-rc.1", path = "core/crates/auths-authority", default-features = false }
 auths-composition = { version = "1.0.0-rc.1", path = "core/crates/auths-composition", default-features = false }

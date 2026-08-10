@@ -8,7 +8,11 @@ scope_layers = ["bindings", "demos", "product"]
 kind = "cargo"
 layer = "demos"
 path = "demos/identity-iroh"
-core_apis = ["auths-identity"]
+core_apis = [
+  "auths-identity",
+  "auths-identity-raw-key",
+  "auths-signature-ed25519",
+]
 protocol_versions = ["auths-identity/v1"]
 wire_objects = ["PublicIdentity", "SignedIdentityMessage"]
 fixture_suites = []

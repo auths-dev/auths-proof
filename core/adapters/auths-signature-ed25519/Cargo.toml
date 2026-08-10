@@ -1,13 +1,17 @@
 [package]
-name = "auths-identity"
+name = "auths-signature-ed25519"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
 repository.workspace = true
 homepage.workspace = true
-description = "Transport- and algorithm-independent public identities and signed messages"
+description = "Standalone Ed25519 identity signature adapter"
 publish = false
+
+[dependencies]
+auths-identity.workspace = true
+ed25519-dalek.workspace = true
 
 [lints]
 workspace = true

@@ -3,7 +3,9 @@ use std::{env, net::SocketAddr, sync::Arc, time::Duration};
 use auths_identity::{
     IdentityError, IdentityPacket, MAX_IDENTITY_PACKET_BYTES, PublicIdentity, SignedIdentityMessage,
 };
+use auths_identity_raw_key::RawKeyIdentityMethod;
 use auths_iroh::{IrohChannel, IrohConfig, IrohError, PathObservation, StreamInitiator};
+use auths_signature_ed25519::{ED25519_V1, Ed25519Verifier};
 use axum::{
     Json, Router,
     extract::{DefaultBodyLimit, State},
@@ -75,8 +77,11 @@ struct AppState {
 /// binding, or direct local addressing is unavailable.
 pub async fn app(config: AppConfig) -> Result<Router, StartupError> {
     let server_signing = Arc::new(ephemeral_signing_key()?);
-    let server_identity = PublicIdentity::from_ed25519(server_signing.verifying_key().to_bytes())
-        .map_err(|_| StartupError)?;
+    let server_identity = RawKeyIdentityMethod::identity(
+        ED25519_V1,
+        server_signing.verifying_key().to_bytes().to_vec(),
+    )
+    .map_err(|_| StartupError)?;
     let transport_config = IrohConfig::new(
         Arc::<[u8]>::from(IDENTITY_ALPN_V1),
         MAX_IDENTITY_PACKET_BYTES,
@@ -173,6 +178,8 @@ async fn health(State(state): State<AppState>) -> Json<serde_json::Value> {
 struct StatusResponse {
     schema: &'static str,
     server_principal: String,
+    server_identity_method: String,
+    server_signature_suite: String,
     server_public_key: String,
     server_iroh_endpoint_id: String,
     capability_api_required: bool,
@@ -182,7 +189,9 @@ struct StatusResponse {
 async fn status(State(state): State<AppState>) -> Json<StatusResponse> {
     Json(StatusResponse {
         schema: API_SCHEMA,
-        server_principal: state.server_identity.principal().as_str().into(),
+        server_principal: state.server_identity.identity_id().into(),
+        server_identity_method: state.server_identity.method_id().into(),
+        server_signature_suite: state.server_identity.suite_id().into(),
         server_public_key: hex::encode(state.server_identity.public_key()),
         server_iroh_endpoint_id: hex::encode(state.server_endpoint.id().as_bytes()),
         capability_api_required: false,
@@ -238,6 +247,8 @@ struct ExchangeResponse {
 #[derive(Serialize)]
 struct IdentityView {
     principal: String,
+    method: String,
+    suite: String,
     public_key: String,
 }
 
@@ -263,8 +274,11 @@ async fn exchange(
     validate_demo_message(&message)?;
 
     let client_signing = Arc::new(ephemeral_signing_key().map_err(|_| ApiError::internal())?);
-    let client_identity = PublicIdentity::from_ed25519(client_signing.verifying_key().to_bytes())
-        .map_err(|_| ApiError::internal())?;
+    let client_identity = RawKeyIdentityMethod::identity(
+        ED25519_V1,
+        client_signing.verifying_key().to_bytes().to_vec(),
+    )
+    .map_err(|_| ApiError::internal())?;
     let outbound = packet_for_experiment(experiment, &client_signing, &client_identity, &message)?;
     let client_endpoint = Endpoint::builder(presets::N0)
         .relay_mode(RelayMode::Disabled)
@@ -358,7 +372,7 @@ fn packet_for_experiment(
         SignedIdentityMessage::new(
             identity.clone(),
             message.as_bytes().to_vec(),
-            signing.sign(&preimage).to_bytes(),
+            signing.sign(&preimage).to_bytes().to_vec(),
         )
     } else {
         let preimage = SignedIdentityMessage::signing_preimage(identity, message.as_bytes())
@@ -366,7 +380,7 @@ fn packet_for_experiment(
         SignedIdentityMessage::new(
             identity.clone(),
             message.as_bytes().to_vec(),
-            signing.sign(&preimage).to_bytes(),
+            signing.sign(&preimage).to_bytes().to_vec(),
         )
     }
     .map_err(ApiError::identity)?;
@@ -387,14 +401,16 @@ fn response_packet(
     Ok(IdentityPacket::SignedMessage(SignedIdentityMessage::new(
         identity.clone(),
         message.to_vec(),
-        signing.sign(&preimage).to_bytes(),
+        signing.sign(&preimage).to_bytes().to_vec(),
     )?))
 }
 
 fn verify_packet(packet: &IdentityPacket) -> bool {
     match packet {
         IdentityPacket::PublicIdentity(_) => false,
-        IdentityPacket::SignedMessage(message) => message.verify().is_ok(),
+        IdentityPacket::SignedMessage(message) => message
+            .verify(&RawKeyIdentityMethod, &Ed25519Verifier)
+            .is_ok(),
     }
 }
 
@@ -421,7 +437,9 @@ fn result_copy(experiment: Experiment, verified: bool) -> (&'static str, &'stati
 
 fn identity_view(identity: &PublicIdentity) -> IdentityView {
     IdentityView {
-        principal: identity.principal().as_str().into(),
+        principal: identity.identity_id().into(),
+        method: identity.method_id().into(),
+        suite: identity.suite_id().into(),
         public_key: hex::encode(identity.public_key()),
     }
 }

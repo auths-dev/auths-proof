@@ -59,8 +59,11 @@ Target packages:
 - `auths-author`: external-signing requests with no custody;
 - `auths-multikey`: the closed canonical Ed25519/P-256 Multikey subset;
 - `auths-raw-key`: self-certifying raw-key evidence;
-- `auths-identity`: transport-independent Ed25519 public identities and signed
-  messages;
+- `auths-identity`: transport- and algorithm-independent identity packets and
+  extension ports;
+- `auths-identity-raw-key`: optional self-certifying raw-key identity adapter;
+- `auths-signature-ed25519`: optional standalone Ed25519 identity-signature
+  adapter;
 - `auths-iroh`: semantics-free bounded byte exchange over Iroh;
 - `auths-did-key`: self-certifying `did:key` evidence;
 - `auths-did-keri`: bounded offline KEL replay with threshold and rotation
@@ -77,12 +80,13 @@ Target packages:
 
 ## Identity without authorization
 
-Teams can adopt Auths raw-key identities and Iroh transport without loading a
-grant, capability, approval, policy, lifecycle, store, or product runtime. The
-`auths-identity` exchanges canonical Ed25519 public identities and optionally
-verifies an exact signed application message. `auths-iroh` carries arbitrary
-bounded bytes under an application-selected ALPN. Neither component depends on
-the other, and neither manufactures an authorization verdict.
+Teams can adopt algorithm-neutral identity packets and Iroh transport without
+loading a grant, capability, approval, policy, lifecycle, store, or product
+runtime. `auths-identity` has zero workspace and cryptographic dependencies;
+callers supply identity-method and signature-suite implementations. The
+repository includes raw-key and Ed25519 adapters only as proofs of that port.
+`auths-iroh` carries arbitrary bounded bytes under an application-selected
+ALPN. Neither component depends on the other or manufactures authorization.
 
 Run the full native backend and browser workbench with:
 
@@ -90,10 +94,9 @@ Run the full native backend and browser workbench with:
 cargo run -p auths-identity-iroh-demo
 ```
 
-Then open `http://localhost:8080`. Architecture CI independently pins identity
-to the model, ports, raw-key, and signature packages, and pins Iroh transport
-to zero workspace dependencies. This prevents either component from acquiring
-capability or approval coupling.
+Then open `http://localhost:8080`. Architecture CI pins both the neutral
+identity port and Iroh transport to zero workspace dependencies, while each
+optional identity adapter may depend only on `auths-identity`.
 
 Focused validation:
 

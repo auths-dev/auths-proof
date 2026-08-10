@@ -30,6 +30,7 @@ digraph auths_architecture {
   "auths-hsm-attested" [group="core"];
   "auths-identity" [group="core"];
   "auths-identity-iroh-demo" [group="demos"];
+  "auths-identity-raw-key" [group="core"];
   "auths-iroh" [group="exchange"];
   "auths-kubernetes" [group="product"];
   "auths-kubernetes-demo" [group="demos"];
@@ -79,6 +80,7 @@ digraph auths_architecture {
   "auths-runtime" [group="product"];
   "auths-sdk" [group="product"];
   "auths-signature" [group="core"];
+  "auths-signature-ed25519" [group="core"];
   "auths-spiffe-x509" [group="core"];
   "auths-stores" [group="product"];
   "auths-stripe" [group="product"];
@@ -211,12 +213,11 @@ digraph auths_architecture {
   "auths-github-demo" -> "auths-stores" [label="normal"];
   "auths-hsm-attested" -> "auths-model" [label="normal"];
   "auths-hsm-attested" -> "auths-ports" [label="normal"];
-  "auths-identity" -> "auths-model" [label="normal"];
-  "auths-identity" -> "auths-ports" [label="normal"];
-  "auths-identity" -> "auths-raw-key" [label="normal"];
-  "auths-identity" -> "auths-signature" [label="normal"];
   "auths-identity-iroh-demo" -> "auths-identity" [label="normal"];
+  "auths-identity-iroh-demo" -> "auths-identity-raw-key" [label="normal"];
   "auths-identity-iroh-demo" -> "auths-iroh" [label="normal"];
+  "auths-identity-iroh-demo" -> "auths-signature-ed25519" [label="normal"];
+  "auths-identity-raw-key" -> "auths-identity" [label="normal"];
   "auths-kubernetes" -> "auths-bounded-policy" [label="normal"];
   "auths-kubernetes" -> "auths-lifecycle" [label="normal"];
   "auths-kubernetes" -> "auths-model" [label="normal"];
@@ -468,6 +469,7 @@ digraph auths_architecture {
   "auths-sdk" -> "auths-verifier" [label="normal"];
   "auths-signature" -> "auths-model" [label="normal"];
   "auths-signature" -> "auths-ports" [label="normal"];
+  "auths-signature-ed25519" -> "auths-identity" [label="normal"];
   "auths-spiffe-x509" -> "auths-model" [label="normal"];
   "auths-spiffe-x509" -> "auths-ports" [label="normal"];
   "auths-stores" -> "auths-bounded-policy" [label="normal"];
