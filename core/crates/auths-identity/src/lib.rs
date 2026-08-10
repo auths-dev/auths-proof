@@ -11,6 +11,27 @@ extern crate alloc;
 use alloc::{string::String, vec::Vec};
 use core::fmt;
 
+/// First supported Auths identity product-protocol compatibility family.
+pub const IDENTITY_PROTOCOL_V1: &str = "auths-identity/v1";
+/// Stable semantic model carried by the first product-protocol family.
+pub const IDENTITY_MODEL_VERSION: u16 = 1;
+/// Canonical compact wire revision selected by `auths-identity/v1`.
+///
+/// Wire revision 1 was experimental and unpublished. Product protocol V1 deliberately freezes
+/// the corrected revision 2 bytes rather than renumbering them during release hardening.
+pub const IDENTITY_WIRE_VERSION: u8 = 2;
+/// Signing-preimage revision selected by `auths-identity/v1`.
+pub const IDENTITY_SIGNING_DOMAIN_VERSION: u8 = 2;
+/// Registered application-protocol label used by the reference identity/Iroh composition.
+///
+/// Generic identity interoperability does not require Iroh or this label; callers using another
+/// transport select an application protocol appropriate to that transport.
+pub const IDENTITY_APPLICATION_PROTOCOL_V1: &str = "/auths/identity/1";
+/// Exact canonical packet prefix for identity wire revision 2.
+pub const IDENTITY_WIRE_MAGIC_V2: &[u8] = b"AUTHS-IDENTITY\0\x02";
+/// Exact domain prefix for identity-message signing revision 2.
+pub const IDENTITY_SIGNING_DOMAIN_V2: &[u8] = b"AUTHS-IDENTITY-MESSAGE\0\x02";
+
 pub const MAX_METHOD_ID_BYTES: usize = 128;
 pub const MAX_SUITE_ID_BYTES: usize = 128;
 pub const MAX_IDENTITY_ID_BYTES: usize = 512;
@@ -38,8 +59,8 @@ pub const MAX_IDENTITY_PACKET_BYTES: usize = WIRE_MAGIC.len()
     + 4
     + MAX_SIGNATURE_BYTES;
 
-const WIRE_MAGIC: &[u8] = b"AUTHS-IDENTITY\0\x02";
-const SIGNING_DOMAIN: &[u8] = b"AUTHS-IDENTITY-MESSAGE\0\x02";
+const WIRE_MAGIC: &[u8] = IDENTITY_WIRE_MAGIC_V2;
+const SIGNING_DOMAIN: &[u8] = IDENTITY_SIGNING_DOMAIN_V2;
 const PUBLIC_IDENTITY_TAG: u8 = 1;
 const SIGNED_MESSAGE_TAG: u8 = 2;
 

@@ -29,6 +29,8 @@ use wasm_bindgen::prelude::*;
 
 /// Version of the repository-owned authoring ABI exposed by this WASM module.
 pub const AUTHORING_ABI_V1: u16 = 1;
+/// Version of the neutral identity ABI exposed independently of authority authoring.
+pub const IDENTITY_ABI_V1: u16 = 1;
 
 const WARNING_ANY_BODY: u32 = 1 << 0;
 const WARNING_MULTIPLE_PERMISSIONS: u32 = 1 << 1;
@@ -42,6 +44,13 @@ const WARNING_LONG_VALIDITY: u32 = 1 << 5;
 #[wasm_bindgen(js_name = authoringAbiVersionV1)]
 pub fn authoring_abi_version_v1() -> u16 {
     AUTHORING_ABI_V1
+}
+
+/// Returns the exact neutral identity ABI version compiled into this distribution.
+#[must_use]
+#[wasm_bindgen(js_name = identityAbiVersionV1)]
+pub fn identity_abi_version_v1() -> u16 {
+    IDENTITY_ABI_V1
 }
 
 /// Validates and returns one canonical principal identifier.

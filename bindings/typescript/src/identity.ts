@@ -45,6 +45,7 @@ interface WasmAuthenticatedIdentityMessage extends WasmIdentityFields {
 }
 
 interface IdentityWasmEngine {
+  identityAbiVersionV1(): number;
   encodePublicIdentityV2(
     methodId: string,
     identityId: string,
@@ -207,6 +208,7 @@ async function loadPackagedIdentityEngine(): Promise<IdentityWasmEngine> {
       }
     }
     for (const name of [
+      "identityAbiVersionV1",
       "encodePublicIdentityV2",
       "createRawKeyPublicIdentityV2",
       "decodePublicIdentityV2",
@@ -218,6 +220,9 @@ async function loadPackagedIdentityEngine(): Promise<IdentityWasmEngine> {
       if (typeof loaded[name] !== "function") {
         throw new TypeError(`Auths WASM module omitted neutral identity export ${name}`);
       }
+    }
+    if (loaded.identityAbiVersionV1() !== 1) {
+      throw new TypeError("Auths WASM module has an unsupported neutral identity ABI");
     }
     return loaded;
   })();

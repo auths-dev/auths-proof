@@ -21,8 +21,6 @@ auths-ports.workspace = true
 auths-raw-key-core.workspace = true
 
 [dev-dependencies]
-auths-identity-authority.workspace = true
-auths-identity-raw-key.workspace = true
 ed25519-dalek.workspace = true
 
 [lints]

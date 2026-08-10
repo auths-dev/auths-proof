@@ -2,8 +2,8 @@ use std::{env, net::SocketAddr, sync::Arc, time::Duration};
 
 use auths_byte_channel::BoundedByteChannel;
 use auths_identity::{
-    IdentityError, IdentityPacket, MAX_IDENTITY_PACKET_BYTES, PublicIdentity,
-    SignedIdentityMessage, ValidatedIdentity,
+    IDENTITY_APPLICATION_PROTOCOL_V1, IdentityError, IdentityPacket, MAX_IDENTITY_PACKET_BYTES,
+    PublicIdentity, SignedIdentityMessage, ValidatedIdentity,
 };
 use auths_identity_raw_key::RawKeyIdentityMethod;
 use auths_iroh::{IrohChannel, IrohConfig, IrohError, PathObservation, StreamInitiator};
@@ -25,7 +25,6 @@ use serde_json::json;
 use tower_http::cors::CorsLayer;
 
 const API_SCHEMA: &str = "auths.identity-iroh-demo/1";
-const IDENTITY_ALPN_V1: &[u8] = b"/auths/identity/1";
 const MAX_DEMO_MESSAGE_BYTES: usize = 256;
 
 /// Deployment configuration for the public demo shell.
@@ -88,14 +87,14 @@ pub async fn app(config: AppConfig) -> Result<Router, StartupError> {
     )
     .map_err(|_| StartupError)?;
     let transport_config = IrohConfig::new(
-        Arc::<[u8]>::from(IDENTITY_ALPN_V1),
+        Arc::<[u8]>::from(IDENTITY_APPLICATION_PROTOCOL_V1.as_bytes()),
         MAX_IDENTITY_PACKET_BYTES,
         Duration::from_secs(10),
         StreamInitiator::ConnectingEndpoint,
     )
     .map_err(|_| StartupError)?;
     let server_endpoint = Endpoint::builder(presets::N0)
-        .alpns(vec![IDENTITY_ALPN_V1.to_vec()])
+        .alpns(vec![IDENTITY_APPLICATION_PROTOCOL_V1.as_bytes().to_vec()])
         .relay_mode(RelayMode::Disabled)
         .bind()
         .await
@@ -348,7 +347,7 @@ async fn exchange(
         server: identity_view(response_identity),
         transport: TransportView {
             family: "iroh",
-            alpn: "/auths/identity/1",
+            alpn: IDENTITY_APPLICATION_PROTOCOL_V1,
             path: path_name(path),
             client_endpoint_id: hex::encode(client_endpoint_id),
             server_endpoint_id: hex::encode(server_endpoint_id),

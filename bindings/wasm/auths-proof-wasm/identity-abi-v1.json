@@ -1,0 +1,24 @@
+{
+  "schema": "auths.identity-wasm-abi/1",
+  "abiVersion": 1,
+  "identityProtocol": "auths-identity/v1",
+  "identityModelVersion": 1,
+  "wireVersion": 2,
+  "signingDomainVersion": 2,
+  "exports": [
+    "identityAbiVersionV1",
+    "encodePublicIdentityV2",
+    "createRawKeyPublicIdentityV2",
+    "decodePublicIdentityV2",
+    "validateRawKeyPublicIdentityV2",
+    "identityMessageSigningPreimageV2",
+    "encodeSignedIdentityMessageV2",
+    "verifyEd25519IdentityMessageV2"
+  ],
+  "stateTransitions": [
+    "bytes-to-decoded",
+    "decoded-to-method-validated",
+    "signed-to-authenticated"
+  ],
+  "authorityClaim": "none"
+}

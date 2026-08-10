@@ -581,6 +581,7 @@ name = "auths-identity-authority"
 version = "1.0.0-rc.1"
 dependencies = [
  "auths-identity",
+ "auths-identity-raw-key",
  "auths-model",
  "auths-raw-key-core",
  "sha2 0.10.9",
@@ -614,6 +615,10 @@ version = "1.0.0-rc.1"
 dependencies = [
  "auths-identity",
  "auths-raw-key-core",
+ "auths-signature-core",
+ "ed25519-dalek 2.2.0",
+ "hex",
+ "serde_json",
 ]
 
 [[package]]
@@ -1234,8 +1239,6 @@ dependencies = [
 name = "auths-raw-key"
 version = "1.0.0-rc.1"
 dependencies = [
- "auths-identity-authority",
- "auths-identity-raw-key",
  "auths-model",
  "auths-ports",
  "auths-raw-key-core",

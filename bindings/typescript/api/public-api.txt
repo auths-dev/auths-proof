@@ -1,5 +1,5 @@
 # Installed @auths-dev/sdk public API v1
-# declaration-sha256 6439c526450139cfa095f8d128371ca2045a22d262d8a2762be7b21a10ff4e5d
+# declaration-sha256 58266c27cad95a871210a97fa1cce965dcaef7657f1f6ae023f554005192d922
 .	AgentIdentity	type
 .	ApprovalConfiguration	type
 .	ApprovalExecutionSummary	type

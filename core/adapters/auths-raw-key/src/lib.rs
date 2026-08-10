@@ -325,8 +325,6 @@ pub enum RawKeyError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use auths_identity_authority::{PrincipalFromIdentity, RawKeyV2AuthorityBridge};
-    use auths_identity_raw_key::RawKeyIdentityMethod;
     use auths_model::{Digest, EvidenceObject, SignatureSuiteId, Timestamp, VerificationMethod};
 
     #[test]
@@ -381,39 +379,6 @@ mod tests {
                     signing_preimage: b"test",
                     asserted_signing_time: Timestamp::new(0),
                     evidence: &refs,
-                    evaluation_time: Timestamp::new(0),
-                })
-                .is_ok()
-        );
-    }
-
-    #[test]
-    fn validated_identity_promotes_without_application_owned_derivation() {
-        let identity = RawKeyIdentityMethod::identity("example-pq-v1", vec![7; 4096]).unwrap();
-        let authority = RawKeyV2AuthorityBridge.promote(&identity).unwrap();
-        assert_eq!(authority.principal().as_str(), identity.identity_id());
-        assert_eq!(authority.verification_material(), identity.public_key());
-        assert_eq!(
-            authority.signature_descriptor().principal_method().as_str(),
-            identity.method_id()
-        );
-        assert_eq!(
-            authority.signature_descriptor().suite().as_str(),
-            identity.suite_id()
-        );
-
-        let evidence = authority.evidence().iter().collect::<Vec<_>>();
-        assert!(
-            RawKeyV2Method::new()
-                .unwrap()
-                .verify_control(PrincipalControlInput {
-                    principal: authority.principal(),
-                    verification_method: authority.signature_descriptor().verification_method(),
-                    signature_suite: authority.signature_descriptor().suite(),
-                    purpose: auths_ports::ControlPurpose::CapabilityInvocation,
-                    signing_preimage: b"application-owned preimage",
-                    asserted_signing_time: Timestamp::new(0),
-                    evidence: &evidence,
                     evaluation_time: Timestamp::new(0),
                 })
                 .is_ok()

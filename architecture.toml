@@ -207,7 +207,7 @@ roots = [
   "auths-identity-raw-key",
   "auths-signature-ed25519",
 ]
-allowed_workspace_dependencies = ["auths-identity", "auths-model", "auths-raw-key-core", "auths-signature-core"]
+allowed_workspace_dependencies = ["auths-identity", "auths-identity-raw-key", "auths-model", "auths-raw-key-core", "auths-signature-core"]
 
 [dependency_boundaries.iroh-transport]
 roots = ["auths-iroh"]

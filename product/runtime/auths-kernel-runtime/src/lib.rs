@@ -117,3 +117,25 @@ impl fmt::Display for KernelConfigurationError {
 }
 
 impl std::error::Error for KernelConfigurationError {}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn minimal_kernel_has_no_profile_or_effect_dependencies() {
+        let manifest = include_str!("../Cargo.toml");
+        for forbidden in [
+            "auths-profile-",
+            "auths-proof-exchange",
+            "auths-receipts",
+            "auths-runtime",
+            "tokio",
+            "rmcp",
+            "iroh",
+        ] {
+            assert!(
+                !manifest.contains(forbidden),
+                "profile-free kernel manifest imported {forbidden}"
+            );
+        }
+    }
+}

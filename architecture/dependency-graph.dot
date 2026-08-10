@@ -222,6 +222,7 @@ digraph auths_architecture {
   "auths-hsm-attested" -> "auths-model" [label="normal"];
   "auths-hsm-attested" -> "auths-ports" [label="normal"];
   "auths-identity-authority" -> "auths-identity" [label="normal"];
+  "auths-identity-authority" -> "auths-identity-raw-key" [label="dev"];
   "auths-identity-authority" -> "auths-model" [label="normal"];
   "auths-identity-authority" -> "auths-raw-key-core" [label="normal"];
   "auths-identity-iroh-demo" -> "auths-byte-channel" [label="normal"];
@@ -232,6 +233,7 @@ digraph auths_architecture {
   "auths-identity-iroh-demo" -> "auths-signature-ed25519" [label="normal"];
   "auths-identity-raw-key" -> "auths-identity" [label="normal"];
   "auths-identity-raw-key" -> "auths-raw-key-core" [label="normal"];
+  "auths-identity-raw-key" -> "auths-signature-core" [label="dev"];
   "auths-iroh" -> "auths-byte-channel" [label="normal"];
   "auths-kernel-runtime" -> "auths-model" [label="normal"];
   "auths-kernel-runtime" -> "auths-ports" [label="normal"];
@@ -430,8 +432,6 @@ digraph auths_architecture {
   "auths-radicle-demo" -> "auths-sdk" [label="normal"];
   "auths-radicle-demo" -> "auths-signature" [label="normal"];
   "auths-radicle-demo" -> "auths-stores" [label="normal"];
-  "auths-raw-key" -> "auths-identity-authority" [label="dev"];
-  "auths-raw-key" -> "auths-identity-raw-key" [label="dev"];
   "auths-raw-key" -> "auths-model" [label="normal"];
   "auths-raw-key" -> "auths-ports" [label="normal"];
   "auths-raw-key" -> "auths-raw-key-core" [label="normal"];

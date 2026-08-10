@@ -3021,6 +3021,18 @@
     {
       "source": "auths-identity-authority",
       "source_layer": "core",
+      "target": "auths-identity-raw-key",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-identity-authority",
+      "source_layer": "core",
       "target": "auths-model",
       "target_layer": "core",
       "scope": "internal",
@@ -3292,6 +3304,59 @@
       "optional": false,
       "default_features": false,
       "features": []
+    },
+    {
+      "source": "auths-identity-raw-key",
+      "source_layer": "core",
+      "target": "auths-signature-core",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-identity-raw-key",
+      "source_layer": "core",
+      "target": "ed25519-dalek",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc"
+      ]
+    },
+    {
+      "source": "auths-identity-raw-key",
+      "source_layer": "core",
+      "target": "hex",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-identity-raw-key",
+      "source_layer": "core",
+      "target": "serde_json",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "preserve_order"
+      ]
     },
     {
       "source": "auths-iroh",
@@ -8062,30 +8127,6 @@
       "features": [
         "cors"
       ]
-    },
-    {
-      "source": "auths-raw-key",
-      "source_layer": "core",
-      "target": "auths-identity-authority",
-      "target_layer": "core",
-      "scope": "internal",
-      "kind": "dev",
-      "target_condition": null,
-      "optional": false,
-      "default_features": false,
-      "features": []
-    },
-    {
-      "source": "auths-raw-key",
-      "source_layer": "core",
-      "target": "auths-identity-raw-key",
-      "target_layer": "core",
-      "scope": "internal",
-      "kind": "dev",
-      "target_condition": null,
-      "optional": false,
-      "default_features": true,
-      "features": []
     },
     {
       "source": "auths-raw-key",

@@ -138,6 +138,7 @@ impl core::error::Error for IdentityPromotionError {}
 mod tests {
     use super::*;
     use auths_identity::{IdentityError, IdentityMethod, PublicIdentity};
+    use auths_identity_raw_key::RawKeyIdentityMethod;
 
     struct PermissiveRawKeyMethod;
 
@@ -165,6 +166,22 @@ mod tests {
         assert_eq!(
             RawKeyV2AuthorityBridge.promote(&identity),
             Err(IdentityPromotionError::InvalidIdentity)
+        );
+    }
+
+    #[test]
+    fn validated_identity_promotes_without_application_owned_derivation() {
+        let identity = RawKeyIdentityMethod::identity("example-pq-v1", vec![7; 4096]).unwrap();
+        let authority = RawKeyV2AuthorityBridge.promote(&identity).unwrap();
+        assert_eq!(authority.principal().as_str(), identity.identity_id());
+        assert_eq!(authority.verification_material(), identity.public_key());
+        assert_eq!(
+            authority.signature_descriptor().principal_method().as_str(),
+            identity.method_id()
+        );
+        assert_eq!(
+            authority.signature_descriptor().suite().as_str(),
+            identity.suite_id()
         );
     }
 }

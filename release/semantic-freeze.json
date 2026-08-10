@@ -1,10 +1,11 @@
 {
   "schema": "auths.semantic-freeze/1",
-  "freezeVersion": 41,
+  "freezeVersion": 42,
   "publicSurface": {
     "rustRoots": [
       "auths",
-      "auths-sdk"
+      "auths-sdk",
+      "auths-runtime"
     ],
     "rustPublishableClosure": [
       "auths",
@@ -18,6 +19,7 @@
       "auths-custody",
       "auths-did-keri",
       "auths-did-key",
+      "auths-kernel-runtime",
       "auths-model",
       "auths-multikey",
       "auths-operations",
@@ -35,6 +37,7 @@
       "auths-runtime",
       "auths-sdk",
       "auths-signature",
+      "auths-signature-core",
       "auths-verifier"
     ],
     "releaseArtifactFamilies": [
@@ -49,7 +52,7 @@
   "entries": [
     {
       "id": "auths.core.protocol",
-      "version": 11,
+      "version": 12,
       "classification": "frozen-meaning",
       "categories": [
         "protocol-versions",
@@ -70,7 +73,7 @@
     },
     {
       "id": "auths.frozen-bytes/architecture/dependency-graph.json",
-      "version": 10,
+      "version": 11,
       "classification": "frozen-bytes",
       "categories": [
         "canonical-generated-evidence"
@@ -78,7 +81,19 @@
       "owners": [
         "architecture/dependency-graph.json"
       ],
-      "sha256": "948ae487d09c2f3dc37865cbae6a901868bbfffd3d4c284e04786b1c3f8d2591"
+      "sha256": "88c4b7f59486edce0312b57a849a2f007684e3f5e085c4b814b141be43130d5e"
+    },
+    {
+      "id": "auths.frozen-bytes/bindings/wasm/auths-proof-wasm/identity-abi-v1.json",
+      "version": 1,
+      "classification": "frozen-bytes",
+      "categories": [
+        "canonical-generated-evidence"
+      ],
+      "owners": [
+        "bindings/wasm/auths-proof-wasm/identity-abi-v1.json"
+      ],
+      "sha256": "4b1ded8b75fb101d721f35a6484bc96baf10c68e34239f1ea7445a6d33589eff"
     },
     {
       "id": "auths.frozen-bytes/bounded-domains.toml",
@@ -115,6 +130,18 @@
         "core/explanations/v1/fact-inventory.json"
       ],
       "sha256": "9229bee508acde9e58b7932cdedb500586f9171f3f855f3af0eb959f08decb3e"
+    },
+    {
+      "id": "auths.frozen-bytes/core/fixtures/identity/v1/vectors.json",
+      "version": 1,
+      "classification": "frozen-bytes",
+      "categories": [
+        "canonical-generated-evidence"
+      ],
+      "owners": [
+        "core/fixtures/identity/v1/vectors.json"
+      ],
+      "sha256": "81596219b9f7a226eed51bd7856a10ab3e9da120b0429d63433dde857b50363e"
     },
     {
       "id": "auths.frozen-bytes/core/fixtures/v1/manifest.json",
@@ -453,8 +480,35 @@
       "sha256": "dde33d6a7078afd172e43b100bfd96871719871562bca0f325c3c8cf229c005f"
     },
     {
+      "id": "auths.identity.protocol",
+      "version": 1,
+      "classification": "frozen-meaning",
+      "categories": [
+        "identity-protocol-versions",
+        "identity-wire",
+        "identity-signing-preimages",
+        "identity-method-identifiers",
+        "identity-signature-semantics",
+        "identity-binding-contracts",
+        "identity-transport-labels"
+      ],
+      "owners": [
+        "bindings/typescript/api/public-api.txt",
+        "bindings/wasm/auths-proof-wasm/identity-abi-v1.json",
+        "compliance.toml",
+        "core/adapters/auths-identity-raw-key/src",
+        "core/adapters/auths-signature-ed25519/src",
+        "core/crates/auths-identity/src",
+        "core/crates/auths-raw-key-core/src",
+        "core/crates/auths-signature-core/src",
+        "core/fixtures/identity/v1/vectors.json",
+        "core/spec/identity/v1"
+      ],
+      "sha256": "ad5c98cc25f5c502888c316c0cdbb274513b120fac628562762709c637080490"
+    },
+    {
       "id": "auths.portable-abi-bindings",
-      "version": 15,
+      "version": 16,
       "classification": "frozen-meaning",
       "categories": [
         "portable-abi",
@@ -469,11 +523,11 @@
         "core/crates/auths-model/src/lib.rs",
         "core/spec/v1/auths-proof.cddl"
       ],
-      "sha256": "8f09681d6f9b9c32c80a230a15915ab78a712e6d98bb0650c99ee29bd87e7904"
+      "sha256": "1672b82d4f322ba97b1d346af881d71d4772feeb624fa86f0ed74be9c80ee8f7"
     },
     {
       "id": "auths.product.bounded-domains",
-      "version": 1,
+      "version": 2,
       "classification": "frozen-meaning",
       "categories": [
         "bounded-domain-inventory",
@@ -494,7 +548,7 @@
         "product/integrations/auths-records-api/src",
         "product/integrations/auths-stripe/src"
       ],
-      "sha256": "6eaaa15b11d1cd9f4826c91582c1c02f22e596645ac8d1927e3663957199a5c9"
+      "sha256": "0d20941f7dcd755f93f2e1aa08ba4d3a2719ba7e3b4d3eb765e02b004d9423e3"
     },
     {
       "id": "auths.product.bounded-policy",
@@ -546,7 +600,7 @@
     },
     {
       "id": "auths.product.public-sdk-contract",
-      "version": 15,
+      "version": 16,
       "classification": "frozen-meaning",
       "categories": [
         "rust-sdk-contract",
@@ -563,7 +617,7 @@
         "product/runtime/auths-runtime/src",
         "product/sdk/auths-sdk/src"
       ],
-      "sha256": "4ff5558be34a4a4673476a04459ccc7ec4183be6057b58f39f3a4fababa00233"
+      "sha256": "09b11d8db99b1bf7f85a8ae4562b7ee8449181548759f5f3beea78753018ea89"
     },
     {
       "id": "auths.product.receipts",
@@ -598,7 +652,7 @@
     },
     {
       "id": "auths.release.public-surface",
-      "version": 41,
+      "version": 42,
       "classification": "release-metadata",
       "categories": [
         "package-names",
@@ -634,6 +688,7 @@
         "core/crates/auths-proof/Cargo.toml",
         "core/crates/auths-raw-key-core/Cargo.toml",
         "core/crates/auths-registries/Cargo.toml",
+        "core/crates/auths-signature-core/Cargo.toml",
         "core/crates/auths-signature/Cargo.toml",
         "core/crates/auths-verifier/Cargo.toml",
         "core/crates/auths/Cargo.toml",
@@ -647,6 +702,7 @@
         "product/profiles/auths-profile-domains/Cargo.toml",
         "product/profiles/auths-profile-mcp/Cargo.toml",
         "product/receipts/auths-receipts/Cargo.toml",
+        "product/runtime/auths-kernel-runtime/Cargo.toml",
         "product/runtime/auths-runtime/Cargo.toml",
         "product/sdk/auths-sdk/Cargo.toml",
         "release/CANDIDATE_CLOSURE.md",
@@ -671,7 +727,7 @@
         "xtask/src/release_control.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "724ab93933818b0def52ee5b9c83f96e4b7ffab736d5366c3f026fba90b82606"
+      "sha256": "771ac2e049bc6a5963c78fdbf46f9404897ab72666db5980d5bcea71e1f209fa"
     }
   ]
 }
