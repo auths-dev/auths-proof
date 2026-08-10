@@ -1077,7 +1077,7 @@ impl McpActionPreparationV1 {
         self.resource.clone()
     }
 
-    /// Returns the digest represented by the profile approval display.
+    /// Returns the digest represented by the profile review display.
     #[must_use]
     #[wasm_bindgen(getter, js_name = displayDigestHex)]
     pub fn display_digest_hex(&self) -> String {
@@ -1617,7 +1617,7 @@ fn prepare_mcp_action_native(
     let untrusted = call.canonical_bytes()?;
     let profile = McpProfile;
     let canonical = profile.canonicalize(&untrusted)?;
-    let display = profile.approval_display(&canonical)?;
+    let display = profile.review_display(&canonical)?;
     let limits = VerifierLimits::default_deployment();
     let terminal_grant = auths_codec::decode_signed_grant(terminal_grant_cbor, &limits)?;
     let challenge: [u8; 32] = challenge

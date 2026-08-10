@@ -7,7 +7,7 @@ use auths_model::{
     BudgetAlgebraId, BudgetCeiling, CanonicalAction, CapabilityId, MediaType, Permission,
     ProfileId, ProfileRef, ResourceId,
 };
-use auths_profile_api::{ActionProfile, ApprovalDisplay, ProfileContractError};
+use auths_profile_api::{ActionProfile, ProfileContractError, ReviewDisplay};
 use auths_verifier::VerifiedAction;
 use serde::{Serialize, de::DeserializeOwned};
 use sha2::{Digest as _, Sha256};
@@ -80,12 +80,12 @@ where
         .map_err(|_| ProfileContractError::MeaningMismatch)
     }
 
-    fn approval_display(
+    fn review_display(
         &self,
         action: &CanonicalAction,
-    ) -> Result<ApprovalDisplay, ProfileContractError> {
+    ) -> Result<ReviewDisplay, ProfileContractError> {
         let command = decode_action::<T>(action)?;
-        Ok(ApprovalDisplay::new(
+        Ok(ReviewDisplay::new(
             format!("Auths V1 · {} approval", T::PROFILE_ID),
             command.display(),
             hex::encode(Sha256::digest(action.body())),

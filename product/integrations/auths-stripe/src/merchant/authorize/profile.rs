@@ -4,7 +4,7 @@ use auths_model::{
     BudgetAlgebraId, BudgetCeiling, CanonicalAction, CapabilityId, MediaType, Permission,
     ProfileId, ProfileRef, ResourceId,
 };
-use auths_profile_api::{ActionProfile, ApprovalDisplay, ProfileContractError};
+use auths_profile_api::{ActionProfile, ProfileContractError, ReviewDisplay};
 use auths_sdk::VerifiedAction;
 use sha2::{Digest as _, Sha256};
 
@@ -51,12 +51,12 @@ impl ActionProfile for StripePaymentAuthorizeProfile {
         )
     }
 
-    fn approval_display(
+    fn review_display(
         &self,
         canonical: &CanonicalAction,
-    ) -> Result<ApprovalDisplay, ProfileContractError> {
+    ) -> Result<ReviewDisplay, ProfileContractError> {
         let action = validate_canonical_action(canonical)?;
-        Ok(ApprovalDisplay::new(
+        Ok(ReviewDisplay::new(
             "Auths V1 · Place one Stripe test authorization hold",
             vec![
                 ("Account".into(), action.stripe_account_id().to_string()),

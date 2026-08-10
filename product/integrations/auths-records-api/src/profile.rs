@@ -4,7 +4,7 @@ use auths_model::{
     BudgetAlgebraId, BudgetCeiling, CanonicalAction, CapabilityId, MediaType, Permission,
     ProfileId, ProfileRef, ResourceId,
 };
-use auths_profile_api::{ActionProfile, ApprovalDisplay, ProfileContractError};
+use auths_profile_api::{ActionProfile, ProfileContractError, ReviewDisplay};
 use auths_sdk::VerifiedAction;
 
 use crate::{
@@ -53,12 +53,12 @@ impl ActionProfile for CreateRecordProfile {
         )
     }
 
-    fn approval_display(
+    fn review_display(
         &self,
         canonical: &CanonicalAction,
-    ) -> Result<ApprovalDisplay, ProfileContractError> {
+    ) -> Result<ReviewDisplay, ProfileContractError> {
         let action = validate_create(canonical)?;
-        Ok(ApprovalDisplay::new(
+        Ok(ReviewDisplay::new(
             "Auths V1 · Create one record",
             vec![
                 ("Namespace".into(), action.namespace_id.as_str().into()),
@@ -97,12 +97,12 @@ impl ActionProfile for ReadRecordProfile {
         )
     }
 
-    fn approval_display(
+    fn review_display(
         &self,
         canonical: &CanonicalAction,
-    ) -> Result<ApprovalDisplay, ProfileContractError> {
+    ) -> Result<ReviewDisplay, ProfileContractError> {
         let action = validate_read(canonical)?;
-        Ok(ApprovalDisplay::new(
+        Ok(ReviewDisplay::new(
             "Auths V1 · Read one record projection",
             vec![
                 ("Namespace".into(), action.namespace_id.as_str().into()),

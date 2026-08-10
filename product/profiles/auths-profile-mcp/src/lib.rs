@@ -6,7 +6,7 @@ use auths_model::{
     Audience, CanonicalAction, CapabilityId, MediaType, Permission, ProfileId, ProfileRef,
     ResourceId,
 };
-use auths_profile_api::{ActionProfile, ApprovalDisplay, ProfileContractError};
+use auths_profile_api::{ActionProfile, ProfileContractError, ReviewDisplay};
 use auths_verifier::VerifiedAction;
 use rmcp::model::CallToolRequestParams;
 use serde::{Deserialize, Serialize};
@@ -248,13 +248,13 @@ impl ActionProfile for McpProfile {
         .map_err(|_| ProfileContractError::LimitExceeded)
     }
 
-    fn approval_display(
+    fn review_display(
         &self,
         action: &CanonicalAction,
-    ) -> Result<ApprovalDisplay, ProfileContractError> {
+    ) -> Result<ReviewDisplay, ProfileContractError> {
         let call = validate_canonical_action(action)?;
         let digest = Sha256::digest(action.body());
-        Ok(ApprovalDisplay::new(
+        Ok(ReviewDisplay::new(
             "Auths V1 · MCP approval",
             vec![
                 ("Service".into(), call.service().into()),
@@ -563,7 +563,7 @@ mod tests {
     }
 
     #[test]
-    fn channel_endpoint_is_part_of_canonical_approval_bytes() {
+    fn channel_endpoint_is_part_of_canonical_review_bytes() {
         let plain = McpToolCall::new("reports", "read_report", Map::new()).unwrap();
         let bound = plain
             .clone()
