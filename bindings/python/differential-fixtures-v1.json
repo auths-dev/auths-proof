@@ -39,6 +39,22 @@
         "{\"value\":\"reviewed\"}"
       ],
       "projection": "profile, permission, audience, resource, canonical arguments and signing request"
+    },
+    {
+      "name": "root-authority-attachment",
+      "inputs": [
+        "authoring.delegation-root-grant.cbor",
+        "authorized.context.cbor"
+      ],
+      "projection": "grant identifier, issuer, subject, profile, permissions, validity, audiences, action constraint, budget, depth, status, assurance, extensions and signature descriptor"
+    },
+    {
+      "name": "delegated-authority-workflow",
+      "inputs": [
+        "authoring.delegation-root-grant.cbor",
+        "authoring.proposed-grant.cbor"
+      ],
+      "projection": "planned child statement, semantic diff, warnings, signing request identifier, transaction digest and signed child authority summary"
     }
   ]
 }

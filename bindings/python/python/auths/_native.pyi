@@ -5,22 +5,51 @@ Budget = Tuple[str, int]
 StatusPolicy = Tuple[str, int]
 CriticalExtension = Tuple[str, bytes]
 
-
 class Principal:
     def __init__(self, value: str) -> None: ...
     @property
     def value(self) -> str: ...
 
+class PrincipalDescriptor:
+    def __init__(
+        self,
+        principal: Principal,
+        principal_method: str,
+        verification_method: str,
+        suite: str,
+    ) -> None: ...
+    @property
+    def principal(self) -> Principal: ...
+    @property
+    def principal_method(self) -> str: ...
+    @property
+    def verification_method(self) -> str: ...
+    @property
+    def suite(self) -> str: ...
+    def matches(self, other: PrincipalDescriptor) -> bool: ...
+
+class ApprovalPolicyReference:
+    def __init__(
+        self,
+        policy_id: str,
+        evaluator_version: str,
+        configuration_digest: bytes,
+    ) -> None: ...
+    @property
+    def policy_id(self) -> str: ...
+    @property
+    def evaluator_version(self) -> str: ...
+    @property
+    def configuration_digest(self) -> bytes: ...
+    def matches(self, other: ApprovalPolicyReference) -> bool: ...
 
 class UnsignedObject:
     @property
     def kind(self) -> str: ...
 
-
 class SignedObject:
     @property
     def kind(self) -> str: ...
-
 
 class GrantRequest:
     def __init__(
@@ -40,7 +69,6 @@ class GrantRequest:
         extensions: List[CriticalExtension],
     ) -> None: ...
 
-
 class AuthorityDiff:
     @property
     def removed_permissions(self) -> int: ...
@@ -57,7 +85,6 @@ class AuthorityDiff:
     @property
     def delegation_depth(self) -> Tuple[int, int]: ...
 
-
 class GrantPlan:
     @property
     def diff(self) -> AuthorityDiff: ...
@@ -66,6 +93,39 @@ class GrantPlan:
     @property
     def unsigned(self) -> UnsignedObject: ...
 
+class GrantAuthority:
+    @property
+    def binding(self) -> Literal["root", "delegated"]: ...
+    @property
+    def grant_id(self) -> bytes: ...
+    @property
+    def issuer(self) -> Principal: ...
+    @property
+    def subject(self) -> Principal: ...
+    @property
+    def profile(self) -> Tuple[str, int]: ...
+    @property
+    def permissions(self) -> List[Permission]: ...
+    @property
+    def validity(self) -> Tuple[int, int]: ...
+    @property
+    def audiences(self) -> List[str]: ...
+    @property
+    def action_constraint(self) -> Tuple[str, int]: ...
+    @property
+    def budget(self) -> Optional[Budget]: ...
+    @property
+    def remaining_depth(self) -> int: ...
+    @property
+    def parent_id(self) -> Optional[bytes]: ...
+    @property
+    def status(self) -> Tuple[str, Optional[str], Optional[int]]: ...
+    @property
+    def assurance_floor(self) -> str: ...
+    @property
+    def critical_extensions(self) -> List[str]: ...
+    @property
+    def signature(self) -> Tuple[str, str, str]: ...
 
 class SigningRequest:
     @property
@@ -80,13 +140,52 @@ class SigningRequest:
     def transaction_digest(self) -> bytes: ...
     def complete(self, signature: bytes) -> SignedObject: ...
 
+class SigningTransaction:
+    @property
+    def object_kind(self) -> str: ...
+    @property
+    def request_id(self) -> str: ...
+    @property
+    def object_id(self) -> bytes: ...
+    @property
+    def signing_preimage(self) -> bytes: ...
+    @property
+    def transaction_digest(self) -> bytes: ...
+    @property
+    def principal(self) -> PrincipalDescriptor: ...
+    @property
+    def policy(self) -> ApprovalPolicyReference: ...
+    @property
+    def expires_at(self) -> int: ...
+    @property
+    def phase(
+        self,
+    ) -> Literal["awaiting-approval", "awaiting-signature", "terminal"]: ...
+    def accept_approval(
+        self,
+        request_id: str,
+        transaction_digest: bytes,
+        policy: ApprovalPolicyReference,
+        decision: str,
+        now: int,
+    ) -> bool: ...
+    def complete_response(
+        self,
+        request_id: str,
+        principal: PrincipalDescriptor,
+        transaction_digest: bytes,
+        signature: bytes,
+        now: int,
+    ) -> SignedObject: ...
+    def discard(self) -> None: ...
+
+class NativeDelegationExpandedError(ValueError): ...
 
 class AuthorizationPlan:
     @property
     def plan_id(self) -> bytes: ...
     @property
     def shape(self) -> Tuple[int, int]: ...
-
 
 class AuthorizationPlanBuilder:
     def __init__(self) -> None: ...
@@ -96,7 +195,6 @@ class AuthorizationPlanBuilder:
     def threshold(
         self, required: int, members: List[AuthorizationPlan]
     ) -> AuthorizationPlan: ...
-
 
 class McpAction:
     @property
@@ -108,14 +206,12 @@ class McpAction:
     @property
     def display_digest_hex(self) -> str: ...
 
-
 class AssurancePolicy:
     def __init__(
         self,
         identifier: str,
         requirements: List[Tuple[str, str, str, Optional[int]]],
     ) -> None: ...
-
 
 class TrustAnchor:
     def __init__(
@@ -135,11 +231,9 @@ class TrustAnchor:
         status: Optional[StatusPolicy],
     ) -> None: ...
 
-
 class StatusSnapshot:
     @property
     def kind(self) -> str: ...
-
 
 class TrustedContext:
     @property
@@ -148,10 +242,8 @@ class TrustedContext:
         self, audience: str, challenge: bytes, evaluation_time: int
     ) -> TrustedContext: ...
 
-
 class VerifiedAction:
     pass
-
 
 class NativeVerificationResult:
     @property
@@ -173,11 +265,58 @@ class NativeVerificationResult:
     @property
     def action(self) -> Optional[VerifiedAction]: ...
 
-
 def native_abi_version_v1() -> int: ...
+def approval_policy_reference(
+    policy_id: str,
+    evaluator_version: str,
+    mode: str,
+    max_uses: int,
+    expires_in_seconds: int,
+    requirements: List[str],
+) -> ApprovalPolicyReference: ...
+def validate_trusted_authority(context: TrustedContext, root: Principal) -> None: ...
+def validate_root_authority(
+    signed: SignedObject,
+    root: Principal,
+    subject: PrincipalDescriptor,
+    profile_id: str,
+    profile_version: int,
+) -> GrantAuthority: ...
+def bind_delegated_authority(
+    signed: SignedObject,
+    parent: GrantAuthority,
+    subject: PrincipalDescriptor,
+    issuer: PrincipalDescriptor,
+    profile_id: str,
+    profile_version: int,
+) -> GrantAuthority: ...
+def plan_child_fields(
+    parent: GrantAuthority,
+    subject: PrincipalDescriptor,
+    permissions: List[Permission],
+    not_before: int,
+    expires_at: int,
+    audiences: List[str],
+    action_mode: str,
+    action_digests: List[bytes],
+    budget_mode: str,
+    budget: Optional[Budget],
+    remaining_depth: int,
+    status_mode: str,
+    status: Optional[StatusPolicy],
+    assurance_floor: Optional[str],
+) -> GrantPlan: ...
+def prepare_signing_transaction(
+    unsigned: UnsignedObject,
+    principal: PrincipalDescriptor,
+    policy: ApprovalPolicyReference,
+    expires_at: int,
+) -> SigningTransaction: ...
 def root_grant(issuer: Principal, request: GrantRequest) -> UnsignedObject: ...
 def plan_child(parent: SignedObject, request: GrantRequest) -> GrantPlan: ...
-def plan_child_statement(parent: UnsignedObject, request: GrantRequest) -> GrantPlan: ...
+def plan_child_statement(
+    parent: UnsignedObject, request: GrantRequest
+) -> GrantPlan: ...
 def grant_request_from_statement(statement: UnsignedObject) -> GrantRequest: ...
 def principal_status_statement(
     method: str,

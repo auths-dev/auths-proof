@@ -391,6 +391,7 @@ digraph auths_architecture {
   "auths-proof-offline-example" -> "auths-signature" [label="normal"];
   "auths-proof-python" -> "auths-author" [label="normal"];
   "auths-proof-python" -> "auths-codec" [label="normal"];
+  "auths-proof-python" -> "auths-custody" [label="normal"];
   "auths-proof-python" -> "auths-did-keri" [label="normal"];
   "auths-proof-python" -> "auths-did-key" [label="normal"];
   "auths-proof-python" -> "auths-model" [label="normal"];

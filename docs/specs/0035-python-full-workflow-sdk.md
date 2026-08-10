@@ -1,6 +1,6 @@
 # AP-SPEC-035: Python Full Workflow SDK
 
-**Status:** Milestone A implemented on the immutable RC baseline as a
+**Status:** Milestones A and B implemented on the immutable RC baseline as a
 repository-local pre-review surface; Full Workflow promotion remains blocked
 on the later AP-SPEC-035 exit gates
 

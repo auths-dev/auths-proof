@@ -95,7 +95,7 @@
       "owners": [
         "architecture/dependency-graph.json"
       ],
-      "sha256": "064abbb5ad2fe9a02c5eacfc30647bb7c8b39519dc1d2074ab7c1ff7634bc976"
+      "sha256": "cbf8b425f2a94fb1599ed53083ae2effae997630c80daac226be9d74eb43bc40"
     },
     {
       "id": "auths.frozen-bytes/bindings/wasm/auths-proof-wasm/identity-abi-v1.json",
@@ -667,7 +667,7 @@
         "product/runtime/auths-runtime/src",
         "product/sdk/auths-sdk/src"
       ],
-      "sha256": "af15b18a2bd0a9bdd1addf5cc1cc1b2506c22371df5d31f70318456dd470795c"
+      "sha256": "d3be8e0fe13872faac9f0393dd513b726c79f66a84842eb1cf1bf3883638374e"
     },
     {
       "id": "auths.product.receipts",

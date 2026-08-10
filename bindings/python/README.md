@@ -55,16 +55,73 @@ signing = native.prepare_signing(
 signed = signing.complete(external_signer(signing.signing_preimage))
 ```
 
-The signer integration, approval protocol, async lifecycle, attach/delegate
-facade, proof assembly, and sealed profile-command gateway are later Python
-milestones. The native waist does not retain private keys or expose a general
+The native waist does not retain private keys or expose a general
 `sign(bytes)` operation.
+
+## Attach and delegate
+
+Milestone B adds provider-neutral async protocols and a typed workflow without
+moving Auths semantics into Python:
+
+```python
+from auths import (
+    Approval,
+    AuthsClient,
+    BudgetCeiling,
+    DelegatedAuthority,
+    Permission,
+    Profile,
+    SnapshotRequired,
+    TrustedAuthority,
+    Validity,
+)
+
+approval = Approval.grant_only("approval.default", approval_provider)
+trusted = TrustedAuthority(
+    "local.root",
+    root_principal,
+    native_trusted_context,
+    approval.policy.reference,
+)
+
+async with AuthsClient(signer=parent_signer, trusted_authority=trusted) as client:
+    parent = await client.attach_agent(
+        name="research-agent",
+        profile=Profile("auths.mcp", 1),
+        authority=native_signed_root_grant,
+        approval=approval,
+    )
+    async with await parent.delegate(
+        name="records-child",
+        authority=DelegatedAuthority(
+            permissions=(Permission("tools/call", "mcp://records/tools/update"),),
+            validity=Validity(20, 80),
+            audiences=("mcp://records",),
+            remaining_depth=0,
+            budget=BudgetCeiling("numeric-ceiling-v1", 1),
+            status=SnapshotRequired("status.local-v1", 30),
+        ),
+        signer=child_signer,
+    ) as child:
+        review(child.authority, child.delegation)
+```
+
+Rust binds the trusted root, plans every attenuation dimension, derives issuer
+and parent linkage, commits approval configuration, prepares the exact signing
+request, and validates the echoed request, principal, descriptor, and
+transaction through `auths-custody`. Python schedules callbacks and owns their
+lifetime. Cancellation and every partial failure close the child signer and
+leave no reusable signing transaction.
+
+No production signer or approval adapter is bundled. Proof assembly,
+profile-action authorization, and the sealed profile-command gateway remain
+Milestone C.
 
 ## Adoption layer
 
 The promoted claim remains the deterministic delegated-authority verifier
 (Level 3 of the repository's adoption ladder). Milestone A adds a
-repository-local native authoring foundation but does not promote Python to a
+repository-local attach-and-delegate workflow but does not promote Python to a
 Full Workflow SDK. Importing `auths` performs no identity exchange, approval,
 gateway effect, receipt, or provider setup.
 

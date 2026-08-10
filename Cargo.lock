@@ -1145,6 +1145,7 @@ version = "1.0.0-rc.1"
 dependencies = [
  "auths-author",
  "auths-codec",
+ "auths-custody",
  "auths-did-keri",
  "auths-did-key",
  "auths-model",
@@ -1159,6 +1160,7 @@ dependencies = [
  "pyo3",
  "serde_json",
  "serde_json_canonicalizer",
+ "subtle",
 ]
 
 [[package]]

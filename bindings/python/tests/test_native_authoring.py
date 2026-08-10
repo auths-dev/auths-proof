@@ -37,9 +37,10 @@ def test_child_planning_matches_the_shared_rust_typescript_fixture() -> None:
         parent, native.grant_request_from_statement(proposed)
     )
 
-    assert unsigned_object_bytes(plan.unsigned) == (
-        VECTORS / "authoring.planned-grant.cbor"
-    ).read_bytes()
+    assert (
+        unsigned_object_bytes(plan.unsigned)
+        == (VECTORS / "authoring.planned-grant.cbor").read_bytes()
+    )
     assert plan.diff.delegation_depth == (1, 0)
     assert plan.diff.budget_narrowed
 

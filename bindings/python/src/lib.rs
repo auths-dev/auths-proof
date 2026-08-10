@@ -4,6 +4,7 @@
 
 mod authoring;
 mod result;
+mod workflow;
 
 use pyo3::prelude::*;
 
@@ -12,5 +13,6 @@ use pyo3::prelude::*;
 fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     authoring::register(module)?;
     result::register(module)?;
+    workflow::register(module)?;
     Ok(())
 }

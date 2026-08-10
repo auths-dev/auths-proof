@@ -254,21 +254,22 @@ This is the first implementation dependency because building `attach_agent`, del
 
 ### 7.4 Python assessment
 
-Python now covers the safe native waist beneath the authorization workflow but
-still exposes only the first promoted product tier. It can evaluate assembled
-inputs and call Rust-owned principal, authoring, attenuation, status, plan,
-profile, trust, and signing-request operations. It cannot yet coordinate the
-provider lifecycle, assemble the complete workflow, or release a protected
-profile effect.
+Python now covers the safe native waist plus the complete attach-and-delegate
+workflow while still exposing only the first promoted product tier. It can
+coordinate async signer, approval, and authority-source ports; bind a root
+grant; plan and review native attenuation; and produce a signed child grant
+through a single-use Rust-owned transaction. It cannot yet assemble the proof
+and request context, authorize a profile action, or release a protected profile
+effect.
 
 The remaining work is substantial but bounded. Most semantic machinery exists
 in Rust, the native Python boundary now exposes the required Milestone A
 operations, and TypeScript has tested the product vocabulary. The remaining
 Python program is primarily:
 
-1. designing an idiomatic asynchronous Python workflow around the native ABI;
+1. closing the first profile-specific authorize and gateway vertical;
 2. enforcing native command ownership at the profile gateway boundary; and
-3. producing complete provider, wheel-matrix, typing, and cross-language
+3. producing complete wheel-matrix, typing, and cross-language
    workflow evidence.
 
 It should not require new protocol semantics.
@@ -300,6 +301,10 @@ This milestone is the hard dependency for every later workflow API.
 ### Milestone B — Make agent attachment and delegation real
 
 Includes AP35-PR4 through AP35-PR6.
+
+**Implementation status:** complete in the repository-local pre-review surface;
+the promoted package claim remains Verifier Binding until Milestone C and the
+release closure pass.
 
 Deliver:
 

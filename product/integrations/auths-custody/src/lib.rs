@@ -9,9 +9,9 @@
 
 use auths_author::{ExternalSigningRequest, SigningObjectId};
 use auths_model::{
-    ActionEnvelope, EvidenceObject, GrantStatement, GrantStatusStatement, PrincipalStatusStatement,
-    SignatureBytes, SignatureDescriptor, SignedAction, SignedGrant, SignedGrantStatus,
-    SignedPrincipalStatus,
+    ActionEnvelope, EvidenceObject, GrantStatement, GrantStatusStatement, PrincipalId,
+    PrincipalStatusStatement, SignatureBytes, SignatureDescriptor, SignedAction, SignedGrant,
+    SignedGrantStatus, SignedPrincipalStatus,
 };
 use std::fmt;
 use subtle::ConstantTimeEq as _;
@@ -111,6 +111,78 @@ impl CustodySignature {
             transaction_digest,
         }
     }
+
+    /// Consumes validated provider output into its signature and evidence.
+    #[must_use]
+    pub fn into_parts(self) -> (SignatureBytes, Vec<EvidenceObject>) {
+        (self.signature, self.evidence)
+    }
+}
+
+/// Language-neutral provider response before exact transaction binding.
+pub struct ProviderSigningResponse {
+    request_id: String,
+    principal: PrincipalId,
+    descriptor: SignatureDescriptor,
+    signature: SignatureBytes,
+    evidence: Vec<EvidenceObject>,
+    transaction_digest: [u8; 32],
+}
+
+impl ProviderSigningResponse {
+    /// Constructs one untrusted response returned by an external provider.
+    #[must_use]
+    pub fn new(
+        request_id: String,
+        principal: PrincipalId,
+        descriptor: SignatureDescriptor,
+        signature: SignatureBytes,
+        evidence: Vec<EvidenceObject>,
+        transaction_digest: [u8; 32],
+    ) -> Self {
+        Self {
+            request_id,
+            principal,
+            descriptor,
+            signature,
+            evidence,
+            transaction_digest,
+        }
+    }
+}
+
+/// Binds an untrusted provider response to one exact Auths signing request.
+///
+/// # Errors
+///
+/// Returns a closed mismatch before the response signature can complete an
+/// Auths object.
+pub fn validate_provider_response<T>(
+    request: &ExternalSigningRequest<T>,
+    expected_principal: &PrincipalId,
+    response: ProviderSigningResponse,
+) -> Result<CustodySignature, CustodyError> {
+    if response.request_id != request.request_id() {
+        return Err(CustodyError::RequestMismatch);
+    }
+    if &response.principal != expected_principal {
+        return Err(CustodyError::PrincipalMismatch);
+    }
+    if &response.descriptor != request.descriptor() {
+        return Err(CustodyError::DescriptorMismatch);
+    }
+    if !bool::from(
+        response
+            .transaction_digest
+            .ct_eq(request.transaction_digest().as_bytes()),
+    ) {
+        return Err(CustodyError::TransactionMismatch);
+    }
+    Ok(CustodySignature::new(
+        response.signature,
+        response.evidence,
+        response.transaction_digest,
+    ))
 }
 
 /// Effect port implemented by one configured external custody client.
@@ -244,6 +316,12 @@ pub enum CustodyError {
     Rejected,
     /// Provider signature encoding was invalid.
     InvalidSignature,
+    /// Returned output names a different Auths request.
+    RequestMismatch,
+    /// Returned output names a different principal.
+    PrincipalMismatch,
+    /// Returned output substitutes the signature descriptor.
+    DescriptorMismatch,
     /// Returned output was bound to different Auths signing bytes.
     TransactionMismatch,
 }
@@ -254,6 +332,9 @@ impl fmt::Display for CustodyError {
             Self::Unavailable => "external custody provider unavailable",
             Self::Rejected => "external custody provider rejected the request",
             Self::InvalidSignature => "external custody provider returned an invalid signature",
+            Self::RequestMismatch => "custody output names a different signing request",
+            Self::PrincipalMismatch => "custody output names a different principal",
+            Self::DescriptorMismatch => "custody output substitutes the signature descriptor",
             Self::TransactionMismatch => "custody output is bound to a different Auths transaction",
         })
     }
@@ -345,6 +426,65 @@ mod tests {
         assert!(matches!(
             sign_action(request(), &signer),
             Err(CustodyError::TransactionMismatch)
+        ));
+    }
+
+    #[test]
+    fn provider_response_binds_request_principal_descriptor_and_transaction() {
+        let request = request();
+        let principal = auths_model::PrincipalId::parse("raw:test").unwrap();
+        let response = ProviderSigningResponse::new(
+            request.request_id(),
+            principal.clone(),
+            request.descriptor().clone(),
+            SignatureBytes::new(vec![7; 64]).unwrap(),
+            Vec::new(),
+            *request.transaction_digest().as_bytes(),
+        );
+        assert!(validate_provider_response(&request, &principal, response).is_ok());
+
+        let mismatch = ProviderSigningResponse::new(
+            "action:substituted".to_owned(),
+            principal.clone(),
+            request.descriptor().clone(),
+            SignatureBytes::new(vec![7; 64]).unwrap(),
+            Vec::new(),
+            *request.transaction_digest().as_bytes(),
+        );
+        assert!(matches!(
+            validate_provider_response(&request, &principal, mismatch),
+            Err(CustodyError::RequestMismatch)
+        ));
+
+        let other_principal = auths_model::PrincipalId::parse("raw:other").unwrap();
+        let mismatch = ProviderSigningResponse::new(
+            request.request_id(),
+            other_principal,
+            request.descriptor().clone(),
+            SignatureBytes::new(vec![7; 64]).unwrap(),
+            Vec::new(),
+            *request.transaction_digest().as_bytes(),
+        );
+        assert!(matches!(
+            validate_provider_response(&request, &principal, mismatch),
+            Err(CustodyError::PrincipalMismatch)
+        ));
+
+        let mismatch = ProviderSigningResponse::new(
+            request.request_id(),
+            principal.clone(),
+            SignatureDescriptor::new(
+                auths_model::PrincipalMethodId::parse("raw-key-v1").unwrap(),
+                VerificationMethod::parse("raw:test").unwrap(),
+                SignatureSuiteId::parse("p256-sha256-v1").unwrap(),
+            ),
+            SignatureBytes::new(vec![7; 64]).unwrap(),
+            Vec::new(),
+            *request.transaction_digest().as_bytes(),
+        );
+        assert!(matches!(
+            validate_provider_response(&request, &principal, mismatch),
+            Err(CustodyError::DescriptorMismatch)
         ));
     }
 }

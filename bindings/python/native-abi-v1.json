@@ -6,12 +6,16 @@
   "semanticOwner": "Rust",
   "types": [
     "Principal",
+    "PrincipalDescriptor",
+    "ApprovalPolicyReference",
     "UnsignedObject",
     "SignedObject",
     "GrantRequest",
     "AuthorityDiff",
     "GrantPlan",
+    "GrantAuthority",
     "SigningRequest",
+    "SigningTransaction",
     "AuthorizationPlan",
     "AuthorizationPlanBuilder",
     "McpAction",
@@ -24,13 +28,19 @@
   ],
   "operations": [
     "native_abi_version_v1",
+    "approval_policy_reference",
+    "validate_trusted_authority",
+    "validate_root_authority",
+    "bind_delegated_authority",
     "root_grant",
     "grant_request_from_statement",
     "plan_child",
     "plan_child_statement",
+    "plan_child_fields",
     "principal_status_statement",
     "grant_status_statement",
     "prepare_signing",
+    "prepare_signing_transaction",
     "prepare_mcp_action",
     "status_snapshot",
     "compile_trusted_context",
@@ -54,5 +64,14 @@
     "only an authorized native verifier branch returns VerifiedAction",
     "denied and indeterminate results contain no capability",
     "canonical bytes cannot be promoted into VerifiedAction"
+  ],
+  "workflowInvariants": [
+    "approval configuration commitments are derived by auths-author",
+    "root authority binds the configured root, signer principal and profile",
+    "delegated profile and critical extensions are inherited from the parent",
+    "issuer and parent linkage are derived by native authoring",
+    "approval responses bind policy, request and transaction before signing",
+    "signer responses bind provider call, request, principal, descriptor and transaction through auths-custody",
+    "signing transactions are single-use and terminal after rejection, mismatch, expiry, cancellation or completion"
   ]
 }

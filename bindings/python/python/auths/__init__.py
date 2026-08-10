@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal, Union
+from typing import Literal, Optional, Union
+
+from . import workflow as _workflow
+from .workflow import *  # noqa: F403
 
 from ._native import VerifiedAction, verify_v1
 
@@ -44,7 +47,7 @@ class Authorized:
     stage: VerificationStage
     explanation: Explanation
     metrics: VerificationMetrics
-    required_configuration: bytes | None
+    required_configuration: Optional[bytes]
     local_configuration: bytes
     result_cbor: bytes
     action: VerifiedAction
@@ -59,7 +62,7 @@ class Denied:
     stage: VerificationStage
     explanation: Explanation
     metrics: VerificationMetrics
-    required_configuration: bytes | None
+    required_configuration: Optional[bytes]
     local_configuration: bytes
     result_cbor: bytes
 
@@ -73,7 +76,7 @@ class Indeterminate:
     stage: VerificationStage
     explanation: Explanation
     metrics: VerificationMetrics
-    required_configuration: bytes | None
+    required_configuration: Optional[bytes]
     local_configuration: bytes
     result_cbor: bytes
 
@@ -147,4 +150,4 @@ __all__ = [
     "VerificationResult",
     "VerifiedAction",
     "verify",
-]
+] + _workflow.__all__

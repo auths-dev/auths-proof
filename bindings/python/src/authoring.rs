@@ -33,9 +33,15 @@ use pyo3::{
 };
 use serde_json::Value;
 
-#[pyclass(name = "Principal", frozen, module = "auths._native")]
+#[derive(Clone)]
+#[pyclass(
+    name = "Principal",
+    frozen,
+    module = "auths._native",
+    skip_from_py_object
+)]
 pub struct PyPrincipal {
-    inner: PrincipalId,
+    pub(crate) inner: PrincipalId,
 }
 
 #[pymethods]
@@ -62,7 +68,7 @@ impl PyPrincipal {
 }
 
 #[derive(Clone)]
-enum UnsignedObject {
+pub(crate) enum UnsignedObject {
     Grant(auths_model::GrantStatement),
     Action(ActionEnvelope),
     PrincipalStatus(PrincipalStatusStatement),
@@ -82,7 +88,7 @@ impl UnsignedObject {
 
 #[pyclass(name = "UnsignedObject", frozen, module = "auths._native")]
 pub struct PyUnsignedObject {
-    inner: UnsignedObject,
+    pub(crate) inner: UnsignedObject,
 }
 
 #[pymethods]
@@ -98,7 +104,7 @@ impl PyUnsignedObject {
 }
 
 #[derive(Clone)]
-enum SignedObject {
+pub(crate) enum SignedObject {
     Grant(SignedGrant),
     Action(SignedAction),
     PrincipalStatus(SignedPrincipalStatus),
@@ -118,7 +124,7 @@ impl SignedObject {
 
 #[pyclass(name = "SignedObject", frozen, module = "auths._native")]
 pub struct PySignedObject {
-    inner: SignedObject,
+    pub(crate) inner: SignedObject,
 }
 
 #[pymethods]
@@ -280,7 +286,7 @@ impl PyAuthorityDiff {
 
 #[pyclass(name = "GrantPlan", frozen, module = "auths._native")]
 pub struct PyGrantPlan {
-    inner: GrantPlan,
+    pub(crate) inner: GrantPlan,
 }
 
 #[pymethods]
@@ -923,7 +929,7 @@ fn status_snapshot(
 
 #[pyclass(name = "TrustedContext", frozen, module = "auths._native")]
 pub struct PyTrustedContext {
-    inner: VerifierContext,
+    pub(crate) inner: VerifierContext,
 }
 
 #[pymethods]
@@ -1339,7 +1345,7 @@ fn grant_state(value: &str) -> PyResult<GrantState> {
     }
 }
 
-fn signing_descriptor(
+pub(crate) fn signing_descriptor(
     principal_method: &str,
     verification_method: &str,
     suite: &str,
@@ -1412,7 +1418,7 @@ fn assurance_quantifier(value: &str) -> PyResult<AssuranceQuantifier> {
     }
 }
 
-fn configuration() -> PyResult<[u8; 32]> {
+pub(crate) fn configuration() -> PyResult<[u8; 32]> {
     let raw_key = auths_raw_key::RawKeyMethod::new().map_err(value_error)?;
     let did_key = auths_did_key::DidKeyMethod::new().map_err(value_error)?;
     let did_keri = auths_did_keri::DidKeriMethod::new().map_err(value_error)?;
@@ -1431,6 +1437,6 @@ fn array32(value: &[u8], label: &str) -> PyResult<[u8; 32]> {
         .map_err(|_| PyValueError::new_err(format!("{label} must contain 32 bytes")))
 }
 
-fn value_error(error: impl std::fmt::Display) -> PyErr {
+pub(crate) fn value_error(error: impl std::fmt::Display) -> PyErr {
     PyValueError::new_err(error.to_string())
 }

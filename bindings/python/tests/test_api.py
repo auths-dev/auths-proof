@@ -33,12 +33,13 @@ def test_native_api_returns_the_core_sealed_authorized_action() -> None:
     assert result.code == "authorized"
     assert result.required_configuration == result.local_configuration
     assert len(result.local_configuration) == 32
-    assert canonical_action_bytes(result.action) == (
-        CORPUS / "raw-key-chain.action.cbor"
-    ).read_bytes()
-    assert result.result_cbor == (
-        BINDING_VECTORS / "authorized.result.cbor"
-    ).read_bytes()
+    assert (
+        canonical_action_bytes(result.action)
+        == (CORPUS / "raw-key-chain.action.cbor").read_bytes()
+    )
+    assert (
+        result.result_cbor == (BINDING_VECTORS / "authorized.result.cbor").read_bytes()
+    )
 
 
 def test_verified_action_has_no_python_construction_path() -> None:
