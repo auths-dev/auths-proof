@@ -1,83 +1,45 @@
 # `@auths-dev/sdk`
 
-The Auths SDK for browser and Node. It provides local verification and the
-typed attach, delegate, authorize, inspect, and closed-gateway workflow. Exact
-release capability and assurance labels belong to repository release evidence;
-this README does not upgrade those claims.
+Auths lets software prove exactly what it may do, execute through a closed
+action family, and leave a signed receipt. Rust owns the security meaning;
+TypeScript provides typed, asynchronous application I/O.
 
-Publication, promotion, and independent-review status is recorded separately
-from repository-local implementation capability in `sdk-capability.json`.
+The beginner journey introduces five security nouns progressively:
 
-- Implementation tier: `full-workflow-sdk`
-- Evidence status: `repository-local-complete`
-- Promoted tier: `verifier-binding`
-- Publication status: `blocked`
-- Promotion status: `blocked`
+| Term | Meaning |
+| --- | --- |
+| Identity | Who or what is presenting a credential. |
+| Authority | The bounded things that identity may do. |
+| Action | The exact inert operation being proposed. |
+| Approval | Optional confirmation of one exact transaction. |
+| Receipt | Signed evidence of a decision or observed effect. |
 
-```ts
-const auths = await loadAuths({ signer, trustedAuthority });
-const agent = await auths.attachAgent({ name: "worker", profile, authority, approval });
-const result = await agent.authorize(profile.action(proposedChange));
-
-if (result.kind === "authorized") await gateway.execute(result.command);
-else report(result.kind, result.code);
-```
-
-The published package contains precompiled WebAssembly. Consumer machines do
-not need Rust, C, a daemon, or network access during verification.
-
-Teams that only need identity exchange should import `@auths-dev/sdk/identity`.
-That subpath exposes decoded, validated, and authenticated states backed by the
-packaged Rust/WASM identity protocol; it does not initialize grants,
-capabilities, approvals, policy, profiles, or lifecycle workflows. Authority,
-approvals, and profiles are separate `@auths-dev/sdk/authority`,
-`@auths-dev/sdk/approvals`, and `@auths-dev/sdk/profiles` entry points. The
-package root remains the integrated authorization workflow.
-
-The broader typed surface is split by responsibility:
-
-- `@auths-dev/sdk/trust` compiles typed roots, accepted registries, assurance,
-  lifecycle snapshots, and verifier limits through Rust into a sealed context
-  source. It does not accept context CBOR as configuration.
-- `@auths-dev/sdk/lifecycle` authors principal and grant status through exact
-  signer transactions and produces Rust-parsed status snapshots.
-- `@auths-dev/sdk/authority` provides opaque proof references plus native
-  `proof`, `all-of`, `any-of`, and `threshold` authorization plans.
-- `@auths-dev/sdk/profiles` exposes the maintained HTTP, Git, deployment,
-  supply-chain, and edge profile families. Each retains a distinct action,
-  command, and gateway type.
-- `@auths-dev/sdk/runtime` defines optional challenge, replay, budget, receipt,
-  and closed-executor ports. These effects are not part of verification and
-  run only after the matching gateway parses an authorized command.
-- `@auths-dev/sdk/custody` publishes the provider-neutral signer contract. The
-  conformance harness and development-only custody remain under
-  `@auths-dev/sdk/testkit`; no production vendor is bundled or implied.
-
-The complete [local quickstart](examples/quickstart/index.ts) shows a bounded
-root grant, narrower child delegation, visible approval, exact authorization,
-deterministic disposal, and a closed MCP gateway. Its ephemeral signers are
-explicitly development-only.
-
-Application workflows can compose an immutable, authority-summarized plan and
-receive a sealed command only after every exact action authorizes:
+Authentication proves control of identity material. It grants no permission.
+Approval confirms a transaction. It does not create authority.
 
 ```ts
-const actionPlan = await profile.plan([
-  profile.action(createBranch),
-  profile.action(modifyFile),
-  profile.action(openPullRequest),
-]);
+import { development } from "@auths-dev/sdk/integrations";
+import { mcp } from "@auths-dev/sdk/profiles";
 
-const result = await agent.authorizePlan(actionPlan);
-if (result.kind === "authorized") {
-  await gateway.executePlan(result.command);
-}
+const provider = mcp.developmentProvider({ tools: { publish_report: publishReport } });
+await using auths = await development.createAuths({
+  authority: mcp.allowTools(["publish_report"]),
+});
+const result = await auths.execute({
+  action: mcp.callTool({ name: "publish_report", arguments: report }),
+  provider,
+});
 ```
 
-`approvalPolicy` creates typed configuration commitments, the separate
-`@auths-dev/sdk/testkit` export provides unmistakably non-production ephemeral
-signers and profile mutation fixtures. Raw verification, safe inspection, and
-caller-supplied engines have deliberately separate entry points.
+Identity and effect-free verification remain independently usable. Installed
+consumers receive precompiled WebAssembly and do not need a Rust toolchain.
+The [product glossary](../../docs/product/GLOSSARY.md) defines the progressive
+language used by the SDK and recipes.
+
+<!-- auths-beginner-end -->
+
+Publication, promotion, production readiness, and independent review remain
+separate evidence gates recorded in `sdk-capability.json`.
 
 ## Local verification
 

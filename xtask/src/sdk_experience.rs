@@ -250,7 +250,7 @@ fn python_surface() -> Result<PublicSurface, String> {
     })
 }
 
-fn classify_typescript_entry(entry: &str) -> &'static str {
+pub(crate) fn classify_typescript_entry(entry: &str) -> &'static str {
     match entry {
         "." => "product",
         "./identity" | "./verify" | "./inspection" | "./diagnostics" | "./observability" => {
@@ -266,7 +266,7 @@ fn classify_typescript_entry(entry: &str) -> &'static str {
     }
 }
 
-fn classify_python_module(module: &str) -> &'static str {
+pub(crate) fn classify_python_module(module: &str) -> &'static str {
     match module {
         "auths" => "product",
         "auths.identity"

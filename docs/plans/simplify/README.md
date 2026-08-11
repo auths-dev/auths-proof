@@ -147,8 +147,10 @@ ordered-plan codes.
 
 ### Milestone B — Contract design
 
-- [ ] Validate the five-noun vocabulary from
-  [03 — Customer vocabulary](03_CUSTOMER_VOCABULARY.md) with recipe prototypes.
+- [x] Validate the five-noun vocabulary mechanically and prototype it in the
+  first four journeys from
+  [03 — Customer vocabulary](03_CUSTOMER_VOCABULARY.md). The moderated cohort
+  remains the final-name freeze gate.
 - [ ] Design the root facade and opaque profile session from
   [05 — Primary product waist](05_PRIMARY_PRODUCT_WAIST.md).
 - [ ] Design the six-required-plus-evidence-gated-framework topology in

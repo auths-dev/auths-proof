@@ -4,7 +4,7 @@ use crate::*;
 
 const INVENTORY_PATH: &str = "release/semantic-freeze.json";
 const INVENTORY_SCHEMA: &str = "auths.semantic-freeze/1";
-const FREEZE_VERSION: u64 = 58;
+const FREEZE_VERSION: u64 = 59;
 const PUBLIC_RUST_ROOTS: [&str; 10] = [
     "auths",
     "auths-byte-channel",
@@ -209,7 +209,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.modular-components",
-            3,
+            4,
             FreezeClassification::FrozenMeaning,
             &[
                 "published-neutral-ports",
@@ -293,6 +293,27 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
                 "bindings/typescript/src/testkit/product-waist-conformance.ts".to_owned(),
                 "bindings/python/python/auths/testkit.py".to_owned(),
                 "xtask/src/product_waist.rs".to_owned(),
+            ],
+        )?,
+        freeze_entry(
+            "auths.product.vocabulary",
+            1,
+            FreezeClassification::FrozenMeaning,
+            &[
+                "customer-vocabulary",
+                "cross-language-naming",
+                "beginner-documentation-language",
+                "vocabulary-lint",
+            ],
+            vec![
+                "docs/product/sdk-glossary.json".to_owned(),
+                "docs/product/GLOSSARY.md".to_owned(),
+                "docs/product/recipes".to_owned(),
+                "docs/product/vocabulary-review.json".to_owned(),
+                "bindings/typescript/README.md".to_owned(),
+                "bindings/python/README.md".to_owned(),
+                "product/sdk/auths-sdk/Cargo.toml".to_owned(),
+                "xtask/src/sdk_vocabulary.rs".to_owned(),
             ],
         )?,
         freeze_entry(
@@ -436,7 +457,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
     ]);
     entries.push(freeze_entry(
         "auths.release.public-surface",
-        58,
+        59,
         FreezeClassification::ReleaseMetadata,
         &[
             "package-names",

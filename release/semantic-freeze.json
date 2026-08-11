@@ -1,6 +1,6 @@
 {
   "schema": "auths.semantic-freeze/1",
-  "freezeVersion": 58,
+  "freezeVersion": 59,
   "publicSurface": {
     "rustRoots": [
       "auths",
@@ -534,7 +534,7 @@
     },
     {
       "id": "auths.modular-components",
-      "version": 3,
+      "version": 4,
       "classification": "frozen-meaning",
       "categories": [
         "published-neutral-ports",
@@ -564,7 +564,7 @@
         "exchange/crates/auths-byte-channel/README.md",
         "xtask/src/fixtures.rs"
       ],
-      "sha256": "22f311c5ba390a93d21c7b7eecb8a99427aed513b4466697bf95995b6a059436"
+      "sha256": "e2f29e94fcf5eca9f7e00b42f79fb86566d1f97476b0b8902c9f1d476e5ce692"
     },
     {
       "id": "auths.portable-abi-bindings",
@@ -716,6 +716,28 @@
       "sha256": "f0d0d16eb42b250170c0d236dbfbedf48ea789020dfc1e6030b47fe43b5dedc0"
     },
     {
+      "id": "auths.product.vocabulary",
+      "version": 1,
+      "classification": "frozen-meaning",
+      "categories": [
+        "customer-vocabulary",
+        "cross-language-naming",
+        "beginner-documentation-language",
+        "vocabulary-lint"
+      ],
+      "owners": [
+        "bindings/python/README.md",
+        "bindings/typescript/README.md",
+        "docs/product/GLOSSARY.md",
+        "docs/product/recipes",
+        "docs/product/sdk-glossary.json",
+        "docs/product/vocabulary-review.json",
+        "product/sdk/auths-sdk/Cargo.toml",
+        "xtask/src/sdk_vocabulary.rs"
+      ],
+      "sha256": "5a0bab4e82ba5c0af27b3345142a9f51e6d0a8702b2688028778e5e4cd5b9d18"
+    },
+    {
       "id": "auths.release.benchmark-contract",
       "version": 1,
       "classification": "frozen-meaning",
@@ -734,7 +756,7 @@
     },
     {
       "id": "auths.release.public-surface",
-      "version": 58,
+      "version": 59,
       "classification": "release-metadata",
       "categories": [
         "package-names",
@@ -816,7 +838,7 @@
         "xtask/src/release_control.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "4fe24c5ace0f14c89850d5bd9600b2a940f19b36594d1a6696dd5cbb22caf261"
+      "sha256": "e5be29b156078df95ba44e600bde6afdeb6864278613619d4156e63f519c6815"
     }
   ]
 }

@@ -1,5 +1,8 @@
 # Architecture
 
+Product-facing terms are defined in the [Auths product glossary](product/GLOSSARY.md).
+This document uses exact framework and protocol terminology.
+
 ## Rule
 
 > Auths owns authority. Adapters prove principal control.

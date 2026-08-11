@@ -7,7 +7,7 @@ rust-version.workspace = true
 repository.workspace = true
 homepage = "https://auths.dev"
 documentation = "https://docs.rs/auths-sdk"
-description = "Idiomatic embedded Auths enforcement SDK"
+description = "Product facade for exact authority, protected actions, and signed receipts"
 
 [dependencies]
 auths-author.workspace = true

@@ -1,0 +1,19 @@
+{
+  "schema": "auths.vocabulary-review/1",
+  "prototypeRecipes": [
+    "01_AUTHENTICATE_IDENTITY",
+    "02_VERIFY_AUTHORITY",
+    "03_EXECUTE_ONE_ACTION",
+    "04_DELEGATE_TO_AN_AGENT"
+  ],
+  "candidateVocabulary": [
+    "Identity",
+    "Authority",
+    "Action",
+    "Approval",
+    "Receipt"
+  ],
+  "status": "awaiting-moderated-cohort",
+  "freezeEligible": false,
+  "cohort": []
+}

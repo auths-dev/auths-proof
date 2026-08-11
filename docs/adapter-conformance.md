@@ -1,5 +1,8 @@
 # Third-party adapter conformance
 
+Product-facing terms are defined in the [Auths product glossary](product/GLOSSARY.md).
+This document uses exact framework and protocol terminology.
+
 Auths does not need to own an adapter for every identity method, cryptographic
 suite, or transport. A third party can implement a neutral port in its own
 repository and make an accurate compatibility claim by following this process.

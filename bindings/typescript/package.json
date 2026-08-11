@@ -1,7 +1,7 @@
 {
   "name": "@auths-dev/sdk",
   "version": "1.0.0-rc.1",
-  "description": "Embedded Auths SDK for browser and Node",
+  "description": "Prove exact authority, execute protected actions, and leave signed receipts",
   "type": "module",
   "exports": {
     ".": {
