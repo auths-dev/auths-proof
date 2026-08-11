@@ -17,7 +17,7 @@ use axum::{
     response::IntoResponse,
     routing::{get, post},
 };
-use ed25519_dalek::SigningKey;
+use ed25519_dalek::{Signer as _, SigningKey};
 use iroh::{RelayMode, endpoint::presets};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -58,6 +58,8 @@ struct TimelineEvent {
 
 #[derive(Deserialize)]
 struct ApprovalInput {
+    #[serde(rename = "requestId")]
+    request_id: String,
     #[serde(rename = "transactionDigest")]
     transaction_digest: String,
     #[serde(rename = "planCommitment")]
@@ -74,7 +76,8 @@ struct CacheInput {
 
 #[derive(Deserialize)]
 struct ExchangeInput {
-    envelope: String,
+    #[serde(rename = "envelopeHex")]
+    envelope_hex: String,
 }
 
 #[derive(Serialize)]
@@ -231,10 +234,25 @@ async fn approve(
     if !certificate_ok(&state, &headers) {
         return error(StatusCode::UNAUTHORIZED, "client-certificate-required");
     }
-    if input.transaction_digest.len() != 64 || input.plan_commitment.len() != 64 {
+    if input.request_id.is_empty()
+        || input.transaction_digest.len() != 64
+        || input.plan_commitment.len() != 64
+    {
         return error(StatusCode::BAD_REQUEST, "invalid-approval-request");
     }
     let mut store = state.store.lock().await;
+    let Ok(seed) = hex::decode(&store.current_seed).and_then(|value| {
+        <[u8; 32]>::try_from(value).map_err(|_| hex::FromHexError::InvalidStringLength)
+    }) else {
+        return error(StatusCode::INTERNAL_SERVER_ERROR, "signing-key-unavailable");
+    };
+    let Ok(digest) = hex::decode(&input.transaction_digest) else {
+        return error(StatusCode::BAD_REQUEST, "invalid-approval-request");
+    };
+    let signing = SigningKey::from_bytes(&seed);
+    let signature = signing.sign(&digest);
+    let principal =
+        principal_for_seed(&store.current_seed).unwrap_or_else(|_| "unavailable".to_owned());
     store.approvals = store.approvals.saturating_add(1);
     push_event(
         &mut store,
@@ -248,7 +266,12 @@ async fn approve(
             "schema": SCHEMA,
             "decision": "approved",
             "actor": "edgeshield-oncall",
-            "transactionDigest": input.transaction_digest
+            "requestId": input.request_id,
+            "transactionDigest": input.transaction_digest,
+            "principal": principal,
+            "suite": "ed25519-v1",
+            "publicKey": hex::encode(signing.verifying_key().to_bytes()),
+            "signature": hex::encode(signature.to_bytes())
         })),
     )
 }
@@ -296,10 +319,13 @@ async fn iroh_exchange(
     State(state): State<AppState>,
     Json(input): Json<ExchangeInput>,
 ) -> impl IntoResponse {
-    if input.envelope.is_empty() || input.envelope.len() > MAX_ENVELOPE {
+    let Ok(envelope) = hex::decode(&input.envelope_hex) else {
+        return error(StatusCode::BAD_REQUEST, "iroh-envelope-outside-bounds");
+    };
+    if envelope.is_empty() || envelope.len() > MAX_ENVELOPE {
         return error(StatusCode::BAD_REQUEST, "iroh-envelope-outside-bounds");
     }
-    match exchange_bytes(&state, input.envelope.as_bytes()).await {
+    match exchange_bytes(&state, &envelope).await {
         Ok((payload, client_peer, server_peer, path)) => (
             StatusCode::OK,
             Json(serde_json::json!({

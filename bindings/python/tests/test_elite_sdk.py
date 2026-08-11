@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -14,6 +15,9 @@ from auths import (
     Principal,
     Profile,
     ReviewField,
+    AuthsClient,
+    Validity,
+    prepare_raw_key_authority,
 )
 from auths.approvals import threshold_approval
 from auths.authority import ProofPlanBuilder, ProofReference
@@ -32,11 +36,20 @@ from auths.integrations import exchange_identity
 from auths.lifecycle import rotate_identity
 from auths.observability import AuthsEvent, DecisionTimeline, support_bundle
 from auths.profile_kit import (
+    ApplicationGatewayOptions,
+    ApplicationPlanAuthorized,
     CanonicalProfileAction,
     ProfileBudget,
     ProfileDefinition,
     ProfilePermission,
     define_profile,
+)
+from auths.profiles import DomainProfileOptions, EdgeActionInput, load_domain_profiles
+from auths.receipts import verify_receipt
+from auths.testkit import (
+    DevelopmentApproval,
+    DevelopmentEd25519Signer,
+    DevelopmentReceiptAttestor,
 )
 from auths.profiles.http import HttpProfile, HttpProfileError
 from auths.runtime import InMemoryRuntimeStore, RuntimeKernel, TransitionGates
@@ -125,11 +138,7 @@ async def test_resolver_and_hybrid_suite_own_verification_material_shape() -> No
         relationships=(relationship,),
     )
     registry = IdentityRegistry(
-        methods=[
-            ResolverIdentityMethod(
-                "did-web-v1", Resolver(), maximum_bytes=4096
-            )
-        ],
+        methods=[ResolverIdentityMethod("did-web-v1", Resolver(), maximum_bytes=4096)],
         suites=[HybridSuite()],
     )
     validated = await decode_identity(packet).validate(registry)
@@ -221,7 +230,13 @@ def test_http_and_application_plans_are_native_bound_and_profile_specific() -> N
     assert plan.length == 2
     assert len(plan.commitment) == 32
     with pytest.raises(HttpProfileError):
-        http.plan((HttpProfile(scheme="https", authority="other.example").request("GET", "/"),))
+        http.plan(
+            (
+                HttpProfile(scheme="https", authority="other.example").request(
+                    "GET", "/"
+                ),
+            )
+        )
 
     def canonicalize(value: str) -> CanonicalProfileAction:
         return CanonicalProfileAction(
@@ -235,11 +250,132 @@ def test_http_and_application_plans_are_native_bound_and_profile_specific() -> N
         )
 
     application = define_profile(
-        ProfileDefinition("com.example.records", 1, canonicalize, lambda value: value.body)
+        ProfileDefinition(
+            "com.example.records", 1, canonicalize, lambda value: value.body
+        )
     )
-    application_plan = application.plan((application.action("one"), application.action("two")))
+    application_plan = application.plan(
+        (application.action("one"), application.action("two"))
+    )
     assert application_plan.authority.budget == ProfileBudget("numeric-ceiling-v1", 2)
     assert len(application.review(application.action("three")).action_commitment) == 32
+
+
+@pytest.mark.asyncio
+async def test_application_plan_gateway_is_ordered_single_use_and_attested() -> None:
+    profile = load_domain_profiles().edge(
+        DomainProfileOptions("incident://test", "edge://fleet")
+    )
+    plan = profile.plan(
+        (
+            profile.action(EdgeActionInput("fleet", "first", "execute", 1)),
+            profile.action(EdgeActionInput("fleet", "second", "execute", 2)),
+        )
+    )
+    approval = Approval.plan_once(
+        "approval.application-plan",
+        DevelopmentApproval(),
+        max_uses=2,
+        expires_in_seconds=300,
+    )
+    root = DevelopmentEd25519Signer()
+    actor = DevelopmentEd25519Signer()
+    now = int(time.time())
+    prepared = await prepare_raw_key_authority(
+        authority_id="test.application-root",
+        root_signer=root,
+        subject=await actor.public_identity(),
+        profile=profile,
+        permissions=plan.authority.permissions,
+        resource_namespaces=plan.authority.resource_namespaces,
+        validity=Validity(now, now + 300),
+        audiences=plan.authority.audiences,
+        remaining_depth=0,
+        approval=approval,
+    )
+    client = AuthsClient(signer=actor, trusted_authority=prepared.trusted_authority)
+    await client.open()
+    agent = await client.attach_agent(
+        name="application-plan-agent",
+        profile=profile,
+        authority=prepared.authority,
+        approval=approval,
+    )
+    authorization = await agent.authorize_plan(plan)
+    assert isinstance(authorization, ApplicationPlanAuthorized)
+
+    class Store:
+        def __init__(self) -> None:
+            self.stages: dict[str, str] = {}
+
+        async def reserve(self, reservation: object) -> str:
+            key = getattr(reservation, "idempotency_key")
+            if key in self.stages:
+                return "exact-replay"
+            self.stages[key] = "reserved"
+            return "reserved"
+
+        async def authorize_credential(self, key: str) -> str:
+            assert self.stages[key] == "reserved"
+            self.stages[key] = "credential"
+            return "authorized"
+
+        async def enter_provider(self, key: str) -> str:
+            assert self.stages[key] == "credential"
+            self.stages[key] = "provider"
+            return "entered"
+
+        async def finish(
+            self, key: str, outcome: str, decision: object, execution: object
+        ) -> str:
+            assert self.stages[key] in ("reserved", "credential", "provider")
+            self.stages[key] = outcome
+            return "stored"
+
+    class Credentials:
+        async def acquire(self, command: EdgeActionInput, context: object) -> None:
+            assert getattr(context, "canonical_command")
+            calls.append("credential:" + command.device)
+
+    calls: list[str] = []
+
+    async def execute(
+        command: EdgeActionInput, _credential: object, context: object
+    ) -> str:
+        assert getattr(context, "canonical_command")
+        calls.append("provider:" + command.device)
+        return command.device
+
+    gateway = profile.gateway(
+        ApplicationGatewayOptions(
+            Store(),
+            Credentials(),
+            DevelopmentReceiptAttestor(),
+            execute,
+            lambda value: value.encode(),
+        )
+    )
+    results, receipts = await gateway.execute_plan(
+        authorization.command, idempotency_key="application-plan"
+    )
+    assert results == ("first", "second")
+    assert calls == [
+        "credential:first",
+        "provider:first",
+        "credential:second",
+        "provider:second",
+    ]
+    for receipt in receipts:
+        verify_receipt(receipt.decision_receipt)
+        assert receipt.execution_receipt is not None
+        verify_receipt(receipt.execution_receipt)
+        assert receipt.state_claim == "committed"
+    with pytest.raises(RuntimeError, match="consumed"):
+        await gateway.execute_plan(
+            authorization.command, idempotency_key="application-plan"
+        )
+    await client.aclose()
+    await root.aclose()
 
 
 def test_typed_trust_compilation_has_no_protocol_byte_construction() -> None:
@@ -322,17 +458,22 @@ async def test_in_memory_runtime_store_is_atomic_for_replay_and_budget() -> None
     assert await store.reserve(first, "numeric-ceiling-v1", 2) == "reserved"
     assert await store.reserve(first, "numeric-ceiling-v1", 2) == "duplicate"
     assert await store.reserve(second, "numeric-ceiling-v1", 2) == "exhausted"
-    assert RuntimeKernel().transition(
-        None,
-        "record-decision",
-        TransitionGates(
-            core_authorized=True,
-            policy_eligible=True,
-            configuration_matches=True,
-            not_revoked=True,
-            not_expired=True,
-        ),
-    ).kind == "applied"
+    assert (
+        RuntimeKernel()
+        .transition(
+            None,
+            "record-decision",
+            TransitionGates(
+                core_authorized=True,
+                policy_eligible=True,
+                configuration_matches=True,
+                not_revoked=True,
+                not_expired=True,
+            ),
+        )
+        .kind
+        == "applied"
+    )
 
 
 def test_observability_is_bounded_redacted_and_deterministic() -> None:
@@ -350,7 +491,9 @@ def test_observability_is_bounded_redacted_and_deterministic() -> None:
     second = support_bundle(timeline.snapshot(), runtime={"python": "3.13"})
     assert first == second
     with pytest.raises(ValueError, match="attribute name"):
-        AuthsEvent("auths.verify", "verify", "complete", "denied", 10, (("proof", "secret"),))
+        AuthsEvent(
+            "auths.verify", "verify", "complete", "denied", 10, (("proof", "secret"),)
+        )
 
 
 def test_runtime_diagnostic_binds_trust_and_adapter_contracts() -> None:

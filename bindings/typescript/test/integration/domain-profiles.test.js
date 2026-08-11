@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { loadDomainProfiles } from "../../dist/profiles.js";
+import { development, InMemoryApplicationExecutionStore } from "../../dist/testkit/index.js";
 
 const digest = "ab".repeat(32);
 
@@ -65,12 +66,17 @@ test("domain gateways reject forged and cross-profile command substitution befor
   const http = domains.http({ audience: "auths://domain" });
   const git = domains.git({ audience: "auths://domain" });
   let calls = 0;
-  const gateway = http.gateway(async () => {
-    calls += 1;
+  const options = async (execute) => ({
+    state: new InMemoryApplicationExecutionStore(),
+    credentials: { async acquire() { return undefined; } },
+    receipts: await development.receiptAttestor(),
+    canonicalizeResult: () => new Uint8Array([1]),
+    execute,
   });
+  const gateway = http.gateway(await options(async () => { calls += 1; }));
 
   assert.throws(() => gateway.parse({}), /forged/);
-  const gitGateway = git.gateway(async () => undefined);
+  const gitGateway = git.gateway(await options(async () => undefined));
   assert.throws(() => gateway.parse(gitGateway.parse.bind(gitGateway)), /forged/);
   assert.equal(calls, 0);
 });

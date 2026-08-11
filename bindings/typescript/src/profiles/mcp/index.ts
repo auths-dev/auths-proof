@@ -9,7 +9,12 @@ import {
   resourcesForAttachedAgent,
 } from "../../workflow.js";
 import { authorizePreparedAction } from "../../internal/authorization.js";
-import { createProfilePlan, type ProfilePlan } from "../../plans.js";
+import {
+  commandsForGateway,
+  createProfilePlan,
+  type ProfilePlan,
+  type VerifiedPlanCommand,
+} from "../../plans.js";
 import { loadPackagedWorkflowEngine } from "../../verifier/wasm.js";
 
 const PROFILE_ID = "auths.mcp";
@@ -79,6 +84,7 @@ export interface McpGatewayCall {
 export interface McpGateway<Result> {
   parse(command: McpCommand): McpCommand;
   execute(command: McpCommand): Promise<Result>;
+  executePlan(command: VerifiedPlanCommand<McpCommand>): Promise<readonly Result[]>;
 }
 
 export interface McpAuthority {
@@ -229,13 +235,20 @@ export class McpProfile implements Profile<McpAction, McpCommand> {
       async execute(command: McpCommand): Promise<Result> {
         const resources = commandResources.get(command);
         if (resources === undefined || resources.profile !== profile) {
-          throw new AuthsWorkflowError("invalid-profile", "MCP command is forged or belongs to another profile");
+          throw new AuthsWorkflowError("invalid-profile", "MCP command is forged, consumed, or belongs to another profile");
         }
+        commandResources.delete(command);
         return execute(Object.freeze({
           service: profile.service,
           name: resources.name,
           argumentsJson: resources.argumentsJson.slice(),
         }));
+      },
+      async executePlan(command: VerifiedPlanCommand<McpCommand>): Promise<readonly Result[]> {
+        const commands = commandsForGateway(command);
+        const results: Result[] = [];
+        for (const member of commands) results.push(await this.execute(member));
+        return Object.freeze(results);
       },
     });
   }

@@ -86,6 +86,18 @@ fn runtime_execution_state_v1(outcome: &str) -> PyResult<&'static str> {
     }
 }
 
+#[pyfunction]
+fn runtime_application_execution_state_v1(outcome: &str) -> PyResult<&'static str> {
+    match outcome {
+        "succeeded" => Ok("committed"),
+        "failed" | "cancelled" => Ok("released"),
+        "outcome-unknown" => Ok("outcome-unknown"),
+        _ => Err(PyValueError::new_err(
+            "unsupported application execution outcome",
+        )),
+    }
+}
+
 fn parse_state(value: &str) -> PyResult<LifecycleState> {
     match value {
         "decision-recorded" => Ok(LifecycleState::DecisionRecorded),
@@ -162,5 +174,9 @@ pub fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(runtime_additive_capacity_v1, module)?)?;
     module.add_function(wrap_pyfunction!(runtime_exclusive_capacity_v1, module)?)?;
     module.add_function(wrap_pyfunction!(runtime_execution_state_v1, module)?)?;
+    module.add_function(wrap_pyfunction!(
+        runtime_application_execution_state_v1,
+        module
+    )?)?;
     Ok(())
 }

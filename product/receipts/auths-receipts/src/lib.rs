@@ -3,8 +3,9 @@
 #![forbid(unsafe_code)]
 
 use auths_model::{
-    ContextDigest, Digest, PROTOCOL_V1, PrincipalId, ProfileRef, ReceiptId, SignatureBytes,
-    SignatureSuiteId, StatusSnapshotId, Timestamp, VerificationMethod,
+    CanonicalAction, ContextDigest, Digest, PROTOCOL_V1, PrincipalId, ProfileRef, ReceiptId,
+    SignatureBytes, SignatureSuiteId, StatusSnapshotId, Timestamp, VerificationMethod,
+    VerifierContext,
 };
 use auths_ports::{SignatureInput, SignatureSuite};
 use minicbor::{Decoder, Encoder, data::Type};
@@ -22,6 +23,154 @@ const MAX_AUDIT_ARTIFACTS: usize = 64;
 const MAX_AUDIT_BYTES: usize = 16 * 1024 * 1024;
 const DECISION_SIGNATURE_DOMAIN: &[u8] = b"AUTHS-DECISION-RECEIPT\x00\x01";
 const EXECUTION_SIGNATURE_DOMAIN: &[u8] = b"AUTHS-EXECUTION-RECEIPT\x00\x01";
+const APPLICATION_EXECUTION_LEASE_DOMAIN: &[u8] = b"AUTHS-APPLICATION-EXECUTION-LEASE\x00\x01";
+const MAX_IDEMPOTENCY_KEY_BYTES: usize = 256;
+
+/// Canonical receipt bytes and the exact attestation preimage that binds them.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PreparedReceipt {
+    id: ReceiptId,
+    canonical: Vec<u8>,
+    signing_preimage: Vec<u8>,
+}
+
+impl PreparedReceipt {
+    /// Returns the deterministic inner receipt identifier.
+    #[must_use]
+    pub const fn id(&self) -> ReceiptId {
+        self.id
+    }
+
+    /// Returns the canonical unattested receipt bytes.
+    #[must_use]
+    pub fn canonical(&self) -> &[u8] {
+        &self.canonical
+    }
+
+    /// Returns the exact domain-separated bytes the attestor must sign.
+    #[must_use]
+    pub fn signing_preimage(&self) -> &[u8] {
+        &self.signing_preimage
+    }
+}
+
+/// Prepares an Auths decision receipt from the exact verified inputs.
+///
+/// Callers must parse and canonicality-check the inputs before invoking this
+/// function. The receipt shape and every digest remain Rust-owned.
+///
+/// # Errors
+///
+/// Returns a typed receipt error for invalid reason or encoding inputs.
+pub fn prepare_decision_receipt(
+    authority_commitment: Digest,
+    action: &CanonicalAction,
+    context: &VerifierContext,
+    decision: DecisionClass,
+    reasons: Vec<String>,
+    decided_at: Timestamp,
+    signer: &ReceiptSigner,
+) -> Result<PreparedReceipt, ReceiptError> {
+    let canonical_action =
+        auths_codec::encode_canonical_action(action).map_err(|_| ReceiptError::Malformed)?;
+    let receipt = DecisionReceipt::new(
+        authority_commitment,
+        auths_codec::domain_commitment("auths.canonical-action.v1", &canonical_action)
+            .map_err(|_| ReceiptError::Malformed)?,
+        auths_codec::context_digest(context).map_err(|_| ReceiptError::Malformed)?,
+        context.principal_status_snapshot().id(),
+        context.grant_status_snapshot().id(),
+        action.profile().clone(),
+        decision,
+        reasons,
+        decided_at,
+    )?;
+    let id = decision_receipt_id(&receipt)?;
+    Ok(PreparedReceipt {
+        id,
+        canonical: encode_decision(&receipt)?,
+        signing_preimage: decision_signing_preimage(&receipt, signer)?,
+    })
+}
+
+/// Derives one canonical application execution lease from its exact replay
+/// identity and ordered plan position.
+///
+/// # Errors
+///
+/// Returns a limit or malformed error for an invalid idempotency key or plan
+/// member projection.
+pub fn application_execution_lease_digest(
+    idempotency_key: &str,
+    plan_commitment: Option<Digest>,
+    member: Option<(u16, u16)>,
+) -> Result<Digest, ReceiptError> {
+    let key = idempotency_key.as_bytes();
+    if key.is_empty() || key.len() > MAX_IDEMPOTENCY_KEY_BYTES {
+        return Err(ReceiptError::LimitExceeded);
+    }
+    if member.is_some_and(|(index, count)| count == 0 || index >= count)
+        || plan_commitment.is_some() != member.is_some()
+    {
+        return Err(ReceiptError::Malformed);
+    }
+    let mut hasher = Sha256::new();
+    hasher.update(APPLICATION_EXECUTION_LEASE_DOMAIN);
+    hasher.update(
+        u64::try_from(key.len())
+            .map_err(|_| ReceiptError::LimitExceeded)?
+            .to_be_bytes(),
+    );
+    hasher.update(key);
+    match (plan_commitment, member) {
+        (Some(plan), Some((index, count))) => {
+            hasher.update([1]);
+            hasher.update(plan.as_bytes());
+            hasher.update(index.to_be_bytes());
+            hasher.update(count.to_be_bytes());
+        }
+        (None, None) => hasher.update([0]),
+        _ => return Err(ReceiptError::Malformed),
+    }
+    Ok(Digest::new(hasher.finalize().into()))
+}
+
+/// Prepares an Auths execution receipt for one exact decision and command.
+///
+/// # Errors
+///
+/// Returns a typed receipt error for invalid execution identity or encoding.
+#[allow(clippy::too_many_arguments)]
+pub fn prepare_execution_receipt(
+    decision_receipt: ReceiptId,
+    idempotency_key: &str,
+    plan_commitment: Option<Digest>,
+    member: Option<(u16, u16)>,
+    command_bytes: &[u8],
+    outcome: ExecutionOutcome,
+    result: Option<&[u8]>,
+    completed_at: Timestamp,
+    signer: &ReceiptSigner,
+) -> Result<PreparedReceipt, ReceiptError> {
+    let receipt = ExecutionReceipt::new(
+        decision_receipt,
+        application_execution_lease_digest(idempotency_key, plan_commitment, member)?,
+        raw_digest(command_bytes),
+        outcome,
+        result.map(raw_digest),
+        completed_at,
+    );
+    let id = execution_receipt_id(&receipt)?;
+    Ok(PreparedReceipt {
+        id,
+        canonical: encode_execution(&receipt)?,
+        signing_preimage: execution_signing_preimage(&receipt, signer)?,
+    })
+}
+
+fn raw_digest(bytes: &[u8]) -> Digest {
+    Digest::new(Sha256::digest(bytes).into())
+}
 
 /// Stable decision class recorded by the pure verifier.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -1544,6 +1693,54 @@ mod tests {
             verify_execution_bytes(&encoded, ReceiptId::new([0; 32])),
             Err(ReceiptError::DigestMismatch)
         );
+    }
+
+    #[test]
+    fn application_execution_receipts_bind_replay_plan_command_and_result() {
+        let plan = Digest::new([4; 32]);
+        let first =
+            application_execution_lease_digest("incident:0", Some(plan), Some((0, 2))).unwrap();
+        assert_ne!(
+            first,
+            application_execution_lease_digest("incident:1", Some(plan), Some((0, 2))).unwrap()
+        );
+        assert_ne!(
+            first,
+            application_execution_lease_digest("incident:0", Some(plan), Some((1, 2))).unwrap()
+        );
+        assert_eq!(
+            application_execution_lease_digest("incident:0", Some(plan), None),
+            Err(ReceiptError::Malformed)
+        );
+
+        let decision = decision_receipt_id(&receipt()).unwrap();
+        let prepared = prepare_execution_receipt(
+            decision,
+            "incident:0",
+            Some(plan),
+            Some((0, 2)),
+            b"exact command",
+            ExecutionOutcome::Succeeded,
+            Some(b"exact result"),
+            Timestamp::new(12),
+            &signer(),
+        )
+        .unwrap();
+        let decoded = decode_execution(prepared.canonical()).unwrap();
+        assert_eq!(prepared.id(), execution_receipt_id(&decoded).unwrap());
+        let changed = prepare_execution_receipt(
+            decision,
+            "incident:0",
+            Some(plan),
+            Some((0, 2)),
+            b"changed command",
+            ExecutionOutcome::Succeeded,
+            Some(b"exact result"),
+            Timestamp::new(12),
+            &signer(),
+        )
+        .unwrap();
+        assert_ne!(prepared.id(), changed.id());
     }
 
     #[test]

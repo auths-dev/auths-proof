@@ -1176,15 +1176,18 @@ dependencies = [
  "auths-profile-domains",
  "auths-profile-mcp",
  "auths-raw-key",
+ "auths-receipts",
  "auths-registries",
  "auths-sdk",
  "auths-signature",
  "auths-signature-ed25519",
  "auths-verifier",
+ "ed25519-dalek 2.2.0",
  "getrandom 0.3.4",
  "pyo3",
  "serde_json",
  "serde_json_canonicalizer",
+ "sha2 0.10.9",
  "subtle",
 ]
 
@@ -1204,6 +1207,7 @@ dependencies = [
  "auths-profile-domains",
  "auths-profile-mcp",
  "auths-raw-key",
+ "auths-receipts",
  "auths-registries",
  "auths-signature",
  "auths-signature-ed25519",
@@ -1214,6 +1218,7 @@ dependencies = [
  "serde-wasm-bindgen",
  "serde_json",
  "serde_json_canonicalizer",
+ "sha2 0.10.9",
  "wasm-bindgen",
 ]
 
@@ -1300,6 +1305,7 @@ dependencies = [
 name = "auths-receipts"
 version = "1.0.0-rc.1"
 dependencies = [
+ "auths-codec",
  "auths-model",
  "auths-ports",
  "minicbor",

@@ -1,5 +1,21 @@
 """Maintained Auths action profiles."""
 
-from . import http, mcp
+from . import domains, http, mcp
+from .domains import (
+    DomainProfileOptions,
+    DomainProfiles,
+    EdgeActionInput,
+    EdgeProfile,
+    load_domain_profiles,
+)
 
-__all__ = ["http", "mcp"]
+__all__ = [
+    "DomainProfileOptions",
+    "DomainProfiles",
+    "EdgeActionInput",
+    "EdgeProfile",
+    "domains",
+    "http",
+    "load_domain_profiles",
+    "mcp",
+]

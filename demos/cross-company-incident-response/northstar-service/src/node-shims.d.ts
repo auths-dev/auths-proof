@@ -4,9 +4,12 @@ declare module "node:http" {
 }
 declare module "node:crypto" {
   export const createHash: any;
+  export const createPrivateKey: any;
+  export const createPublicKey: any;
   export const generateKeyPairSync: any;
   export const randomBytes: any;
   export const sign: any;
+  export const verify: any;
 }
 declare module "node:fs" {
   export const existsSync: any;

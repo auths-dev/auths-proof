@@ -8,7 +8,8 @@ RUN /venv/bin/maturin build --manifest-path bindings/python/Cargo.toml --release
 FROM python:3.12-slim
 WORKDIR /app
 COPY --from=binding /wheels /wheels
-RUN pip install --no-cache-dir /wheels/*.whl && rm -rf /wheels
+COPY demos/cross-company-incident-response/agent-service/requirements.txt /requirements.txt
+RUN pip install --no-cache-dir /wheels/*.whl -r /requirements.txt && rm -rf /wheels
 COPY demos/cross-company-incident-response/agent-service/auths_incident_agent ./auths_incident_agent
 COPY core/fixtures/v1/valid/webauthn-root-raw-key-actor.proof.cbor /repo/core/fixtures/v1/valid/
 COPY core/fixtures/v1/valid/webauthn-root-raw-key-actor.action.cbor /repo/core/fixtures/v1/valid/

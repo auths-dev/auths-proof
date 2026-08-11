@@ -5,8 +5,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Awaitable, Callable, Generic, TypeVar
 
-from .approvals import ApprovalDecision, ApprovalProvider, ApprovalRequest, ApprovalResponse
+from . import _native as native
+from .approvals import (
+    ApprovalDecision,
+    ApprovalProvider,
+    ApprovalRequest,
+    ApprovalResponse,
+)
 from .custody import (
+    ControlEvidence,
     PrincipalDescriptor,
     Signer,
     SignerLifecycle,
@@ -22,6 +29,7 @@ from .identity import (
     VerificationMaterial,
 )
 from .observability import AuthsEvent
+from .receipts import ReceiptSigner
 
 ADAPTER_CONTRACT_VERSION = 1
 
@@ -45,7 +53,9 @@ class DevelopmentSigner(Signer):
     kind = "auths.testkit.development-signer"
     lifecycle: SignerLifecycle = "durable"
 
-    def __init__(self, principal: PrincipalDescriptor, *, signature_byte: int = 7) -> None:
+    def __init__(
+        self, principal: PrincipalDescriptor, *, signature_byte: int = 7
+    ) -> None:
         if not 0 <= signature_byte <= 255:
             raise ValueError("signature byte must fit in one byte")
         self._principal = principal
@@ -71,6 +81,63 @@ class DevelopmentSigner(Signer):
 
     async def aclose(self) -> None:
         self.closed = True
+
+
+class DevelopmentEd25519Signer(Signer):
+    kind = "auths-development-ed25519"
+    lifecycle: SignerLifecycle = "ephemeral"
+
+    def __init__(self) -> None:
+        self._key = native.DevelopmentEd25519Key.generate()
+        principal = native.Principal(self._key.principal)
+        self._descriptor = PrincipalDescriptor(
+            principal,
+            self._key.principal_method,
+            self._key.verification_method,
+            self._key.suite,
+        )
+        self.closed = False
+
+    async def public_identity(self) -> PrincipalDescriptor:
+        self._assert_active()
+        return self._descriptor
+
+    async def sign(self, request: SigningRequest) -> SigningResponse:
+        self._assert_active()
+        return SigningResponse(
+            request.request_id,
+            request.principal,
+            request.transaction_digest,
+            bytes(self._key.sign(request.signing_preimage)),
+            (
+                ControlEvidence(
+                    self._key.evidence_type,
+                    self._key.media_type,
+                    bytes(self._key.evidence),
+                ),
+            ),
+        )
+
+    async def aclose(self) -> None:
+        self.closed = True
+
+    def _assert_active(self) -> None:
+        if self.closed:
+            raise RuntimeError("development signer is closed")
+
+
+class DevelopmentReceiptAttestor:
+    def __init__(self) -> None:
+        self._key = native.DevelopmentEd25519Key.generate()
+        self.signer = ReceiptSigner(
+            self._key.principal,
+            self._key.verification_method,
+            self._key.suite,
+            bytes(self._key.evidence),
+        )
+
+    async def sign(self, preimage: bytes) -> bytes:
+        return bytes(self._key.sign(preimage))
 
 
 @dataclass
@@ -173,7 +240,10 @@ async def check_identity_method(
     result = await method.resolve(identity)
     if type(result) is not ResolvedIdentityRecord:
         raise AssertionError("identity method returned the wrong resolved type")
-    if result.method_id != method.method_id or result.identity_id != identity.identity_id:
+    if (
+        result.method_id != method.method_id
+        or result.identity_id != identity.identity_id
+    ):
         raise AssertionError("identity method changed the requested identity")
     await method.validate(ResolvedIdentity(identity, result))
     return result
@@ -197,6 +267,8 @@ def check_telemetry(telemetry: RecordingTelemetry) -> AuthsEvent:
 __all__ = [
     "ADAPTER_CONTRACT_VERSION",
     "DevelopmentApproval",
+    "DevelopmentEd25519Signer",
+    "DevelopmentReceiptAttestor",
     "DevelopmentIdentityMethod",
     "DevelopmentSignatureSuite",
     "DevelopmentSigner",

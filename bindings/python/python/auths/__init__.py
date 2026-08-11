@@ -6,6 +6,8 @@ from importlib import import_module
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from .bootstrap import PreparedRawKeyAuthority as PreparedRawKeyAuthority
+    from .bootstrap import prepare_raw_key_authority as prepare_raw_key_authority
     from .workflow import *  # noqa: F403
 
 _WORKFLOW_EXPORTS = (
@@ -67,10 +69,17 @@ _WORKFLOW_EXPORTS = (
     "Validity",
 )
 
-__all__ = list(_WORKFLOW_EXPORTS)
+_BOOTSTRAP_EXPORTS = (
+    "PreparedRawKeyAuthority",
+    "prepare_raw_key_authority",
+)
+
+__all__ = [*_WORKFLOW_EXPORTS, *_BOOTSTRAP_EXPORTS]
 
 
 def __getattr__(name: str) -> Any:
+    if name in _BOOTSTRAP_EXPORTS:
+        return getattr(import_module(".bootstrap", __name__), name)
     if name not in _WORKFLOW_EXPORTS:
         raise AttributeError(f"module 'auths' has no attribute {name!r}")
     return getattr(import_module(".workflow", __name__), name)

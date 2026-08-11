@@ -35,6 +35,13 @@ use auths_profile_domains::{
     reference_canonicalize_http, reference_canonicalize_supply_chain,
 };
 use auths_profile_mcp::{McpProfile, McpToolCall};
+use auths_receipts::{
+    AttestedDecisionReceipt, AttestedExecutionReceipt, ConfiguredReceiptVerifier, DecisionClass,
+    ExecutionOutcome, ReceiptSigner, application_execution_lease_digest, decode_decision,
+    decode_execution, encode_attested_decision, encode_attested_execution,
+    prepare_decision_receipt, prepare_execution_receipt, verify_decision_attestation,
+    verify_execution_attestation,
+};
 use auths_registries::ImmutableRegistries;
 use serde::{Deserialize, Serialize as _};
 use serde_json::{Map, Value};
@@ -2474,6 +2481,64 @@ pub struct ProfileActionPreparationV1 {
     resource: String,
 }
 
+/// Receipt commitments derived from the exact artifacts consumed by verification.
+#[wasm_bindgen]
+pub struct ProfileReceiptBindingsV1 {
+    action: Vec<u8>,
+    authority: Vec<u8>,
+    context: Vec<u8>,
+}
+
+/// Canonical native receipt bytes and their exact attestation preimage.
+#[wasm_bindgen]
+pub struct ReceiptPreparationV1 {
+    id: Vec<u8>,
+    canonical: Vec<u8>,
+    signing_preimage: Vec<u8>,
+}
+
+#[wasm_bindgen]
+impl ReceiptPreparationV1 {
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = receiptId)]
+    pub fn receipt_id(&self) -> Vec<u8> {
+        self.id.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter)]
+    pub fn canonical(&self) -> Vec<u8> {
+        self.canonical.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = signingPreimage)]
+    pub fn signing_preimage(&self) -> Vec<u8> {
+        self.signing_preimage.clone()
+    }
+}
+
+#[wasm_bindgen]
+impl ProfileReceiptBindingsV1 {
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = actionCommitment)]
+    pub fn action_commitment(&self) -> Vec<u8> {
+        self.action.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = authorityCommitment)]
+    pub fn authority_commitment(&self) -> Vec<u8> {
+        self.authority.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = contextCommitment)]
+    pub fn context_commitment(&self) -> Vec<u8> {
+        self.context.clone()
+    }
+}
+
 #[wasm_bindgen]
 pub struct DomainActionFieldsV1 {
     body: Vec<u8>,
@@ -3118,6 +3183,287 @@ impl ProfileActionPreparationV1 {
     pub fn resource(&self) -> String {
         self.resource.clone()
     }
+}
+
+/// Derives receipt commitments from the exact canonical verification inputs.
+///
+/// # Errors
+///
+/// Returns a JavaScript error when any input is malformed or non-canonical.
+#[wasm_bindgen(js_name = profileReceiptBindingsV1)]
+pub fn profile_receipt_bindings_v1(
+    proof_cbor: &[u8],
+    canonical_action_cbor: &[u8],
+    trusted_context_cbor: &[u8],
+) -> Result<ProfileReceiptBindingsV1, JsValue> {
+    let limits = VerifierLimits::default_deployment();
+    let proof = auths_codec::decode_bundle(proof_cbor, &limits).map_err(js_error)?;
+    let action =
+        auths_codec::decode_canonical_action(canonical_action_cbor, &limits).map_err(js_error)?;
+    let context = auths_codec::decode_verifier_context(trusted_context_cbor).map_err(js_error)?;
+    let canonical_action = auths_codec::encode_canonical_action(&action).map_err(js_error)?;
+    Ok(ProfileReceiptBindingsV1 {
+        action: auths_codec::domain_commitment("auths.canonical-action.v1", &canonical_action)
+            .map_err(js_error)?
+            .as_bytes()
+            .to_vec(),
+        authority: auths_codec::proof_digest(&proof)
+            .map_err(js_error)?
+            .as_bytes()
+            .to_vec(),
+        context: auths_codec::context_digest(&context)
+            .map_err(js_error)?
+            .as_bytes()
+            .to_vec(),
+    })
+}
+
+/// Prepares one canonical authorized decision receipt from exact verified
+/// artifacts.
+///
+/// # Errors
+///
+/// Returns a JavaScript error for malformed, non-canonical, or out-of-limit
+/// inputs.
+#[wasm_bindgen(js_name = prepareAuthorizedDecisionReceiptV1)]
+pub fn prepare_authorized_decision_receipt_v1(
+    proof_cbor: &[u8],
+    canonical_action_cbor: &[u8],
+    trusted_context_cbor: &[u8],
+    decided_at: u64,
+    verifier: &str,
+    verification_method: &str,
+    suite: &str,
+) -> Result<ReceiptPreparationV1, JsValue> {
+    let limits = VerifierLimits::default_deployment();
+    let proof = auths_codec::decode_bundle(proof_cbor, &limits).map_err(js_error)?;
+    if auths_codec::encode_bundle(&proof)
+        .map_err(js_error)?
+        .as_slice()
+        != proof_cbor
+    {
+        return Err(js_error(EngineError::Abi("proof is not canonical")));
+    }
+    let action =
+        auths_codec::decode_canonical_action(canonical_action_cbor, &limits).map_err(js_error)?;
+    if auths_codec::encode_canonical_action(&action)
+        .map_err(js_error)?
+        .as_slice()
+        != canonical_action_cbor
+    {
+        return Err(js_error(EngineError::Abi("action is not canonical")));
+    }
+    let context = auths_codec::decode_verifier_context(trusted_context_cbor).map_err(js_error)?;
+    if auths_codec::encode_verifier_context(&context)
+        .map_err(js_error)?
+        .as_slice()
+        != trusted_context_cbor
+    {
+        return Err(js_error(EngineError::Abi(
+            "trusted context is not canonical",
+        )));
+    }
+    let signer = receipt_signer(verifier, verification_method, suite).map_err(js_error)?;
+    let authority_commitment = auths_codec::proof_digest(&proof).map_err(js_error)?;
+    let prepared = prepare_decision_receipt(
+        authority_commitment,
+        &action,
+        &context,
+        DecisionClass::Authorized,
+        vec!["authorized".to_owned()],
+        Timestamp::new(decided_at),
+        &signer,
+    )
+    .map_err(js_error)?;
+    Ok(receipt_preparation(prepared))
+}
+
+/// Prepares one canonical application execution receipt.
+///
+/// # Errors
+///
+/// Returns a JavaScript error for an invalid decision, lease, command,
+/// result, outcome, or signer.
+#[allow(clippy::too_many_arguments)]
+#[wasm_bindgen(js_name = prepareApplicationExecutionReceiptV1)]
+pub fn prepare_application_execution_receipt_v1(
+    decision_receipt_id: &[u8],
+    idempotency_key: &str,
+    has_plan: bool,
+    plan_commitment: &[u8],
+    member_index: u16,
+    member_count: u16,
+    command_bytes: &[u8],
+    outcome: &str,
+    has_result: bool,
+    result: &[u8],
+    completed_at: u64,
+    verifier: &str,
+    verification_method: &str,
+    suite: &str,
+) -> Result<ReceiptPreparationV1, JsValue> {
+    if command_bytes.is_empty() || command_bytes.len() > auths_model::HARD_MAX_ACTION_BYTES {
+        return Err(js_error(EngineError::Abi(
+            "command bytes are outside bounds",
+        )));
+    }
+    let decision =
+        auths_model::ReceiptId::new(receipt_array32(decision_receipt_id, "decision receipt id")?);
+    let plan = has_plan
+        .then(|| receipt_array32(plan_commitment, "plan commitment").map(Digest::new))
+        .transpose()?;
+    if !has_plan && !plan_commitment.is_empty() {
+        return Err(js_error(EngineError::Abi("unexpected plan commitment")));
+    }
+    let member = has_plan.then_some((member_index, member_count));
+    application_execution_lease_digest(idempotency_key, plan, member).map_err(js_error)?;
+    if !has_result && !result.is_empty() {
+        return Err(js_error(EngineError::Abi("unexpected execution result")));
+    }
+    let signer = receipt_signer(verifier, verification_method, suite).map_err(js_error)?;
+    let prepared = prepare_execution_receipt(
+        decision,
+        idempotency_key,
+        plan,
+        member,
+        command_bytes,
+        match outcome {
+            "succeeded" => ExecutionOutcome::Succeeded,
+            "failed" => ExecutionOutcome::Failed,
+            _ => {
+                return Err(js_error(EngineError::Abi(
+                    "execution outcome cannot be attested",
+                )));
+            }
+        },
+        has_result.then_some(result),
+        Timestamp::new(completed_at),
+        &signer,
+    )
+    .map_err(js_error)?;
+    Ok(receipt_preparation(prepared))
+}
+
+/// Attaches an exact verifier signature to canonical decision receipt bytes.
+///
+/// # Errors
+///
+/// Returns a JavaScript error for malformed receipt, signer, or signature
+/// inputs.
+#[wasm_bindgen(js_name = attestDecisionReceiptV1)]
+pub fn attest_decision_receipt_v1(
+    canonical: &[u8],
+    verifier: &str,
+    verification_method: &str,
+    suite: &str,
+    signature: &[u8],
+) -> Result<Vec<u8>, JsValue> {
+    let receipt = decode_decision(canonical).map_err(js_error)?;
+    let signer = receipt_signer(verifier, verification_method, suite).map_err(js_error)?;
+    encode_attested_decision(&AttestedDecisionReceipt::new(
+        receipt,
+        signer,
+        SignatureBytes::new(signature.to_vec()).map_err(js_error)?,
+    ))
+    .map_err(js_error)
+}
+
+/// Attaches an exact verifier signature to canonical execution receipt bytes.
+///
+/// # Errors
+///
+/// Returns a JavaScript error for malformed receipt, signer, or signature
+/// inputs.
+#[wasm_bindgen(js_name = attestExecutionReceiptV1)]
+pub fn attest_execution_receipt_v1(
+    canonical: &[u8],
+    verifier: &str,
+    verification_method: &str,
+    suite: &str,
+    signature: &[u8],
+) -> Result<Vec<u8>, JsValue> {
+    let receipt = decode_execution(canonical).map_err(js_error)?;
+    let signer = receipt_signer(verifier, verification_method, suite).map_err(js_error)?;
+    encode_attested_execution(&AttestedExecutionReceipt::new(
+        receipt,
+        signer,
+        SignatureBytes::new(signature.to_vec()).map_err(js_error)?,
+    ))
+    .map_err(js_error)
+}
+
+/// Verifies a canonical receipt attestation under one exact raw Ed25519 key.
+///
+/// # Errors
+///
+/// Returns a JavaScript error for any structural, identity, suite, or
+/// signature mismatch.
+#[allow(clippy::too_many_arguments)]
+#[wasm_bindgen(js_name = verifyRawKeyReceiptV1)]
+pub fn verify_raw_key_receipt_v1(
+    kind: &str,
+    attested: &[u8],
+    expected_id: &[u8],
+    verifier: &str,
+    verification_method: &str,
+    suite: &str,
+    raw_key_evidence: &[u8],
+) -> Result<(), JsValue> {
+    let expected_verifier = PrincipalId::parse(verifier).map_err(js_error)?;
+    let signer = ReceiptSigner::new(
+        expected_verifier.clone(),
+        VerificationMethod::parse(verification_method).map_err(js_error)?,
+        SignatureSuiteId::parse(suite).map_err(js_error)?,
+    );
+    let descriptor = auths_raw_key::RawKeyDescriptor::decode(raw_key_evidence)
+        .map_err(|_| js_error(EngineError::Abi("invalid raw-key receipt evidence")))?;
+    if descriptor.principal().map_err(js_error)? != expected_verifier || descriptor.suite() != suite
+    {
+        return Err(js_error(EngineError::Abi(
+            "receipt key does not match signer",
+        )));
+    }
+    let expected = auths_model::ReceiptId::new(receipt_array32(expected_id, "receipt id")?);
+    let suite = auths_signature::Ed25519Suite::new().map_err(js_error)?;
+    let configured = ConfiguredReceiptVerifier::new(signer, descriptor.public_key(), &suite);
+    match kind {
+        "decision" => {
+            verify_decision_attestation(attested, expected, &expected_verifier, &configured)
+                .map_err(js_error)?;
+        }
+        "execution" => {
+            verify_execution_attestation(attested, expected, &expected_verifier, &configured)
+                .map_err(js_error)?;
+        }
+        _ => return Err(js_error(EngineError::Abi("unsupported receipt kind"))),
+    }
+    Ok(())
+}
+
+fn receipt_signer(
+    verifier: &str,
+    verification_method: &str,
+    suite: &str,
+) -> Result<ReceiptSigner, EngineError> {
+    Ok(ReceiptSigner::new(
+        PrincipalId::parse(verifier)?,
+        VerificationMethod::parse(verification_method)?,
+        SignatureSuiteId::parse(suite)?,
+    ))
+}
+
+fn receipt_preparation(value: auths_receipts::PreparedReceipt) -> ReceiptPreparationV1 {
+    ReceiptPreparationV1 {
+        id: value.id().as_bytes().to_vec(),
+        canonical: value.canonical().to_vec(),
+        signing_preimage: value.signing_preimage().to_vec(),
+    }
+}
+
+fn receipt_array32(value: &[u8], label: &'static str) -> Result<[u8; 32], JsValue> {
+    value
+        .try_into()
+        .map_err(|_| js_error(EngineError::Abi(label)))
 }
 
 /// Prepares one action whose semantics were canonicalized by an

@@ -69,6 +69,5 @@ export {
 export {
   ProfilePlan,
   VerifiedPlanCommand,
-  commandsForGateway,
   type PlanAuthoritySummary,
 } from "./plans.js";

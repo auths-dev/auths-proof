@@ -23,18 +23,23 @@ service, builds the TypeScript assets, and starts:
 
 No Fly, Vercel, GitHub, or other cloud credential is needed. `Ctrl-C` stops the
 stack and removes its disposable local state. Docker users may alternatively
-run `docker compose -f demos/cross-company-incident-response/infrastructure/compose.yaml up --build`.
+run:
 
-## Hosted proof
+```sh
+AUTHS_INCIDENT_SERVICE_TOKEN="$(openssl rand -hex 24)" \
+  docker compose -f demos/cross-company-incident-response/infrastructure/compose.yaml up --build
+```
+
+## Deployment targets
 
 - control room: <https://auths-incident-demo-control-room.vercel.app>
 - Northstar: <https://auths-incident-demo-northstar.fly.dev>
 - EdgeShield: <https://auths-incident-demo-edgeshield.fly.dev>
 - agent/orchestrator: <https://auths-incident-demo-agent.fly.dev>
 
-The hosted services use one auto-stopping shared-CPU machine apiece and no
-persistent volume. The control room is reset to the deterministic starting
-state after deployment validation.
+The Fly services use one auto-stopping shared-CPU machine apiece and no
+persistent volume. Redeploy the exact revision under review before treating
+these URLs as evidence for this implementation.
 
 ## Happy path
 
@@ -43,21 +48,57 @@ state after deployment validation.
    attack actor.
 2. Inspect the diagnostic agent's bounded read-only metrics/log evidence. It
    proposes remediation but has no execution authority.
-3. Select **Review & execute plan**. The TypeScript SDK asks Rust to
-   canonicalize two `auths.edge/1` actions and commit their exact order.
-4. EdgeShield delegates only the two named `eu-west-2` resources for ten
-   minutes. The plan is committed to one use per member and one remaining
-   delegation level used only by the widening test.
-5. Auths threshold approval requests one exact response from Northstar's
-   incident commander and one from EdgeShield's on-call engineer. Review,
-   approval, signing, authorization, delivery, and execution remain distinct.
-6. Only the successful SDK branch produces sealed commands accepted by the
-   profile gateway. The firewall operation is delivered over HTTPS. The cache
-   envelope is delivered over a real Iroh connection and then executed through
-   EdgeShield's client-certificate adapter.
-7. Inspect both receipts. They show plan, authority, idempotency, transport,
-   provider result, observation, and the explicit fact that transport did not
-   evaluate authorization.
+3. Select **Review & execute plan**. The browser sends only the closed incident
+   request; it does not authorize an effect or hold a native command.
+4. The trusted Python service asks Rust to canonicalize two `auths.edge/1`
+   actions, commit their exact order, and create bounded ten-minute authority.
+5. Auths threshold approval runs a real local OIDC authorization-code + PKCE
+   flow for Northstar and verifies an Ed25519-signed response from EdgeShield.
+   Both approve the identical native transaction and plan commitment.
+6. Only native authorization produces opaque, in-process commands. The gateway
+   transactionally reserves each member before acquiring a provider credential.
+   The firewall operation uses HTTPS; the cache member's exact canonical bytes
+   cross a real Iroh connection before the gated provider call.
+7. Inspect both Rust-owned signed receipts. They bind the proof, canonical
+   action, context, plan position, idempotency key, provider result, and outcome.
+
+### Happy path and fail-closed branches
+
+```mermaid
+flowchart TD
+    A["Browser proposes the closed incident request"] --> B["Rust canonicalizes and commits the exact ordered plan"]
+    B --> C{"Proof, action, context, identity, and lifecycle are valid?"}
+    C -- "No: mutation, expiry, widening, or compromised identity" --> D["Deny before credentials or provider entry"]
+    C -- "Yes" --> E{"Northstar and EdgeShield approve the identical transaction?"}
+    E -- "No: rejection, mismatch, or withdrawal" --> F["Expose no unapproved command"]
+    E -- "Yes" --> G["Native verifier releases opaque, single-use commands"]
+    G --> H{"Durable reservation succeeds?"}
+    H -- "No: replay, concurrency, exhausted budget, or wrong order" --> I["Reject before credentials or provider entry"]
+    H -- "Yes" --> J["Acquire the organization-owned provider credential"]
+    J --> K["Deliver exact canonical bytes over HTTPS or Iroh"]
+    K --> L{"Provider outcome is known?"}
+    L -- "Successful effect" --> M["Commit lifecycle state and persist a signed Rust receipt"]
+    L -- "Known failure before effect" --> N["Record failure and release according to native lifecycle rules"]
+    L -- "Known failure after effect" --> O["Commit the observed effect and its exact result"]
+    L -- "Unknown: effect may have happened, response was lost" --> P["Persist outcome-unknown and block blind retry"]
+    P --> Q["Explicit reconciliation observes provider state"]
+    Q --> R["Transition to reconciled-committed"]
+
+    S["Unauthorized bytes arrive over HTTPS or Iroh"] --> T["Transport succeeds, Auths denies, provider is never entered"]
+
+    classDef happy fill:#dcfce7,stroke:#15803d,color:#052e16
+    classDef stopped fill:#fee2e2,stroke:#b91c1c,color:#450a0a
+    classDef uncertain fill:#fef3c7,stroke:#b45309,color:#451a03
+    class A,B,C,E,G,H,J,K,L,M happy
+    class D,F,I,N,O,S,T stopped
+    class P,Q,R uncertain
+```
+
+Green follows the happy path to a signed receipt. Red paths stop safely or
+record a known non-success outcome. Amber is deliberately blocked until
+explicit reconciliation resolves whether the effect happened. Browser state,
+approval alone, possession of a provider credential, transport success, and an
+old receipt are never treated as authorization.
 
 ## Attack lab
 
@@ -67,7 +108,8 @@ typed stage/code and concrete evidence:
 - all-region child authority: native child planning returns
   `authority/delegation-expanded` with zero signer calls;
 - changed action byte: Python and TypeScript verifier bindings both deny;
-- replay: `RuntimeKernel.replay` returns `exact-replay`, with no second effect;
+- replay and concurrent execution: durable reservation permits one owner and
+  records no second credential acquisition or provider call;
 - expired grant and compromised approver: runtime/lifecycle gates stop before
   credentials or provider entry;
 - EdgeShield key rotation: the old Ed25519 principal becomes `superseded` and
@@ -75,24 +117,26 @@ typed stage/code and concrete evidence:
 - unauthorized Iroh: delivery succeeds under the exact ALPN while Auths denies
   and EdgeShield provider state does not change;
 - provider failure before, after, and unknown: runtime transitions respectively
-  release, commit, or retain `outcome-unknown` for reconciliation;
+  release, commit, or retain `outcome-unknown`; the live ambiguous case applies
+  an effect, loses the response, blocks retry, and reconciles to
+  `reconciled-committed`;
 - approval withdrawal: the first step is reported complete and the second
   remains unresolved after the bounded plan session is disposed.
 
 ## Trust boundaries
 
 Northstar owns its OIDC issuer, P-256 key, actor mapping, outage data, and
-firewall state. EdgeShield owns its Ed25519 keys, client-certificate adapter,
-cache state, and Iroh endpoint. The Python service owns no organization root
-key; it owns incident orchestration, replay/execution state, and receipts. The
-control room holds only disposable session agent custody. There is no shared
-user table, signing key, or provider credential.
+firewall state. EdgeShield owns its Ed25519 approval key, certificate adapter,
+cache state, and Iroh endpoint. The Python service holds process-scoped demo
+authority and receipt custody, durable replay/execution state, and the only
+effect-capable native handles. The browser holds none of them. There is no
+shared user table, organization signing key, or provider credential.
 
 The Rust `auths-iroh` adapter carries bounded opaque bytes. It records ALPN,
-path, and endpoint observations but has no Auths decision API. The Python and
-TypeScript bindings independently evaluate the same P-256/WebAuthn portable
-artifact and surface the same explicit packaged-registry mismatch; the live
-effect path separately uses the packaged Ed25519 raw-key authority workflow.
+path, and endpoint observations but has no Auths decision API. Python and
+TypeScript independently evaluate the same P-256/WebAuthn artifact and the
+same Rust-generated decision/execution receipt projections. The live effect
+path uses the packaged Ed25519 raw-key authority workflow.
 
 See [architecture](docs/architecture.md), [threat model](docs/threat-model.md),
 and [feature evidence](docs/feature-matrix.md).
@@ -110,10 +154,6 @@ controls, a real Iroh exchange, TypeScript compilation, and Rust tests. The
 repository-wide authoritative gate remains GitHub CI on the exact pushed
 revision, per `AGENTS.md`.
 
-The same integration suite and all eleven browser attack controls were also
-run against the hosted deployment. Both effect receipts were produced, every
-attack reported `BLOCKED`, and the browser console reported no errors.
-
 ## Deployment
 
 Every cloud object uses the `auths-incident-demo` prefix. Fly configuration for
@@ -125,11 +165,8 @@ ephemeral hosted state (the local stack retains deterministic persistence), and
 sets random secrets that are never written to the repository. It does not
 create paid persistent volumes.
 
-## SDK gap found
+## Implementation specification
 
-The demo exposed one reusable TypeScript binding gap: Rust/WASM returns
-canonical domain JSON maps as JavaScript `Map` objects, but the domain decoder
-accepted only plain objects when deriving a sealed post-verification command.
-The fix is limited to the TypeScript domain-profile boundary: validate
-string-only Map keys, normalize the Map to a frozen record, and preserve typed
-decoder errors. No protocol, Rust semantic, fixture, or wire change was needed.
+The executable parity, effect-boundary, receipt, replay, and reconciliation
+criteria are tracked in
+[the implementation specification](docs/implementation-gap-analysis.md).

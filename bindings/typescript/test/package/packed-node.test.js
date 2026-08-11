@@ -17,7 +17,7 @@ test("packed package runs the sealed command path in native Node", async () => {
       globalThis.WebSocket = forbid("WebSocket");
 
       const {
-        approvalPolicy, commandsForGateway, loadAuths, prepareRawKeyAuthority,
+        approvalPolicy, loadAuths, prepareRawKeyAuthority,
       } = await import("@auths-dev/sdk");
       const {
         loadVerifier,
@@ -69,7 +69,7 @@ test("packed package runs the sealed command path in native Node", async () => {
         planKind = planDecision.kind;
         if (planDecision.kind === "authorized") {
           const gateway = profile.gateway(async () => { executed += 1; });
-          for (const command of commandsForGateway(planDecision.command)) await gateway.execute(command);
+          await gateway.executePlan(planDecision.command);
           const inspection = await inspectDecision(planDecision.results[0]);
           if ("command" in inspection || "action" in inspection) {
             throw new Error("node inspection exposed a capability");

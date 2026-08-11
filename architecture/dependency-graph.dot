@@ -406,6 +406,7 @@ digraph auths_architecture {
   "auths-proof-python" -> "auths-profile-domains" [label="normal"];
   "auths-proof-python" -> "auths-profile-mcp" [label="normal"];
   "auths-proof-python" -> "auths-raw-key" [label="normal"];
+  "auths-proof-python" -> "auths-receipts" [label="normal"];
   "auths-proof-python" -> "auths-registries" [label="normal"];
   "auths-proof-python" -> "auths-sdk" [label="normal"];
   "auths-proof-python" -> "auths-signature" [label="normal"];
@@ -423,6 +424,7 @@ digraph auths_architecture {
   "auths-proof-wasm" -> "auths-profile-domains" [label="normal"];
   "auths-proof-wasm" -> "auths-profile-mcp" [label="normal"];
   "auths-proof-wasm" -> "auths-raw-key" [label="normal"];
+  "auths-proof-wasm" -> "auths-receipts" [label="normal"];
   "auths-proof-wasm" -> "auths-registries" [label="normal"];
   "auths-proof-wasm" -> "auths-signature" [label="normal"];
   "auths-proof-wasm" -> "auths-signature-ed25519" [label="normal"];
@@ -457,6 +459,7 @@ digraph auths_architecture {
   "auths-raw-key" -> "auths-model" [label="normal"];
   "auths-raw-key" -> "auths-ports" [label="normal"];
   "auths-raw-key" -> "auths-raw-key-core" [label="normal"];
+  "auths-receipts" -> "auths-codec" [label="normal"];
   "auths-receipts" -> "auths-model" [label="normal"];
   "auths-receipts" -> "auths-ports" [label="normal"];
   "auths-records-api" -> "auths-bounded-policy" [label="normal"];

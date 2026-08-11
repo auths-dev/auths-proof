@@ -4,6 +4,7 @@ use crate::authoring::{
     PyPrincipal, PySignedObject, PyTrustedContext, PyUnsignedObject, SignedObject, UnsignedObject,
     value_error,
 };
+use crate::receipts::{PyReceiptPreparation, prepare_decision};
 use crate::result::{NativeVerificationResult, native_result, verify_sealed};
 use auths_author::{
     ProfilePlanCommitment, ProfilePlanMember, WorkflowProofBuilder, address_evidence,
@@ -109,6 +110,7 @@ impl PyApplicationActionPreparation {
 )]
 pub struct PyApplicationCommand {
     action: Option<PyApplicationAction>,
+    receipt_artifacts: Option<ReceiptArtifacts>,
     authority_commitment: [u8; 32],
     context_commitment: [u8; 32],
 }
@@ -182,8 +184,16 @@ impl PyApplicationCommand {
 )]
 pub struct PyApplicationPlanCommand {
     actions: Option<Vec<PyApplicationAction>>,
+    receipt_artifacts: Option<Vec<ReceiptArtifacts>>,
     commitment: [u8; 32],
     receipt_bindings: Vec<([u8; 32], [u8; 32], [u8; 32])>,
+}
+
+#[derive(Clone)]
+struct ReceiptArtifacts {
+    proof: Vec<u8>,
+    canonical_action: Vec<u8>,
+    trusted_context: Vec<u8>,
 }
 
 #[pymethods]
@@ -490,6 +500,11 @@ fn authorize_application(
             }
             Ok(PyApplicationCommand {
                 action: Some(prepared.action.clone()),
+                receipt_artifacts: Some(ReceiptArtifacts {
+                    proof: proof.clone(),
+                    canonical_action: canonical.clone(),
+                    trusted_context: context.clone(),
+                }),
                 authority_commitment,
                 context_commitment,
             })
@@ -562,11 +577,22 @@ fn seal_application_plan_command(
             ))
         })
         .collect::<PyResult<Vec<_>>>()?;
+    let receipt_artifacts = commands
+        .iter()
+        .map(|command| {
+            command.borrow(py).receipt_artifacts.clone().ok_or_else(|| {
+                PyRuntimeError::new_err("application command has already been consumed")
+            })
+        })
+        .collect::<PyResult<Vec<_>>>()?;
     for command in &commands {
-        command.borrow_mut(py).action.take();
+        let mut command = command.borrow_mut(py);
+        command.action.take();
+        command.receipt_artifacts.take();
     }
     Ok(PyApplicationPlanCommand {
         actions: Some(actions),
+        receipt_artifacts: Some(receipt_artifacts),
         commitment: expected,
         receipt_bindings,
     })
@@ -584,6 +610,7 @@ fn consume_application_command(
         .action
         .take()
         .ok_or_else(|| PyRuntimeError::new_err("application command has already been consumed"))?;
+    command.receipt_artifacts.take();
     Ok(gateway_call(action))
 }
 
@@ -596,6 +623,7 @@ fn consume_application_plan_command(
     for action in command.actions()? {
         matching_profile(action, expected_profile_id, expected_profile_version)?;
     }
+    command.receipt_artifacts.take();
     command
         .actions
         .take()
@@ -604,6 +632,60 @@ fn consume_application_plan_command(
         })?
         .into_iter()
         .map(|value| Ok(gateway_call(value)))
+        .collect()
+}
+
+#[pyfunction]
+#[allow(clippy::too_many_arguments)]
+fn prepare_application_command_decision_receipt_v1(
+    command: PyRef<'_, PyApplicationCommand>,
+    decided_at: u64,
+    verifier: &str,
+    verification_method: &str,
+    suite: &str,
+) -> PyResult<PyReceiptPreparation> {
+    let artifacts = command
+        .receipt_artifacts
+        .as_ref()
+        .ok_or_else(|| PyRuntimeError::new_err("application command has already been consumed"))?;
+    prepare_decision(
+        &artifacts.proof,
+        &artifacts.canonical_action,
+        &artifacts.trusted_context,
+        decided_at,
+        verifier,
+        verification_method,
+        suite,
+    )
+}
+
+#[pyfunction]
+#[allow(clippy::too_many_arguments)]
+fn prepare_application_plan_decision_receipts_v1(
+    command: PyRef<'_, PyApplicationPlanCommand>,
+    decided_at: u64,
+    verifier: &str,
+    verification_method: &str,
+    suite: &str,
+) -> PyResult<Vec<PyReceiptPreparation>> {
+    command
+        .receipt_artifacts
+        .as_ref()
+        .ok_or_else(|| {
+            PyRuntimeError::new_err("application plan command has already been consumed")
+        })?
+        .iter()
+        .map(|artifacts| {
+            prepare_decision(
+                &artifacts.proof,
+                &artifacts.canonical_action,
+                &artifacts.trusted_context,
+                decided_at,
+                verifier,
+                verification_method,
+                suite,
+            )
+        })
         .collect()
 }
 
@@ -732,5 +814,13 @@ pub fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(seal_application_plan_command, module)?)?;
     module.add_function(wrap_pyfunction!(consume_application_command, module)?)?;
     module.add_function(wrap_pyfunction!(consume_application_plan_command, module)?)?;
+    module.add_function(wrap_pyfunction!(
+        prepare_application_command_decision_receipt_v1,
+        module
+    )?)?;
+    module.add_function(wrap_pyfunction!(
+        prepare_application_plan_decision_receipts_v1,
+        module
+    )?)?;
     Ok(())
 }

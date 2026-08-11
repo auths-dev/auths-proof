@@ -62,6 +62,12 @@ async function loadPackagedWorkflowEngineOnce(): Promise<PackagedWorkflowEngine>
     typeof loaded.canonicalizeMcpPlanMemberV1 !== "function" ||
     typeof loaded.canonicalizeProfilePlanMemberV1 !== "function" ||
     typeof loaded.prepareProfileActionV1 !== "function" ||
+    typeof loaded.profileReceiptBindingsV1 !== "function" ||
+    typeof loaded.prepareAuthorizedDecisionReceiptV1 !== "function" ||
+    typeof loaded.prepareApplicationExecutionReceiptV1 !== "function" ||
+    typeof loaded.attestDecisionReceiptV1 !== "function" ||
+    typeof loaded.attestExecutionReceiptV1 !== "function" ||
+    typeof loaded.verifyRawKeyReceiptV1 !== "function" ||
     typeof loaded.prepareRawKeyAuthorityV1 !== "function" ||
     typeof loaded.deriveEd25519RawKeyIdentityV1 !== "function" ||
     typeof loaded.AuthorizationPlanBuilderV1 !== "function" ||

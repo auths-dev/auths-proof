@@ -11,6 +11,7 @@ description = "Canonical offline-verifiable Auths decision and execution receipt
 [dependencies]
 auths-model.workspace = true
 auths-ports.workspace = true
+auths-codec.workspace = true
 minicbor.workspace = true
 sha2.workspace = true
 

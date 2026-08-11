@@ -70,9 +70,7 @@ const actionPlan = await profile.plan([
 
 const result = await agent.authorizePlan(actionPlan);
 if (result.kind === "authorized") {
-  for (const command of commandsForGateway(result.command)) {
-    await gateway.execute(command);
-  }
+  await gateway.executePlan(result.command);
 }
 ```
 

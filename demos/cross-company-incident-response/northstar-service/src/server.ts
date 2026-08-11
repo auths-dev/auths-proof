@@ -1,5 +1,5 @@
 import http from "node:http";
-import { createHash, generateKeyPairSync, randomBytes, sign } from "node:crypto";
+import { createHash, createPrivateKey, createPublicKey, generateKeyPairSync, randomBytes, sign, verify } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 
@@ -68,10 +68,35 @@ function jwt(state: State, claims: Record<string, unknown>): string {
   const header = base64url(JSON.stringify({ alg: "ES256", typ: "JWT", kid: "northstar-local-p256" }));
   const body = base64url(JSON.stringify(claims));
   const signature = sign("sha256", Buffer.from(`${header}.${body}`), {
-    key: { key: state.oidcPrivateJwk, format: "jwk" },
+    key: createPrivateKey({ key: state.oidcPrivateJwk, format: "jwk" }),
     dsaEncoding: "ieee-p1363"
   });
   return `${header}.${body}.${base64url(signature)}`;
+}
+
+function authenticateOidc(state: State, request: any): Record<string, unknown> | undefined {
+  const authorization = String(request.headers.authorization ?? "");
+  if (!authorization.startsWith("Bearer ")) return undefined;
+  const token = authorization.slice(7);
+  const parts = token.split(".");
+  if (parts.length !== 3) return undefined;
+  try {
+    const header = JSON.parse(Buffer.from(parts[0], "base64url").toString("utf8")) as Record<string, unknown>;
+    const claims = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8")) as Record<string, unknown>;
+    const valid = header.alg === "ES256" && header.kid === "northstar-local-p256" && verify(
+      "sha256",
+      Buffer.from(`${parts[0]}.${parts[1]}`),
+      { key: createPublicKey({ key: state.oidcPublicJwk, format: "jwk" }), dsaEncoding: "ieee-p1363" },
+      Buffer.from(parts[2], "base64url")
+    );
+    const now = Math.floor(Date.now() / 1000);
+    return valid && claims.iss === publicUrl && claims.aud === "auths-incident-agent" &&
+      claims.sub === "northstar-commander" && typeof claims.exp === "number" && claims.exp >= now
+      ? claims
+      : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function json(response: any, status: number, body: unknown): void {
@@ -204,12 +229,13 @@ const server = http.createServer(async (request: any, response: any) => {
       });
     }
     if (url.pathname === "/api/approve" && request.method === "POST") {
+      if (!authenticateOidc(state, request)) return json(response, 401, { code: "oidc-approval-authentication-required" });
       const input = await body(request);
-      if (!input.transactionDigest || !input.planCommitment) return json(response, 400, { code: "invalid-approval-request" });
+      if (!input.requestId || !input.transactionDigest || !input.planCommitment) return json(response, 400, { code: "invalid-approval-request" });
       state.approvals += 1;
       event(state, "approval", "Northstar incident commander approved the exact plan commitment");
       persist(state);
-      return json(response, 200, { decision: "approved", actor: actors[0], transactionDigest: input.transactionDigest });
+      return json(response, 200, { decision: "approved", actor: actors[0], requestId: input.requestId, transactionDigest: input.transactionDigest });
     }
     if (url.pathname === "/api/firewall/apply" && request.method === "POST") {
       if (!internal(request)) return json(response, 401, { code: "northstar-service-auth-required" });

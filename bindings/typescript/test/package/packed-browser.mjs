@@ -47,7 +47,6 @@ try {
     <script type="module">
       import {
         approvalPolicy,
-        commandsForGateway,
         loadAuths,
         prepareRawKeyAuthority,
       } from "/node_modules/@auths-dev/sdk/dist/index.js";
@@ -119,7 +118,7 @@ try {
         planKind = planDecision.kind;
         if (planDecision.kind === 'authorized') {
           const gateway = profile.gateway(async () => { gatewayCalls += 1; });
-          for (const command of commandsForGateway(planDecision.command)) await gateway.execute(command);
+          await gateway.executePlan(planDecision.command);
         }
         const deniedDecision = await agent.authorize(profile.call('delete', { record: 'one' }));
         deniedKind = deniedDecision.kind;

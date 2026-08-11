@@ -8,7 +8,7 @@ services:
       NORTHSTAR_PUBLIC_URL: "http://localhost:7101"
       NORTHSTAR_STATE_PATH: "/data/northstar.json"
       AUTHS_INCIDENT_ALLOWED_ORIGIN: "http://localhost:7100"
-      AUTHS_INCIDENT_ALLOW_INSECURE_LOCAL: "1"
+      AUTHS_INCIDENT_SERVICE_TOKEN: "${AUTHS_INCIDENT_SERVICE_TOKEN:?set AUTHS_INCIDENT_SERVICE_TOKEN}"
     ports: ["7101:8080"]
     volumes: ["northstar-data:/data"]
 
@@ -35,7 +35,7 @@ services:
       NORTHSTAR_URL: "http://northstar:8080"
       EDGESHIELD_URL: "http://edgeshield:8080"
       AUTHS_INCIDENT_ALLOWED_ORIGIN: "http://localhost:7100"
-      AUTHS_INCIDENT_ALLOW_INSECURE_LOCAL: "1"
+      AUTHS_INCIDENT_SERVICE_TOKEN: "${AUTHS_INCIDENT_SERVICE_TOKEN:?set AUTHS_INCIDENT_SERVICE_TOKEN}"
       EDGESHIELD_CLIENT_CERT_FINGERPRINT: "compose-local-client-certificate"
     ports: ["7103:8080"]
     volumes: ["agent-data:/data"]

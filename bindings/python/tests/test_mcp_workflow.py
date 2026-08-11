@@ -347,11 +347,15 @@ async def test_gateway_rejects_wrong_profile_without_consuming_command() -> None
             b"forged", idempotency_key="forged"
         )
     with pytest.raises(TypeError, match="does not belong"):
-        await mcp.profile(service="billing").gateway(execute).execute(
-            result.command, idempotency_key="wrong-profile"
+        await (
+            mcp.profile(service="billing")
+            .gateway(execute)
+            .execute(result.command, idempotency_key="wrong-profile")
         )
     assert calls == 0
-    await profile.gateway(execute).execute(result.command, idempotency_key="right-profile")
+    await profile.gateway(execute).execute(
+        result.command, idempotency_key="right-profile"
+    )
     assert calls == 1
     await client.aclose()
 
@@ -398,7 +402,9 @@ async def test_duplicate_native_command_handle_fails_without_consumption() -> No
         nonlocal calls
         calls += 1
 
-    await profile.gateway(execute).execute(result.command, idempotency_key="unique-plan")
+    await profile.gateway(execute).execute(
+        result.command, idempotency_key="unique-plan"
+    )
     assert calls == 1
     await client.aclose()
 
@@ -429,7 +435,9 @@ async def test_profile_mismatch_and_gateway_failure_are_closed() -> None:
 
 
 @pytest.mark.asyncio
-async def test_gateway_cancellation_consumes_command_and_requires_reconciliation() -> None:
+async def test_gateway_cancellation_consumes_command_and_requires_reconciliation() -> (
+    None
+):
     client, profile, _, result = await authorize()
     assert isinstance(result, McpAuthorized)
     entered = asyncio.Event()
@@ -780,7 +788,7 @@ def test_shared_full_workflow_projection_matches_native_python() -> None:
         (VECTORS / "workflow.context.cbor").read_bytes(),
     )
 
-    assert projection["schema"] == "auths.full-workflow-projection/1"
+    assert projection["schema"] == "auths.full-workflow-projection/2"
     assert (result.kind, result.stage, result.code) == (
         projection["verdict"],
         projection["stage"],
@@ -829,6 +837,42 @@ def test_shared_full_workflow_projection_matches_native_python() -> None:
             bytes(plan.commitment), bytes([7]) * 32, 2, 350
         ).hex()
         == projection["commitments"]["planApproval"]
+    )
+    receipt_signer = projection["receipts"]["signer"]
+    decision = native_abi.prepare_authorized_decision_receipt_v1(
+        (VECTORS / "workflow.proof.cbor").read_bytes(),
+        (VECTORS / "workflow.action.cbor").read_bytes(),
+        (VECTORS / "workflow.context.cbor").read_bytes(),
+        60,
+        receipt_signer["principal"],
+        receipt_signer["verificationMethod"],
+        receipt_signer["suite"],
+    )
+    expected_decision = projection["receipts"]["decision"]
+    assert bytes(decision.receipt_id).hex() == expected_decision["id"]
+    assert bytes(decision.canonical).hex() == expected_decision["canonical"]
+    assert (
+        bytes(decision.signing_preimage).hex() == expected_decision["signingPreimage"]
+    )
+    expected_execution = projection["receipts"]["execution"]
+    execution = native_abi.prepare_application_execution_receipt_v1(
+        bytes(decision.receipt_id),
+        expected_execution["idempotencyKey"],
+        bytes(plan.commitment),
+        expected_execution["memberIndex"],
+        expected_execution["memberCount"],
+        (VECTORS / "workflow.action.cbor").read_bytes(),
+        "succeeded",
+        bytes.fromhex(expected_execution["result"]),
+        expected_execution["completedAt"],
+        receipt_signer["principal"],
+        receipt_signer["verificationMethod"],
+        receipt_signer["suite"],
+    )
+    assert bytes(execution.receipt_id).hex() == expected_execution["id"]
+    assert bytes(execution.canonical).hex() == expected_execution["canonical"]
+    assert (
+        bytes(execution.signing_preimage).hex() == expected_execution["signingPreimage"]
     )
 
     parent = parse_signed_object(

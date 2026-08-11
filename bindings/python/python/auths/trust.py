@@ -9,7 +9,14 @@ from typing import Literal, Optional, Protocol, Sequence, Tuple, runtime_checkab
 from . import _native as native
 from .authority import ProofPlan, _native_proof_plan
 from .lifecycle import GrantStatusSnapshot, PrincipalStatusSnapshot
-from .workflow import BudgetCeiling, Permission, Principal, Profile, TrustedAuthority, TrustedAuthoritySnapshot
+from .workflow import (
+    BudgetCeiling,
+    Permission,
+    Principal,
+    Profile,
+    TrustedAuthority,
+    TrustedAuthoritySnapshot,
+)
 
 AssuranceRole = Literal["root", "intermediate", "actor", "external-issuer"]
 AssuranceQuantifier = Literal["any", "every"]
@@ -191,13 +198,15 @@ def compile_trust(
     expected_plan: Optional[ProofPlan] = None,
     principal_status: Optional[PrincipalStatusSnapshot] = None,
     grant_status: Optional[GrantStatusSnapshot] = None,
-    channel_policy: str = "none",
+    channel_policy: str = "none-v1",
     evidence_types: Sequence[str] = (),
     critical_extensions: Sequence[str] = (),
     offline_evidence: Optional[OfflineEvidenceBundle] = None,
 ) -> CompiledTrust:
     anchor_values = tuple(anchors)
-    if not anchor_values or any(type(value) is not TrustAnchor for value in anchor_values):
+    if not anchor_values or any(
+        type(value) is not TrustAnchor for value in anchor_values
+    ):
         raise ValueError("trust requires at least one typed anchor")
     context = native.compile_trusted_context(
         native.self_contained_configuration(),

@@ -1,16 +1,5 @@
-import {
-  approvalPolicy,
-  commandsForGateway,
-  loadAuths,
-  prepareRawKeyAuthority,
-  thresholdApproval,
-  type ApprovalProvider,
-  type ApprovalRequest,
-  type ApprovalResponse,
-  type AttachedAgent,
-} from "@auths-dev/sdk";
+import { approvalPolicy } from "@auths-dev/sdk";
 import { BoundedApprovalSession } from "@auths-dev/sdk/approvals";
-import { loadDomainProfiles, type EdgeProfile } from "@auths-dev/sdk/profiles";
 import { development } from "@auths-dev/sdk/testkit";
 import { loadVerifier } from "@auths-dev/sdk/verify";
 
@@ -20,22 +9,10 @@ declare global {
 
 const api = globalThis.AUTHS_INCIDENT_AGENT_API ?? "http://localhost:7103";
 const incidentId = "INC-2026-0811";
-const region = "eu-west-2";
-const text = new TextEncoder();
 
 type Json = Record<string, any>;
-type Session = {
-  profile: EdgeProfile;
-  agent: AttachedAgent<EdgeProfile>;
-  client: Awaited<ReturnType<typeof loadAuths>>;
-  rootSigner: Awaited<ReturnType<typeof development.ephemeralSigner>>;
-  agentSigner: Awaited<ReturnType<typeof development.ephemeralSigner>>;
-  planCommitment: string;
-};
-
 let state: Json = {};
 let proposal: Json = {};
-let session: Session | undefined;
 
 const attacks = [
   ["scope-expansion", "Expand eu-west-2 → all regions"],
@@ -59,10 +36,6 @@ async function request(path: string, options: RequestInit = {}): Promise<Json> {
   const body = await response.json() as Json;
   if (!response.ok) throw Object.assign(new Error(body.code ?? `HTTP ${response.status}`), { body });
   return body;
-}
-
-function hex(value: Uint8Array): string {
-  return Array.from(value, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 function bytes(value: string): Uint8Array {
@@ -123,115 +96,24 @@ function render(): void {
   const receipts = state.receipts ?? [];
   element("receipts").innerHTML = receipts.length === 0
     ? `<div class="empty">No effects executed. Receipts will appear here.</div>`
-    : receipts.map((receipt: Json) => `<article class="receipt"><div class="receipt-head"><h3>${escape(receipt.operation)}</h3><span class="verified">✓ INDEPENDENTLY VERIFIABLE</span></div><pre>${escape(JSON.stringify(receipt, null, 2))}</pre></article>`).join("");
-}
-
-function remoteApproval(company: "northstar" | "edgeshield", planCommitment: string): ApprovalProvider {
-  return Object.freeze({
-    async approve(input: ApprovalRequest): Promise<ApprovalResponse> {
-      const response = await request(`/api/approval/${company}`, {
-        method: "POST",
-        body: JSON.stringify({
-          transactionDigest: hex(input.transactionDigest),
-          planCommitment,
-          objectKind: input.objectKind,
-          review: input.display,
-        }),
-      });
-      return Object.freeze({
-        requestId: input.requestId,
-        transactionDigest: input.transactionDigest.slice(),
-        policy: Object.freeze({ ...input.policy, configurationDigest: input.policy.configurationDigest.slice() }),
-        decision: response.decision === "approved" ? "approved" as const : "rejected" as const,
-      });
-    },
-  });
-}
-
-async function buildSession(): Promise<{ session: Session; plan: Awaited<ReturnType<EdgeProfile["plan"]>> }> {
-  const profiles = await loadDomainProfiles();
-  const profile = profiles.edge({ audience: "incident://northstar-edge", resourceNamespace: "edge://northstar" });
-  const firewall = profile.action({
-    fleet: "northstar",
-    device: "firewall-eu-west-2",
-    command: "apply-config",
-    sequence: 185n,
-    stateDigest: "184".padStart(64, "0"),
-  });
-  const cache = profile.action({
-    fleet: "northstar",
-    device: "cache-eu-west-2",
-    command: "execute",
-    sequence: 992n,
-    stateDigest: "991".padStart(64, "0"),
-  });
-  const plan = await profile.plan([firewall, cache]);
-  const planCommitment = hex(plan.commitment);
-  const policy = await approvalPolicy.planOnce({
-    policyId: "auths-incident-demo.cross-company-2-of-2",
-    maxUses: 2,
-    expiresInSeconds: 600,
-    requirements: ["northstar:incident-commander", "edgeshield:on-call"],
-  });
-  const approval = Object.freeze({
-    policy,
-    provider: thresholdApproval({
-      threshold: 2,
-      providers: [remoteApproval("northstar", planCommitment), remoteApproval("edgeshield", planCommitment)],
-    }),
-  });
-  const rootSigner = await development.ephemeralSigner();
-  const agentSigner = await development.ephemeralSigner();
-  const principal = await agentSigner.publicIdentity();
-  const now = BigInt(Math.floor(Date.now() / 1000));
-  const prepared = await prepareRawKeyAuthority({
-    authorityId: "auths-incident-demo.edgeshield-root",
-    rootSigner,
-    subjectPrincipal: principal.principal,
-    profile,
-    permissions: plan.authority.permissions,
-    resourceNamespaces: plan.authority.resourceNamespaces,
-    validity: { notBefore: now - 5n, expiresAt: now + 600n },
-    audiences: plan.authority.audiences,
-    remainingDepth: 1,
-    approval,
-  });
-  const client = await loadAuths({ signer: agentSigner, trustedAuthority: prepared.trustedAuthority });
-  const agent = await client.attachAgent({ name: "edgeshield-remediation-agent", profile, authority: prepared.authority, approval });
-  return { session: { profile, agent, client, rootSigner, agentSigner, planCommitment }, plan };
+    : receipts.map((receipt: Json) => `<article class="receipt"><div class="receipt-head"><h3>Plan member ${Number(receipt.memberIndex) + 1}</h3><span class="verified">✓ NATIVE SIGNED RECEIPTS</span></div><pre>${escape(JSON.stringify(receipt, null, 2))}</pre></article>`).join("");
 }
 
 async function runWorkflow(): Promise<void> {
   const button = element<HTMLButtonElement>("run");
   button.disabled = true;
-  element("run-status").textContent = "Building Rust-owned exact profile plan…";
+  element("run-status").textContent = "Trusted backend is authorizing the exact plan…";
   try {
-    if (session) await disposeSession();
-    const built = await buildSession();
-    session = built.session;
-    element("run-status").textContent = "Requesting one exact approval from each company…";
-    const decision = await session.agent.authorizePlan(built.plan);
-    if (decision.kind !== "authorized") throw new Error(`${decision.result.stage}/${decision.result.code}`);
+    const result = await request("/api/workflow/execute", {
+      method: "POST",
+      body: JSON.stringify({ incidentId, transport: "https" }),
+    });
     for (const node of element("approval-state").querySelectorAll("strong")) {
       node.textContent = "approved · exact plan";
       node.classList.add("approved");
     }
-    const ticket = await request("/api/plan/ticket", { method: "POST", body: JSON.stringify({ planCommitment: session.planCommitment }) });
-    const gateway = session.profile.gateway(async (command) => {
-      const operation = command.device === "firewall-eu-west-2" ? "firewall-eu-west-2" : "cache-eu-west-2";
-      return request("/api/execute", {
-        method: "POST",
-        body: JSON.stringify({
-          operation,
-          planCommitment: session?.planCommitment,
-          ticket: ticket.ticket,
-          idempotencyKey: `${incidentId}:${operation}:v1`,
-        }),
-      });
-    });
-    for (const command of commandsForGateway(decision.command)) await gateway.execute(command);
-    element("run-status").textContent = `AUTHORIZED · ${decision.results.length} sealed commands executed once`;
     await refresh();
+    element("run-status").textContent = `AUTHORIZED · ${result.authorization.length} opaque commands executed once at the trusted boundary`;
   } catch (error) {
     const value = error as Error & { body?: Json; code?: string };
     element("run-status").textContent = `STOPPED · ${value.code ?? value.body?.code ?? "error"} · ${value.message}`;
@@ -252,30 +134,6 @@ async function crossVerify(): Promise<void> {
     element("run-status").textContent = agrees ? "Python + TypeScript agree · ready" : "Cross-SDK mismatch";
   } catch (error) {
     output.textContent = `Cross-SDK verification unavailable: ${(error as Error).message}`;
-  }
-}
-
-async function liveScopeAttack(): Promise<Json | undefined> {
-  if (!session) return undefined;
-  const child = await development.ephemeralSigner();
-  try {
-    const now = BigInt(Math.floor(Date.now() / 1000));
-    await session.agent.reviewDelegation({
-      name: "compromised-all-regions",
-      signer: child,
-      authority: {
-        permissions: [{ capability: "edge/apply-config", resource: "edge://northstar/devices/firewall-all-regions" }],
-        validity: { notBefore: now, expiresAt: now + 300n },
-        audiences: ["incident://northstar-edge"],
-        remainingDepth: 0,
-      },
-    });
-    return { attack: "scope-expansion", blocked: false, stage: "authority", code: "unexpected-authorized" };
-  } catch (error) {
-    const value = error as Error & { code?: string };
-    return { attack: "scope-expansion", blocked: true, stage: "authority", code: value.code ?? "delegation-expanded", detail: value.message, evidence: { sdk: "TypeScript live native authoring", signerCalls: 0 } };
-  } finally {
-    await child.dispose?.();
   }
 }
 
@@ -323,8 +181,7 @@ async function runAttack(id: string): Promise<void> {
   output.textContent = "RUNNING REAL SDK PATH…";
   try {
     let result: Json;
-    if (id === "scope-expansion") result = (await liveScopeAttack()) ?? await request(`/api/attack/${id}`, { method: "POST", body: "{}" });
-    else if (id === "byte-mutation") result = await liveMutationAttack();
+    if (id === "byte-mutation") result = await liveMutationAttack();
     else if (id === "withdraw-approval") result = await liveWithdrawalAttack();
     else result = await request(`/api/attack/${id}`, { method: "POST", body: "{}" });
     output.innerHTML = `<span class="${result.blocked ? "blocked" : "failed"}">${result.blocked ? "BLOCKED" : "NOT BLOCKED"} · ${escape(result.stage)} / ${escape(result.code)}</span>\n${escape(result.detail)}\n\n${escape(JSON.stringify(result.evidence, null, 2))}`;
@@ -332,13 +189,6 @@ async function runAttack(id: string): Promise<void> {
   } catch (error) {
     output.innerHTML = `<span class="failed">ATTACK LAB ERROR</span>\n${escape((error as Error).message)}`;
   }
-}
-
-async function disposeSession(): Promise<void> {
-  if (!session) return;
-  await session.client.dispose();
-  await session.rootSigner.dispose?.();
-  session = undefined;
 }
 
 function wire(): void {
@@ -349,7 +199,6 @@ function wire(): void {
   });
   element("run").addEventListener("click", () => void runWorkflow());
   element("reset").addEventListener("click", async () => {
-    await disposeSession();
     await request("/api/reset", { method: "POST", body: "{}" });
     for (const node of element("approval-state").querySelectorAll("strong")) { node.textContent = "pending"; node.classList.remove("approved"); }
     await refresh();

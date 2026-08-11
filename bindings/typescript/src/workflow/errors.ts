@@ -27,7 +27,14 @@ export type WorkflowErrorCode =
   | "signer-unsupported"
   | "signer-response-mismatch"
   | "transaction-expired"
-  | "transaction-consumed";
+  | "transaction-consumed"
+  | "gateway-failed"
+  | "gateway-cancelled"
+  | "gateway-exact-replay"
+  | "gateway-conflict"
+  | "gateway-expired"
+  | "gateway-out-of-order"
+  | "gateway-unavailable";
 
 export type ErrorFamily =
   | "configuration"
@@ -113,6 +120,7 @@ function workflowErrorFamily(code: WorkflowErrorCode): ErrorFamily {
   if (code.startsWith("signer-")) return "custody";
   if (code.startsWith("authority-") || code.includes("delegation")) return "authority";
   if (code.startsWith("transaction-")) return "transaction";
+  if (code.startsWith("gateway-")) return "provider";
   if (code.endsWith("-failed") || code === "invalid-provider") return "provider";
   return "configuration";
 }

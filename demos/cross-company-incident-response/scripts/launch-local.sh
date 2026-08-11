@@ -51,7 +51,8 @@ EDGESHIELD_URL=http://localhost:7102 \
 AUTHS_INCIDENT_ALLOWED_ORIGIN=http://localhost:7100 \
 AUTHS_INCIDENT_SERVICE_TOKEN="$service_token" \
 EDGESHIELD_CLIENT_CERT_FINGERPRINT="$fingerprint" \
-python3 -m auths_incident_agent.server >"$run_dir/agent.log" 2>&1 &
+uv run --with-requirements "$demo_dir/agent-service/requirements.txt" \
+  python -m auths_incident_agent.server >"$run_dir/agent.log" 2>&1 &
 demo_pids="$demo_pids $!"
 
 python3 -m http.server 7100 --bind 127.0.0.1 --directory "$demo_dir/control-room/public" >"$run_dir/control-room.log" 2>&1 &

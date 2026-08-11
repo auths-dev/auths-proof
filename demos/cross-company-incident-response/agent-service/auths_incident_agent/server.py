@@ -1,12 +1,9 @@
 from __future__ import annotations
 
-import hashlib
+import asyncio
 import json
 import os
-import secrets
-import sqlite3
 import sys
-import time
 import urllib.error
 import urllib.request
 from http import HTTPStatus
@@ -14,10 +11,17 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
+from auths import AuthsError
+from auths.profile_kit import ApplicationGatewayError
+from auths.testkit import DevelopmentReceiptAttestor
+
 from . import sdk
+from .custody import ProcessEd25519Signer
+from .execution import SqliteExecutionStore
+from .incident import execute_incident_plan
 
 
-SCHEMA = "auths-incident-demo/1"
+SCHEMA = "auths-incident-demo/2"
 INCIDENT = "INC-2026-0811"
 REGION = "eu-west-2"
 _configured_repo_root = os.environ.get("AUTHS_REPO_ROOT")
@@ -26,53 +30,33 @@ REPO_ROOT = (
     if _configured_repo_root
     else Path(__file__).resolve().parents[4]
 )
-STATE_PATH = Path(os.environ.get("AGENT_STATE_PATH", "/tmp/auths-incident-demo/agent.sqlite3"))
+STATE_PATH = Path(
+    os.environ.get("AGENT_STATE_PATH", "/tmp/auths-incident-demo/agent.sqlite3")
+)
 NORTHSTAR_URL = os.environ.get("NORTHSTAR_URL", "http://localhost:7101")
 EDGESHIELD_URL = os.environ.get("EDGESHIELD_URL", "http://localhost:7102")
-ALLOWED_ORIGIN = os.environ.get("AUTHS_INCIDENT_ALLOWED_ORIGIN", "http://localhost:7100")
+ALLOWED_ORIGIN = os.environ.get(
+    "AUTHS_INCIDENT_ALLOWED_ORIGIN", "http://localhost:7100"
+)
 SERVICE_TOKEN = os.environ.get("AUTHS_INCIDENT_SERVICE_TOKEN", "")
 CERT_FINGERPRINT = os.environ.get(
-    "EDGESHIELD_CLIENT_CERT_FINGERPRINT", "local-client-certificate-fingerprint"
+    "EDGESHIELD_CLIENT_CERT_FINGERPRINT",
+    "local-client-certificate-fingerprint",
 )
+STORE = SqliteExecutionStore(STATE_PATH)
+ROOT_SIGNER = ProcessEd25519Signer()
+AGENT_SIGNER = ProcessEd25519Signer()
+RECEIPT_ATTESTOR = DevelopmentReceiptAttestor()
 
 
-def database() -> sqlite3.Connection:
-    STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    connection = sqlite3.connect(STATE_PATH)
-    connection.row_factory = sqlite3.Row
-    connection.executescript(
-        """
-        CREATE TABLE IF NOT EXISTS plans (
-          commitment TEXT PRIMARY KEY,
-          northstar_approved INTEGER NOT NULL DEFAULT 0,
-          edgeshield_approved INTEGER NOT NULL DEFAULT 0,
-          ticket TEXT,
-          created_at INTEGER NOT NULL
-        );
-        CREATE TABLE IF NOT EXISTS executions (
-          operation TEXT PRIMARY KEY,
-          commitment TEXT NOT NULL,
-          idempotency_key TEXT NOT NULL,
-          outcome TEXT NOT NULL,
-          receipt TEXT NOT NULL,
-          created_at INTEGER NOT NULL
-        );
-        CREATE TABLE IF NOT EXISTS timeline (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          at INTEGER NOT NULL,
-          company TEXT NOT NULL,
-          kind TEXT NOT NULL,
-          detail TEXT NOT NULL
-        );
-        """
-    )
-    return connection
-
-
-def post_json(url: str, payload: dict[str, Any], headers: dict[str, str] | None = None) -> tuple[int, dict[str, Any]]:
+def post_json(
+    url: str,
+    payload: dict[str, Any],
+    headers: dict[str, str] | None = None,
+) -> tuple[int, dict[str, Any]]:
     request = urllib.request.Request(
         url,
-        data=json.dumps(payload).encode(),
+        data=json.dumps(payload, separators=(",", ":"), sort_keys=True).encode(),
         method="POST",
         headers={"content-type": "application/json", **(headers or {})},
     )
@@ -85,7 +69,8 @@ def post_json(url: str, payload: dict[str, Any], headers: dict[str, str] | None 
 
 def get_json(url: str) -> dict[str, Any]:
     with urllib.request.urlopen(url, timeout=10) as response:
-        return json.loads(response.read())
+        value = json.loads(response.read())
+    return value if type(value) is dict else {}
 
 
 def edge_headers() -> dict[str, str]:
@@ -96,114 +81,101 @@ def internal_headers() -> dict[str, str]:
     return {} if not SERVICE_TOKEN else {"authorization": f"Bearer {SERVICE_TOKEN}"}
 
 
-def plan_row(commitment: str) -> sqlite3.Row | None:
-    with database() as connection:
-        return connection.execute(
-            "SELECT * FROM plans WHERE commitment = ?", (commitment,)
-        ).fetchone()
+def state_payload() -> dict[str, Any]:
+    try:
+        northstar = get_json(f"{NORTHSTAR_URL}/api/actors")
+        edgeshield = get_json(f"{EDGESHIELD_URL}/api/actors")
+        evidence = get_json(f"{NORTHSTAR_URL}/api/evidence")
+    except Exception:
+        northstar, edgeshield, evidence = {"actors": []}, {"actors": []}, {}
+    snapshot = STORE.snapshot()
+    executions = snapshot["executions"]
+    committed = sum(value["state"] == "committed" for value in executions)
+    return {
+        "schema": SCHEMA,
+        "incident": {
+            "id": INCIDENT,
+            "tenant": "northstar-fashion",
+            "region": REGION,
+            "status": "mitigated" if committed == 2 else "active",
+        },
+        "actors": [*northstar.get("actors", []), *edgeshield.get("actors", [])],
+        "evidence": evidence,
+        "executions": executions,
+        "receipts": executions,
+        "counters": snapshot["counters"],
+        "timeline": snapshot["timeline"],
+    }
 
 
-def record_approval(commitment: str, company: str) -> dict[str, Any]:
-    if len(commitment) != 64:
-        raise ValueError("plan commitment must be a 32-byte lowercase hex digest")
-    with database() as connection:
-        connection.execute(
-            "INSERT OR IGNORE INTO plans(commitment, created_at) VALUES (?, ?)",
-            (commitment, int(time.time())),
-        )
-        column = "northstar_approved" if company == "northstar" else "edgeshield_approved"
-        connection.execute(f"UPDATE plans SET {column} = 1 WHERE commitment = ?", (commitment,))
-        row = connection.execute("SELECT * FROM plans WHERE commitment = ?", (commitment,)).fetchone()
-        if row["northstar_approved"] and row["edgeshield_approved"] and not row["ticket"]:
-            ticket = secrets.token_urlsafe(32)
-            connection.execute("UPDATE plans SET ticket = ? WHERE commitment = ?", (ticket, commitment))
-        row = connection.execute("SELECT * FROM plans WHERE commitment = ?", (commitment,)).fetchone()
-        connection.execute(
-            "INSERT INTO timeline(at, company, kind, detail) VALUES (?, ?, ?, ?)",
-            (int(time.time()), company, "approval", f"{company} approved plan {commitment[:12]}"),
-        )
-        return dict(row)
-
-
-def execute_operation(payload: dict[str, Any]) -> tuple[int, dict[str, Any]]:
-    operation = str(payload.get("operation", ""))
-    commitment = str(payload.get("planCommitment", ""))
-    ticket = str(payload.get("ticket", ""))
-    idempotency_key = str(payload.get("idempotencyKey", ""))
-    if operation not in ("firewall-eu-west-2", "cache-eu-west-2"):
-        return HTTPStatus.FORBIDDEN, {"schema": SCHEMA, "code": "closed-operation-mismatch"}
-    row = plan_row(commitment)
-    if row is None or not row["northstar_approved"] or not row["edgeshield_approved"] or not secrets.compare_digest(str(row["ticket"] or ""), ticket):
-        return HTTPStatus.FORBIDDEN, {"schema": SCHEMA, "code": "threshold-approval-required"}
-    with database() as connection:
-        existing = connection.execute("SELECT receipt FROM executions WHERE operation = ?", (operation,)).fetchone()
-        if existing is not None:
-            receipt = json.loads(existing["receipt"])
-            return HTTPStatus.CONFLICT, {**receipt, "code": "exact-replay", "replayed": True}
-
-    if operation == "firewall-eu-west-2":
-        transport = {"family": "https", "authorizationEvaluated": False}
-        status, provider = post_json(
-            f"{NORTHSTAR_URL}/api/firewall/apply",
-            {"incidentId": INCIDENT, "region": REGION, "operation": "apply-config"},
-            internal_headers(),
-        )
-    else:
+def execute_workflow(payload: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+    if payload.get("incidentId") != INCIDENT:
+        return HTTPStatus.BAD_REQUEST, {
+            "schema": SCHEMA,
+            "code": "closed-incident-mismatch",
+        }
+    transport = payload.get("transport", "https")
+    if transport not in ("https", "iroh"):
+        return HTTPStatus.BAD_REQUEST, {
+            "schema": SCHEMA,
+            "code": "unsupported-transport",
+        }
+    if transport == "iroh":
         envelope = json.dumps(
-            {
-                "schema": SCHEMA,
-                "incidentId": INCIDENT,
-                "region": REGION,
-                "operation": "execute",
-                "planCommitment": commitment,
-                "idempotencyKey": idempotency_key,
-            },
+            {"incidentId": INCIDENT, "operation": "execute-closed-plan"},
             separators=(",", ":"),
             sort_keys=True,
+        ).encode()
+        status, delivery = post_json(
+            f"{EDGESHIELD_URL}/api/iroh/exchange",
+            {"envelopeHex": envelope.hex()},
         )
-        delivery_status, transport = post_json(
-            f"{EDGESHIELD_URL}/api/iroh/exchange", {"envelope": envelope}
+        if status != HTTPStatus.OK:
+            return status, delivery
+    try:
+        result = asyncio.run(
+            execute_incident_plan(
+                store=STORE,
+                northstar_url=NORTHSTAR_URL,
+                edgeshield_url=EDGESHIELD_URL,
+                service_token=SERVICE_TOKEN,
+                certificate_fingerprint=CERT_FINGERPRINT,
+                root_signer=ROOT_SIGNER,
+                agent_signer=AGENT_SIGNER,
+                receipt_attestor=RECEIPT_ATTESTOR,
+            )
         )
-        if delivery_status != 200:
-            return delivery_status, transport
-        status, provider = post_json(
-            f"{EDGESHIELD_URL}/api/cache/purge",
-            {"incidentId": INCIDENT, "region": REGION, "operation": "execute"},
-            edge_headers(),
-        )
-    outcome = "executed" if status == 200 else "failed"
-    receipt = {
-        "schema": SCHEMA,
-        "receiptId": hashlib.sha256(f"{commitment}:{operation}".encode()).hexdigest(),
-        "operation": operation,
-        "planCommitment": commitment,
-        "idempotencyKey": idempotency_key,
-        "authority": {"region": REGION, "expiresInSeconds": 600, "uses": 1},
-        "transport": transport,
-        "provider": provider,
-        "outcome": outcome,
-        "observedAt": int(time.time()),
-        "verifiable": True,
-    }
-    with database() as connection:
-        connection.execute(
-            "INSERT INTO executions(operation, commitment, idempotency_key, outcome, receipt, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-            (operation, commitment, idempotency_key, outcome, json.dumps(receipt), int(time.time())),
-        )
-        connection.execute(
-            "INSERT INTO timeline(at, company, kind, detail) VALUES (?, ?, ?, ?)",
-            (
-                int(time.time()),
-                "northstar" if operation.startswith("firewall") else "edgeshield",
-                "execution",
-                f"{operation} {outcome}",
-            ),
-        )
-    return status, receipt
+        return HTTPStatus.OK, {
+            "schema": SCHEMA,
+            "requestTransport": transport,
+            **result,
+        }
+    except ApplicationGatewayError as error:
+        return HTTPStatus.CONFLICT, {
+            "schema": SCHEMA,
+            "code": error.code,
+            "outcome": error.receipt.outcome,
+            "stateClaim": error.receipt.state_claim,
+            "completed": len(error.completed_receipts),
+        }
+    except AuthsError as error:
+        status = {
+            "gateway-exact-replay": HTTPStatus.CONFLICT,
+            "gateway-conflict": HTTPStatus.CONFLICT,
+            "gateway-out-of-order": HTTPStatus.CONFLICT,
+            "gateway-expired": HTTPStatus.GONE,
+            "gateway-unavailable": HTTPStatus.SERVICE_UNAVAILABLE,
+        }.get(error.code, HTTPStatus.FORBIDDEN)
+        return status, {
+            "schema": SCHEMA,
+            "code": error.code,
+            "stage": error.stage,
+            "effectState": error.effect_state,
+        }
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "auths-incident-demo-agent/1"
+    server_version = "auths-incident-demo-agent/2"
 
     def do_OPTIONS(self) -> None:
         self.send_response(HTTPStatus.NO_CONTENT)
@@ -212,35 +184,14 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         if self.path == "/healthz":
-            return self.respond(HTTPStatus.OK, {"schema": SCHEMA, "status": "ok", "service": "agent"})
+            return self.respond(
+                HTTPStatus.OK,
+                {"schema": SCHEMA, "status": "ok", "service": "agent"},
+            )
         if self.path == "/api/fixture":
             return self.respond(HTTPStatus.OK, sdk.portable_fixture(REPO_ROOT))
         if self.path == "/api/state":
-            try:
-                northstar = get_json(f"{NORTHSTAR_URL}/api/actors")
-                edgeshield = get_json(f"{EDGESHIELD_URL}/api/actors")
-                evidence = get_json(f"{NORTHSTAR_URL}/api/evidence")
-            except Exception:
-                northstar, edgeshield, evidence = {"actors": []}, {"actors": []}, {}
-            with database() as connection:
-                receipts = [json.loads(row["receipt"]) for row in connection.execute("SELECT receipt FROM executions ORDER BY created_at")]
-                timeline = [dict(row) for row in connection.execute("SELECT * FROM timeline ORDER BY id")]
-            return self.respond(
-                HTTPStatus.OK,
-                {
-                    "schema": SCHEMA,
-                    "incident": {
-                        "id": INCIDENT,
-                        "tenant": "northstar-fashion",
-                        "region": REGION,
-                        "status": "mitigated" if len(receipts) == 2 else "active",
-                    },
-                    "actors": [*northstar.get("actors", []), *edgeshield.get("actors", [])],
-                    "evidence": evidence,
-                    "receipts": receipts,
-                    "timeline": timeline,
-                },
-            )
+            return self.respond(HTTPStatus.OK, state_payload())
         if self.path == "/api/proposal":
             return self.respond(
                 HTTPStatus.OK,
@@ -250,94 +201,208 @@ class Handler(BaseHTTPRequestHandler):
                     "executionAuthority": False,
                     "cause": "stale cache deny metadata and firewall revision 184 conflict",
                     "plan": [
-                        {"id": "firewall-eu-west-2", "command": "apply-config", "transport": "https", "exact": "allow checkout signed-assets in eu-west-2"},
-                        {"id": "cache-eu-west-2", "command": "execute", "transport": "iroh", "exact": "purge tenant northstar-fashion generation 991 in eu-west-2"},
+                        {
+                            "id": "firewall-eu-west-2",
+                            "command": "apply-config",
+                            "transport": "https",
+                            "exact": "allow checkout signed-assets in eu-west-2",
+                        },
+                        {
+                            "id": "cache-eu-west-2",
+                            "command": "execute",
+                            "transport": "iroh",
+                            "exact": "purge tenant northstar-fashion generation 991 in eu-west-2",
+                        },
                     ],
                 },
             )
         if self.path == "/api/receipts":
-            with database() as connection:
-                receipts = [json.loads(row["receipt"]) for row in connection.execute("SELECT receipt FROM executions ORDER BY created_at")]
-            return self.respond(HTTPStatus.OK, {"schema": SCHEMA, "receipts": receipts})
-        return self.respond(HTTPStatus.NOT_FOUND, {"schema": SCHEMA, "code": "not-found"})
+            snapshot = STORE.snapshot()
+            return self.respond(
+                HTTPStatus.OK,
+                {"schema": SCHEMA, "receipts": snapshot["executions"]},
+            )
+        return self.respond(
+            HTTPStatus.NOT_FOUND, {"schema": SCHEMA, "code": "not-found"}
+        )
 
     def do_POST(self) -> None:
         try:
             payload = self.read_json()
-            if self.path == "/api/approval/northstar":
-                status, result = post_json(f"{NORTHSTAR_URL}/api/approve", payload)
-                if status == 200 and payload.get("objectKind") == "action":
-                    result["plan"] = record_approval(str(payload.get("planCommitment", "")), "northstar")
-                return self.respond(status, result)
-            if self.path == "/api/approval/edgeshield":
-                status, result = post_json(f"{EDGESHIELD_URL}/api/approve", payload, edge_headers())
-                if status == 200 and payload.get("objectKind") == "action":
-                    result["plan"] = record_approval(str(payload.get("planCommitment", "")), "edgeshield")
-                return self.respond(status, result)
-            if self.path == "/api/plan/ticket":
-                row = plan_row(str(payload.get("planCommitment", "")))
-                if row is None or not row["ticket"]:
-                    return self.respond(HTTPStatus.FORBIDDEN, {"schema": SCHEMA, "code": "threshold-approval-required"})
-                return self.respond(HTTPStatus.OK, {"schema": SCHEMA, "ticket": row["ticket"]})
-            if self.path == "/api/execute":
-                status, result = execute_operation(payload)
+            if self.path == "/api/workflow/execute":
+                status, result = execute_workflow(payload)
                 return self.respond(status, result)
             if self.path == "/api/reset":
-                with database() as connection:
-                    connection.execute("DELETE FROM executions")
-                    connection.execute("DELETE FROM plans")
-                    connection.execute("DELETE FROM timeline")
+                STORE.reset()
                 post_json(f"{NORTHSTAR_URL}/api/reset", {}, internal_headers())
                 post_json(f"{EDGESHIELD_URL}/api/reset", {}, edge_headers())
                 return self.respond(HTTPStatus.OK, {"schema": SCHEMA, "reset": True})
             if self.path.startswith("/api/attack/"):
-                attack = self.path.rsplit("/", 1)[-1]
-                return self.respond(HTTPStatus.OK, self.attack(attack))
-            return self.respond(HTTPStatus.NOT_FOUND, {"schema": SCHEMA, "code": "not-found"})
+                return self.respond(
+                    HTTPStatus.OK, self.attack(self.path.rsplit("/", 1)[-1])
+                )
+            return self.respond(
+                HTTPStatus.NOT_FOUND, {"schema": SCHEMA, "code": "not-found"}
+            )
         except ValueError as error:
-            return self.respond(HTTPStatus.BAD_REQUEST, {"schema": SCHEMA, "code": "invalid-request", "detail": str(error)})
+            return self.respond(
+                HTTPStatus.BAD_REQUEST,
+                {"schema": SCHEMA, "code": "invalid-request", "detail": str(error)},
+            )
         except Exception as error:
-            sys.stderr.write(f"agent request failed: {type(error).__name__}\n")
-            return self.respond(HTTPStatus.INTERNAL_SERVER_ERROR, {"schema": SCHEMA, "code": "agent-internal"})
+            sys.stderr.write(f"agent request failed: {type(error).__name__}: {error}\n")
+            return self.respond(
+                HTTPStatus.INTERNAL_SERVER_ERROR,
+                {"schema": SCHEMA, "code": "agent-internal"},
+            )
 
     def attack(self, attack: str) -> dict[str, Any]:
+        if attack == "remote-unknown":
+            return self.unknown_outcome_attack()
+        before = STORE.snapshot()["counters"]
         if attack == "scope-expansion":
-            return sdk.scope_attack()
-        if attack == "byte-mutation":
-            return sdk.mutation_attack(REPO_ROOT)
-        if attack == "replay":
-            return sdk.replay_attack()
-        if attack == "expired":
-            return sdk.expired_attack()
-        if attack == "compromised-approver":
-            return sdk.compromise_attack()
-        if attack == "rotate-key":
-            before = get_json(f"{EDGESHIELD_URL}/api/actors")["rotation"]["current"]
-            status, rotated = post_json(f"{EDGESHIELD_URL}/api/key/rotate", {}, edge_headers())
-            if status != 200:
+            result = sdk.scope_attack()
+        elif attack == "byte-mutation":
+            result = sdk.mutation_attack(REPO_ROOT)
+        elif attack == "replay":
+            result = sdk.replay_attack()
+        elif attack == "expired":
+            result = sdk.expired_attack()
+        elif attack == "compromised-approver":
+            result = sdk.compromise_attack()
+        elif attack == "rotate-key":
+            actors = get_json(f"{EDGESHIELD_URL}/api/actors")
+            previous = actors["rotation"]["current"]
+            status, rotated = post_json(
+                f"{EDGESHIELD_URL}/api/key/rotate", {}, edge_headers()
+            )
+            if status != HTTPStatus.OK:
                 raise RuntimeError("rotation failed")
-            return sdk.rotation_attack(before, rotated["current"]["principal"])
-        if attack == "unauthorized-iroh":
+            result = sdk.rotation_attack(previous, rotated["current"]["principal"])
+        elif attack == "unauthorized-iroh":
             delivery_status, delivery = post_json(
                 f"{EDGESHIELD_URL}/api/iroh/exchange",
-                {"envelope": json.dumps({"authorized": False, "operation": "cache-purge"})},
+                {"envelopeHex": b'{"authorized":false}'.hex()},
             )
-            denied = sdk.mutation_attack(REPO_ROOT)
-            denied.update(
+            result = sdk.mutation_attack(REPO_ROOT)
+            result.update(
                 {
                     "attack": "unauthorized-iroh",
-                    "stage": "authority",
                     "code": "delivered-but-unauthorized",
-                    "detail": "Iroh delivered the bytes successfully; Auths still denied the mutated action.",
-                    "evidence": {"deliveryStatus": delivery_status, "transport": delivery, "authorization": denied["evidence"]},
+                    "detail": "Iroh delivered bytes, but no opaque command reached the effect gateway.",
+                    "evidence": {
+                        "deliveryStatus": delivery_status,
+                        "transport": delivery,
+                        "authorization": result["evidence"],
+                    },
                 }
             )
-            return denied
-        if attack in ("remote-before", "remote-after", "remote-unknown"):
-            return sdk.remote_failure_attack(attack.removeprefix("remote-"))
-        if attack == "withdraw-approval":
-            return sdk.withdrawal_attack()
-        raise ValueError("unknown closed attack case")
+        elif attack in ("remote-before", "remote-after"):
+            result = sdk.remote_failure_attack(attack.removeprefix("remote-"))
+        elif attack == "withdraw-approval":
+            result = sdk.withdrawal_attack()
+        else:
+            raise ValueError("unknown closed attack case")
+        after = STORE.snapshot()["counters"]
+        result["effectBoundary"] = {
+            "credentialAcquisitions": after["credential_acquisitions"]
+            - before["credential_acquisitions"],
+            "providerCalls": after["provider_calls"] - before["provider_calls"],
+        }
+        result["blocked"] = result.get("blocked") is True and result[
+            "effectBoundary"
+        ] == {
+            "credentialAcquisitions": 0,
+            "providerCalls": 0,
+        }
+        return result
+
+    def unknown_outcome_attack(self) -> dict[str, Any]:
+        STORE.reset()
+        post_json(f"{NORTHSTAR_URL}/api/reset", {}, internal_headers())
+        post_json(f"{EDGESHIELD_URL}/api/reset", {}, edge_headers())
+        try:
+            asyncio.run(
+                execute_incident_plan(
+                    store=STORE,
+                    northstar_url=NORTHSTAR_URL,
+                    edgeshield_url=EDGESHIELD_URL,
+                    service_token=SERVICE_TOKEN,
+                    certificate_fingerprint=CERT_FINGERPRINT,
+                    root_signer=ROOT_SIGNER,
+                    agent_signer=AGENT_SIGNER,
+                    receipt_attestor=RECEIPT_ATTESTOR,
+                    provider_fault="unknown-after-firewall",
+                )
+            )
+        except ApplicationGatewayError as error:
+            first = error
+        else:
+            return {
+                "attack": "remote-unknown",
+                "blocked": False,
+                "code": "unexpected-success",
+            }
+        before_retry = STORE.snapshot()["counters"]
+        try:
+            asyncio.run(
+                execute_incident_plan(
+                    store=STORE,
+                    northstar_url=NORTHSTAR_URL,
+                    edgeshield_url=EDGESHIELD_URL,
+                    service_token=SERVICE_TOKEN,
+                    certificate_fingerprint=CERT_FINGERPRINT,
+                    root_signer=ROOT_SIGNER,
+                    agent_signer=AGENT_SIGNER,
+                    receipt_attestor=RECEIPT_ATTESTOR,
+                )
+            )
+        except AuthsError as error:
+            retry_code = error.code
+        else:
+            retry_code = "unexpected-success"
+        snapshot = STORE.snapshot()
+        counters = snapshot["counters"]
+        unknown = [
+            value
+            for value in snapshot["executions"]
+            if value["state"] == "outcome-unknown"
+        ]
+        reconciled = (
+            STORE.reconcile(unknown[0]["idempotencyKey"], "effect")
+            if len(unknown) == 1
+            else "missing"
+        )
+        retry_blocked = retry_code in (
+            "gateway-conflict",
+            "gateway-exact-replay",
+        )
+        no_retry_effect = counters == before_retry
+        return {
+            "attack": "remote-unknown",
+            "blocked": first.receipt.outcome == "outcome-unknown"
+            and len(unknown) == 1
+            and retry_blocked
+            and no_retry_effect
+            and reconciled == "reconciled-committed",
+            "stage": "provider",
+            "code": "provider-outcome-unknown",
+            "detail": "The provider applied the firewall change, its response was lost, and Auths blocked retry pending reconciliation.",
+            "effectBoundary": {
+                "credentialAcquisitions": counters["credential_acquisitions"],
+                "providerCalls": counters["provider_calls"],
+            },
+            "evidence": {
+                "state": unknown[0]["state"] if unknown else "missing",
+                "reconciledState": reconciled,
+                "outcome": first.receipt.outcome,
+                "retryCode": retry_code,
+                "retryCredentialAcquisitions": counters["credential_acquisitions"]
+                - before_retry["credential_acquisitions"],
+                "retryProviderCalls": counters["provider_calls"]
+                - before_retry["provider_calls"],
+            },
+        }
 
     def read_json(self) -> dict[str, Any]:
         length = int(self.headers.get("content-length", "0"))
@@ -346,12 +411,14 @@ class Handler(BaseHTTPRequestHandler):
         if length == 0:
             return {}
         value = json.loads(self.rfile.read(length))
-        if not isinstance(value, dict):
+        if type(value) is not dict:
             raise ValueError("request body must be an object")
         return value
 
     def respond(self, status: int, payload: dict[str, Any]) -> None:
-        encoded = json.dumps(sdk.json_safe(payload), separators=(",", ":")).encode()
+        encoded = json.dumps(
+            sdk.json_safe(payload), separators=(",", ":"), sort_keys=True
+        ).encode()
         self.send_response(status)
         self._headers()
         self.send_header("content-type", "application/json; charset=utf-8")
@@ -371,7 +438,6 @@ class Handler(BaseHTTPRequestHandler):
 
 def main() -> None:
     port = int(os.environ.get("PORT", "7103"))
-    database().close()
     server = ThreadingHTTPServer(("0.0.0.0", port), Handler)
     print(f"auths-incident-demo agent listening on http://0.0.0.0:{port}")
     server.serve_forever()
