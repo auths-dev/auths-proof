@@ -18,6 +18,7 @@ digraph auths_architecture {
   "auths-codec" [group="core"];
   "auths-composition" [group="core"];
   "auths-config" [group="product"];
+  "auths-cross-company-incident-edgeshield-demo" [group="demos"];
   "auths-custody" [group="product"];
   "auths-deployment" [group="product"];
   "auths-did-keri" [group="core"];
@@ -160,6 +161,8 @@ digraph auths_architecture {
   "auths-config" -> "auths-codec" [label="normal"];
   "auths-config" -> "auths-model" [label="normal"];
   "auths-config" -> "auths-proof-exchange-model" [label="normal"];
+  "auths-cross-company-incident-edgeshield-demo" -> "auths-iroh" [label="normal"];
+  "auths-cross-company-incident-edgeshield-demo" -> "auths-raw-key" [label="normal"];
   "auths-custody" -> "auths-author" [label="normal"];
   "auths-custody" -> "auths-model" [label="normal"];
   "auths-deployment" -> "auths-enforcement" [label="normal"];

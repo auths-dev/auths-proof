@@ -1,0 +1,55 @@
+services:
+  northstar:
+    build:
+      context: ../../..
+      dockerfile: demos/cross-company-incident-response/northstar-service/Dockerfile
+    environment:
+      PORT: "8080"
+      NORTHSTAR_PUBLIC_URL: "http://localhost:7101"
+      NORTHSTAR_STATE_PATH: "/data/northstar.json"
+      AUTHS_INCIDENT_ALLOWED_ORIGIN: "http://localhost:7100"
+      AUTHS_INCIDENT_ALLOW_INSECURE_LOCAL: "1"
+    ports: ["7101:8080"]
+    volumes: ["northstar-data:/data"]
+
+  edgeshield:
+    build:
+      context: ../../..
+      dockerfile: demos/cross-company-incident-response/edgeshield-service/Dockerfile
+    environment:
+      PORT: "8080"
+      EDGESHIELD_STATE_PATH: "/data/edgeshield.json"
+      EDGESHIELD_CLIENT_CERT_FINGERPRINT: "compose-local-client-certificate"
+    ports: ["7102:8080"]
+    volumes: ["edgeshield-data:/data"]
+
+  agent:
+    build:
+      context: ../../..
+      dockerfile: demos/cross-company-incident-response/agent-service/Dockerfile
+    depends_on: [northstar, edgeshield]
+    environment:
+      PORT: "8080"
+      AUTHS_REPO_ROOT: "/repo"
+      AGENT_STATE_PATH: "/data/agent.sqlite3"
+      NORTHSTAR_URL: "http://northstar:8080"
+      EDGESHIELD_URL: "http://edgeshield:8080"
+      AUTHS_INCIDENT_ALLOWED_ORIGIN: "http://localhost:7100"
+      AUTHS_INCIDENT_ALLOW_INSECURE_LOCAL: "1"
+      EDGESHIELD_CLIENT_CERT_FINGERPRINT: "compose-local-client-certificate"
+    ports: ["7103:8080"]
+    volumes: ["agent-data:/data"]
+
+  control-room:
+    build:
+      context: ../../..
+      dockerfile: demos/cross-company-incident-response/control-room/Dockerfile
+      args:
+        AUTHS_INCIDENT_AGENT_API: "http://localhost:7103"
+    depends_on: [agent]
+    ports: ["7100:80"]
+
+volumes:
+  northstar-data:
+  edgeshield-data:
+  agent-data:

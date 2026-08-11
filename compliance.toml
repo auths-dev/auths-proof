@@ -4,6 +4,26 @@ portable_abi_version = 2
 report_schema = "auths-product-core-compliance/v1"
 scope_layers = ["bindings", "demos", "product"]
 
+[packages.auths-cross-company-incident-edgeshield-demo]
+kind = "cargo"
+layer = "demos"
+path = "demos/cross-company-incident-response/edgeshield-service"
+core_apis = ["auths-raw-key"]
+protocol_versions = ["auths-proof/v1", "auths-incident-demo/1"]
+wire_objects = ["bounded-incident-envelope"]
+fixture_suites = ["core/fixtures/v1"]
+principal_families = ["raw-key-v1", "webauthn-v1"]
+signature_families = ["ed25519-v1", "p256-sha256-v1"]
+profiles = ["auths.edge/1"]
+transports = ["https", "iroh"]
+configuration_inputs = ["client-certificate-fingerprint", "iroh-alpn", "provider-state-path"]
+security_state = ["edge-key-sequence", "provider-effect-ledger", "transport-peer-observation"]
+
+[packages.auths-cross-company-incident-edgeshield-demo.claims]
+demo-conformance-fixture = ["demos/cross-company-incident-response/edgeshield-service/src/main.rs#real_iroh_delivery_is_semantics_free"]
+runtime-enforcement-boundary = ["demos/cross-company-incident-response/agent-service/tests/test_sdk.py#test_replay_and_runtime_transitions"]
+stateful-replay-budget-component = ["demos/cross-company-incident-response/agent-service/tests/test_sdk.py#test_failure_matrix"]
+
 [packages.auths-identity-iroh-demo]
 kind = "cargo"
 layer = "demos"

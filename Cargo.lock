@@ -397,6 +397,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "auths-cross-company-incident-edgeshield-demo"
+version = "1.0.0-rc.1"
+dependencies = [
+ "auths-iroh",
+ "auths-raw-key",
+ "axum",
+ "ed25519-dalek 2.2.0",
+ "getrandom 0.3.4",
+ "hex",
+ "iroh",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "tokio",
+ "tower",
+ "tower-http 0.7.0",
+]
+
+[[package]]
 name = "auths-custody"
 version = "1.0.0-rc.1"
 dependencies = [

@@ -92,6 +92,11 @@
       "path": "product/config/auths-config"
     },
     {
+      "name": "auths-cross-company-incident-edgeshield-demo",
+      "layer": "demos",
+      "path": "demos/cross-company-incident-response/edgeshield-service"
+    },
+    {
       "name": "auths-custody",
       "layer": "product",
       "path": "product/integrations/auths-custody"
@@ -1645,6 +1650,185 @@
       "optional": false,
       "default_features": true,
       "features": []
+    },
+    {
+      "source": "auths-cross-company-incident-edgeshield-demo",
+      "source_layer": "demos",
+      "target": "auths-iroh",
+      "target_layer": "exchange",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-cross-company-incident-edgeshield-demo",
+      "source_layer": "demos",
+      "target": "auths-raw-key",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-cross-company-incident-edgeshield-demo",
+      "source_layer": "demos",
+      "target": "axum",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-cross-company-incident-edgeshield-demo",
+      "source_layer": "demos",
+      "target": "ed25519-dalek",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc"
+      ]
+    },
+    {
+      "source": "auths-cross-company-incident-edgeshield-demo",
+      "source_layer": "demos",
+      "target": "getrandom",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-cross-company-incident-edgeshield-demo",
+      "source_layer": "demos",
+      "target": "hex",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-cross-company-incident-edgeshield-demo",
+      "source_layer": "demos",
+      "target": "iroh",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "tls-ring"
+      ]
+    },
+    {
+      "source": "auths-cross-company-incident-edgeshield-demo",
+      "source_layer": "demos",
+      "target": "serde",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "derive"
+      ]
+    },
+    {
+      "source": "auths-cross-company-incident-edgeshield-demo",
+      "source_layer": "demos",
+      "target": "serde_json",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "preserve_order"
+      ]
+    },
+    {
+      "source": "auths-cross-company-incident-edgeshield-demo",
+      "source_layer": "demos",
+      "target": "sha2",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-cross-company-incident-edgeshield-demo",
+      "source_layer": "demos",
+      "target": "tokio",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": [
+        "fs",
+        "io-util",
+        "macros",
+        "net",
+        "rt-multi-thread",
+        "signal",
+        "sync",
+        "time"
+      ]
+    },
+    {
+      "source": "auths-cross-company-incident-edgeshield-demo",
+      "source_layer": "demos",
+      "target": "tower",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": [
+        "util"
+      ]
+    },
+    {
+      "source": "auths-cross-company-incident-edgeshield-demo",
+      "source_layer": "demos",
+      "target": "tower-http",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": [
+        "cors"
+      ]
     },
     {
       "source": "auths-custody",

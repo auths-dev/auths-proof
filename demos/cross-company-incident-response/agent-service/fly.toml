@@ -1,0 +1,31 @@
+app = "auths-incident-demo-agent"
+primary_region = "lhr"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "8080"
+  AGENT_STATE_PATH = "/tmp/auths-incident-demo/agent.sqlite3"
+  AUTHS_REPO_ROOT = "/repo"
+  NORTHSTAR_URL = "https://auths-incident-demo-northstar.fly.dev"
+  EDGESHIELD_URL = "https://auths-incident-demo-edgeshield.fly.dev"
+  AUTHS_INCIDENT_ALLOWED_ORIGIN = "https://auths-incident-demo-control-room.vercel.app"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    method = "GET"
+    path = "/healthz"
+    interval = "20s"
+    timeout = "5s"
+
+[[vm]]
+  memory = "512mb"
+  cpu_kind = "shared"
+  cpus = 1

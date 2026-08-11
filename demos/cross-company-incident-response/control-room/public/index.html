@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <meta name="auths-schema" content="auths-incident-demo/1">
+    <title>Auths · Cross-company incident control room</title>
+    <link rel="stylesheet" href="/styles.css">
+    <script type="importmap">
+      {
+        "imports": {
+          "@auths-dev/sdk": "/vendor-v3/dist/index.js",
+          "@auths-dev/sdk/approvals": "/vendor-v3/dist/approvals.js",
+          "@auths-dev/sdk/profiles": "/vendor-v3/dist/profiles.js",
+          "@auths-dev/sdk/testkit": "/vendor-v3/dist/testkit/index.js",
+          "@auths-dev/sdk/verify": "/vendor-v3/dist/verify.js",
+          "@auths-dev/sdk/": "/vendor-v3/dist/"
+        }
+      }
+    </script>
+    <script src="/config.js"></script>
+  </head>
+  <body>
+    <div class="noise"></div>
+    <header class="topbar">
+      <a class="brand" href="#">AUTHS<span>/incident</span></a>
+      <div class="incident-title">
+        <span class="pulse"></span>
+        <strong>INC-2026-0811</strong>
+        <span>checkout outage · eu-west-2</span>
+      </div>
+      <div class="org-switch" role="group" aria-label="Company view">
+        <button class="active" data-org="joint">Joint</button>
+        <button data-org="northstar">Northstar</button>
+        <button data-org="edgeshield">EdgeShield</button>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero panel">
+        <div>
+          <p class="eyebrow">CROSS-COMPANY CONTROL ROOM</p>
+          <h1>Resolve the incident.<br><em>Share authority, not identity.</em></h1>
+          <p class="lede">Two companies, two identity systems, one exact two-step plan. Delivery never upgrades authorization.</p>
+        </div>
+        <div class="hero-actions">
+          <button id="reset" class="button ghost">Reset deterministic incident</button>
+          <button id="run" class="button primary">Review & execute plan <span>↗</span></button>
+          <div id="run-status" class="run-status">SDK ready check pending</div>
+        </div>
+      </section>
+
+      <section class="metric-strip" id="metrics"></section>
+
+      <div class="workspace">
+        <section class="column actors-column">
+          <div class="section-head"><span>01</span><h2>Actors & identity</h2></div>
+          <div id="actors" class="actor-list skeleton">Loading actors…</div>
+        </section>
+
+        <section class="column plan-column">
+          <div class="section-head"><span>02</span><h2>Authority & exact plan</h2></div>
+          <div class="authority-graph panel inset">
+            <div class="graph-node root">EdgeShield root<br><small>Ed25519 · active</small></div>
+            <div class="graph-arrow"><span>10 min · eu-west-2</span></div>
+            <div class="graph-node agent">Remediation agent<br><small>2 exact uses · depth 1</small></div>
+            <div class="graph-split"></div>
+            <div class="graph-effects">
+              <div>firewall-eu-west-2<br><small>HTTPS</small></div>
+              <div>cache-eu-west-2<br><small>Iroh</small></div>
+            </div>
+          </div>
+          <div id="proposal" class="plan-card panel inset skeleton">Loading diagnostic proposal…</div>
+          <div id="approval-state" class="approval-grid">
+            <div><span class="company-dot northstar"></span>Northstar commander <strong>pending</strong></div>
+            <div><span class="company-dot edgeshield"></span>EdgeShield on-call <strong>pending</strong></div>
+          </div>
+          <div id="sdk-evidence" class="sdk-evidence panel inset">Cross-SDK verification pending…</div>
+        </section>
+
+        <section class="column timeline-column">
+          <div class="section-head"><span>03</span><h2>Live timeline</h2></div>
+          <div id="timeline" class="timeline"></div>
+        </section>
+      </div>
+
+      <section class="receipts-section">
+        <div class="section-head"><span>04</span><h2>Independent receipts</h2></div>
+        <div id="receipts" class="receipt-grid"><div class="empty">No effects executed. Receipts will appear here.</div></div>
+      </section>
+
+      <section class="attack-section panel">
+        <div class="attack-intro">
+          <p class="eyebrow danger">ATTACK LAB</p>
+          <h2>Try to cross the boundary.</h2>
+          <p>Every control exercises a real SDK, runtime, lifecycle, or transport path and shows the stage that stopped it.</p>
+        </div>
+        <div id="attack-grid" class="attack-grid"></div>
+        <div id="attack-output" class="attack-output"><span>SELECT AN ATTACK CASE</span></div>
+      </section>
+    </main>
+
+    <footer>
+      <span>Auths proof-carrying bounded authority</span>
+      <span>local-first · no shared identity system · no broad credential</span>
+    </footer>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,28 @@
+app = "auths-incident-demo-northstar"
+primary_region = "lhr"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "8080"
+  NORTHSTAR_PUBLIC_URL = "https://auths-incident-demo-northstar.fly.dev"
+  NORTHSTAR_STATE_PATH = "/tmp/auths-incident-demo/northstar.json"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    method = "GET"
+    path = "/healthz"
+    interval = "20s"
+    timeout = "5s"
+
+[[vm]]
+  memory = "256mb"
+  cpu_kind = "shared"
+  cpus = 1

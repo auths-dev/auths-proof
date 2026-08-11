@@ -106,6 +106,7 @@ members = [
     "demos/postgresql-data-change",
     "demos/rest-api-authorization",
     "demos/identity-iroh",
+    "demos/cross-company-incident-response/edgeshield-service",
     "xtask/ci-plan",
     "xtask",
 ]

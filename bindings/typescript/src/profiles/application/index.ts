@@ -315,8 +315,13 @@ function createVerifiedCommandFor<Command>(
   let decoded: Command;
   try {
     decoded = decoder(copyCanonical(canonical)) as Command;
-  } catch {
-    throw new AuthsWorkflowError("invalid-profile", "application profile rejected verified command decoding");
+  } catch (error) {
+    if (error instanceof AuthsWorkflowError) throw error;
+    const detail = error instanceof Error ? error.message : "unknown decoder failure";
+    throw new AuthsWorkflowError(
+      "invalid-profile",
+      `application profile rejected verified command decoding: ${detail}`,
+    );
   }
   return mintApplicationCommand(profile, decoded);
 }
