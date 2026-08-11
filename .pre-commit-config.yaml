@@ -1,0 +1,20 @@
+minimum_pre_commit_version: "3.0.0"
+
+repos:
+  - repo: local
+    hooks:
+      - id: python-native-clippy-fix
+        name: Apply Python native binding Clippy fixes
+        entry: cargo clippy --fix --package auths-proof-python --all-targets --all-features --allow-dirty --allow-staged
+        language: system
+        files: ^bindings/python/(Cargo\.toml|src/.*\.rs)$
+        pass_filenames: false
+        require_serial: true
+
+      - id: rust-format
+        name: Apply Rust formatting
+        entry: cargo fmt --all
+        language: system
+        files: \.rs$
+        pass_filenames: false
+        require_serial: true
