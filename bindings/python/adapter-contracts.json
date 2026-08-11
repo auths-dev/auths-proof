@@ -1,0 +1,50 @@
+{
+  "schema": "auths.python-adapter-contracts/1",
+  "package": "auths",
+  "contractVersion": 1,
+  "ports": {
+    "signer": 1,
+    "approval": 1,
+    "identityMethod": 1,
+    "signatureSuite": 1,
+    "identityResolver": 1,
+    "evidenceProvider": 1,
+    "statusProvider": 1,
+    "clock": 1,
+    "challengeStore": 1,
+    "budgetStore": 1,
+    "commandStore": 1,
+    "receiptStore": 1,
+    "telemetry": 1,
+    "gateway": 1,
+    "reconciler": 1,
+    "transport": 1,
+    "framework": 1
+  },
+  "qualification": {
+    "required": [
+      "exact protocol declaration",
+      "executable conformance suite",
+      "dependency and credential-boundary review",
+      "timeout and cancellation behavior",
+      "support owner and security-claim declaration"
+    ],
+    "basePackageDefinesSemantics": false,
+    "thirdPartyAdaptersMayExtendSemantics": false
+  },
+  "referenceAdapters": [
+    {
+      "module": "auths.testkit",
+      "purpose": "development and conformance only",
+      "production": false,
+      "supportOwner": "auths-dev"
+    },
+    {
+      "module": "auths_sqlite",
+      "package": "auths-sqlite",
+      "purpose": "durable runtime-store reference",
+      "production": false,
+      "supportOwner": "auths-dev"
+    }
+  ]
+}

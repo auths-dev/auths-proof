@@ -17,15 +17,21 @@ auths-codec = { workspace = true, features = ["std"] }
 auths-custody.workspace = true
 auths-did-keri = { workspace = true, features = ["std"] }
 auths-did-key = { workspace = true, features = ["std"] }
+auths-identity.workspace = true
+auths-identity-raw-key.workspace = true
+auths-lifecycle = { workspace = true, features = ["std"] }
 auths-model = { workspace = true, features = ["std"] }
 auths-ports = { workspace = true, features = ["std"] }
 auths-profile-api.workspace = true
+auths-profile-domains.workspace = true
 auths-profile-mcp.workspace = true
 auths-raw-key = { workspace = true, features = ["std"] }
 auths-registries = { workspace = true, features = ["std"] }
 auths-signature = { workspace = true, features = ["std"] }
+auths-signature-ed25519.workspace = true
 auths-sdk.workspace = true
 auths-verifier = { workspace = true, features = ["std"] }
+getrandom.workspace = true
 pyo3.workspace = true
 serde_json.workspace = true
 serde_json_canonicalizer.workspace = true

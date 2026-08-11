@@ -303,8 +303,3 @@ path = "bindings/typescript/src/profiles/application/index.ts"
 pattern = "getRandomValues"
 status = "permanent"
 reason = "Fresh local entropy for one action challenge. Randomness cannot come from an effect-free kernel; the authoring ABI receives the challenge and rejects an invalid one, so Rust still owns the rule."
-[[binding_semantics.allowances]]
-path = "bindings/python/python/auths/mcp.py"
-pattern = "secrets."
-status = "permanent"
-reason = "Fresh local entropy for one action challenge. Randomness cannot come from an effect-free kernel; the native authoring waist receives the challenge and rejects an invalid one, so Rust still owns the rule."

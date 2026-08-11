@@ -7293,6 +7293,44 @@
     {
       "source": "auths-proof-python",
       "source_layer": "bindings",
+      "target": "auths-identity",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-proof-python",
+      "source_layer": "bindings",
+      "target": "auths-identity-raw-key",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-proof-python",
+      "source_layer": "bindings",
+      "target": "auths-lifecycle",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "std"
+      ]
+    },
+    {
+      "source": "auths-proof-python",
+      "source_layer": "bindings",
       "target": "auths-model",
       "target_layer": "core",
       "scope": "internal",
@@ -7322,6 +7360,18 @@
       "source": "auths-proof-python",
       "source_layer": "bindings",
       "target": "auths-profile-api",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-proof-python",
+      "source_layer": "bindings",
+      "target": "auths-profile-domains",
       "target_layer": "product",
       "scope": "internal",
       "kind": "normal",
@@ -7399,6 +7449,18 @@
     {
       "source": "auths-proof-python",
       "source_layer": "bindings",
+      "target": "auths-signature-ed25519",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-proof-python",
+      "source_layer": "bindings",
       "target": "auths-verifier",
       "target_layer": "core",
       "scope": "internal",
@@ -7409,6 +7471,18 @@
       "features": [
         "std"
       ]
+    },
+    {
+      "source": "auths-proof-python",
+      "source_layer": "bindings",
+      "target": "getrandom",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
     },
     {
       "source": "auths-proof-python",

@@ -100,10 +100,27 @@ impl PyNativeMcpPlan {
 #[pyclass(name = "McpCommand", module = "auths._native", skip_from_py_object)]
 pub struct PyMcpCommand {
     inner: Option<McpCommand>,
+    authority_commitment: [u8; 32],
+    context_commitment: [u8; 32],
 }
 
 #[pymethods]
 impl PyMcpCommand {
+    #[getter]
+    fn action_commitment<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
+        Ok(PyBytes::new(py, &self.action_commitment_bytes()?))
+    }
+
+    #[getter]
+    fn authority_commitment<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        PyBytes::new(py, &self.authority_commitment)
+    }
+
+    #[getter]
+    fn context_commitment<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        PyBytes::new(py, &self.context_commitment)
+    }
+
     #[getter]
     fn service(&self) -> PyResult<&str> {
         Ok(self.command()?.call().service())
@@ -147,6 +164,7 @@ impl PyMcpCommand {
 pub struct PyMcpPlanCommand {
     commands: Option<Vec<McpCommand>>,
     commitment: [u8; 32],
+    receipt_bindings: Vec<([u8; 32], [u8; 32], [u8; 32])>,
 }
 
 #[pymethods]
@@ -159,6 +177,16 @@ impl PyMcpPlanCommand {
     #[getter]
     fn plan_commitment<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
         PyBytes::new(py, &self.commitment)
+    }
+
+    #[getter]
+    fn receipt_bindings(&self) -> Vec<(Vec<u8>, Vec<u8>, Vec<u8>)> {
+        self.receipt_bindings
+            .iter()
+            .map(|(action, authority, context)| {
+                (action.to_vec(), authority.to_vec(), context.to_vec())
+            })
+            .collect()
     }
 
     fn __repr__(&self) -> &'static str {
@@ -203,6 +231,10 @@ impl PyMcpCommand {
         self.inner
             .as_ref()
             .ok_or_else(|| PyRuntimeError::new_err("MCP command has already been consumed"))
+    }
+
+    fn action_commitment_bytes(&self) -> PyResult<[u8; 32]> {
+        canonical_action_commitment(self.command()?.call())
     }
 }
 
@@ -250,6 +282,23 @@ fn mcp_call(service: &str, name: &str, arguments_json: &[u8]) -> PyResult<PyMcpC
     Ok(PyMcpCall {
         inner: McpToolCall::new(service, name, arguments).map_err(value_error)?,
     })
+}
+
+#[pyfunction]
+fn review_mcp_call<'py>(
+    py: Python<'py>,
+    call: PyRef<'_, PyMcpCall>,
+) -> PyResult<(String, Vec<(String, String)>, Bound<'py, PyBytes>)> {
+    let canonical = McpProfile
+        .canonicalize(&call.inner.canonical_bytes().map_err(value_error)?)
+        .map_err(value_error)?;
+    let display = McpProfile.review_display(&canonical).map_err(value_error)?;
+    let commitment = canonical_action_commitment(&call.inner)?;
+    Ok((
+        display.title().to_owned(),
+        display.fields().to_vec(),
+        PyBytes::new(py, &commitment),
+    ))
 }
 
 #[pyfunction]
@@ -393,13 +442,23 @@ fn authorize_mcp(
         auths_codec::encode_canonical_action(&prepared.canonical).map_err(value_error)?;
     let context_cbor =
         auths_codec::encode_verifier_context(artifacts.context()).map_err(value_error)?;
+    let authority_commitment = *auths_codec::proof_digest(artifacts.proof())
+        .map_err(value_error)?
+        .as_bytes();
+    let context_commitment = *auths_codec::context_digest(artifacts.context())
+        .map_err(value_error)?
+        .as_bytes();
     let sealed = verify_sealed(&proof_cbor, &action_cbor, &context_cbor)?;
     let command = sealed
         .action()
         .map(|action| McpProfile.decode_verified(action))
         .transpose()
         .map_err(value_error)?
-        .map(|inner| PyMcpCommand { inner: Some(inner) });
+        .map(|inner| PyMcpCommand {
+            inner: Some(inner),
+            authority_commitment,
+            context_commitment,
+        });
     Ok((native_result(py, sealed)?, command))
 }
 
@@ -469,6 +528,17 @@ fn seal_mcp_plan_command(
             "verified commands do not match the exact MCP plan",
         ));
     }
+    let receipt_bindings = commands
+        .iter()
+        .map(|command| {
+            let command = command.borrow(py);
+            Ok((
+                command.action_commitment_bytes()?,
+                command.authority_commitment,
+                command.context_commitment,
+            ))
+        })
+        .collect::<PyResult<Vec<_>>>()?;
     let inner = commands
         .iter()
         .map(|command| {
@@ -482,6 +552,7 @@ fn seal_mcp_plan_command(
     Ok(PyMcpPlanCommand {
         commands: Some(inner),
         commitment: expected,
+        receipt_bindings,
     })
 }
 
@@ -549,6 +620,18 @@ fn canonical_plan_member(call: &McpToolCall) -> PyResult<Vec<u8>> {
     .map_err(value_error)
 }
 
+fn canonical_action_commitment(call: &McpToolCall) -> PyResult<[u8; 32]> {
+    let canonical = McpProfile
+        .canonicalize(&call.canonical_bytes().map_err(value_error)?)
+        .map_err(value_error)?;
+    let encoded = auths_codec::encode_canonical_action(&canonical).map_err(value_error)?;
+    Ok(
+        *auths_codec::domain_commitment("auths.canonical-action.v1", &encoded)
+            .map_err(value_error)?
+            .as_bytes(),
+    )
+}
+
 pub fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyMcpCall>()?;
     module.add_class::<PyNativeMcpPlan>()?;
@@ -557,6 +640,7 @@ pub fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyMcpGatewayCall>()?;
     module.add_function(wrap_pyfunction!(validate_mcp_service, module)?)?;
     module.add_function(wrap_pyfunction!(mcp_call, module)?)?;
+    module.add_function(wrap_pyfunction!(review_mcp_call, module)?)?;
     module.add_function(wrap_pyfunction!(commit_mcp_plan, module)?)?;
     module.add_function(wrap_pyfunction!(prepare_mcp_call_action, module)?)?;
     module.add_function(wrap_pyfunction!(authorize_mcp, module)?)?;

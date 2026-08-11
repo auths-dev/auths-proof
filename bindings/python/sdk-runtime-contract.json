@@ -1,0 +1,48 @@
+{
+  "schema": "auths.python-runtime-contract/1",
+  "package": {
+    "name": "auths",
+    "version": "1.0.0rc1",
+    "nativeAbi": 2,
+    "wheelAbi": "abi3-py39"
+  },
+  "runtime": {
+    "implementation": "CPython",
+    "versions": ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"],
+    "operatingSystems": ["linux", "macos", "windows"],
+    "freeThreaded": false
+  },
+  "distribution": {
+    "wheels": "published",
+    "sourceDistribution": "not-published",
+    "localCompilerRequired": false
+  },
+  "semanticSubjects": {
+    "identity": "auths-identity/v1",
+    "authority": "auths-proof-protocol/v1",
+    "mcpProfile": "auths.mcp/1",
+    "httpProfile": "auths.http/1",
+    "lifecycle": "auths.product.reservation-execution-contract/1"
+  },
+  "modules": [
+    "auths",
+    "auths.identity",
+    "auths.trust",
+    "auths.authority",
+    "auths.approvals",
+    "auths.custody",
+    "auths.profiles.mcp",
+    "auths.profiles.http",
+    "auths.profile_kit",
+    "auths.runtime",
+    "auths.verify",
+    "auths.inspection",
+    "auths.integrations",
+    "auths.diagnostics",
+    "auths.observability",
+    "auths.testkit"
+  ],
+  "excludedModules": ["auths.advanced", "auths.native", "auths.mcp"],
+  "compatibilityWindow": false,
+  "adapterContract": "auths.python-adapter-contracts/1"
+}

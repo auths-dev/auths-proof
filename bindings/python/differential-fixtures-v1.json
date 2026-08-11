@@ -1,6 +1,6 @@
 {
   "schema": "auths.python-differential-fixtures/1",
-  "nativeAbiVersion": 1,
+  "nativeAbiVersion": 2,
   "generator": "auths-proof-wasm/generate-node-vectors",
   "consumers": [
     "Rust",
@@ -72,6 +72,22 @@
         "workflow.result.cbor"
       ],
       "projection": "workflow.projection.json"
+    },
+    {
+      "name": "credential-shape-agnostic-identity",
+      "inputs": [
+        "bindings/python/identity-conformance-v1.json"
+      ],
+      "projection": "method material, purpose, suite and ordered verification-material relationships"
+    },
+    {
+      "name": "profile-command-receipt-binding",
+      "inputs": [
+        "workflow.proof.cbor",
+        "workflow.action.cbor",
+        "workflow.context.cbor"
+      ],
+      "projection": "action, proof-authority, verifier-context and ordered plan-member commitments"
     }
   ]
 }

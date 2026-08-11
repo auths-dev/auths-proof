@@ -4,15 +4,45 @@ import argparse
 from pathlib import Path
 
 import auths
-import auths.advanced
-import auths.native
+import auths.approvals
+import auths.authority
+import auths.custody
+import auths.diagnostics
+import auths.errors
+import auths.identity
+import auths.inspection
+import auths.integrations
+import auths.lifecycle
+import auths.observability
+import auths.profile_kit
+import auths.profiles.http
+import auths.profiles.mcp
+import auths.runtime
+import auths.testkit
+import auths.trust
+import auths.verify
 
 
 def projection() -> str:
     sections = {
         "auths": auths.__all__,
-        "auths.advanced": auths.advanced.__all__,
-        "auths.native": auths.native.__all__,
+        "auths.approvals": auths.approvals.__all__,
+        "auths.authority": auths.authority.__all__,
+        "auths.custody": auths.custody.__all__,
+        "auths.diagnostics": auths.diagnostics.__all__,
+        "auths.errors": auths.errors.__all__,
+        "auths.identity": auths.identity.__all__,
+        "auths.inspection": auths.inspection.__all__,
+        "auths.integrations": auths.integrations.__all__,
+        "auths.lifecycle": auths.lifecycle.__all__,
+        "auths.observability": auths.observability.__all__,
+        "auths.profile_kit": auths.profile_kit.__all__,
+        "auths.profiles.http": auths.profiles.http.__all__,
+        "auths.profiles.mcp": auths.profiles.mcp.__all__,
+        "auths.runtime": auths.runtime.__all__,
+        "auths.testkit": auths.testkit.__all__,
+        "auths.trust": auths.trust.__all__,
+        "auths.verify": auths.verify.__all__,
     }
     lines = []
     for module, names in sections.items():

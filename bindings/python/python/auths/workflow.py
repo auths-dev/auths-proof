@@ -20,15 +20,30 @@ from typing import (
     cast,
     runtime_checkable,
     TYPE_CHECKING,
+    overload,
 )
 
 if TYPE_CHECKING:
-    from .mcp import (
+    from .profiles.mcp import (
         AuthorizationRequest,
         McpAction,
         McpAuthorizationResult,
         McpPlan,
         McpPlanAuthorizationResult,
+    )
+    from .profiles.http import (
+        HttpAction,
+        HttpAuthorizationRequest,
+        HttpAuthorizationResult,
+        HttpPlan,
+        HttpPlanAuthorizationResult,
+    )
+    from .profile_kit import (
+        ApplicationAction,
+        ApplicationPlan,
+        ApplicationPlanResult,
+        ApplicationRequest,
+        ApplicationResult,
     )
 
 from ._native import (
@@ -47,16 +62,20 @@ from ._native import (
     validate_root_authority,
     validate_trusted_authority,
 )
+from .errors import (
+    AuthsError,
+    AuthsWorkflowError,
+    ProviderFailureKind,
+    ProviderOperationError,
+)
+from .observability import AuthsEvent, Telemetry
 
 SignerLifecycle = Literal["durable", "ephemeral"]
 SigningObjectKind = Literal["grant", "action", "principal-status", "grant-status"]
 ApprovalMode = Literal[
-    "grant-only", "risk-based", "every-action", "plan-once", "custom"
+    "none", "grant-only", "risk-based", "every-action", "plan-once", "custom"
 ]
 ApprovalDecision = Literal["approved", "rejected"]
-ProviderFailureKind = Literal[
-    "unavailable", "rejected", "cancelled", "timeout", "unsupported"
-]
 
 MAX_IDENTIFIER_BYTES = 128
 MAX_DISPLAY_FIELDS = 32
@@ -67,34 +86,6 @@ MAX_EVIDENCE = 32
 MAX_EVIDENCE_BYTES = 64 * 1024
 MAX_COLLECTION = 256
 MAX_U64 = (1 << 64) - 1
-
-
-class AuthsError(Exception):
-    """Base class for safe public SDK failures."""
-
-
-class AuthsWorkflowError(AuthsError):
-    """Closed workflow failure with a stable local code."""
-
-    def __init__(self, code: str, message: str) -> None:
-        super().__init__(message)
-        self.code = code
-
-
-class ProviderOperationError(AuthsError):
-    """Sanitized failure raised by an application provider adapter."""
-
-    def __init__(self, kind: ProviderFailureKind) -> None:
-        if kind not in (
-            "unavailable",
-            "rejected",
-            "cancelled",
-            "timeout",
-            "unsupported",
-        ):
-            raise ValueError("unsupported provider failure kind")
-        super().__init__("external provider operation failed")
-        self.kind: ProviderFailureKind = kind
 
 
 @dataclass(frozen=True)
@@ -201,7 +192,24 @@ class ApprovalConfiguration:
 
 
 class Approval:
-    """Typed builders for the four supported approval modes."""
+    """Typed builders for committed approval policies."""
+
+    @staticmethod
+    def none(
+        policy_id: str = "approval.none",
+        *,
+        evaluator_version: str = "1",
+        expires_in_seconds: int = 300,
+    ) -> ApprovalConfiguration:
+        return _approval(
+            policy_id,
+            _NoApprovalProvider(),
+            "none",
+            evaluator_version,
+            1,
+            expires_in_seconds,
+            (),
+        )
 
     @staticmethod
     def grant_only(
@@ -301,6 +309,16 @@ class Approval:
             max_uses,
             expires_in_seconds,
             requirements,
+        )
+
+
+class _NoApprovalProvider:
+    async def approve(self, request: ApprovalRequest) -> ApprovalResponse:
+        return ApprovalResponse(
+            request.request_id,
+            request.transaction_digest,
+            request.policy,
+            "approved",
         )
 
 
@@ -734,12 +752,21 @@ class _SigningCoordinator:
 class AuthsClient:
     """Owns one root signer and its attached agent graph."""
 
-    def __init__(self, *, signer: Signer, trusted_authority: TrustedAuthority) -> None:
+    def __init__(
+        self,
+        *,
+        signer: Signer,
+        trusted_authority: TrustedAuthority,
+        telemetry: Optional[Telemetry] = None,
+    ) -> None:
         _validate_signer(signer)
         if type(trusted_authority) is not TrustedAuthority:
             raise TypeError("trusted_authority must be a TrustedAuthority")
         self._signer = signer
         self._configured_authority = trusted_authority
+        if telemetry is not None and not callable(getattr(telemetry, "emit", None)):
+            raise TypeError("telemetry must implement emit")
+        self._telemetry = telemetry
         self._identity: Optional[AgentIdentity] = None
         self._agents: Set[AttachedAgent] = set()
         self._open = False
@@ -790,6 +817,7 @@ class AuthsClient:
                 signer_lifecycle=_signer_lifecycle(self._signer.lifecycle),
             )
             self._open = True
+            self._emit("auths.client.open", "client", "open", "succeeded")
             return self
         except asyncio.CancelledError:
             await self._close_after_failed_open()
@@ -861,6 +889,13 @@ class AuthsClient:
             delegation=None,
         )
         self._agents.add(agent)
+        self._emit(
+            "auths.agent.attach",
+            "attach",
+            "authority",
+            "succeeded",
+            (("profile", profile.id), ("profile_version", profile.version)),
+        )
         return agent
 
     async def aclose(self) -> None:
@@ -880,6 +915,31 @@ class AuthsClient:
             raise AuthsWorkflowError(
                 "cleanup-failed", "one or more signer providers failed during cleanup"
             )
+        self._emit("auths.client.close", "client", "cleanup", "succeeded")
+
+    def _emit(
+        self,
+        name: str,
+        operation: str,
+        stage: str,
+        outcome: str,
+        attributes: Tuple[Tuple[str, Union[str, int, bool]], ...] = (),
+    ) -> None:
+        if self._telemetry is None:
+            return
+        try:
+            self._telemetry.emit(
+                AuthsEvent(
+                    name,
+                    operation,
+                    stage,
+                    outcome,
+                    int(time.time()),
+                    attributes,
+                )
+            )
+        except Exception:
+            return
 
     async def _close_after_failed_open(self) -> None:
         self._closed = True
@@ -938,7 +998,7 @@ class AttachedAgent:
         self._approval = approval
         self._signer = signer
         self._owns_signer = owns_signer
-        self._grant_chain = grant_chain
+        self._grant_chain: Tuple[SignedGrantMaterial, ...] = grant_chain
         self._delegation = delegation
         self._closed = False
 
@@ -1102,16 +1162,49 @@ class AttachedAgent:
             if not transferred:
                 await _close_signer(signer)
 
+    @overload
     async def authorize(
         self,
         action: McpAction,
         *,
         request: Optional[AuthorizationRequest] = None,
     ) -> McpAuthorizationResult:
-        from .mcp import _authorize_mcp
+        ...
 
-        return await _authorize_mcp(self, action, request)
+    @overload
+    async def authorize(
+        self,
+        action: HttpAction,
+        *,
+        request: Optional[HttpAuthorizationRequest] = None,
+    ) -> HttpAuthorizationResult:
+        ...
 
+    @overload
+    async def authorize(
+        self,
+        action: ApplicationAction[Any],
+        *,
+        request: Optional[ApplicationRequest] = None,
+    ) -> ApplicationResult[Any]:
+        ...
+
+    async def authorize(self, action: object, *, request: Optional[object] = None) -> object:
+        from .profiles.http import HttpAction, _authorize_http
+        from .profiles.mcp import McpAction, _authorize_mcp
+        from .profile_kit import ApplicationAction, _authorize_application
+
+        if type(action) is McpAction:
+            return await _authorize_mcp(self, action, cast(Any, request))
+        if type(action) is HttpAction:
+            return await _authorize_http(self, action, cast(Any, request))
+        if type(action) is ApplicationAction:
+            return await _authorize_application(
+                self, cast(Any, action), cast(Any, request)
+            )
+        raise TypeError("action must belong to a maintained Auths profile")
+
+    @overload
     async def authorize_plan(
         self,
         plan: McpPlan,
@@ -1119,9 +1212,61 @@ class AttachedAgent:
         approval_provider: Optional[ApprovalProvider] = None,
         requests: Optional[Sequence[AuthorizationRequest]] = None,
     ) -> McpPlanAuthorizationResult:
-        from .mcp import _authorize_mcp_plan
+        ...
 
-        return await _authorize_mcp_plan(self, plan, approval_provider, requests)
+    @overload
+    async def authorize_plan(
+        self,
+        plan: HttpPlan,
+        *,
+        approval_provider: Optional[ApprovalProvider] = None,
+        requests: Optional[Sequence[HttpAuthorizationRequest]] = None,
+    ) -> HttpPlanAuthorizationResult:
+        ...
+
+    @overload
+    async def authorize_plan(
+        self,
+        plan: ApplicationPlan[Any],
+        *,
+        approval_provider: Optional[ApprovalProvider] = None,
+        requests: Optional[Sequence[ApplicationRequest]] = None,
+    ) -> ApplicationPlanResult[Any]:
+        ...
+
+    async def authorize_plan(
+        self,
+        plan: object,
+        *,
+        approval_provider: Optional[ApprovalProvider] = None,
+        requests: Optional[Sequence[object]] = None,
+    ) -> object:
+        from .profiles.http import HttpPlan, _authorize_http_plan
+        from .profiles.mcp import McpPlan, _authorize_mcp_plan
+        from .profile_kit import ApplicationPlan, _authorize_application_plan
+
+        if type(plan) is McpPlan:
+            return await _authorize_mcp_plan(
+                self,
+                plan,
+                approval_provider,
+                cast(Any, requests),
+            )
+        if type(plan) is HttpPlan:
+            return await _authorize_http_plan(
+                self,
+                plan,
+                approval_provider,
+                cast(Any, requests),
+            )
+        if type(plan) is ApplicationPlan:
+            return await _authorize_application_plan(
+                self,
+                cast(Any, plan),
+                approval_provider,
+                cast(Any, requests),
+            )
+        raise TypeError("plan must belong to a maintained Auths profile")
 
     async def aclose(self) -> None:
         if not await self._close(suppress_errors=False):

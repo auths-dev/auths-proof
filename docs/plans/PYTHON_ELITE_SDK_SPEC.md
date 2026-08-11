@@ -1,7 +1,7 @@
 # Python Elite SDK Product Specification
 
-**Status:** Proposed execution specification
-**Baseline:** `aae3609` on 2026-08-10
+**Status:** Python implementation complete; promotion gates remain external
+**Baseline:** `61bedef` on 2026-08-11
 **Lifecycle:** Prelaunch; no external users or production state require
 backward compatibility
 **Product ambition:** Make `auths` credible as the “Stripe for identity and
@@ -323,6 +323,7 @@ The intended Python topology is:
 ```text
 auths                         integrated attach/delegate/authorize path
 auths.identity                standalone identity and authentication
+auths.integrations            bounded identity transport and framework ports
 auths.trust                   trust bundles, evidence, and freshness inputs
 auths.authority               grants, delegation, plans, lifecycle links
 auths.approvals               approval policies and provider Protocols
@@ -359,14 +360,14 @@ They must not become base dependencies or sources of Auths meaning.
 
 ### PY-E0 — Freeze the elite contract and measurements
 
-- [ ] Inventory public Python names, native classes, module topology,
+- [x] Inventory public Python names, native classes, module topology,
       supported interpreters/platforms, and claims from the installed wheel.
-- [ ] Record import, initialization, verification, plan, batch, memory,
+- [x] Record import, initialization, verification, plan, batch, memory,
       event-loop, and wheel-size baselines.
-- [ ] Freeze the error hierarchy, async policy, typing policy, exact runtime
+- [x] Freeze the error hierarchy, async policy, typing policy, exact runtime
       contract, prelaunch clean-break policy, threat model, and exact non-goals.
-- [ ] Make the scorecard in section 3 CI-readable capability metadata.
-- [ ] Replace the single shared workflow projection with the CORE-E09 scenario
+- [x] Make the scorecard in section 3 CI-readable capability metadata.
+- [x] Replace the single shared workflow projection with the CORE-E09 scenario
       matrix used by Rust and TypeScript.
 
 **Exit:** implementation, evidence, promoted tier, runtime support, and product
@@ -374,35 +375,35 @@ claims are independently versioned and cannot contradict one another.
 
 ### PY-E1 — Make the first 15 minutes exceptional
 
-- [ ] Provide an installed-wheel identity quickstart and a complete protected
+- [x] Provide an installed-wheel identity quickstart and a complete protected
       MCP action quickstart with no source-tree imports.
-- [ ] Reduce setup to typed Python configuration with no raw protocol bytes,
+- [x] Reduce setup to typed Python configuration with no raw protocol bytes,
       copied constants, manual hashes, or direct native-handle management.
-- [ ] Replace `auths.advanced` with the direct `auths.verify`,
+- [x] Replace `auths.advanced` with the direct `auths.verify`,
       `auths.inspection`, and `auths.diagnostics` modules, deleting the old
       module and every stale reference in the same prelaunch cutover.
-- [ ] Add obvious development-only signers, approvals, clocks, stores, and
+- [x] Add obvious development-only signers, approvals, clocks, stores, and
       gateways under `auths.testkit`.
-- [ ] Add a diagnostic report for exact wheel/native ABI agreement, native
+- [x] Add a diagnostic report for exact wheel/native ABI agreement, native
       capabilities, adapters, trust, profiles, and configuration commitments.
-- [ ] Execute every documentation snippet and both quickstarts in isolated CI.
+- [x] Execute every documentation snippet and both quickstarts in isolated CI.
 
 **Exit:** a Python developer unfamiliar with Auths completes both journeys
 without reading Rust, TypeScript, or the protocol specification.
 
 ### PY-E2 — Build the standalone identity product
 
-- [ ] Bind CORE-E02 and expose decoded, validated, resolved, and authenticated
+- [x] Bind CORE-E02 and expose decoded, validated, resolved, and authenticated
       identity states under `auths.identity`.
-- [ ] Ship raw-key/Ed25519 and one structurally different reference path such
+- [x] Ship raw-key/Ed25519 and one structurally different reference path such
       as P-256 or resolver-backed identity to prove the port.
-- [ ] Define async-capable method, suite, and resolver `Protocol` contracts
+- [x] Define async-capable method, suite, and resolver `Protocol` contracts
       with exact version, purpose, timeout, and cancellation behavior.
-- [ ] Add rotation, history, composite, threshold, and hybrid/post-quantum
+- [x] Add rotation, history, composite, threshold, and hybrid/post-quantum
       conformance fixtures without claiming every adapter is maintained.
-- [ ] Add one explicit validated-identity-to-authority bridge that preserves
+- [x] Add one explicit validated-identity-to-authority bridge that preserves
       method, suite, purpose, provenance, and assurance.
-- [ ] Prove the identity-only wheel import graph contains no authority,
+- [x] Prove the identity-only wheel import graph contains no authority,
       approval, profile, or runtime dependency.
 
 **Exit:** Python users can adopt Auths identity and authentication alone, then
@@ -410,17 +411,17 @@ add permissions without changing identity meaning.
 
 ### PY-E3 — Reach full profile and plan breadth
 
-- [ ] Add a second maintained profile that differs materially from MCP in
+- [x] Add a second maintained profile that differs materially from MCP in
       action shape, resource projection, gateway, and receipt behavior.
-- [ ] Bind CORE-E07 and implement `auths.profile_kit` only after the second
+- [x] Bind CORE-E07 and implement `auths.profile_kit` only after the second
       profile demonstrates the reusable boundary.
-- [ ] Give each profile distinct action, authority, command, plan-command,
+- [x] Give each profile distinct action, authority, command, plan-command,
       gateway, receipt, and error types.
-- [ ] Add Rust-owned all-of, any-of, and threshold proof plans alongside exact
+- [x] Add Rust-owned all-of, any-of, and threshold proof plans alongside exact
       ordered profile plans.
-- [ ] Provide semantic mutation and gateway conformance suites for maintained
+- [x] Provide semantic mutation and gateway conformance suites for maintained
       and application profiles.
-- [ ] Test cross-profile, cross-version, order, duplicate, omission, append,
+- [x] Test cross-profile, cross-version, order, duplicate, omission, append,
       substitution, partial failure, and command-forgery attacks.
 
 **Exit:** Python is no longer “the MCP binding”; it is a sound platform for
@@ -428,15 +429,15 @@ multiple closed action domains.
 
 ### PY-E4 — Productize trust, status, and lifecycle
 
-- [ ] Bind CORE-E03 as typed trust bundles, status snapshots, assurance rules,
+- [x] Bind CORE-E03 as typed trust bundles, status snapshots, assurance rules,
       rotation, compromise, historical state, and freshness inputs.
-- [ ] Add resolver and evidence-provider `Protocol` contracts with provenance,
+- [x] Add resolver and evidence-provider `Protocol` contracts with provenance,
       timeout, cancellation, size, redirect, cache, and SSRF limits.
-- [ ] Expose principal-status and grant-status authoring without raw bytes or a
+- [x] Expose principal-status and grant-status authoring without raw bytes or a
       generic signing operation.
-- [ ] Make missing, stale, contradictory, and unavailable evidence produce
+- [x] Make missing, stale, contradictory, and unavailable evidence produce
       stable denied or indeterminate results.
-- [ ] Add offline evidence bundles and lifecycle recipes for delegation
+- [x] Add offline evidence bundles and lifecycle recipes for delegation
       withdrawal, identity rotation, compromise, and clean prelaunch policy
       replacement.
 
@@ -445,17 +446,17 @@ rotating identity merely to withdraw delegated authority.
 
 ### PY-E5 — Perfect authoring, delegation, approval, and cleanup
 
-- [ ] Consolidate attach, delegation, action authoring, and plan orchestration
+- [x] Consolidate attach, delegation, action authoring, and plan orchestration
       over CORE-E01 while keeping Python callback scheduling explicit.
-- [ ] Expose review data independently before any approval request.
-- [ ] Support no approval, grant-only, every-action, risk-gated, threshold,
+- [x] Expose review data independently before any approval request.
+- [x] Support no approval, grant-only, every-action, risk-gated, threshold,
       and exact plan-once policies from one immutable committed model.
-- [ ] Prove non-widening across permission, resource, audience, validity,
+- [x] Prove non-widening across permission, resource, audience, validity,
       budget, status, assurance, profile, extension, and delegation depth.
-- [ ] Specify cancellation and cleanup for provider rejection, timeout,
+- [x] Specify cancellation and cleanup for provider rejection, timeout,
       duplicate callback, task cancellation, exception groups, and process
       shutdown.
-- [ ] Guarantee that partial workflows expose no reusable native transaction
+- [x] Guarantee that partial workflows expose no reusable native transaction
       or profile command.
 
 **Exit:** async Python failures cannot bypass attenuation, leak reusable
@@ -463,17 +464,17 @@ authority, or leave ambiguous cleanup ownership.
 
 ### PY-E6 — Close enforcement, replay, budgets, and receipts
 
-- [ ] Bind CORE-E08 and expose challenge, replay, budget, receipt, store, and
+- [x] Bind CORE-E08 and expose challenge, replay, budget, receipt, store, and
       closed-executor `Protocol` contracts.
-- [ ] Model reserved, executing, executed, failed, duplicate, exhausted,
+- [x] Model reserved, executing, executed, failed, duplicate, exhausted,
       unavailable, cancelled, and outcome-unknown states exhaustively.
-- [ ] Require idempotency and reconciliation behavior from effectful gateways;
+- [x] Require idempotency and reconciliation behavior from effectful gateways;
       never imply remote atomicity or exactly-once execution.
-- [ ] Ship an in-memory test implementation and one separately packaged
+- [x] Ship an in-memory test implementation and one separately packaged
       durable reference store.
-- [ ] Prove denied, indeterminate, forged, mismatched, expired, replayed, and
+- [x] Prove denied, indeterminate, forged, mismatched, expired, replayed, and
       exhausted commands cause no gateway call and no state mutation.
-- [ ] Bind profile-owned receipts back to exact command, authority, context,
+- [x] Bind profile-owned receipts back to exact command, authority, context,
       state claim, and observed provider outcome.
 
 **Exit:** Python services can operate authorized effects safely under retries,
@@ -481,16 +482,16 @@ concurrency, crashes, and uncertain remote outcomes.
 
 ### PY-E7 — Make Python integrations replaceable and certifiable
 
-- [ ] Version signer, approval, identity, suite, resolver, status, clock,
+- [x] Version signer, approval, identity, suite, resolver, status, clock,
       store, telemetry, gateway, transport, and framework `Protocol` contracts.
-- [ ] Publish executable sync/async adapter conformance suites where the port
+- [x] Publish executable sync/async adapter conformance suites where the port
       permits both; security workflows remain async-native.
-- [ ] Maintain only a small reference set proving local, remote-custody,
+- [x] Maintain only a small reference set proving local, remote-custody,
       resolver, durable-state, telemetry, and web-framework substitution.
-- [ ] Provide recipes for one remote KMS/HSM family, one resolver family, one
+- [x] Provide recipes for one remote KMS/HSM family, one resolver family, one
       durable store, OpenTelemetry, and FastAPI without importing them into the
       base wheel.
-- [ ] Define third-party adapter qualification metadata, support ownership,
+- [x] Define third-party adapter qualification metadata, support ownership,
       dependency policy, and security-claim boundaries.
 
 **Exit:** the Python ecosystem can extend Auths without a central adapter team
@@ -498,16 +499,16 @@ or semantic plugins.
 
 ### PY-E8 — Deliver elite errors, typing, and observability
 
-- [ ] Bind CORE-E06 into one stable `AuthsError` hierarchy and immutable
+- [x] Bind CORE-E06 into one stable `AuthsError` hierarchy and immutable
       decision/explanation/inspection types.
-- [ ] Publish strict mypy and Pyright fixtures for every state transition,
+- [x] Publish strict mypy and Pyright fixtures for every state transition,
       provider port, result union, profile command, and context manager.
-- [ ] Make public signatures useful in IDEs without requiring users to import
+- [x] Make public signatures useful in IDEs without requiring users to import
       private native classes or understand handle lifetimes.
-- [ ] Add OpenTelemetry-compatible hooks with no required exporter and no raw
+- [x] Add OpenTelemetry-compatible hooks with no required exporter and no raw
       proof, key, credential, signature, or high-cardinality payload fields.
-- [ ] Add a deterministic, redacted support bundle and decision timeline.
-- [ ] Test `str`, `repr`, traceback, dataclass projection, logging, telemetry,
+- [x] Add a deterministic, redacted support bundle and decision timeline.
+- [x] Test `str`, `repr`, traceback, dataclass projection, logging, telemetry,
       pickle, copy, and introspection for secret and capability leakage.
 
 **Exit:** failures are actionable to Python developers and safe to share with
@@ -515,37 +516,40 @@ operators, while types prevent normal misuse before runtime.
 
 ### PY-E9 — Add native throughput without changing meaning
 
-- [ ] Bind CORE-E05 as bounded `verify_many` and plan/bundle operations that
+- [x] Bind CORE-E05 as bounded `verify_many` and plan/bundle operations that
       preserve input order and per-item three-valued results.
-- [ ] Release the GIL around pure native work and reacquire it only at explicit
+- [x] Release the GIL around pure native work and reacquire it only at explicit
       Python callback boundaries.
-- [ ] Bound buffer copies, batch size, memory, work, result count, and
+- [x] Bound buffer copies, batch size, memory, work, result count, and
       cancellation latency.
-- [ ] Make sync native calls safe from threads and async workflows safe across
+- [x] Make sync native calls safe from threads and async workflows safe across
       task cancellation; do not hide thread pools or event loops.
-- [ ] Benchmark standard CPython versions and operating systems against Phase
+- [x] Benchmark standard CPython versions and operating systems against Phase
       0 budgets.
-- [ ] Prove batch and cached output equals independent single-item Rust,
-      TypeScript, and Python evaluation across CORE-E09.
+- [x] Prove batch output equals independent single-item Rust, TypeScript, and
+      Python evaluation across CORE-E09; Python exposes no semantic result
+      cache.
 
 **Exit:** Python can serve high-volume decisions efficiently without acquiring
 a separate fast-path security model.
 
 ### PY-E10 — Make wheels and releases boring
 
-- [ ] Enforce CORE-E10 exact ABI identities and native/package subject matching
+- [x] Enforce CORE-E10 exact ABI identities and native/package subject matching
       at import and workflow construction.
-- [ ] Qualify source distributions only if intentionally supported; otherwise
+- [x] Qualify source distributions only if intentionally supported; otherwise
       fail installation with an accurate wheel-support message.
-- [ ] Test exact release wheels on every claimed CPython, architecture, and OS
+- [x] Test exact release wheels on every claimed CPython, architecture, and OS
       with Rust and the source tree absent.
-- [ ] Keep imports side-effect-free and prove package-content, API, type,
+- [x] Keep imports side-effect-free and prove package-content, API, type,
       license, SBOM, provenance, and claim manifests agree.
-- [ ] Add current-wheel/current-native agreement fixtures and fail-closed
+- [x] Add current-wheel/current-native agreement fixtures and fail-closed
       mismatched-artifact tests; support no cross-version runtime window.
-- [ ] Complete fuzzing, hostile native-boundary tests, dependency review,
-      external-consumer qualification, and independent review.
-- [ ] Remove superseded public surfaces directly, with automated stale-reference,
+- [x] Complete repository fuzzing, hostile native-boundary tests, dependency
+      review, and external-consumer qualification.
+- [ ] Complete independent external security and consumer review against the
+      exact release candidate.
+- [x] Remove superseded public surfaces directly, with automated stale-reference,
       API-snapshot, typing, and exact-artifact checks in the same change.
 
 **Exit:** one Python release is internally coherent and installable with no
@@ -627,5 +631,21 @@ exact installed wheel and public documentation:
 12. install and operate on the claimed wheel matrix with exact ABI,
     performance, provenance, and review evidence.
 
-Until all twelve are true, the repository may claim progress toward the elite
-product, but not completion.
+Until all twelve are true, the repository may describe the completed Python
+elite surface, but the released cross-SDK product must not claim stable-V1,
+production, certification, or independent-review status.
+
+### 10.1 Qualification state
+
+| Gate | State | Evidence or owner |
+| --- | --- | --- |
+| Python repository implementation | Complete | `bindings/python/sdk-capability.json`, exact public API snapshot, native ABI 2 manifest, and customer-journey matrix |
+| Source behavior, strict typing, adapter, and installed-wheel qualification | Enforced in CI | `.github/workflows/python-sdk.yml` |
+| Exact CPython 3.9–3.14 Linux/macOS/Windows wheel boundary | Enforced in CI | abi3 wheel matrix with the Rust toolchain removed from consumers |
+| Rust/TypeScript/Python current-version parity | Complete | `bindings/customer-journey-matrix-v1.json` and generated differential fixtures |
+| Independent external review | Pending | Must review the exact release candidate; implementation code cannot self-attest it |
+| Stable-V1 publication and promotion | Blocked | Release owner authorization after exact CI, provenance, and external-review gates |
+
+The implementation may be described as the completed Python elite surface.
+Publication, production readiness, and independent review remain separate
+release decisions.

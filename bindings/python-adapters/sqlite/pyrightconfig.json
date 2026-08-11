@@ -1,0 +1,6 @@
+{
+  "include": ["python/auths_sqlite"],
+  "extraPaths": ["../../python/python"],
+  "pythonVersion": "3.9",
+  "typeCheckingMode": "strict"
+}

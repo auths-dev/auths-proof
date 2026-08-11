@@ -9,8 +9,10 @@ import pytest
 
 import auths
 import auths._native as native_implementation
-from auths import Authorized, Denied, VerifiedAction, verify
-from auths.advanced import canonical_action_bytes
+from auths.verify import Authorized, Denied, verify
+from auths.inspection import canonical_action_bytes
+
+VerifiedAction = native_implementation.VerifiedAction
 
 
 CORPUS = Path(__file__).parents[3] / "core" / "fixtures" / "v1" / "valid"
@@ -27,16 +29,26 @@ def authorized_result() -> Authorized:
     return result
 
 
-def test_native_api_returns_the_core_sealed_authorized_action() -> None:
+def native_action() -> VerifiedAction:
+    result = native_implementation.verify_v1(
+        (CORPUS / "raw-key-chain.proof.cbor").read_bytes(),
+        (CORPUS / "raw-key-chain.action.cbor").read_bytes(),
+        (BINDING_VECTORS / "authorized.context.cbor").read_bytes(),
+    )
+    assert result.action is not None
+    return result.action
+
+
+def test_public_verification_is_inert_and_native_api_seals_the_action() -> None:
     result = authorized_result()
 
     assert result.code == "authorized"
     assert result.required_configuration == result.local_configuration
     assert len(result.local_configuration) == 32
-    assert (
-        canonical_action_bytes(result.action)
-        == (CORPUS / "raw-key-chain.action.cbor").read_bytes()
-    )
+    assert not hasattr(result, "action")
+    assert canonical_action_bytes(native_action()) == (
+        CORPUS / "raw-key-chain.action.cbor"
+    ).read_bytes()
     assert (
         result.result_cbor == (BINDING_VECTORS / "authorized.result.cbor").read_bytes()
     )
@@ -59,11 +71,11 @@ def test_verified_action_has_no_python_construction_path() -> None:
         isinstance(value, VerifiedAction)
         for value in vars(native_implementation).values()
     )
-    assert not hasattr(authorized_result().action, "__dict__")
+    assert not hasattr(native_action(), "__dict__")
 
 
 def test_verified_action_rejects_copy_pickle_reduce_and_mutation() -> None:
-    action = authorized_result().action
+    action = native_action()
 
     operations: tuple[Callable[[], object], ...] = (
         lambda: copy.copy(action),
@@ -84,7 +96,7 @@ def test_verified_action_rejects_copy_pickle_reduce_and_mutation() -> None:
 
 
 def test_canonical_bytes_do_not_promote_to_a_capability() -> None:
-    canonical = canonical_action_bytes(authorized_result().action)
+    canonical = canonical_action_bytes(native_action())
 
     assert isinstance(canonical, bytes)
     with pytest.raises(TypeError):

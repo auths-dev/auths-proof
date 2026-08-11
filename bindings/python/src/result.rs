@@ -12,7 +12,9 @@ use pyo3::{
 };
 use subtle::ConstantTimeEq as _;
 
-pub const NATIVE_ABI_V1: u16 = 1;
+pub const NATIVE_ABI_VERSION: u16 = 2;
+const MAX_VERIFY_BATCH: usize = 1_024;
+const MAX_VERIFY_BATCH_BYTES: usize = 64 * 1024 * 1024;
 
 #[pyclass(name = "VerifiedAction", frozen, module = "auths._native")]
 pub struct PyVerifiedAction {
@@ -108,8 +110,8 @@ impl NativeVerificationResult {
 }
 
 #[pyfunction]
-fn native_abi_version_v1() -> u16 {
-    NATIVE_ABI_V1
+fn native_abi_version() -> u16 {
+    NATIVE_ABI_VERSION
 }
 
 #[pyfunction]
@@ -119,8 +121,44 @@ fn verify_v1(
     canonical_action_cbor: &[u8],
     trusted_context_cbor: &[u8],
 ) -> PyResult<NativeVerificationResult> {
-    let sealed = verify_sealed(proof_cbor, canonical_action_cbor, trusted_context_cbor)?;
+    let proof = proof_cbor.to_vec();
+    let action = canonical_action_cbor.to_vec();
+    let context = trusted_context_cbor.to_vec();
+    let sealed = py.detach(move || verify_sealed(&proof, &action, &context))?;
     native_result(py, sealed)
+}
+
+#[pyfunction]
+fn verify_many_v1(
+    py: Python<'_>,
+    inputs: Vec<(Vec<u8>, Vec<u8>, Vec<u8>)>,
+) -> PyResult<Vec<NativeVerificationResult>> {
+    if inputs.is_empty() || inputs.len() > MAX_VERIFY_BATCH {
+        return Err(PyValueError::new_err(
+            "verification batch is outside native limits",
+        ));
+    }
+    let total_bytes = inputs.iter().try_fold(0_usize, |total, value| {
+        total
+            .checked_add(value.0.len())?
+            .checked_add(value.1.len())?
+            .checked_add(value.2.len())
+    });
+    if total_bytes.is_none_or(|total| total > MAX_VERIFY_BATCH_BYTES) {
+        return Err(PyValueError::new_err(
+            "verification batch is outside native limits",
+        ));
+    }
+    let sealed = py.detach(move || {
+        inputs
+            .iter()
+            .map(|(proof, action, context)| verify_sealed(proof, action, context))
+            .collect::<PyResult<Vec<_>>>()
+    })?;
+    sealed
+        .into_iter()
+        .map(|value| native_result(py, value))
+        .collect()
 }
 
 #[pyfunction]
@@ -213,8 +251,9 @@ fn inspect_verified_action<'py>(
 pub fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyVerifiedAction>()?;
     module.add_class::<NativeVerificationResult>()?;
-    module.add_function(wrap_pyfunction!(native_abi_version_v1, module)?)?;
+    module.add_function(wrap_pyfunction!(native_abi_version, module)?)?;
     module.add_function(wrap_pyfunction!(verify_v1, module)?)?;
+    module.add_function(wrap_pyfunction!(verify_many_v1, module)?)?;
     module.add_function(wrap_pyfunction!(decode_diagnostic_result_v1, module)?)?;
     module.add_function(wrap_pyfunction!(commit_canonical_v1, module)?)?;
     module.add_function(wrap_pyfunction!(diagnostic_input_limits_v1, module)?)?;

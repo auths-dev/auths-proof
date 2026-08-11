@@ -1,7 +1,7 @@
 from typing import Awaitable, Callable
 
-from auths import (
-    AttachedAgent,
+from auths import AttachedAgent
+from auths.profiles.mcp import (
     AuthorizationRequest,
     McpAuthorizationResult,
     McpGatewayCall,
@@ -19,7 +19,9 @@ async def authorize_and_execute(
     action = profile.call("update_demo_record", {"value": "reviewed"})
     result = await agent.authorize(action, request=AuthorizationRequest())
     if result.kind == "authorized":
-        await profile.gateway(execute).execute(result.command)
+        await profile.gateway(execute).execute(
+            result.command, idempotency_key="typecheck-action"
+        )
     elif result.kind == "denied":
         assert not result.explanation.retryable
     else:
@@ -44,7 +46,9 @@ async def authorize_plan_and_execute(
         requests=(AuthorizationRequest(), AuthorizationRequest()),
     )
     if result.kind == "authorized":
-        await profile.gateway(execute).execute_plan(result.command)
+        await profile.gateway(execute).execute_plan(
+            result.command, idempotency_key="typecheck-plan"
+        )
     else:
         assert result.failed_index >= 0
         assert result.result.kind in ("denied", "indeterminate")

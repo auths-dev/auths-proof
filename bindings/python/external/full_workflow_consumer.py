@@ -9,20 +9,22 @@ from auths import (
     ApprovalRequest,
     ApprovalResponse,
     AttachedAgent,
-    AuthorizationRequest,
     AuthsClient,
     ControlEvidence,
-    McpGatewayCall,
-    McpPlanAuthorized,
     Principal,
     PrincipalDescriptor,
     SignedGrantMaterial,
     SigningRequest,
     SigningResponse,
     TrustedAuthority,
+)
+from auths.profiles.mcp import (
+    AuthorizationRequest,
+    McpGatewayCall,
+    McpPlanAuthorized,
     mcp,
 )
-from auths.advanced import (
+from auths.inspection import (
     inspect_decision,
     parse_signed_object,
     parse_trusted_context_bytes,
@@ -143,9 +145,13 @@ async def run(vectors: Path) -> None:
             for member in result.results
         ):
             raise RuntimeError("installed wheel did not preserve plan member decisions")
-        responses = await profile.gateway(execute).execute_plan(result.command)
+        responses, receipts = await profile.gateway(execute).execute_plan(
+            result.command, idempotency_key="installed-wheel-plan"
+        )
         if responses != ("update_demo_record", "update_demo_record"):
             raise RuntimeError("installed wheel changed ordered gateway results")
+        if len(receipts) != 2:
+            raise RuntimeError("installed wheel omitted execution receipts")
     if approval_provider.calls != 1 or signer.calls != 2 or not signer.closed:
         raise RuntimeError("installed wheel changed provider lifecycle semantics")
     if len(executed) != 2:

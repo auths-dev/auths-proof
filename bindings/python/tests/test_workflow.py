@@ -30,9 +30,9 @@ from auths import (
     SnapshotRequired,
     TrustedAuthority,
     Validity,
-    native,
+    _native as native,
 )
-from auths.advanced import parse_signed_object, parse_unsigned_object
+from auths.inspection import parse_signed_object, parse_unsigned_object
 
 
 VECTORS = Path(__file__).parents[3] / "target" / "binding-vectors"

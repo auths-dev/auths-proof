@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from auths import native
-from auths.advanced import (
+from auths import _native as native
+from auths.inspection import (
     mcp_action_bytes,
     parse_signed_object,
     parse_unsigned_object,
@@ -21,7 +21,7 @@ ACTOR = native.Principal("key:sha256:MPL4hHxgoCRRtbEjYAedm50CmSM11XgLojSwwYeRi1E
 
 
 def test_native_abi_is_explicitly_versioned() -> None:
-    assert native.ABI_VERSION == 1
+    assert native.native_abi_version() == 2
     assert len(native.self_contained_configuration()) == 32
 
 

@@ -13,23 +13,22 @@ The normal verifier remains small and exhaustive:
 ```python
 result = auths.verify(proof, action, trusted_context)
 match result:
-    case auths.Authorized(action=verified):
-        pass_verified_action_to_a_profile(verified)
-    case auths.Denied() | auths.Indeterminate():
+    case Authorized():
+        record_inert_evidence(result)
+    case Denied() | Indeterminate():
         do_not_execute()
 ```
 
-`VerifiedAction` is a native Rust-owned object. It has no Python constructor,
+The public verifier projection is inert and carries no command. Internally,
+`VerifiedAction` remains a native Rust-owned object with no Python constructor,
 state dictionary, subclass path, copy path, pickle reduction, buffer view, or
-bytes-to-handle promotion API. Canonical action bytes are available only from
-`auths.advanced` for bounded inspection; those bytes can never recreate a
-`VerifiedAction`.
+bytes-to-handle promotion API. Bounded projections live in `auths.inspection`.
 
-Milestone A also exposes a typed low-level authoring surface in `auths.native`.
-Its values are native-owned principal, grant, status, plan, profile-action,
-trusted-context, and signing-request objects. Python coordinates these values;
-Rust parses identifiers, constructs protocol objects, applies attenuation,
-canonicalizes profiles, creates signing preimages, and compiles trust.
+Typed authoring is split by purpose across `auths.authority`, `auths.trust`,
+`auths.lifecycle`, and the integrated workflow. Their values remain
+native-owned. Python coordinates them; Rust parses identifiers, constructs
+protocol objects, applies attenuation, canonicalizes profiles, creates signing
+preimages, and compiles trust.
 
 ## Architecture
 

@@ -1,4 +1,4 @@
-"""Bounded, non-effect-capable inspection and diagnostic APIs."""
+"""Bounded, non-effect-capable Auths decision inspection."""
 
 from __future__ import annotations
 
@@ -12,7 +12,6 @@ from typing import (
     Tuple,
     Union,
     cast,
-    runtime_checkable,
 )
 
 from ._native import (
@@ -23,8 +22,6 @@ from ._native import (
     UnsignedObject,
     VerifiedAction,
     commit_canonical_v1,
-    decode_diagnostic_result_v1,
-    diagnostic_input_limits_v1,
     inspect_mcp_action,
     inspect_plan,
     inspect_signed,
@@ -130,81 +127,6 @@ class _ApprovalSummary(Protocol):
     executed_max_uses: int
     executed_expires_in_seconds: int
     executed_requirements: Tuple[str, ...]
-
-
-@runtime_checkable
-class DiagnosticEngine(Protocol):
-    def verify_v1(
-        self,
-        proof_cbor: bytes,
-        canonical_action_cbor: bytes,
-        trusted_context_cbor: bytes,
-    ) -> bytes: ...
-
-
-@dataclass(frozen=True)
-class DiagnosticExplanation:
-    code: str
-    message: str
-    retryable: bool
-
-
-@dataclass(frozen=True)
-class DiagnosticResult:
-    effect_capable: Literal[False]
-    kind: VerdictKind
-    code: str
-    stage: VerificationStage
-    explanation: DiagnosticExplanation
-    metrics: InspectionMetrics
-    required_configuration: Optional[bytes]
-    local_configuration: bytes
-    result_cbor: bytes
-    submitted_action_cbor: bytes
-
-
-class DiagnosticVerifier:
-    def __init__(self, engine: DiagnosticEngine) -> None:
-        if not callable(getattr(engine, "verify_v1", None)):
-            raise TypeError("diagnostic engine must expose verify_v1")
-        self._engine = engine
-
-    def verify(
-        self,
-        proof_cbor: bytes,
-        canonical_action_cbor: bytes,
-        trusted_context_cbor: bytes,
-    ) -> DiagnosticResult:
-        proof = _bounded_bytes(proof_cbor, 0)
-        action = _bounded_bytes(canonical_action_cbor, 1)
-        context = _bounded_bytes(trusted_context_cbor, 2)
-        try:
-            encoded = self._engine.verify_v1(proof, action, context)
-        except Exception:
-            raise ValueError("diagnostic engine failed") from None
-        if type(encoded) is not bytes:
-            raise TypeError("diagnostic engine returned a non-byte result")
-        try:
-            native = decode_diagnostic_result_v1(encoded)
-        except (TypeError, ValueError, RuntimeError):
-            raise ValueError("diagnostic engine returned an invalid result") from None
-        metrics = InspectionMetrics(*native.metrics)
-        return DiagnosticResult(
-            effect_capable=False,
-            kind=native.kind,
-            code=native.code,
-            stage=native.stage,
-            explanation=_diagnostic_explanation(native.kind, native.code),
-            metrics=metrics,
-            required_configuration=native.required_configuration,
-            local_configuration=bytes(native.local_configuration),
-            result_cbor=bytes(native.result_cbor),
-            submitted_action_cbor=action,
-        )
-
-
-def create_diagnostic_verifier(engine: DiagnosticEngine) -> DiagnosticVerifier:
-    return DiagnosticVerifier(engine)
 
 
 def inspect_decision(result: InspectableDecision) -> DecisionInspection:
@@ -330,40 +252,16 @@ def _approval_inspection(value: object) -> Optional[ApprovalInspection]:
         raise TypeError("decision contains an invalid approval summary") from None
 
 
-def _bounded_bytes(value: bytes, index: int) -> bytes:
-    if type(value) is not bytes:
-        raise TypeError("diagnostic verifier inputs must be bytes")
-    limits = diagnostic_input_limits_v1()
-    if not value or len(value) > limits[index]:
-        raise ValueError("diagnostic verifier input is outside native limits")
-    return bytes(value)
-
-
-def _diagnostic_explanation(kind: VerdictKind, code: str) -> DiagnosticExplanation:
-    if kind == "authorized":
-        message = "the diagnostic engine reported authority for this action"
-    elif kind == "denied":
-        message = "the diagnostic engine reported that authority was not established"
-    else:
-        message = "the diagnostic engine reported that a required fact was unavailable"
-    return DiagnosticExplanation(code, message, kind == "indeterminate")
-
-
 __all__ = [
     "ApprovalInspection",
     "DecisionCommitments",
     "DecisionInspection",
     "DecisionSummary",
-    "DiagnosticEngine",
-    "DiagnosticExplanation",
-    "DiagnosticResult",
-    "DiagnosticVerifier",
     "InspectableDecision",
     "InspectionMetrics",
     "KernelSummary",
     "authorization_plan_bytes",
     "canonical_action_bytes",
-    "create_diagnostic_verifier",
     "inspect_decision",
     "mcp_action_bytes",
     "parse_signed_object",

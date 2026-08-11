@@ -13,21 +13,12 @@ from auths import (
     ApprovalRequest,
     ApprovalResponse,
     AttachedAgent,
-    AuthorizationRequest,
     AuthsClient,
     AuthsWorkflowError,
     BudgetCeiling,
     ControlEvidence,
     DelegatedAuthority,
     ExpiryOnly,
-    McpAuthorized,
-    McpAuthorizationResult,
-    McpDenied,
-    McpGatewayCall,
-    McpIndeterminate,
-    McpPlanAuthorized,
-    McpPlanDenied,
-    McpProfile,
     Permission,
     Principal,
     PrincipalDescriptor,
@@ -36,12 +27,25 @@ from auths import (
     SigningResponse,
     TrustedAuthority,
     Validity,
+    _native as native,
+)
+from auths.profiles.mcp import (
+    AuthorizationRequest,
+    McpAuthorized,
+    McpAuthorizationResult,
+    McpDenied,
+    McpGatewayCall,
+    McpGatewayCancelled,
+    McpGatewayError,
+    McpIndeterminate,
+    McpPlanAuthorized,
+    McpPlanDenied,
+    McpProfile,
     mcp,
-    native,
 )
 from auths import _native as native_abi
-from auths.advanced import (
-    create_diagnostic_verifier,
+from auths.diagnostics import create_diagnostic_verifier
+from auths.inspection import (
     inspect_decision,
     parse_signed_object,
     parse_trusted_context_bytes,
@@ -194,6 +198,15 @@ async def authorize(
     return client, profile, agent, result
 
 
+def test_mcp_review_is_available_before_approval() -> None:
+    profile = mcp.profile(service="reports")
+    action = profile.call("update_demo_record", {"value": "reviewed"})
+    review = profile.review(action)
+    assert review.title
+    assert review.fields
+    assert len(review.action_commitment) == 32
+
+
 @pytest.mark.asyncio
 async def test_installed_workflow_authorizes_and_executes_one_native_command() -> None:
     client, profile, _, result = await authorize()
@@ -205,12 +218,21 @@ async def test_installed_workflow_authorizes_and_executes_one_native_command() -
         return "updated"
 
     gateway = profile.gateway(execute)
-    assert await gateway.execute(result.command) == "updated"
+    response, receipt = await gateway.execute(
+        result.command, idempotency_key="request-1"
+    )
+    assert response == "updated"
+    assert receipt.command_commitment == result.action_commitment
+    assert len(receipt.authority_commitment) == 32
+    assert len(receipt.context_commitment) == 32
+    assert receipt.plan_commitment is None
+    assert receipt.state_claim == "committed"
+    assert receipt.outcome == "succeeded"
     assert calls == [
         McpGatewayCall("reports", "update_demo_record", b'{"value":"reviewed"}')
     ]
     with pytest.raises(RuntimeError, match="consumed"):
-        await gateway.execute(result.command)
+        await gateway.execute(result.command, idempotency_key="request-1")
     await client.aclose()
 
 
@@ -270,9 +292,10 @@ async def test_installed_workflow_delegates_authorizes_and_executes() -> None:
             )
             assert isinstance(result, McpAuthorized)
             assert (
-                await profile.gateway(execute).execute(result.command)
-                == "delegated-update"
-            )
+                await profile.gateway(execute).execute(
+                    result.command, idempotency_key="request-child"
+                )
+            )[0] == "delegated-update"
     assert child_signer.closed
     assert calls == [
         McpGatewayCall("reports", "update_demo_record", b'{"value":"reviewed"}')
@@ -320,11 +343,15 @@ async def test_gateway_rejects_wrong_profile_without_consuming_command() -> None
         calls += 1
 
     with pytest.raises(TypeError, match="native MCP command"):
-        await profile.gateway(execute).execute(b"forged")  # type: ignore[arg-type]
+        await profile.gateway(execute).execute(  # type: ignore[arg-type]
+            b"forged", idempotency_key="forged"
+        )
     with pytest.raises(TypeError, match="does not belong"):
-        await mcp.profile(service="billing").gateway(execute).execute(result.command)
+        await mcp.profile(service="billing").gateway(execute).execute(
+            result.command, idempotency_key="wrong-profile"
+        )
     assert calls == 0
-    await profile.gateway(execute).execute(result.command)
+    await profile.gateway(execute).execute(result.command, idempotency_key="right-profile")
     assert calls == 1
     await client.aclose()
 
@@ -371,7 +398,7 @@ async def test_duplicate_native_command_handle_fails_without_consumption() -> No
         nonlocal calls
         calls += 1
 
-    await profile.gateway(execute).execute(result.command)
+    await profile.gateway(execute).execute(result.command, idempotency_key="unique-plan")
     assert calls == 1
     await client.aclose()
 
@@ -390,12 +417,42 @@ async def test_profile_mismatch_and_gateway_failure_are_closed() -> None:
     async def fail(_call: McpGatewayCall) -> None:
         raise RuntimeError("secret endpoint detail")
 
-    with pytest.raises(AuthsWorkflowError) as failure:
-        await profile.gateway(fail).execute(result.command)
+    with pytest.raises(McpGatewayError) as failure:
+        await profile.gateway(fail).execute(result.command, idempotency_key="failure")
     assert failure.value.code == "gateway-failed"
+    assert failure.value.receipt.state_claim == "outcome-unknown"
+    assert failure.value.receipt.outcome == "outcome-unknown"
     assert "secret endpoint detail" not in str(failure.value)
     with pytest.raises(RuntimeError, match="consumed"):
-        await profile.gateway(fail).execute(result.command)
+        await profile.gateway(fail).execute(result.command, idempotency_key="failure")
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_gateway_cancellation_consumes_command_and_requires_reconciliation() -> None:
+    client, profile, _, result = await authorize()
+    assert isinstance(result, McpAuthorized)
+    entered = asyncio.Event()
+
+    async def block(_call: McpGatewayCall) -> None:
+        entered.set()
+        await asyncio.Event().wait()
+
+    operation = asyncio.create_task(
+        profile.gateway(block).execute(result.command, idempotency_key="cancelled")
+    )
+    await entered.wait()
+    operation.cancel()
+
+    with pytest.raises(McpGatewayCancelled) as failure:
+        await operation
+    assert failure.value.receipt.outcome == "cancelled"
+    assert failure.value.receipt.state_claim == "outcome-unknown"
+    assert failure.value.receipt.command_commitment == result.action_commitment
+    with pytest.raises(RuntimeError, match="consumed"):
+        await profile.gateway(block).execute(
+            result.command, idempotency_key="cancelled"
+        )
     await client.aclose()
 
 
@@ -468,13 +525,62 @@ async def test_ordered_plan_prompts_once_and_releases_one_native_plan_command() 
         return call.name
 
     gateway = profile.gateway(execute)
-    assert await gateway.execute_plan(result.command) == (
+    responses, receipts = await gateway.execute_plan(
+        result.command, idempotency_key="plan-request"
+    )
+    assert responses == (
         "update_demo_record",
         "update_demo_record",
     )
+    assert len(receipts) == 2
+    assert all(receipt.plan_commitment == plan.commitment for receipt in receipts)
+    assert tuple(receipt.command_commitment for receipt in receipts) == tuple(
+        member.action_commitment for member in result.results
+    )
+    assert all(len(receipt.authority_commitment) == 32 for receipt in receipts)
+    assert all(len(receipt.context_commitment) == 32 for receipt in receipts)
     assert len(calls) == 2
     with pytest.raises(RuntimeError, match="consumed"):
-        await gateway.execute_plan(result.command)
+        await gateway.execute_plan(result.command, idempotency_key="plan-request")
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_plan_gateway_failure_reports_completed_and_uncertain_members() -> None:
+    signer = SequenceSigner(("mcp.action-signature.bin", "mcp.action-signature.bin"))
+    provider = ApprovalDouble()
+    client, profile, agent = await plan_fixture(signer, provider)
+    action = profile.call("update_demo_record", {"value": "reviewed"})
+    plan = profile.plan((action, action))
+    result = await agent.authorize_plan(
+        plan,
+        requests=(
+            AuthorizationRequest(bytes([0x22]) * 32, 50),
+            AuthorizationRequest(bytes([0x22]) * 32, 50),
+        ),
+    )
+    assert isinstance(result, McpPlanAuthorized)
+    calls = 0
+
+    async def fail_second(_call: McpGatewayCall) -> str:
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise RuntimeError("provider response was lost")
+        return "updated"
+
+    with pytest.raises(McpGatewayError) as failure:
+        await profile.gateway(fail_second).execute_plan(
+            result.command, idempotency_key="partial"
+        )
+    assert len(failure.value.completed_receipts) == 1
+    assert failure.value.completed_receipts[0].outcome == "succeeded"
+    assert failure.value.completed_receipts[0].state_claim == "committed"
+    assert failure.value.receipt.idempotency_key == "partial:1"
+    assert failure.value.receipt.outcome == "outcome-unknown"
+    assert failure.value.receipt.state_claim == "outcome-unknown"
+    assert failure.value.receipt.plan_commitment == plan.commitment
+    assert calls == 2
     await client.aclose()
 
 

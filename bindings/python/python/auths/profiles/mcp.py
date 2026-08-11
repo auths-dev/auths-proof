@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import secrets
 import time
 from dataclasses import dataclass, field
 from typing import (
@@ -18,20 +17,19 @@ from typing import (
     Tuple,
     TypeVar,
     Union,
+    cast,
 )
 
-from . import _native as native
-from .workflow import (
+from .. import _native as native
+from .._plan import PlanApprovalSession
+from ..workflow import (
     ApprovalConfiguration,
     ApprovalProvider,
-    ApprovalRequest,
-    ApprovalResponse,
     AttachedAgent,
     AuthsWorkflowError,
     ControlEvidence,
     Permission,
     Profile,
-    ProviderOperationError,
     ReviewField,
     _SigningCoordinator,
     _transaction_expiry,
@@ -40,13 +38,15 @@ from .workflow import (
 VerificationStage = Literal[
     "decode", "resolve", "principal-control", "authority", "complete"
 ]
+McpOutcome = Literal["succeeded", "failed", "cancelled", "outcome-unknown"]
+McpExecutionState = Literal["committed", "outcome-unknown"]
 
 _PLAN_TOKEN = object()
 
 
 @dataclass(frozen=True)
 class AuthorizationRequest:
-    challenge: bytes = field(default_factory=lambda: secrets.token_bytes(32))
+    challenge: bytes = field(default_factory=native.generate_challenge_v1)
     evaluation_time: int = field(default_factory=lambda: int(time.time()))
 
     def __post_init__(self) -> None:
@@ -60,6 +60,13 @@ class AuthorizationRequest:
         ):
             raise ValueError("invalid authorization evaluation time")
         object.__setattr__(self, "challenge", challenge)
+
+
+@dataclass(frozen=True)
+class McpReview:
+    title: str
+    fields: Tuple[ReviewField, ...]
+    action_commitment: bytes
 
 
 class McpProfile(Profile):
@@ -85,6 +92,18 @@ class McpProfile(Profile):
         except (TypeError, ValueError):
             raise ValueError("invalid MCP tool call") from None
         return McpAction(self, native_call)
+
+    def review(self, action: McpAction) -> McpReview:
+        if type(action) is not McpAction or action.profile is not self:
+            raise AuthsWorkflowError(
+                "profile-mismatch", "MCP action belongs to another profile"
+            )
+        title, fields, commitment = native.review_mcp_call(action._call)
+        return McpReview(
+            title,
+            tuple(ReviewField(label, value) for label, value in fields),
+            bytes(commitment),
+        )
 
     def plan(self, actions: Sequence[McpAction]) -> McpPlan:
         values = tuple(actions)
@@ -314,6 +333,48 @@ class McpGatewayCall:
     arguments_json: bytes
 
 
+@dataclass(frozen=True)
+class McpReceipt:
+    idempotency_key: str
+    command_commitment: bytes
+    authority_commitment: bytes
+    context_commitment: bytes
+    plan_commitment: Optional[bytes]
+    state_claim: McpExecutionState
+    outcome: McpOutcome
+    observed_at: int
+
+
+class McpGatewayError(AuthsWorkflowError):
+    def __init__(
+        self,
+        receipt: McpReceipt,
+        completed_receipts: Tuple[McpReceipt, ...] = (),
+    ) -> None:
+        super().__init__(
+            "gateway-failed",
+            "MCP gateway execution outcome is unknown",
+            operation="execute",
+            stage="provider",
+            retry="unknown",
+            effect_state="outcome-unknown",
+            remediation="reconcile the idempotency key before another execution attempt",
+        )
+        self.receipt = receipt
+        self.completed_receipts = completed_receipts
+
+
+class McpGatewayCancelled(asyncio.CancelledError):
+    def __init__(
+        self,
+        receipt: McpReceipt,
+        completed_receipts: Tuple[McpReceipt, ...] = (),
+    ) -> None:
+        super().__init__("MCP gateway task was cancelled after provider entry")
+        self.receipt = receipt
+        self.completed_receipts = completed_receipts
+
+
 GatewayResult = TypeVar("GatewayResult")
 
 
@@ -326,15 +387,22 @@ class McpGateway(Generic[GatewayResult]):
         self._service = service
         self._executor = executor
 
-    async def execute(self, command: native.McpCommand) -> GatewayResult:
-        if type(command) is not native.McpCommand:
-            raise TypeError("gateway requires a native MCP command")
+    async def execute(
+        self, command: native.McpCommand, *, idempotency_key: str
+    ) -> Tuple[GatewayResult, McpReceipt]:
+        if type(command) is not native.McpCommand or not idempotency_key:
+            raise TypeError("gateway requires a native MCP command and idempotency key")
+        binding = (
+            bytes(command.action_commitment),
+            bytes(command.authority_commitment),
+            bytes(command.context_commitment),
+        )
         try:
             call = native.consume_mcp_command(command, self._service)
         except (TypeError, RuntimeError):
             raise
         try:
-            return await self._executor(
+            result = await self._executor(
                 McpGatewayCall(
                     service=call.service,
                     name=call.name,
@@ -342,21 +410,40 @@ class McpGateway(Generic[GatewayResult]):
                 )
             )
         except asyncio.CancelledError:
-            raise
-        except Exception:
-            raise AuthsWorkflowError(
-                "gateway-failed", "MCP gateway execution failed"
+            raise McpGatewayCancelled(
+                _receipt(idempotency_key, binding, None, "cancelled")
             ) from None
+        except Exception:
+            raise McpGatewayError(
+                _receipt(
+                    idempotency_key,
+                    binding,
+                    None,
+                    "outcome-unknown",
+                )
+            ) from None
+        return result, _receipt(
+            idempotency_key, binding, None, "succeeded"
+        )
 
     async def execute_plan(
-        self, command: native.McpPlanCommand
-    ) -> Tuple[GatewayResult, ...]:
-        if type(command) is not native.McpPlanCommand:
-            raise TypeError("gateway requires a native MCP plan command")
+        self, command: native.McpPlanCommand, *, idempotency_key: str
+    ) -> Tuple[Tuple[GatewayResult, ...], Tuple[McpReceipt, ...]]:
+        if type(command) is not native.McpPlanCommand or not idempotency_key:
+            raise TypeError("gateway requires a native MCP plan command and idempotency key")
+        plan_commitment = bytes(command.plan_commitment)
+        bindings = tuple(
+            (bytes(action), bytes(authority), bytes(context))
+            for action, authority, context in command.receipt_bindings
+        )
+        if len(bindings) != command.count:
+            raise RuntimeError("native MCP plan command omitted receipt bindings")
         calls = native.consume_mcp_plan_command(command, self._service)
         results: list[GatewayResult] = []
-        try:
-            for call in calls:
+        receipts: list[McpReceipt] = []
+        for index, (call, binding) in enumerate(zip(calls, bindings)):
+            member_key = f"{idempotency_key}:{index}"
+            try:
                 results.append(
                     await self._executor(
                         McpGatewayCall(
@@ -366,13 +453,35 @@ class McpGateway(Generic[GatewayResult]):
                         )
                     )
                 )
-        except asyncio.CancelledError:
-            raise
-        except Exception:
-            raise AuthsWorkflowError(
-                "gateway-failed", "MCP plan gateway execution failed"
-            ) from None
-        return tuple(results)
+                receipts.append(
+                    _receipt(
+                        member_key,
+                        binding,
+                        plan_commitment,
+                        "succeeded",
+                    )
+                )
+            except asyncio.CancelledError:
+                raise McpGatewayCancelled(
+                    _receipt(
+                        member_key,
+                        binding,
+                        plan_commitment,
+                        "cancelled",
+                    ),
+                    tuple(receipts),
+                ) from None
+            except Exception:
+                raise McpGatewayError(
+                    _receipt(
+                        member_key,
+                        binding,
+                        plan_commitment,
+                        "outcome-unknown",
+                    ),
+                    tuple(receipts),
+                ) from None
+        return tuple(results), tuple(receipts)
 
 
 class McpFacade:
@@ -523,134 +632,6 @@ async def _authorize_mcp(
     )
 
 
-class _PlanMemberApproval:
-    def __init__(
-        self, session: _PlanApprovalSession, index: int, member_commitment: bytes
-    ) -> None:
-        self._session = session
-        self._index = index
-        self._member_commitment = member_commitment
-
-    async def approve(self, request: ApprovalRequest) -> ApprovalResponse:
-        return await self._session.approve_member(
-            self._index, self._member_commitment, request
-        )
-
-
-class _PlanApprovalSession:
-    def __init__(
-        self,
-        *,
-        plan_approval: bytes,
-        member_commitments: Tuple[bytes, ...],
-        approval: ApprovalConfiguration,
-        provider: ApprovalProvider,
-        expires_at: int,
-        display: Tuple[ReviewField, ...],
-    ) -> None:
-        self._plan_approval = bytearray(plan_approval)
-        self._member_commitments = tuple(
-            bytearray(value) for value in member_commitments
-        )
-        self._approval = approval
-        self._provider = provider
-        self._expires_at = expires_at
-        self._display = display
-        self._uses = 0
-        self._approved = False
-        self._disposed = False
-
-    def provider_for(self, index: int, member_commitment: bytes) -> ApprovalProvider:
-        if self._disposed:
-            raise AuthsWorkflowError(
-                "approval-cancelled", "plan approval session is disposed"
-            )
-        if (
-            type(index) is not int
-            or index < 0
-            or index >= len(self._member_commitments)
-            or len(member_commitment) != 32
-            or not native.commitments_equal_v1(
-                bytes(self._member_commitments[index]), member_commitment
-            )
-        ):
-            raise AuthsWorkflowError(
-                "approval-response-mismatch",
-                "approval plan member commitment mismatch",
-            )
-        return _PlanMemberApproval(self, index, bytes(member_commitment))
-
-    async def approve_member(
-        self, index: int, member_commitment: bytes, request: ApprovalRequest
-    ) -> ApprovalResponse:
-        if self._disposed:
-            raise ProviderOperationError("cancelled")
-        if int(time.time()) > self._expires_at or int(time.time()) > request.expires_at:
-            raise ProviderOperationError("timeout")
-        if self._uses >= self._approval.policy.max_uses or index != self._uses:
-            raise ProviderOperationError("rejected")
-        if not native.commitments_equal_v1(
-            bytes(self._member_commitments[index]), member_commitment
-        ):
-            raise ProviderOperationError("rejected")
-        if not request.policy.matches(self._approval.policy.reference):
-            raise ProviderOperationError("rejected")
-        if not self._approved:
-            response = await self._provider.approve(
-                ApprovalRequest(
-                    request_id=request.request_id,
-                    object_kind=request.object_kind,
-                    transaction_digest=request.transaction_digest,
-                    policy=request.policy,
-                    expires_at=request.expires_at,
-                    display=(
-                        self._display
-                        + (
-                            ReviewField(
-                                "Plan commitment", bytes(self._plan_approval).hex()
-                            ),
-                            ReviewField(
-                                "Plan member",
-                                str(index + 1)
-                                + "/"
-                                + str(len(self._member_commitments)),
-                            ),
-                            ReviewField("Member commitment", member_commitment.hex()),
-                        )
-                        + request.display
-                    ),
-                )
-            )
-            if type(response) is not ApprovalResponse:
-                raise ProviderOperationError("rejected")
-            if response.decision != "approved":
-                return response
-            if (
-                response.request_id != request.request_id
-                or not native.commitments_equal_v1(
-                    response.transaction_digest, request.transaction_digest
-                )
-                or not response.policy.matches(request.policy)
-            ):
-                raise ProviderOperationError("rejected")
-            self._approved = True
-        self._uses += 1
-        return ApprovalResponse(
-            request.request_id,
-            request.transaction_digest,
-            request.policy,
-            "approved",
-        )
-
-    def dispose(self) -> None:
-        self._disposed = True
-        for index in range(len(self._plan_approval)):
-            self._plan_approval[index] = 0
-        for member in self._member_commitments:
-            for index in range(len(member)):
-                member[index] = 0
-
-
 async def _authorize_mcp_plan(
     agent: AttachedAgent,
     plan: McpPlan,
@@ -694,7 +675,7 @@ async def _authorize_mcp_plan(
         raise AuthsWorkflowError(
             "invalid-profile", "native authoring rejected the MCP plan approval"
         ) from None
-    session = _PlanApprovalSession(
+    session = PlanApprovalSession(
         plan_approval=bytes(plan_approval),
         member_commitments=plan._member_commitments,
         approval=approval,
@@ -802,6 +783,24 @@ def _native_evidence(value: ControlEvidence) -> Tuple[str, str, bytes]:
     return value.evidence_type, value.media_type, value.bytes
 
 
+def _receipt(
+    idempotency_key: str,
+    binding: Tuple[bytes, bytes, bytes],
+    plan_commitment: Optional[bytes],
+    outcome: McpOutcome,
+) -> McpReceipt:
+    return McpReceipt(
+        idempotency_key,
+        binding[0],
+        binding[1],
+        binding[2],
+        plan_commitment,
+        cast(McpExecutionState, native.runtime_execution_state_v1(outcome)),
+        outcome,
+        int(time.time()),
+    )
+
+
 def _explanation(
     kind: Literal["authorized", "denied", "indeterminate"], code: str
 ) -> AuthorizationExplanation:
@@ -825,7 +824,9 @@ __all__ = [
     "McpDenied",
     "McpFacade",
     "McpGateway",
+    "McpGatewayCancelled",
     "McpGatewayCall",
+    "McpGatewayError",
     "McpIndeterminate",
     "McpPlan",
     "McpPlanAuthority",
@@ -836,5 +837,7 @@ __all__ = [
     "McpPlanMemberAuthorized",
     "McpPlanMemberResult",
     "McpProfile",
+    "McpReceipt",
+    "McpReview",
     "mcp",
 ]

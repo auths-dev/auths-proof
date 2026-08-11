@@ -84,8 +84,9 @@ comparison evidence required by the profile/domain abstraction boundary plan.
 - `AttachedAgent.authorize_plan(plan)` returns `McpPlanAuthorized`,
   `McpPlanDenied`, or `McpPlanIndeterminate`.
 - Only `McpPlanAuthorized` carries a native `McpPlanCommand`.
-- `McpGateway.execute_plan(command)` consumes the command before invoking the
-  application callback for each ordered member.
+- `McpGateway.execute_plan(command, idempotency_key=...)` consumes the command
+  before invoking the application callback for each ordered member and returns
+  command-bound receipts.
 - `inspect_decision(result)` returns safe commitments, metrics, and log fields.
 - `create_diagnostic_verifier(engine)` returns inert diagnostic results from
   a caller-supplied byte engine.

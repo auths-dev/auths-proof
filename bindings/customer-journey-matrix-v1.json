@@ -1,0 +1,61 @@
+{
+  "schema": "auths.customer-journey-matrix/1",
+  "semanticOwner": "Rust",
+  "generatedCorpus": "target/binding-vectors/scenarios.json",
+  "journeys": [
+    {
+      "id": "identity-shapes-and-authentication",
+      "rust": "core/crates/auths-identity/src/lib.rs",
+      "typescript": "bindings/typescript/test/integration/identity.test.js",
+      "python": "bindings/python/tests/test_elite_sdk.py"
+    },
+    {
+      "id": "verification-three-valued-and-mutation",
+      "rust": "core/fixtures/v1",
+      "typescript": "bindings/typescript/test/integration/scenario-corpus.test.js",
+      "python": "bindings/python/tests/test_api.py"
+    },
+    {
+      "id": "attach-delegate-and-attenuate",
+      "rust": "core/crates/auths-author/src/lib.rs",
+      "typescript": "bindings/typescript/test/integration/workflow/delegation.test.js",
+      "python": "bindings/python/tests/test_workflow.py"
+    },
+    {
+      "id": "proof-plan-composition",
+      "rust": "core/crates/auths-author/src/lib.rs",
+      "typescript": "bindings/typescript/test/integration/authorization-plans.test.js",
+      "python": "bindings/python/tests/test_elite_sdk.py"
+    },
+    {
+      "id": "closed-profile-command-and-plan",
+      "rust": "product/profiles",
+      "typescript": "bindings/typescript/test/integration/domain-profiles.test.js",
+      "python": "bindings/python/tests/test_mcp_workflow.py"
+    },
+    {
+      "id": "trust-status-and-lifecycle",
+      "rust": "product/runtime/auths-lifecycle",
+      "typescript": "bindings/typescript/test/integration/lifecycle-trust.test.js",
+      "python": "bindings/python/tests/test_elite_sdk.py"
+    },
+    {
+      "id": "replay-budget-and-outcome-unknown",
+      "rust": "product/runtime/auths-lifecycle/src/kernel.rs",
+      "typescript": "bindings/typescript/test/unit/runtime-contract.test.js",
+      "python": "bindings/python/tests/test_elite_sdk.py"
+    },
+    {
+      "id": "errors-observability-and-redaction",
+      "rust": "core/crates/auths-verifier/src/lib.rs",
+      "typescript": "bindings/typescript/test/unit/observability.test.js",
+      "python": "bindings/python/tests/test_elite_sdk.py"
+    },
+    {
+      "id": "installed-artifact-and-type-safety",
+      "rust": "bindings/wasm/auths-proof-wasm/examples/generate-node-vectors.rs",
+      "typescript": "bindings/typescript/test/package",
+      "python": ".github/workflows/python-sdk.yml"
+    }
+  ]
+}

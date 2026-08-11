@@ -63,7 +63,7 @@ embedded Rust three-way verifier
 - `McpProfile.call(name, arguments) -> McpAction`
 - `AttachedAgent.authorize(action, request=...) -> McpAuthorizationResult`
 - `McpProfile.gateway(executor) -> McpGateway[T]`
-- `McpGateway.execute(command) -> T`
+- `McpGateway.execute(command, idempotency_key=...) -> tuple[T, McpReceipt]`
 
 `AuthorizationRequest` supplies a cryptographically random challenge and current evaluation time by default. Explicit values exist for deterministic replay and differential testing.
 

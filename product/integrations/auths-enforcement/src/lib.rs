@@ -102,13 +102,6 @@ impl PreparedAction {
     pub const fn review_display(&self) -> &ReviewDisplay {
         &self.display
     }
-
-    /// Compatibility accessor for callers migrating to neutral review vocabulary.
-    #[must_use]
-    #[deprecated(note = "use review_display; review data is not evidence of approval")]
-    pub const fn approval_display(&self) -> &ReviewDisplay {
-        self.review_display()
-    }
 }
 
 /// Protocol outcome at a service enforcement boundary.
