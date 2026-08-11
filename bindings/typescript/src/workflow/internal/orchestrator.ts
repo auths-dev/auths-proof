@@ -12,10 +12,15 @@ import {
   type VerifiedPlanCommand,
 } from "../../plans.js";
 import { BoundedApprovalSession } from "../../approvals.js";
+import type { TelemetryPort } from "../../observability.js";
 export {
   AuthsWorkflowError,
   ProviderOperationError,
+  type EffectState,
+  type ErrorContext,
+  type ErrorFamily,
   type ProviderFailureKind,
+  type RetryClass,
   type WorkflowErrorCode,
 } from "../errors.js";
 import { AuthsWorkflowError, ProviderOperationError } from "../errors.js";
@@ -85,6 +90,8 @@ interface ClientResources {
   readonly trustedAuthority: TrustedAuthoritySnapshot;
   readonly trustedContext: Uint8Array;
   readonly attachedAgents: Set<AttachedAgent<Profile>>;
+  readonly telemetry: TelemetryPort | undefined;
+  readonly correlationId: () => string;
 }
 
 const clientResources = new WeakMap<AuthsClient, ClientResources>();
@@ -95,6 +102,8 @@ let mintAuthsClient: (
   signer: Signer,
   engine: WorkflowWasmEngine,
   trustedContext: Uint8Array,
+  telemetry: TelemetryPort | undefined,
+  correlationId: () => string,
 ) => AuthsClient;
 
 export class AuthsClient implements AsyncDisposable {
@@ -109,6 +118,8 @@ export class AuthsClient implements AsyncDisposable {
     signer: Signer,
     engine: WorkflowWasmEngine,
     trustedContext: Uint8Array,
+    telemetry: TelemetryPort | undefined,
+    correlationId: () => string,
   ) {
     if (token !== CLIENT_TOKEN) {
       throw new TypeError("sealed Auths workflow client");
@@ -122,6 +133,8 @@ export class AuthsClient implements AsyncDisposable {
       trustedAuthority,
       trustedContext: trustedContext.slice(),
       attachedAgents: new Set(),
+      telemetry,
+      correlationId,
     });
   }
 
@@ -132,6 +145,8 @@ export class AuthsClient implements AsyncDisposable {
     signer: Signer,
     engine: WorkflowWasmEngine,
     trustedContext: Uint8Array,
+    telemetry: TelemetryPort | undefined,
+    correlationId: () => string,
   ): AuthsClient {
     if (token !== CLIENT_TOKEN) {
       throw new TypeError("sealed Auths workflow client");
@@ -143,11 +158,21 @@ export class AuthsClient implements AsyncDisposable {
       signer,
       engine,
       trustedContext,
+      telemetry,
+      correlationId,
     );
   }
 
   static {
-    mintAuthsClient = (identity, trustedAuthority, signer, engine, trustedContext) =>
+    mintAuthsClient = (
+      identity,
+      trustedAuthority,
+      signer,
+      engine,
+      trustedContext,
+      telemetry,
+      correlationId,
+    ) =>
       AuthsClient.create(
         CLIENT_TOKEN,
         identity,
@@ -155,6 +180,8 @@ export class AuthsClient implements AsyncDisposable {
         signer,
         engine,
         trustedContext,
+        telemetry,
+        correlationId,
       );
   }
 
@@ -411,6 +438,12 @@ export class AttachedAgent<P extends Profile> implements AsyncDisposable {
     return delegateAttachedAgent(this, options);
   }
 
+  async reviewDelegation(options: DelegationOptions<P>): Promise<DelegationReview> {
+    this.assertActive();
+    const { reviewDelegation } = await import("../../internal/delegation.js");
+    return reviewDelegation(this, options);
+  }
+
   async authorize(
     action: P["__action"],
   ): Promise<AuthorizationResult<NonNullable<P["__command"]>>> {
@@ -556,6 +589,8 @@ function stripPlanCommand<Command>(
 export interface LoadWorkflowOptions {
   readonly signer: Signer;
   readonly trustedAuthority: TrustedAuthority;
+  readonly telemetry?: TelemetryPort;
+  readonly correlationId?: () => string;
 }
 
 export async function createWorkflowClient(
@@ -669,6 +704,8 @@ export async function createWorkflowClient(
       options.signer,
       engine,
       trustedContext,
+      options.telemetry,
+      options.correlationId ?? workflowCorrelationId,
     );
   } catch (error) {
     await cleanupAfterFailedLoad(options.signer);
@@ -821,6 +858,25 @@ export function trustedContextForClient(client: AuthsClient): Uint8Array {
     throw new AuthsWorkflowError("disposed", "Auths client is disposed");
   }
   return resources.trustedContext.slice();
+}
+
+export function telemetryForClient(client: AuthsClient): TelemetryPort | undefined {
+  client.assertActive();
+  const resources = clientResources.get(client);
+  if (resources === undefined) throw new AuthsWorkflowError("disposed", "Auths client is disposed");
+  return resources.telemetry;
+}
+
+export function correlationIdForClient(client: AuthsClient): string {
+  client.assertActive();
+  const resources = clientResources.get(client);
+  if (resources === undefined) throw new AuthsWorkflowError("disposed", "Auths client is disposed");
+  const value = resources.correlationId();
+  if (typeof value !== "string" || value.length === 0 || value.length > 128 ||
+      /[\u0000-\u001f\u007f]/u.test(value)) {
+    throw new AuthsWorkflowError("invalid-provider", "correlation ID provider returned invalid data");
+  }
+  return value;
 }
 
 export function resourcesForAttachedAgent<P extends Profile>(
@@ -979,4 +1035,11 @@ async function cleanupAfterFailedLoad(signer: Signer): Promise<void> {
   } catch {
     // Preserve the fail-closed construction error and do not expose provider data.
   }
+}
+
+let workflowCorrelationSequence = 0;
+
+function workflowCorrelationId(): string {
+  workflowCorrelationSequence = (workflowCorrelationSequence + 1) % Number.MAX_SAFE_INTEGER;
+  return `auths-workflow-${Date.now().toString(36)}-${workflowCorrelationSequence.toString(36)}`;
 }

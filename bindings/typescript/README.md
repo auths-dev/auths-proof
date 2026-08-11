@@ -32,7 +32,7 @@ packaged Rust/WASM identity protocol; it does not initialize grants,
 capabilities, approvals, policy, profiles, or lifecycle workflows. Authority,
 approvals, and profiles are separate `@auths-dev/sdk/authority`,
 `@auths-dev/sdk/approvals`, and `@auths-dev/sdk/profiles` entry points. The
-package root remains the integrated compatibility workflow.
+package root remains the integrated authorization workflow.
 
 The broader typed surface is split by responsibility:
 
@@ -78,30 +78,31 @@ if (result.kind === "authorized") {
 
 `approvalPolicy` creates typed configuration commitments, the separate
 `@auths-dev/sdk/testkit` export provides unmistakably non-production ephemeral
-signers and profile mutation fixtures, and every raw-verification surface —
-`loadPortableAuths`, `createDiagnosticVerifier`, `inspectDecision`, and
-`commitCanonical` — lives behind `@auths-dev/sdk/advanced`.
+signers and profile mutation fixtures. Raw verification, safe inspection, and
+caller-supplied engines have deliberately separate entry points.
 
-## Advanced raw verification
+## Local verification
 
 Applications that already possess canonical proof, action, and trusted-context
-bytes can use the effect-free verifier from `@auths-dev/sdk/advanced`:
+bytes can use the effect-free verifier from `@auths-dev/sdk/verify`:
 
 ```ts
-import { loadPortableAuths } from "@auths-dev/sdk/advanced";
+import { loadVerifier } from "@auths-dev/sdk/verify";
 
-const auths = await loadPortableAuths();
-const result = auths.verify(proofBytes, canonicalActionBytes, contextBytes);
+const verifier = await loadVerifier();
+const result = verifier.verify(proofBytes, canonicalActionBytes, contextBytes);
 ```
 
 An authorized raw verifier result is evidence, not a profile command accepted
 by a closed gateway.
 
-`loadPortableAuths` accepts no module URL, WASM input, or engine: it resolves
+`loadVerifier` accepts no module URL, WASM input, or engine: it resolves
 only the reviewed WASM subject packaged with this SDK. To run an explicitly
 supplied engine — a differential test harness, or an engine under analysis —
-use `createDiagnosticVerifier`, whose `DiagnosticResult` reports the verdict
-but never carries a `VerifiedAction`, whatever bytes the engine returns.
+use `createDiagnosticVerifier` from `@auths-dev/sdk/diagnostics`. Its result
+reports the verdict but never carries a `VerifiedAction`, whatever bytes the
+engine returns. Safe commitments and decision projections live in
+`@auths-dev/sdk/inspection`.
 
 Local/headless applications can bootstrap an explicit Ed25519 raw-key root
 without hand-authoring a grant or verifier context:
@@ -242,7 +243,12 @@ plan, while the child signer supplies only the child identity and is retained
 for that child's later actions.
 
 The maintained API contract, architecture guide, and security boundary are
-documented under [`docs/`](docs/). Raw verification and bounded evidence
-projection are available from `@auths-dev/sdk/advanced`; application code must
-not treat a result from a caller-supplied engine or module as an effect-capable
-command.
+documented under [`docs/`](docs/). Application code must not treat a result
+from a caller-supplied engine or module as an effect-capable command.
+
+Start with the [support matrix](docs/support-matrix.md), then use the
+[production integration recipe](docs/production-integration.md),
+[error and recovery guide](docs/errors-and-recovery.md), and
+[adapter qualification guide](docs/adapter-authoring.md). The
+[lifecycle recipes](docs/lifecycle-recipes.md) cover withdrawal, rotation,
+compromise, and clean prelaunch policy/profile replacement.

@@ -70,10 +70,10 @@ signature; its response is still transaction-bound and verified.
 
 ### Hostile engine or module injection
 
-The advanced verifier accepts a public `PortableWasmEngine` constructor and an
-explicit module URL for diagnostic and differential use. A hostile engine can
-produce an advanced `VerifiedAction`, but no advanced result or action is
-accepted by a profile gateway or convertible into a command.
+The diagnostics factory accepts a caller-supplied `PortableWasmEngine` for
+differential use. A hostile engine can produce only an inert
+`DiagnosticResult`; it cannot produce `VerifiedAction`, and no diagnostic
+result is accepted by a profile gateway or convertible into a command.
 
 The Full Workflow loader uses only package-owned WASM. Effect-capable
 `McpCommand`, `ApplicationCommand`, and `VerifiedPlanCommand` values require
@@ -162,7 +162,7 @@ invocation. TypeScript does not implement a second attenuation test.
 The normal TypeScript request cannot select a different profile or critical
 extension payload: native structured planning inherits both exactly from the
 parent. Issue 81 tracks the broader core-protocol requirement to define and
-enforce extension attenuation for advanced/native callers that author complete
+enforce extension attenuation for lower-level native callers that author complete
 grant statements.
 
 ### Signer substitution and confused deputy
@@ -198,10 +198,10 @@ prototype must fail gateway acceptance.
 
 ### Raw API promotion
 
-Advanced verification intentionally exposes canonical bytes and diagnostic
-results. No advanced type or function can construct, deserialize, or convert
-to a profile command. The gateway cannot accept `VerifiedAction` from an
-arbitrary engine, raw bytes, or a verdict Boolean.
+Verification intentionally exposes canonical bytes, while diagnostics expose
+caller-supplied engine results. Neither verification evidence nor diagnostic
+types can construct, deserialize, or convert to a profile command. The gateway
+cannot accept `VerifiedAction`, raw bytes, or a verdict Boolean.
 
 ### Runtime claim or effect substitution
 

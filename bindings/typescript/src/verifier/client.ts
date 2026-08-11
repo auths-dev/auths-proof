@@ -13,6 +13,9 @@ export {
   type PortableWasmEngine,
   type VerdictKind,
   type VerificationMetrics,
+  type VerificationBatchOptions,
+  type VerificationInput,
+  type VerificationOptions,
   type VerificationResult,
   type VerificationStage,
 } from "./result.js";
@@ -43,13 +46,17 @@ export {
   type DelegatedStatus,
   type DelegationOptions,
   type DelegationReview,
+  type EffectState,
   type EffectiveAuthoritySummary,
+  type ErrorContext,
+  type ErrorFamily,
   type OverGrantingWarning,
   type PermissionSummary,
   type PlanAuthorizationResult,
   type PrincipalDescriptor,
   type Profile,
   type ProviderFailureKind,
+  type RetryClass,
   type ReviewField,
   type SignedGrantLoadRequest,
   type SignedGrantMaterial,
@@ -77,7 +84,7 @@ export {
  * It accepts no module URL, WASM input, or engine: the capability-minting
  * path resolves only the reviewed implementation shipped with this package.
  */
-export async function loadPortableAuths(): Promise<Auths> {
+export async function loadVerifier(): Promise<Auths> {
   return mintPackagedVerifierEngine(await loadPackagedWorkflowEngine());
 }
 

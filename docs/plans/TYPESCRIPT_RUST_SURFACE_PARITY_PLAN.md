@@ -61,7 +61,9 @@ The intended package layout is:
 @auths-dev/sdk/profiles        maintained profile facades
 @auths-dev/sdk/runtime         replay, budget, receipt, and execution ports
 @auths-dev/sdk/custody         signer port and adapter conformance
-@auths-dev/sdk/advanced        raw verification and inspection
+@auths-dev/sdk/verify          deterministic packaged verification
+@auths-dev/sdk/inspection      inert decision projection
+@auths-dev/sdk/diagnostics     caller-supplied engine diagnostics
 ```
 
 ## Task list

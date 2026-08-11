@@ -1,7 +1,11 @@
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DiagnosticVerifier, createDiagnosticVerifier } from "../../dist/advanced.js";
+import {
+  DiagnosticVerifier,
+  createDiagnosticVerifier,
+  diagnoseSdk,
+} from "../../dist/diagnostics.js";
 
 const fixture = (name) =>
   readFileSync(
@@ -52,4 +56,25 @@ test("diagnostic verifiers reject non-byte engine output", () => {
     () => verifier.verify(new Uint8Array([1]), actionBytes(), new Uint8Array([2])),
     /non-byte/,
   );
+});
+
+test("SDK diagnostics report exact ABI, runtime, capabilities, and adapters", async () => {
+  const report = await diagnoseSdk({
+    expectedVerifierConfiguration: new Uint8Array(32),
+    profiles: { "auths.mcp": 1 },
+    adapters: [{ kind: "signer", id: "example.kms", version: "1" }],
+  });
+  assert.equal(report.schemaVersion, "auths.diagnostics/1");
+  assert.equal(report.runtime.family, "node");
+  assert.equal(report.wasm.authoringAbi, 1);
+  assert.equal(report.wasm.identityAbi, 1);
+  assert.equal(report.runtimeContract.satisfied, true);
+  assert.deepEqual(report.checks.map(({ id, status }) => [id, status]), [
+    ["runtime", "pass"],
+    ["wasm", "pass"],
+    ["trust", "fail"],
+    ["profiles", "pass"],
+    ["adapters", "pass"],
+  ]);
+  assert.deepEqual(report.adapters, [{ kind: "signer", id: "example.kms", version: "1" }]);
 });

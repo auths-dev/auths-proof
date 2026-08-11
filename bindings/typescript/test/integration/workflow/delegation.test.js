@@ -168,11 +168,16 @@ async function fixture(
 
 test("delegate plans reviews approves and signs one attenuated child", async () => {
   const { client, parent, childSigner, counters } = await fixture();
-  const child = await parent.delegate({
+  const proposal = {
     name: "records-child",
     authority: baseAuthority(),
     signer: childSigner,
-  });
+  };
+  const review = await parent.reviewDelegation(proposal);
+  assert.equal(counters.approvals, 0);
+  assert.equal(counters.parentSignatures, 0);
+  assert.equal(review.proposalCommitment.length, 32);
+  const child = await parent.delegate(proposal);
 
   assert.equal(counters.approvals, 1);
   assert.equal(counters.parentSignatures, 1);
@@ -212,6 +217,7 @@ test("delegate plans reviews approves and signs one attenuated child", async () 
     "any-body",
     "delegation-allowed",
   ]);
+  assert.deepEqual(child.delegation.proposalCommitment, review.proposalCommitment);
 
   await child.dispose();
   await child.dispose();

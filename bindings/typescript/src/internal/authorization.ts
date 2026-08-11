@@ -1,4 +1,5 @@
 import { mintPackagedVerifierEngine } from "../verifier/result.js";
+import { emitAuthsEvent } from "../observability.js";
 import {
   type AttachedAgent,
   type ApprovalConfiguration,
@@ -7,7 +8,9 @@ import {
   type WorkflowActionPreparation,
   type WorkflowVerificationResult,
   engineForClient,
+  correlationIdForClient,
   resourcesForAttachedAgent,
+  telemetryForClient,
   trustedContextForClient,
 } from "../workflow.js";
 import { SigningCoordinator, WasmSigningAdapter } from "./signing.js";
@@ -21,22 +24,70 @@ export async function authorizePreparedAction(
 ): Promise<WorkflowVerificationResult> {
   const resources = resourcesForAttachedAgent(agent);
   const engine = engineForClient(resources.client);
+  const telemetry = telemetryForClient(resources.client);
+  const correlationId = correlationIdForClient(resources.client);
+  const operation = "authorize-action";
+  const started = performance.now();
   let builder;
   let artifacts;
   try {
-    const evaluationTime = BigInt(Math.floor(Date.now() / 1000));
-    const signed = await new SigningCoordinator(
-      new WasmSigningAdapter(engine),
-    ).execute({
-      objectKind: "action",
-      unsignedObject: preparation.actionEnvelopeCbor,
-      principal: agent.identity.principal,
-      signer: resources.signer,
-      approval: approvalOverride ?? resources.approval,
-      requiredApproval: resources.client.trustedAuthority.requiredApproval,
-      expiresAt: evaluationTime + 300n,
-      display,
+    void emitAuthsEvent(telemetry, {
+      name: "auths.construction.started",
+      timestamp: Date.now(),
+      correlationId,
+      operation,
+      stage: "construction",
+      outcome: "started",
     });
+    const evaluationTime = BigInt(Math.floor(Date.now() / 1000));
+    const signingStarted = performance.now();
+    void emitAuthsEvent(telemetry, {
+      name: "auths.approval.started",
+      timestamp: Date.now(),
+      correlationId,
+      operation,
+      stage: "approval",
+      outcome: "started",
+    });
+    let signed;
+    try {
+      signed = await new SigningCoordinator(
+        new WasmSigningAdapter(engine),
+      ).execute({
+        objectKind: "action",
+        unsignedObject: preparation.actionEnvelopeCbor,
+        principal: agent.identity.principal,
+        signer: resources.signer,
+        approval: approvalOverride ?? resources.approval,
+        requiredApproval: resources.client.trustedAuthority.requiredApproval,
+        expiresAt: evaluationTime + 300n,
+        display,
+      });
+    } catch (error) {
+      for (const stage of ["approval", "signing"] as const) {
+        void emitAuthsEvent(telemetry, {
+          name: `auths.${stage}.failed`,
+          timestamp: Date.now(),
+          correlationId,
+          operation,
+          stage,
+          outcome: "failed",
+          durationMs: performance.now() - signingStarted,
+        });
+      }
+      throw error;
+    }
+    for (const stage of ["approval", "signing"] as const) {
+      void emitAuthsEvent(telemetry, {
+        name: `auths.${stage}.completed`,
+        timestamp: Date.now(),
+        correlationId,
+        operation,
+        stage,
+        outcome: "succeeded",
+        durationMs: performance.now() - signingStarted,
+      });
+    }
     builder = new engine.WorkflowProofBuilderV1();
     for (const grant of resources.grantChain) {
       const index = builder.pushGrant(grant.signedGrant.slice());
@@ -66,7 +117,20 @@ export async function authorizePreparedAction(
       artifacts.proofCbor,
       preparation.canonicalActionCbor,
       artifacts.trustedContextCbor,
+      {
+        correlationId,
+        ...(telemetry === undefined ? {} : { telemetry }),
+      },
     );
+    void emitAuthsEvent(telemetry, {
+      name: "auths.construction.completed",
+      timestamp: Date.now(),
+      correlationId,
+      operation,
+      stage: "construction",
+      outcome: "succeeded",
+      durationMs: performance.now() - started,
+    });
     const executed = approvalOverride ?? resources.approval;
     const required = resources.client.trustedAuthority.requiredApproval;
     return Object.freeze({

@@ -29,7 +29,10 @@ export {
   type DelegatedStatus,
   type DelegationOptions,
   type DelegationReview,
+  type EffectState,
   type EffectiveAuthoritySummary,
+  type ErrorContext,
+  type ErrorFamily,
   type LoadAuthsOptions,
   type OverGrantingWarning,
   type PermissionSummary,
@@ -37,6 +40,7 @@ export {
   type PrincipalDescriptor,
   type Profile,
   type ProviderFailureKind,
+  type RetryClass,
   type ReviewField,
   type SignedGrantLoadRequest,
   type SignedGrantMaterial,
@@ -55,7 +59,13 @@ export {
   type WorkflowErrorCode,
   type WorkflowVerificationResult,
 } from "./verifier/client.js";
-export { approvalPolicy, type ApprovalPolicyOptions } from "./approvals.js";
+export {
+  approvalPolicy,
+  noApproval,
+  thresholdApproval,
+  type ApprovalPolicyOptions,
+  type ThresholdApprovalOptions,
+} from "./approvals.js";
 export {
   ProfilePlan,
   VerifiedPlanCommand,

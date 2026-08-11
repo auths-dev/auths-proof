@@ -1,4 +1,4 @@
-import { loadPortableAuths } from "./vendor/dist/advanced.js";
+import { loadVerifier } from "./vendor/dist/verify.js";
 import {
   configurationState,
   formatNumber,
@@ -548,7 +548,7 @@ async function boot() {
     ),
     // The verifier resolves only the WASM subject vendored beside it; the SDK
     // accepts no caller-selected module or bytes on this path.
-    loadPortableAuths(),
+    loadVerifier(),
   ]);
   state.scenario = scenario;
   state.auths = auths;

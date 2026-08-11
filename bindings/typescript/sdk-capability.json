@@ -26,7 +26,13 @@
       "repository-local Rust-compiled typed trust and lifecycle surfaces",
       "repository-local native authorization-plan composition",
       "repository-local maintained HTTP, Git, deployment, supply-chain, and edge profiles",
-      "repository-local optional runtime ports and custody conformance contracts"
+      "repository-local optional runtime ports and custody conformance contracts",
+      "standalone method- and suite-agnostic identity descriptors",
+      "bounded native batch verification with single-item equivalence",
+      "bounded trust evidence acquisition and offline bundles",
+      "versioned adapter conformance and an exact runtime contract",
+      "idempotent closed runtime with reconciliation and durable reference state",
+      "redacted telemetry timelines and deterministic support bundles"
     ],
     "excluded": [
       "promoted full workflow SDK release claim",
@@ -34,5 +40,20 @@
       "production readiness",
       "package publication authorization"
     ]
+  },
+  "eliteScorecard": {
+    "timeToValue": { "status": "verified", "evidence": ["examples/identity-only/index.ts", "examples/quickstart/index.ts", "test/package/packed-consumer.test.js", "test/package/packed-node.test.js"] },
+    "progressiveAdoption": { "status": "verified", "evidence": ["package.json", "test/package/package.test.js"] },
+    "semanticSafety": { "status": "verified", "evidence": ["test/contract/nonforgeability.ts", "test/integration/non-forgeability.test.js", "test/integration/scenario-corpus.test.js"] },
+    "typeSafety": { "status": "verified", "evidence": ["test/contract/nonforgeability.ts", "src/workflow/errors.ts"] },
+    "productionIntegration": { "status": "verified", "evidence": ["src/testkit/adapter-conformance.ts", "adapters/durable-json/"] },
+    "operationalCompleteness": { "status": "verified", "evidence": ["src/runtime.ts", "test/unit/runtime.test.js", "docs/lifecycle-recipes.md"] },
+    "debuggability": { "status": "verified", "evidence": ["src/observability.ts", "src/diagnostics.ts", "test/unit/observability.test.js"] },
+    "extensibility": { "status": "verified", "evidence": ["src/identity.ts", "src/profiles/application/index.ts", "docs/adapter-authoring.md"] },
+    "portability": { "status": "verified", "evidence": ["../../.github/workflows/typescript-sdk.yml", "test/package/packed-browser.mjs"] },
+    "runtimeContract": { "status": "verified", "evidence": ["sdk-runtime-contract.json", "tools/runtime-contract.mjs", "docs/support-matrix.md"] },
+    "securityEvidence": { "status": "external-review-required", "evidence": ["docs/threat-model.md", "test/integration/scenario-corpus.test.js"] },
+    "documentation": { "status": "verified", "evidence": ["README.md", "docs/support-matrix.md", "docs/production-integration.md", "docs/errors-and-recovery.md"] },
+    "crossSdkParity": { "status": "python-follow-up", "evidence": ["docs/customer-journey-matrix.md"] }
   }
 }

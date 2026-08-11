@@ -39,7 +39,10 @@ The package separates semantic roles into explicit entry points:
 @auths-dev/sdk/runtime         optional effect-lifecycle ports
 @auths-dev/sdk/custody         signer and custody provider contracts
 @auths-dev/sdk/testkit         non-production adapters and conformance harnesses
-@auths-dev/sdk/advanced        raw verifier and bounded inspection
+@auths-dev/sdk/verify          packaged deterministic verification
+@auths-dev/sdk/inspection      safe commitments and decision projection
+@auths-dev/sdk/diagnostics     inert caller-supplied engines and SDK reports
+@auths-dev/sdk/observability   redacted event and support-bundle contracts
 ```
 
 The root does not export protocol constructors, raw registry mutation,
@@ -64,11 +67,13 @@ or loader boundary.
 ## Independent identity API
 
 `@auths-dev/sdk/identity` loads without authority, grants, approvals, profiles,
-or lifecycle configuration. Rust/WASM decodes the canonical packet. An
-explicit identity-method adapter parses a decoded identity into a validated
-identity, and an explicit signature-suite adapter parses a signed packet into
-an authenticated message. The package includes raw-key and Ed25519 adapters;
-callers may supply other method and suite adapters through the same typed ports.
+or lifecycle configuration. Rust/WASM decodes compact identities and general
+credential-shape-neutral descriptors. General identities move through
+decoded, resolved, validated, and authenticated states. Exact-version method
+and suite registries reject unknown, mismatched, and purpose-incompatible
+adapters without fallback. The package proves both embedded
+raw-key/Ed25519 and resolver-backed compositions without taking ownership of a
+vendor adapter catalog.
 
 ## Typed trust and lifecycle API
 
@@ -329,12 +334,13 @@ stable code, required and executed configuration commitments, deterministic
 metrics, and bounded safe explanation. Denied and indeterminate are values,
 not thrown exceptions or implicit retries.
 
-## Advanced surface
+## Verification, inspection, and diagnostics
 
-`@auths-dev/sdk/advanced` retains bounded three-input verification and exact
-inspection. It may accept explicitly supplied engines for diagnostics and
-tests only when the resulting type is statically and dynamically incapable of
-becoming a profile command.
+`@auths-dev/sdk/verify` owns bounded single and batch verification through the
+package-owned WASM subject. `@auths-dev/sdk/inspection` owns inert decision and
+commitment projection. `@auths-dev/sdk/diagnostics` accepts explicitly
+supplied engines only through a result type that is statically and dynamically
+incapable of becoming a profile command.
 
 The production workflow loader does not accept `moduleUrl`, a
 `PortableWasmEngine`, a verifier callback, or caller-selected result bytes. It
@@ -374,13 +380,15 @@ Proof, action, trusted-context, evidence, plan, chain, collection, and work
 limits come directly from the exact deployed native configuration and are
 reported through inspection.
 
-## Compatibility and evolution
+## Prelaunch evolution and exact contracts
 
-Auths is prelaunch. AP-SPEC-027 makes one clean source cutover; it adds no
-legacy workflow reader, compatibility alias, dual loader, or old command
-constructor. Raw verifier compatibility is governed independently by its
-portable ABI and fixtures.
+Auths is prelaunch and has no external users or production state. Public
+changes are clean source cutovers: remove the old surface and its fixtures in
+the same change. Do not add legacy readers, aliases, shims, dual loaders,
+deprecated adapters, migration helpers, old/new runtime switches, or support
+windows. The package and its bundled WASM must satisfy one exact runtime
+contract for the current revision and fail closed when they do not agree.
 
 Profile actions, stable codes, ABI versions, and configuration commitments are
 versioned semantic identities. Incompatible meaning receives a new identity;
-it is not hidden behind an ergonomic refactor.
+it is not hidden behind an ergonomic refactor or a legacy execution path.

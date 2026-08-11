@@ -1,11 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  Auths,
+  Verifier,
   VerifiedAction,
-  createDiagnosticVerifier,
-  inspectDecision,
-} from "../../dist/advanced.js";
+} from "../../dist/verify.js";
+import { createDiagnosticVerifier } from "../../dist/diagnostics.js";
+import { inspectDecision } from "../../dist/inspection.js";
 import { McpAction, McpCommand, mcp } from "../../dist/mcp.js";
 import { ApplicationCommand, defineProfile } from "../../dist/profile-kit.js";
 import { ProfilePlan, VerifiedPlanCommand, commandsForGateway } from "../../dist/index.js";
@@ -112,7 +112,7 @@ test("canonical bytes recovered from inspection stay inert", async () => {
 
     const gateway = profile.gateway(async () => "executed");
     await assert.rejects(() => gateway.execute(replay), /forged/);
-    assert.throws(() => new Auths({ verifyV1: () => result.resultCbor }), /sealed/);
+    assert.throws(() => new Verifier({ verifyV1: () => result.resultCbor }), /sealed/);
 
     await client.dispose();
   });
@@ -155,7 +155,7 @@ test("application profile inspection cannot mint its own command", async () => {
   });
 });
 
-test("advanced inspection never reaches profile action construction", async () => {
+test("inspection never reaches profile action construction", async () => {
   await withFrozenClock(async () => {
     const { client, result } = await authorizedFixture();
     const inspection = await inspectDecision(result);

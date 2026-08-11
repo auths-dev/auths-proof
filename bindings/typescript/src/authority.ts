@@ -1,19 +1,10 @@
 /**
- * Effect-free delegated-authority verification.
+ * Delegated-authority authoring and proof-plan composition.
  *
  * This entry point does not initialize approval providers, profile gateways, execution effects,
- * receipts, or lifecycle orchestration. It accepts already-canonical proof inputs and returns a
- * sealed verified action only from the package-owned Rust/WASM verifier.
+ * receipts, or lifecycle orchestration. Raw proof verification lives under the independent
+ * `@auths-dev/sdk/verify` entry point.
  */
-export {
-  Auths,
-  loadPortableAuths,
-  type AuthorizedResult,
-  type DeniedResult,
-  type Explanation,
-  type VerificationResult,
-  type VerifiedAction,
-} from "./advanced.js";
 export {
   AuthorizationPlan,
   AuthorizationPlanBuilder,

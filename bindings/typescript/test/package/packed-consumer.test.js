@@ -21,11 +21,11 @@ test("packed package installs and executes only through published entry points",
     );
     await writeFile(join(temporary, "consumer.mjs"), `
       import { readFile } from "node:fs/promises";
-      const {
-        Auths, createDiagnosticVerifier, inspectDecision, loadPortableAuths,
-      } = await import("@auths-dev/sdk/advanced");
+      const { Verifier, loadVerifier } = await import("@auths-dev/sdk/verify");
+      const { createDiagnosticVerifier } = await import("@auths-dev/sdk/diagnostics");
+      const { inspectDecision } = await import("@auths-dev/sdk/inspection");
       const sdk = await import("@auths-dev/sdk");
-      for (const name of ["Auths", "loadPortableAuths", "inspectDecision", "commitCanonical"]) {
+      for (const name of ["Verifier", "loadVerifier", "inspectDecision", "createDiagnosticVerifier"]) {
         if (name in sdk) throw new Error(name + " leaked onto the main entry point");
       }
       void inspectDecision;
@@ -39,9 +39,33 @@ test("packed package installs and executes only through published entry points",
       for (const name of ["approvalPolicy", "AuthsClient", "ProfilePlan"]) {
         if (name in identityModule) throw new Error(name + " leaked onto the identity entry point");
       }
+      const identityKeys = await crypto.subtle.generateKey("Ed25519", true, ["sign", "verify"]);
+      const identityPublicKey = new Uint8Array(await crypto.subtle.exportKey("raw", identityKeys.publicKey));
+      const identity = await identityModule.loadIdentity();
+      const rawKeyIdentity = await identityModule.loadRawKeyIdentityAdapter();
+      const ed25519 = await identityModule.loadEd25519RawKeyAuthentication();
+      const localIdentity = rawKeyIdentity.create("ed25519-v1", identityPublicKey);
+      const validatedIdentity = identity.parseIdentity(
+        identity.decodePublicIdentity(localIdentity.packet), rawKeyIdentity,
+      );
+      const identityMessage = new TextEncoder().encode("packed identity quickstart");
+      const identityPreimage = identity.signingPreimage(validatedIdentity, identityMessage);
+      const identitySignature = new Uint8Array(await crypto.subtle.sign(
+        "Ed25519", identityKeys.privateKey, identityPreimage,
+      ));
+      const authenticatedIdentity = identity.authenticate(
+        identity.decodeSignedMessage(identity.encodeSignedMessage(
+          validatedIdentity, identityMessage, identitySignature,
+        )),
+        validatedIdentity,
+        ed25519,
+      );
+      if (authenticatedIdentity.identity.identityId !== localIdentity.identityId) {
+        throw new Error("packed identity quickstart changed identity");
+      }
       const bytes = (name) => readFile(new URL(name, import.meta.url));
       const action = await bytes("action.cbor");
-      const verifier = await loadPortableAuths();
+      const verifier = await loadVerifier();
       const authorized = verifier.verify(
         await bytes("proof.cbor"), action, await bytes("authorized.context.cbor"),
       );
@@ -58,7 +82,7 @@ test("packed package installs and executes only through published entry points",
       if (indeterminate.effectCapable !== false) throw new Error("diagnostic result claimed effect capability");
       if ("action" in indeterminate) throw new Error("diagnostic result carried a verified action");
       try {
-        new Auths({ verifyV1: () => indeterminateBytes });
+        new Verifier({ verifyV1: () => indeterminateBytes });
         throw new Error("installed package allowed engine injection");
       } catch (error) {
         if (!/sealed/.test(String(error?.message))) throw error;
@@ -78,20 +102,21 @@ test("packed package installs and executes only through published entry points",
     `);
     await writeFile(join(temporary, "consumer.ts"), `
       import { approvalPolicy, loadAuths, type AuthorizationResult, type Signer } from "@auths-dev/sdk";
-      import { createDiagnosticVerifier, inspectDecision, type DiagnosticResult } from "@auths-dev/sdk/advanced";
+      import { createDiagnosticVerifier, type DiagnosticResult } from "@auths-dev/sdk/diagnostics";
+      import { inspectDecision } from "@auths-dev/sdk/inspection";
       import { mcp, type McpCommand } from "@auths-dev/sdk/mcp";
       import { defineProfile } from "@auths-dev/sdk/profile-kit";
       import { development } from "@auths-dev/sdk/testkit";
       import {
         loadIdentity, loadRawKeyIdentityAdapter, type DecodedIdentity,
       } from "@auths-dev/sdk/identity";
-      import { loadPortableAuths as loadAuthority } from "@auths-dev/sdk/authority";
+      import { loadAuthorizationPlanBuilder } from "@auths-dev/sdk/authority";
       import { approvalPolicy as layeredApprovalPolicy } from "@auths-dev/sdk/approvals";
       import { mcp as layeredMcp } from "@auths-dev/sdk/profiles";
-      import { loadPortableAuths } from "@auths-dev/sdk/advanced";
+      import { loadVerifier } from "@auths-dev/sdk/verify";
       void approvalPolicy; void loadAuths; void mcp; void defineProfile;
-      void development; void loadPortableAuths; void createDiagnosticVerifier; void inspectDecision;
-      void loadIdentity; void loadRawKeyIdentityAdapter; void loadAuthority;
+      void development; void loadVerifier; void createDiagnosticVerifier; void inspectDecision;
+      void loadIdentity; void loadRawKeyIdentityAdapter; void loadAuthorizationPlanBuilder;
       void layeredApprovalPolicy; void layeredMcp;
       declare const decodedIdentity: DecodedIdentity;
       void decodedIdentity;

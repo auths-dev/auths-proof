@@ -10,20 +10,26 @@ test("package exposes bounded public surfaces and includes contributor docs", as
   );
   assert.deepEqual(Object.keys(manifest.exports).sort(), [
     ".",
-    "./advanced",
     "./approvals",
     "./authority",
     "./custody",
+    "./diagnostics",
     "./identity",
+    "./inspection",
     "./lifecycle",
     "./mcp",
+    "./observability",
     "./profile-kit",
     "./profiles",
     "./runtime",
     "./testkit",
     "./trust",
+    "./verify",
   ]);
   assert.ok(manifest.files.includes("docs"));
+  assert.ok(manifest.files.includes("sdk-runtime-contract.json"));
+  assert.ok(manifest.files.includes("sdk-capability.json"));
+  assert.ok(manifest.files.includes("performance-baseline.json"));
   assert.ok(manifest.files.includes("wasm/auths_proof_wasm_bg.wasm"));
   assert.equal(manifest.files.some((entry) => entry.includes("test/")), false);
   assert.deepEqual([...manifest.files].sort(), [
@@ -31,6 +37,9 @@ test("package exposes bounded public surfaces and includes contributor docs", as
     "README.md",
     "dist",
     "docs",
+    "performance-baseline.json",
+    "sdk-capability.json",
+    "sdk-runtime-contract.json",
     "wasm/auths_proof_wasm.d.ts",
     "wasm/auths_proof_wasm.js",
     "wasm/auths_proof_wasm_bg.wasm",
@@ -51,22 +60,27 @@ test("packed contents carry the published artifacts and no source or tests", asy
     "package.json",
     "dist/index.js",
     "dist/index.d.ts",
-    "dist/advanced.js",
-    "dist/advanced.d.ts",
     "dist/approvals.js",
     "dist/authority.js",
     "dist/custody.js",
+    "dist/diagnostics.js",
     "dist/identity.js",
+    "dist/inspection.js",
     "dist/lifecycle.js",
     "dist/mcp.js",
+    "dist/observability.js",
     "dist/profile-kit.js",
     "dist/profiles.js",
     "dist/runtime.js",
     "dist/testkit/index.js",
     "dist/trust.js",
+    "dist/verify.js",
     "wasm/auths_proof_wasm.js",
     "wasm/auths_proof_wasm_bg.wasm",
     "README.md",
+    "performance-baseline.json",
+    "sdk-capability.json",
+    "sdk-runtime-contract.json",
   ]) {
     assert.ok(entries.includes(required), `packed artifact omitted ${required}`);
   }
@@ -84,7 +98,7 @@ test("packed contents carry the published artifacts and no source or tests", asy
   }
 });
 
-test("compatibility barrels contain exports only", async () => {
+test("public facade barrels contain exports only", async () => {
   for (const name of ["authority.ts", "custody.ts", "index.ts", "mcp.ts", "profile-kit.ts", "profiles.ts", "workflow.ts"]) {
     const source = await readFile(new URL(`../../src/${name}`, import.meta.url), "utf8");
     assert.doesNotMatch(
@@ -112,7 +126,12 @@ test("published entry points omit package coordination hooks", async () => {
     "signerForClient",
     "trustedContextForClient",
   ];
-  for (const modulePath of ["../../dist/index.js", "../../dist/advanced.js"]) {
+  for (const modulePath of [
+    "../../dist/index.js",
+    "../../dist/verify.js",
+    "../../dist/inspection.js",
+    "../../dist/diagnostics.js",
+  ]) {
     const exports = await import(modulePath);
     for (const name of forbidden) {
       assert.equal(name in exports, false, `${modulePath} exported ${name}`);

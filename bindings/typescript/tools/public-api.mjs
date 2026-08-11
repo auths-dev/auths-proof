@@ -12,7 +12,10 @@ const comparePublicNames = (left, right) => {
 
 const entries = new Map([
   [".", "dist/index.d.ts"],
-  ["./advanced", "dist/advanced.d.ts"],
+  ["./verify", "dist/verify.d.ts"],
+  ["./inspection", "dist/inspection.d.ts"],
+  ["./diagnostics", "dist/diagnostics.d.ts"],
+  ["./observability", "dist/observability.d.ts"],
   ["./identity", "dist/identity.d.ts"],
   ["./authority", "dist/authority.d.ts"],
   ["./approvals", "dist/approvals.d.ts"],

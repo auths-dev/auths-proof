@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { createReadStream } from "node:fs";
-import { cp, mkdtemp, mkdir, rm, stat, writeFile } from "node:fs/promises";
+import { cp, mkdtemp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { extname, join, normalize } from "node:path";
@@ -30,6 +30,16 @@ try {
   await cp(new URL("valid/raw-key-chain.action.cbor", fixtures), join(temporary, "fixtures/action.cbor"));
   await cp(new URL("authorized.context.cbor", vectors), join(temporary, "fixtures/authorized.context.cbor"));
   await cp(new URL("valid/raw-key-chain.context.cbor", fixtures), join(temporary, "fixtures/denied.context.cbor"));
+  await writeFile(join(temporary, "worker.js"), `
+    const started = performance.now();
+    const { loadVerifier } = await import("/node_modules/@auths-dev/sdk/dist/verify.js");
+    const bytes = async (name) => new Uint8Array(await (await fetch('/fixtures/' + name)).arrayBuffer());
+    const verifier = await loadVerifier();
+    const result = verifier.verify(
+      await bytes('proof.cbor'), await bytes('action.cbor'), await bytes('authorized.context.cbor'),
+    );
+    postMessage({ kind: result.kind, coldStartMs: performance.now() - started });
+  `);
   await writeFile(join(temporary, "index.html"), `<!doctype html>
     <meta charset="utf-8">
     <title>Auths packed browser conformance</title>
@@ -42,25 +52,37 @@ try {
         prepareRawKeyAuthority,
       } from "/node_modules/@auths-dev/sdk/dist/index.js";
       import {
-        createDiagnosticVerifier,
-        inspectDecision,
-        loadPortableAuths,
-      } from "/node_modules/@auths-dev/sdk/dist/advanced.js";
+        loadVerifier,
+      } from "/node_modules/@auths-dev/sdk/dist/verify.js";
+      import { inspectDecision } from "/node_modules/@auths-dev/sdk/dist/inspection.js";
+      import { createDiagnosticVerifier } from "/node_modules/@auths-dev/sdk/dist/diagnostics.js";
       import { mcp } from "/node_modules/@auths-dev/sdk/dist/mcp.js";
       import { development } from "/node_modules/@auths-dev/sdk/dist/testkit/index.js";
       const bytes = async (name) => new Uint8Array(await (await fetch('/fixtures/' + name)).arrayBuffer());
       const action = await bytes('action.cbor');
-      const first = await loadPortableAuths();
+      const first = await loadVerifier();
       const authorized = first.verify(
         await bytes('proof.cbor'), action, await bytes('authorized.context.cbor'),
       );
       const denied = first.verify(
         await bytes('proof.cbor'), action, await bytes('denied.context.cbor'),
       );
-      const second = await loadPortableAuths();
+      const second = await loadVerifier();
       const repeated = second.verify(
         await bytes('proof.cbor'), action, await bytes('authorized.context.cbor'),
       );
+      const warmTimings = [];
+      for (let index = 0; index < 30; index += 1) {
+        const before = performance.now();
+        first.verify(await bytes('proof.cbor'), action, await bytes('authorized.context.cbor'));
+        warmTimings.push(performance.now() - before);
+      }
+      warmTimings.sort((left, right) => left - right);
+      const workerResult = await new Promise((resolve, reject) => {
+        const worker = new Worker('/worker.js', { type: 'module' });
+        worker.onmessage = (event) => { worker.terminate(); resolve(event.data); };
+        worker.onerror = reject;
+      });
       const profile = mcp.profile({ service: 'browser-records' });
       const policy = await approvalPolicy.planOnce({ maxUses: 2, expiresInSeconds: 120 });
       const approval = development.approval(policy);
@@ -118,8 +140,17 @@ try {
         await client.dispose();
         await rootSigner.dispose();
       }
-      document.querySelector('#result').textContent =
-        [authorized.kind, denied.kind, repeated.kind, planKind, gatewayCalls, deniedKind].join(',');
+      document.querySelector('#result').textContent = JSON.stringify({
+        authorized: authorized.kind,
+        denied: denied.kind,
+        repeated: repeated.kind,
+        worker: workerResult.kind,
+        workerColdStartMs: workerResult.coldStartMs,
+        warmVerificationP95Ms: warmTimings[Math.floor(warmTimings.length * 0.95)],
+        plan: planKind,
+        gatewayCalls,
+        deniedAction: deniedKind,
+      });
     </script>`);
 
   server = createServer(async (request, response) => {
@@ -165,9 +196,32 @@ try {
     );
   }
   const result = await page.textContent("#result");
-  if (result !== "authorized,denied,authorized,authorized,2,denied") {
-    throw new Error(`packed browser result drifted: ${result}`);
+  const outcome = JSON.parse(result);
+  const expected = {
+    authorized: "authorized",
+    denied: "denied",
+    repeated: "authorized",
+    worker: "authorized",
+    plan: "authorized",
+    gatewayCalls: 2,
+    deniedAction: "denied",
+  };
+  for (const [key, value] of Object.entries(expected)) {
+    if (outcome[key] !== value) throw new Error(`packed browser ${key} drifted: ${outcome[key]}`);
   }
+  const baseline = JSON.parse(await readFile(new URL("../../performance-baseline.json", import.meta.url)));
+  for (const [actual, budget] of [
+    [outcome.warmVerificationP95Ms, baseline.measurements.chromiumWarmVerificationP95Ms],
+    [outcome.workerColdStartMs, baseline.measurements.chromiumWorkerColdStartMs],
+  ]) {
+    if (!Number.isFinite(actual) || actual > budget * 1.1) {
+      throw new Error(`packed browser performance exceeded budget: ${actual} > ${budget}`);
+    }
+  }
+  process.stdout.write(`${JSON.stringify({
+    warmVerificationP95Ms: outcome.warmVerificationP95Ms,
+    workerColdStartMs: outcome.workerColdStartMs,
+  })}\n`);
 } finally {
   await browser?.close();
   if (server !== undefined) await new Promise((resolve) => server.close(resolve));

@@ -10,6 +10,157 @@ const DECODED_IDENTITY = Symbol("auths-decoded-identity");
 const VALIDATED_IDENTITY = Symbol("auths-validated-identity");
 const DECODED_MESSAGE = Symbol("auths-decoded-identity-message");
 const AUTHENTICATED_MESSAGE = Symbol("auths-authenticated-identity-message");
+const DECODED_DESCRIPTOR = Symbol("auths-decoded-identity-descriptor");
+const RESOLVED_DESCRIPTOR = Symbol("auths-resolved-identity-descriptor");
+const VALIDATED_DESCRIPTOR = Symbol("auths-validated-identity-descriptor");
+const AUTHENTICATED_DESCRIPTOR = Symbol("auths-authenticated-identity-descriptor");
+
+export interface VerificationMaterialInput {
+  readonly materialId: string;
+  readonly bytes: Uint8Array;
+}
+
+export interface VerificationRelationshipInput {
+  readonly relationshipId: string;
+  readonly purpose: string;
+  readonly suiteId: string;
+  readonly verificationMaterial: readonly VerificationMaterialInput[];
+}
+
+export interface IdentityDescriptorInput {
+  readonly methodId: string;
+  readonly identityId: string;
+  readonly methodMaterial: Uint8Array;
+  readonly relationships: readonly VerificationRelationshipInput[];
+}
+
+export interface ResolutionEvidence {
+  readonly source: string;
+  readonly fetchedAt: bigint;
+  readonly expiresAt: bigint;
+  readonly version: string;
+}
+
+interface DescriptorState extends IdentityDescriptorInput {
+  readonly packet: Uint8Array;
+}
+
+export interface DecodedIdentityDescriptor extends DescriptorState {
+  readonly [DECODED_DESCRIPTOR]: true;
+  readonly state: "decoded";
+}
+
+export interface ResolvedIdentityDescriptor extends DescriptorState {
+  readonly [RESOLVED_DESCRIPTOR]: true;
+  readonly state: "resolved";
+  readonly resolution: ResolutionEvidence;
+}
+
+export interface ValidatedIdentityDescriptor extends DescriptorState {
+  readonly [VALIDATED_DESCRIPTOR]: true;
+  readonly state: "validated";
+  readonly resolution: ResolutionEvidence;
+}
+
+export interface AuthenticatedDescriptorMessage {
+  readonly [AUTHENTICATED_DESCRIPTOR]: true;
+  readonly identity: ValidatedIdentityDescriptor;
+  readonly relationshipId: string;
+  readonly purpose: string;
+  readonly message: Uint8Array;
+}
+
+export interface IdentityMethodMetadata {
+  readonly methodId: string;
+  readonly version: string;
+  readonly purposes: readonly string[];
+}
+
+export interface IdentityResolutionRequest {
+  readonly descriptor: DecodedIdentityDescriptor;
+  readonly signal?: AbortSignal;
+  readonly maximumBytes: number;
+  readonly maximumRedirects: number;
+}
+
+export interface IdentityResolutionResult {
+  readonly descriptor: IdentityDescriptorInput;
+  readonly evidence: ResolutionEvidence;
+}
+
+export interface IdentityDescriptorMethodAdapter {
+  readonly metadata: IdentityMethodMetadata;
+  resolve?(request: IdentityResolutionRequest): Promise<IdentityResolutionResult>;
+  parse(descriptor: ResolvedIdentityDescriptor): IdentityDescriptorInput;
+}
+
+export interface SignatureSuiteMetadata {
+  readonly suiteId: string;
+  readonly version: string;
+  readonly purposes: readonly string[];
+}
+
+export interface DescriptorAuthenticationRequest {
+  readonly identity: ValidatedIdentityDescriptor;
+  readonly relationship: VerificationRelationshipInput;
+  readonly signingPreimage: Uint8Array;
+  readonly message: Uint8Array;
+  readonly signature: Uint8Array;
+  readonly signal?: AbortSignal;
+}
+
+export interface DescriptorAuthenticationResult {
+  readonly identityId: string;
+  readonly relationshipId: string;
+  readonly message: Uint8Array;
+}
+
+export interface DescriptorSignatureSuiteAdapter {
+  readonly metadata: SignatureSuiteMetadata;
+  authenticate(request: DescriptorAuthenticationRequest): Promise<DescriptorAuthenticationResult>;
+}
+
+export class IdentityMethodRegistry {
+  readonly #methods: ReadonlyMap<string, IdentityDescriptorMethodAdapter>;
+
+  constructor(methods: readonly IdentityDescriptorMethodAdapter[]) {
+    this.#methods = exactRegistry(methods, (method) => method.metadata.methodId, "identity method");
+  }
+
+  select(methodId: string): IdentityDescriptorMethodAdapter {
+    const method = this.#methods.get(methodId);
+    if (method === undefined) throw new TypeError(`unsupported identity method: ${methodId}`);
+    return method;
+  }
+}
+
+export class SignatureSuiteRegistry {
+  readonly #suites: ReadonlyMap<string, DescriptorSignatureSuiteAdapter>;
+
+  constructor(suites: readonly DescriptorSignatureSuiteAdapter[]) {
+    this.#suites = exactRegistry(suites, (suite) => suite.metadata.suiteId, "signature suite");
+  }
+
+  select(suiteId: string): DescriptorSignatureSuiteAdapter {
+    const suite = this.#suites.get(suiteId);
+    if (suite === undefined) throw new TypeError(`unsupported signature suite: ${suiteId}`);
+    return suite;
+  }
+}
+
+function exactRegistry<T>(
+  values: readonly T[],
+  identifier: (value: T) => string,
+  kind: string,
+): ReadonlyMap<string, T> {
+  const entries = new Map<string, T>();
+  for (const value of values) {
+    const id = identifier(value);
+    if (id.length === 0 || entries.has(id)) throw new TypeError(`duplicate or empty ${kind}: ${id}`);
+    entries.set(id, value);
+  }
+  return entries;
+}
 
 export interface DecodedIdentity {
   readonly [DECODED_IDENTITY]: true;
@@ -85,6 +236,13 @@ interface WasmSignedIdentityMessage extends WasmAuthenticatedIdentityMessage {
 
 interface IdentityWasmEngine {
   identityAbiVersionV1(): number;
+  encodeIdentityDescriptorV1(value: IdentityDescriptorInput): Uint8Array;
+  decodeIdentityDescriptorV1(packet: Uint8Array): IdentityDescriptorInput;
+  identityDescriptorSigningPreimageV1(
+    packet: Uint8Array,
+    relationshipId: string,
+    message: Uint8Array,
+  ): Uint8Array;
   encodePublicIdentityV2(
     methodId: string,
     identityId: string,
@@ -102,6 +260,86 @@ interface IdentityWasmEngine {
     signature: Uint8Array,
   ): Uint8Array;
   verifyEd25519IdentityMessageV2(packet: Uint8Array): WasmAuthenticatedIdentityMessage;
+}
+
+function copyMaterial(material: VerificationMaterialInput): VerificationMaterialInput {
+  return Object.freeze({ materialId: material.materialId, bytes: new Uint8Array(material.bytes) });
+}
+
+function copyRelationship(
+  relationship: VerificationRelationshipInput,
+): VerificationRelationshipInput {
+  return Object.freeze({
+    relationshipId: relationship.relationshipId,
+    purpose: relationship.purpose,
+    suiteId: relationship.suiteId,
+    verificationMaterial: Object.freeze(relationship.verificationMaterial.map(copyMaterial)),
+  });
+}
+
+function copyDescriptorFields(descriptor: IdentityDescriptorInput): IdentityDescriptorInput {
+  return Object.freeze({
+    methodId: descriptor.methodId,
+    identityId: descriptor.identityId,
+    methodMaterial: new Uint8Array(descriptor.methodMaterial),
+    relationships: Object.freeze(descriptor.relationships.map(copyRelationship)),
+  });
+}
+
+function copyResolution(evidence: ResolutionEvidence): ResolutionEvidence {
+  if (evidence.expiresAt < evidence.fetchedAt || evidence.source.length === 0 || evidence.version.length === 0) {
+    throw new TypeError("identity resolution evidence is invalid");
+  }
+  return Object.freeze({ ...evidence });
+}
+
+function embeddedResolution(): ResolutionEvidence {
+  return Object.freeze({
+    source: "embedded",
+    fetchedAt: 0n,
+    expiresAt: 0xffff_ffff_ffff_ffffn,
+    version: "1",
+  });
+}
+
+function descriptorState<T extends object>(
+  brand: T,
+  state: "decoded" | "resolved" | "validated",
+  descriptor: IdentityDescriptorInput,
+  packet: Uint8Array,
+  resolution?: ResolutionEvidence,
+): T & DescriptorState & { readonly state: typeof state; readonly resolution?: ResolutionEvidence } {
+  return Object.freeze({
+    ...brand,
+    state,
+    ...copyDescriptorFields(descriptor),
+    packet: packet.slice(),
+    ...(resolution === undefined ? {} : { resolution: copyResolution(resolution) }),
+  }) as unknown as T & DescriptorState & {
+    readonly state: typeof state;
+    readonly resolution?: ResolutionEvidence;
+  };
+}
+
+function sameDescriptor(left: IdentityDescriptorInput, right: IdentityDescriptorInput): boolean {
+  return left.methodId === right.methodId &&
+    left.identityId === right.identityId &&
+    equalBytes(left.methodMaterial, right.methodMaterial) &&
+    left.relationships.length === right.relationships.length &&
+    left.relationships.every((relationship, index) => {
+      const candidate = right.relationships[index];
+      return candidate !== undefined &&
+        relationship.relationshipId === candidate.relationshipId &&
+        relationship.purpose === candidate.purpose &&
+        relationship.suiteId === candidate.suiteId &&
+        relationship.verificationMaterial.length === candidate.verificationMaterial.length &&
+        relationship.verificationMaterial.every((material, materialIndex) => {
+          const candidateMaterial = candidate.verificationMaterial[materialIndex];
+          return candidateMaterial !== undefined &&
+            material.materialId === candidateMaterial.materialId &&
+            equalBytes(material.bytes, candidateMaterial.bytes);
+        });
+    });
 }
 
 type IdentityFields = Pick<
@@ -156,6 +394,159 @@ export class IdentityClient {
   /** @internal Construct through {@link loadIdentity}. */
   constructor(engine: IdentityWasmEngine) {
     this.#engine = engine;
+  }
+
+  /** Encodes a general identity without assuming one key, one suite, or embedded resolution. */
+  encodeDescriptor(descriptor: IdentityDescriptorInput): Uint8Array {
+    return new Uint8Array(this.#engine.encodeIdentityDescriptorV1(copyDescriptorFields(descriptor)));
+  }
+
+  decodeDescriptor(packet: Uint8Array): DecodedIdentityDescriptor {
+    const descriptor = copyDescriptorFields(this.#engine.decodeIdentityDescriptorV1(packet));
+    return descriptorState(
+      { [DECODED_DESCRIPTOR]: true as const },
+      "decoded",
+      descriptor,
+      packet,
+    ) as DecodedIdentityDescriptor;
+  }
+
+  async resolveDescriptor(
+    descriptor: DecodedIdentityDescriptor,
+    registry: IdentityMethodRegistry,
+    options: Readonly<{
+      signal?: AbortSignal;
+      maximumBytes?: number;
+      maximumRedirects?: number;
+    }> = {},
+  ): Promise<ResolvedIdentityDescriptor> {
+    const method = registry.select(descriptor.methodId);
+    if (method.resolve === undefined) {
+      return descriptorState(
+        { [RESOLVED_DESCRIPTOR]: true as const },
+        "resolved",
+        descriptor,
+        descriptor.packet,
+        embeddedResolution(),
+      ) as ResolvedIdentityDescriptor;
+    }
+    options.signal?.throwIfAborted();
+    const request: IdentityResolutionRequest = {
+      descriptor,
+      maximumBytes: options.maximumBytes ?? 131_072,
+      maximumRedirects: options.maximumRedirects ?? 0,
+      ...(options.signal === undefined ? {} : { signal: options.signal }),
+    };
+    if (!Number.isSafeInteger(request.maximumBytes) || request.maximumBytes < 1 ||
+        request.maximumBytes > 1_048_576 || !Number.isSafeInteger(request.maximumRedirects) ||
+        request.maximumRedirects < 0 || request.maximumRedirects > 4) {
+      throw new TypeError("identity resolution limits are outside bounds");
+    }
+    const resolved = await method.resolve(request);
+    options.signal?.throwIfAborted();
+    if (resolved.descriptor.methodId !== descriptor.methodId ||
+        resolved.descriptor.identityId !== descriptor.identityId) {
+      throw new TypeError("identity resolver changed the stable identity");
+    }
+    const packet = this.encodeDescriptor(resolved.descriptor);
+    const canonical = copyDescriptorFields(this.#engine.decodeIdentityDescriptorV1(packet));
+    if (packet.length > request.maximumBytes) throw new TypeError("resolved identity exceeds byte limit");
+    return descriptorState(
+      { [RESOLVED_DESCRIPTOR]: true as const },
+      "resolved",
+      canonical,
+      packet,
+      resolved.evidence,
+    ) as ResolvedIdentityDescriptor;
+  }
+
+  validateDescriptor(
+    descriptor: ResolvedIdentityDescriptor,
+    registry: IdentityMethodRegistry,
+  ): ValidatedIdentityDescriptor {
+    const method = registry.select(descriptor.methodId);
+    const parsed = method.parse(descriptor);
+    if (!sameDescriptor(descriptor, parsed)) {
+      throw new TypeError("identity method changed canonical descriptor fields");
+    }
+    for (const relationship of descriptor.relationships) {
+      if (!method.metadata.purposes.includes(relationship.purpose)) {
+        throw new TypeError(`identity method does not support purpose: ${relationship.purpose}`);
+      }
+    }
+    return descriptorState(
+      { [VALIDATED_DESCRIPTOR]: true as const },
+      "validated",
+      descriptor,
+      descriptor.packet,
+      descriptor.resolution,
+    ) as ValidatedIdentityDescriptor;
+  }
+
+  descriptorSigningPreimage(
+    identity: DecodedIdentityDescriptor | ResolvedIdentityDescriptor | ValidatedIdentityDescriptor,
+    relationshipId: string,
+    message: Uint8Array,
+  ): Uint8Array {
+    return new Uint8Array(
+      this.#engine.identityDescriptorSigningPreimageV1(identity.packet, relationshipId, message),
+    );
+  }
+
+  async authenticateDescriptor(
+    identity: ValidatedIdentityDescriptor,
+    input: Readonly<{
+      relationshipId: string;
+      message: Uint8Array;
+      signature: Uint8Array;
+      suites: SignatureSuiteRegistry;
+      signal?: AbortSignal;
+    }>,
+  ): Promise<AuthenticatedDescriptorMessage> {
+    input.signal?.throwIfAborted();
+    const relationship = identity.relationships.find(
+      (candidate) => candidate.relationshipId === input.relationshipId,
+    );
+    if (relationship === undefined) throw new TypeError("unknown identity relationship");
+    const suite = input.suites.select(relationship.suiteId);
+    if (!suite.metadata.purposes.includes(relationship.purpose)) {
+      throw new TypeError(`signature suite does not support purpose: ${relationship.purpose}`);
+    }
+    const signingPreimage = this.descriptorSigningPreimage(
+      identity,
+      relationship.relationshipId,
+      input.message,
+    );
+    const result = await suite.authenticate({
+      identity,
+      relationship,
+      signingPreimage,
+      message: input.message.slice(),
+      signature: input.signature.slice(),
+      ...(input.signal === undefined ? {} : { signal: input.signal }),
+    });
+    input.signal?.throwIfAborted();
+    if (result.identityId !== identity.identityId ||
+        result.relationshipId !== relationship.relationshipId ||
+        !equalBytes(result.message, input.message)) {
+      throw new TypeError("signature suite changed authenticated fields");
+    }
+    return Object.freeze({
+      [AUTHENTICATED_DESCRIPTOR]: true as const,
+      identity,
+      relationshipId: relationship.relationshipId,
+      purpose: relationship.purpose,
+      message: input.message.slice(),
+    });
+  }
+
+  /** Explicit lossless bridge from authenticated identity state into authority principal input. */
+  principal(identity: ValidatedIdentityDescriptor): IdentityPrincipal {
+    return Object.freeze({
+      method: identity.methodId,
+      principal: identity.identityId,
+      evidence: identity.packet.slice(),
+    });
   }
 
   /** Encodes structural identity data after an application-owned method derived its identifier. */
@@ -256,6 +647,12 @@ export class IdentityClient {
   }
 }
 
+export interface IdentityPrincipal {
+  readonly method: string;
+  readonly principal: string;
+  readonly evidence: Uint8Array;
+}
+
 /** Explicit opt-in adapter for suite-labelled self-certifying raw-key identities. */
 export class RawKeyIdentityAdapter {
   readonly methodId = "raw-key-v2";
@@ -353,6 +750,9 @@ async function loadPackagedIdentityEngine(): Promise<IdentityWasmEngine> {
     }
     for (const name of [
       "identityAbiVersionV1",
+      "encodeIdentityDescriptorV1",
+      "decodeIdentityDescriptorV1",
+      "identityDescriptorSigningPreimageV1",
       "encodePublicIdentityV2",
       "createRawKeyPublicIdentityV2",
       "decodePublicIdentityV2",

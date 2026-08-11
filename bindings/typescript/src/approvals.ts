@@ -71,11 +71,17 @@ async function buildPolicy(
 
 /** Typed, versioned approval-policy builders. */
 export const approvalPolicy = Object.freeze({
+  none(options?: ApprovalPolicyOptions) {
+    return buildPolicy("none", { ...options, maxUses: options?.maxUses ?? 1 });
+  },
   grantOnly(options?: ApprovalPolicyOptions) {
     return buildPolicy("grant-only", options);
   },
   everyAction(options?: ApprovalPolicyOptions) {
     return buildPolicy("every-action", options);
+  },
+  riskBased(options?: ApprovalPolicyOptions) {
+    return buildPolicy("risk-based", options);
   },
   planOnce(options?: ApprovalPolicyOptions) {
     return buildPolicy("plan-once", { ...options, maxUses: options?.maxUses ?? 1 });
@@ -83,7 +89,74 @@ export const approvalPolicy = Object.freeze({
   headless(options?: ApprovalPolicyOptions) {
     return buildPolicy("headless", options);
   },
+  custom(options?: ApprovalPolicyOptions) {
+    return buildPolicy("custom", options);
+  },
 });
+
+/** Local no-approval provider. It is valid only with an authority committed to `none`. */
+export const noApproval: ApprovalProvider = Object.freeze({
+  async approve(request: ApprovalRequest): Promise<ApprovalResponse> {
+    return Object.freeze({
+      requestId: request.requestId,
+      transactionDigest: request.transactionDigest.slice(),
+      policy: copyPolicy(request.policy),
+      decision: "approved",
+    });
+  },
+});
+
+export interface ThresholdApprovalOptions {
+  readonly threshold: number;
+  readonly providers: readonly ApprovalProvider[];
+}
+
+/** Requires a bounded quorum of independent, exact responses without retrying any provider. */
+export function thresholdApproval(options: ThresholdApprovalOptions): ApprovalProvider {
+  if (!Number.isSafeInteger(options.threshold) || options.threshold < 1 ||
+      options.providers.length < options.threshold || options.providers.length > 16 ||
+      options.providers.some((provider) => typeof provider?.approve !== "function") ||
+      new Set(options.providers).size !== options.providers.length) {
+    throw new AuthsWorkflowError("invalid-provider", "threshold approval configuration is invalid");
+  }
+  const threshold = options.threshold;
+  const providers = Object.freeze([...options.providers]);
+  return Object.freeze({
+    async approve(request: ApprovalRequest): Promise<ApprovalResponse> {
+      const settled = await Promise.allSettled(
+        providers.map((provider) => provider.approve(copyApprovalRequest(request))),
+      );
+      let approved = 0;
+      for (const result of settled) {
+        if (result.status !== "fulfilled") continue;
+        const response = result.value;
+        if (response.requestId !== request.requestId ||
+            !equalBytes(response.transactionDigest, request.transactionDigest) ||
+            response.policy.policyId !== request.policy.policyId ||
+            response.policy.evaluatorVersion !== request.policy.evaluatorVersion ||
+            !equalBytes(response.policy.configurationDigest, request.policy.configurationDigest)) {
+          throw new ProviderOperationError("rejected", { operation: "threshold-approval" });
+        }
+        if (response.decision === "approved") approved += 1;
+      }
+      return Object.freeze({
+        requestId: request.requestId,
+        transactionDigest: request.transactionDigest.slice(),
+        policy: copyPolicy(request.policy),
+        decision: approved >= threshold ? "approved" as const : "rejected" as const,
+      });
+    },
+  });
+}
+
+function copyApprovalRequest(request: ApprovalRequest): ApprovalRequest {
+  return Object.freeze({
+    ...request,
+    transactionDigest: request.transactionDigest.slice(),
+    policy: copyPolicy(request.policy),
+    display: Object.freeze(request.display.map((field) => Object.freeze({ ...field }))),
+  });
+}
 
 export interface BoundedApprovalSessionOptions {
   readonly planCommitment: Uint8Array;

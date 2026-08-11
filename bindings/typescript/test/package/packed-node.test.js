@@ -20,14 +20,16 @@ test("packed package runs the sealed command path in native Node", async () => {
         approvalPolicy, commandsForGateway, loadAuths, prepareRawKeyAuthority,
       } = await import("@auths-dev/sdk");
       const {
-        createDiagnosticVerifier, inspectDecision, loadPortableAuths,
-      } = await import("@auths-dev/sdk/advanced");
+        loadVerifier,
+      } = await import("@auths-dev/sdk/verify");
+      const { inspectDecision } = await import("@auths-dev/sdk/inspection");
+      const { createDiagnosticVerifier } = await import("@auths-dev/sdk/diagnostics");
       const { mcp } = await import("@auths-dev/sdk/mcp");
       const { development } = await import("@auths-dev/sdk/testkit");
 
-      const wasmUrl = import.meta.resolve("@auths-dev/sdk/advanced");
+      const wasmUrl = import.meta.resolve("@auths-dev/sdk/verify");
       if (!wasmUrl.includes("/node_modules/@auths-dev/sdk/")) {
-        throw new Error("advanced entry resolved outside the installed package: " + wasmUrl);
+        throw new Error("verify entry resolved outside the installed package: " + wasmUrl);
       }
 
       const profile = mcp.profile({ service: "node-records" });
@@ -82,8 +84,8 @@ test("packed package runs the sealed command path in native Node", async () => {
       }
 
       // The published build must offer no engine injection anywhere.
-      const raw = await loadPortableAuths();
-      if (loadPortableAuths.length !== 0) throw new Error("packed loader accepted options");
+      const raw = await loadVerifier();
+      if (loadVerifier.length !== 0) throw new Error("packed loader accepted options");
       const forged = createDiagnosticVerifier({
         verifyV1: () => new Uint8Array([0]),
       });

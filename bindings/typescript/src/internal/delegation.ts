@@ -39,74 +39,10 @@ export async function delegateAttachedAgent<P extends Profile>(
   options: DelegationOptions<P>,
 ): Promise<AttachedAgent<P>> {
   parent.assertActive();
-  validateDelegationShape(options);
-  const resources = resourcesForAttachedAgent(parent);
-  const name = agentName(options.name);
-  const profile = selectedProfile(parent.profile, options.profile);
-  const request = copyAuthorityRequest(options.authority);
-  validateSigner(options.signer);
-
-  let childIdentity: AgentIdentity;
+  let prepared: PreparedDelegation<P> | undefined;
   try {
-    const principal = Object.freeze(
-      copyPrincipal(await options.signer.publicIdentity()),
-    );
-    childIdentity = Object.freeze({
-      principal,
-      signerKind: boundedIdentifier(options.signer.kind, "signer kind"),
-      signerLifecycle: options.signer.lifecycle,
-    });
-  } catch (error) {
-    await cleanupChildSigner(options.signer);
-    if (error instanceof AuthsWorkflowError) throw error;
-    throw new AuthsWorkflowError(
-      "invalid-principal",
-      "child signer returned an invalid principal descriptor",
-    );
-  }
-
-  let plan: WorkflowGrantPlan | undefined;
-  try {
-    const engine = engineForClient(resources.client);
-    childIdentity = Object.freeze({
-      ...childIdentity,
-      principal: Object.freeze({
-        ...childIdentity.principal,
-        principal: engine.canonicalPrincipalV1(
-          childIdentity.principal.principal,
-        ),
-      }),
-    });
-    const action = actionFields(request.actionConstraint);
-    const budget = budgetFields(request.budget);
-    const status = statusFields(request.status);
-    try {
-      plan = engine.planChildGrantFieldsV1(
-        resources.grantStatement.slice(),
-        childIdentity.principal.principal,
-        request.permissions.map((permission) => permission.capability),
-        request.permissions.map((permission) => permission.resource),
-        request.validity.notBefore,
-        request.validity.expiresAt,
-        request.audiences,
-        action.mode,
-        action.digests,
-        budget.mode,
-        budget.algebra,
-        budget.value,
-        request.remainingDepth,
-        status.mode,
-        status.method,
-        status.maxAge,
-        request.assuranceFloor,
-      );
-    } catch {
-      throw new AuthsWorkflowError(
-        "delegation-expanded",
-        "native authoring rejected widened or invalid child authority",
-      );
-    }
-    const review = reviewFromPlan(plan);
+    prepared = await prepareDelegation(parent, options);
+    const { resources, name, profile, childIdentity, plan, review, engine } = prepared;
     const now = BigInt(Math.floor(Date.now() / 1000));
     const signed = await new SigningCoordinator(
       new WasmSigningAdapter(engine),
@@ -160,8 +96,91 @@ export async function delegateAttachedAgent<P extends Profile>(
       "delegation failed before an attached child was created",
     );
   } finally {
-    plan?.free?.();
+    prepared?.plan.free?.();
   }
+}
+
+interface PreparedDelegation<P extends Profile> {
+  readonly resources: ReturnType<typeof resourcesForAttachedAgent>;
+  readonly name: string;
+  readonly profile: P;
+  readonly childIdentity: AgentIdentity;
+  readonly plan: WorkflowGrantPlan;
+  readonly review: DelegationReview;
+  readonly engine: ReturnType<typeof engineForClient>;
+}
+
+/** Produces the native semantic diff before approval or signing. */
+export async function reviewDelegation<P extends Profile>(
+  parent: AttachedAgent<P>,
+  options: DelegationOptions<P>,
+): Promise<DelegationReview> {
+  parent.assertActive();
+  const prepared = await prepareDelegation(parent, options);
+  try {
+    return prepared.review;
+  } finally {
+    prepared.plan.free?.();
+  }
+}
+
+async function prepareDelegation<P extends Profile>(
+  parent: AttachedAgent<P>,
+  options: DelegationOptions<P>,
+): Promise<PreparedDelegation<P>> {
+  validateDelegationShape(options);
+  const resources = resourcesForAttachedAgent(parent);
+  const name = agentName(options.name);
+  const profile = selectedProfile(parent.profile, options.profile);
+  const request = copyAuthorityRequest(options.authority);
+  validateSigner(options.signer);
+  const engine = engineForClient(resources.client);
+  let childIdentity: AgentIdentity;
+  try {
+    const principal = copyPrincipal(await options.signer.publicIdentity());
+    childIdentity = Object.freeze({
+      principal: Object.freeze({
+        ...principal,
+        principal: engine.canonicalPrincipalV1(principal.principal),
+      }),
+      signerKind: boundedIdentifier(options.signer.kind, "signer kind"),
+      signerLifecycle: options.signer.lifecycle,
+    });
+  } catch (error) {
+    if (error instanceof AuthsWorkflowError) throw error;
+    throw new AuthsWorkflowError("invalid-principal", "child signer returned an invalid principal descriptor");
+  }
+  const action = actionFields(request.actionConstraint);
+  const budget = budgetFields(request.budget);
+  const status = statusFields(request.status);
+  let plan: WorkflowGrantPlan;
+  try {
+    plan = engine.planChildGrantFieldsV1(
+      resources.grantStatement.slice(),
+      childIdentity.principal.principal,
+      request.permissions.map((permission) => permission.capability),
+      request.permissions.map((permission) => permission.resource),
+      request.validity.notBefore,
+      request.validity.expiresAt,
+      request.audiences,
+      action.mode,
+      action.digests,
+      budget.mode,
+      budget.algebra,
+      budget.value,
+      request.remainingDepth,
+      status.mode,
+      status.method,
+      status.maxAge,
+      request.assuranceFloor,
+    );
+  } catch {
+    throw new AuthsWorkflowError(
+      "delegation-expanded",
+      "native authoring rejected widened or invalid child authority",
+    );
+  }
+  return { resources, name, profile, childIdentity, plan, review: reviewFromPlan(plan, engine), engine };
 }
 
 function validateDelegationShape<P extends Profile>(
@@ -339,7 +358,10 @@ function statusFields(value: DelegatedStatus) {
     : { mode: value.kind, method: "", maxAge: 0n };
 }
 
-function reviewFromPlan(plan: WorkflowGrantPlan): DelegationReview {
+function reviewFromPlan(
+  plan: WorkflowGrantPlan,
+  engine: ReturnType<typeof engineForClient>,
+): DelegationReview {
   const knownMask = WARNING_FLAGS.reduce((mask, [flag]) => mask | flag, 0);
   if ((plan.warningMask & ~knownMask) !== 0) {
     throw new AuthsWorkflowError(
@@ -358,6 +380,10 @@ function reviewFromPlan(plan: WorkflowGrantPlan): DelegationReview {
     childDepth: plan.childDepth,
   });
   return Object.freeze({
+    proposalCommitment: engine.commitCanonicalV1(
+      "auths.delegation-proposal.v1",
+      plan.statementCbor,
+    ).slice(),
     diff,
     warnings: Object.freeze(
       WARNING_FLAGS.filter(([flag]) => (plan.warningMask & flag) !== 0).map(

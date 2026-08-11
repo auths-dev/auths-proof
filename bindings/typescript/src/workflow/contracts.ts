@@ -16,6 +16,7 @@ export type SigningObjectKind =
   | "principal-status"
   | "grant-status";
 export type ApprovalMode =
+  | "none"
   | "grant-only"
   | "risk-based"
   | "every-action"
@@ -320,6 +321,7 @@ export interface AuthorityDiffSummary {
 }
 
 export interface DelegationReview {
+  readonly proposalCommitment: Uint8Array;
   readonly diff: AuthorityDiffSummary;
   readonly warnings: readonly OverGrantingWarning[];
 }

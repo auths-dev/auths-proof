@@ -210,13 +210,15 @@ pub(crate) fn npm_package_smoke() -> Result<(), String> {
     fs::write(
         &smoke,
         "import * as auths from '@auths-dev/sdk';\n\
-         import * as advanced from '@auths-dev/sdk/advanced';\n\
+         import * as verify from '@auths-dev/sdk/verify';\n\
+         import * as diagnostics from '@auths-dev/sdk/diagnostics';\n\
          if (typeof auths.loadAuths !== 'function') throw new Error('loadAuths export missing');\n\
-         if (typeof advanced.Auths !== 'function') throw new Error('Auths export missing');\n\
-         if (typeof advanced.loadPortableAuths !== 'function') throw new Error('loadPortableAuths export missing');\n\
-         if (typeof advanced.createDiagnosticVerifier !== 'function') throw new Error('createDiagnosticVerifier export missing');\n\
-         if ('Auths' in auths) throw new Error('raw verifier leaked onto the root entry point');\n\
-         if ('loadPortableAuths' in auths) throw new Error('raw loader leaked onto the root entry point');\n",
+         if (typeof verify.Verifier !== 'function') throw new Error('Verifier export missing');\n\
+         if (typeof verify.loadVerifier !== 'function') throw new Error('loadVerifier export missing');\n\
+         if (typeof diagnostics.createDiagnosticVerifier !== 'function') throw new Error('createDiagnosticVerifier export missing');\n\
+         if ('Verifier' in auths) throw new Error('raw verifier leaked onto the root entry point');\n\
+         if ('loadVerifier' in auths) throw new Error('raw loader leaked onto the root entry point');\n\
+         if ('createDiagnosticVerifier' in auths) throw new Error('diagnostic verifier leaked onto the root entry point');\n",
     )
     .map_err(|error| format!("could not write npm install smoke: {error}"))?;
     command_in("node", &[path_text(&smoke)?], &install_directory, None)

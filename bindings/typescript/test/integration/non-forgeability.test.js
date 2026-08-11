@@ -2,12 +2,11 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  Auths,
-  DiagnosticVerifier,
+  Verifier,
   VerifiedAction,
-  createDiagnosticVerifier,
-  loadPortableAuths,
-} from "../../dist/advanced.js";
+  loadVerifier,
+} from "../../dist/verify.js";
+import { DiagnosticVerifier, createDiagnosticVerifier } from "../../dist/diagnostics.js";
 import { mintPackagedVerifierEngine } from "../../dist/verifier/result.js";
 import { McpAction, McpCommand, McpProfile, mcp } from "../../dist/mcp.js";
 import { mcpFixture, packagedWasm } from "./helpers/mcp-fixture.js";
@@ -22,13 +21,13 @@ const actionBytes = () => fixture("raw-key-chain.action.cbor");
 const hostileEngine = () => ({ verifyV1: () => authorizedResultBytes() });
 
 test("a hostile engine cannot reach the capability-minting constructor", () => {
-  assert.throws(() => new Auths(hostileEngine()), /sealed/);
-  assert.throws(() => Reflect.construct(Auths, [hostileEngine()]), /sealed/);
-  assert.throws(() => Reflect.construct(Auths, [Symbol(), hostileEngine()]), /sealed/);
+  assert.throws(() => new Verifier(hostileEngine()), /sealed/);
+  assert.throws(() => Reflect.construct(Verifier, [hostileEngine()]), /sealed/);
+  assert.throws(() => Reflect.construct(Verifier, [Symbol(), hostileEngine()]), /sealed/);
 });
 
 test("subclassing cannot smuggle a hostile engine into the verifier", () => {
-  class ForgedAuths extends Auths {
+  class ForgedAuths extends Verifier {
     constructor() {
       super(hostileEngine());
     }
@@ -51,7 +50,7 @@ test("subclassing cannot smuggle a hostile engine into the verifier", () => {
 });
 
 test("prototype grafting cannot produce a working verifier or action", () => {
-  const grafted = Object.create(Auths.prototype);
+  const grafted = Object.create(Verifier.prototype);
   assert.throws(
     () => grafted.verify(new Uint8Array([1]), actionBytes(), new Uint8Array([2])),
     TypeError,
@@ -97,7 +96,7 @@ test("a forged authorized result never becomes a verified action", () => {
 });
 
 test("a real verified action cannot be copied or serialized into a command", async () => {
-  const auths = await loadPortableAuths();
+  const auths = await loadVerifier();
   const result = auths.verify(
     fixture("raw-key-chain.proof.cbor"),
     actionBytes(),
@@ -178,11 +177,11 @@ test("sealed MCP profile and action constructors stay unavailable", () => {
   assert.throws(() => McpProfile.create(Symbol(), "reports"), /sealed/);
   assert.throws(() => McpAction.create(Symbol(), {}, "tool", new Uint8Array()), /sealed/);
   assert.throws(() => VerifiedAction.fromEngine(Symbol(), actionBytes()), /sealed/);
-  assert.throws(() => Auths.create(Symbol(), hostileEngine()), /sealed/);
+  assert.throws(() => Verifier.create(Symbol(), hostileEngine()), /sealed/);
   assert.throws(() => DiagnosticVerifier.create(Symbol(), hostileEngine()), /sealed/);
   for (const token of [undefined, null, "auths-authorized", Symbol.for("auths-authorized")]) {
     assert.throws(() => VerifiedAction.fromEngine(token, actionBytes()), /sealed/);
-    assert.throws(() => Auths.create(token, hostileEngine()), /sealed/);
+    assert.throws(() => Verifier.create(token, hostileEngine()), /sealed/);
   }
 });
 

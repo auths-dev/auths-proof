@@ -31,6 +31,10 @@ pub const IDENTITY_APPLICATION_PROTOCOL_V1: &str = "/auths/identity/1";
 pub const IDENTITY_WIRE_MAGIC_V2: &[u8] = b"AUTHS-IDENTITY\0\x02";
 /// Exact domain prefix for identity-message signing revision 2.
 pub const IDENTITY_SIGNING_DOMAIN_V2: &[u8] = b"AUTHS-IDENTITY-MESSAGE\0\x02";
+/// Canonical prefix for the credential-shape-agnostic descriptor packet.
+pub const IDENTITY_DESCRIPTOR_WIRE_MAGIC_V1: &[u8] = b"AUTHS-IDENTITY-DESCRIPTOR\0\x01";
+/// Domain prefix for exact application messages signed through one descriptor relationship.
+pub const IDENTITY_DESCRIPTOR_SIGNING_DOMAIN_V1: &[u8] = b"AUTHS-IDENTITY-DESCRIPTOR-MESSAGE\0\x01";
 
 pub const MAX_METHOD_ID_BYTES: usize = 128;
 pub const MAX_SUITE_ID_BYTES: usize = 128;
@@ -58,6 +62,23 @@ pub const MAX_IDENTITY_PACKET_BYTES: usize = WIRE_MAGIC.len()
     + MAX_IDENTITY_MESSAGE_BYTES
     + 4
     + MAX_SIGNATURE_BYTES;
+pub const MAX_IDENTITY_DESCRIPTOR_PACKET_BYTES: usize = IDENTITY_DESCRIPTOR_WIRE_MAGIC_V1.len()
+    + 2
+    + MAX_METHOD_ID_BYTES
+    + 2
+    + MAX_IDENTITY_ID_BYTES
+    + 4
+    + MAX_METHOD_MATERIAL_BYTES
+    + 2
+    + MAX_RELATIONSHIPS
+        * (2 + MAX_RELATIONSHIP_ID_BYTES
+            + 2
+            + MAX_PURPOSE_ID_BYTES
+            + 2
+            + MAX_SUITE_ID_BYTES
+            + 2
+            + MAX_MATERIALS_PER_RELATIONSHIP * (2 + MAX_RELATIONSHIP_ID_BYTES + 4))
+    + MAX_VERIFICATION_MATERIAL_BYTES;
 
 const WIRE_MAGIC: &[u8] = IDENTITY_WIRE_MAGIC_V2;
 const SIGNING_DOMAIN: &[u8] = IDENTITY_SIGNING_DOMAIN_V2;
@@ -151,6 +172,112 @@ impl IdentityDescriptor {
         self.relationships
             .iter()
             .find(|relationship| relationship.relationship_id == relationship_id)
+    }
+
+    /// Encodes the complete method-owned descriptor into canonical transport-independent bytes.
+    ///
+    /// # Errors
+    ///
+    /// Rejects a descriptor whose aggregate canonical representation exceeds the protocol bound.
+    pub fn encode(&self) -> Result<Vec<u8>, IdentityError> {
+        let mut output = Vec::new();
+        output.extend_from_slice(IDENTITY_DESCRIPTOR_WIRE_MAGIC_V1);
+        encode_text(&mut output, &self.method_id)?;
+        encode_text(&mut output, &self.identity_id)?;
+        encode_bytes(&mut output, &self.method_material)?;
+        encode_count(&mut output, self.relationships.len())?;
+        for relationship in &self.relationships {
+            encode_text(&mut output, relationship.relationship_id())?;
+            encode_text(&mut output, relationship.purpose())?;
+            encode_text(&mut output, relationship.suite_id())?;
+            encode_count(&mut output, relationship.verification_material().len())?;
+            for material in relationship.verification_material() {
+                encode_text(&mut output, material.material_id())?;
+                encode_bytes(&mut output, material.bytes())?;
+            }
+        }
+        if output.len() > MAX_IDENTITY_DESCRIPTOR_PACKET_BYTES {
+            return Err(IdentityError::Limit);
+        }
+        Ok(output)
+    }
+
+    /// Decodes one complete canonical credential-shape-agnostic descriptor.
+    ///
+    /// # Errors
+    ///
+    /// Rejects malformed, non-canonical, duplicate, trailing, or excessive input.
+    pub fn decode(input: &[u8]) -> Result<Self, IdentityError> {
+        if input.len() > MAX_IDENTITY_DESCRIPTOR_PACKET_BYTES
+            || !input.starts_with(IDENTITY_DESCRIPTOR_WIRE_MAGIC_V1)
+        {
+            return Err(IdentityError::Codec);
+        }
+        let mut cursor = IDENTITY_DESCRIPTOR_WIRE_MAGIC_V1.len();
+        let method_id = decode_text(input, &mut cursor, MAX_METHOD_ID_BYTES)?;
+        let identity_id = decode_text(input, &mut cursor, MAX_IDENTITY_ID_BYTES)?;
+        let method_material =
+            decode_optional_bytes(input, &mut cursor, MAX_METHOD_MATERIAL_BYTES)?.to_vec();
+        let relationship_count = decode_count(input, &mut cursor, MAX_RELATIONSHIPS)?;
+        let mut relationships = Vec::with_capacity(relationship_count);
+        for _ in 0..relationship_count {
+            let relationship_id = decode_text(input, &mut cursor, MAX_RELATIONSHIP_ID_BYTES)?;
+            let purpose = decode_text(input, &mut cursor, MAX_PURPOSE_ID_BYTES)?;
+            let suite_id = decode_text(input, &mut cursor, MAX_SUITE_ID_BYTES)?;
+            let material_count = decode_count(input, &mut cursor, MAX_MATERIALS_PER_RELATIONSHIP)?;
+            let mut materials = Vec::with_capacity(material_count);
+            for _ in 0..material_count {
+                let material_id = decode_text(input, &mut cursor, MAX_RELATIONSHIP_ID_BYTES)?;
+                let bytes =
+                    decode_bytes(input, &mut cursor, MAX_VERIFICATION_MATERIAL_BYTES)?.to_vec();
+                materials.push(VerificationMaterial::new(material_id, bytes)?);
+            }
+            relationships.push(VerificationRelationship::new(
+                relationship_id,
+                purpose,
+                suite_id,
+                materials,
+            )?);
+        }
+        if cursor != input.len() {
+            return Err(IdentityError::Codec);
+        }
+        let descriptor = Self::new(method_id, identity_id, method_material, relationships)?;
+        if descriptor.encode()?.as_slice() != input {
+            return Err(IdentityError::Codec);
+        }
+        Ok(descriptor)
+    }
+
+    /// Returns exact domain-separated bytes for one relationship and application message.
+    ///
+    /// # Errors
+    ///
+    /// Rejects an unknown relationship or invalid message bound.
+    pub fn signing_preimage(
+        &self,
+        relationship_id: &str,
+        message: &[u8],
+    ) -> Result<Vec<u8>, IdentityError> {
+        validate_message(message)?;
+        if self.relationship(relationship_id).is_none() {
+            return Err(IdentityError::InvalidVerificationMaterial);
+        }
+        let descriptor = self.encode()?;
+        let mut output = Vec::with_capacity(
+            IDENTITY_DESCRIPTOR_SIGNING_DOMAIN_V1.len()
+                + 4
+                + descriptor.len()
+                + 2
+                + relationship_id.len()
+                + 4
+                + message.len(),
+        );
+        output.extend_from_slice(IDENTITY_DESCRIPTOR_SIGNING_DOMAIN_V1);
+        encode_bytes(&mut output, &descriptor)?;
+        encode_text(&mut output, relationship_id)?;
+        encode_bytes(&mut output, message)?;
+        Ok(output)
     }
 
     /// Promotes the descriptor into method-validated general identity state.
@@ -734,6 +861,12 @@ fn encode_text(output: &mut Vec<u8>, value: &str) -> Result<(), IdentityError> {
     Ok(())
 }
 
+fn encode_count(output: &mut Vec<u8>, value: usize) -> Result<(), IdentityError> {
+    let value = u16::try_from(value).map_err(|_| IdentityError::Limit)?;
+    output.extend_from_slice(&value.to_be_bytes());
+    Ok(())
+}
+
 fn encode_bytes(output: &mut Vec<u8>, value: &[u8]) -> Result<(), IdentityError> {
     let length = u32::try_from(value.len()).map_err(|_| IdentityError::Limit)?;
     output.extend_from_slice(&length.to_be_bytes());
@@ -757,6 +890,18 @@ fn decode_text<'a>(
     core::str::from_utf8(take(input, cursor, length)?).map_err(|_| IdentityError::Codec)
 }
 
+fn decode_count(input: &[u8], cursor: &mut usize, maximum: usize) -> Result<usize, IdentityError> {
+    let count = usize::from(u16::from_be_bytes(
+        take(input, cursor, 2)?
+            .try_into()
+            .map_err(|_| IdentityError::Codec)?,
+    ));
+    if count > maximum {
+        return Err(IdentityError::Limit);
+    }
+    Ok(count)
+}
+
 fn decode_bytes<'a>(
     input: &'a [u8],
     cursor: &mut usize,
@@ -769,6 +914,23 @@ fn decode_bytes<'a>(
     ))
     .map_err(|_| IdentityError::Limit)?;
     if length == 0 || length > maximum {
+        return Err(IdentityError::Limit);
+    }
+    take(input, cursor, length)
+}
+
+fn decode_optional_bytes<'a>(
+    input: &'a [u8],
+    cursor: &mut usize,
+    maximum: usize,
+) -> Result<&'a [u8], IdentityError> {
+    let length = usize::try_from(u32::from_be_bytes(
+        take(input, cursor, 4)?
+            .try_into()
+            .map_err(|_| IdentityError::Codec)?,
+    ))
+    .map_err(|_| IdentityError::Limit)?;
+    if length > maximum {
         return Err(IdentityError::Limit);
     }
     take(input, cursor, length)
@@ -1005,6 +1167,49 @@ mod tests {
         assert_eq!(
             validated.as_descriptor().method_material(),
             b"https://resolver.example/identities/alice"
+        );
+    }
+
+    #[test]
+    fn general_descriptors_round_trip_and_bind_relationship_messages() {
+        let descriptor = IdentityDescriptor::new(
+            "example-method-v2",
+            "example:hybrid",
+            b"resolver:example".to_vec(),
+            alloc::vec![
+                VerificationRelationship::new(
+                    "hybrid-signing",
+                    "authentication",
+                    "example-hybrid-v1",
+                    alloc::vec![
+                        VerificationMaterial::new("classical", alloc::vec![3; 32]).unwrap(),
+                        VerificationMaterial::new("post-quantum", alloc::vec![4; 2048]).unwrap(),
+                    ],
+                )
+                .unwrap(),
+            ],
+        )
+        .unwrap();
+        let encoded = descriptor.encode().unwrap();
+        assert_eq!(IdentityDescriptor::decode(&encoded).unwrap(), descriptor);
+
+        let preimage = descriptor
+            .signing_preimage("hybrid-signing", b"exact message")
+            .unwrap();
+        let changed = descriptor
+            .signing_preimage("hybrid-signing", b"changed message")
+            .unwrap();
+        assert_ne!(preimage, changed);
+        assert_eq!(
+            descriptor.signing_preimage("unknown", b"exact message"),
+            Err(IdentityError::InvalidVerificationMaterial)
+        );
+
+        let mut trailing = encoded;
+        trailing.push(0);
+        assert_eq!(
+            IdentityDescriptor::decode(&trailing),
+            Err(IdentityError::Codec)
         );
     }
 }

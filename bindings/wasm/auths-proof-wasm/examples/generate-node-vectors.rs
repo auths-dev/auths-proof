@@ -21,7 +21,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let result = auths_proof_wasm::verify_self_contained_v1(proof, action, &context)?;
     fs::write(output.join("authorized.context.cbor"), context)?;
     fs::write(output.join("authorized.result.cbor"), result)?;
+    write_scenario_vectors(&output)?;
+    write_authoring_vectors(&output, proof)?;
+    write_mcp_workflow_vectors(&output)?;
+    Ok(())
+}
 
+fn write_authoring_vectors(
+    output: &std::path::Path,
+    proof: &[u8],
+) -> Result<(), Box<dyn std::error::Error>> {
     let bundle =
         auths_codec::decode_bundle(proof, &auths_model::VerifierLimits::default_deployment())?;
     let proposed = bundle
@@ -102,7 +111,52 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         output.join("authoring.action-signing-preimage.cbor"),
         signing.signing_preimage(),
     )?;
-    write_mcp_workflow_vectors(&output)?;
+    Ok(())
+}
+
+fn write_scenario_vectors(output: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
+    let fixture_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../core/fixtures/v1");
+    let scenario_output = output.join("scenarios");
+    fs::create_dir_all(&scenario_output)?;
+    let configuration = auths_model::VerifierConfigurationId::new(
+        auths_proof_wasm::self_contained_v1_configuration()?,
+    );
+    let mut manifest = Vec::new();
+    for kind in ["valid", "denied", "indeterminate", "invalid", "status"] {
+        let directory = fixture_root.join(kind);
+        for entry in fs::read_dir(&directory)? {
+            let entry = entry?;
+            let filename = entry.file_name();
+            let filename = filename.to_string_lossy();
+            let Some(name) = filename.strip_suffix(".result.cbor") else {
+                continue;
+            };
+            let expected = fs::read(directory.join(format!("{name}.result.cbor")))?;
+            let expected = auths_codec::decode_verification_result(&expected)?;
+            let proof = fs::read(directory.join(format!("{name}.proof.cbor")))?;
+            let action = fs::read(directory.join(format!("{name}.action.cbor")))?;
+            let context = fs::read(directory.join(format!("{name}.context.cbor")))?;
+            let context = auths_codec::decode_verifier_context(&context)?
+                .with_configuration(configuration)?;
+            let context = auths_codec::encode_verifier_context(&context)?;
+            let result = auths_proof_wasm::verify_self_contained_v1(&proof, &action, &context)?;
+            let decoded = auths_codec::decode_verification_result(&result)?;
+            if decoded.code() != expected.code() {
+                continue;
+            }
+            let id = format!("{kind}.{name}");
+            fs::write(scenario_output.join(format!("{id}.proof.cbor")), proof)?;
+            fs::write(scenario_output.join(format!("{id}.action.cbor")), action)?;
+            fs::write(scenario_output.join(format!("{id}.context.cbor")), context)?;
+            fs::write(scenario_output.join(format!("{id}.result.cbor")), result)?;
+            manifest.push(serde_json::json!({ "id": id, "kind": kind, "name": name }));
+        }
+    }
+    manifest.sort_by(|left, right| left["id"].as_str().cmp(&right["id"].as_str()));
+    fs::write(
+        output.join("scenarios.json"),
+        serde_json::to_vec_pretty(&manifest)?,
+    )?;
     Ok(())
 }
 

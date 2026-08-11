@@ -20,9 +20,21 @@
       "types": "./dist/testkit/index.d.ts",
       "import": "./dist/testkit/index.js"
     },
-    "./advanced": {
-      "types": "./dist/advanced.d.ts",
-      "import": "./dist/advanced.js"
+    "./verify": {
+      "types": "./dist/verify.d.ts",
+      "import": "./dist/verify.js"
+    },
+    "./inspection": {
+      "types": "./dist/inspection.d.ts",
+      "import": "./dist/inspection.js"
+    },
+    "./diagnostics": {
+      "types": "./dist/diagnostics.d.ts",
+      "import": "./dist/diagnostics.js"
+    },
+    "./observability": {
+      "types": "./dist/observability.d.ts",
+      "import": "./dist/observability.js"
     },
     "./identity": {
       "types": "./dist/identity.d.ts",
@@ -60,6 +72,9 @@
   "files": [
     "dist",
     "docs",
+    "performance-baseline.json",
+    "sdk-capability.json",
+    "sdk-runtime-contract.json",
     "wasm/auths_proof_wasm.js",
     "wasm/auths_proof_wasm.d.ts",
     "wasm/auths_proof_wasm_bg.wasm",
@@ -72,17 +87,20 @@
     "build:vectors": "cargo run -p auths-proof-wasm --example generate-node-vectors -- ../../target/binding-vectors",
     "build:wasm": "wasm-pack build ../wasm/auths-proof-wasm --target web --out-dir ../../typescript/wasm",
     "test": "npm run test:all",
-    "test:all": "npm run test:contract && npm run test:integration && npm run test:unit && npm run test:package && npm run test:examples && npm run test:api && npm run test:capability",
+    "test:all": "npm run test:contract && npm run test:integration && npm run test:unit && npm run test:package && npm run test:examples && npm run test:api && npm run test:capability && npm run test:runtime-contract",
     "test:api": "npm run build && node tools/public-api.mjs",
     "test:browser": "npm run build && node test/package/packed-browser.mjs",
     "test:capability": "node tools/capability-metadata.mjs",
+    "test:runtime-contract": "npm run build && node tools/runtime-contract.mjs",
+    "test:performance": "npm run build && node tools/performance.mjs",
     "test:contract": "tsc -p test/contract/tsconfig.json",
     "test:examples": "npm run build && tsc -p examples/tsconfig.json",
-    "test:integration": "npm run build && npm run build:wasm && npm run build:vectors && node --test \"test/integration/**/*.test.js\"",
-    "test:package": "npm run build && node --test \"test/package/**/*.test.js\"",
+    "test:integration": "npm run build && npm run build:wasm && npm run build:vectors && node tools/run-tests.mjs integration",
+    "test:integration:built": "npm run build && node tools/run-tests.mjs integration",
+    "test:package": "npm run build && node tools/run-tests.mjs package",
     "test:packed": "npm run test:package && npm run test:browser",
     "test:sealed": "npm run build && node --test test/integration/verifier.test.js test/integration/diagnostic.test.js test/integration/non-forgeability.test.js test/integration/inspection.test.js",
-    "test:unit": "npm run build && node --test \"test/unit/**/*.test.js\""
+    "test:unit": "npm run build && node tools/run-tests.mjs unit"
   },
   "devDependencies": {
     "playwright": "1.62.0",

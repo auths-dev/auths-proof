@@ -158,10 +158,10 @@ for (const designToken of [
   );
 }
 
-const { loadPortableAuths } = await import(
-  pathToFileURL(join(site, "vendor/dist/advanced.js")).href
+const { loadVerifier } = await import(
+  pathToFileURL(join(site, "vendor/dist/verify.js")).href
 );
-const auths = await loadPortableAuths();
+const auths = await loadVerifier();
 const scenario = JSON.parse(
   await readFile(join(site, "assets/scenario.json"), "utf8"),
 );

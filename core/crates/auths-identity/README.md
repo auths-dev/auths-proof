@@ -39,7 +39,8 @@ assert_eq!(validated.identity_id(), "customer-key-7");
 # Ok::<(), IdentityError>(())
 ```
 
-Compatibility family: `auths-identity/v1` (model 1, wire 2, signing domain 2).
+Compatibility family: `auths-identity/v1` (model 1, compact wire 2, compact
+signing domain 2, general descriptor wire/signing domain 1).
 The package version is `1.0.0-rc.1`, its MSRV is Rust 1.91, and it supports
 `no_std` with `alloc`. See the repository's modular-component compatibility
 table and third-party adapter conformance guide for the complete contract.
