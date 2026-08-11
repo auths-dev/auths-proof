@@ -27,6 +27,7 @@ const entries = new Map([
   ["./mcp", "dist/mcp.d.ts"],
   ["./profile-kit", "dist/profile-kit.d.ts"],
   ["./testkit", "dist/testkit/index.d.ts"],
+  ["./integrations", "dist/integrations.d.ts"],
 ]);
 
 const program = ts.createProgram([...entries.values()], {

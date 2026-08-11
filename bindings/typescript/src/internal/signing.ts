@@ -180,7 +180,7 @@ export class SigningCoordinator {
     const requiredApproval = copyPolicy(options.requiredApproval);
     const executedApproval = copyPolicy(options.approval.policy.reference);
     if (
-      !["grant-only", "risk-based", "every-action", "plan-once", "headless", "custom"].includes(
+      !["none", "grant-only", "risk-based", "every-action", "plan-once", "headless", "custom"].includes(
         options.approval.policy.mode,
       ) ||
       typeof options.approval.provider?.approve !== "function"

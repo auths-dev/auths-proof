@@ -323,6 +323,7 @@ digraph auths_architecture {
   "auths-profile-kit" -> "auths-model" [label="normal"];
   "auths-profile-kit" -> "auths-profile-api" [label="normal"];
   "auths-profile-kit" -> "auths-verifier" [label="dev"];
+  "auths-profile-mcp" -> "auths-codec" [label="normal"];
   "auths-profile-mcp" -> "auths-model" [label="normal"];
   "auths-profile-mcp" -> "auths-profile-api" [label="normal"];
   "auths-profile-mcp" -> "auths-verifier" [label="normal"];

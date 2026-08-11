@@ -145,6 +145,7 @@ class Auths:
         request_id: Optional[str] = None,
     ) -> ExecutionResult:
         self._assert_active()
+        self._assert_provider(provider)
         result = await execute_mcp_closed(
             self._resources.agent,
             action,
@@ -165,6 +166,7 @@ class Auths:
         provider: McpClosedProvider,
     ) -> ExecutionResult:
         self._assert_active()
+        self._assert_provider(provider)
         if type(reference) is not ExecutionReference:
             raise TypeError("forged Auths execution reference")
         result = await resume_mcp_closed(
@@ -188,7 +190,7 @@ class Auths:
         self._assert_active()
         profile, permissions, _, audiences = resources_for_mcp_authority(authority)
         parent_profile, _, _, _ = resources_for_mcp_authority(self.authority)
-        if profile is not parent_profile:
+        if profile.service != parent_profile.service:
             raise TypeError("delegated authority belongs to another MCP service")
         if (
             type(expires_in_seconds) is not int
@@ -254,6 +256,14 @@ class Auths:
     def _assert_active(self) -> None:
         if self._closed:
             raise RuntimeError("Auths is closed")
+
+    def _assert_provider(self, provider: McpClosedProvider) -> None:
+        profile, _, _, _ = resources_for_mcp_authority(self.authority)
+        if (
+            getattr(provider, "profile", None) != "auths.mcp"
+            or getattr(provider, "service", None) != profile.service
+        ):
+            raise TypeError("MCP provider does not match this Auths authority")
 
 
 def _create_auths_configuration(

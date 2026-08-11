@@ -20,6 +20,10 @@
       "types": "./dist/testkit/index.d.ts",
       "import": "./dist/testkit/index.js"
     },
+    "./integrations": {
+      "types": "./dist/integrations.d.ts",
+      "import": "./dist/integrations.js"
+    },
     "./verify": {
       "types": "./dist/verify.d.ts",
       "import": "./dist/verify.js"

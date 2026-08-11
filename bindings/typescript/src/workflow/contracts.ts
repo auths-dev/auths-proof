@@ -498,6 +498,7 @@ export interface WorkflowWasmEngine {
     remainingDepth: number,
   ): WorkflowRawKeyAuthorityPreparation;
   deriveEd25519RawKeyIdentityV1(publicKey: Uint8Array): WorkflowRawKeyIdentity;
+  developmentEd25519PublicKeyV1(seed: Uint8Array): Uint8Array;
   AuthorizationPlanBuilderV1: new () => WorkflowAuthorizationPlanBuilder;
   WorkflowProofBuilderV1: new () => WorkflowProofBuilder;
   commitCanonicalV1(domain: string, canonical: Uint8Array): Uint8Array;

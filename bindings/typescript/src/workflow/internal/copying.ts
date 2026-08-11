@@ -63,7 +63,7 @@ export function copyApprovalPolicy(value: ApprovalPolicy): ApprovalPolicy {
     throw new AuthsWorkflowError("invalid-provider", "approval policy is missing");
   }
   if (
-    !["grant-only", "risk-based", "every-action", "plan-once", "headless", "custom"].includes(
+    !["none", "grant-only", "risk-based", "every-action", "plan-once", "headless", "custom"].includes(
       value.mode,
     ) ||
     !Number.isSafeInteger(value.maxUses) ||

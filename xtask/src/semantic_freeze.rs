@@ -4,7 +4,7 @@ use crate::*;
 
 const INVENTORY_PATH: &str = "release/semantic-freeze.json";
 const INVENTORY_SCHEMA: &str = "auths.semantic-freeze/1";
-const FREEZE_VERSION: u64 = 64;
+const FREEZE_VERSION: u64 = 65;
 const PUBLIC_RUST_ROOTS: [&str; 10] = [
     "auths",
     "auths-byte-channel",
@@ -184,7 +184,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.identity.protocol",
-            10,
+            11,
             FreezeClassification::FrozenMeaning,
             &[
                 "identity-protocol-versions",
@@ -243,7 +243,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.portable-abi-bindings",
-            31,
+            32,
             FreezeClassification::FrozenMeaning,
             &["portable-abi", "authoring-abi", "binding-contracts"],
             vec![
@@ -259,7 +259,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.public-sdk-contract",
-            24,
+            25,
             FreezeClassification::FrozenMeaning,
             &[
                 "rust-sdk-contract",
@@ -279,7 +279,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.mcp-closed-execution",
-            2,
+            3,
             FreezeClassification::FrozenMeaning,
             &[
                 "profile-session",
@@ -302,7 +302,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.simplified-waist",
-            2,
+            3,
             FreezeClassification::FrozenMeaning,
             &[
                 "product-waist-invariants",
@@ -321,7 +321,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.facade",
-            1,
+            2,
             FreezeClassification::FrozenMeaning,
             &[
                 "create",
@@ -335,6 +335,24 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
                 "bindings/python/python/auths/_product.py".to_owned(),
                 "bindings/typescript/src/profiles/mcp/index.ts".to_owned(),
                 "bindings/python/python/auths/profiles/mcp.py".to_owned(),
+            ],
+        )?,
+        freeze_entry(
+            "auths.product.development-composition",
+            1,
+            FreezeClassification::FrozenMeaning,
+            &[
+                "explicit-development-mode",
+                "deterministic-local-identity",
+                "atomic-development-state",
+                "recoverable-single-machine-state",
+            ],
+            vec![
+                "bindings/typescript/src/integrations.ts".to_owned(),
+                "bindings/typescript/src/internal/development.ts".to_owned(),
+                "bindings/typescript/src/internal/development-store-node.ts".to_owned(),
+                "bindings/python/python/auths/integrations.py".to_owned(),
+                "bindings/python/python/auths/_development.py".to_owned(),
             ],
         )?,
         freeze_entry(
@@ -469,7 +487,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
 
     for (id, path) in frozen_byte_inventories()? {
         let version = match path.as_str() {
-            "architecture/dependency-graph.json" => 17,
+            "architecture/dependency-graph.json" => 18,
             "bindings/wasm/auths-proof-wasm/identity-abi-v1.json" => 3,
             "core/fixtures/v1/manifest.json" => 3,
             "formal/assurance-manifest-v1.toml"
@@ -522,7 +540,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
     ]);
     entries.push(freeze_entry(
         "auths.release.public-surface",
-        64,
+        65,
         FreezeClassification::ReleaseMetadata,
         &[
             "package-names",

@@ -168,7 +168,7 @@ shape, but no old public API has been deleted yet.
 
 - [x] Implement one maintained profile end to end using
   [07 — Closed execution orchestration](07_CLOSED_EXECUTION_ORCHESTRATION.md).
-- [ ] Implement the explicit development composition from Phase A of
+- [x] Implement the explicit development composition from Phase A of
   [09 — Reference stacks and defaults](09_REFERENCE_STACKS_AND_DEFAULTS.md).
 - [x] Prove Rust-gated sequencing, commitment-derived idempotency, failure
   classification, resumption, reconciliation, and receipts in TypeScript and
@@ -212,7 +212,7 @@ import removed or unproven paths.
   [08 — Errors, recovery, and diagnostics](08_ERRORS_RECOVERY_AND_DIAGNOSTICS.md).
 - [ ] Register ordered-plan, interruption, resume, and reconciliation codes
   only after those transitions exist.
-- [ ] Add the explicit file-backed recoverable development composition from
+- [x] Add the explicit file-backed recoverable development composition from
   Spec 09 and prove resume across a process restart.
 - [ ] Publish the fifth recipe and cross-language receipt/recovery fixtures.
 

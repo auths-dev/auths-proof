@@ -7,7 +7,10 @@ from inspect import isawaitable
 from types import MappingProxyType
 from typing import Any, Awaitable, Callable, Generic, Mapping, TypeVar, Union
 
-from . import _native as native
+from ._development import (
+    DevelopmentEd25519Signer,
+    DevelopmentReceiptAttestor,
+)
 from .approvals import (
     ApprovalDecision,
     ApprovalProvider,
@@ -15,7 +18,6 @@ from .approvals import (
     ApprovalResponse,
 )
 from .custody import (
-    ControlEvidence,
     PrincipalDescriptor,
     Signer,
     SignerLifecycle,
@@ -31,7 +33,6 @@ from .identity import (
     VerificationMaterial,
 )
 from .observability import AuthsEvent
-from .receipts import ReceiptSigner
 
 ADAPTER_CONTRACT_VERSION = 1
 
@@ -86,9 +87,7 @@ def _product_waist_manifest(value: object) -> Mapping[str, Any]:
         raise TypeError("product-waist manifest must be an object")
     schema = _manifest_text(value.get("schema"), "schema")
     owner = _manifest_text(value.get("semanticOwner"), "semanticOwner")
-    projection = _manifest_text(
-        value.get("fixtureProjection"), "fixtureProjection"
-    )
+    projection = _manifest_text(value.get("fixtureProjection"), "fixtureProjection")
     raw_cases = value.get("cases")
     if (
         schema != "auths.simplified-product-waist-conformance/1"
@@ -181,63 +180,6 @@ class DevelopmentSigner(Signer):
 
     async def aclose(self) -> None:
         self.closed = True
-
-
-class DevelopmentEd25519Signer(Signer):
-    kind = "auths-development-ed25519"
-    lifecycle: SignerLifecycle = "ephemeral"
-
-    def __init__(self) -> None:
-        self._key = native.DevelopmentEd25519Key.generate()
-        principal = native.Principal(self._key.principal)
-        self._descriptor = PrincipalDescriptor(
-            principal,
-            self._key.principal_method,
-            self._key.verification_method,
-            self._key.suite,
-        )
-        self.closed = False
-
-    async def public_identity(self) -> PrincipalDescriptor:
-        self._assert_active()
-        return self._descriptor
-
-    async def sign(self, request: SigningRequest) -> SigningResponse:
-        self._assert_active()
-        return SigningResponse(
-            request.request_id,
-            request.principal,
-            request.transaction_digest,
-            bytes(self._key.sign(request.signing_preimage)),
-            (
-                ControlEvidence(
-                    self._key.evidence_type,
-                    self._key.media_type,
-                    bytes(self._key.evidence),
-                ),
-            ),
-        )
-
-    async def aclose(self) -> None:
-        self.closed = True
-
-    def _assert_active(self) -> None:
-        if self.closed:
-            raise RuntimeError("development signer is closed")
-
-
-class DevelopmentReceiptAttestor:
-    def __init__(self) -> None:
-        self._key = native.DevelopmentEd25519Key.generate()
-        self.signer = ReceiptSigner(
-            self._key.principal,
-            self._key.verification_method,
-            self._key.suite,
-            bytes(self._key.evidence),
-        )
-
-    async def sign(self, preimage: bytes) -> bytes:
-        return bytes(self._key.sign(preimage))
 
 
 @dataclass

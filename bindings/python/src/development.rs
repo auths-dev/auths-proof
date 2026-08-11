@@ -20,8 +20,17 @@ impl PyDevelopmentEd25519Key {
         let mut seed = [0_u8; 32];
         getrandom::fill(&mut seed)
             .map_err(|_| PyRuntimeError::new_err("secure randomness unavailable"))?;
-        let signing_key = SigningKey::from_bytes(&seed);
+        let result = Self::from_seed(&seed);
         seed.fill(0);
+        result
+    }
+
+    #[staticmethod]
+    fn from_seed(seed: &[u8]) -> PyResult<Self> {
+        let seed: [u8; 32] = seed.try_into().map_err(|_| {
+            PyRuntimeError::new_err("development Ed25519 seed must contain 32 bytes")
+        })?;
+        let signing_key = SigningKey::from_bytes(&seed);
         let descriptor = RawKeyDescriptor::new(
             RawKeyType::Ed25519,
             signing_key.verifying_key().to_bytes().to_vec(),

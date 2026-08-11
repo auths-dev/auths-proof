@@ -220,6 +220,7 @@ def test_development_provider_is_bounded_and_disposable() -> None:
     async def scenario() -> None:
         provider = mcp.development_provider(
             tools={"publish_report": publish},
+            service="reports",
             timeout_ms=50,
         )
         assert isinstance(provider, DevelopmentMcpProvider)

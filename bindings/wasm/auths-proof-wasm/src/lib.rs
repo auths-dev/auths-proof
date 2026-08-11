@@ -37,6 +37,7 @@ use auths_profile_domains::{
 use auths_profile_mcp::{
     McpCause, McpExecutionSession, McpHandlerEffect, McpHandlerResult, McpProfile,
     McpReservationResult, McpSessionKey, McpSessionStep, McpTerminal, McpToolCall,
+    mcp_authority_commitment,
 };
 use auths_receipts::{
     AttestedDecisionReceipt, AttestedExecutionReceipt, ConfiguredReceiptVerifier, DecisionClass,
@@ -2907,6 +2908,17 @@ pub fn derive_ed25519_raw_key_identity_v1(public_key: &[u8]) -> Result<RawKeyIde
     })
 }
 
+#[wasm_bindgen(js_name = developmentEd25519PublicKeyV1)]
+pub fn development_ed25519_public_key_v1(seed: &[u8]) -> Result<Vec<u8>, JsValue> {
+    let seed: [u8; 32] = seed
+        .try_into()
+        .map_err(|_| js_error("development Ed25519 seed must contain 32 bytes"))?;
+    Ok(ed25519_dalek::SigningKey::from_bytes(&seed)
+        .verifying_key()
+        .to_bytes()
+        .to_vec())
+}
+
 #[wasm_bindgen]
 impl RawKeyAuthorityPreparationV1 {
     /// Returns the unsigned canonical root-grant statement.
@@ -3403,9 +3415,7 @@ pub fn begin_mcp_execution_v1(
     let inner = McpExecutionSession::begin(
         command,
         action_commitment,
-        *auths_codec::proof_digest(&proof)
-            .map_err(js_error)?
-            .as_bytes(),
+        mcp_authority_commitment(proof.grants()).map_err(js_error)?,
         *auths_codec::context_digest(&context)
             .map_err(js_error)?
             .as_bytes(),

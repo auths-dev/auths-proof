@@ -1168,8 +1168,7 @@ class AttachedAgent:
         action: McpAction,
         *,
         request: Optional[AuthorizationRequest] = None,
-    ) -> McpAuthorizationResult:
-        ...
+    ) -> McpAuthorizationResult: ...
 
     @overload
     async def authorize(
@@ -1177,8 +1176,7 @@ class AttachedAgent:
         action: HttpAction,
         *,
         request: Optional[HttpAuthorizationRequest] = None,
-    ) -> HttpAuthorizationResult:
-        ...
+    ) -> HttpAuthorizationResult: ...
 
     @overload
     async def authorize(
@@ -1186,10 +1184,11 @@ class AttachedAgent:
         action: ApplicationAction[Any],
         *,
         request: Optional[ApplicationRequest] = None,
-    ) -> ApplicationResult[Any]:
-        ...
+    ) -> ApplicationResult[Any]: ...
 
-    async def authorize(self, action: object, *, request: Optional[object] = None) -> object:
+    async def authorize(
+        self, action: object, *, request: Optional[object] = None
+    ) -> object:
         from .profiles.http import HttpAction, _authorize_http
         from .profiles.mcp import McpAction, _authorize_mcp
         from .profile_kit import ApplicationAction, _authorize_application
@@ -1211,8 +1210,7 @@ class AttachedAgent:
         *,
         approval_provider: Optional[ApprovalProvider] = None,
         requests: Optional[Sequence[AuthorizationRequest]] = None,
-    ) -> McpPlanAuthorizationResult:
-        ...
+    ) -> McpPlanAuthorizationResult: ...
 
     @overload
     async def authorize_plan(
@@ -1221,8 +1219,7 @@ class AttachedAgent:
         *,
         approval_provider: Optional[ApprovalProvider] = None,
         requests: Optional[Sequence[HttpAuthorizationRequest]] = None,
-    ) -> HttpPlanAuthorizationResult:
-        ...
+    ) -> HttpPlanAuthorizationResult: ...
 
     @overload
     async def authorize_plan(
@@ -1231,8 +1228,7 @@ class AttachedAgent:
         *,
         approval_provider: Optional[ApprovalProvider] = None,
         requests: Optional[Sequence[ApplicationRequest]] = None,
-    ) -> ApplicationPlanResult[Any]:
-        ...
+    ) -> ApplicationPlanResult[Any]: ...
 
     async def authorize_plan(
         self,
@@ -1504,10 +1500,12 @@ def _validate_approval(approval: ApprovalConfiguration) -> None:
     if type(approval.policy.reference) is not ApprovalPolicyReference:
         raise TypeError("approval policy reference is invalid")
     if approval.policy.mode not in (
+        "none",
         "grant-only",
         "risk-based",
         "every-action",
         "plan-once",
+        "headless",
         "custom",
     ):
         raise TypeError("approval mode is invalid")

@@ -130,6 +130,7 @@ class AuthsFacade implements Auths {
     requestId?: string;
   }>): Promise<ExecutionResult> {
     this.#assertActive();
+    this.#assertProvider(input.provider);
     const result = await executeMcpClosed(
       this.#resources.agent,
       input.action,
@@ -149,6 +150,7 @@ class AuthsFacade implements Auths {
     provider: McpClosedProvider;
   }>): Promise<ExecutionResult> {
     this.#assertActive();
+    this.#assertProvider(input.provider);
     const reference = referenceResources.get(input.reference);
     if (reference === undefined) throw new TypeError("forged Auths execution reference");
     return projectExecution(await resumeMcpClosed(
@@ -217,6 +219,13 @@ class AuthsFacade implements Auths {
 
   #assertActive(): void {
     if (this.#closed) throw new TypeError("Auths is closed");
+  }
+
+  #assertProvider(provider: McpClosedProvider): void {
+    const authority = resourcesForMcpAuthority(this.authority);
+    if (provider?.profile !== "auths.mcp" || provider.service !== authority.profile.service) {
+      throw new TypeError("MCP provider does not match this Auths authority");
+    }
   }
 }
 

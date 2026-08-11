@@ -286,6 +286,7 @@ test("MCP facade canonicalizes signs assembles and authorizes locally", async ()
 test("MCP development provider is bounded and disposable", async () => {
   const calls = [];
   const provider = mcp.developmentProvider({
+    service: "reports",
     timeoutMs: 50,
     tools: {
       async publish_report(argumentsValue, context) {

@@ -4,6 +4,7 @@ use serde_json::Value;
 use sha2::{Digest as _, Sha256};
 
 use crate::{McpCommand, PROFILE_ID, PROFILE_VERSION};
+use auths_model::SignedGrant;
 
 pub const MCP_SESSION_SEMANTIC_SUBJECT: &str = "auths.mcp-session/1";
 pub const MAX_APPLICATION_REQUEST_ID_BYTES: usize = 128;
@@ -13,6 +14,7 @@ pub const MAX_HANDLER_COUNT: usize = 128;
 pub const MAX_SAFE_ERROR_BYTES: usize = 256;
 pub const MAX_HANDLER_DURATION_MS: u64 = 300_000;
 pub const DEFAULT_HANDLER_DURATION_MS: u64 = 30_000;
+pub const MCP_AUTHORITY_COMMITMENT_SUBJECT: &str = "auths.mcp-authority-chain/1";
 const MAX_RECOVERY_RECORD_BYTES: usize = 2 * 1024 * 1024;
 
 type HmacSha256 = Hmac<Sha256>;
@@ -192,6 +194,7 @@ pub enum McpSessionError {
     InvalidRecoveryRecord,
     InvalidExecutionReference,
     ReceiptPersistenceFailed,
+    InvalidAuthority,
 }
 
 impl core::fmt::Display for McpSessionError {
@@ -205,8 +208,31 @@ impl core::fmt::Display for McpSessionError {
             Self::InvalidRecoveryRecord => "invalid MCP recovery record",
             Self::InvalidExecutionReference => "invalid MCP execution reference",
             Self::ReceiptPersistenceFailed => "MCP receipt persistence failed",
+            Self::InvalidAuthority => "invalid MCP authority chain",
         })
     }
+}
+
+/// Commits only the canonical signed grant chain, excluding per-attempt action
+/// signatures and evidence.
+///
+/// # Errors
+///
+/// Returns [`McpSessionError::InvalidAuthority`] for an empty or unencodable
+/// grant chain.
+pub fn mcp_authority_commitment(grants: &[SignedGrant]) -> Result<[u8; 32], McpSessionError> {
+    if grants.is_empty() {
+        return Err(McpSessionError::InvalidAuthority);
+    }
+    let mut hasher = Sha256::new();
+    hasher.update(MCP_AUTHORITY_COMMITMENT_SUBJECT.as_bytes());
+    for grant in grants {
+        let bytes = auths_codec::encode_signed_grant(grant)
+            .map_err(|_| McpSessionError::InvalidAuthority)?;
+        hasher.update((bytes.len() as u64).to_be_bytes());
+        hasher.update(bytes);
+    }
+    Ok(hasher.finalize().into())
 }
 
 impl std::error::Error for McpSessionError {}
@@ -295,7 +321,6 @@ impl McpExecutionSession {
             &command,
             action_commitment,
             authority_commitment,
-            context_commitment,
             request_id,
         )?;
         Ok(Self {
@@ -631,7 +656,6 @@ fn derive_execution_id(
     command: &McpCommand,
     action: [u8; 32],
     authority: [u8; 32],
-    context: [u8; 32],
     request_id: &str,
 ) -> Result<String, McpSessionError> {
     let canonical = command
@@ -640,12 +664,7 @@ fn derive_execution_id(
         .map_err(|_| McpSessionError::InvalidHandlerOutput)?;
     let mut hasher = Sha256::new();
     hasher.update(MCP_SESSION_SEMANTIC_SUBJECT.as_bytes());
-    for bytes in [
-        action.as_slice(),
-        authority.as_slice(),
-        context.as_slice(),
-        &canonical,
-    ] {
+    for bytes in [action.as_slice(), authority.as_slice(), &canonical] {
         hasher.update((bytes.len() as u64).to_be_bytes());
         hasher.update(bytes);
     }
@@ -758,6 +777,39 @@ mod tests {
             session.terminal(),
             Some(McpTerminal::Completed { .. })
         ));
+    }
+
+    #[test]
+    fn execution_identity_uses_stable_authority_not_observation_context() {
+        let first = McpExecutionSession::begin(
+            command(),
+            [1; 32],
+            [2; 32],
+            [3; 32],
+            Some("request-1"),
+            McpSessionKey::new([9; 32]),
+        )
+        .unwrap();
+        let refreshed = McpExecutionSession::begin(
+            command(),
+            [1; 32],
+            [2; 32],
+            [4; 32],
+            Some("request-1"),
+            McpSessionKey::new([9; 32]),
+        )
+        .unwrap();
+        let another_authority = McpExecutionSession::begin(
+            command(),
+            [1; 32],
+            [5; 32],
+            [3; 32],
+            Some("request-1"),
+            McpSessionKey::new([9; 32]),
+        )
+        .unwrap();
+        assert_eq!(first.execution_id(), refreshed.execution_id());
+        assert_ne!(first.execution_id(), another_authority.execution_id());
     }
 
     #[test]

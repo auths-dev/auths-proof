@@ -18,7 +18,7 @@ use auths_profile_api::ActionProfile;
 use auths_profile_mcp::{
     MAX_CANONICAL_CALL_BYTES, McpCause, McpCommand, McpExecutionSession, McpHandlerEffect,
     McpHandlerResult, McpProfile, McpReservationResult, McpSessionKey, McpSessionStep, McpTerminal,
-    McpToolCall, PROFILE_ID, PROFILE_VERSION,
+    McpToolCall, PROFILE_ID, PROFILE_VERSION, mcp_authority_commitment,
 };
 use pyo3::{
     exceptions::{PyRuntimeError, PyTypeError, PyValueError},
@@ -676,9 +676,8 @@ fn authorize_mcp(
         auths_codec::encode_canonical_action(&prepared.canonical).map_err(value_error)?;
     let context_cbor =
         auths_codec::encode_verifier_context(artifacts.context()).map_err(value_error)?;
-    let authority_commitment = *auths_codec::proof_digest(artifacts.proof())
-        .map_err(value_error)?
-        .as_bytes();
+    let authority_commitment =
+        mcp_authority_commitment(artifacts.proof().grants()).map_err(value_error)?;
     let context_commitment = *auths_codec::context_digest(artifacts.context())
         .map_err(value_error)?
         .as_bytes();

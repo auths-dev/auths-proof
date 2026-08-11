@@ -437,6 +437,9 @@ class McpToolContext:
 
 
 class McpClosedProvider(Protocol):
+    profile: Literal["auths.mcp"]
+    service: str
+
     async def invoke(
         self,
         service: str,
@@ -455,10 +458,13 @@ McpReconciler = Callable[[str, str], Awaitable[McpHandlerOutcome[object]]]
 
 
 class DevelopmentMcpProvider:
+    profile: Literal["auths.mcp"] = "auths.mcp"
+
     def __init__(
         self,
         *,
         tools: Mapping[str, McpToolHandler],
+        service: str = "development",
         timeout_ms: Optional[int] = None,
         reconcile: Optional[McpReconciler] = None,
     ) -> None:
@@ -491,6 +497,7 @@ class DevelopmentMcpProvider:
         if reconcile is not None and not callable(reconcile):
             raise TypeError("MCP reconciler is not callable")
         self._tools = MappingProxyType(parsed)
+        self.service = McpProfile(service).service
         self._timeout_seconds = duration / 1000
         self._reconcile = reconcile
         self._closed = False
@@ -503,6 +510,8 @@ class DevelopmentMcpProvider:
         context: McpToolContext,
     ) -> object:
         self._assert_open()
+        if service != self.service:
+            return McpHandlerOutcome("not-applied", cause="invalid-output")
         handler = self._tools.get(tool)
         if handler is None:
             return McpHandlerOutcome("not-applied", cause="invalid-output")
@@ -725,11 +734,13 @@ class McpFacade:
         self,
         *,
         tools: Mapping[str, McpToolHandler],
+        service: str = "development",
         timeout_ms: Optional[int] = None,
         reconcile: Optional[McpReconciler] = None,
     ) -> DevelopmentMcpProvider:
         return DevelopmentMcpProvider(
             tools=tools,
+            service=service,
             timeout_ms=timeout_ms,
             reconcile=reconcile,
         )

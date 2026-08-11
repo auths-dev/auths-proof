@@ -175,6 +175,8 @@ export type McpToolHandler<Result = unknown> = (
 ) => Promise<Result | McpHandlerOutcome<Result>>;
 
 export interface McpClosedProvider {
+  readonly profile: "auths.mcp";
+  readonly service: string;
   invoke(
     service: string,
     tool: string,
@@ -211,6 +213,7 @@ export interface McpExecutionResources {
 
 export interface McpDevelopmentProviderOptions {
   readonly tools: Readonly<Record<string, McpToolHandler>>;
+  readonly service?: string;
   readonly timeoutMs?: number;
   readonly reconcile?: (
     executionId: string,
@@ -423,6 +426,8 @@ export function resourcesForMcpAuthority(authority: McpToolAuthority): Readonly<
 }
 
 class DevelopmentMcpProvider implements McpClosedProvider, AsyncDisposable {
+  readonly profile = "auths.mcp" as const;
+  readonly service: string;
   readonly #tools: ReadonlyMap<string, McpToolHandler>;
   readonly #timeoutMs: number;
   readonly #reconcile: McpDevelopmentProviderOptions["reconcile"];
@@ -451,6 +456,7 @@ class DevelopmentMcpProvider implements McpClosedProvider, AsyncDisposable {
       throw new TypeError("MCP reconciler is not callable");
     }
     this.#tools = tools;
+    this.service = boundedService(options.service ?? "development");
     this.#timeoutMs = timeoutMs;
     this.#reconcile = options.reconcile;
   }
@@ -463,6 +469,7 @@ class DevelopmentMcpProvider implements McpClosedProvider, AsyncDisposable {
     signal: AbortSignal,
   ): Promise<unknown | McpHandlerOutcome<unknown>> {
     this.#assertOpen();
+    if (_service !== this.service) return Object.freeze({ effect: "not-applied", cause: "invalid-output" });
     const handler = this.#tools.get(tool);
     if (handler === undefined) return Object.freeze({ effect: "not-applied", cause: "invalid-output" });
     return this.#boundedCall((boundedSignal) => handler(argumentsValue, context, boundedSignal), signal);
@@ -791,9 +798,15 @@ function requiredString(value: string | undefined): string {
   return value;
 }
 
-function requiredBytes(value: Uint8Array | undefined): Uint8Array {
-  if (!(value instanceof Uint8Array)) throw new AuthsWorkflowError("gateway-failed", "native MCP step omitted bounded bytes");
-  return value;
+function requiredBytes(value: unknown): Uint8Array {
+  if (value instanceof Uint8Array) return value;
+  if (
+    Array.isArray(value) &&
+    value.every((item) => Number.isInteger(item) && item >= 0 && item <= 255)
+  ) {
+    return Uint8Array.from(value);
+  }
+  throw new AuthsWorkflowError("gateway-failed", "native MCP step omitted bounded bytes");
 }
 
 function copyArguments(

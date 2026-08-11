@@ -1,5 +1,5 @@
 # Installed @auths-dev/sdk public API v1
-# declaration-sha256 5d2195d9bfcaf806ee98cf2df8c9a7fe100dcd59bda49a9a768e019383375baa
+# declaration-sha256 9c3d64e6124d03af7e7beceb111f3823f7384089bfb8f9986ed1ea909a58d24d
 .	Actor	type
 .	AgentIdentity	type
 .	ApprovalConfiguration	type
@@ -407,3 +407,7 @@
 ./testkit	ProductWaistConformanceReport	type
 ./testkit	ProductWaistExpected	type
 ./testkit	profileConformance	value
+./integrations	development	value
+./integrations	DevelopmentAuthsOptions	type
+./integrations	production	value
+./integrations	RecoverableDevelopmentAuthsOptions	type
