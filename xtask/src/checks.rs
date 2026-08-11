@@ -13,6 +13,7 @@ pub(crate) fn ci_authoritative() -> Result<(), String> {
     arch(false)?;
     crate::binding_semantics::binding_semantics()?;
     semantic_freeze(false)?;
+    sdk_experience(false)?;
     public_naming()?;
     release_contract()?;
     repository_hygiene()?;
@@ -43,6 +44,7 @@ pub(crate) fn ci_authoritative() -> Result<(), String> {
 /// the first place that no-default-features compilation or wire drift is
 /// discovered.
 pub(crate) fn release_preflight() -> Result<(), String> {
+    sdk_experience(false)?;
     cargo(&["test", "--workspace", "--no-default-features"])?;
     wire(false)
 }

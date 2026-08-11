@@ -6,9 +6,18 @@
     "architecture": "arm64",
     "node": "22.23.1"
   },
+  "boundaryInputs": {
+    "operation": "commitCanonicalV1",
+    "smallBytes": 64,
+    "mediumBytes": 4096,
+    "maximumBoundedBytes": 65536
+  },
   "measurements": {
     "coldStartMs": 45.5,
     "warmVerificationP95Ms": 0.93,
+    "wasmBoundarySerializeSmallP95Ms": 0.0031,
+    "wasmBoundarySerializeMediumP95Ms": 0.0168,
+    "wasmBoundarySerializeMaximumP95Ms": 0.236,
     "batch64Ms": 111,
     "plan64Ms": 3.1,
     "chromiumWarmVerificationP95Ms": 15,

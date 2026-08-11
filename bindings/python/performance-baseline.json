@@ -9,9 +9,18 @@
     "build": "release abi3 wheel",
     "runner": "developer-reference"
   },
+  "boundaryInputs": {
+    "operation": "commit_canonical_v1",
+    "smallBytes": 64,
+    "mediumBytes": 4096,
+    "maximumBoundedBytes": 65536
+  },
   "measurements": {
     "coldInitializeMs": 33.515,
     "singleVerifyMsP95": 0.244,
+    "pyO3BoundarySerializeSmallP95Ms": 0.015,
+    "pyO3BoundarySerializeMediumP95Ms": 0.215,
+    "pyO3BoundarySerializeMaximumP95Ms": 3.156,
     "batch32MsP95": 6.601,
     "plan64MsP95": 1.72,
     "verifyPeakBytes": 87099,
@@ -21,6 +30,9 @@
   "hardLimits": {
     "coldInitializeMs": 2000,
     "singleVerifyMsP95": 100,
+    "pyO3BoundarySerializeSmallP95Ms": 100,
+    "pyO3BoundarySerializeMediumP95Ms": 100,
+    "pyO3BoundarySerializeMaximumP95Ms": 100,
     "batch32MsP95": 3000,
     "plan64MsP95": 500,
     "verifyPeakBytes": 50000000,

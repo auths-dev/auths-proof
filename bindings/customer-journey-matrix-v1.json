@@ -2,60 +2,244 @@
   "schema": "auths.customer-journey-matrix/1",
   "semanticOwner": "Rust",
   "generatedCorpus": "target/binding-vectors/scenarios.json",
+  "experience": {
+    "schema": "auths.sdk-experience-metadata/1",
+    "enforcement": "baseline",
+    "baseline": {
+      "typescriptEntryPoints": 16,
+      "typescriptPublicSymbols": 363,
+      "pythonModules": 18,
+      "pythonPublicSymbols": 329,
+      "maintainedTypescriptRecipes": 5,
+      "maintainedPythonRecipes": 1
+    },
+    "targetBudgets": {
+      "primaryStatefulRootOperations": 3,
+      "recipeThreeSecurityConcepts": 3,
+      "recipeThreeDomainConcepts": 2,
+      "recipeThreeSetupDecisions": 1,
+      "applicationOrchestratedSecurityTransitions": 0,
+      "recipeThreeRequiredInputs": 3,
+      "purposeLabelledPublicLayers": 4,
+      "maintainedGoldenPathRecipesPerLanguage": 5,
+      "newDeveloperPasses": 4,
+      "newDeveloperCohort": 5,
+      "newDeveloperMinutes": 15,
+      "consumerRustToolchain": 0,
+      "semanticParityPercent": 100
+    },
+    "moderatedRecipeThreeCohort": {
+      "status": "not-measured",
+      "cleanMachineDefinition": "supported runtime with an empty package cache and no Rust toolchain",
+      "cohortSize": 0,
+      "completions": [],
+      "interventions": [],
+      "anonymizedBlockers": []
+    },
+    "maintainedRecipes": [
+      {
+        "id": "typescript-identity",
+        "language": "typescript",
+        "path": "bindings/typescript/examples/identity-only/index.ts"
+      },
+      {
+        "id": "typescript-verify",
+        "language": "typescript",
+        "path": "bindings/typescript/examples/verify/index.ts"
+      },
+      {
+        "id": "typescript-protected-effect",
+        "language": "typescript",
+        "path": "bindings/typescript/examples/quickstart/index.ts"
+      },
+      {
+        "id": "typescript-delegation",
+        "language": "typescript",
+        "path": "bindings/typescript/examples/delegate-and-authorize/index.ts"
+      },
+      {
+        "id": "typescript-attachment",
+        "language": "typescript",
+        "path": "bindings/typescript/examples/attach-agent/index.ts"
+      },
+      {
+        "id": "python-identity",
+        "language": "python",
+        "path": "bindings/python/examples/identity_quickstart.py"
+      }
+    ]
+  },
   "journeys": [
     {
       "id": "identity-shapes-and-authentication",
       "rust": "core/crates/auths-identity/src/lib.rs",
       "typescript": "bindings/typescript/test/integration/identity.test.js",
-      "python": "bindings/python/tests/test_elite_sdk.py"
+      "python": "bindings/python/tests/test_elite_sdk.py",
+      "experience": {
+        "targetJourney": "exchange-and-authenticate-identity-bytes",
+        "imports": ["identity"],
+        "securityNouns": ["Identity"],
+        "domainConcepts": ["method", "suite"],
+        "setupDecisions": ["identity adapter"],
+        "apiMechanics": ["decode", "authenticate"],
+        "requiredApplicationComponents": ["public identity bytes", "message", "signature"],
+        "executableStatements": 8,
+        "applicationOrchestratedSecurityTransitions": 0,
+        "terminalOutcomes": ["authenticated", "rejected"],
+        "consumerRequiresRust": false
+      }
     },
     {
       "id": "verification-three-valued-and-mutation",
       "rust": "core/fixtures/v1",
       "typescript": "bindings/typescript/test/integration/scenario-corpus.test.js",
-      "python": "bindings/python/tests/test_api.py"
+      "python": "bindings/python/tests/test_api.py",
+      "experience": {
+        "targetJourney": "verify-an-existing-proof-without-executing",
+        "imports": ["verify"],
+        "securityNouns": ["Authority", "Action"],
+        "domainConcepts": [],
+        "setupDecisions": ["trusted context"],
+        "apiMechanics": ["load verifier", "verify bytes"],
+        "requiredApplicationComponents": ["proof", "canonical action", "trusted context"],
+        "executableStatements": 6,
+        "applicationOrchestratedSecurityTransitions": 0,
+        "terminalOutcomes": ["authorized", "denied", "indeterminate"],
+        "consumerRequiresRust": false
+      }
     },
     {
       "id": "attach-delegate-and-attenuate",
       "rust": "core/crates/auths-author/src/lib.rs",
       "typescript": "bindings/typescript/test/integration/workflow/delegation.test.js",
-      "python": "bindings/python/tests/test_workflow.py"
+      "python": "bindings/python/tests/test_workflow.py",
+      "experience": {
+        "targetJourney": "delegate-narrower-authority-and-execute",
+        "imports": ["root", "profile"],
+        "securityNouns": ["Identity", "Authority", "Action", "Receipt"],
+        "domainConcepts": ["profile action"],
+        "setupDecisions": ["signer", "trusted context", "runtime store"],
+        "apiMechanics": ["attach", "review", "delegate", "execute"],
+        "requiredApplicationComponents": ["parent authority", "child identity", "narrowing request", "provider"],
+        "executableStatements": 24,
+        "applicationOrchestratedSecurityTransitions": 4,
+        "terminalOutcomes": ["delegated", "denied", "indeterminate", "executed", "failed"],
+        "consumerRequiresRust": false
+      }
     },
     {
       "id": "proof-plan-composition",
       "rust": "core/crates/auths-author/src/lib.rs",
       "typescript": "bindings/typescript/test/integration/authorization-plans.test.js",
-      "python": "bindings/python/tests/test_elite_sdk.py"
+      "python": "bindings/python/tests/test_elite_sdk.py",
+      "experience": {
+        "targetJourney": "authorize-and-execute-an-ordered-plan",
+        "imports": ["root", "profile"],
+        "securityNouns": ["Authority", "Action", "Approval", "Receipt"],
+        "domainConcepts": ["ordered plan", "profile provider"],
+        "setupDecisions": ["approval policy", "runtime store"],
+        "apiMechanics": ["plan", "approve", "authorize", "execute"],
+        "requiredApplicationComponents": ["authority", "ordered actions", "provider"],
+        "executableStatements": 31,
+        "applicationOrchestratedSecurityTransitions": 5,
+        "terminalOutcomes": ["executed", "denied", "indeterminate", "cancelled", "outcome-unknown"],
+        "consumerRequiresRust": false
+      }
     },
     {
       "id": "closed-profile-command-and-plan",
       "rust": "product/profiles",
       "typescript": "bindings/typescript/test/integration/domain-profiles.test.js",
-      "python": "bindings/python/tests/test_mcp_workflow.py"
+      "python": "bindings/python/tests/test_mcp_workflow.py",
+      "experience": {
+        "targetJourney": "execute-one-exact-protected-action",
+        "imports": ["root", "profiles/mcp"],
+        "securityNouns": ["Authority", "Action", "Receipt"],
+        "domainConcepts": ["MCP tool", "typed provider"],
+        "setupDecisions": ["development composition"],
+        "apiMechanics": ["create", "execute"],
+        "requiredApplicationComponents": ["bounded authority", "action", "typed handler/provider"],
+        "executableStatements": 12,
+        "applicationOrchestratedSecurityTransitions": 0,
+        "terminalOutcomes": ["executed", "denied", "indeterminate", "failed", "outcome-unknown"],
+        "consumerRequiresRust": false
+      }
     },
     {
       "id": "trust-status-and-lifecycle",
       "rust": "product/runtime/auths-lifecycle",
       "typescript": "bindings/typescript/test/integration/lifecycle-trust.test.js",
-      "python": "bindings/python/tests/test_elite_sdk.py"
+      "python": "bindings/python/tests/test_elite_sdk.py",
+      "experience": {
+        "targetJourney": "define-and-qualify-an-application-owned-effect-vertical",
+        "imports": ["framework", "testkit"],
+        "securityNouns": ["Identity", "Authority", "Action", "Receipt"],
+        "domainConcepts": ["profile state", "domain outcome", "reconciliation"],
+        "setupDecisions": ["trust source", "status source", "state store"],
+        "apiMechanics": ["define profile", "qualify transitions"],
+        "requiredApplicationComponents": ["profile implementation", "provider", "fixtures"],
+        "executableStatements": 40,
+        "applicationOrchestratedSecurityTransitions": 0,
+        "terminalOutcomes": ["qualified", "rejected"],
+        "consumerRequiresRust": true
+      }
     },
     {
       "id": "replay-budget-and-outcome-unknown",
       "rust": "product/runtime/auths-lifecycle/src/kernel.rs",
       "typescript": "bindings/typescript/test/unit/runtime-contract.test.js",
-      "python": "bindings/python/tests/test_elite_sdk.py"
+      "python": "bindings/python/tests/test_elite_sdk.py",
+      "experience": {
+        "targetJourney": "verify-a-signed-receipt-offline",
+        "imports": ["receipts", "verify"],
+        "securityNouns": ["Receipt"],
+        "domainConcepts": ["execution outcome"],
+        "setupDecisions": [],
+        "apiMechanics": ["decode", "verify link", "verify signature"],
+        "requiredApplicationComponents": ["signed receipt", "verification material"],
+        "executableStatements": 5,
+        "applicationOrchestratedSecurityTransitions": 0,
+        "terminalOutcomes": ["verified", "rejected", "indeterminate"],
+        "consumerRequiresRust": false
+      }
     },
     {
       "id": "errors-observability-and-redaction",
       "rust": "core/crates/auths-verifier/src/lib.rs",
       "typescript": "bindings/typescript/test/unit/observability.test.js",
-      "python": "bindings/python/tests/test_elite_sdk.py"
+      "python": "bindings/python/tests/test_elite_sdk.py",
+      "experience": {
+        "targetJourney": "execute-one-exact-protected-action",
+        "imports": ["root"],
+        "securityNouns": ["Action", "Receipt"],
+        "domainConcepts": ["recovery action"],
+        "setupDecisions": [],
+        "apiMechanics": ["catch structured error", "inspect recovery"],
+        "requiredApplicationComponents": ["request id"],
+        "executableStatements": 6,
+        "applicationOrchestratedSecurityTransitions": 0,
+        "terminalOutcomes": ["denied", "indeterminate", "failed", "cancelled", "outcome-unknown"],
+        "consumerRequiresRust": false
+      }
     },
     {
       "id": "installed-artifact-and-type-safety",
       "rust": "bindings/wasm/auths-proof-wasm/examples/generate-node-vectors.rs",
       "typescript": "bindings/typescript/test/package",
-      "python": ".github/workflows/python-sdk.yml"
+      "python": ".github/workflows/python-sdk.yml",
+      "experience": {
+        "targetJourney": "implement-and-certify-a-cross-domain-mechanism-adapter",
+        "imports": ["framework", "testkit"],
+        "securityNouns": [],
+        "domainConcepts": ["mechanism contract", "conformance case"],
+        "setupDecisions": ["adapter runtime"],
+        "apiMechanics": ["implement port", "run conformance"],
+        "requiredApplicationComponents": ["adapter", "test fixtures"],
+        "executableStatements": 20,
+        "applicationOrchestratedSecurityTransitions": 0,
+        "terminalOutcomes": ["certified", "rejected"],
+        "consumerRequiresRust": false
+      }
     }
   ]
 }
