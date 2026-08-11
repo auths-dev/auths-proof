@@ -32,7 +32,7 @@ export interface DiagnosticResult {
 }
 
 /**
- * Advanced raw verifier bound to an explicitly supplied engine.
+ * Inert diagnostic verifier bound to an explicitly supplied engine.
  *
  * It exists for differential testing, offline inspection, and hostile-engine
  * analysis. It is deliberately incapable of minting an effect capability.

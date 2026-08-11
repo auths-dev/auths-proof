@@ -42,6 +42,7 @@ test("every example compiles and runs against the packed package alone", async (
 
     await writeFile(join(directory, "run-quickstart.mjs"), `
       import { runQuickstart } from "./build/quickstart/index.js";
+      import { runIdentityOnly } from "./build/identity-only/index.js";
       const reviewed = [];
       const result = await runQuickstart(async (fields) => {
         reviewed.push(fields.map((field) => field.label).join("|"));
@@ -51,7 +52,11 @@ test("every example compiles and runs against the packed package alone", async (
         throw new Error("packed quickstart returned " + result);
       }
       if (reviewed.length === 0) throw new Error("packed quickstart skipped human review");
-      process.stdout.write(JSON.stringify({ result, reviewed }));
+      const identity = await runIdentityOnly(new TextEncoder().encode("packed example"));
+      if (!identity.startsWith("key:sha256-v2:")) {
+        throw new Error("packed identity quickstart returned " + identity);
+      }
+      process.stdout.write(JSON.stringify({ result, identity, reviewed }));
     `);
     const output = execFileSync(process.execPath, ["run-quickstart.mjs"], {
       cwd: directory,
@@ -60,6 +65,7 @@ test("every example compiles and runs against the packed package alone", async (
     });
     const executed = JSON.parse(output);
     assert.equal(executed.result, "records/update_record");
+    assert.match(executed.identity, /^key:sha256-v2:/);
     // The quickstart reviews the root grant, the delegated child grant, and the
     // tool call itself, so the tool review must appear among them.
     assert.ok(

@@ -15,8 +15,9 @@ application -> workflow + profile -> packaged Rust/WASM semantics
 ```
 
 The public root exports the integrated workflow. Identity, trust, authority,
-lifecycle, profiles, runtime, custody, and advanced inspection are separate
-entry points with no implicit activation between them. Profile packages export
+lifecycle, profiles, runtime, custody, verification, inspection, diagnostics,
+and observability are separate entry points with no implicit activation
+between them. Profile packages export
 their own action, command, and gateway vocabulary. The testkit is a separate,
 explicitly non-production export.
 

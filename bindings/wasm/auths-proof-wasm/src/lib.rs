@@ -7,7 +7,10 @@ use auths_author::{
     ProfilePlanCommitment, ProfilePlanMember, commit_plan_approval, plan_child_grant,
     prepare_action, prepare_grant, prepare_grant_status, prepare_principal_status,
 };
-use auths_identity::{IdentityPacket, PublicIdentity, SignedIdentityMessage};
+use auths_identity::{
+    IdentityDescriptor, IdentityPacket, PublicIdentity, SignedIdentityMessage,
+    VerificationMaterial, VerificationRelationship,
+};
 use auths_identity_raw_key::RawKeyIdentityMethod;
 use auths_model::{
     AcceptedRegistries, ActionConstraint, ActionEnvelope, AssuranceClaimId, AssuranceImplicationId,
@@ -42,6 +45,9 @@ use wasm_bindgen::prelude::*;
 pub const AUTHORING_ABI_V1: u16 = 1;
 /// Version of the neutral identity ABI exposed independently of authority authoring.
 pub const IDENTITY_ABI_V1: u16 = 1;
+
+const MAX_VERIFICATION_BATCH_ITEMS: usize = 256;
+const MAX_VERIFICATION_BATCH_BYTES: usize = 16 * 1024 * 1024;
 
 const WARNING_ANY_BODY: u32 = 1 << 0;
 const WARNING_MULTIPLE_PERMISSIONS: u32 = 1 << 1;
@@ -807,6 +813,128 @@ pub fn compile_trusted_context_v1(
         cbor: auths_codec::encode_verifier_context(&context).map_err(js_error)?,
         verifier_configuration: configuration.to_vec(),
     })
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct IdentityDescriptorInput {
+    method_id: String,
+    identity_id: String,
+    method_material: Vec<u8>,
+    relationships: Vec<VerificationRelationshipInput>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct VerificationRelationshipInput {
+    relationship_id: String,
+    purpose: String,
+    suite_id: String,
+    verification_material: Vec<VerificationMaterialInput>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct VerificationMaterialInput {
+    material_id: String,
+    bytes: Vec<u8>,
+}
+
+fn identity_descriptor(input: IdentityDescriptorInput) -> Result<IdentityDescriptor, EngineError> {
+    IdentityDescriptor::new(
+        &input.method_id,
+        &input.identity_id,
+        input.method_material,
+        input
+            .relationships
+            .into_iter()
+            .map(|relationship| {
+                VerificationRelationship::new(
+                    &relationship.relationship_id,
+                    &relationship.purpose,
+                    &relationship.suite_id,
+                    relationship
+                        .verification_material
+                        .into_iter()
+                        .map(|material| {
+                            VerificationMaterial::new(&material.material_id, material.bytes)
+                        })
+                        .collect::<Result<Vec<_>, _>>()?,
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()?,
+    )
+    .map_err(EngineError::from)
+}
+
+fn identity_descriptor_value(descriptor: &IdentityDescriptor) -> Value {
+    let relationships = descriptor
+        .relationships()
+        .iter()
+        .map(|relationship| {
+            serde_json::json!({
+                "relationshipId": relationship.relationship_id(),
+                "purpose": relationship.purpose(),
+                "suiteId": relationship.suite_id(),
+                "verificationMaterial": relationship.verification_material().iter().map(|material| {
+                    serde_json::json!({
+                        "materialId": material.material_id(),
+                        "bytes": material.bytes(),
+                    })
+                }).collect::<Vec<_>>(),
+            })
+        })
+        .collect::<Vec<_>>();
+    serde_json::json!({
+        "methodId": descriptor.method_id(),
+        "identityId": descriptor.identity_id(),
+        "methodMaterial": descriptor.method_material(),
+        "relationships": relationships,
+    })
+}
+
+/// Encodes one credential-shape-agnostic identity descriptor into canonical bytes.
+///
+/// # Errors
+///
+/// Rejects malformed, duplicate, excessive, or unsupported descriptor fields.
+#[wasm_bindgen(js_name = encodeIdentityDescriptorV1)]
+pub fn encode_identity_descriptor_v1(value: JsValue) -> Result<Vec<u8>, JsValue> {
+    let input: IdentityDescriptorInput = serde_wasm_bindgen::from_value(value)
+        .map_err(|_| js_error(EngineError::Abi("invalid identity descriptor")))?;
+    identity_descriptor(input)
+        .and_then(|descriptor| descriptor.encode().map_err(EngineError::from))
+        .map_err(js_error)
+}
+
+/// Decodes one complete canonical credential-shape-agnostic descriptor.
+///
+/// # Errors
+///
+/// Rejects malformed, non-canonical, trailing, or excessive input.
+#[wasm_bindgen(js_name = decodeIdentityDescriptorV1)]
+pub fn decode_identity_descriptor_v1(packet: &[u8]) -> Result<JsValue, JsValue> {
+    let descriptor = IdentityDescriptor::decode(packet).map_err(js_error)?;
+    let serializer = serde_wasm_bindgen::Serializer::new().serialize_maps_as_objects(true);
+    identity_descriptor_value(&descriptor)
+        .serialize(&serializer)
+        .map_err(|_| js_error(EngineError::Abi("identity descriptor cannot cross the ABI")))
+}
+
+/// Returns the exact relationship-bound application-message signing bytes.
+///
+/// # Errors
+///
+/// Rejects malformed descriptors, unknown relationships, and excessive messages.
+#[wasm_bindgen(js_name = identityDescriptorSigningPreimageV1)]
+pub fn identity_descriptor_signing_preimage_v1(
+    packet: &[u8],
+    relationship_id: &str,
+    message: &[u8],
+) -> Result<Vec<u8>, JsValue> {
+    IdentityDescriptor::decode(packet)
+        .and_then(|descriptor| descriptor.signing_preimage(relationship_id, message))
+        .map_err(js_error)
 }
 
 /// Structurally decoded fields from the neutral compact identity protocol.
@@ -3853,6 +3981,52 @@ pub fn verify_v1(
         .map_err(|error| JsValue::from_str(&error.to_string()))
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct VerificationBatchInput {
+    #[serde(rename = "proofCbor")]
+    proof: Vec<u8>,
+    #[serde(rename = "canonicalActionCbor")]
+    action: Vec<u8>,
+    #[serde(rename = "trustedContextCbor")]
+    context: Vec<u8>,
+}
+
+/// JavaScript-facing bounded batch verifier with exactly the single-item semantics.
+///
+/// # Errors
+///
+/// Rejects empty, excessive, or over-budget batches and internal engine failures.
+#[wasm_bindgen(js_name = verifyBatchV1)]
+pub fn verify_batch_v1(input: JsValue) -> Result<JsValue, JsValue> {
+    let items: Vec<VerificationBatchInput> = serde_wasm_bindgen::from_value(input)
+        .map_err(|_| js_error(EngineError::Abi("invalid verification batch")))?;
+    if items.is_empty() || items.len() > MAX_VERIFICATION_BATCH_ITEMS {
+        return Err(js_error(EngineError::Abi(
+            "verification batch is outside item bounds",
+        )));
+    }
+    let total_bytes = items.iter().try_fold(0_usize, |total, item| {
+        total
+            .checked_add(item.proof.len())
+            .and_then(|value| value.checked_add(item.action.len()))
+            .and_then(|value| value.checked_add(item.context.len()))
+    });
+    if total_bytes.is_none_or(|value| value > MAX_VERIFICATION_BATCH_BYTES) {
+        return Err(js_error(EngineError::Abi(
+            "verification batch is outside byte bounds",
+        )));
+    }
+    let results = items
+        .iter()
+        .map(|item| verify_self_contained_v1(&item.proof, &item.action, &item.context))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(js_error)?;
+    results
+        .serialize(&serde_wasm_bindgen::Serializer::new())
+        .map_err(|_| js_error(EngineError::Abi("verification batch cannot cross the ABI")))
+}
+
 /// Internal portable verification or authoring failure.
 #[derive(Debug)]
 pub enum EngineError {
@@ -3872,6 +4046,8 @@ pub enum EngineError {
     Mcp(auths_profile_mcp::ProfileError),
     /// Profile contract construction or projection failed.
     Profile(auths_profile_api::ProfileContractError),
+    /// General identity encoding or validation failed.
+    Identity(auths_identity::IdentityError),
     /// A binding-level invariant could not be represented.
     Abi(&'static str),
 }
@@ -3897,6 +4073,7 @@ impl fmt::Display for EngineError {
             Self::Author(error) => write!(formatter, "could not prepare signing request: {error}"),
             Self::Mcp(error) => write!(formatter, "could not construct MCP action: {error}"),
             Self::Profile(error) => write!(formatter, "MCP profile contract failed: {error}"),
+            Self::Identity(error) => write!(formatter, "identity descriptor failed: {error}"),
             Self::Abi(message) => formatter.write_str(message),
         }
     }
@@ -3949,6 +4126,12 @@ impl From<auths_profile_mcp::ProfileError> for EngineError {
 impl From<auths_profile_api::ProfileContractError> for EngineError {
     fn from(error: auths_profile_api::ProfileContractError) -> Self {
         Self::Profile(error)
+    }
+}
+
+impl From<auths_identity::IdentityError> for EngineError {
+    fn from(error: auths_identity::IdentityError) -> Self {
+        Self::Identity(error)
     }
 }
 

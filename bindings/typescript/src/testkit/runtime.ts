@@ -7,6 +7,9 @@ import {
   type ReplayPort,
   type RuntimeChallenge,
   type RuntimeReceipt,
+  type ExecutionRecord,
+  type ExecutionState,
+  type ExecutionStatePort,
 } from "../runtime.js";
 
 export class InMemoryChallengePort implements ChallengePort {
@@ -71,4 +74,34 @@ export class InMemoryReceiptPort implements ReceiptPort {
       challenge: receipt.challenge.slice(),
     })));
   }
+}
+
+export class InMemoryExecutionStatePort implements ExecutionStatePort {
+  readonly #records = new Map<string, ExecutionRecord>();
+
+  async reserve(record: ExecutionRecord): Promise<"reserved" | "duplicate"> {
+    if (this.#records.has(record.idempotencyKey)) return "duplicate";
+    this.#records.set(record.idempotencyKey, copyRecord({ ...record, state: "reserved" }));
+    return "reserved";
+  }
+
+  async transition(
+    idempotencyKey: string,
+    expected: ExecutionState,
+    next: ExecutionState,
+  ): Promise<"transitioned" | "conflict"> {
+    const current = this.#records.get(idempotencyKey);
+    if (current === undefined || current.state !== expected) return "conflict";
+    this.#records.set(idempotencyKey, copyRecord({ ...current, state: next }));
+    return "transitioned";
+  }
+
+  async load(idempotencyKey: string): Promise<ExecutionRecord | undefined> {
+    const record = this.#records.get(idempotencyKey);
+    return record === undefined ? undefined : copyRecord(record);
+  }
+}
+
+function copyRecord(record: ExecutionRecord): ExecutionRecord {
+  return Object.freeze({ ...record, challenge: record.challenge.slice() });
 }

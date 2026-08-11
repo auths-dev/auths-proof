@@ -63,8 +63,14 @@ export interface ProfileAuthorityRequirement {
 export interface ProfileDefinition<Input, Command = CanonicalProfileAction> {
   readonly id: string;
   readonly version: number;
+  readonly migrations?: readonly ProfileMigration<Input>[];
   canonicalize(input: Input): CanonicalProfileAction;
   decodeVerified?(canonical: CanonicalProfileAction): Command;
+}
+
+export interface ProfileMigration<Input> {
+  readonly fromVersion: number;
+  parse(input: unknown): Input;
 }
 
 interface ActionResources {
@@ -165,6 +171,7 @@ export class ApplicationProfile<Input, Command = CanonicalProfileAction>
   declare readonly __action?: ApplicationAction<Input>;
   declare readonly __command?: ApplicationCommand<Command>;
   readonly #canonicalize: (input: Input) => CanonicalProfileAction;
+  readonly #migrations: ReadonlyMap<number, (input: unknown) => Input>;
 
   private constructor(token: typeof PROFILE_TOKEN, definition: ProfileDefinition<Input, Command>) {
     if (token !== PROFILE_TOKEN) throw new TypeError("sealed Auths application profile");
@@ -177,6 +184,16 @@ export class ApplicationProfile<Input, Command = CanonicalProfileAction>
     }
     this.version = definition.version;
     this.#canonicalize = definition.canonicalize;
+    const migrations = new Map<number, (input: unknown) => Input>();
+    for (const migration of definition.migrations ?? []) {
+      if (!Number.isSafeInteger(migration.fromVersion) || migration.fromVersion < 1 ||
+          migration.fromVersion >= definition.version || typeof migration.parse !== "function" ||
+          migrations.has(migration.fromVersion)) {
+        throw new AuthsWorkflowError("invalid-profile", "profile migration is invalid or duplicated");
+      }
+      migrations.set(migration.fromVersion, migration.parse);
+    }
+    this.#migrations = migrations;
     profileDecoders.set(
       this,
       definition.decodeVerified ?? ((canonical) => canonical as Command),
@@ -216,6 +233,20 @@ export class ApplicationProfile<Input, Command = CanonicalProfileAction>
       throw new AuthsWorkflowError("invalid-profile", "profile rejected the proposed action");
     }
     return mintApplicationAction(this, copyCanonical(canonical));
+  }
+
+  migrate(fromVersion: number, input: unknown): ApplicationAction<Input> {
+    const migration = this.#migrations.get(fromVersion);
+    if (migration === undefined) {
+      throw new AuthsWorkflowError("invalid-profile", "profile migration version is unsupported");
+    }
+    let migrated: Input;
+    try {
+      migrated = migration(input);
+    } catch {
+      throw new AuthsWorkflowError("invalid-profile", "profile migration rejected the input");
+    }
+    return this.action(migrated);
   }
 
   /** Returns profile-derived grant inputs for this exact sealed action. */

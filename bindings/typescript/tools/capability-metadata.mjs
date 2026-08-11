@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 
 const root = new URL("../", import.meta.url);
 const metadata = JSON.parse(await readFile(new URL("sdk-capability.json", root), "utf8"));
@@ -11,6 +11,7 @@ const evidenceStates = new Set([
   "repository-local-complete",
   "independently-reviewed",
 ]);
+const scorecardStates = new Set(["verified", "external-review-required", "python-follow-up"]);
 
 if (metadata.schema !== "auths.sdk-capability/2") {
   throw new Error("unsupported TypeScript capability metadata schema");
@@ -26,6 +27,23 @@ if (
   metadata.evidenceStatus !== "independently-reviewed"
 ) {
   throw new Error("Full Workflow promotion requires independent review evidence");
+}
+const requiredScorecard = [
+  "timeToValue", "progressiveAdoption", "semanticSafety", "typeSafety",
+  "productionIntegration", "operationalCompleteness", "debuggability", "extensibility",
+  "portability", "compatibility", "securityEvidence", "documentation", "crossSdkParity",
+];
+for (const dimension of requiredScorecard) {
+  const entry = metadata.eliteScorecard?.[dimension];
+  if (!scorecardStates.has(entry?.status) || !Array.isArray(entry?.evidence) || entry.evidence.length === 0) {
+    throw new Error(`invalid elite scorecard entry: ${dimension}`);
+  }
+  for (const evidence of entry.evidence) {
+    if (typeof evidence !== "string" || evidence.length === 0) {
+      throw new Error(`invalid elite scorecard evidence: ${dimension}`);
+    }
+    await access(new URL(evidence, root));
+  }
 }
 if (
   metadata.publicationStatus !== "blocked" &&

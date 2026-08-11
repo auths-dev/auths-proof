@@ -33,8 +33,13 @@ async function loadPackagedWorkflowEngineOnce(): Promise<PackagedWorkflowEngine>
       await loaded.default({ module_or_path: wasmUrl });
     }
   }
+  const untyped = loaded as unknown as Record<string, unknown>;
   if (
     typeof loaded.authoringAbiVersionV1 !== "function" ||
+    typeof untyped.identityAbiVersionV1 !== "function" ||
+    typeof untyped.encodeIdentityDescriptorV1 !== "function" ||
+    typeof untyped.decodeIdentityDescriptorV1 !== "function" ||
+    typeof untyped.identityDescriptorSigningPreimageV1 !== "function" ||
     typeof loaded.canonicalPrincipalV1 !== "function" ||
     typeof loaded.encodePrincipalStatusStatementV1 !== "function" ||
     typeof loaded.encodeGrantStatusStatementV1 !== "function" ||
@@ -76,6 +81,7 @@ async function loadPackagedWorkflowEngineOnce(): Promise<PackagedWorkflowEngine>
     typeof loaded.commitApprovalPolicyV1 !== "function" ||
     typeof loaded.commitProfilePlanV1 !== "function" ||
     typeof loaded.commitPlanApprovalV1 !== "function" ||
+    typeof loaded.verifyBatchV1 !== "function" ||
     typeof loaded.verifyV1 !== "function"
   ) {
     throw new TypeError("Auths WASM module omitted workflow authoring exports");

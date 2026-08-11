@@ -12,6 +12,14 @@ import {
 import { loadPackagedWorkflowEngine } from "../verifier/wasm.js";
 export { profileConformance } from "./profile-conformance.js";
 export {
+  adapterConformance,
+  type AdapterConformanceCase,
+  type AdapterConformanceOptions,
+  type AdapterConformanceReport,
+  type AdapterKind,
+  type AdapterMetadata,
+} from "./adapter-conformance.js";
+export {
   custodyConformance,
   type CustodyConformanceCase,
   type CustodyConformanceOptions,
@@ -21,6 +29,7 @@ export {
 export {
   InMemoryBudgetPort,
   InMemoryChallengePort,
+  InMemoryExecutionStatePort,
   InMemoryReceiptPort,
   InMemoryReplayPort,
 } from "./runtime.js";

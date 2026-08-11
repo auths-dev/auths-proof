@@ -4,7 +4,7 @@ use crate::*;
 
 const INVENTORY_PATH: &str = "release/semantic-freeze.json";
 const INVENTORY_SCHEMA: &str = "auths.semantic-freeze/1";
-const FREEZE_VERSION: u64 = 46;
+const FREEZE_VERSION: u64 = 47;
 const PUBLIC_RUST_ROOTS: [&str; 10] = [
     "auths",
     "auths-byte-channel",
@@ -183,7 +183,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.identity.protocol",
-            3,
+            4,
             FreezeClassification::FrozenMeaning,
             &[
                 "identity-protocol-versions",
@@ -209,7 +209,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.modular-components",
-            2,
+            3,
             FreezeClassification::FrozenMeaning,
             &[
                 "published-neutral-ports",
@@ -242,7 +242,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.portable-abi-bindings",
-            17,
+            18,
             FreezeClassification::FrozenMeaning,
             &["portable-abi", "authoring-abi", "binding-contracts"],
             vec![
@@ -363,7 +363,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
     for (id, path) in frozen_byte_inventories()? {
         let version = match path.as_str() {
             "architecture/dependency-graph.json" => 12,
-            "bindings/wasm/auths-proof-wasm/identity-abi-v1.json" => 2,
+            "bindings/wasm/auths-proof-wasm/identity-abi-v1.json" => 3,
             "core/fixtures/v1/manifest.json" => 3,
             "formal/assurance-manifest-v1.toml"
             | "formal/qualification/aeneas/qualification.toml" => 3,
@@ -415,7 +415,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
     ]);
     entries.push(freeze_entry(
         "auths.release.public-surface",
-        46,
+        47,
         FreezeClassification::ReleaseMetadata,
         &[
             "package-names",

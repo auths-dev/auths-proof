@@ -1,0 +1,21 @@
+{
+  "schema": "auths.performance/1",
+  "recordedAt": "2026-08-11",
+  "environment": {
+    "platform": "darwin",
+    "architecture": "arm64",
+    "node": "22.23.1"
+  },
+  "measurements": {
+    "coldStartMs": 45.5,
+    "warmVerificationP95Ms": 0.93,
+    "batch64Ms": 111,
+    "plan64Ms": 3.1,
+    "chromiumWarmVerificationP95Ms": 15,
+    "chromiumWorkerColdStartMs": 150,
+    "residentMemoryBytes": 103000000,
+    "wasmBytes": 2034841,
+    "compressedWasmBytes": 528788,
+    "distBytes": 326403
+  }
+}

@@ -1,8 +1,10 @@
 import { interpretVerification } from "./decode-common.js";
 import { isPackagedEngine } from "./packaged-registry.js";
+import { emitAuthsEvent, type TelemetryPort } from "../observability.js";
 
 const AUTHORIZED_TOKEN: unique symbol = Symbol("auths-authorized");
 const PACKAGED_VERIFIER_TOKEN: unique symbol = Symbol("auths-packaged-verifier");
+const MAX_VERIFICATION_BATCH_BYTES = 16_777_216;
 let mintVerifiedAction: (canonicalAction: Uint8Array) => VerifiedAction;
 let mintPackagedVerifier: (engine: PortableWasmEngine) => Auths;
 
@@ -56,6 +58,7 @@ export class VerifiedAction {
 }
 
 interface CommonResult {
+  readonly correlationId: string;
   readonly code: string;
   readonly stage: VerificationStage;
   readonly explanation: Explanation;
@@ -86,6 +89,27 @@ export interface PortableWasmEngine {
     canonicalActionCbor: Uint8Array,
     trustedContextCbor: Uint8Array,
   ): Uint8Array;
+  verifyBatchV1?(
+    items: readonly VerificationInput[],
+  ): readonly Uint8Array[];
+}
+
+export interface VerificationInput {
+  readonly proofCbor: Uint8Array;
+  readonly canonicalActionCbor: Uint8Array;
+  readonly trustedContextCbor: Uint8Array;
+}
+
+export interface VerificationBatchOptions {
+  readonly signal?: AbortSignal;
+  readonly chunkSize?: number;
+  readonly correlationId?: () => string;
+  readonly telemetry?: TelemetryPort;
+}
+
+export interface VerificationOptions {
+  readonly correlationId?: string;
+  readonly telemetry?: TelemetryPort;
 }
 
 /**
@@ -93,7 +117,7 @@ export interface PortableWasmEngine {
  *
  * Application code cannot construct one and cannot supply the engine whose
  * output selects the authorized branch. Caller-supplied engines belong on
- * `createDiagnosticVerifier`, whose results are never effect-capable.
+ * `@auths-dev/sdk/diagnostics`, whose results are never effect-capable.
  */
 export class Auths {
   readonly #engine: PortableWasmEngine;
@@ -122,18 +146,123 @@ export class Auths {
     proofCbor: Uint8Array,
     canonicalActionCbor: Uint8Array,
     trustedContextCbor: Uint8Array,
+    options: VerificationOptions = {},
   ): VerificationResult {
+    const correlationId = parseCorrelationId(options.correlationId ?? nextCorrelationId());
+    const started = performance.now();
     const bytes = this.#engine.verifyV1(proofCbor, canonicalActionCbor, trustedContextCbor);
-    const { kind, ...common } = interpretVerification(bytes);
-    if (kind === "authorized") {
-      return {
-        ...common,
-        kind: "authorized",
-        action: mintVerifiedAction(canonicalActionCbor),
-      };
-    }
-    return { ...common, kind };
+    const result = verificationResult(bytes, canonicalActionCbor, correlationId);
+    void emitAuthsEvent(options.telemetry, {
+      name: "auths.verification.completed",
+      timestamp: Date.now(),
+      correlationId,
+      operation: "verify",
+      stage: "verification",
+      outcome: result.kind === "authorized" ? "succeeded" : result.kind,
+      durationMs: performance.now() - started,
+      attributes: { code: result.code, stage: result.stage },
+    });
+    return result;
   }
+
+  /**
+   * Verifies a bounded collection through the native batch entry point.
+   * Each item is interpreted and capability-minted exactly as an independent call to `verify`.
+   */
+  async verifyMany(
+    items: readonly VerificationInput[],
+    options: VerificationBatchOptions = {},
+  ): Promise<readonly VerificationResult[]> {
+    if (items.length === 0 || items.length > 256) {
+      throw new RangeError("verification batch must contain between 1 and 256 items");
+    }
+    let totalBytes = 0;
+    for (const item of items) {
+      if (!(item.proofCbor instanceof Uint8Array) ||
+          !(item.canonicalActionCbor instanceof Uint8Array) ||
+          !(item.trustedContextCbor instanceof Uint8Array)) {
+        throw new TypeError("verification batch contains non-byte input");
+      }
+      totalBytes += item.proofCbor.length + item.canonicalActionCbor.length +
+        item.trustedContextCbor.length;
+      if (!Number.isSafeInteger(totalBytes) || totalBytes > MAX_VERIFICATION_BATCH_BYTES) {
+        throw new RangeError("verification batch exceeds the aggregate byte bound");
+      }
+    }
+    const chunkSize = options.chunkSize ?? 32;
+    if (!Number.isSafeInteger(chunkSize) || chunkSize < 1 || chunkSize > 256) {
+      throw new RangeError("verification batch chunk size is outside bounds");
+    }
+    const verifyBatch = this.#engine.verifyBatchV1;
+    if (verifyBatch === undefined) throw new TypeError("packaged verifier omitted batch support");
+    const output: VerificationResult[] = [];
+    for (let start = 0; start < items.length; start += chunkSize) {
+      options.signal?.throwIfAborted();
+      const chunk = items.slice(start, start + chunkSize).map((item) => ({
+        proofCbor: item.proofCbor.slice(),
+        canonicalActionCbor: item.canonicalActionCbor.slice(),
+        trustedContextCbor: item.trustedContextCbor.slice(),
+      }));
+      const encoded = verifyBatch.call(this.#engine, chunk);
+      if (encoded.length !== chunk.length) throw new TypeError("native verifier changed batch cardinality");
+      encoded.forEach((bytes, index) => {
+        const item = chunk[index];
+        if (item === undefined) throw new TypeError("native verifier returned an invalid batch");
+        const correlationId = parseCorrelationId(
+          options.correlationId?.() ?? nextCorrelationId(),
+        );
+        const result = verificationResult(
+          new Uint8Array(bytes),
+          item.canonicalActionCbor,
+          correlationId,
+        );
+        output.push(result);
+        void emitAuthsEvent(options.telemetry, {
+          name: "auths.verification.completed",
+          timestamp: Date.now(),
+          correlationId,
+          operation: "verify-many",
+          stage: "verification",
+          outcome: result.kind === "authorized" ? "succeeded" : result.kind,
+          attributes: { code: result.code, stage: result.stage },
+        });
+      });
+      await Promise.resolve();
+    }
+    options.signal?.throwIfAborted();
+    return Object.freeze(output);
+  }
+}
+
+let correlationSequence = 0;
+
+function nextCorrelationId(): string {
+  correlationSequence = (correlationSequence + 1) % Number.MAX_SAFE_INTEGER;
+  return `auths-${Date.now().toString(36)}-${correlationSequence.toString(36)}`;
+}
+
+function parseCorrelationId(value: string): string {
+  if (value.length === 0 || value.length > 128 || /[\u0000-\u001f\u007f]/u.test(value)) {
+    throw new TypeError("verification correlation ID is invalid");
+  }
+  return value;
+}
+
+function verificationResult(
+  bytes: Uint8Array,
+  canonicalActionCbor: Uint8Array,
+  correlationId: string,
+): VerificationResult {
+  const { kind, ...common } = interpretVerification(bytes);
+  if (kind === "authorized") {
+    return {
+      ...common,
+      correlationId,
+      kind,
+      action: mintVerifiedAction(canonicalActionCbor),
+    };
+  }
+  return { ...common, correlationId, kind };
 }
 
 /**

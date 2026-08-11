@@ -81,6 +81,27 @@ export interface McpGateway<Result> {
   execute(command: McpCommand): Promise<Result>;
 }
 
+export interface McpAuthority {
+  readonly profile: "auths.mcp";
+  readonly capability: "tools/call";
+  readonly resource: string;
+  readonly audience: string;
+}
+
+export interface McpReceipt<Result> {
+  readonly profile: "auths.mcp";
+  readonly idempotencyKey: string;
+  readonly outcome: "executed" | "failed" | "outcome-unknown";
+  readonly result?: Result;
+}
+
+export interface McpGatewayError {
+  readonly profile: "auths.mcp";
+  readonly code: string;
+  readonly retry: "never" | "safe" | "conditional" | "unknown";
+  readonly effect: "not-applied" | "applied" | "unknown";
+}
+
 /** Closed MCP tool-call action constructible only by this profile facade. */
 export class McpAction {
   readonly name: string;

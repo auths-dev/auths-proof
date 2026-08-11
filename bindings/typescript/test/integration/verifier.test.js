@@ -2,11 +2,11 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  Auths,
+  Verifier,
   VerifiedAction,
-  createDiagnosticVerifier,
-  loadPortableAuths,
-} from "../../dist/advanced.js";
+  loadVerifier,
+} from "../../dist/verify.js";
+import { createDiagnosticVerifier } from "../../dist/diagnostics.js";
 
 const fixture = (name) =>
   readFileSync(
@@ -18,7 +18,7 @@ const bindingVector = (name) =>
   );
 
 test("authorized results expose only a sealed verified action", async () => {
-  const auths = await loadPortableAuths();
+  const auths = await loadVerifier();
   const action = fixture("raw-key-chain.action.cbor");
   const result = auths.verify(
     fixture("raw-key-chain.proof.cbor"),
@@ -38,12 +38,12 @@ test("application code cannot construct a verified action", () => {
 });
 
 test("application code cannot construct a capability-minting verifier", () => {
-  assert.throws(() => new Auths({ verifyV1: () => new Uint8Array() }), /sealed/);
-  assert.throws(() => new Auths(Symbol(), { verifyV1: () => new Uint8Array() }), /sealed/);
+  assert.throws(() => new Verifier({ verifyV1: () => new Uint8Array() }), /sealed/);
+  assert.throws(() => new Verifier(Symbol(), { verifyV1: () => new Uint8Array() }), /sealed/);
 });
 
 test("precompiled WASM matches the canonical Rust result", async () => {
-  const auths = await loadPortableAuths();
+  const auths = await loadVerifier();
   const result = auths.verify(
     fixture("raw-key-chain.proof.cbor"),
     fixture("raw-key-chain.action.cbor"),
@@ -57,9 +57,35 @@ test("precompiled WASM matches the canonical Rust result", async () => {
   );
 });
 
+test("native batches are identical to independent verification and honor cancellation", async () => {
+  const auths = await loadVerifier();
+  const input = {
+    proofCbor: fixture("raw-key-chain.proof.cbor"),
+    canonicalActionCbor: fixture("raw-key-chain.action.cbor"),
+    trustedContextCbor: bindingVector("authorized.context.cbor"),
+  };
+  const singles = [auths.verify(input.proofCbor, input.canonicalActionCbor, input.trustedContextCbor),
+    auths.verify(input.proofCbor, input.canonicalActionCbor, input.trustedContextCbor)];
+  const batch = await auths.verifyMany([input, input], { chunkSize: 1 });
+  assert.deepEqual(batch.map((result) => result.resultCbor), singles.map((result) => result.resultCbor));
+  assert.deepEqual(
+    batch.map((result) => result.kind === "authorized" && result.action.canonicalBytes()),
+    singles.map((result) => result.kind === "authorized" && result.action.canonicalBytes()),
+  );
+  await assert.rejects(() => auths.verifyMany([], {}), /between 1 and 256/);
+  const cancelled = new AbortController();
+  cancelled.abort();
+  await assert.rejects(() => auths.verifyMany([input], { signal: cancelled.signal }), /aborted/i);
+  await assert.rejects(() => auths.verifyMany([{
+    proofCbor: new Uint8Array(16_777_217),
+    canonicalActionCbor: new Uint8Array(),
+    trustedContextCbor: new Uint8Array(),
+  }]), /aggregate byte bound/);
+});
+
 test("package-owned portable loader accepts no injected module", async () => {
-  assert.equal(loadPortableAuths.length, 0);
-  const auths = await loadPortableAuths();
+  assert.equal(loadVerifier.length, 0);
+  const auths = await loadVerifier();
   const result = auths.verify(
     fixture("raw-key-chain.proof.cbor"),
     fixture("raw-key-chain.action.cbor"),
@@ -69,7 +95,7 @@ test("package-owned portable loader accepts no injected module", async () => {
 });
 
 test("configuration mismatch reports required and executed commitments", async () => {
-  const auths = await loadPortableAuths();
+  const auths = await loadVerifier();
   const result = auths.verify(
     fixture("raw-key-chain.proof.cbor"),
     fixture("raw-key-chain.action.cbor"),

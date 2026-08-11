@@ -5,8 +5,13 @@
   "identityModelVersion": 1,
   "wireVersion": 2,
   "signingDomainVersion": 2,
+  "descriptorWireVersion": 1,
+  "descriptorSigningDomainVersion": 1,
   "exports": [
     "identityAbiVersionV1",
+    "encodeIdentityDescriptorV1",
+    "decodeIdentityDescriptorV1",
+    "identityDescriptorSigningPreimageV1",
     "encodePublicIdentityV2",
     "createRawKeyPublicIdentityV2",
     "decodePublicIdentityV2",
@@ -19,7 +24,11 @@
   "stateTransitions": [
     "bytes-to-decoded",
     "decoded-to-method-validated",
-    "signed-to-authenticated"
+    "signed-to-authenticated",
+    "descriptor-bytes-to-decoded",
+    "decoded-descriptor-to-resolved",
+    "resolved-descriptor-to-method-validated",
+    "validated-descriptor-to-authenticated"
   ],
   "authorityClaim": "none"
 }

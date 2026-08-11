@@ -60,26 +60,63 @@ export interface EdgeActionInput {
   readonly stateDigest?: string;
 }
 
+export interface DomainAuthority<ProfileId extends string> {
+  readonly profile: ProfileId;
+  readonly capability: string;
+  readonly resource: string;
+  readonly audience: string;
+  readonly budget?: Readonly<{ readonly algebra: string; readonly value: bigint }>;
+}
+
+export interface DomainReceipt<ProfileId extends string, Result> {
+  readonly profile: ProfileId;
+  readonly idempotencyKey: string;
+  readonly outcome: "executed" | "failed" | "outcome-unknown";
+  readonly result?: Result;
+}
+
+export interface DomainGatewayError<ProfileId extends string> {
+  readonly profile: ProfileId;
+  readonly code: string;
+  readonly retry: "never" | "safe" | "conditional" | "unknown";
+  readonly effect: "not-applied" | "applied" | "unknown";
+}
+
 export type HttpAction = ApplicationAction<HttpActionInput>;
 export type HttpCommand = ApplicationCommand<HttpActionInput>;
 export type HttpGateway<Result> = ApplicationGateway<HttpActionInput, Result>;
 export type HttpProfile = ApplicationProfile<HttpActionInput, HttpActionInput>;
+export type HttpAuthority = DomainAuthority<"auths.http">;
+export type HttpReceipt<Result> = DomainReceipt<"auths.http", Result>;
+export type HttpGatewayError = DomainGatewayError<"auths.http">;
 export type GitAction = ApplicationAction<GitActionInput>;
 export type GitCommand = ApplicationCommand<GitActionInput>;
 export type GitGateway<Result> = ApplicationGateway<GitActionInput, Result>;
 export type GitProfile = ApplicationProfile<GitActionInput, GitActionInput>;
+export type GitAuthority = DomainAuthority<"auths.git">;
+export type GitReceipt<Result> = DomainReceipt<"auths.git", Result>;
+export type GitGatewayError = DomainGatewayError<"auths.git">;
 export type DeploymentAction = ApplicationAction<DeploymentActionInput>;
 export type DeploymentCommand = ApplicationCommand<DeploymentActionInput>;
 export type DeploymentGateway<Result> = ApplicationGateway<DeploymentActionInput, Result>;
 export type DeploymentProfile = ApplicationProfile<DeploymentActionInput, DeploymentActionInput>;
+export type DeploymentAuthority = DomainAuthority<"auths.deploy">;
+export type DeploymentReceipt<Result> = DomainReceipt<"auths.deploy", Result>;
+export type DeploymentGatewayError = DomainGatewayError<"auths.deploy">;
 export type SupplyChainAction = ApplicationAction<SupplyChainActionInput>;
 export type SupplyChainCommand = ApplicationCommand<SupplyChainActionInput>;
 export type SupplyChainGateway<Result> = ApplicationGateway<SupplyChainActionInput, Result>;
 export type SupplyChainProfile = ApplicationProfile<SupplyChainActionInput, SupplyChainActionInput>;
+export type SupplyChainAuthority = DomainAuthority<"auths.supply-chain">;
+export type SupplyChainReceipt<Result> = DomainReceipt<"auths.supply-chain", Result>;
+export type SupplyChainGatewayError = DomainGatewayError<"auths.supply-chain">;
 export type EdgeAction = ApplicationAction<EdgeActionInput>;
 export type EdgeCommand = ApplicationCommand<EdgeActionInput>;
 export type EdgeGateway<Result> = ApplicationGateway<EdgeActionInput, Result>;
 export type EdgeProfile = ApplicationProfile<EdgeActionInput, EdgeActionInput>;
+export type EdgeAuthority = DomainAuthority<"auths.edge">;
+export type EdgeReceipt<Result> = DomainReceipt<"auths.edge", Result>;
+export type EdgeGatewayError = DomainGatewayError<"auths.edge">;
 
 type NativeParser<Input> = (input: Input) => WorkflowDomainActionFields;
 type CanonicalParser<Input> = (value: unknown) => Input;

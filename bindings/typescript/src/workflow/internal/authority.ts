@@ -89,6 +89,7 @@ export function authoritySummary(
 }
 export function copyDelegationReview(value: DelegationReview): DelegationReview {
   return Object.freeze({
+    proposalCommitment: value.proposalCommitment.slice(),
     diff: Object.freeze({ ...value.diff }),
     warnings: Object.freeze(Array.from(value.warnings)),
   });

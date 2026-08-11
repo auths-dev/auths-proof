@@ -3,6 +3,7 @@ import type { GrantStatusSnapshot, PrincipalStatusSnapshot } from "./lifecycle.j
 import { AuthsWorkflowError } from "./workflow/errors.js";
 import { trustedContextSource, type TrustedContextSource } from "./workflow.js";
 import { loadPackagedWorkflowEngine } from "./verifier/wasm.js";
+import { emitAuthsEvent, type TelemetryPort } from "./observability.js";
 
 export interface TrustProfile {
   readonly id: string;
@@ -122,6 +123,85 @@ export interface CompiledTrustedContext {
   readonly source: TrustedContextSource;
   readonly verifierConfiguration: Uint8Array;
   readonly roots: readonly string[];
+  readonly offlineBundle: OfflineTrustBundle;
+}
+
+const OFFLINE_TRUST_TOKEN = Symbol("auths-offline-trust");
+const offlineTrustBytes = new WeakMap<OfflineTrustBundle, Uint8Array>();
+let mintOfflineTrustBundle: (
+  bytes: Uint8Array,
+  provenance: EvidenceProvenance,
+) => OfflineTrustBundle;
+
+export interface EvidenceProvenance {
+  readonly source: string;
+  readonly observedAt: bigint;
+  readonly validUntil: bigint;
+  readonly version: string;
+}
+
+export class OfflineTrustBundle {
+  readonly provenance: EvidenceProvenance;
+
+  private constructor(
+    token: typeof OFFLINE_TRUST_TOKEN,
+    bytes: Uint8Array,
+    provenance: EvidenceProvenance,
+  ) {
+    if (token !== OFFLINE_TRUST_TOKEN) throw new TypeError("sealed Auths trust bundle");
+    this.provenance = copyEvidenceProvenance(provenance);
+    offlineTrustBytes.set(this, bytes.slice());
+    Object.freeze(this);
+  }
+
+  private static create(
+    token: typeof OFFLINE_TRUST_TOKEN,
+    bytes: Uint8Array,
+    provenance: EvidenceProvenance,
+  ): OfflineTrustBundle {
+    return new OfflineTrustBundle(token, bytes, provenance);
+  }
+
+  static {
+    mintOfflineTrustBundle = (bytes, provenance) =>
+      OfflineTrustBundle.create(OFFLINE_TRUST_TOKEN, bytes, provenance);
+  }
+
+  export(): Uint8Array {
+    const bytes = offlineTrustBytes.get(this);
+    if (bytes === undefined) throw new TypeError("invalid Auths trust bundle");
+    return bytes.slice();
+  }
+}
+
+export interface EvidenceSourceRequest {
+  readonly sourceId: string;
+  readonly signal: AbortSignal;
+  readonly maximumBytes: number;
+  readonly maximumRedirects: number;
+  readonly allowPrivateNetwork: boolean;
+}
+
+export interface EvidenceSourceResult {
+  readonly bytes: Uint8Array;
+  readonly provenance: EvidenceProvenance;
+}
+
+export interface EvidenceSourcePort {
+  load(request: EvidenceSourceRequest): Promise<EvidenceSourceResult>;
+}
+
+export interface EvidenceSourceOptions {
+  readonly sourceId: string;
+  readonly port: EvidenceSourcePort;
+  readonly timeoutMs?: number;
+  readonly maximumBytes?: number;
+  readonly maximumRedirects?: number;
+  readonly allowPrivateNetwork?: boolean;
+  readonly signal?: AbortSignal;
+  readonly evaluationTime: bigint;
+  readonly telemetry?: TelemetryPort;
+  readonly correlationId?: string;
 }
 
 export async function compileTrustedContext(
@@ -164,10 +244,127 @@ export async function compileTrustedContext(
       source,
       verifierConfiguration,
       roots,
+      offlineBundle: mintOfflineTrustBundle(context, {
+        source: sourceId,
+        observedAt: configuration.evaluationTime,
+        validUntil: configuration.evaluationTime,
+        version: "compiled-v1",
+      }),
     });
   } finally {
     native.free?.();
   }
+}
+
+/** Acquires bounded evidence through an explicit I/O port and returns inert offline bytes. */
+export async function loadOfflineTrustBundle(options: EvidenceSourceOptions): Promise<OfflineTrustBundle> {
+  const timeoutMs = options.timeoutMs ?? 5_000;
+  const maximumBytes = options.maximumBytes ?? 1_048_576;
+  const maximumRedirects = options.maximumRedirects ?? 0;
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 60_000 ||
+      !Number.isSafeInteger(maximumBytes) || maximumBytes < 1 || maximumBytes > 16_777_216 ||
+      !Number.isSafeInteger(maximumRedirects) || maximumRedirects < 0 || maximumRedirects > 4 ||
+      options.sourceId.length === 0 || options.sourceId.length > 128) {
+    throw new AuthsWorkflowError("invalid-trusted-context", "evidence source limits are invalid");
+  }
+  const controller = new AbortController();
+  const correlationId = options.correlationId ?? nextEvidenceCorrelationId();
+  const started = performance.now();
+  void emitAuthsEvent(options.telemetry, {
+    name: "auths.acquisition.started",
+    timestamp: Date.now(),
+    correlationId,
+    operation: "load-trust-evidence",
+    stage: "acquisition",
+    outcome: "started",
+  });
+  const abort = () => controller.abort(options.signal?.reason);
+  options.signal?.addEventListener("abort", abort, { once: true });
+  const timer = setTimeout(() => controller.abort(new DOMException("timed out", "TimeoutError")), timeoutMs);
+  try {
+    const result = await options.port.load(Object.freeze({
+      sourceId: options.sourceId,
+      signal: controller.signal,
+      maximumBytes,
+      maximumRedirects,
+      allowPrivateNetwork: options.allowPrivateNetwork ?? false,
+    }));
+    controller.signal.throwIfAborted();
+    if (!(result.bytes instanceof Uint8Array) || result.bytes.length === 0 ||
+        result.bytes.length > maximumBytes) {
+      throw new AuthsWorkflowError("invalid-trusted-context", "evidence source returned invalid bytes");
+    }
+    const provenance = copyEvidenceProvenance(result.provenance);
+    if (provenance.observedAt > options.evaluationTime || provenance.validUntil < options.evaluationTime) {
+      throw new AuthsWorkflowError("invalid-trusted-context", "evidence source returned stale evidence");
+    }
+    const bundle = mintOfflineTrustBundle(result.bytes, provenance);
+    void emitAuthsEvent(options.telemetry, {
+      name: "auths.acquisition.completed",
+      timestamp: Date.now(),
+      correlationId,
+      operation: "load-trust-evidence",
+      stage: "acquisition",
+      outcome: "succeeded",
+      durationMs: performance.now() - started,
+    });
+    return bundle;
+  } catch (error) {
+    void emitAuthsEvent(options.telemetry, {
+      name: "auths.acquisition.failed",
+      timestamp: Date.now(),
+      correlationId,
+      operation: "load-trust-evidence",
+      stage: "acquisition",
+      outcome: "failed",
+      durationMs: performance.now() - started,
+    });
+    if (error instanceof AuthsWorkflowError) throw error;
+    throw new AuthsWorkflowError(
+      "trusted-context-source-failed",
+      "evidence source operation failed",
+      { operation: "load-evidence", stage: "acquisition", retry: "conditional" },
+    );
+  } finally {
+    clearTimeout(timer);
+    options.signal?.removeEventListener("abort", abort);
+  }
+}
+
+let evidenceCorrelationSequence = 0;
+
+function nextEvidenceCorrelationId(): string {
+  evidenceCorrelationSequence = (evidenceCorrelationSequence + 1) % Number.MAX_SAFE_INTEGER;
+  return `auths-evidence-${Date.now().toString(36)}-${evidenceCorrelationSequence.toString(36)}`;
+}
+
+/** Validates imported offline evidence against an exact root and WASM configuration. */
+export async function trustedContextFromOfflineBundle(
+  sourceId: string,
+  bundle: OfflineTrustBundle,
+  rootPrincipal: string,
+  verifierConfiguration: Uint8Array,
+): Promise<TrustedContextSource> {
+  const bytes = bundle.export();
+  const engine = await loadPackagedWorkflowEngine();
+  try {
+    engine.validateTrustedContextV1(bytes, rootPrincipal, verifierConfiguration);
+  } catch {
+    throw new AuthsWorkflowError("invalid-trusted-context", "offline evidence does not match trust inputs");
+  }
+  return trustedContextSource({
+    sourceId,
+    provider: Object.freeze({ async loadTrustedContext() { return bytes.slice(); } }),
+  });
+}
+
+function copyEvidenceProvenance(provenance: EvidenceProvenance): EvidenceProvenance {
+  if (provenance.source.length === 0 || provenance.source.length > 512 ||
+      provenance.version.length === 0 || provenance.version.length > 128 ||
+      provenance.observedAt > provenance.validUntil) {
+    throw new AuthsWorkflowError("invalid-trusted-context", "evidence provenance is invalid");
+  }
+  return Object.freeze({ ...provenance });
 }
 
 function copyConfiguration(configuration: TrustedContextConfiguration): object {
