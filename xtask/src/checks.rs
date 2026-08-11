@@ -290,7 +290,16 @@ pub(crate) fn python_wheel_smoke() -> Result<(), String> {
     } else {
         virtual_environment.join("bin/python")
     };
-    command(path_text(&python)?, &["-m", "pip", "install", "pytest"])?;
+    command(
+        path_text(&python)?,
+        &[
+            "-m",
+            "pip",
+            "install",
+            "pytest==9.0.2",
+            "pytest-asyncio==1.3.0",
+        ],
+    )?;
     command(
         path_text(&python)?,
         &["-m", "pip", "install", path_text(&wheel)?],

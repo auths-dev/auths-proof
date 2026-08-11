@@ -364,13 +364,21 @@ class McpGatewayError(AuthsWorkflowError):
         self.completed_receipts = completed_receipts
 
 
-class McpGatewayCancelled(asyncio.CancelledError):
+class McpGatewayCancelled(AuthsWorkflowError):
     def __init__(
         self,
         receipt: McpReceipt,
         completed_receipts: Tuple[McpReceipt, ...] = (),
     ) -> None:
-        super().__init__("MCP gateway task was cancelled after provider entry")
+        super().__init__(
+            "gateway-cancelled",
+            "MCP gateway task was cancelled after provider entry",
+            operation="execute",
+            stage="provider",
+            retry="unknown",
+            effect_state="outcome-unknown",
+            remediation="reconcile the idempotency key before another execution attempt",
+        )
         self.receipt = receipt
         self.completed_receipts = completed_receipts
 

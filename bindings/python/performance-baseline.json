@@ -6,7 +6,8 @@
     "python": "3.10",
     "operatingSystem": "darwin",
     "architecture": "arm64",
-    "build": "release abi3 wheel"
+    "build": "release abi3 wheel",
+    "runner": "developer-reference"
   },
   "measurements": {
     "coldInitializeMs": 33.515,

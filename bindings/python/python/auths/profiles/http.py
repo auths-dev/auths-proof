@@ -345,13 +345,21 @@ class HttpGatewayError(HttpProfileError):
         self.completed_receipts = completed_receipts
 
 
-class HttpGatewayCancelled(asyncio.CancelledError):
+class HttpGatewayCancelled(HttpProfileError):
     def __init__(
         self,
         receipt: HttpReceipt,
         completed_receipts: Tuple[HttpReceipt, ...] = (),
     ) -> None:
-        super().__init__("HTTP gateway task was cancelled after provider entry")
+        super().__init__(
+            "gateway-cancelled",
+            "HTTP gateway task was cancelled after provider entry",
+            operation="execute",
+            stage="provider",
+            retry="unknown",
+            effect_state="outcome-unknown",
+            remediation="reconcile the idempotency key before another execution attempt",
+        )
         self.receipt = receipt
         self.completed_receipts = completed_receipts
 

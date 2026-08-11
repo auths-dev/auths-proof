@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import importlib
 import json
+import os
 import platform
 import sys
 import time
@@ -92,6 +93,9 @@ def main() -> None:
         "operatingSystem": sys.platform,
         "architecture": platform.machine().lower(),
         "build": "release abi3 wheel",
+        "runner": "github-actions"
+        if os.environ.get("GITHUB_ACTIONS") == "true"
+        else "developer-reference",
     }
     matching_environment = current_environment == baseline["environment"]
     if not capture:
@@ -108,10 +112,18 @@ def main() -> None:
             "plan64MsP95",
             "eventLoopYieldMsP95",
         ):
-            if measurement[key] > baseline["measurements"][key] * runtime_threshold:
-                raise SystemExit(f"{key} exceeded the matching-runner regression budget")
-        if measurement["wheelBytes"] > baseline["measurements"]["wheelBytes"] * wheel_threshold:
-            raise SystemExit("wheelBytes exceeded the matching-runner regression budget")
+            budget = baseline["measurements"][key] * runtime_threshold
+            if measurement[key] > budget:
+                raise SystemExit(
+                    f"{key} exceeded the matching-runner regression budget: "
+                    f"observed {measurement[key]}, budget {budget:.3f}"
+                )
+        wheel_budget = baseline["measurements"]["wheelBytes"] * wheel_threshold
+        if measurement["wheelBytes"] > wheel_budget:
+            raise SystemExit(
+                "wheelBytes exceeded the matching-runner regression budget: "
+                f"observed {measurement['wheelBytes']}, budget {wheel_budget:.0f}"
+            )
 
     print(json.dumps({"environment": current_environment, "matchingEnvironment": matching_environment, "measurement": measurement}, sort_keys=True))
 
