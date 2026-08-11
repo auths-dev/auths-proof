@@ -158,14 +158,16 @@ jobs:
         with:
           name: python-sdk-consumer-${{ github.run_id }}-${{ github.run_attempt }}
           path: consumer
-      - name: Remove the build toolchain from the consumer boundary
+      - name: Assert a source-free consumer boundary
         shell: bash
         run: |
-          if command -v rustup >/dev/null 2>&1; then
-            rustup self uninstall -y
-          fi
-          if command -v cargo >/dev/null 2>&1; then
-            echo "::error::External wheel workflow must run without Rust."
+          if find consumer -type f \( \
+            -name '*.rs' -o \
+            -name 'Cargo.toml' -o \
+            -name 'Cargo.lock' -o \
+            -name 'rust-toolchain*' \
+          \) -print -quit | grep -q .; then
+            echo "::error::External wheel workflow received Rust build inputs."
             exit 1
           fi
       - name: Install only the built wheel
