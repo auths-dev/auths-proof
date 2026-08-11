@@ -1,4 +1,11 @@
 from auths.profiles.mcp import McpGatewayCall, McpProfile
+from auths import ApplicationCredentialProvider  # pyright: ignore[reportAttributeAccessIssue]
+from auths import ApplicationExecutionStore  # pyright: ignore[reportAttributeAccessIssue]
+from auths import product_waist_conformance  # pyright: ignore[reportAttributeAccessIssue]
+
+assert ApplicationCredentialProvider
+assert ApplicationExecutionStore
+assert product_waist_conformance
 
 
 async def capability_boundaries(profile: McpProfile, raw: bytes) -> None:

@@ -14,6 +14,7 @@ pub(crate) fn ci_authoritative() -> Result<(), String> {
     crate::binding_semantics::binding_semantics()?;
     semantic_freeze(false)?;
     sdk_experience(false)?;
+    product_waist_conformance(false)?;
     public_naming()?;
     release_contract()?;
     repository_hygiene()?;

@@ -4768,3 +4768,4 @@ pub fn reviewed_body_digest() -> Digest {
 }
 pub mod adversarial;
 pub mod conformance;
+pub mod product_waist;

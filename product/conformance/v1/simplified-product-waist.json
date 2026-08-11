@@ -1,0 +1,374 @@
+{
+  "schema": "auths.simplified-product-waist-conformance/1",
+  "semanticOwner": "Rust",
+  "fixtureGenerator": "bindings/wasm/auths-proof-wasm/examples/generate-node-vectors.rs",
+  "fixtureProjection": "target/binding-vectors/workflow.projection.json",
+  "fixtureFields": [
+    "verdict",
+    "stage",
+    "code",
+    "commitments.action",
+    "commitments.result",
+    "commitments.plan",
+    "command",
+    "authorityDiff",
+    "receipts.decision.id",
+    "receipts.decision.canonical",
+    "receipts.decision.signingPreimage",
+    "receipts.execution.id",
+    "receipts.execution.canonical",
+    "receipts.execution.signingPreimage"
+  ],
+  "cases": [
+    {
+      "id": "command/forged-construction",
+      "boundary": "command",
+      "expected": "command-not-authentic",
+      "evidence": {
+        "rust": "bindings/python/src/mcp.rs",
+        "typescript": "bindings/typescript/test/integration/profiles/mcp.test.js",
+        "python": "bindings/python/tests/test_mcp_workflow.py"
+      }
+    },
+    {
+      "id": "command/serialization",
+      "boundary": "command",
+      "expected": "command-non-serializable",
+      "evidence": {
+        "rust": "bindings/python/src/mcp.rs",
+        "typescript": "bindings/typescript/test/integration/profiles/mcp.test.js",
+        "python": "bindings/python/tests/test_mcp_workflow.py"
+      }
+    },
+    {
+      "id": "command/copy",
+      "boundary": "command",
+      "expected": "command-non-copyable",
+      "evidence": {
+        "rust": "bindings/python/src/mcp.rs",
+        "typescript": "bindings/typescript/test/integration/profiles/mcp.test.js",
+        "python": "bindings/python/tests/test_mcp_workflow.py"
+      }
+    },
+    {
+      "id": "command/subclass",
+      "boundary": "command",
+      "expected": "command-non-subclassable",
+      "evidence": {
+        "rust": "bindings/python/src/mcp.rs",
+        "typescript": "bindings/typescript/test/integration/profiles/mcp.test.js",
+        "python": "bindings/python/tests/test_mcp_workflow.py"
+      }
+    },
+    {
+      "id": "command/prototype-graft",
+      "boundary": "command",
+      "expected": "command-not-authentic",
+      "evidence": {
+        "rust": "bindings/python/src/mcp.rs",
+        "typescript": "bindings/typescript/test/integration/profiles/mcp.test.js",
+        "python": "bindings/python/tests/test_mcp_workflow.py"
+      }
+    },
+    {
+      "id": "substitution/canonical-action",
+      "boundary": "authorization",
+      "expected": "action-commitment-mismatch",
+      "evidence": {
+        "rust": "bindings/wasm/auths-proof-wasm/examples/generate-node-vectors.rs",
+        "typescript": "bindings/typescript/test/integration/scenario-corpus.test.js",
+        "python": "bindings/python/tests/test_api.py"
+      }
+    },
+    {
+      "id": "substitution/proof",
+      "boundary": "authorization",
+      "expected": "proof-mismatch",
+      "evidence": {
+        "rust": "bindings/wasm/auths-proof-wasm/examples/generate-node-vectors.rs",
+        "typescript": "bindings/typescript/test/integration/scenario-corpus.test.js",
+        "python": "bindings/python/tests/test_api.py"
+      }
+    },
+    {
+      "id": "substitution/trusted-context",
+      "boundary": "authorization",
+      "expected": "context-commitment-mismatch",
+      "evidence": {
+        "rust": "bindings/wasm/auths-proof-wasm/examples/generate-node-vectors.rs",
+        "typescript": "bindings/typescript/test/integration/lifecycle-trust.test.js",
+        "python": "bindings/python/tests/test_elite_sdk.py"
+      }
+    },
+    {
+      "id": "substitution/profile",
+      "boundary": "profile",
+      "expected": "profile-mismatch",
+      "evidence": {
+        "rust": "bindings/python/src/mcp.rs",
+        "typescript": "bindings/typescript/test/integration/profiles/mcp.test.js",
+        "python": "bindings/python/tests/test_mcp_workflow.py"
+      }
+    },
+    {
+      "id": "substitution/audience",
+      "boundary": "authorization",
+      "expected": "audience-mismatch",
+      "evidence": {
+        "rust": "core/crates/auths-author/src/lib.rs",
+        "typescript": "bindings/typescript/test/integration/workflow/delegation.test.js",
+        "python": "bindings/python/tests/test_workflow.py"
+      }
+    },
+    {
+      "id": "substitution/plan-member",
+      "boundary": "plan",
+      "expected": "plan-member-mismatch",
+      "evidence": {
+        "rust": "bindings/python/src/mcp.rs",
+        "typescript": "bindings/typescript/test/integration/authorization-plans.test.js",
+        "python": "bindings/python/tests/test_mcp_workflow.py"
+      }
+    },
+    {
+      "id": "delegation/permission-widening",
+      "boundary": "authoring",
+      "expected": "permission-expansion",
+      "evidence": {
+        "rust": "core/crates/auths-author/src/lib.rs",
+        "typescript": "bindings/typescript/test/integration/workflow/delegation.test.js",
+        "python": "bindings/python/tests/test_workflow.py"
+      }
+    },
+    {
+      "id": "delegation/action-widening",
+      "boundary": "authoring",
+      "expected": "action-expansion",
+      "evidence": {
+        "rust": "core/crates/auths-author/src/lib.rs",
+        "typescript": "bindings/typescript/test/integration/workflow/delegation.test.js",
+        "python": "bindings/python/tests/test_workflow.py"
+      }
+    },
+    {
+      "id": "delegation/budget-widening",
+      "boundary": "authoring",
+      "expected": "budget-expansion",
+      "evidence": {
+        "rust": "core/crates/auths-author/src/lib.rs",
+        "typescript": "bindings/typescript/test/integration/workflow/delegation.test.js",
+        "python": "bindings/python/tests/test_workflow.py"
+      }
+    },
+    {
+      "id": "delegation/validity-widening",
+      "boundary": "authoring",
+      "expected": "validity-expansion",
+      "evidence": {
+        "rust": "core/crates/auths-author/src/lib.rs",
+        "typescript": "bindings/typescript/test/integration/workflow/delegation.test.js",
+        "python": "bindings/python/tests/test_workflow.py"
+      }
+    },
+    {
+      "id": "delegation/audience-widening",
+      "boundary": "authoring",
+      "expected": "audience-expansion",
+      "evidence": {
+        "rust": "core/crates/auths-author/src/lib.rs",
+        "typescript": "bindings/typescript/test/integration/workflow/delegation.test.js",
+        "python": "bindings/python/tests/test_workflow.py"
+      }
+    },
+    {
+      "id": "delegation/status-widening",
+      "boundary": "authoring",
+      "expected": "status-expansion",
+      "evidence": {
+        "rust": "core/crates/auths-author/src/lib.rs",
+        "typescript": "bindings/typescript/test/integration/workflow/delegation.test.js",
+        "python": "bindings/python/tests/test_workflow.py"
+      }
+    },
+    {
+      "id": "delegation/depth-widening",
+      "boundary": "authoring",
+      "expected": "delegation-depth-expansion",
+      "evidence": {
+        "rust": "core/crates/auths-author/src/lib.rs",
+        "typescript": "bindings/typescript/test/integration/workflow/delegation.test.js",
+        "python": "bindings/python/tests/test_workflow.py"
+      }
+    },
+    {
+      "id": "state/replay",
+      "boundary": "reservation",
+      "expected": "already-consumed",
+      "evidence": {
+        "rust": "product/runtime/auths-lifecycle/src/transition.rs",
+        "typescript": "bindings/typescript/test/unit/runtime-contract.test.js",
+        "python": "bindings/python/tests/test_elite_sdk.py"
+      }
+    },
+    {
+      "id": "state/concurrent-reservation",
+      "boundary": "reservation",
+      "expected": "reservation-conflict",
+      "evidence": {
+        "rust": "product/runtime/auths-lifecycle/src/transition.rs",
+        "typescript": "bindings/typescript/test/unit/runtime-contract.test.js",
+        "python": "bindings/python/tests/test_elite_sdk.py"
+      }
+    },
+    {
+      "id": "state/wrong-order",
+      "boundary": "reservation",
+      "expected": "invalid-transition",
+      "evidence": {
+        "rust": "product/runtime/auths-lifecycle/src/transition.rs",
+        "typescript": "bindings/typescript/test/unit/runtime-contract.test.js",
+        "python": "bindings/python/tests/test_elite_sdk.py"
+      }
+    },
+    {
+      "id": "state/exhausted-budget",
+      "boundary": "reservation",
+      "expected": "budget-exhausted",
+      "evidence": {
+        "rust": "product/runtime/auths-lifecycle/src/transition.rs",
+        "typescript": "bindings/typescript/test/unit/runtime-contract.test.js",
+        "python": "bindings/python/tests/test_elite_sdk.py"
+      }
+    },
+    {
+      "id": "provider/credentials-before-reservation",
+      "boundary": "credentials",
+      "expected": "reservation-required",
+      "evidence": {
+        "rust": "product/runtime/auths-lifecycle/src/transition.rs",
+        "typescript": "bindings/typescript/test/integration/profiles/mcp.test.js",
+        "python": "bindings/python/tests/test_mcp_workflow.py"
+      }
+    },
+    {
+      "id": "provider/entry-after-denied",
+      "boundary": "provider",
+      "expected": "provider-not-entered",
+      "evidence": {
+        "rust": "product/runtime/auths-runtime/src/lib.rs",
+        "typescript": "bindings/typescript/test/integration/profiles/mcp.test.js",
+        "python": "bindings/python/tests/test_mcp_workflow.py"
+      }
+    },
+    {
+      "id": "provider/entry-after-indeterminate",
+      "boundary": "provider",
+      "expected": "provider-not-entered",
+      "evidence": {
+        "rust": "product/runtime/auths-runtime/src/lib.rs",
+        "typescript": "bindings/typescript/test/integration/profiles/mcp.test.js",
+        "python": "bindings/python/tests/test_mcp_workflow.py"
+      }
+    },
+    {
+      "id": "cancellation/before-provider",
+      "boundary": "cancellation",
+      "expected": "cancelled-not-applied",
+      "evidence": {
+        "rust": "product/runtime/auths-lifecycle/src/transition.rs",
+        "typescript": "bindings/typescript/test/integration/profiles/mcp.test.js",
+        "python": "bindings/python/tests/test_mcp_workflow.py"
+      }
+    },
+    {
+      "id": "cancellation/after-provider",
+      "boundary": "cancellation",
+      "expected": "outcome-unknown",
+      "evidence": {
+        "rust": "product/runtime/auths-lifecycle/src/transition.rs",
+        "typescript": "bindings/typescript/test/integration/profiles/mcp.test.js",
+        "python": "bindings/python/tests/test_mcp_workflow.py"
+      }
+    },
+    {
+      "id": "outcome/not-applied",
+      "boundary": "outcome",
+      "expected": "safe-to-retry",
+      "evidence": {
+        "rust": "product/runtime/auths-lifecycle/src/transition.rs",
+        "typescript": "bindings/typescript/test/integration/profiles/mcp.test.js",
+        "python": "bindings/python/tests/test_mcp_workflow.py"
+      }
+    },
+    {
+      "id": "outcome/applied-failure",
+      "boundary": "outcome",
+      "expected": "applied-failure",
+      "evidence": {
+        "rust": "product/runtime/auths-lifecycle/src/transition.rs",
+        "typescript": "bindings/typescript/test/integration/profiles/mcp.test.js",
+        "python": "bindings/python/tests/test_mcp_workflow.py"
+      }
+    },
+    {
+      "id": "outcome/ambiguous",
+      "boundary": "outcome",
+      "expected": "outcome-unknown",
+      "evidence": {
+        "rust": "product/runtime/auths-lifecycle/src/transition.rs",
+        "typescript": "bindings/typescript/test/integration/profiles/mcp.test.js",
+        "python": "bindings/python/tests/test_mcp_workflow.py"
+      }
+    },
+    {
+      "id": "transport/unauthorized-delivery",
+      "boundary": "authorization",
+      "expected": "transport-is-not-authority",
+      "evidence": {
+        "rust": "exchange/crates/auths-proof-exchange-port/src/lib.rs",
+        "typescript": "bindings/typescript/test/integration/identity.test.js",
+        "python": "bindings/python/tests/test_elite_sdk.py"
+      }
+    },
+    {
+      "id": "receipt/mutated-decision",
+      "boundary": "receipt",
+      "expected": "receipt-commitment-mismatch",
+      "evidence": {
+        "rust": "product/receipts/auths-receipts/src/lib.rs",
+        "typescript": "bindings/typescript/test/integration/profiles/mcp.test.js",
+        "python": "bindings/python/tests/test_mcp_workflow.py"
+      }
+    },
+    {
+      "id": "receipt/wrong-execution-link",
+      "boundary": "receipt",
+      "expected": "receipt-link-mismatch",
+      "evidence": {
+        "rust": "product/receipts/auths-receipts/src/lib.rs",
+        "typescript": "bindings/typescript/test/integration/profiles/mcp.test.js",
+        "python": "bindings/python/tests/test_mcp_workflow.py"
+      }
+    },
+    {
+      "id": "parity/cross-language-fixture",
+      "boundary": "fixture",
+      "expected": "semantic-agreement",
+      "evidence": {
+        "rust": "bindings/wasm/auths-proof-wasm/examples/generate-node-vectors.rs",
+        "typescript": "bindings/typescript/test/integration/profiles/mcp.test.js",
+        "python": "bindings/python/tests/test_mcp_workflow.py"
+      }
+    },
+    {
+      "id": "configuration/development-as-production",
+      "boundary": "configuration",
+      "expected": "development-configuration-rejected",
+      "evidence": {
+        "rust": "product/config/auths-config/src/lib.rs",
+        "typescript": "bindings/typescript/test/unit/runtime-contract.test.js",
+        "python": "bindings/python/tools/check_contract.py"
+      }
+    }
+  ]
+}

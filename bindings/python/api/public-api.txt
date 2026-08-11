@@ -33,6 +33,7 @@ InheritBudget
 InheritStatus
 NoBudget
 Permission
+PreparedRawKeyAuthority
 Principal
 PrincipalDescriptor
 Profile
@@ -55,6 +56,7 @@ StatusSummary
 TrustedAuthority
 TrustedAuthoritySnapshot
 Validity
+prepare_raw_key_authority
 
 [auths.approvals]
 Approval
@@ -218,10 +220,14 @@ support_bundle
 ApplicationAction
 ApplicationAuthority
 ApplicationAuthorized
+ApplicationCredentialProvider
 ApplicationDenied
+ApplicationExecutionContext
+ApplicationExecutionStore
 ApplicationGateway
 ApplicationGatewayCancelled
 ApplicationGatewayError
+ApplicationGatewayOptions
 ApplicationIndeterminate
 ApplicationPlan
 ApplicationPlanAuthorized
@@ -231,6 +237,7 @@ ApplicationPlanResult
 ApplicationProfile
 ApplicationReceipt
 ApplicationRequest
+ApplicationReservation
 ApplicationResult
 ApplicationReview
 CanonicalProfileAction
@@ -316,16 +323,21 @@ TransitionGates
 [auths.testkit]
 ADAPTER_CONTRACT_VERSION
 DevelopmentApproval
+DevelopmentEd25519Signer
 DevelopmentIdentityMethod
+DevelopmentReceiptAttestor
 DevelopmentSignatureSuite
 DevelopmentSigner
 FixedClock
 MemoryGateway
+ProductWaistConformanceReport
+ProductWaistExpected
 RecordingTelemetry
 check_approval_provider
 check_identity_method
 check_signer
 check_telemetry
+product_waist_conformance
 
 [auths.trust]
 AssurancePolicy

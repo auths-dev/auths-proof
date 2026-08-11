@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Awaitable, Callable, Generic, TypeVar
+from inspect import isawaitable
+from types import MappingProxyType
+from typing import Any, Awaitable, Callable, Generic, Mapping, TypeVar, Union
 
 from . import _native as native
 from .approvals import (
@@ -32,6 +34,104 @@ from .observability import AuthsEvent
 from .receipts import ReceiptSigner
 
 ADAPTER_CONTRACT_VERSION = 1
+
+
+@dataclass(frozen=True)
+class ProductWaistExpected:
+    boundary: str
+    code: str
+
+
+@dataclass(frozen=True)
+class ProductWaistConformanceReport:
+    schema: str
+    manifest_schema: str
+    fixture_projection: str
+    passed: tuple[str, ...]
+
+
+async def product_waist_conformance(
+    manifest_input: object,
+    cases: Mapping[
+        str,
+        Callable[[ProductWaistExpected], Union[object, Awaitable[object]]],
+    ],
+) -> ProductWaistConformanceReport:
+    manifest = _product_waist_manifest(manifest_input)
+    required = tuple(item["id"] for item in manifest["cases"])
+    supplied = tuple(cases)
+    if len(supplied) != len(set(supplied)) or set(supplied) != set(required):
+        missing = sorted(set(required) - set(supplied))
+        unexpected = sorted(set(supplied) - set(required))
+        raise TypeError(
+            "product-waist case mismatch; "
+            f"missing={','.join(missing)}; unexpected={','.join(unexpected)}"
+        )
+    for item in manifest["cases"]:
+        result = cases[item["id"]](
+            ProductWaistExpected(item["boundary"], item["expected"])
+        )
+        if isawaitable(result):
+            await result
+    return ProductWaistConformanceReport(
+        "auths.simplified-product-waist-conformance-result/1",
+        manifest["schema"],
+        manifest["fixtureProjection"],
+        required,
+    )
+
+
+def _product_waist_manifest(value: object) -> Mapping[str, Any]:
+    if type(value) is not dict:
+        raise TypeError("product-waist manifest must be an object")
+    schema = _manifest_text(value.get("schema"), "schema")
+    owner = _manifest_text(value.get("semanticOwner"), "semanticOwner")
+    projection = _manifest_text(
+        value.get("fixtureProjection"), "fixtureProjection"
+    )
+    raw_cases = value.get("cases")
+    if (
+        schema != "auths.simplified-product-waist-conformance/1"
+        or owner != "Rust"
+        or type(raw_cases) is not list
+    ):
+        raise TypeError("unsupported product-waist manifest")
+    seen: set[str] = set()
+    parsed: list[Mapping[str, str]] = []
+    for candidate in raw_cases:
+        if type(candidate) is not dict:
+            raise TypeError("product-waist case must be an object")
+        identifier = _manifest_text(candidate.get("id"), "case id")
+        boundary = _manifest_text(candidate.get("boundary"), "case boundary")
+        expected = _manifest_text(candidate.get("expected"), "case expected code")
+        parts = identifier.split("/")
+        if (
+            len(parts) != 2
+            or any(not part or not part.replace("-", "").isalnum() for part in parts)
+            or identifier.lower() != identifier
+            or identifier in seen
+        ):
+            raise TypeError(f"invalid or duplicate product-waist case: {identifier}")
+        seen.add(identifier)
+        parsed.append(
+            MappingProxyType(
+                {"id": identifier, "boundary": boundary, "expected": expected}
+            )
+        )
+    return MappingProxyType(
+        {
+            "schema": schema,
+            "semanticOwner": owner,
+            "fixtureProjection": projection,
+            "cases": tuple(parsed),
+        }
+    )
+
+
+def _manifest_text(value: object, name: str) -> str:
+    if type(value) is not str or not value or len(value) > 512:
+        raise TypeError(f"product-waist {name} is invalid")
+    return value
 
 
 class DevelopmentApproval(ApprovalProvider):
@@ -274,9 +374,12 @@ __all__ = [
     "DevelopmentSigner",
     "FixedClock",
     "MemoryGateway",
+    "ProductWaistConformanceReport",
+    "ProductWaistExpected",
     "RecordingTelemetry",
     "check_approval_provider",
     "check_identity_method",
     "check_signer",
     "check_telemetry",
+    "product_waist_conformance",
 ]

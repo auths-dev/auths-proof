@@ -135,7 +135,7 @@ commits, but a public API must not enter a half-migrated state.
 
 - [x] Aggregate the current experience evidence described by
   [01 — Current complexity baseline](01_CURRENT_COMPLEXITY_BASELINE.md).
-- [ ] Land the invariant and parity gates in
+- [x] Land the invariant and parity gates in
   [02 — Security and parity guardrails](02_SECURITY_AND_PARITY_GUARDRAILS.md).
 - [ ] Establish only the cross-domain error envelope, core codes, and
   profile-code registration schema from

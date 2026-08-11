@@ -1,4 +1,6 @@
-export * from "./verifier/authority.js";
+import { loadPackagedWorkflowEngine } from "./verifier/wasm.js";
+import { createWorkflowClient, type LoadWorkflowOptions } from "./workflow.js";
+
 export {
   AuthsClient,
   AuthsWorkflowError,
@@ -6,9 +8,6 @@ export {
   ProviderOperationError,
   SignedGrantSource,
   TrustedContextSource,
-  loadAuths,
-  signedGrantSource,
-  trustedContextSource,
   type AgentIdentity,
   type ApprovalConfiguration,
   type ApprovalExecutionSummary,
@@ -33,7 +32,6 @@ export {
   type EffectiveAuthoritySummary,
   type ErrorContext,
   type ErrorFamily,
-  type LoadAuthsOptions,
   type OverGrantingWarning,
   type PermissionSummary,
   type PlanAuthorizationResult,
@@ -58,16 +56,12 @@ export {
   type TrustedContextSourceOptions,
   type WorkflowErrorCode,
   type WorkflowVerificationResult,
-} from "./workflow-client.js";
-export {
-  approvalPolicy,
-  noApproval,
-  thresholdApproval,
-  type ApprovalPolicyOptions,
-  type ThresholdApprovalOptions,
-} from "./approvals.js";
-export {
-  ProfilePlan,
-  VerifiedPlanCommand,
-  type PlanAuthoritySummary,
-} from "./plans.js";
+  signedGrantSource,
+  trustedContextSource,
+} from "./workflow.js";
+
+export type LoadAuthsOptions = LoadWorkflowOptions;
+
+export async function loadAuths(options: LoadAuthsOptions) {
+  return createWorkflowClient(options, await loadPackagedWorkflowEngine());
+}

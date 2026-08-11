@@ -1,5 +1,5 @@
 # Installed @auths-dev/sdk public API v1
-# declaration-sha256 cd5ea755f4efadbd3f10fd95e70bf525a63c05759b466393303a646b5b9102bc
+# declaration-sha256 cbb19db6bf62371919035410744d9e8e52c16df6cfdc0cf71fd416869853dcfb
 .	AgentIdentity	type
 .	ApprovalConfiguration	type
 .	ApprovalExecutionSummary	type
@@ -362,4 +362,8 @@
 ./testkit	InMemoryExecutionStatePort	value+type
 ./testkit	InMemoryReceiptPort	value+type
 ./testkit	InMemoryReplayPort	value+type
+./testkit	productWaistConformance	value
+./testkit	ProductWaistConformanceCase	type
+./testkit	ProductWaistConformanceReport	type
+./testkit	ProductWaistExpected	type
 ./testkit	profileConformance	value

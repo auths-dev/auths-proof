@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import copy
 import pickle
+import subprocess
+import sys
 from pathlib import Path
 from typing import Callable
 
@@ -17,6 +19,27 @@ VerifiedAction = native_implementation.VerifiedAction
 
 CORPUS = Path(__file__).parents[3] / "core" / "fixtures" / "v1" / "valid"
 BINDING_VECTORS = Path(__file__).parents[3] / "target" / "binding-vectors"
+
+
+def test_identity_and_verify_imports_do_not_load_effect_workflow() -> None:
+    source = """
+import sys
+import auths.identity
+import auths.verify
+forbidden = [
+    name for name in sys.modules
+    if name.startswith(('auths.workflow', 'auths.approvals', 'auths.custody', 'auths.profiles'))
+]
+if forbidden:
+    raise RuntimeError(','.join(forbidden))
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", source],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
 
 
 def authorized_result() -> Authorized:

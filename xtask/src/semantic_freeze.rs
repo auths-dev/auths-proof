@@ -4,7 +4,7 @@ use crate::*;
 
 const INVENTORY_PATH: &str = "release/semantic-freeze.json";
 const INVENTORY_SCHEMA: &str = "auths.semantic-freeze/1";
-const FREEZE_VERSION: u64 = 57;
+const FREEZE_VERSION: u64 = 58;
 const PUBLIC_RUST_ROOTS: [&str; 10] = [
     "auths",
     "auths-byte-channel",
@@ -183,7 +183,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.identity.protocol",
-            8,
+            9,
             FreezeClassification::FrozenMeaning,
             &[
                 "identity-protocol-versions",
@@ -242,7 +242,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.portable-abi-bindings",
-            26,
+            27,
             FreezeClassification::FrozenMeaning,
             &["portable-abi", "authoring-abi", "binding-contracts"],
             vec![
@@ -274,6 +274,25 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
                 "product/integrations/auths-custody/src".to_owned(),
                 "product/runtime/auths-runtime/src".to_owned(),
                 "compliance.toml".to_owned(),
+            ],
+        )?,
+        freeze_entry(
+            "auths.product.simplified-waist",
+            1,
+            FreezeClassification::FrozenMeaning,
+            &[
+                "product-waist-invariants",
+                "cross-language-guardrails",
+                "shared-workflow-projection",
+                "conformance-runners",
+            ],
+            vec![
+                "core/testkit/auths-testkit/src/product_waist.rs".to_owned(),
+                "product/conformance/v1/simplified-product-waist.json".to_owned(),
+                "bindings/wasm/auths-proof-wasm/examples/generate-node-vectors.rs".to_owned(),
+                "bindings/typescript/src/testkit/product-waist-conformance.ts".to_owned(),
+                "bindings/python/python/auths/testkit.py".to_owned(),
+                "xtask/src/product_waist.rs".to_owned(),
             ],
         )?,
         freeze_entry(
@@ -417,7 +436,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
     ]);
     entries.push(freeze_entry(
         "auths.release.public-surface",
-        57,
+        58,
         FreezeClassification::ReleaseMetadata,
         &[
             "package-names",
@@ -642,6 +661,7 @@ fn frozen_byte_inventories() -> Result<Vec<(String, String)>, String> {
         "architecture/dependency-graph.json".to_owned(),
         "bounded-domains.toml".to_owned(),
         "core/conformance/v1/manifest.json".to_owned(),
+        "product/conformance/v1/simplified-product-waist.json".to_owned(),
         "core/explanations/v1/fact-inventory.json".to_owned(),
         "core/fixtures/v1/manifest.json".to_owned(),
         "core/formal-vectors/v1/manifest.json".to_owned(),

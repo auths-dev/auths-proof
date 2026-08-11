@@ -52,6 +52,15 @@ publicRoot.commitCanonical;
 // @ts-expect-error diagnostic verification never reaches the root entry point
 publicRoot.createDiagnosticVerifier;
 
+// @ts-expect-error framework execution stores are absent from the product root
+publicRoot.ApplicationExecutionStore;
+
+// @ts-expect-error framework credential ports are absent from the product root
+publicRoot.ApplicationCredentialProvider;
+
+// @ts-expect-error conformance machinery is confined to the testkit entry point
+publicRoot.productWaistConformance;
+
 // @ts-expect-error application commands are profile/verifier-minted
 new ApplicationCommand(Symbol(), {}, {});
 

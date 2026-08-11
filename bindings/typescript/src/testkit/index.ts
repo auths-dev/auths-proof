@@ -35,6 +35,12 @@ export {
   type CustodyConformanceResult,
 } from "./custody-conformance.js";
 export {
+  productWaistConformance,
+  type ProductWaistConformanceCase,
+  type ProductWaistConformanceReport,
+  type ProductWaistExpected,
+} from "./product-waist-conformance.js";
+export {
   InMemoryBudgetPort,
   InMemoryChallengePort,
   InMemoryExecutionStatePort,

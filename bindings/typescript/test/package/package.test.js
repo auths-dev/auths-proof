@@ -117,6 +117,18 @@ test("identity entry point has no higher-layer imports", async () => {
   );
 });
 
+test("identity and verification dependency closures exclude effect workflow code", async () => {
+  const forbidden = /\/(?:approvals|custody|plans|profiles|workflow)(?:\/|\.|$)/;
+  for (const entry of ["identity.js", "verify.js"]) {
+    const closure = await sourceClosure(new URL(`../../dist/${entry}`, import.meta.url));
+    assert.equal(
+      closure.some((path) => forbidden.test(path)),
+      false,
+      `${entry} loaded an effect workflow module: ${closure.join(", ")}`,
+    );
+  }
+});
+
 test("published entry points omit package coordination hooks", async () => {
   const forbidden = [
     "createDelegatedAttachedAgent",
@@ -138,3 +150,18 @@ test("published entry points omit package coordination hooks", async () => {
     }
   }
 });
+
+async function sourceClosure(entry) {
+  const pending = [entry];
+  const seen = new Set();
+  while (pending.length > 0) {
+    const current = pending.pop();
+    if (seen.has(current.href)) continue;
+    seen.add(current.href);
+    const source = await readFile(current, "utf8");
+    for (const match of source.matchAll(/(?:from\s+|import\s*)["'](\.[^"']+)["']/g)) {
+      pending.push(new URL(match[1], current));
+    }
+  }
+  return [...seen].map((url) => new URL(url).pathname);
+}
