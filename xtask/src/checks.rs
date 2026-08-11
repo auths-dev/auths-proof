@@ -290,10 +290,34 @@ pub(crate) fn python_wheel_smoke() -> Result<(), String> {
     } else {
         virtual_environment.join("bin/python")
     };
-    command(path_text(&python)?, &["-m", "pip", "install", "pytest"])?;
+    command(
+        path_text(&python)?,
+        &[
+            "-m",
+            "pip",
+            "install",
+            "pytest==9.0.2",
+            "pytest-asyncio==1.3.0",
+        ],
+    )?;
     command(
         path_text(&python)?,
         &["-m", "pip", "install", path_text(&wheel)?],
+    )?;
+    command(
+        path_text(&python)?,
+        &["bindings/python/tools/check_wheel.py", path_text(&wheel)?],
+    )?;
+    command(
+        path_text(&python)?,
+        &["bindings/python/tools/check_public_api.py"],
+    )?;
+    command(
+        path_text(&python)?,
+        &[
+            "bindings/python/external/full_workflow_consumer.py",
+            "target/binding-vectors",
+        ],
     )?;
     command_in(
         path_text(&python)?,

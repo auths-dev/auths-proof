@@ -7225,9 +7225,259 @@
     {
       "source": "auths-proof-python",
       "source_layer": "bindings",
-      "target": "auths-proof-wasm",
-      "target_layer": "bindings",
+      "target": "auths-author",
+      "target_layer": "core",
       "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "std"
+      ]
+    },
+    {
+      "source": "auths-proof-python",
+      "source_layer": "bindings",
+      "target": "auths-codec",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "std"
+      ]
+    },
+    {
+      "source": "auths-proof-python",
+      "source_layer": "bindings",
+      "target": "auths-custody",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-proof-python",
+      "source_layer": "bindings",
+      "target": "auths-did-keri",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "std"
+      ]
+    },
+    {
+      "source": "auths-proof-python",
+      "source_layer": "bindings",
+      "target": "auths-did-key",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "std"
+      ]
+    },
+    {
+      "source": "auths-proof-python",
+      "source_layer": "bindings",
+      "target": "auths-identity",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-proof-python",
+      "source_layer": "bindings",
+      "target": "auths-identity-raw-key",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-proof-python",
+      "source_layer": "bindings",
+      "target": "auths-lifecycle",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "std"
+      ]
+    },
+    {
+      "source": "auths-proof-python",
+      "source_layer": "bindings",
+      "target": "auths-model",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "std"
+      ]
+    },
+    {
+      "source": "auths-proof-python",
+      "source_layer": "bindings",
+      "target": "auths-ports",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "std"
+      ]
+    },
+    {
+      "source": "auths-proof-python",
+      "source_layer": "bindings",
+      "target": "auths-profile-api",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-proof-python",
+      "source_layer": "bindings",
+      "target": "auths-profile-domains",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-proof-python",
+      "source_layer": "bindings",
+      "target": "auths-profile-mcp",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-proof-python",
+      "source_layer": "bindings",
+      "target": "auths-raw-key",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "std"
+      ]
+    },
+    {
+      "source": "auths-proof-python",
+      "source_layer": "bindings",
+      "target": "auths-registries",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "std"
+      ]
+    },
+    {
+      "source": "auths-proof-python",
+      "source_layer": "bindings",
+      "target": "auths-sdk",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-proof-python",
+      "source_layer": "bindings",
+      "target": "auths-signature",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "std"
+      ]
+    },
+    {
+      "source": "auths-proof-python",
+      "source_layer": "bindings",
+      "target": "auths-signature-ed25519",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-proof-python",
+      "source_layer": "bindings",
+      "target": "auths-verifier",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "std"
+      ]
+    },
+    {
+      "source": "auths-proof-python",
+      "source_layer": "bindings",
+      "target": "getrandom",
+      "target_layer": null,
+      "scope": "external",
       "kind": "normal",
       "target_condition": null,
       "optional": false,
@@ -7247,6 +7497,45 @@
       "features": [
         "abi3-py39"
       ]
+    },
+    {
+      "source": "auths-proof-python",
+      "source_layer": "bindings",
+      "target": "serde_json",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "preserve_order"
+      ]
+    },
+    {
+      "source": "auths-proof-python",
+      "source_layer": "bindings",
+      "target": "serde_json_canonicalizer",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-proof-python",
+      "source_layer": "bindings",
+      "target": "subtle",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
     },
     {
       "source": "auths-proof-wasm",

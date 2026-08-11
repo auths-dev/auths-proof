@@ -148,17 +148,17 @@ layer = "product"
 path = "product/integrations/auths-custody"
 core_apis = ["auths-author", "auths-model"]
 protocol_versions = ["auths-proof/v1"]
-wire_objects = ["SigningIntent"]
+wire_objects = ["ProviderSigningResponse", "SigningIntent"]
 fixture_suites = []
 principal_families = ["external-custody"]
 signature_families = ["provider-selected"]
 profiles = []
 transports = []
-configuration_inputs = ["key-descriptor", "signature-suite", "signing-preimage"]
-security_state = ["external-key-handle", "signing-preimage"]
+configuration_inputs = ["key-descriptor", "principal", "request-id", "signature-suite", "signing-preimage", "transaction-digest"]
+security_state = ["external-key-handle", "provider-response-binding", "signing-preimage"]
 
 [packages.auths-custody.claims]
-proof-author-or-assembler = ["product/integrations/auths-custody/src/lib.rs#mismatched_provider_transaction_cannot_produce_a_signed_object"]
+proof-author-or-assembler = ["product/integrations/auths-custody/src/lib.rs#mismatched_provider_transaction_cannot_produce_a_signed_object", "product/integrations/auths-custody/src/lib.rs#provider_response_binds_request_principal_descriptor_and_transaction"]
 
 [packages.auths-deployment]
 kind = "cargo"
@@ -1126,20 +1126,21 @@ demo-conformance-fixture = ["core/crates/auths-proof/src/lib.rs#facade_returns_n
 kind = "cargo"
 layer = "bindings"
 path = "bindings/python"
-core_apis = []
+core_apis = ["auths-author", "auths-codec", "auths-did-keri", "auths-did-key", "auths-identity", "auths-identity-raw-key", "auths-model", "auths-ports", "auths-raw-key", "auths-registries", "auths-signature", "auths-signature-ed25519", "auths-verifier"]
 protocol_versions = ["auths-proof/v1"]
-wire_objects = ["CanonicalAction", "PortableVerificationResult", "ProofBundle", "VerifierContext"]
-fixture_suites = ["core/fixtures/v1"]
+wire_objects = ["ActionEnvelope", "AuthorizationPlan", "CanonicalAction", "GrantStatement", "GrantStatusSnapshot", "GrantStatusStatement", "PortableVerificationResult", "PrincipalStatusSnapshot", "PrincipalStatusStatement", "ProofBundle", "SignedAction", "SignedGrant", "SignedGrantStatus", "SignedPrincipalStatus", "VerifierContext"]
+fixture_suites = ["bindings/python/differential-fixtures-v1.json", "core/fixtures/v1"]
 principal_families = ["self-contained-v1"]
 signature_families = ["ed25519-v1", "p256-sha256-v1"]
-profiles = ["core-corpus"]
+profiles = ["auths.mcp/1", "core-corpus"]
 transports = []
-configuration_inputs = ["executed-verifier-configuration", "required-verifier-configuration"]
-security_state = []
+configuration_inputs = ["approval-plan-commitment", "approval-policy-commitment", "executed-verifier-configuration", "required-verifier-configuration", "trusted-authority-configuration", "trusted-context-template"]
+security_state = ["approval-provider", "delegated-authority-chain", "profile-owned-action", "sealed-plan-command", "signer-transaction-lifecycle", "typed-control-evidence"]
 
 [packages.auths-proof-python.claims]
-core-wire-consumer = ["bindings/python/tests/test_api.py#test_portable_decoder_rejects_shape_version_and_trailing_data"]
-language-binding = ["bindings/python/tests/test_api.py#test_configuration_mismatch_reports_required_and_executed_commitments"]
+core-wire-consumer = ["bindings/python/tests/test_api.py#test_native_result_parser_preserves_decode_failure_codes", "bindings/python/tests/test_mcp_workflow.py#test_shared_full_workflow_projection_matches_native_python", "bindings/python/tests/test_native_authoring.py#test_child_planning_matches_the_shared_rust_typescript_fixture", "bindings/python/tests/test_workflow.py#test_attach_and_delegate_use_native_authority_without_protocol_bytes"]
+language-binding = ["bindings/python/tests/test_api.py#test_configuration_mismatch_has_no_authorization_handle", "bindings/python/tests/test_mcp_workflow.py#test_decision_inspection_and_diagnostic_verification_stay_inert", "bindings/python/tests/test_mcp_workflow.py#test_mcp_plan_commitment_binds_order_and_exact_membership", "bindings/python/tests/test_mcp_workflow.py#test_ordered_plan_prompts_once_and_releases_one_native_plan_command", "bindings/python/tests/test_native_authoring.py#test_trust_compilation_and_request_binding_stay_native", "bindings/python/tests/test_workflow.py#test_approval_fields_cannot_outlive_their_native_commitment", "bindings/python/tests/test_workflow.py#test_every_exposed_authority_dimension_fails_before_approval_when_widened", "bindings/python/tests/test_workflow.py#test_every_approval_binding_field_fails_closed", "bindings/python/tests/test_workflow.py#test_every_signer_binding_field_fails_closed"]
+runtime-enforcement-boundary = ["bindings/python/tests/test_api.py#test_verified_action_has_no_python_construction_path", "bindings/python/tests/test_api.py#test_verified_action_rejects_copy_pickle_reduce_and_mutation", "bindings/python/tests/test_api.py#test_canonical_bytes_do_not_promote_to_a_capability", "bindings/python/tests/test_api.py#test_configuration_mismatch_has_no_authorization_handle", "bindings/python/tests/test_mcp_workflow.py#test_decision_inspection_and_diagnostic_verification_stay_inert", "bindings/python/tests/test_mcp_workflow.py#test_ordered_plan_failure_exposes_no_partial_command", "bindings/python/tests/test_mcp_workflow.py#test_plan_approval_response_substitution_fails_before_signing", "bindings/python/tests/test_mcp_workflow.py#test_plan_cancellation_exposes_no_partial_command", "bindings/python/tests/test_mcp_workflow.py#test_plan_mutation_after_approval_fails_before_the_next_signature", "bindings/python/tests/test_workflow.py#test_cancellation_closes_the_partial_child_and_produces_no_signature", "bindings/python/tests/test_workflow.py#test_native_transaction_is_single_use_across_approval_and_signature"]
 
 [packages.auths-proof-wasm]
 kind = "cargo"

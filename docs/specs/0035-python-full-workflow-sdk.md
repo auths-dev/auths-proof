@@ -1,8 +1,8 @@
 # AP-SPEC-035: Python Full Workflow SDK
 
-**Status:** Specified — implementation is blocked on AP-SPEC-032, the
-AP-SPEC-033 Phase 9 exit gate, an immutable reviewed SDK baseline, and the
-non-forgeable Python command correction in issue 73
+**Status:** Milestones A and B implemented on the immutable RC baseline as a
+repository-local pre-review surface; Full Workflow promotion remains blocked
+on the later AP-SPEC-035 exit gates
 
 **Governs:** The Python Full Workflow SDK addition to Phase 10 in the
 [Post-Milestone 6 Productization and Release

@@ -1,0 +1,33 @@
+{
+  "schema": "auths.python-identity-conformance/1",
+  "descriptorProtocol": "auths-identity/v1",
+  "scenarios": [
+    {
+      "id": "rotation-history",
+      "methodMaterial": "resolver-version-8",
+      "relationships": ["signing-current"],
+      "history": ["signing-2025", "signing-2026"],
+      "requiredBehavior": "method adapter proves current relationship and preserves history provenance"
+    },
+    {
+      "id": "composite-all",
+      "relationships": ["device", "organization"],
+      "requiredBehavior": "method and application select both purpose-labelled relationships explicitly"
+    },
+    {
+      "id": "threshold-material",
+      "relationship": "quorum-signing",
+      "materials": ["member-1", "member-2", "member-3"],
+      "requiredBehavior": "suite adapter owns quorum verification and rejects missing, duplicate or substituted members"
+    },
+    {
+      "id": "hybrid-classical-post-quantum",
+      "relationship": "hybrid-authentication",
+      "materials": ["classical", "post-quantum"],
+      "requiredBehavior": "suite adapter verifies both materials without fallback or downgrade"
+    }
+  ],
+  "maintainedAdapters": ["raw-key-v2/ed25519-v1"],
+  "adapterOwnership": "external",
+  "claimsAdapterAvailability": false
+}

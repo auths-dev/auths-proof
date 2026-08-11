@@ -1,0 +1,93 @@
+{
+  "schema": "auths.python-differential-fixtures/1",
+  "nativeAbiVersion": 2,
+  "generator": "auths-proof-wasm/generate-node-vectors",
+  "consumers": [
+    "Rust",
+    "Python",
+    "TypeScript"
+  ],
+  "fixtures": [
+    {
+      "name": "authorized-portable-result",
+      "inputs": [
+        "core/fixtures/v1/valid/raw-key-chain.proof.cbor",
+        "core/fixtures/v1/valid/raw-key-chain.action.cbor",
+        "authorized.context.cbor"
+      ],
+      "projection": "authorized.result.cbor"
+    },
+    {
+      "name": "child-grant-attenuation",
+      "inputs": [
+        "authoring.delegation-root-grant.cbor",
+        "authoring.proposed-grant.cbor"
+      ],
+      "projection": "authoring.planned-grant.cbor"
+    },
+    {
+      "name": "exact-action-signing",
+      "inputs": [
+        "core/fixtures/v1/valid/raw-key-chain.proof.cbor"
+      ],
+      "projection": "authoring.action-signing-preimage.cbor"
+    },
+    {
+      "name": "mcp-profile-action",
+      "inputs": [
+        "mcp.signed-root-grant.cbor",
+        "{\"value\":\"reviewed\"}",
+        "mcp.action-signature.bin",
+        "mcp.denied-action-signature.bin",
+        "mcp.signed-child-grant.cbor",
+        "mcp.child-grant-signature.bin",
+        "mcp.child-action-signature.bin",
+        "mcp.child-evidence.bin",
+        "mcp.child-principal.txt"
+      ],
+      "projection": "profile, permission, audience, resource, canonical arguments and signing request"
+    },
+    {
+      "name": "root-authority-attachment",
+      "inputs": [
+        "authoring.delegation-root-grant.cbor",
+        "authorized.context.cbor"
+      ],
+      "projection": "grant identifier, issuer, subject, profile, permissions, validity, audiences, action constraint, budget, depth, status, assurance, extensions and signature descriptor"
+    },
+    {
+      "name": "delegated-authority-workflow",
+      "inputs": [
+        "authoring.delegation-root-grant.cbor",
+        "authoring.proposed-grant.cbor"
+      ],
+      "projection": "planned child statement, semantic diff, warnings, signing request identifier, transaction digest and signed child authority summary"
+    },
+    {
+      "name": "full-workflow-projection",
+      "inputs": [
+        "workflow.proof.cbor",
+        "workflow.action.cbor",
+        "workflow.context.cbor",
+        "workflow.result.cbor"
+      ],
+      "projection": "workflow.projection.json"
+    },
+    {
+      "name": "credential-shape-agnostic-identity",
+      "inputs": [
+        "bindings/python/identity-conformance-v1.json"
+      ],
+      "projection": "method material, purpose, suite and ordered verification-material relationships"
+    },
+    {
+      "name": "profile-command-receipt-binding",
+      "inputs": [
+        "workflow.proof.cbor",
+        "workflow.action.cbor",
+        "workflow.context.cbor"
+      ],
+      "projection": "action, proof-authority, verifier-context and ordered plan-member commitments"
+    }
+  ]
+}

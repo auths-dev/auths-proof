@@ -1,0 +1,17 @@
+{
+  "include": [
+    "python/auths",
+    "typecheck"
+  ],
+  "exclude": ["typecheck/mypy_negative.py"],
+  "pythonVersion": "3.9",
+  "extraPaths": ["python"],
+  "typeCheckingMode": "strict",
+  "reportUnnecessaryTypeIgnoreComment": "error",
+  "reportMissingModuleSource": "none",
+  "reportPrivateUsage": "none",
+  "reportUnnecessaryCast": "none",
+  "reportUnnecessaryIsInstance": "none",
+  "reportUnsupportedDunderAll": "none",
+  "reportUnusedFunction": "none"
+}

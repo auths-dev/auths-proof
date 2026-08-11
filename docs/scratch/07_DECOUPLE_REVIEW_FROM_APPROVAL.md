@@ -54,7 +54,7 @@ This separates “what the action means” from “whether a human permits it.�
 1. Introduce `ReviewDisplay` with the current bounded fields.
 2. Add `ActionProfile::review_display`.
 3. Adapt approval workflows to consume it.
-4. Temporarily retain `approval_display` as a deprecated forwarding method if compatibility requires it.
+4. Remove `approval_display` and its aliases in the same prelaunch cutover.
 5. Update profile conformance tests to use neutral terminology.
 6. Move approval-specific copy and policy out of profile packages where possible.
 

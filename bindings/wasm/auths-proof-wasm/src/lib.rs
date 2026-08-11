@@ -4,8 +4,9 @@
 
 use auths_author::{
     ApprovalPolicyCommitment, ExternalSigningRequest, GrantPlan, GrantRequest, OverGrantingWarning,
-    ProfilePlanCommitment, ProfilePlanMember, commit_plan_approval, plan_child_grant,
-    prepare_action, prepare_grant, prepare_grant_status, prepare_principal_status,
+    ProfilePlanCommitment, ProfilePlanMember, WorkflowAssemblyError, WorkflowProofBuilder,
+    address_evidence, commit_plan_approval, plan_child_grant, prepare_action, prepare_grant,
+    prepare_grant_status, prepare_principal_status, prepare_profile_action,
 };
 use auths_identity::{
     IdentityDescriptor, IdentityPacket, PublicIdentity, SignedIdentityMessage,
@@ -15,15 +16,14 @@ use auths_identity_raw_key::RawKeyIdentityMethod;
 use auths_model::{
     AcceptedRegistries, ActionConstraint, ActionEnvelope, AssuranceClaimId, AssuranceImplicationId,
     AssurancePolicy, AssurancePolicyId, AssuranceQuantifier, AssuranceRequirement, Audience,
-    AudienceSet, AuthorizationPlan, BodyDigestSet, BudgetAlgebraId, BudgetCeiling, BundleHeader,
-    CapabilityId, Challenge, ChannelBindingId, CompositionRequirement, ControlBinding,
-    CriticalExtension, CriticalExtensions, Digest, EvidenceId, EvidenceObject, EvidenceTypeId,
-    ExtensionId, FreshnessLimit, GrantId, GrantState, GrantStatusSnapshot, GrantStatusStatement,
-    LimitKind, MediaType, ParticipantRole, Permission, PermissionSet, PrincipalId,
-    PrincipalMethodId, PrincipalState, PrincipalStatusSnapshot, PrincipalStatusStatement,
-    ProfileId, ProfilePolicyId, ProfileRef, ProofBundle, ProofRef, PurposeId, ResourceId,
-    ResourceMatcherId, SignatureBytes, SignatureDescriptor, SignatureSuiteId, SignedGrant,
-    StatementRef, StatusMethodId, StatusPolicy, StatusSnapshotId, StatusTrustRule, Timestamp,
+    AudienceSet, AuthorizationPlan, BodyDigestSet, BudgetAlgebraId, BudgetCeiling, CapabilityId,
+    Challenge, ChannelBindingId, CompositionRequirement, CriticalExtension, CriticalExtensions,
+    Digest, EvidenceId, EvidenceObject, EvidenceTypeId, ExtensionId, FreshnessLimit, GrantId,
+    GrantState, GrantStatusSnapshot, GrantStatusStatement, LimitKind, MediaType, ParticipantRole,
+    Permission, PermissionSet, PrincipalId, PrincipalMethodId, PrincipalState,
+    PrincipalStatusSnapshot, PrincipalStatusStatement, ProfileId, ProfilePolicyId, ProfileRef,
+    ProofRef, PurposeId, ResourceId, ResourceMatcherId, SignatureBytes, SignatureDescriptor,
+    SignatureSuiteId, StatusMethodId, StatusPolicy, StatusSnapshotId, StatusTrustRule, Timestamp,
     TrustAnchor, TrustAnchorId, ValidityWindow, VerificationMethod, VerifierConfigurationId,
     VerifierContext, VerifierLimits,
 };
@@ -3256,35 +3256,22 @@ fn prepare_mcp_action_native(
     let challenge: [u8; 32] = challenge
         .try_into()
         .map_err(|_| EngineError::Abi("challenge must contain exactly 32 bytes"))?;
-    let proof_ref = ProofRef::new(challenge);
-    let plan = AuthorizationPlan::proof(proof_ref);
-    let envelope = ActionEnvelope::new(
-        canonical.profile().clone(),
-        canonical.media_type().clone(),
-        auths_codec::body_digest(canonical.body()),
-        canonical.permission().clone(),
-        canonical.requested_budget().cloned(),
+    let resource = canonical.permission().resource().to_string();
+    let prepared = prepare_profile_action(
+        canonical,
         call.audience()?,
-        Challenge::new(challenge),
-        ValidityWindow::new(
-            Timestamp::new(evaluation_time),
-            Timestamp::new(evaluation_time),
-        )?,
         PrincipalId::parse(actor)?,
-        Some(auths_codec::grant_id(terminal_grant.statement())?),
-        auths_codec::plan_id(&plan)?,
-        ChannelBindingId::parse("none-v1")?,
-        proof_ref,
-        Vec::new(),
-        CriticalExtensions::empty(),
-    );
+        &terminal_grant,
+        challenge,
+        evaluation_time,
+    )?;
     Ok(McpActionPreparationV1 {
-        canonical_action_cbor: auths_codec::encode_canonical_action(&canonical)?,
-        action_envelope_cbor: auths_codec::encode_action_envelope(&envelope)?,
+        canonical_action_cbor: auths_codec::encode_canonical_action(prepared.canonical())?,
+        action_envelope_cbor: auths_codec::encode_action_envelope(prepared.envelope())?,
         arguments_json: serde_json_canonicalizer::to_vec(call.arguments())
             .map_err(|_| EngineError::Abi("MCP arguments could not be canonicalized"))?,
         audience: call.audience()?.to_string(),
-        resource: canonical.permission().resource().to_string(),
+        resource,
         display_digest_hex: display.canonical_digest_hex().to_owned(),
     })
 }
@@ -3382,17 +3369,10 @@ fn canonical_profile_action_native(
     .map_err(EngineError::from)
 }
 
-#[derive(Clone)]
-struct GrantProofMaterial {
-    grant: SignedGrant,
-    evidence: Vec<EvidenceObject>,
-}
-
 /// Native, bounded proof-material collector used only by the workflow facade.
 #[wasm_bindgen]
 pub struct WorkflowProofBuilderV1 {
-    grants: Vec<GrantProofMaterial>,
-    action_evidence: Vec<EvidenceObject>,
+    inner: WorkflowProofBuilder,
 }
 
 #[wasm_bindgen]
@@ -3402,8 +3382,7 @@ impl WorkflowProofBuilderV1 {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            grants: Vec::new(),
-            action_evidence: Vec::new(),
+            inner: WorkflowProofBuilder::new(),
         }
     }
 
@@ -3414,24 +3393,13 @@ impl WorkflowProofBuilderV1 {
     /// Returns a JavaScript error for malformed grants or collection overflow.
     #[wasm_bindgen(js_name = pushGrant)]
     pub fn push_grant(&mut self, signed_grant_cbor: &[u8]) -> Result<u32, JsValue> {
-        if self.grants.len()
-            >= VerifierLimits::default_deployment().get(auths_model::LimitKind::Grants)
-        {
-            return Err(js_error(EngineError::Abi(
-                "grant chain exceeds deployment limit",
-            )));
-        }
         let grant = auths_codec::decode_signed_grant(
             signed_grant_cbor,
             &VerifierLimits::default_deployment(),
         )
         .map_err(js_error)?;
-        self.grants.push(GrantProofMaterial {
-            grant,
-            evidence: Vec::new(),
-        });
-        u32::try_from(self.grants.len() - 1)
-            .map_err(|_| js_error(EngineError::Abi("grant index exceeds ABI")))
+        let index = self.inner.push_grant(grant).map_err(js_error)?;
+        u32::try_from(index).map_err(|_| js_error(EngineError::Abi("grant index exceeds ABI")))
     }
 
     /// Binds one typed public evidence object to a previously added grant.
@@ -3448,14 +3416,12 @@ impl WorkflowProofBuilderV1 {
         media_type: &str,
         bytes: &[u8],
     ) -> Result<(), JsValue> {
-        let material = self
-            .grants
-            .get_mut(usize::try_from(grant_index).map_err(js_error)?)
-            .ok_or_else(|| js_error(EngineError::Abi("grant evidence index is invalid")))?;
-        material
-            .evidence
-            .push(addressed_evidence(evidence_type, media_type, bytes).map_err(js_error)?);
-        Ok(())
+        self.inner
+            .bind_grant_evidence(
+                usize::try_from(grant_index).map_err(js_error)?,
+                addressed_evidence(evidence_type, media_type, bytes).map_err(js_error)?,
+            )
+            .map_err(js_error)
     }
 
     /// Binds one typed public evidence object to the signed action.
@@ -3471,9 +3437,11 @@ impl WorkflowProofBuilderV1 {
         media_type: &str,
         bytes: &[u8],
     ) -> Result<(), JsValue> {
-        self.action_evidence
-            .push(addressed_evidence(evidence_type, media_type, bytes).map_err(js_error)?);
-        Ok(())
+        self.inner
+            .bind_action_evidence(
+                addressed_evidence(evidence_type, media_type, bytes).map_err(js_error)?,
+            )
+            .map_err(js_error)
     }
 
     /// Assembles the canonical proof and exact request-bound trusted context.
@@ -3513,55 +3481,11 @@ impl WorkflowProofBuilderV1 {
         let limits = VerifierLimits::default_deployment();
         let action = auths_codec::decode_signed_action(signed_action_cbor, &limits)?;
         let canonical = auths_codec::decode_canonical_action(canonical_action_cbor, &limits)?;
-        let plan = AuthorizationPlan::proof(action.envelope().proof_ref());
-        if auths_codec::plan_id(&plan)? != action.envelope().authorization_plan() {
-            return Err(EngineError::Abi(
-                "signed action does not bind its authorization plan",
-            ));
-        }
-        let mut evidence = Vec::new();
-        let mut bindings = Vec::new();
-        for material in &self.grants {
-            let ids = unique_evidence(&mut evidence, &material.evidence);
-            if !ids.is_empty() {
-                bindings.push(ControlBinding::new(
-                    StatementRef::Grant(auths_codec::grant_id(material.grant.statement())?),
-                    ids,
-                )?);
-            }
-        }
-        let action_ids = unique_evidence(&mut evidence, &self.action_evidence);
-        if !action_ids.is_empty() {
-            bindings.push(ControlBinding::new(
-                StatementRef::Action(auths_codec::action_id(action.envelope())?),
-                action_ids,
-            )?);
-        }
-        let proof = ProofBundle::new(
-            BundleHeader::v1(),
-            self.grants
-                .iter()
-                .map(|material| material.grant.clone())
-                .collect(),
-            vec![action.clone()],
-            plan.clone(),
-            evidence,
-            bindings,
-            Vec::new(),
-            Vec::new(),
-            Vec::new(),
-            Some(canonical.body().to_vec()),
-        )?;
-        let context = auths_codec::decode_verifier_context(trusted_context_cbor)?
-            .for_request(
-                action.envelope().audience().clone(),
-                action.envelope().challenge(),
-                action.envelope().validity().not_before(),
-            )?
-            .with_composition(CompositionRequirement::exact(auths_codec::plan_id(&plan)?))?;
+        let context = auths_codec::decode_verifier_context(trusted_context_cbor)?;
+        let artifacts = self.inner.finish(&action, &canonical, &context)?;
         Ok(WorkflowAuthorizationArtifactsV1 {
-            proof_cbor: auths_codec::encode_bundle(&proof)?,
-            trusted_context_cbor: auths_codec::encode_verifier_context(&context)?,
+            proof_cbor: auths_codec::encode_bundle(artifacts.proof())?,
+            trusted_context_cbor: auths_codec::encode_verifier_context(artifacts.context())?,
         })
     }
 }
@@ -3633,33 +3557,11 @@ fn addressed_evidence(
     media_type: &str,
     bytes: &[u8],
 ) -> Result<EvidenceObject, EngineError> {
-    let evidence_type = EvidenceTypeId::parse(evidence_type)?;
-    let media_type = MediaType::parse(media_type)?;
-    let unaddressed = EvidenceObject::new(
-        EvidenceId::new([0; 32]),
-        evidence_type.clone(),
-        media_type.clone(),
-        bytes.to_vec(),
-    )?;
-    Ok(EvidenceObject::new(
-        auths_codec::evidence_id(&unaddressed)?,
-        evidence_type,
-        media_type,
+    Ok(address_evidence(
+        EvidenceTypeId::parse(evidence_type)?,
+        MediaType::parse(media_type)?,
         bytes.to_vec(),
     )?)
-}
-
-fn unique_evidence(all: &mut Vec<EvidenceObject>, additions: &[EvidenceObject]) -> Vec<EvidenceId> {
-    let mut ids = Vec::with_capacity(additions.len());
-    for object in additions {
-        if !all.iter().any(|candidate| candidate.id() == object.id()) {
-            all.push(object.clone());
-        }
-        if !ids.contains(&object.id()) {
-            ids.push(object.id());
-        }
-    }
-    ids
 }
 
 fn plan_child_grant_native(
@@ -4042,6 +3944,8 @@ pub enum EngineError {
     Planning(auths_author::PlanningError),
     /// Exact signing-input construction failed.
     Author(auths_author::AuthorError),
+    /// Exact action or authorization-artifact assembly failed.
+    Workflow(WorkflowAssemblyError),
     /// MCP profile construction or canonicalization failed.
     Mcp(auths_profile_mcp::ProfileError),
     /// Profile contract construction or projection failed.
@@ -4071,6 +3975,7 @@ impl fmt::Display for EngineError {
             }
             Self::Planning(error) => write!(formatter, "could not plan child authority: {error}"),
             Self::Author(error) => write!(formatter, "could not prepare signing request: {error}"),
+            Self::Workflow(error) => write!(formatter, "could not assemble workflow: {error}"),
             Self::Mcp(error) => write!(formatter, "could not construct MCP action: {error}"),
             Self::Profile(error) => write!(formatter, "MCP profile contract failed: {error}"),
             Self::Identity(error) => write!(formatter, "identity descriptor failed: {error}"),
@@ -4108,6 +4013,12 @@ impl From<auths_codec::CodecError> for EngineError {
 impl From<auths_author::PlanningError> for EngineError {
     fn from(error: auths_author::PlanningError) -> Self {
         Self::Planning(error)
+    }
+}
+
+impl From<WorkflowAssemblyError> for EngineError {
+    fn from(error: WorkflowAssemblyError) -> Self {
+        Self::Workflow(error)
     }
 }
 
@@ -4189,40 +4100,49 @@ mod tests {
         )
         .unwrap();
         let mut builder = WorkflowProofBuilderV1::new();
-        for grant in bundle.grants() {
-            let index = builder.grants.len();
+        for (position, grant) in bundle.grants().iter().enumerate() {
             let grant_identifier = auths_codec::grant_id(grant.statement()).unwrap();
             let ids = bundle
                 .bindings()
                 .iter()
-                .find(|binding| binding.statement() == StatementRef::Grant(grant_identifier))
+                .find(|binding| {
+                    binding.statement() == auths_model::StatementRef::Grant(grant_identifier)
+                })
                 .unwrap()
                 .evidence();
-            builder.grants.push(GrantProofMaterial {
-                grant: grant.clone(),
-                evidence: bundle
-                    .evidence()
-                    .iter()
-                    .filter(|evidence| ids.contains(&evidence.id()))
-                    .cloned()
-                    .collect(),
-            });
-            assert_eq!(builder.grants.len(), index + 1);
+            let index = builder.inner.push_grant(grant.clone()).unwrap();
+            assert_eq!(index, position);
+            for evidence in bundle
+                .evidence()
+                .iter()
+                .filter(|evidence| ids.contains(&evidence.id()))
+            {
+                builder
+                    .inner
+                    .bind_grant_evidence(index, evidence.clone())
+                    .unwrap();
+            }
         }
         let action = bundle.actions().first().unwrap();
         let action_identifier = auths_codec::action_id(action.envelope()).unwrap();
         let ids = bundle
             .bindings()
             .iter()
-            .find(|binding| binding.statement() == StatementRef::Action(action_identifier))
+            .find(|binding| {
+                binding.statement() == auths_model::StatementRef::Action(action_identifier)
+            })
             .unwrap()
             .evidence();
-        builder.action_evidence = bundle
+        for evidence in bundle
             .evidence()
             .iter()
             .filter(|evidence| ids.contains(&evidence.id()))
-            .cloned()
-            .collect();
+        {
+            builder
+                .inner
+                .bind_action_evidence(evidence.clone())
+                .unwrap();
+        }
         let artifacts = builder
             .finish_native(
                 &auths_codec::encode_signed_action(action).unwrap(),
