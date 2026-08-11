@@ -33,6 +33,19 @@ from .identity import (
     VerificationMaterial,
 )
 from .observability import AuthsEvent
+from .conformance import (
+    CONFORMANCE_CATALOG,
+    AtomicReservationRecord,
+    AtomicReservationStoreCandidate,
+    ByteTransportCandidate,
+    ConformanceCaseResult,
+    ConformanceMetadata,
+    ConformanceReport,
+    certify_atomic_store,
+    certify_byte_transport,
+    certify_mcp_provider,
+    certify_signer,
+)
 
 ADAPTER_CONTRACT_VERSION = 1
 
@@ -324,4 +337,15 @@ __all__ = [
     "check_signer",
     "check_telemetry",
     "product_waist_conformance",
+    "AtomicReservationRecord",
+    "AtomicReservationStoreCandidate",
+    "ByteTransportCandidate",
+    "CONFORMANCE_CATALOG",
+    "ConformanceCaseResult",
+    "ConformanceMetadata",
+    "ConformanceReport",
+    "certify_atomic_store",
+    "certify_byte_transport",
+    "certify_mcp_provider",
+    "certify_signer",
 ]

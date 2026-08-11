@@ -1,5 +1,5 @@
 # Installed @auths-dev/sdk public API v1
-# declaration-sha256 9c3d64e6124d03af7e7beceb111f3823f7384089bfb8f9986ed1ea909a58d24d
+# declaration-sha256 e207c215193c3fa5d1e1d92dd3c9d87adc210769dbea2369368d27319d34a717
 .	Actor	type
 .	AgentIdentity	type
 .	ApprovalConfiguration	type
@@ -384,12 +384,18 @@
 ./profile-kit	ProfileDefinition	type
 ./profile-kit	ProfilePermission	type
 ./profile-kit	verifyApplicationReceipt	value
-./testkit	adapterConformance	value
-./testkit	AdapterConformanceCase	type
-./testkit	AdapterConformanceOptions	type
-./testkit	AdapterConformanceReport	type
-./testkit	AdapterKind	type
-./testkit	AdapterMetadata	type
+./testkit	AtomicReservationRecord	type
+./testkit	AtomicReservationStoreCandidate	type
+./testkit	ByteTransportCandidate	type
+./testkit	ByteTransportFactory	type
+./testkit	certifyAtomicStore	value
+./testkit	certifyByteTransport	value
+./testkit	certifyMcpProvider	value
+./testkit	certifySigner	value
+./testkit	CONFORMANCE_CATALOG	value
+./testkit	ConformanceCaseResult	type
+./testkit	ConformanceMetadata	type
+./testkit	ConformanceReport	type
 ./testkit	custodyConformance	value
 ./testkit	CustodyConformanceCase	type
 ./testkit	CustodyConformanceOptions	type
@@ -402,6 +408,7 @@
 ./testkit	InMemoryExecutionStatePort	value+type
 ./testkit	InMemoryReceiptPort	value+type
 ./testkit	InMemoryReplayPort	value+type
+./testkit	McpProviderFactory	type
 ./testkit	productWaistConformance	value
 ./testkit	ProductWaistConformanceCase	type
 ./testkit	ProductWaistConformanceReport	type

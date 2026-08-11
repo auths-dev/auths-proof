@@ -22,14 +22,6 @@ import type {
 } from "../profiles/application/index.js";
 export { profileConformance } from "./profile-conformance.js";
 export {
-  adapterConformance,
-  type AdapterConformanceCase,
-  type AdapterConformanceOptions,
-  type AdapterConformanceReport,
-  type AdapterKind,
-  type AdapterMetadata,
-} from "./adapter-conformance.js";
-export {
   custodyConformance,
   type CustodyConformanceCase,
   type CustodyConformanceOptions,
@@ -42,6 +34,21 @@ export {
   type ProductWaistConformanceReport,
   type ProductWaistExpected,
 } from "./product-waist-conformance.js";
+export {
+  CONFORMANCE_CATALOG,
+  certifyAtomicStore,
+  certifyByteTransport,
+  certifyMcpProvider,
+  certifySigner,
+  type AtomicReservationRecord,
+  type AtomicReservationStoreCandidate,
+  type ByteTransportCandidate,
+  type ByteTransportFactory,
+  type ConformanceCaseResult,
+  type ConformanceMetadata,
+  type ConformanceReport,
+  type McpProviderFactory,
+} from "./conformance.js";
 export {
   InMemoryBudgetPort,
   InMemoryChallengePort,

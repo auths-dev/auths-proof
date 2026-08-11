@@ -26,6 +26,27 @@ test("packed package runs the sealed command path in native Node", async () => {
       const { createDiagnosticVerifier } = await import("@auths-dev/sdk/diagnostics");
       const { mcp } = await import("@auths-dev/sdk/mcp");
       const { development } = await import("@auths-dev/sdk/testkit");
+      const { certifyAtomicStore } = await import("@auths-dev/sdk/testkit");
+
+      class AtomicStore {
+        records = new Map();
+        async reserve(record) {
+          if (record.value.length > 262144) throw new TypeError("bounded record");
+          const current = this.records.get(record.key);
+          if (current === undefined) {
+            this.records.set(record.key, record.commitment.slice());
+            return "acquired";
+          }
+          return current.every((value, index) => value === record.commitment[index])
+            ? "exact-replay"
+            : "conflict";
+        }
+      }
+      const conformance = await certifyAtomicStore(
+        () => new AtomicStore(),
+        { implementation: "packed.atomic-store", version: "1" },
+      );
+      if (!conformance.passed) throw new Error("packed conformance failed");
 
       const wasmUrl = import.meta.resolve("@auths-dev/sdk/verify");
       if (!wasmUrl.includes("/node_modules/@auths-dev/sdk/")) {
@@ -98,7 +119,7 @@ test("packed package runs the sealed command path in native Node", async () => {
       if (!rejectedForgedBytes) throw new Error("packed diagnostic verifier accepted junk bytes");
 
       process.stdout.write(JSON.stringify({
-        planKind, executed, deniedKind, raw: typeof raw.verify,
+        planKind, executed, deniedKind, raw: typeof raw.verify, conformance: conformance.passed,
       }));
     `);
 
@@ -112,6 +133,7 @@ test("packed package runs the sealed command path in native Node", async () => {
       executed: 2,
       deniedKind: "denied",
       raw: "function",
+      conformance: true,
     });
   } finally {
     await rm(directory, { recursive: true, force: true });

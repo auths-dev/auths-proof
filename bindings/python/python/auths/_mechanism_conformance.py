@@ -1,0 +1,213 @@
+from __future__ import annotations
+
+import json
+
+CONFORMANCE_CATALOG = json.loads(r'''{
+  "schema": "auths.mechanism-profile-conformance/1",
+  "suiteVersion": 1,
+  "semanticSubject": "auths.mechanism-profile-conformance/1",
+  "contracts": [
+    {
+      "contract": "signer-custody",
+      "classification": "candidate-mechanism",
+      "evidence": [
+        "auths.mcp/1",
+        "auths.records/1"
+      ],
+      "disposition": "publish-framework"
+    },
+    {
+      "contract": "atomic-reservation-store",
+      "classification": "candidate-mechanism",
+      "evidence": [
+        "auths.mcp/1",
+        "auths.records/1"
+      ],
+      "disposition": "publish-framework"
+    },
+    {
+      "contract": "bounded-byte-transport",
+      "classification": "candidate-mechanism",
+      "evidence": [
+        "identity-exchange",
+        "proof-exchange"
+      ],
+      "disposition": "retain-integrations"
+    },
+    {
+      "contract": "approval-transaction",
+      "classification": "candidate-mechanism",
+      "evidence": [
+        "auths.mcp/1"
+      ],
+      "disposition": "retain-internal"
+    },
+    {
+      "contract": "provider-gateway",
+      "classification": "profile-owned",
+      "evidence": [
+        "auths.mcp/1"
+      ],
+      "disposition": "retain-profile"
+    },
+    {
+      "contract": "provider-result",
+      "classification": "profile-owned",
+      "evidence": [
+        "auths.mcp/1"
+      ],
+      "disposition": "retain-profile"
+    },
+    {
+      "contract": "reconciliation",
+      "classification": "profile-owned",
+      "evidence": [
+        "auths.mcp/1"
+      ],
+      "disposition": "retain-profile"
+    },
+    {
+      "contract": "generic-framework-adapter",
+      "classification": "premature-abstraction",
+      "evidence": [],
+      "disposition": "delete"
+    }
+  ],
+  "suites": [
+    {
+      "id": "signer-custody/1",
+      "owner": "mechanism",
+      "cases": [
+        {
+          "id": "signer/transaction-binding",
+          "classification": "deterministic"
+        },
+        {
+          "id": "signer/principal-binding",
+          "classification": "deterministic"
+        },
+        {
+          "id": "signer/descriptor-binding",
+          "classification": "deterministic"
+        },
+        {
+          "id": "signer/request-binding",
+          "classification": "deterministic"
+        },
+        {
+          "id": "signer/expiry",
+          "classification": "deterministic"
+        },
+        {
+          "id": "signer/duplicate",
+          "classification": "deterministic"
+        },
+        {
+          "id": "signer/cancellation",
+          "classification": "deterministic"
+        },
+        {
+          "id": "signer/disposal",
+          "classification": "deterministic"
+        }
+      ]
+    },
+    {
+      "id": "atomic-reservation-store/1",
+      "owner": "mechanism",
+      "cases": [
+        {
+          "id": "atomic-store/acquire",
+          "classification": "deterministic"
+        },
+        {
+          "id": "atomic-store/exact-replay",
+          "classification": "deterministic"
+        },
+        {
+          "id": "atomic-store/conflict",
+          "classification": "deterministic"
+        },
+        {
+          "id": "atomic-store/concurrent-single-winner",
+          "classification": "deterministic"
+        },
+        {
+          "id": "atomic-store/bounded-record",
+          "classification": "deterministic"
+        },
+        {
+          "id": "atomic-store/isolated-instances",
+          "classification": "deterministic"
+        },
+        {
+          "id": "atomic-store/reopen-durability-claim",
+          "classification": "deterministic"
+        }
+      ]
+    },
+    {
+      "id": "bounded-byte-transport/1",
+      "owner": "mechanism",
+      "cases": [
+        {
+          "id": "byte-transport/exact-bytes",
+          "classification": "deterministic"
+        },
+        {
+          "id": "byte-transport/bounded-input",
+          "classification": "deterministic"
+        },
+        {
+          "id": "byte-transport/bounded-output",
+          "classification": "deterministic"
+        },
+        {
+          "id": "byte-transport/cancellation",
+          "classification": "deterministic"
+        },
+        {
+          "id": "byte-transport/disposal",
+          "classification": "deterministic"
+        }
+      ]
+    },
+    {
+      "id": "auths.mcp/1/provider/1",
+      "owner": "auths.mcp/1",
+      "cases": [
+        {
+          "id": "mcp/exact-call",
+          "classification": "deterministic"
+        },
+        {
+          "id": "mcp/deny-before-entry",
+          "classification": "deterministic"
+        },
+        {
+          "id": "mcp/concurrent-single-entry",
+          "classification": "deterministic"
+        },
+        {
+          "id": "mcp/ambiguous-no-blind-retry",
+          "classification": "deterministic"
+        },
+        {
+          "id": "mcp/reconcile-without-reentry",
+          "classification": "deterministic"
+        },
+        {
+          "id": "mcp/service-binding",
+          "classification": "deterministic"
+        },
+        {
+          "id": "mcp/bounded-output",
+          "classification": "deterministic"
+        }
+      ]
+    }
+  ]
+}
+''')
+
+__all__ = ["CONFORMANCE_CATALOG"]

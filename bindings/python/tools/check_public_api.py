@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib
 from pathlib import Path
 
 import auths
@@ -22,6 +23,8 @@ import auths.testkit
 import auths.trust
 import auths.verify
 
+auths_profiles_mcp = importlib.import_module("auths.profiles.mcp")
+
 
 def projection() -> str:
     sections = {
@@ -38,7 +41,7 @@ def projection() -> str:
         "auths.observability": auths.observability.__all__,
         "auths.profile_kit": auths.profile_kit.__all__,
         "auths.profiles.http": auths.profiles.http.__all__,
-        "auths.profiles.mcp": auths.profiles.mcp.__all__,
+        "auths.profiles.mcp": auths_profiles_mcp.__all__,
         "auths.runtime": auths.runtime.__all__,
         "auths.testkit": auths.testkit.__all__,
         "auths.trust": auths.trust.__all__,
