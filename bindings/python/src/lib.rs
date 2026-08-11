@@ -14,8 +14,10 @@ mod workflow;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
+type ReviewProjection<'py> = (String, Vec<(String, String)>, Bound<'py, PyBytes>);
+
 #[pyfunction]
-fn generate_challenge_v1<'py>(py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
+fn generate_challenge_v1(py: Python<'_>) -> PyResult<Bound<'_, PyBytes>> {
     let mut challenge = [0_u8; 32];
     getrandom::fill(&mut challenge)
         .map_err(|_| pyo3::exceptions::PyRuntimeError::new_err("secure randomness unavailable"))?;

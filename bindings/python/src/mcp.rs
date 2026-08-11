@@ -4,6 +4,7 @@
     clippy::unused_self
 )]
 
+use crate::ReviewProjection;
 use crate::authoring::{
     PyMcpAction, PyPrincipal, PySignedObject, PyTrustedContext, SignedObject, value_error,
 };
@@ -288,7 +289,7 @@ fn mcp_call(service: &str, name: &str, arguments_json: &[u8]) -> PyResult<PyMcpC
 fn review_mcp_call<'py>(
     py: Python<'py>,
     call: PyRef<'_, PyMcpCall>,
-) -> PyResult<(String, Vec<(String, String)>, Bound<'py, PyBytes>)> {
+) -> PyResult<ReviewProjection<'py>> {
     let canonical = McpProfile
         .canonicalize(&call.inner.canonical_bytes().map_err(value_error)?)
         .map_err(value_error)?;

@@ -94,7 +94,8 @@ impl PyIdentityProjection {
 
 #[pyfunction]
 fn decode_identity_v1(packet: &[u8]) -> PyResult<PyIdentityProjection> {
-    projection(IdentityPacket::decode(packet).map_err(value_error)?)
+    let packet = IdentityPacket::decode(packet).map_err(value_error)?;
+    Ok(projection(&packet))
 }
 
 #[pyfunction]
@@ -133,7 +134,8 @@ fn encode_identity_descriptor_v1<'py>(
 
 #[pyfunction]
 fn decode_identity_descriptor_v1(packet: &[u8]) -> PyResult<PyIdentityDescriptorProjection> {
-    descriptor_projection(IdentityDescriptor::decode(packet).map_err(value_error)?)
+    let descriptor = IdentityDescriptor::decode(packet).map_err(value_error)?;
+    Ok(descriptor_projection(&descriptor))
 }
 
 #[pyfunction]
@@ -242,7 +244,7 @@ fn verify_ed25519_preimage_v1(
     })
 }
 
-fn projection(packet: IdentityPacket) -> PyResult<PyIdentityProjection> {
+fn projection(packet: &IdentityPacket) -> PyIdentityProjection {
     let identity = packet.identity();
     let (packet_kind, message, signature) = match &packet {
         IdentityPacket::PublicIdentity(_) => ("public-identity", None, None),
@@ -252,7 +254,7 @@ fn projection(packet: IdentityPacket) -> PyResult<PyIdentityProjection> {
             Some(signed.signature().to_vec()),
         ),
     };
-    Ok(PyIdentityProjection {
+    PyIdentityProjection {
         method_id: identity.method_id().to_owned(),
         identity_id: identity.identity_id().to_owned(),
         suite_id: identity.suite_id().to_owned(),
@@ -260,13 +262,11 @@ fn projection(packet: IdentityPacket) -> PyResult<PyIdentityProjection> {
         packet_kind,
         message,
         signature,
-    })
+    }
 }
 
-fn descriptor_projection(
-    descriptor: IdentityDescriptor,
-) -> PyResult<PyIdentityDescriptorProjection> {
-    Ok(PyIdentityDescriptorProjection {
+fn descriptor_projection(descriptor: &IdentityDescriptor) -> PyIdentityDescriptorProjection {
+    PyIdentityDescriptorProjection {
         method_id: descriptor.method_id().to_owned(),
         identity_id: descriptor.identity_id().to_owned(),
         method_material: descriptor.method_material().to_vec(),
@@ -288,7 +288,7 @@ fn descriptor_projection(
                 )
             })
             .collect(),
-    })
+    }
 }
 
 pub fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {

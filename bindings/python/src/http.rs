@@ -1,5 +1,6 @@
 #![allow(clippy::needless_pass_by_value, clippy::too_many_arguments)]
 
+use crate::ReviewProjection;
 use crate::authoring::{
     PyPrincipal, PySignedObject, PyTrustedContext, PyUnsignedObject, SignedObject, UnsignedObject,
     value_error,
@@ -144,6 +145,7 @@ pub struct PyHttpCommand {
 }
 
 #[pymethods]
+#[allow(clippy::unused_self)]
 impl PyHttpCommand {
     #[getter]
     fn action_commitment<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
@@ -209,6 +211,7 @@ pub struct PyHttpPlanCommand {
 }
 
 #[pymethods]
+#[allow(clippy::unused_self)]
 impl PyHttpPlanCommand {
     #[getter]
     fn count(&self) -> PyResult<usize> {
@@ -336,7 +339,7 @@ fn http_call(
 fn review_http_call<'py>(
     py: Python<'py>,
     call: PyRef<'_, PyHttpCall>,
-) -> PyResult<(String, Vec<(String, String)>, Bound<'py, PyBytes>)> {
+) -> PyResult<ReviewProjection<'py>> {
     let canonical = canonical_http(&call.inner)?;
     let display = HttpProfile::default()
         .review_display(&canonical)

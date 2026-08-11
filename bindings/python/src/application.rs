@@ -114,6 +114,7 @@ pub struct PyApplicationCommand {
 }
 
 #[pymethods]
+#[allow(clippy::unused_self)]
 impl PyApplicationCommand {
     #[getter]
     fn action_commitment<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
@@ -186,6 +187,7 @@ pub struct PyApplicationPlanCommand {
 }
 
 #[pymethods]
+#[allow(clippy::unused_self)]
 impl PyApplicationPlanCommand {
     #[getter]
     fn count(&self) -> PyResult<usize> {
@@ -616,11 +618,11 @@ fn compatible(actions: &[PyApplicationAction]) -> PyResult<()> {
             || action
                 .canonical
                 .requested_budget()
-                .map(|value| value.algebra())
+                .map(BudgetCeiling::algebra)
                 != first
                     .canonical
                     .requested_budget()
-                    .map(|value| value.algebra())
+                    .map(BudgetCeiling::algebra)
     }) {
         return Err(PyValueError::new_err(
             "application plan members have incompatible authority",

@@ -8,7 +8,7 @@ use auths_lifecycle::{
 use pyo3::{exceptions::PyValueError, prelude::*};
 
 #[pyfunction]
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::fn_params_excessive_bools, clippy::too_many_arguments)]
 fn runtime_transition_v1(
     current: Option<&str>,
     operation: &str,
