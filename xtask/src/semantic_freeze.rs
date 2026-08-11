@@ -4,7 +4,7 @@ use crate::*;
 
 const INVENTORY_PATH: &str = "release/semantic-freeze.json";
 const INVENTORY_SCHEMA: &str = "auths.semantic-freeze/1";
-const FREEZE_VERSION: u64 = 63;
+const FREEZE_VERSION: u64 = 64;
 const PUBLIC_RUST_ROOTS: [&str; 10] = [
     "auths",
     "auths-byte-channel",
@@ -184,7 +184,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.identity.protocol",
-            9,
+            10,
             FreezeClassification::FrozenMeaning,
             &[
                 "identity-protocol-versions",
@@ -243,7 +243,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.portable-abi-bindings",
-            30,
+            31,
             FreezeClassification::FrozenMeaning,
             &["portable-abi", "authoring-abi", "binding-contracts"],
             vec![
@@ -259,7 +259,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.public-sdk-contract",
-            23,
+            24,
             FreezeClassification::FrozenMeaning,
             &[
                 "rust-sdk-contract",
@@ -279,7 +279,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.mcp-closed-execution",
-            1,
+            2,
             FreezeClassification::FrozenMeaning,
             &[
                 "profile-session",
@@ -302,7 +302,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.simplified-waist",
-            1,
+            2,
             FreezeClassification::FrozenMeaning,
             &[
                 "product-waist-invariants",
@@ -317,6 +317,24 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
                 "bindings/typescript/src/testkit/product-waist-conformance.ts".to_owned(),
                 "bindings/python/python/auths/testkit.py".to_owned(),
                 "xtask/src/product_waist.rs".to_owned(),
+            ],
+        )?,
+        freeze_entry(
+            "auths.product.facade",
+            1,
+            FreezeClassification::FrozenMeaning,
+            &[
+                "create",
+                "delegate",
+                "execute",
+                "resume",
+                "opaque-recovery-reference",
+            ],
+            vec![
+                "bindings/typescript/src/product.ts".to_owned(),
+                "bindings/python/python/auths/_product.py".to_owned(),
+                "bindings/typescript/src/profiles/mcp/index.ts".to_owned(),
+                "bindings/python/python/auths/profiles/mcp.py".to_owned(),
             ],
         )?,
         freeze_entry(
@@ -504,7 +522,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
     ]);
     entries.push(freeze_entry(
         "auths.release.public-surface",
-        63,
+        64,
         FreezeClassification::ReleaseMetadata,
         &[
             "package-names",

@@ -1,6 +1,7 @@
 """Maintained Auths action profiles."""
 
-from . import domains, http, mcp
+from . import domains, http
+from .mcp import mcp as mcp
 from .domains import (
     DomainProfileOptions,
     DomainProfiles,

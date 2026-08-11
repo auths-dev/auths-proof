@@ -151,7 +151,7 @@ ordered-plan codes.
   first four journeys from
   [03 — Customer vocabulary](03_CUSTOMER_VOCABULARY.md). The moderated cohort
   remains the final-name freeze gate.
-- [ ] Design the root facade and opaque profile session from
+- [x] Design the root facade and opaque profile session from
   [05 — Primary product waist](05_PRIMARY_PRODUCT_WAIST.md).
 - [ ] Design the six-required-plus-evidence-gated-framework topology in
   [06 — Progressive package layout](06_PROGRESSIVE_PACKAGE_LAYOUT.md).

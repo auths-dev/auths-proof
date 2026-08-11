@@ -71,3 +71,17 @@ export {
   VerifiedPlanCommand,
   type PlanAuthoritySummary,
 } from "./plans.js";
+export {
+  createAuths,
+  type Actor,
+  type Auths,
+  type AuthsConfiguration,
+  type Authority,
+  type Completed,
+  type Denied,
+  ExecutionReference,
+  type ExecutionResult,
+  type Indeterminate,
+  type Receipt,
+  type RecoveryResult,
+} from "./product.js";

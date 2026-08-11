@@ -55,7 +55,9 @@ McpHandlerCause = Literal[
 ]
 
 _PLAN_TOKEN = object()
+_AUTHORITY_TOKEN = object()
 GatewayResult = TypeVar("GatewayResult")
+_development_profile: Optional[McpProfile] = None
 
 
 @dataclass(frozen=True)
@@ -161,6 +163,42 @@ class McpProfile(Profile):
         if not callable(executor):
             raise TypeError("MCP gateway executor must be callable")
         return McpGateway(self.service, executor)
+
+
+class McpToolAuthority:
+    __slots__ = ("_profile", "_tools")
+
+    def __init__(
+        self,
+        token: object,
+        profile: McpProfile,
+        tools: Tuple[str, ...],
+    ) -> None:
+        if token is not _AUTHORITY_TOKEN:
+            raise TypeError("sealed Auths MCP authority")
+        self._profile = profile
+        self._tools = tools
+
+    @property
+    def profile(self) -> Literal["auths.mcp"]:
+        return "auths.mcp"
+
+    @property
+    def service(self) -> str:
+        return self._profile.service
+
+    @property
+    def tools(self) -> Tuple[str, ...]:
+        return self._tools
+
+    def __copy__(self) -> None:
+        raise TypeError("MCP authority is not copyable")
+
+    def __deepcopy__(self, _: object) -> None:
+        raise TypeError("MCP authority is not copyable")
+
+    def __reduce__(self) -> None:
+        raise TypeError("MCP authority is not serializable")
 
 
 class McpAction:
@@ -696,8 +734,79 @@ class McpFacade:
             reconcile=reconcile,
         )
 
+    def allow_tools(
+        self,
+        tools: Sequence[str],
+        *,
+        service: str = "development",
+    ) -> McpToolAuthority:
+        values = tuple(sorted(_bounded_tool_name(value) for value in tools))
+        if (
+            not values
+            or len(values) > MCP_PROFILE["limits"]["toolCount"]
+            or len(set(values)) != len(values)
+        ):
+            raise ValueError("MCP authority tools are outside profile limits")
+        profile = (
+            _development_mcp_profile()
+            if service == "development"
+            else McpProfile(service)
+        )
+        return McpToolAuthority(_AUTHORITY_TOKEN, profile, values)
+
+    def call_tool(
+        self,
+        *,
+        name: str,
+        arguments: Mapping[str, object],
+        service: str = "development",
+    ) -> McpAction:
+        profile = (
+            _development_mcp_profile()
+            if service == "development"
+            else McpProfile(service)
+        )
+        return profile.call(name, arguments)
+
 
 mcp = McpFacade()
+
+
+def resources_for_mcp_authority(
+    authority: McpToolAuthority,
+) -> Tuple[McpProfile, Tuple[Permission, ...], Tuple[str, ...], Tuple[str, ...]]:
+    if type(authority) is not McpToolAuthority:
+        raise TypeError("forged Auths MCP authority")
+    base = f"mcp://{authority.service}"
+    return (
+        authority._profile,
+        tuple(
+            Permission("tools/call", f"{base}/tools/{tool}") for tool in authority.tools
+        ),
+        (base,),
+        (base,),
+    )
+
+
+def _development_mcp_profile() -> McpProfile:
+    global _development_profile
+    if _development_profile is None:
+        _development_profile = McpProfile("development")
+    return _development_profile
+
+
+def _bounded_tool_name(value: object) -> str:
+    if (
+        type(value) is not str
+        or not value
+        or len(value.encode()) > MCP_PROFILE["limits"]["toolNameBytes"]
+        or not all(
+            character.isascii() and (character.isalnum() or character in "._-")
+            for character in value
+        )
+    ):
+        raise ValueError("invalid MCP tool name")
+    return value
 
 
 async def _authorize_mcp(
@@ -1260,6 +1369,7 @@ __all__ = [
     "McpReview",
     "McpToolContext",
     "McpToolHandler",
+    "McpToolAuthority",
     "execute_mcp_closed",
     "mcp",
     "resume_mcp_closed",

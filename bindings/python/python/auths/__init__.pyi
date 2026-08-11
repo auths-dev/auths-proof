@@ -1,5 +1,16 @@
 from .bootstrap import PreparedRawKeyAuthority as PreparedRawKeyAuthority
 from .bootstrap import prepare_raw_key_authority as prepare_raw_key_authority
+from ._product import Actor as Actor
+from ._product import Auths as Auths
+from ._product import AuthsConfiguration as AuthsConfiguration
+from ._product import Authority as Authority
+from ._product import Completed as Completed
+from ._product import Denied as Denied
+from ._product import ExecutionReference as ExecutionReference
+from ._product import ExecutionResult as ExecutionResult
+from ._product import Indeterminate as Indeterminate
+from ._product import Receipt as Receipt
+from ._product import RecoveryResult as RecoveryResult
 from .workflow import ActionConstraintSummary as ActionConstraintSummary
 from .workflow import AgentIdentity as AgentIdentity
 from .workflow import AllowedBodies as AllowedBodies

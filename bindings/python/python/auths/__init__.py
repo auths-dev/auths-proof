@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from .bootstrap import PreparedRawKeyAuthority as PreparedRawKeyAuthority
     from .bootstrap import prepare_raw_key_authority as prepare_raw_key_authority
     from .workflow import *  # noqa: F403
+    from ._product import *  # noqa: F403
 
 _WORKFLOW_EXPORTS = (
     "ActionConstraintSummary",
@@ -74,10 +75,26 @@ _BOOTSTRAP_EXPORTS = (
     "prepare_raw_key_authority",
 )
 
-__all__ = [*_WORKFLOW_EXPORTS, *_BOOTSTRAP_EXPORTS]
+_PRODUCT_EXPORTS = (
+    "Actor",
+    "Auths",
+    "AuthsConfiguration",
+    "Authority",
+    "Completed",
+    "Denied",
+    "ExecutionReference",
+    "ExecutionResult",
+    "Indeterminate",
+    "Receipt",
+    "RecoveryResult",
+)
+
+__all__ = [*_WORKFLOW_EXPORTS, *_BOOTSTRAP_EXPORTS, *_PRODUCT_EXPORTS]
 
 
 def __getattr__(name: str) -> Any:
+    if name in _PRODUCT_EXPORTS:
+        return getattr(import_module("._product", __name__), name)
     if name in _BOOTSTRAP_EXPORTS:
         return getattr(import_module(".bootstrap", __name__), name)
     if name not in _WORKFLOW_EXPORTS:

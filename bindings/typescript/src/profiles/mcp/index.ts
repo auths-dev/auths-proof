@@ -39,6 +39,7 @@ let mintMcpAction: (
   argumentsValue: Readonly<Record<string, unknown>>,
 ) => McpAction;
 let mintMcpProfile: (service: string) => McpProfile;
+let mintMcpAuthority: (profile: McpProfile, tools: readonly string[]) => McpToolAuthority;
 
 interface McpActionResources {
   readonly profile: McpProfile;
@@ -54,6 +55,13 @@ interface McpCommandResources {
 
 const actionResources = new WeakMap<McpAction, McpActionResources>();
 const commandResources = new WeakMap<McpCommand, McpCommandResources>();
+const authorityResources = new WeakMap<McpToolAuthority, {
+  readonly profile: McpProfile;
+  readonly tools: readonly string[];
+}>();
+
+let localMcpProfile: McpProfile | undefined;
+const developmentProfile = () => localMcpProfile ??= mintMcpProfile("development");
 
 /** Verifier-minted MCP tool call accepted only by its matching gateway. */
 export class McpCommand {
@@ -101,6 +109,30 @@ export interface McpAuthority {
   readonly capability: "tools/call";
   readonly resource: string;
   readonly audience: string;
+}
+
+const MCP_AUTHORITY_TOKEN: unique symbol = Symbol("auths-mcp-authority");
+
+export class McpToolAuthority {
+  readonly profile: "auths.mcp" = "auths.mcp";
+  readonly service: string;
+  readonly tools: readonly string[];
+
+  private constructor(token: typeof MCP_AUTHORITY_TOKEN, profile: McpProfile, tools: readonly string[]) {
+    if (token !== MCP_AUTHORITY_TOKEN) throw new TypeError("sealed Auths MCP authority");
+    this.service = profile.service;
+    this.tools = Object.freeze([...tools]);
+    authorityResources.set(this, { profile, tools: this.tools });
+    Object.freeze(this);
+  }
+
+  private static create(token: typeof MCP_AUTHORITY_TOKEN, profile: McpProfile, tools: readonly string[]): McpToolAuthority {
+    return new McpToolAuthority(token, profile, tools);
+  }
+
+  static {
+    mintMcpAuthority = (profile, tools) => McpToolAuthority.create(MCP_AUTHORITY_TOKEN, profile, tools);
+  }
 }
 
 export interface McpReceipt<Result> {
@@ -352,7 +384,43 @@ export const mcp = Object.freeze({
   developmentProvider(options: McpDevelopmentProviderOptions): McpClosedProvider & AsyncDisposable & { close(): Promise<void> } {
     return new DevelopmentMcpProvider(options);
   },
+  allowTools(tools: readonly string[], options: Readonly<{ service?: string }> = {}): McpToolAuthority {
+    if (!Array.isArray(tools) || tools.length === 0 || tools.length > MCP_PROFILE.limits.toolCount) {
+      throw new TypeError("MCP authority tools are outside profile limits");
+    }
+    const values = tools.map(boundedToolName);
+    if (new Set(values).size !== values.length) throw new TypeError("MCP authority contains duplicate tools");
+    return mintMcpAuthority(
+      options.service === undefined ? developmentProfile() : mintMcpProfile(boundedService(options.service)),
+      Object.freeze(values.sort()),
+    );
+  },
+  callTool(options: Readonly<{ name: string; arguments: Readonly<Record<string, unknown>>; service?: string }>): McpAction {
+    if (options === null || typeof options !== "object") throw new TypeError("MCP tool call options are missing");
+    const profile = options.service === undefined ? developmentProfile() : mintMcpProfile(boundedService(options.service));
+    return profile.call(options.name, options.arguments);
+  },
 });
+
+export function resourcesForMcpAuthority(authority: McpToolAuthority): Readonly<{
+  profile: McpProfile;
+  permissions: readonly Readonly<{ capability: string; resource: string }>[];
+  resourceNamespaces: readonly string[];
+  audiences: readonly string[];
+}> {
+  const resources = authorityResources.get(authority);
+  if (resources === undefined) throw new TypeError("forged Auths MCP authority");
+  const base = `mcp://${resources.profile.service}`;
+  return Object.freeze({
+    profile: resources.profile,
+    permissions: Object.freeze(resources.tools.map((tool) => Object.freeze({
+      capability: "tools/call",
+      resource: `${base}/tools/${tool}`,
+    }))),
+    resourceNamespaces: Object.freeze([base]),
+    audiences: Object.freeze([base]),
+  });
+}
 
 class DevelopmentMcpProvider implements McpClosedProvider, AsyncDisposable {
   readonly #tools: ReadonlyMap<string, McpToolHandler>;
