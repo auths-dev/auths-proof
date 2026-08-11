@@ -4,7 +4,7 @@ use crate::*;
 
 const INVENTORY_PATH: &str = "release/semantic-freeze.json";
 const INVENTORY_SCHEMA: &str = "auths.semantic-freeze/1";
-const FREEZE_VERSION: u64 = 59;
+const FREEZE_VERSION: u64 = 62;
 const PUBLIC_RUST_ROOTS: [&str; 10] = [
     "auths",
     "auths-byte-channel",
@@ -17,7 +17,7 @@ const PUBLIC_RUST_ROOTS: [&str; 10] = [
     "auths-sdk",
     "auths-signature-ed25519",
 ];
-const PUBLIC_RUST_CLOSURE: [&str; 38] = [
+const PUBLIC_RUST_CLOSURE: [&str; 39] = [
     "auths",
     "auths-algebra-kernel",
     "auths-assurance",
@@ -31,6 +31,7 @@ const PUBLIC_RUST_CLOSURE: [&str; 38] = [
     "auths-custody",
     "auths-did-keri",
     "auths-did-key",
+    "auths-errors",
     "auths-identity",
     "auths-identity-authority",
     "auths-identity-raw-key",
@@ -242,7 +243,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.portable-abi-bindings",
-            27,
+            29,
             FreezeClassification::FrozenMeaning,
             &["portable-abi", "authoring-abi", "binding-contracts"],
             vec![
@@ -258,7 +259,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.public-sdk-contract",
-            21,
+            22,
             FreezeClassification::FrozenMeaning,
             &[
                 "rust-sdk-contract",
@@ -297,7 +298,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.vocabulary",
-            1,
+            2,
             FreezeClassification::FrozenMeaning,
             &[
                 "customer-vocabulary",
@@ -314,6 +315,29 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
                 "bindings/python/README.md".to_owned(),
                 "product/sdk/auths-sdk/Cargo.toml".to_owned(),
                 "xtask/src/sdk_vocabulary.rs".to_owned(),
+            ],
+        )?,
+        freeze_entry(
+            "auths.product.error-recovery-contract",
+            3,
+            FreezeClassification::FrozenMeaning,
+            &[
+                "error-envelope",
+                "effect-and-retry-classification",
+                "profile-error-registration",
+                "bounded-support-evidence",
+                "cross-language-error-fixtures",
+            ],
+            vec![
+                "product/errors/auths-errors/src".to_owned(),
+                "product/errors/v1".to_owned(),
+                "product/fixtures/v1/errors".to_owned(),
+                "bindings/typescript/src/product-errors.ts".to_owned(),
+                "bindings/typescript/src/generated/error-registry.ts".to_owned(),
+                "bindings/python/python/auths/product_errors.py".to_owned(),
+                "bindings/python/python/auths/_error_registry.py".to_owned(),
+                "xtask/src/error_registry.rs".to_owned(),
+                "docs/reference/error-codes.md".to_owned(),
             ],
         )?,
         freeze_entry(
@@ -404,7 +428,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
 
     for (id, path) in frozen_byte_inventories()? {
         let version = match path.as_str() {
-            "architecture/dependency-graph.json" => 15,
+            "architecture/dependency-graph.json" => 16,
             "bindings/wasm/auths-proof-wasm/identity-abi-v1.json" => 3,
             "core/fixtures/v1/manifest.json" => 3,
             "formal/assurance-manifest-v1.toml"
@@ -457,7 +481,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
     ]);
     entries.push(freeze_entry(
         "auths.release.public-surface",
-        59,
+        62,
         FreezeClassification::ReleaseMetadata,
         &[
             "package-names",

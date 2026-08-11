@@ -14,6 +14,7 @@ auths-author.workspace = true
 auths-custody.workspace = true
 auths-did-keri = { workspace = true, features = ["std"] }
 auths-did-key.workspace = true
+auths-errors.workspace = true
 auths-kernel-runtime.workspace = true
 auths-model.workspace = true
 auths-ports.workspace = true

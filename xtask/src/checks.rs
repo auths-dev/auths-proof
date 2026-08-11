@@ -15,6 +15,7 @@ pub(crate) fn ci_authoritative() -> Result<(), String> {
     semantic_freeze(false)?;
     sdk_experience(false)?;
     sdk_vocabulary()?;
+    error_registry(false)?;
     product_waist_conformance(false)?;
     public_naming()?;
     release_contract()?;

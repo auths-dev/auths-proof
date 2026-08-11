@@ -69,6 +69,7 @@ no_std_packages = [
   "auths-did-keri",
   "auths-did-key",
   "auths-did-web",
+  "auths-errors",
   "auths-hsm-attested",
   "auths-identity",
   "auths-identity-authority",
@@ -119,6 +120,7 @@ auths-did-keri = "core"
 auths-did-key = "core"
 auths-did-web = "core"
 auths-enforcement = "product"
+auths-errors = "product"
 auths-evidence-assemblers = "product"
 auths-hsm-attested = "core"
 auths-lab-matrix = "demos"

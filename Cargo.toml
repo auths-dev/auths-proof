@@ -51,6 +51,7 @@ members = [
     "exchange/testkit/auths-proof-exchange-testkit",
     "product/sdk/auths-sdk",
     "product/sdk/auths-profile-kit",
+    "product/errors/auths-errors",
     "product/policy/auths-bounded-policy",
     "product/policy/auths-bounded-policy/fuzz",
     "product/integrations/auths-enforcement",
@@ -175,6 +176,7 @@ auths-cache = { version = "1.0.0-rc.1", path = "product/cache/auths-cache" }
 auths-operations = { version = "1.0.0-rc.1", path = "product/operations/auths-operations" }
 auths-sdk = { version = "1.0.0-rc.1", path = "product/sdk/auths-sdk" }
 auths-profile-kit = { version = "1.0.0-rc.1", path = "product/sdk/auths-profile-kit" }
+auths-errors = { version = "1.0.0-rc.1", path = "product/errors/auths-errors", default-features = false }
 auths-bounded-policy = { version = "1.0.0-rc.1", path = "product/policy/auths-bounded-policy", default-features = false }
 auths-enforcement = { version = "1.0.0-rc.1", path = "product/integrations/auths-enforcement" }
 auths-deployment = { version = "1.0.0-rc.1", path = "product/integrations/auths-deployment" }

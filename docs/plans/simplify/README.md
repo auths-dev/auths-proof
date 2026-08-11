@@ -137,7 +137,7 @@ commits, but a public API must not enter a half-migrated state.
   [01 — Current complexity baseline](01_CURRENT_COMPLEXITY_BASELINE.md).
 - [x] Land the invariant and parity gates in
   [02 — Security and parity guardrails](02_SECURITY_AND_PARITY_GUARDRAILS.md).
-- [ ] Establish only the cross-domain error envelope, core codes, and
+- [x] Establish the cross-domain error envelope, core codes, and
   profile-code registration schema from
   [08 — Errors, recovery, and diagnostics](08_ERRORS_RECOVERY_AND_DIAGNOSTICS.md).
 

@@ -1,0 +1,710 @@
+//! Stable, bounded error and recovery semantics for Auths products.
+
+#![cfg_attr(not(feature = "std"), no_std)]
+#![forbid(unsafe_code)]
+
+extern crate alloc;
+
+use alloc::{collections::BTreeSet, string::String, vec::Vec};
+use serde::{Deserialize, Serialize};
+
+pub const REGISTRY_SCHEMA: &str = "auths.error-registry/1";
+pub const ENVELOPE_SCHEMA: &str = "auths.error/1";
+pub const MAX_TOKEN_BYTES: usize = 128;
+pub const MAX_SUMMARY_BYTES: usize = 256;
+pub const MAX_CAUSES: usize = 8;
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ErrorFamily {
+    Configuration,
+    Input,
+    Runtime,
+    Profile,
+    Provider,
+    State,
+    Internal,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum RetryClass {
+    Never,
+    Safe,
+    Conditional,
+    Unknown,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum EffectState {
+    NotApplied,
+    Possible,
+    Applied,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum RecommendedAction {
+    CorrectInput,
+    CorrectConfiguration,
+    InstallCompatibleRuntime,
+    RetryExecution,
+    SatisfyCondition,
+    ResumeAndReconcile,
+    InspectReceipt,
+    ContactSupport,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum CauseCategory {
+    Cancelled,
+    Conflict,
+    CorruptState,
+    InvalidResponse,
+    LimitExceeded,
+    Timeout,
+    Unavailable,
+    Unknown,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AllowedOutcome {
+    pub retry: RetryClass,
+    pub effect: EffectState,
+}
+
+#[derive(Clone, Copy, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ErrorDefinition {
+    pub code: &'static str,
+    pub family: ErrorFamily,
+    pub owner: &'static str,
+    pub owner_version: u16,
+    pub operation: &'static str,
+    pub stages: &'static [&'static str],
+    pub outcomes: &'static [AllowedOutcome],
+    pub recommended_action: RecommendedAction,
+    pub allows_execution_reference: bool,
+    pub allows_decision_reference: bool,
+    pub allows_receipt_reference: bool,
+    pub title: &'static str,
+    pub explanation: &'static str,
+    pub fixture_id: &'static str,
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[allow(clippy::struct_excessive_bools)]
+pub struct EnteredBoundaries {
+    pub approval: bool,
+    pub signer: bool,
+    pub state: bool,
+    pub credential: bool,
+    pub provider: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ErrorEnvelopeInput {
+    pub code: String,
+    pub operation: String,
+    pub stage: String,
+    pub summary: String,
+    pub correlation_id: String,
+    pub retry: RetryClass,
+    pub effect: EffectState,
+    pub entered: EnteredBoundaries,
+    pub recommended_action: RecommendedAction,
+    pub execution_reference: Option<String>,
+    pub decision_reference: Option<String>,
+    pub receipt_reference: Option<String>,
+    pub causes: Vec<CauseCategory>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ErrorEnvelope {
+    pub schema: String,
+    pub family: ErrorFamily,
+    pub code: String,
+    pub operation: String,
+    pub stage: String,
+    pub summary: String,
+    pub correlation_id: String,
+    pub retry: RetryClass,
+    pub effect: EffectState,
+    pub entered: EnteredBoundaries,
+    pub recommended_action: RecommendedAction,
+    pub execution_reference: Option<String>,
+    pub decision_reference: Option<String>,
+    pub receipt_reference: Option<String>,
+    pub causes: Vec<CauseCategory>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ErrorContractError {
+    DuplicateCode,
+    InvalidNamespace,
+    InvalidOwnerVersion,
+    InvalidDefinition,
+    UnknownCode,
+    InvalidField,
+    UnsupportedStage,
+    UnsupportedOutcome,
+    InvalidReference,
+    UnsafeRetry,
+}
+
+impl ErrorEnvelope {
+    /// Parses a registry-bound bounded error projection.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ErrorContractError`] when a field is invalid or the recovery
+    /// classification is not allowed by the stable code.
+    pub fn parse(input: ErrorEnvelopeInput) -> Result<Self, ErrorContractError> {
+        let definition = registry()
+            .find(|candidate| candidate.code == input.code)
+            .ok_or(ErrorContractError::UnknownCode)?;
+        for value in [
+            input.code.as_str(),
+            input.operation.as_str(),
+            input.stage.as_str(),
+            input.correlation_id.as_str(),
+        ] {
+            parse_token(value)?;
+        }
+        if input.summary.is_empty() || input.summary.len() > MAX_SUMMARY_BYTES {
+            return Err(ErrorContractError::InvalidField);
+        }
+        if input.operation != definition.operation
+            || !definition.stages.contains(&input.stage.as_str())
+        {
+            return Err(ErrorContractError::UnsupportedStage);
+        }
+        if !definition.outcomes.contains(&AllowedOutcome {
+            retry: input.retry,
+            effect: input.effect,
+        }) {
+            return Err(ErrorContractError::UnsupportedOutcome);
+        }
+        if input.recommended_action != definition.recommended_action {
+            return Err(ErrorContractError::InvalidField);
+        }
+        validate_references(definition, &input)?;
+        validate_recovery(&input)?;
+        if input.causes.len() > MAX_CAUSES {
+            return Err(ErrorContractError::InvalidField);
+        }
+        Ok(Self {
+            schema: ENVELOPE_SCHEMA.into(),
+            family: definition.family,
+            code: input.code,
+            operation: input.operation,
+            stage: input.stage,
+            summary: input.summary,
+            correlation_id: input.correlation_id,
+            retry: input.retry,
+            effect: input.effect,
+            entered: input.entered,
+            recommended_action: input.recommended_action,
+            execution_reference: input.execution_reference,
+            decision_reference: input.decision_reference,
+            receipt_reference: input.receipt_reference,
+            causes: input.causes,
+        })
+    }
+}
+
+pub fn registry() -> impl Iterator<Item = &'static ErrorDefinition> {
+    CORE_ERRORS.iter().chain(MCP_ERRORS).chain(PLAN_ERRORS)
+}
+
+/// Validates namespaces, identities, bounds, and recovery combinations.
+///
+/// # Errors
+///
+/// Returns [`ErrorContractError`] for the first invalid registry obligation.
+pub fn validate_registry() -> Result<(), ErrorContractError> {
+    let mut codes = BTreeSet::new();
+    for definition in registry() {
+        if !codes.insert(definition.code) {
+            return Err(ErrorContractError::DuplicateCode);
+        }
+        if definition.owner_version == 0 {
+            return Err(ErrorContractError::InvalidOwnerVersion);
+        }
+        if !definition.code.starts_with(definition.owner)
+            || definition.code.as_bytes().get(definition.owner.len()) != Some(&b'.')
+        {
+            return Err(ErrorContractError::InvalidNamespace);
+        }
+        if definition.stages.is_empty()
+            || definition.outcomes.is_empty()
+            || definition.title.is_empty()
+            || definition.explanation.is_empty()
+            || definition.fixture_id.is_empty()
+        {
+            return Err(ErrorContractError::InvalidDefinition);
+        }
+        parse_token(definition.code)?;
+        parse_token(definition.owner)?;
+        parse_token(definition.operation)?;
+        for stage in definition.stages {
+            parse_token(stage)?;
+        }
+        for outcome in definition.outcomes {
+            if outcome.retry == RetryClass::Safe && outcome.effect != EffectState::NotApplied {
+                return Err(ErrorContractError::UnsafeRetry);
+            }
+            if outcome.effect == EffectState::Possible
+                && (outcome.retry != RetryClass::Unknown
+                    || definition.recommended_action != RecommendedAction::ResumeAndReconcile
+                    || !definition.allows_execution_reference)
+            {
+                return Err(ErrorContractError::UnsafeRetry);
+            }
+        }
+    }
+    Ok(())
+}
+
+fn parse_token(value: &str) -> Result<(), ErrorContractError> {
+    if value.is_empty()
+        || value.len() > MAX_TOKEN_BYTES
+        || !value.bytes().all(|byte| {
+            byte.is_ascii_lowercase()
+                || byte.is_ascii_digit()
+                || matches!(byte, b'.' | b'-' | b'_' | b':' | b'/')
+        })
+    {
+        return Err(ErrorContractError::InvalidField);
+    }
+    Ok(())
+}
+
+fn validate_references(
+    definition: &ErrorDefinition,
+    input: &ErrorEnvelopeInput,
+) -> Result<(), ErrorContractError> {
+    for value in [
+        input.execution_reference.as_deref(),
+        input.decision_reference.as_deref(),
+        input.receipt_reference.as_deref(),
+    ]
+    .into_iter()
+    .flatten()
+    {
+        parse_token(value)?;
+    }
+    if input.execution_reference.is_some() != definition.allows_execution_reference
+        || (input.decision_reference.is_some() && !definition.allows_decision_reference)
+        || (input.receipt_reference.is_some() && !definition.allows_receipt_reference)
+    {
+        return Err(ErrorContractError::InvalidReference);
+    }
+    Ok(())
+}
+
+fn validate_recovery(input: &ErrorEnvelopeInput) -> Result<(), ErrorContractError> {
+    if input.retry == RetryClass::Safe && input.effect != EffectState::NotApplied {
+        return Err(ErrorContractError::UnsafeRetry);
+    }
+    if input.effect == EffectState::Possible
+        && (input.retry != RetryClass::Unknown
+            || input.recommended_action != RecommendedAction::ResumeAndReconcile
+            || input.execution_reference.is_none()
+            || !input.entered.provider
+            || input.receipt_reference.is_some())
+    {
+        return Err(ErrorContractError::UnsafeRetry);
+    }
+    if input.effect == EffectState::NotApplied && input.receipt_reference.is_some() {
+        return Err(ErrorContractError::InvalidReference);
+    }
+    Ok(())
+}
+
+const NOT_APPLIED_NEVER: &[AllowedOutcome] = &[AllowedOutcome {
+    retry: RetryClass::Never,
+    effect: EffectState::NotApplied,
+}];
+const NOT_APPLIED_SAFE: &[AllowedOutcome] = &[AllowedOutcome {
+    retry: RetryClass::Safe,
+    effect: EffectState::NotApplied,
+}];
+const NOT_APPLIED_CONDITIONAL: &[AllowedOutcome] = &[AllowedOutcome {
+    retry: RetryClass::Conditional,
+    effect: EffectState::NotApplied,
+}];
+const POSSIBLE_UNKNOWN: &[AllowedOutcome] = &[AllowedOutcome {
+    retry: RetryClass::Unknown,
+    effect: EffectState::Possible,
+}];
+const APPLIED_CONDITIONAL: &[AllowedOutcome] = &[AllowedOutcome {
+    retry: RetryClass::Conditional,
+    effect: EffectState::Applied,
+}];
+
+const CORE_ERRORS: &[ErrorDefinition] = &[
+    definition(
+        "core.invalid-configuration",
+        ErrorFamily::Configuration,
+        "core",
+        "create",
+        &["configuration"],
+        NOT_APPLIED_NEVER,
+        RecommendedAction::CorrectConfiguration,
+        false,
+        "Invalid configuration",
+        "A bounded configuration value is invalid.",
+        "core-invalid-configuration",
+    ),
+    definition(
+        "core.unsupported-abi",
+        ErrorFamily::Runtime,
+        "core",
+        "create",
+        &["runtime"],
+        NOT_APPLIED_NEVER,
+        RecommendedAction::InstallCompatibleRuntime,
+        false,
+        "Unsupported ABI",
+        "The installed language package and native runtime do not share an ABI.",
+        "core-unsupported-abi",
+    ),
+    definition(
+        "core.unsupported-semantic-subject",
+        ErrorFamily::Runtime,
+        "core",
+        "create",
+        &["runtime"],
+        NOT_APPLIED_NEVER,
+        RecommendedAction::InstallCompatibleRuntime,
+        false,
+        "Unsupported semantic subject",
+        "The installed artifacts do not implement the same Auths meaning.",
+        "core-unsupported-semantic-subject",
+    ),
+    definition(
+        "core.malformed-input",
+        ErrorFamily::Input,
+        "core",
+        "verify",
+        &["parse"],
+        NOT_APPLIED_NEVER,
+        RecommendedAction::CorrectInput,
+        false,
+        "Malformed bounded input",
+        "The supplied bounded value could not be parsed.",
+        "core-malformed-input",
+    ),
+    definition(
+        "core.native-runtime-unavailable",
+        ErrorFamily::Runtime,
+        "core",
+        "create",
+        &["runtime"],
+        NOT_APPLIED_SAFE,
+        RecommendedAction::RetryExecution,
+        false,
+        "Native runtime unavailable",
+        "The packaged Auths runtime could not be initialized.",
+        "core-native-runtime-unavailable",
+    ),
+    definition(
+        "core.forged-execution-reference",
+        ErrorFamily::State,
+        "core",
+        "resume",
+        &["reference"],
+        NOT_APPLIED_NEVER,
+        RecommendedAction::CorrectInput,
+        false,
+        "Invalid execution reference",
+        "The execution reference is malformed, unauthenticated, or bound to different state.",
+        "core-forged-execution-reference",
+    ),
+    definition(
+        "core.internal-invariant",
+        ErrorFamily::Internal,
+        "core",
+        "execute",
+        &["internal"],
+        NOT_APPLIED_NEVER,
+        RecommendedAction::ContactSupport,
+        false,
+        "Internal invariant failure",
+        "Auths rejected an impossible internal state before an effect.",
+        "core-internal-invariant",
+    ),
+];
+
+const MCP_ERRORS: &[ErrorDefinition] = &[
+    definition(
+        "mcp.invalid-handler-output",
+        ErrorFamily::Profile,
+        "mcp",
+        "execute",
+        &["handler-result"],
+        POSSIBLE_UNKNOWN,
+        RecommendedAction::ResumeAndReconcile,
+        true,
+        "Invalid MCP handler output",
+        "The invoked handler returned an invalid or oversized bounded result.",
+        "mcp-invalid-handler-output",
+    ),
+    definition(
+        "mcp.handler-failed",
+        ErrorFamily::Provider,
+        "mcp",
+        "execute",
+        &["handler"],
+        POSSIBLE_UNKNOWN,
+        RecommendedAction::ResumeAndReconcile,
+        true,
+        "MCP handler failed",
+        "The invoked handler failed without conclusive no-effect evidence.",
+        "mcp-handler-failed",
+    ),
+    definition(
+        "mcp.handler-timeout",
+        ErrorFamily::Provider,
+        "mcp",
+        "execute",
+        &["handler"],
+        POSSIBLE_UNKNOWN,
+        RecommendedAction::ResumeAndReconcile,
+        true,
+        "MCP handler timed out",
+        "The invoked handler did not produce conclusive effect evidence before its deadline.",
+        "mcp-handler-timeout",
+    ),
+    definition(
+        "mcp.cancelled-before-entry",
+        ErrorFamily::Profile,
+        "mcp",
+        "execute",
+        &["reservation"],
+        NOT_APPLIED_SAFE,
+        RecommendedAction::RetryExecution,
+        false,
+        "MCP execution cancelled",
+        "Execution was cancelled before the handler was entered.",
+        "mcp-cancelled-before-entry",
+    ),
+    definition(
+        "mcp.reservation-conflict",
+        ErrorFamily::State,
+        "mcp",
+        "execute",
+        &["reservation"],
+        NOT_APPLIED_NEVER,
+        RecommendedAction::SatisfyCondition,
+        false,
+        "MCP reservation conflict",
+        "A different committed request already owns the execution record.",
+        "mcp-reservation-conflict",
+    ),
+    definition(
+        "mcp.replay",
+        ErrorFamily::State,
+        "mcp",
+        "execute",
+        &["reservation"],
+        NOT_APPLIED_NEVER,
+        RecommendedAction::InspectReceipt,
+        false,
+        "MCP replay blocked",
+        "The committed MCP execution has already reached a terminal state.",
+        "mcp-replay",
+    ),
+    definition(
+        "mcp.receipt-persist-failed",
+        ErrorFamily::State,
+        "mcp",
+        "execute",
+        &["receipt"],
+        APPLIED_CONDITIONAL,
+        RecommendedAction::ContactSupport,
+        true,
+        "MCP receipt persistence failed",
+        "The effect was observed but its execution receipt was not durably persisted.",
+        "mcp-receipt-persist-failed",
+    ),
+    definition(
+        "mcp.reconciliation-pending",
+        ErrorFamily::Provider,
+        "mcp",
+        "resume",
+        &["reconciliation"],
+        POSSIBLE_UNKNOWN,
+        RecommendedAction::ResumeAndReconcile,
+        true,
+        "MCP reconciliation pending",
+        "The profile still lacks conclusive effect evidence.",
+        "mcp-reconciliation-pending",
+    ),
+];
+
+const PLAN_ERRORS: &[ErrorDefinition] = &[
+    definition(
+        "plan.member-interrupted",
+        ErrorFamily::Provider,
+        "plan",
+        "execute",
+        &["plan-member"],
+        POSSIBLE_UNKNOWN,
+        RecommendedAction::ResumeAndReconcile,
+        true,
+        "Plan member interrupted",
+        "The current ordered member may have applied and later members remain blocked.",
+        "plan-member-interrupted",
+    ),
+    definition(
+        "plan.member-failed-before-entry",
+        ErrorFamily::Profile,
+        "plan",
+        "execute",
+        &["plan-member"],
+        NOT_APPLIED_CONDITIONAL,
+        RecommendedAction::SatisfyCondition,
+        false,
+        "Plan member blocked",
+        "The current ordered member failed before provider entry.",
+        "plan-member-failed-before-entry",
+    ),
+    definition(
+        "plan.resume-reference-invalid",
+        ErrorFamily::State,
+        "plan",
+        "resume",
+        &["reference"],
+        NOT_APPLIED_NEVER,
+        RecommendedAction::CorrectInput,
+        false,
+        "Plan reference invalid",
+        "The supplied reference is not bound to this ordered plan execution.",
+        "plan-resume-reference-invalid",
+    ),
+    definition(
+        "plan.reconciliation-pending",
+        ErrorFamily::Provider,
+        "plan",
+        "resume",
+        &["reconciliation"],
+        POSSIBLE_UNKNOWN,
+        RecommendedAction::ResumeAndReconcile,
+        true,
+        "Plan reconciliation pending",
+        "The current member remains outcome-unknown and later members remain blocked.",
+        "plan-reconciliation-pending",
+    ),
+    definition(
+        "plan.action-substituted",
+        ErrorFamily::Input,
+        "plan",
+        "execute",
+        &["plan-commitment"],
+        NOT_APPLIED_NEVER,
+        RecommendedAction::CorrectInput,
+        false,
+        "Plan action substituted",
+        "The current ordered member does not match the approved plan commitment.",
+        "plan-action-substituted",
+    ),
+];
+
+#[allow(clippy::too_many_arguments)]
+const fn definition(
+    code: &'static str,
+    family: ErrorFamily,
+    owner: &'static str,
+    operation: &'static str,
+    stages: &'static [&'static str],
+    outcomes: &'static [AllowedOutcome],
+    recommended_action: RecommendedAction,
+    allows_execution_reference: bool,
+    title: &'static str,
+    explanation: &'static str,
+    fixture_id: &'static str,
+) -> ErrorDefinition {
+    ErrorDefinition {
+        code,
+        family,
+        owner,
+        owner_version: 1,
+        operation,
+        stages,
+        outcomes,
+        recommended_action,
+        allows_execution_reference,
+        allows_decision_reference: false,
+        allows_receipt_reference: false,
+        title,
+        explanation,
+        fixture_id,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloc::vec;
+
+    fn input(code: &str) -> ErrorEnvelopeInput {
+        let definition = registry().find(|entry| entry.code == code).unwrap();
+        let outcome = definition.outcomes[0];
+        ErrorEnvelopeInput {
+            code: code.into(),
+            operation: definition.operation.into(),
+            stage: definition.stages[0].into(),
+            summary: definition.title.into(),
+            correlation_id: "correlation-1".into(),
+            retry: outcome.retry,
+            effect: outcome.effect,
+            entered: EnteredBoundaries {
+                provider: outcome.effect == EffectState::Possible,
+                ..EnteredBoundaries::default()
+            },
+            recommended_action: definition.recommended_action,
+            execution_reference: definition
+                .allows_execution_reference
+                .then(|| "execution-reference-1".into()),
+            decision_reference: None,
+            receipt_reference: None,
+            causes: vec![CauseCategory::Unknown],
+        }
+    }
+
+    #[test]
+    fn registry_is_closed_and_valid() {
+        assert_eq!(validate_registry(), Ok(()));
+        for definition in registry() {
+            assert!(ErrorEnvelope::parse(input(definition.code)).is_ok());
+        }
+    }
+
+    #[test]
+    fn unknown_effect_never_claims_safe_retry() {
+        let mut value = input("mcp.handler-timeout");
+        value.retry = RetryClass::Safe;
+        assert_eq!(
+            ErrorEnvelope::parse(value),
+            Err(ErrorContractError::UnsupportedOutcome)
+        );
+    }
+
+    #[test]
+    fn possible_effect_requires_provider_entry_and_reference() {
+        let mut value = input("mcp.handler-failed");
+        value.entered.provider = false;
+        assert_eq!(
+            ErrorEnvelope::parse(value),
+            Err(ErrorContractError::UnsafeRetry)
+        );
+    }
+}

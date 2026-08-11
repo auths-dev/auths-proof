@@ -1,0 +1,505 @@
+{
+  "schema": "auths.error-fixtures/1",
+  "fixtures": [
+    {
+      "schema": "auths.error/1",
+      "family": "configuration",
+      "code": "core.invalid-configuration",
+      "operation": "create",
+      "stage": "configuration",
+      "summary": "Invalid configuration",
+      "correlationId": "fixture:core-invalid-configuration",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "correct-configuration",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "runtime",
+      "code": "core.unsupported-abi",
+      "operation": "create",
+      "stage": "runtime",
+      "summary": "Unsupported ABI",
+      "correlationId": "fixture:core-unsupported-abi",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "install-compatible-runtime",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "runtime",
+      "code": "core.unsupported-semantic-subject",
+      "operation": "create",
+      "stage": "runtime",
+      "summary": "Unsupported semantic subject",
+      "correlationId": "fixture:core-unsupported-semantic-subject",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "install-compatible-runtime",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "input",
+      "code": "core.malformed-input",
+      "operation": "verify",
+      "stage": "parse",
+      "summary": "Malformed bounded input",
+      "correlationId": "fixture:core-malformed-input",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "correct-input",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "runtime",
+      "code": "core.native-runtime-unavailable",
+      "operation": "create",
+      "stage": "runtime",
+      "summary": "Native runtime unavailable",
+      "correlationId": "fixture:core-native-runtime-unavailable",
+      "retry": "safe",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "retry-execution",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "state",
+      "code": "core.forged-execution-reference",
+      "operation": "resume",
+      "stage": "reference",
+      "summary": "Invalid execution reference",
+      "correlationId": "fixture:core-forged-execution-reference",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "correct-input",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "internal",
+      "code": "core.internal-invariant",
+      "operation": "execute",
+      "stage": "internal",
+      "summary": "Internal invariant failure",
+      "correlationId": "fixture:core-internal-invariant",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "contact-support",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "profile",
+      "code": "mcp.invalid-handler-output",
+      "operation": "execute",
+      "stage": "handler-result",
+      "summary": "Invalid MCP handler output",
+      "correlationId": "fixture:mcp-invalid-handler-output",
+      "retry": "unknown",
+      "effect": "possible",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": true
+      },
+      "recommendedAction": "resume-and-reconcile",
+      "executionReference": "execution:mcp-invalid-handler-output",
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "provider",
+      "code": "mcp.handler-failed",
+      "operation": "execute",
+      "stage": "handler",
+      "summary": "MCP handler failed",
+      "correlationId": "fixture:mcp-handler-failed",
+      "retry": "unknown",
+      "effect": "possible",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": true
+      },
+      "recommendedAction": "resume-and-reconcile",
+      "executionReference": "execution:mcp-handler-failed",
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "provider",
+      "code": "mcp.handler-timeout",
+      "operation": "execute",
+      "stage": "handler",
+      "summary": "MCP handler timed out",
+      "correlationId": "fixture:mcp-handler-timeout",
+      "retry": "unknown",
+      "effect": "possible",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": true
+      },
+      "recommendedAction": "resume-and-reconcile",
+      "executionReference": "execution:mcp-handler-timeout",
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "profile",
+      "code": "mcp.cancelled-before-entry",
+      "operation": "execute",
+      "stage": "reservation",
+      "summary": "MCP execution cancelled",
+      "correlationId": "fixture:mcp-cancelled-before-entry",
+      "retry": "safe",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": true,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "retry-execution",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "state",
+      "code": "mcp.reservation-conflict",
+      "operation": "execute",
+      "stage": "reservation",
+      "summary": "MCP reservation conflict",
+      "correlationId": "fixture:mcp-reservation-conflict",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": true,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "satisfy-condition",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "state",
+      "code": "mcp.replay",
+      "operation": "execute",
+      "stage": "reservation",
+      "summary": "MCP replay blocked",
+      "correlationId": "fixture:mcp-replay",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": true,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "inspect-receipt",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "state",
+      "code": "mcp.receipt-persist-failed",
+      "operation": "execute",
+      "stage": "receipt",
+      "summary": "MCP receipt persistence failed",
+      "correlationId": "fixture:mcp-receipt-persist-failed",
+      "retry": "conditional",
+      "effect": "applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "contact-support",
+      "executionReference": "execution:mcp-receipt-persist-failed",
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "provider",
+      "code": "mcp.reconciliation-pending",
+      "operation": "resume",
+      "stage": "reconciliation",
+      "summary": "MCP reconciliation pending",
+      "correlationId": "fixture:mcp-reconciliation-pending",
+      "retry": "unknown",
+      "effect": "possible",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": true
+      },
+      "recommendedAction": "resume-and-reconcile",
+      "executionReference": "execution:mcp-reconciliation-pending",
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "provider",
+      "code": "plan.member-interrupted",
+      "operation": "execute",
+      "stage": "plan-member",
+      "summary": "Plan member interrupted",
+      "correlationId": "fixture:plan-member-interrupted",
+      "retry": "unknown",
+      "effect": "possible",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": true
+      },
+      "recommendedAction": "resume-and-reconcile",
+      "executionReference": "execution:plan-member-interrupted",
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "profile",
+      "code": "plan.member-failed-before-entry",
+      "operation": "execute",
+      "stage": "plan-member",
+      "summary": "Plan member blocked",
+      "correlationId": "fixture:plan-member-failed-before-entry",
+      "retry": "conditional",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "satisfy-condition",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "state",
+      "code": "plan.resume-reference-invalid",
+      "operation": "resume",
+      "stage": "reference",
+      "summary": "Plan reference invalid",
+      "correlationId": "fixture:plan-resume-reference-invalid",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "correct-input",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "provider",
+      "code": "plan.reconciliation-pending",
+      "operation": "resume",
+      "stage": "reconciliation",
+      "summary": "Plan reconciliation pending",
+      "correlationId": "fixture:plan-reconciliation-pending",
+      "retry": "unknown",
+      "effect": "possible",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": true
+      },
+      "recommendedAction": "resume-and-reconcile",
+      "executionReference": "execution:plan-reconciliation-pending",
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "input",
+      "code": "plan.action-substituted",
+      "operation": "execute",
+      "stage": "plan-commitment",
+      "summary": "Plan action substituted",
+      "correlationId": "fixture:plan-action-substituted",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "correct-input",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    }
+  ]
+}

@@ -8,6 +8,7 @@ publish = false
 
 [dependencies]
 auths-codec = { workspace = true, features = ["std"] }
+auths-errors = { workspace = true, features = ["std"] }
 auths-did-key = { workspace = true, features = ["std"] }
 auths-did-keri = { workspace = true, features = ["std"] }
 auths-did-web = { workspace = true, features = ["std"] }

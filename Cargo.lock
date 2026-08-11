@@ -483,6 +483,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "auths-errors"
+version = "1.0.0-rc.1"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "auths-evidence-assemblers"
 version = "1.0.0-rc.1"
 dependencies = [
@@ -1424,6 +1431,7 @@ dependencies = [
  "auths-custody",
  "auths-did-keri",
  "auths-did-key",
+ "auths-errors",
  "auths-kernel-runtime",
  "auths-model",
  "auths-ports",
@@ -6971,6 +6979,7 @@ dependencies = [
  "auths-did-keri",
  "auths-did-key",
  "auths-did-web",
+ "auths-errors",
  "auths-github",
  "auths-hsm-attested",
  "auths-kubernetes",

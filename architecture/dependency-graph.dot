@@ -25,6 +25,7 @@ digraph auths_architecture {
   "auths-did-key" [group="core"];
   "auths-did-web" [group="core"];
   "auths-enforcement" [group="product"];
+  "auths-errors" [group="product"];
   "auths-evidence-assemblers" [group="product"];
   "auths-explain" [group="product"];
   "auths-formal-refinement" [group="core"];
@@ -506,6 +507,7 @@ digraph auths_architecture {
   "auths-sdk" -> "auths-custody" [label="normal"];
   "auths-sdk" -> "auths-did-keri" [label="normal"];
   "auths-sdk" -> "auths-did-key" [label="normal"];
+  "auths-sdk" -> "auths-errors" [label="normal"];
   "auths-sdk" -> "auths-kernel-runtime" [label="normal"];
   "auths-sdk" -> "auths-model" [label="normal"];
   "auths-sdk" -> "auths-ports" [label="normal"];
@@ -643,6 +645,7 @@ digraph auths_architecture {
   "xtask" -> "auths-did-keri" [label="normal"];
   "xtask" -> "auths-did-key" [label="normal"];
   "xtask" -> "auths-did-web" [label="normal"];
+  "xtask" -> "auths-errors" [label="normal"];
   "xtask" -> "auths-github" [label="normal"];
   "xtask" -> "auths-hsm-attested" [label="normal"];
   "xtask" -> "auths-kubernetes" [label="normal"];

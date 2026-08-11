@@ -127,6 +127,11 @@
       "path": "product/integrations/auths-enforcement"
     },
     {
+      "name": "auths-errors",
+      "layer": "product",
+      "path": "product/errors/auths-errors"
+    },
+    {
       "name": "auths-evidence-assemblers",
       "layer": "product",
       "path": "product/integrations/auths-evidence-assemblers"
@@ -2230,6 +2235,21 @@
       "optional": false,
       "default_features": false,
       "features": []
+    },
+    {
+      "source": "auths-errors",
+      "source_layer": "product",
+      "target": "serde",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "derive"
+      ]
     },
     {
       "source": "auths-evidence-assemblers",
@@ -9809,6 +9829,18 @@
     {
       "source": "auths-sdk",
       "source_layer": "product",
+      "target": "auths-errors",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-sdk",
+      "source_layer": "product",
       "target": "auths-kernel-runtime",
       "target_layer": "product",
       "scope": "internal",
@@ -13902,6 +13934,20 @@
       "source_layer": "tooling",
       "target": "auths-did-web",
       "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "std"
+      ]
+    },
+    {
+      "source": "xtask",
+      "source_layer": "tooling",
+      "target": "auths-errors",
+      "target_layer": "product",
       "scope": "internal",
       "kind": "normal",
       "target_condition": null,
