@@ -4,7 +4,7 @@ use crate::*;
 
 const INVENTORY_PATH: &str = "release/semantic-freeze.json";
 const INVENTORY_SCHEMA: &str = "auths.semantic-freeze/1";
-const FREEZE_VERSION: u64 = 54;
+const FREEZE_VERSION: u64 = 55;
 const PUBLIC_RUST_ROOTS: [&str; 10] = [
     "auths",
     "auths-byte-channel",
@@ -242,7 +242,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.portable-abi-bindings",
-            23,
+            24,
             FreezeClassification::FrozenMeaning,
             &["portable-abi", "authoring-abi", "binding-contracts"],
             vec![
@@ -417,7 +417,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
     ]);
     entries.push(freeze_entry(
         "auths.release.public-surface",
-        54,
+        55,
         FreezeClassification::ReleaseMetadata,
         &[
             "package-names",
@@ -785,12 +785,48 @@ fn visit_files(
             ));
         }
         if metadata.is_dir() {
+            if generated_owner_directory(&path) {
+                continue;
+            }
             visit_files(&path, visitor)?;
         } else if metadata.is_file() {
+            if generated_owner_file(&path) {
+                continue;
+            }
             visitor(&path)?;
         }
     }
     Ok(())
+}
+
+fn generated_owner_directory(path: &Path) -> bool {
+    matches!(
+        path.file_name().and_then(|name| name.to_str()),
+        Some(
+            ".git"
+                | ".lake"
+                | ".mypy_cache"
+                | ".pytest_cache"
+                | ".ruff_cache"
+                | ".venv"
+                | "__pycache__"
+                | "node_modules"
+                | "target"
+        )
+    )
+}
+
+fn generated_owner_file(path: &Path) -> bool {
+    if matches!(
+        path.file_name().and_then(|name| name.to_str()),
+        Some(".DS_Store" | ".coverage")
+    ) {
+        return true;
+    }
+    matches!(
+        path.extension().and_then(|extension| extension.to_str()),
+        Some("dll" | "dylib" | "pyc" | "pyd" | "pyo" | "so")
+    )
 }
 
 fn read_owned_file(path: &Path) -> Result<Vec<u8>, String> {
@@ -1043,5 +1079,15 @@ mod tests {
         inventory.entries.push(inventory.entries[0].clone());
         let error = validate_inventory(&inventory).expect_err("duplicate must fail");
         assert!(error.contains("duplicate semantic freeze identity"));
+    }
+
+    #[test]
+    fn generated_owner_artifacts_are_excluded() {
+        assert!(generated_owner_directory(Path::new("auths/__pycache__")));
+        assert!(generated_owner_directory(Path::new("auths/node_modules")));
+        assert!(generated_owner_file(Path::new("auths/module.pyc")));
+        assert!(generated_owner_file(Path::new("auths/_native.abi3.so")));
+        assert!(!generated_owner_directory(Path::new("auths/profiles")));
+        assert!(!generated_owner_file(Path::new("auths/verify.py")));
     }
 }
