@@ -1,5 +1,5 @@
 # Installed @auths-dev/sdk public API v1
-# declaration-sha256 2203d93582f9492b414282bd13122cf30e60d72058ada97a5f76e81a2583325a
+# declaration-sha256 6ab7cd66de326ab04c3ef4eb7472310c32f8a27209794a32d05ce6f36f2b62f2
 .	AgentIdentity	type
 .	ApprovalConfiguration	type
 .	ApprovalExecutionSummary	type
@@ -107,8 +107,6 @@
 ./observability	TelemetryOutcome	type
 ./observability	TelemetryPort	type
 ./observability	TelemetryStage	type
-./identity	AdapterLifecycle	type
-./identity	AdapterSelectionOptions	type
 ./identity	AuthenticatedDescriptorMessage	type
 ./identity	AuthenticatedIdentityMessage	type
 ./identity	DecodedIdentity	type
@@ -213,7 +211,6 @@
 ./profiles	ProfileAuthorityRequirement	type
 ./profiles	ProfileBudget	type
 ./profiles	ProfileDefinition	type
-./profiles	ProfileMigration	type
 ./profiles	ProfilePermission	type
 ./profiles	SupplyChainAction	type
 ./profiles	SupplyChainActionInput	type
@@ -315,7 +312,6 @@
 ./profile-kit	ProfileAuthorityRequirement	type
 ./profile-kit	ProfileBudget	type
 ./profile-kit	ProfileDefinition	type
-./profile-kit	ProfileMigration	type
 ./profile-kit	ProfilePermission	type
 ./testkit	adapterConformance	value
 ./testkit	AdapterConformanceCase	type

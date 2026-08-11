@@ -1,6 +1,6 @@
-# Support and compatibility matrix
+# Runtime support matrix
 
-The exact package contract is `sdk-compatibility.json`. CI rejects a package,
+The exact package contract is `sdk-runtime-contract.json`. CI rejects a package,
 WASM, subpath, profile, or ABI mismatch before publication.
 
 | Surface | Supported repository-local target |
@@ -17,11 +17,12 @@ The package has no mandatory account, cloud call, daemon, vendor adapter, key
 store, approval service, resolver, telemetry exporter, database, or transport.
 An adapter’s support claim belongs to that adapter and its conformance report.
 
-SemVer applies to installed exports, declarations, behavior, compatibility
-metadata, and profile versions. Deprecations require a migration guide and at
-least one minor-version window. Identity methods, signature suites, profiles,
-and provider contracts have independent versions; the SDK never silently
-falls back to a nearby identifier or version.
+Auths is prelaunch, with no external users or production state to preserve.
+Breaking source changes use one clean cutover. The repository must not carry
+compatibility shims, deprecated aliases, migration helpers, old/new execution
+paths, legacy decoders, or deprecation windows. Identity methods, signature
+suites, profiles, and provider contracts retain exact current identifiers;
+the SDK never silently falls back to a nearby identifier or version.
 
 Stable V1, publication, production, and independently reviewed claims remain
 blocked until the exact release artifact passes the repository’s external

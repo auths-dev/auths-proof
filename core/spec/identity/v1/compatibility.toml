@@ -30,8 +30,3 @@ manifest = "bindings/wasm/auths-proof-wasm/identity-abi-v1.json"
 [transports.iroh_demo]
 application_protocol = "/auths/identity/1"
 required_for_identity_interoperability = false
-
-[migration]
-wire_v1_status = "unpublished-experimental"
-raw_key_identity_v1_status = "unpublished-experimental-alias-removed"
-proof_raw_key_v1_interoperability = "explicit-authority-bridge-only"

@@ -78,7 +78,7 @@ jobs:
         working-directory: bindings/typescript
       - run: npm run test:examples
         working-directory: bindings/typescript
-      - run: npm run test:compatibility
+      - run: npm run test:runtime-contract
         working-directory: bindings/typescript
       - run: npm run test:capability
         working-directory: bindings/typescript

@@ -1,6 +1,6 @@
 # Production integration recipe
 
-1. Pin `@auths-dev/sdk`, its lockfile, and the exact compatibility manifest.
+1. Pin `@auths-dev/sdk`, its lockfile, and the exact runtime contract.
 2. Choose identity method and signature suite adapters by exact identifier and
    version. Keep resolution network I/O outside deterministic verification.
 3. Supply a custody adapter that never exports private keys and passes
@@ -19,7 +19,7 @@
    effect blindly.
 9. Export only the redacted telemetry schema. Keep proofs, signatures,
    credentials, application bodies, and high-cardinality data out of events.
-10. Run packed-package, hostile-boundary, adapter, scenario, compatibility,
+10. Run packed-package, hostile-boundary, adapter, scenario, runtime-contract,
     and performance checks against the artifact that will ship.
 
 The separate `@auths-dev/runtime-json-store` reference under `adapters/` proves

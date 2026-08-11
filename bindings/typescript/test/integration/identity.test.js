@@ -133,7 +133,6 @@ test("resolver-backed general identities preserve state, purpose, and exact adap
       methodId: "example-resolver-v1",
       version: "1",
       purposes: ["authentication"],
-      lifecycle: "active",
     },
     async resolve(request) {
       assert.equal(request.maximumRedirects, 0);
@@ -173,7 +172,6 @@ test("resolver-backed general identities preserve state, purpose, and exact adap
       suiteId: "example-ed25519-v1",
       version: "1",
       purposes: ["authentication"],
-      lifecycle: "active",
     },
     async authenticate(request) {
       assert.equal(request.relationship.verificationMaterial.length, 1);
@@ -203,10 +201,6 @@ test("resolver-backed general identities preserve state, purpose, and exact adap
 
   assert.throws(() => new IdentityMethodRegistry([method, method]), /duplicate/);
   assert.throws(() => new SignatureSuiteRegistry([]).select("example-ed25519-v1"), /unsupported/);
-  assert.throws(() => new IdentityMethodRegistry([{ ...method, metadata: {
-    ...method.metadata,
-    lifecycle: "deprecated",
-  }}]).select("example-resolver-v1"), /deprecated/);
 });
 
 test("general descriptors encode rotating, threshold, and hybrid credential shapes", async () => {

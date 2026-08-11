@@ -6,7 +6,7 @@ export {
 } from "./verifier/diagnostic.js";
 export type { PortableWasmEngine } from "./verifier/client.js";
 
-import { SDK_COMPATIBILITY, negotiateCompatibility } from "./compatibility.js";
+import { SDK_RUNTIME_CONTRACT, evaluateRuntimeContract } from "./runtime-contract.js";
 import { loadPackagedWorkflowEngine } from "./verifier/wasm.js";
 
 export interface SdkDiagnosticReport {
@@ -18,7 +18,7 @@ export interface SdkDiagnosticReport {
     readonly identityAbi: number;
     readonly capabilities: readonly string[];
   }>;
-  readonly compatibility: Readonly<{ readonly compatible: boolean; readonly missing: readonly string[] }>;
+  readonly runtimeContract: Readonly<{ readonly satisfied: boolean; readonly missing: readonly string[] }>;
   readonly checks: readonly Readonly<{
     readonly id: "runtime" | "wasm" | "trust" | "profiles" | "adapters";
     readonly status: "pass" | "fail" | "not-configured";
@@ -37,7 +37,7 @@ export interface DiagnoseSdkOptions {
   }>[];
 }
 
-/** Reports package/runtime compatibility without accepting or exposing authority-bearing data. */
+/** Reports exact package/runtime agreement without accepting authority-bearing data. */
 export async function diagnoseSdk(options: DiagnoseSdkOptions = {}): Promise<SdkDiagnosticReport> {
   const engine = await loadPackagedWorkflowEngine() as Awaited<
     ReturnType<typeof loadPackagedWorkflowEngine>
@@ -45,13 +45,13 @@ export async function diagnoseSdk(options: DiagnoseSdkOptions = {}): Promise<Sdk
     identityAbiVersionV1(): number;
     configurationV1(): Uint8Array;
   };
-  const capabilities = SDK_COMPATIBILITY.capabilities;
+  const capabilities = SDK_RUNTIME_CONTRACT.capabilities;
   const wasm = Object.freeze({
     authoringAbi: engine.authoringAbiVersionV1(),
     identityAbi: engine.identityAbiVersionV1(),
     capabilities,
   });
-  const compatibility = negotiateCompatibility(wasm);
+  const runtimeContract = evaluateRuntimeContract(wasm);
   const adapters = Object.freeze([...(options.adapters ?? [])]
     .map((adapter) => Object.freeze({ ...adapter }))
     .sort((left, right) => `${left.kind}:${left.id}`.localeCompare(`${right.kind}:${right.id}`)));
@@ -60,11 +60,11 @@ export async function diagnoseSdk(options: DiagnoseSdkOptions = {}): Promise<Sdk
   const profileMatches = configuredProfiles === undefined
     ? undefined
     : Object.entries(configuredProfiles).every(
-      ([id, version]) => (SDK_COMPATIBILITY.profiles as Readonly<Record<string, number>>)[id] === version,
+      ([id, version]) => (SDK_RUNTIME_CONTRACT.profiles as Readonly<Record<string, number>>)[id] === version,
     );
   const checks: SdkDiagnosticReport["checks"] = Object.freeze([
     Object.freeze({ id: "runtime", status: runtimeFamily() === "unknown" ? "fail" : "pass", detail: runtimeFamily() }),
-    Object.freeze({ id: "wasm", status: compatibility.compatible ? "pass" : "fail", detail: compatibility.compatible ? "compatible" : compatibility.missing.join(",") }),
+    Object.freeze({ id: "wasm", status: runtimeContract.satisfied ? "pass" : "fail", detail: runtimeContract.satisfied ? "exact runtime contract" : runtimeContract.missing.join(",") }),
     Object.freeze({
       id: "trust",
       status: trust === undefined ? "not-configured" : equalBytes(trust, engine.configurationV1()) ? "pass" : "fail",
@@ -79,10 +79,10 @@ export async function diagnoseSdk(options: DiagnoseSdkOptions = {}): Promise<Sdk
   ]);
   return Object.freeze({
     schemaVersion: "auths.diagnostics/1",
-    sdkVersion: SDK_COMPATIBILITY.sdkVersion,
+    sdkVersion: SDK_RUNTIME_CONTRACT.sdkVersion,
     runtime: Object.freeze({ family: runtimeFamily() }),
     wasm,
-    compatibility,
+    runtimeContract,
     checks,
     adapters,
   });

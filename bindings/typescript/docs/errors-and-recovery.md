@@ -23,6 +23,6 @@ is recorded as `cancelled`; after execution begins it may become
 `outcome-unknown`. `ClosedRuntime` requires an idempotency key, durable state
 transitions, and an optional reconciliation port.
 
-Use `diagnoseSdk()` for runtime/ABI/adapter compatibility and
+Use `diagnoseSdk()` for exact runtime/ABI/adapter agreement and
 `createSupportBundle()` for deterministic, inert issue evidence. Telemetry
 exporter failure never changes a decision or execution result.

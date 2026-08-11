@@ -31,7 +31,7 @@ if (
 const requiredScorecard = [
   "timeToValue", "progressiveAdoption", "semanticSafety", "typeSafety",
   "productionIntegration", "operationalCompleteness", "debuggability", "extensibility",
-  "portability", "compatibility", "securityEvidence", "documentation", "crossSdkParity",
+  "portability", "runtimeContract", "securityEvidence", "documentation", "crossSdkParity",
 ];
 for (const dimension of requiredScorecard) {
   const entry = metadata.eliteScorecard?.[dimension];

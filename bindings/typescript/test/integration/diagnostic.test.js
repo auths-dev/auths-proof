@@ -68,7 +68,7 @@ test("SDK diagnostics report exact ABI, runtime, capabilities, and adapters", as
   assert.equal(report.runtime.family, "node");
   assert.equal(report.wasm.authoringAbi, 1);
   assert.equal(report.wasm.identityAbi, 1);
-  assert.equal(report.compatibility.compatible, true);
+  assert.equal(report.runtimeContract.satisfied, true);
   assert.deepEqual(report.checks.map(({ id, status }) => [id, status]), [
     ["runtime", "pass"],
     ["wasm", "pass"],

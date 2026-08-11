@@ -15,8 +15,6 @@ const RESOLVED_DESCRIPTOR = Symbol("auths-resolved-identity-descriptor");
 const VALIDATED_DESCRIPTOR = Symbol("auths-validated-identity-descriptor");
 const AUTHENTICATED_DESCRIPTOR = Symbol("auths-authenticated-identity-descriptor");
 
-export type AdapterLifecycle = "active" | "deprecated";
-
 export interface VerificationMaterialInput {
   readonly materialId: string;
   readonly bytes: Uint8Array;
@@ -76,7 +74,6 @@ export interface IdentityMethodMetadata {
   readonly methodId: string;
   readonly version: string;
   readonly purposes: readonly string[];
-  readonly lifecycle: AdapterLifecycle;
 }
 
 export interface IdentityResolutionRequest {
@@ -101,7 +98,6 @@ export interface SignatureSuiteMetadata {
   readonly suiteId: string;
   readonly version: string;
   readonly purposes: readonly string[];
-  readonly lifecycle: AdapterLifecycle;
 }
 
 export interface DescriptorAuthenticationRequest {
@@ -124,10 +120,6 @@ export interface DescriptorSignatureSuiteAdapter {
   authenticate(request: DescriptorAuthenticationRequest): Promise<DescriptorAuthenticationResult>;
 }
 
-export interface AdapterSelectionOptions {
-  readonly allowDeprecated?: boolean;
-}
-
 export class IdentityMethodRegistry {
   readonly #methods: ReadonlyMap<string, IdentityDescriptorMethodAdapter>;
 
@@ -135,12 +127,9 @@ export class IdentityMethodRegistry {
     this.#methods = exactRegistry(methods, (method) => method.metadata.methodId, "identity method");
   }
 
-  select(methodId: string, options: AdapterSelectionOptions = {}): IdentityDescriptorMethodAdapter {
+  select(methodId: string): IdentityDescriptorMethodAdapter {
     const method = this.#methods.get(methodId);
     if (method === undefined) throw new TypeError(`unsupported identity method: ${methodId}`);
-    if (method.metadata.lifecycle === "deprecated" && options.allowDeprecated !== true) {
-      throw new TypeError(`deprecated identity method requires explicit opt-in: ${methodId}`);
-    }
     return method;
   }
 }
@@ -152,12 +141,9 @@ export class SignatureSuiteRegistry {
     this.#suites = exactRegistry(suites, (suite) => suite.metadata.suiteId, "signature suite");
   }
 
-  select(suiteId: string, options: AdapterSelectionOptions = {}): DescriptorSignatureSuiteAdapter {
+  select(suiteId: string): DescriptorSignatureSuiteAdapter {
     const suite = this.#suites.get(suiteId);
     if (suite === undefined) throw new TypeError(`unsupported signature suite: ${suiteId}`);
-    if (suite.metadata.lifecycle === "deprecated" && options.allowDeprecated !== true) {
-      throw new TypeError(`deprecated signature suite requires explicit opt-in: ${suiteId}`);
-    }
     return suite;
   }
 }
@@ -432,10 +418,9 @@ export class IdentityClient {
       signal?: AbortSignal;
       maximumBytes?: number;
       maximumRedirects?: number;
-      allowDeprecated?: boolean;
     }> = {},
   ): Promise<ResolvedIdentityDescriptor> {
-    const method = registry.select(descriptor.methodId, options);
+    const method = registry.select(descriptor.methodId);
     if (method.resolve === undefined) {
       return descriptorState(
         { [RESOLVED_DESCRIPTOR]: true as const },
@@ -478,9 +463,8 @@ export class IdentityClient {
   validateDescriptor(
     descriptor: ResolvedIdentityDescriptor,
     registry: IdentityMethodRegistry,
-    options: AdapterSelectionOptions = {},
   ): ValidatedIdentityDescriptor {
-    const method = registry.select(descriptor.methodId, options);
+    const method = registry.select(descriptor.methodId);
     const parsed = method.parse(descriptor);
     if (!sameDescriptor(descriptor, parsed)) {
       throw new TypeError("identity method changed canonical descriptor fields");
@@ -517,7 +501,6 @@ export class IdentityClient {
       signature: Uint8Array;
       suites: SignatureSuiteRegistry;
       signal?: AbortSignal;
-      allowDeprecated?: boolean;
     }>,
   ): Promise<AuthenticatedDescriptorMessage> {
     input.signal?.throwIfAborted();
@@ -525,7 +508,7 @@ export class IdentityClient {
       (candidate) => candidate.relationshipId === input.relationshipId,
     );
     if (relationship === undefined) throw new TypeError("unknown identity relationship");
-    const suite = input.suites.select(relationship.suiteId, input);
+    const suite = input.suites.select(relationship.suiteId);
     if (!suite.metadata.purposes.includes(relationship.purpose)) {
       throw new TypeError(`signature suite does not support purpose: ${relationship.purpose}`);
     }

@@ -1,8 +1,8 @@
-export const SDK_COMPATIBILITY = Object.freeze({
-  schemaVersion: "auths.compatibility/1" as const,
+export const SDK_RUNTIME_CONTRACT = Object.freeze({
+  schemaVersion: "auths.runtime-contract/1" as const,
   sdkVersion: "1.0.0-rc.1",
-  authoringAbi: Object.freeze({ minimum: 1, maximum: 1 }),
-  identityAbi: Object.freeze({ minimum: 1, maximum: 1 }),
+  authoringAbi: 1,
+  identityAbi: 1,
   profiles: Object.freeze({
     "auths.mcp": 1,
     "auths.http": 1,
@@ -15,7 +15,7 @@ export const SDK_COMPATIBILITY = Object.freeze({
     "authority.author",
     "authority.delegate",
     "authority.plans",
-    "diagnostics.compatibility-v1",
+    "diagnostics.runtime-contract-v1",
     "identity.compact-v2",
     "identity.descriptor-v1",
     "identity.registry-v1",
@@ -31,30 +31,28 @@ export const SDK_COMPATIBILITY = Object.freeze({
   ]),
 });
 
-export interface AbiCapabilities {
+export interface RuntimeSubject {
   readonly authoringAbi: number;
   readonly identityAbi: number;
   readonly capabilities: readonly string[];
 }
 
-export interface CompatibilityResult {
-  readonly compatible: boolean;
+export interface RuntimeContractResult {
+  readonly satisfied: boolean;
   readonly missing: readonly string[];
 }
 
-export function negotiateCompatibility(subject: AbiCapabilities): CompatibilityResult {
+export function evaluateRuntimeContract(subject: RuntimeSubject): RuntimeContractResult {
   const missing: string[] = [];
-  if (subject.authoringAbi < SDK_COMPATIBILITY.authoringAbi.minimum ||
-      subject.authoringAbi > SDK_COMPATIBILITY.authoringAbi.maximum) {
+  if (subject.authoringAbi !== SDK_RUNTIME_CONTRACT.authoringAbi) {
     missing.push(`authoring-abi:${subject.authoringAbi}`);
   }
-  if (subject.identityAbi < SDK_COMPATIBILITY.identityAbi.minimum ||
-      subject.identityAbi > SDK_COMPATIBILITY.identityAbi.maximum) {
+  if (subject.identityAbi !== SDK_RUNTIME_CONTRACT.identityAbi) {
     missing.push(`identity-abi:${subject.identityAbi}`);
   }
   const available = new Set(subject.capabilities);
-  for (const capability of SDK_COMPATIBILITY.capabilities) {
+  for (const capability of SDK_RUNTIME_CONTRACT.capabilities) {
     if (!available.has(capability)) missing.push(capability);
   }
-  return Object.freeze({ compatible: missing.length === 0, missing: Object.freeze(missing) });
+  return Object.freeze({ satisfied: missing.length === 0, missing: Object.freeze(missing) });
 }

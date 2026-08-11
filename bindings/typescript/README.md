@@ -32,7 +32,7 @@ packaged Rust/WASM identity protocol; it does not initialize grants,
 capabilities, approvals, policy, profiles, or lifecycle workflows. Authority,
 approvals, and profiles are separate `@auths-dev/sdk/authority`,
 `@auths-dev/sdk/approvals`, and `@auths-dev/sdk/profiles` entry points. The
-package root remains the integrated compatibility workflow.
+package root remains the integrated authorization workflow.
 
 The broader typed surface is split by responsibility:
 
@@ -251,4 +251,4 @@ Start with the [support matrix](docs/support-matrix.md), then use the
 [error and recovery guide](docs/errors-and-recovery.md), and
 [adapter qualification guide](docs/adapter-authoring.md). The
 [lifecycle recipes](docs/lifecycle-recipes.md) cover withdrawal, rotation,
-compromise, and version migration.
+compromise, and clean prelaunch policy/profile replacement.

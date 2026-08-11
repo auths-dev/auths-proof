@@ -2,6 +2,8 @@
 
 **Status:** TypeScript implementation complete; promotion gates remain external
 **Baseline:** `670c801` on 2026-08-11
+**Lifecycle:** Prelaunch; no external users or production state require
+backward compatibility
 **Product ambition:** Make `@auths-dev/sdk` credible as the “Stripe for identity
 and permissions on the internet” for browser, Node.js, and edge developers
 **Semantic owner:** Rust
@@ -32,6 +34,20 @@ their independence.
 
 It does **not** mean Auths becomes a universal identity provider, key manager,
 policy language, transport, hosted control plane, or remote-effect executor.
+
+### 1.1 Prelaunch clean-break policy
+
+This specification governs a prelaunch SDK. Changes target one authoritative
+current surface. They must not add or preserve backward-compatibility shims,
+deprecated aliases, legacy decoders, migration helpers, dual read/write paths,
+old/new runtime switches, version-support windows, or fixtures whose purpose
+is to keep superseded SDK/core combinations working. A breaking change removes
+the old source, documentation, tests, and exports in the same cutover.
+
+Exact ABI identifiers, semantic identities, package/WASM subject agreement,
+current-version fixtures, and fail-closed mismatch tests remain mandatory.
+Those prove that the current release is coherent; they are not promises to run
+old and new implementations together.
 
 ## 2. Customer promise
 
@@ -84,9 +100,9 @@ following customer outcomes are true.
 | Debuggability | Every decision has a correlation ID, safe explanation, commitments, bounded work metrics, and structured observability events. |
 | Extensibility | A team can add an identity method, signature suite, profile, signer, resolver, or runtime store without forking the SDK or weakening semantics. |
 | Portability | The exact packed package works in supported Node.js, browser, worker, bundler, macOS, Linux, and Windows targets. |
-| Compatibility | SemVer, ABI negotiation, profile versions, suite versions, migration notes, and deprecation windows are enforced rather than aspirational. |
+| Artifact coherence | The installed package, bundled WASM, exact ABIs, profiles, suites, declarations, and current-version fixtures agree or fail closed. |
 | Security evidence | Hostile API tests, fuzzing, cross-language fixtures, dependency policy, provenance, and independent review cover the exact released artifact. |
-| Documentation | Every supported layer has one copyable golden path, one failure guide, one production recipe, and one migration guide. |
+| Documentation | Every supported layer has one copyable golden path, one failure guide, one production recipe, and one exact current-surface reference. |
 
 Phase 0 must record cold-start, warm-verification, plan-verification, memory,
 and compressed-package baselines. Later work may not regress any p95 baseline
@@ -264,7 +280,7 @@ missing. It must not add TypeScript-only interpretations.
 | CORE-E07 | Versioned profile manifests, authority projections, command decoders, semantic mutation fixtures, and conformance metadata | Lets SDKs expose more profiles without a global action abstraction |
 | CORE-E08 | Replay, budget reservation, receipt, retry, and outcome-unknown state machines behind storage/effect ports | Closes the gap between verification and reliable enforcement |
 | CORE-E09 | Scenario corpus covering positive, negative, mutation, lifecycle, provider-failure, cancellation, concurrency, and downgrade cases | Proves all languages tell the same story, not only encode the same bytes |
-| CORE-E10 | ABI capability negotiation and compatibility manifests for Rust, WASM, TypeScript, and Python | Makes upgrades fail clearly instead of drifting silently |
+| CORE-E10 | Exact runtime contracts for Rust, WASM, TypeScript, and Python artifacts | Makes mismatched artifacts fail clearly instead of drifting silently |
 
 Whichever SDK first requires a CORE-E item owns landing it in Rust with shared
 fixtures. The other SDK consumes the same semantic identity; it does not land a
@@ -322,12 +338,12 @@ qualification table.
       product claim against the exact installed tarball.
 - [x] Record golden-path time, cold start, warm verification, plan throughput,
       memory, bundle size, and installation baselines.
-- [x] Publish the error taxonomy, support matrix, SemVer policy, deprecation
-      policy, threat model, and exact non-goals.
+- [x] Publish the error taxonomy, support matrix, prelaunch clean-break policy,
+      threat model, and exact non-goals.
 - [x] Turn the scorecard in section 3 into CI-readable capability metadata.
 - [x] Create one shared Rust/TypeScript/Python customer-journey matrix.
 
-**Exit:** scope, performance, compatibility, and claims cannot drift without a
+**Exit:** scope, performance, artifact coherence, and claims cannot drift without a
 reviewed artifact change.
 
 ### TS-E1 — Make the first 15 minutes exceptional
@@ -337,12 +353,12 @@ reviewed artifact change.
 - [x] Reduce normal setup to typed configuration with no raw protocol values,
       copied constants, manual hashing, or internal imports.
 - [x] Replace the `advanced` catch-all with the direct `verify`, `inspection`,
-      and `diagnostics` subpaths and make the cutover explicit in migration
-      guidance.
+      and `diagnostics` subpaths, deleting the superseded export and every
+      stale reference in the same cutover.
 - [x] Add a safe development mode with unmistakably non-production signers,
       approvals, clocks, stores, and gateways under `testkit`.
 - [x] Add a diagnostic report that checks runtime, WASM subject, adapters,
-      trust configuration, profile versions, and capability compatibility.
+      trust configuration, profile versions, and the exact runtime contract.
 - [x] Test every documented snippet in CI.
 
 **Exit:** an unfamiliar developer can complete both quickstarts without reading
@@ -354,8 +370,8 @@ the protocol specification.
       states without importing authority.
 - [x] Ship raw-key/Ed25519 and one structurally different reference path such
       as P-256 or resolver-backed identity to prove substitution.
-- [x] Add method and suite registries with explicit versions, purposes,
-      deprecation, and downgrade rejection.
+- [x] Add method and suite registries with explicit versions, purposes, exact
+      selection, and downgrade rejection.
 - [x] Add rotation, historical verification, composite credential, threshold,
       and hybrid/post-quantum conformance fixtures without promising adapters
       the project does not maintain.
@@ -375,7 +391,7 @@ it through one explicit, lossless transition.
       stable denied or indeterminate outcomes.
 - [x] Add exportable offline evidence bundles and deterministic conflict tests.
 - [x] Provide lifecycle recipes for delegation withdrawal, key rotation,
-      compromise, and policy migration.
+      compromise, and clean prelaunch policy/profile replacement.
 
 **Exit:** production teams can reason about who was trusted, at what time, from
 which source, under which freshness and assurance rules.
@@ -403,7 +419,8 @@ use and adversarially demonstrated.
 - [x] Require distinct action, authority, command, gateway, receipt, and error
       types for each maintained profile.
 - [x] Complete application profile-kit schemas, authority narrowing, review,
-      exact plans, mutation testing, gateway conformance, and version migration.
+      exact plans, mutation testing, gateway conformance, and exact-version
+      rejection.
 - [x] Support ordered plans plus Rust-owned all-of, any-of, and threshold proof
       plans without conflating authorization atomicity with provider atomicity.
 - [x] Add cross-profile, cross-version, reordered, duplicated, omitted,
@@ -477,20 +494,20 @@ from sensitive inputs or learning Auths internals.
 
 ### TS-E10 — Make releases boring
 
-- [x] Enforce CORE-E10 capability negotiation, semantic identities, profile
+- [x] Enforce CORE-E10 exact ABI identities, semantic identities, profile
       versions, and package/WASM subject matching.
 - [x] Test the packed package on the full supported runtime, OS, browser,
       worker, module, and bundler matrix.
-- [x] Add old-SDK/new-core and new-SDK/old-core compatibility fixtures for
-      every supported window.
+- [x] Add current-package/current-core agreement fixtures and fail-closed
+      mismatched-artifact tests; support no cross-version runtime window.
 - [x] Generate exact API, package-content, SBOM, provenance, license, audit,
       and claim manifests from one revision.
 - [x] Complete repository fuzzing, hostile package-boundary tests, dependency
       policy, and clean packed-consumer qualification.
 - [ ] Complete independent external security and consumer review against the
       exact release candidate.
-- [x] Publish migration guides and automated checks before removing a public
-      surface or semantic version.
+- [x] Remove superseded public surfaces and semantic versions directly, with
+      automated stale-reference and exact-artifact checks in the same change.
 
 **Exit:** the released artifact, documentation, evidence, and support claim all
 describe the same bits.
@@ -528,6 +545,8 @@ This specification does not authorize:
 - a generic policy language, generic action envelope, or generic executor;
 - private-key export or persistence in the base SDK;
 - silent algorithm, identity-method, profile, or policy fallback;
+- backward-compatibility shims, deprecated aliases, legacy readers, migration
+  helpers, dual paths, version-support windows, or old/new runtime fixtures;
 - automatic execution merely because verification authorized an action;
 - collapsing indeterminate into denied or authorized;
 - hidden retries of approval, signing, or provider effects;

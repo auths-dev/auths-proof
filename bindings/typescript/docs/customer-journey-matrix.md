@@ -13,7 +13,7 @@ consumption is tracked separately and is not implemented by the TypeScript SDK.
 | Operate trust and lifecycle evidence | Trusted-context and status semantics | Trust evidence ports, offline bundles, lifecycle recipes | Consume the same lifecycle fixtures |
 | Execute a sealed command safely | Command minting and runtime state transitions | Closed runtime, durable reference store, gateway tests | Bind the same runtime state machine |
 | Diagnose and support | Stable decision/error projections | Diagnostics, telemetry, support bundle tests | Emit the same stable schemas |
-| Upgrade safely | ABI identities and compatibility rules | Compatibility manifest, public API and packed-package tests | Negotiate the same ABI window |
+| Deploy one coherent release | Exact ABI identities and runtime contract | Runtime contract, public API, and packed-package tests | Enforce the same exact artifact agreement |
 
 The Rust/TypeScript differential corpus is a release gate. Adding Python to
 that corpus remains a Python SDK deliverable and is not a reason to duplicate

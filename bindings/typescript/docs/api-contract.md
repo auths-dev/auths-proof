@@ -70,8 +70,8 @@ or loader boundary.
 or lifecycle configuration. Rust/WASM decodes compact identities and general
 credential-shape-neutral descriptors. General identities move through
 decoded, resolved, validated, and authenticated states. Exact-version method
-and suite registries reject unknown, mismatched, purpose-incompatible, and
-deprecated adapters without fallback. The package proves both embedded
+and suite registries reject unknown, mismatched, and purpose-incompatible
+adapters without fallback. The package proves both embedded
 raw-key/Ed25519 and resolver-backed compositions without taking ownership of a
 vendor adapter catalog.
 
@@ -380,13 +380,15 @@ Proof, action, trusted-context, evidence, plan, chain, collection, and work
 limits come directly from the exact deployed native configuration and are
 reported through inspection.
 
-## Compatibility and evolution
+## Prelaunch evolution and exact contracts
 
-Auths is prelaunch. AP-SPEC-027 makes one clean source cutover; it adds no
-legacy workflow reader, compatibility alias, dual loader, or old command
-constructor. Raw verifier compatibility is governed independently by its
-portable ABI and fixtures.
+Auths is prelaunch and has no external users or production state. Public
+changes are clean source cutovers: remove the old surface and its fixtures in
+the same change. Do not add legacy readers, aliases, shims, dual loaders,
+deprecated adapters, migration helpers, old/new runtime switches, or support
+windows. The package and its bundled WASM must satisfy one exact runtime
+contract for the current revision and fail closed when they do not agree.
 
 Profile actions, stable codes, ABI versions, and configuration commitments are
 versioned semantic identities. Incompatible meaning receives a new identity;
-it is not hidden behind an ergonomic refactor.
+it is not hidden behind an ergonomic refactor or a legacy execution path.

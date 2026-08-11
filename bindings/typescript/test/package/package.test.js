@@ -27,7 +27,7 @@ test("package exposes bounded public surfaces and includes contributor docs", as
     "./verify",
   ]);
   assert.ok(manifest.files.includes("docs"));
-  assert.ok(manifest.files.includes("sdk-compatibility.json"));
+  assert.ok(manifest.files.includes("sdk-runtime-contract.json"));
   assert.ok(manifest.files.includes("sdk-capability.json"));
   assert.ok(manifest.files.includes("performance-baseline.json"));
   assert.ok(manifest.files.includes("wasm/auths_proof_wasm_bg.wasm"));
@@ -39,7 +39,7 @@ test("package exposes bounded public surfaces and includes contributor docs", as
     "docs",
     "performance-baseline.json",
     "sdk-capability.json",
-    "sdk-compatibility.json",
+    "sdk-runtime-contract.json",
     "wasm/auths_proof_wasm.d.ts",
     "wasm/auths_proof_wasm.js",
     "wasm/auths_proof_wasm_bg.wasm",
@@ -80,7 +80,7 @@ test("packed contents carry the published artifacts and no source or tests", asy
     "README.md",
     "performance-baseline.json",
     "sdk-capability.json",
-    "sdk-compatibility.json",
+    "sdk-runtime-contract.json",
   ]) {
     assert.ok(entries.includes(required), `packed artifact omitted ${required}`);
   }
@@ -98,7 +98,7 @@ test("packed contents carry the published artifacts and no source or tests", asy
   }
 });
 
-test("compatibility barrels contain exports only", async () => {
+test("public facade barrels contain exports only", async () => {
   for (const name of ["authority.ts", "custody.ts", "index.ts", "mcp.ts", "profile-kit.ts", "profiles.ts", "workflow.ts"]) {
     const source = await readFile(new URL(`../../src/${name}`, import.meta.url), "utf8");
     assert.doesNotMatch(

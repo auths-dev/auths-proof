@@ -24,10 +24,10 @@ stop accepting cached evidence past its `validUntil`. Missing, conflicting, or
 unavailable required evidence remains denied or indeterminate according to the
 Rust verdict; applications must not convert it to authorized.
 
-## Migrate policy or profile version
+## Replace a policy or profile before launch
 
-Publish the new exact profile and policy identifiers alongside the old version
-during the deprecation window. Author narrower replacement grants, update the
-trusted registry and approval commitment, then supersede the old grants. A
-profile-version mismatch fails closed. Remove the old public version only
-after its migration guide, compatibility fixture, and SemVer window complete.
+Assign the replacement an exact semantic identifier, update its grants,
+trusted registry, approval commitment, examples, and fixtures in one source
+cutover, and delete the superseded implementation. Existing mismatched local
+state fails closed. Do not add a second reader, converter, alias, shim,
+deprecation window, or runtime switch.

@@ -30,7 +30,7 @@
       "standalone method- and suite-agnostic identity descriptors",
       "bounded native batch verification with single-item equivalence",
       "bounded trust evidence acquisition and offline bundles",
-      "versioned adapter conformance and compatibility manifests",
+      "versioned adapter conformance and an exact runtime contract",
       "idempotent closed runtime with reconciliation and durable reference state",
       "redacted telemetry timelines and deterministic support bundles"
     ],
@@ -51,7 +51,7 @@
     "debuggability": { "status": "verified", "evidence": ["src/observability.ts", "src/diagnostics.ts", "test/unit/observability.test.js"] },
     "extensibility": { "status": "verified", "evidence": ["src/identity.ts", "src/profiles/application/index.ts", "docs/adapter-authoring.md"] },
     "portability": { "status": "verified", "evidence": ["../../.github/workflows/typescript-sdk.yml", "test/package/packed-browser.mjs"] },
-    "compatibility": { "status": "verified", "evidence": ["sdk-compatibility.json", "tools/compatibility.mjs", "docs/migration-verify-subpaths.md"] },
+    "runtimeContract": { "status": "verified", "evidence": ["sdk-runtime-contract.json", "tools/runtime-contract.mjs", "docs/support-matrix.md"] },
     "securityEvidence": { "status": "external-review-required", "evidence": ["docs/threat-model.md", "test/integration/scenario-corpus.test.js"] },
     "documentation": { "status": "verified", "evidence": ["README.md", "docs/support-matrix.md", "docs/production-integration.md", "docs/errors-and-recovery.md"] },
     "crossSdkParity": { "status": "python-follow-up", "evidence": ["docs/customer-journey-matrix.md"] }

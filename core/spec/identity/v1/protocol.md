@@ -23,6 +23,9 @@ experimental and unpublished. Renumbering corrected bytes back to 1 would concea
 create ambiguity in repository checkouts. Product protocol V1 therefore deliberately freezes wire
 revision 2 and signing-domain revision 2.
 
+Only the exact current revisions in this contract are supported. The implementation carries no
+legacy reader, alias, converter, dual path, or runtime negotiation for superseded revisions.
+
 The identity method `raw-key-v2` is not the proof protocol's frozen `raw-key-v1`. The V2 method
 accepts any bounded suite-labelled public material; the V1 proof adapter accepts only its registered
 key shapes and derives a different principal namespace. A validated neutral raw-key identity enters
@@ -38,7 +41,7 @@ adapter authenticates the exact relationship signing preimage. Neither transitio
 ## Change rules
 
 - Changing packet bytes, signing preimages, raw-key derivation, or a method/suite identifier requires
-  a new semantic identity, migration note, and regenerated vector corpus.
+  a new semantic identity, direct source cutover, and regenerated vector corpus.
 - Adding an identity method, signature suite, or transport adapter does not change the neutral wire
   when the existing fields and bounds are sufficient.
 - A transport endpoint identity is never automatically an Auths identity or authority principal.
