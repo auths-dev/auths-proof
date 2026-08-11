@@ -115,7 +115,7 @@ fn write_authoring_vectors(
 }
 
 fn write_scenario_vectors(output: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
-    let fixture_root = PathBuf::from("../../core/fixtures/v1");
+    let fixture_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../core/fixtures/v1");
     let scenario_output = output.join("scenarios");
     fs::create_dir_all(&scenario_output)?;
     let configuration = auths_model::VerifierConfigurationId::new(
