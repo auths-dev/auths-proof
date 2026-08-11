@@ -4,7 +4,7 @@ use crate::*;
 
 const INVENTORY_PATH: &str = "release/semantic-freeze.json";
 const INVENTORY_SCHEMA: &str = "auths.semantic-freeze/1";
-const FREEZE_VERSION: u64 = 62;
+const FREEZE_VERSION: u64 = 63;
 const PUBLIC_RUST_ROOTS: [&str; 10] = [
     "auths",
     "auths-byte-channel",
@@ -243,7 +243,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.portable-abi-bindings",
-            29,
+            30,
             FreezeClassification::FrozenMeaning,
             &["portable-abi", "authoring-abi", "binding-contracts"],
             vec![
@@ -259,7 +259,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.public-sdk-contract",
-            22,
+            23,
             FreezeClassification::FrozenMeaning,
             &[
                 "rust-sdk-contract",
@@ -275,6 +275,29 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
                 "product/integrations/auths-custody/src".to_owned(),
                 "product/runtime/auths-runtime/src".to_owned(),
                 "compliance.toml".to_owned(),
+            ],
+        )?,
+        freeze_entry(
+            "auths.product.mcp-closed-execution",
+            1,
+            FreezeClassification::FrozenMeaning,
+            &[
+                "profile-session",
+                "commitment-derived-execution",
+                "bounded-handler-contract",
+                "authenticated-recovery",
+                "receipt-eligibility",
+            ],
+            vec![
+                "product/profiles/auths-profile-mcp/src/session.rs".to_owned(),
+                "product/profiles/auths-profile-mcp/profile-v1.json".to_owned(),
+                "bindings/typescript/src/generated/mcp-profile.ts".to_owned(),
+                "bindings/typescript/src/profiles/mcp/index.ts".to_owned(),
+                "bindings/python/python/auths/_mcp_profile.py".to_owned(),
+                "bindings/python/python/auths/profiles/mcp.py".to_owned(),
+                "bindings/python/src/mcp.rs".to_owned(),
+                "bindings/wasm/auths-proof-wasm/src/lib.rs".to_owned(),
+                "xtask/src/mcp_session_contract.rs".to_owned(),
             ],
         )?,
         freeze_entry(
@@ -428,7 +451,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
 
     for (id, path) in frozen_byte_inventories()? {
         let version = match path.as_str() {
-            "architecture/dependency-graph.json" => 16,
+            "architecture/dependency-graph.json" => 17,
             "bindings/wasm/auths-proof-wasm/identity-abi-v1.json" => 3,
             "core/fixtures/v1/manifest.json" => 3,
             "formal/assurance-manifest-v1.toml"
@@ -481,7 +504,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
     ]);
     entries.push(freeze_entry(
         "auths.release.public-surface",
-        62,
+        63,
         FreezeClassification::ReleaseMetadata,
         &[
             "package-names",

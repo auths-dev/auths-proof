@@ -34,7 +34,10 @@ use auths_profile_domains::{
     reference_canonicalize_deployment, reference_canonicalize_edge, reference_canonicalize_git,
     reference_canonicalize_http, reference_canonicalize_supply_chain,
 };
-use auths_profile_mcp::{McpProfile, McpToolCall};
+use auths_profile_mcp::{
+    McpCause, McpExecutionSession, McpHandlerEffect, McpHandlerResult, McpProfile,
+    McpReservationResult, McpSessionKey, McpSessionStep, McpTerminal, McpToolCall,
+};
 use auths_receipts::{
     AttestedDecisionReceipt, AttestedExecutionReceipt, ConfiguredReceiptVerifier, DecisionClass,
     ExecutionOutcome, ReceiptSigner, application_execution_lease_digest, decode_decision,
@@ -43,7 +46,7 @@ use auths_receipts::{
     verify_execution_attestation,
 };
 use auths_registries::ImmutableRegistries;
-use serde::{Deserialize, Serialize as _};
+use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::{collections::BTreeSet, fmt};
 use wasm_bindgen::prelude::*;
@@ -3218,6 +3221,330 @@ pub fn profile_receipt_bindings_v1(
     })
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct McpSessionStepProjection {
+    kind: &'static str,
+    execution_id: String,
+    service: Option<String>,
+    tool: Option<String>,
+    bytes: Option<Vec<u8>>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct McpSessionTerminalProjection {
+    kind: &'static str,
+    execution_id: String,
+    output_json: Option<Vec<u8>>,
+    receipt_json: Option<Vec<u8>>,
+    reference: Option<String>,
+    record_json: Option<Vec<u8>>,
+}
+
+#[wasm_bindgen(js_name = McpExecutionSessionV1)]
+pub struct McpExecutionSessionV1 {
+    inner: McpExecutionSession,
+}
+
+#[wasm_bindgen(js_class = McpExecutionSessionV1)]
+impl McpExecutionSessionV1 {
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = executionId)]
+    pub fn execution_id(&self) -> String {
+        self.inner.execution_id().to_owned()
+    }
+
+    /// Releases the next bounded I/O step.
+    ///
+    /// # Errors
+    ///
+    /// Returns a JavaScript error until the prior result arrives or after termination.
+    #[wasm_bindgen(js_name = nextStep)]
+    pub fn next_step(&mut self) -> Result<JsValue, JsValue> {
+        let step = self.inner.next_step().map_err(js_error)?;
+        serde_wasm_bindgen::to_value(&mcp_session_step(step)).map_err(js_error)
+    }
+
+    /// Accepts the atomic reservation observation.
+    ///
+    /// # Errors
+    ///
+    /// Returns a JavaScript error for an unknown result or invalid transition.
+    #[wasm_bindgen(js_name = acceptReservation)]
+    pub fn accept_reservation(&mut self, result: &str) -> Result<(), JsValue> {
+        let result = match result {
+            "acquired" => McpReservationResult::Acquired,
+            "exact-replay" => McpReservationResult::ExactReplay,
+            "conflict" => McpReservationResult::Conflict,
+            _ => return Err(js_error(EngineError::Abi("invalid MCP reservation result"))),
+        };
+        self.inner.accept_reservation(result).map_err(js_error)
+    }
+
+    /// Accepts durable provider-entry evidence.
+    ///
+    /// # Errors
+    ///
+    /// Returns a JavaScript error unless provider entry is the pending step.
+    #[wasm_bindgen(js_name = acceptProviderEntry)]
+    pub fn accept_provider_entry(&mut self) -> Result<(), JsValue> {
+        self.inner.accept_provider_entry().map_err(js_error)
+    }
+
+    /// Terminates safely when cancellation arrives before provider entry.
+    ///
+    /// # Errors
+    ///
+    /// Returns a JavaScript error after provider entry or outside that step.
+    #[wasm_bindgen(js_name = cancelBeforeProvider)]
+    pub fn cancel_before_provider(&mut self) -> Result<(), JsValue> {
+        self.inner.cancel_before_provider().map_err(js_error)
+    }
+
+    /// Accepts one bounded handler or reconciliation result.
+    ///
+    /// # Errors
+    ///
+    /// Returns a JavaScript error for invalid classifications, bounds, or transitions.
+    #[allow(clippy::needless_pass_by_value)]
+    #[wasm_bindgen(js_name = acceptHandler)]
+    pub fn accept_handler(
+        &mut self,
+        effect: &str,
+        output_json: Option<Vec<u8>>,
+        cause: Option<String>,
+    ) -> Result<(), JsValue> {
+        let effect = match effect {
+            "not-applied" => McpHandlerEffect::NotApplied,
+            "applied" => McpHandlerEffect::Applied,
+            "possible" => McpHandlerEffect::Possible,
+            _ => return Err(js_error(EngineError::Abi("invalid MCP handler effect"))),
+        };
+        let cause = cause
+            .as_deref()
+            .map(parse_mcp_cause)
+            .transpose()
+            .map_err(js_error)?;
+        let result =
+            McpHandlerResult::parse(effect, output_json.as_deref(), cause).map_err(js_error)?;
+        self.inner.accept_handler(result).map_err(js_error)
+    }
+
+    /// Accepts receipt persistence evidence.
+    ///
+    /// # Errors
+    ///
+    /// Returns a JavaScript error for an invalid transition or persistence failure.
+    #[wasm_bindgen(js_name = acceptReceipt)]
+    pub fn accept_receipt(&mut self, persisted: bool) -> Result<(), JsValue> {
+        self.inner.accept_receipt(persisted).map_err(js_error)
+    }
+
+    /// Projects the terminal result without exposing the session capability.
+    ///
+    /// # Errors
+    ///
+    /// Returns a JavaScript error only if the bounded projection cannot be encoded.
+    pub fn terminal(&self) -> Result<JsValue, JsValue> {
+        match self.inner.terminal() {
+            Some(value) => {
+                serde_wasm_bindgen::to_value(&mcp_session_terminal(value)).map_err(js_error)
+            }
+            None => Ok(JsValue::NULL),
+        }
+    }
+}
+
+/// Verifies exact artifacts and opens one closed MCP execution session.
+///
+/// # Errors
+///
+/// Returns a JavaScript error for incompatible artifacts, a denied action, or
+/// invalid bounded session configuration.
+#[allow(clippy::needless_pass_by_value)]
+#[wasm_bindgen(js_name = beginMcpExecutionV1)]
+pub fn begin_mcp_execution_v1(
+    proof_cbor: &[u8],
+    canonical_action_cbor: &[u8],
+    trusted_context_cbor: &[u8],
+    request_id: Option<String>,
+    session_key: &[u8],
+) -> Result<McpExecutionSessionV1, JsValue> {
+    let key: [u8; 32] = session_key
+        .try_into()
+        .map_err(|_| js_error(EngineError::Abi("MCP session key must contain 32 bytes")))?;
+    let raw_key = auths_raw_key::RawKeyMethod::new().map_err(js_error)?;
+    let did_key = auths_did_key::DidKeyMethod::new().map_err(js_error)?;
+    let did_keri = auths_did_keri::DidKeriMethod::new().map_err(js_error)?;
+    let ed25519 = auths_signature::Ed25519Suite::new().map_err(js_error)?;
+    let p256 = auths_signature::P256Sha256Suite::new().map_err(js_error)?;
+    let methods: [&dyn PrincipalMethod; 3] = [&raw_key, &did_key, &did_keri];
+    let suites: [&dyn SignatureSuite; 2] = [&ed25519, &p256];
+    let registries = ImmutableRegistries::new(&methods, &suites).map_err(js_error)?;
+    let sealed = auths_verifier::verify_v1_sealed(
+        proof_cbor,
+        canonical_action_cbor,
+        trusted_context_cbor,
+        &registries,
+    )
+    .map_err(js_error)?;
+    let (_, _, action) = sealed.into_parts();
+    let action =
+        action.ok_or_else(|| js_error(EngineError::Abi("MCP action is not authorized")))?;
+    let command = McpProfile.decode_verified(&action).map_err(js_error)?;
+    let action_commitment =
+        *auths_codec::domain_commitment("auths.canonical-action.v1", canonical_action_cbor)
+            .map_err(js_error)?
+            .as_bytes();
+    let proof = auths_codec::decode_bundle(proof_cbor, &VerifierLimits::default_deployment())
+        .map_err(js_error)?;
+    let context = auths_codec::decode_verifier_context(trusted_context_cbor).map_err(js_error)?;
+    let inner = McpExecutionSession::begin(
+        command,
+        action_commitment,
+        *auths_codec::proof_digest(&proof)
+            .map_err(js_error)?
+            .as_bytes(),
+        *auths_codec::context_digest(&context)
+            .map_err(js_error)?
+            .as_bytes(),
+        request_id.as_deref(),
+        McpSessionKey::new(key),
+    )
+    .map_err(js_error)?;
+    Ok(McpExecutionSessionV1 { inner })
+}
+
+/// Authenticates and resumes one stored MCP execution.
+///
+/// # Errors
+///
+/// Returns a JavaScript error for a forged, corrupt, or mismatched record.
+#[wasm_bindgen(js_name = resumeMcpExecutionV1)]
+pub fn resume_mcp_execution_v1(
+    session_key: &[u8],
+    reference: &str,
+    record_json: &[u8],
+) -> Result<McpExecutionSessionV1, JsValue> {
+    let key: [u8; 32] = session_key
+        .try_into()
+        .map_err(|_| js_error(EngineError::Abi("MCP session key must contain 32 bytes")))?;
+    let inner = McpExecutionSession::resume(McpSessionKey::new(key), reference, record_json)
+        .map_err(js_error)?;
+    Ok(McpExecutionSessionV1 { inner })
+}
+
+fn mcp_session_step(step: McpSessionStep) -> McpSessionStepProjection {
+    match step {
+        McpSessionStep::Reserve { execution_id } => McpSessionStepProjection {
+            kind: "reserve",
+            execution_id,
+            service: None,
+            tool: None,
+            bytes: None,
+        },
+        McpSessionStep::MarkProviderEntry { execution_id } => McpSessionStepProjection {
+            kind: "mark-provider-entry",
+            execution_id,
+            service: None,
+            tool: None,
+            bytes: None,
+        },
+        McpSessionStep::Invoke {
+            execution_id,
+            service,
+            tool,
+            arguments_json,
+        } => McpSessionStepProjection {
+            kind: "invoke",
+            execution_id,
+            service: Some(service),
+            tool: Some(tool),
+            bytes: Some(arguments_json),
+        },
+        McpSessionStep::PersistReceipt {
+            execution_id,
+            receipt_json,
+        } => McpSessionStepProjection {
+            kind: "persist-receipt",
+            execution_id,
+            service: None,
+            tool: None,
+            bytes: Some(receipt_json),
+        },
+        McpSessionStep::Reconcile {
+            execution_id,
+            service,
+        } => McpSessionStepProjection {
+            kind: "reconcile",
+            execution_id,
+            service: Some(service),
+            tool: None,
+            bytes: None,
+        },
+    }
+}
+
+fn mcp_session_terminal(value: &McpTerminal) -> McpSessionTerminalProjection {
+    match value {
+        McpTerminal::Completed {
+            execution_id,
+            output_json,
+            receipt_json,
+        } => McpSessionTerminalProjection {
+            kind: "completed",
+            execution_id: execution_id.clone(),
+            output_json: Some(output_json.clone()),
+            receipt_json: Some(receipt_json.clone()),
+            reference: None,
+            record_json: None,
+        },
+        McpTerminal::NotApplied { execution_id } => {
+            terminal_without_data("not-applied", execution_id)
+        }
+        McpTerminal::ExactReplay { execution_id } => {
+            terminal_without_data("exact-replay", execution_id)
+        }
+        McpTerminal::Conflict { execution_id } => terminal_without_data("conflict", execution_id),
+        McpTerminal::Recoverable {
+            execution_id,
+            reference,
+            record_json,
+        } => McpSessionTerminalProjection {
+            kind: "recoverable",
+            execution_id: execution_id.clone(),
+            output_json: None,
+            receipt_json: None,
+            reference: Some(reference.as_str().to_owned()),
+            record_json: Some(record_json.clone()),
+        },
+    }
+}
+
+fn terminal_without_data(kind: &'static str, execution_id: &str) -> McpSessionTerminalProjection {
+    McpSessionTerminalProjection {
+        kind,
+        execution_id: execution_id.to_owned(),
+        output_json: None,
+        receipt_json: None,
+        reference: None,
+        record_json: None,
+    }
+}
+
+fn parse_mcp_cause(value: &str) -> Result<McpCause, EngineError> {
+    match value {
+        "cancelled" => Ok(McpCause::Cancelled),
+        "invalid-output" => Ok(McpCause::InvalidOutput),
+        "limit-exceeded" => Ok(McpCause::LimitExceeded),
+        "timeout" => Ok(McpCause::Timeout),
+        "unavailable" => Ok(McpCause::Unavailable),
+        "unknown" => Ok(McpCause::Unknown),
+        _ => Err(EngineError::Abi("invalid MCP cause category")),
+    }
+}
+
 /// Prepares one canonical authorized decision receipt from exact verified
 /// artifacts.
 ///
@@ -3452,6 +3779,7 @@ fn receipt_signer(
     ))
 }
 
+#[allow(clippy::needless_pass_by_value)]
 fn receipt_preparation(value: auths_receipts::PreparedReceipt) -> ReceiptPreparationV1 {
     ReceiptPreparationV1 {
         id: value.id().as_bytes().to_vec(),

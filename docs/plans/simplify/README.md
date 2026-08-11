@@ -166,14 +166,14 @@ shape, but no old public API has been deleted yet.
 
 ### Milestone C — One vertical proof
 
-- [ ] Implement one maintained profile end to end using
+- [x] Implement one maintained profile end to end using
   [07 — Closed execution orchestration](07_CLOSED_EXECUTION_ORCHESTRATION.md).
 - [ ] Implement the explicit development composition from Phase A of
   [09 — Reference stacks and defaults](09_REFERENCE_STACKS_AND_DEFAULTS.md).
-- [ ] Prove Rust-gated sequencing, commitment-derived idempotency, failure
+- [x] Prove Rust-gated sequencing, commitment-derived idempotency, failure
   classification, resumption, reconciliation, and receipts in TypeScript and
   Python.
-- [ ] Register MCP's actual stages, error codes, effect classifications, and
+- [x] Register MCP's actual stages, error codes, effect classifications, and
   recovery actions through the schema established in Milestone A.
 
 The initial public cutover profile is MCP because it is already the maintained

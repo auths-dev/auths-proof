@@ -16,7 +16,9 @@ use auths_author::{
 use auths_model::{EvidenceTypeId, MediaType, ResourceId};
 use auths_profile_api::ActionProfile;
 use auths_profile_mcp::{
-    MAX_CANONICAL_CALL_BYTES, McpCommand, McpProfile, McpToolCall, PROFILE_ID, PROFILE_VERSION,
+    MAX_CANONICAL_CALL_BYTES, McpCause, McpCommand, McpExecutionSession, McpHandlerEffect,
+    McpHandlerResult, McpProfile, McpReservationResult, McpSessionKey, McpSessionStep, McpTerminal,
+    McpToolCall, PROFILE_ID, PROFILE_VERSION,
 };
 use pyo3::{
     exceptions::{PyRuntimeError, PyTypeError, PyValueError},
@@ -244,6 +246,237 @@ pub struct PyMcpGatewayCall {
     service: String,
     name: String,
     arguments_json: Vec<u8>,
+}
+
+#[pyclass(
+    name = "McpSessionStep",
+    frozen,
+    module = "auths._native",
+    skip_from_py_object
+)]
+pub struct PyMcpSessionStep {
+    kind: &'static str,
+    execution_id: String,
+    service: Option<String>,
+    tool: Option<String>,
+    bytes: Option<Vec<u8>>,
+}
+
+#[pymethods]
+impl PyMcpSessionStep {
+    #[getter]
+    fn kind(&self) -> &'static str {
+        self.kind
+    }
+
+    #[getter]
+    fn execution_id(&self) -> &str {
+        &self.execution_id
+    }
+
+    #[getter]
+    fn service(&self) -> Option<&str> {
+        self.service.as_deref()
+    }
+
+    #[getter]
+    fn tool(&self) -> Option<&str> {
+        self.tool.as_deref()
+    }
+
+    #[getter]
+    fn bytes<'py>(&self, py: Python<'py>) -> Option<Bound<'py, PyBytes>> {
+        self.bytes.as_ref().map(|value| PyBytes::new(py, value))
+    }
+}
+
+#[pyclass(
+    name = "McpSessionTerminal",
+    frozen,
+    module = "auths._native",
+    skip_from_py_object
+)]
+pub struct PyMcpSessionTerminal {
+    kind: &'static str,
+    execution_id: String,
+    output_json: Option<Vec<u8>>,
+    receipt_json: Option<Vec<u8>>,
+    reference: Option<String>,
+    record_json: Option<Vec<u8>>,
+}
+
+#[pymethods]
+impl PyMcpSessionTerminal {
+    #[getter]
+    fn kind(&self) -> &'static str {
+        self.kind
+    }
+
+    #[getter]
+    fn execution_id(&self) -> &str {
+        &self.execution_id
+    }
+
+    #[getter]
+    fn output_json<'py>(&self, py: Python<'py>) -> Option<Bound<'py, PyBytes>> {
+        self.output_json
+            .as_ref()
+            .map(|value| PyBytes::new(py, value))
+    }
+
+    #[getter]
+    fn receipt_json<'py>(&self, py: Python<'py>) -> Option<Bound<'py, PyBytes>> {
+        self.receipt_json
+            .as_ref()
+            .map(|value| PyBytes::new(py, value))
+    }
+
+    #[getter]
+    fn reference(&self) -> Option<&str> {
+        self.reference.as_deref()
+    }
+
+    #[getter]
+    fn record_json<'py>(&self, py: Python<'py>) -> Option<Bound<'py, PyBytes>> {
+        self.record_json
+            .as_ref()
+            .map(|value| PyBytes::new(py, value))
+    }
+}
+
+#[pyclass(
+    name = "McpExecutionSession",
+    module = "auths._native",
+    skip_from_py_object
+)]
+pub struct PyMcpExecutionSession {
+    inner: McpExecutionSession,
+}
+
+#[pymethods]
+impl PyMcpExecutionSession {
+    #[getter]
+    fn execution_id(&self) -> &str {
+        self.inner.execution_id()
+    }
+
+    fn next_step(&mut self) -> PyResult<PyMcpSessionStep> {
+        self.inner
+            .next_step()
+            .map(session_step)
+            .map_err(session_error)
+    }
+
+    fn accept_reservation(&mut self, result: &str) -> PyResult<()> {
+        let result = match result {
+            "acquired" => McpReservationResult::Acquired,
+            "exact-replay" => McpReservationResult::ExactReplay,
+            "conflict" => McpReservationResult::Conflict,
+            _ => return Err(PyValueError::new_err("invalid MCP reservation result")),
+        };
+        self.inner.accept_reservation(result).map_err(session_error)
+    }
+
+    fn accept_provider_entry(&mut self) -> PyResult<()> {
+        self.inner.accept_provider_entry().map_err(session_error)
+    }
+
+    fn cancel_before_provider(&mut self) -> PyResult<()> {
+        self.inner.cancel_before_provider().map_err(session_error)
+    }
+
+    #[pyo3(signature = (effect, output_json=None, cause=None))]
+    fn accept_handler(
+        &mut self,
+        effect: &str,
+        output_json: Option<&[u8]>,
+        cause: Option<&str>,
+    ) -> PyResult<()> {
+        let effect = match effect {
+            "not-applied" => McpHandlerEffect::NotApplied,
+            "applied" => McpHandlerEffect::Applied,
+            "possible" => McpHandlerEffect::Possible,
+            _ => return Err(PyValueError::new_err("invalid MCP handler effect")),
+        };
+        let cause = cause.map(parse_cause).transpose()?;
+        let result = McpHandlerResult::parse(effect, output_json, cause).map_err(session_error)?;
+        self.inner.accept_handler(result).map_err(session_error)
+    }
+
+    fn accept_receipt(&mut self, persisted: bool) -> PyResult<()> {
+        self.inner.accept_receipt(persisted).map_err(session_error)
+    }
+
+    fn terminal(&self) -> Option<PyMcpSessionTerminal> {
+        self.inner.terminal().map(session_terminal)
+    }
+
+    fn __repr__(&self) -> &'static str {
+        "McpExecutionSession(<native closed session>)"
+    }
+
+    fn __copy__(&self) -> PyResult<()> {
+        Err(session_capability_error())
+    }
+
+    fn __deepcopy__(&self, _memo: &Bound<'_, PyAny>) -> PyResult<()> {
+        Err(session_capability_error())
+    }
+
+    fn __reduce__(&self) -> PyResult<()> {
+        Err(session_capability_error())
+    }
+
+    fn __reduce_ex__(&self, _protocol: i32) -> PyResult<()> {
+        Err(session_capability_error())
+    }
+
+    fn __getstate__(&self) -> PyResult<()> {
+        Err(session_capability_error())
+    }
+}
+
+#[pyfunction]
+#[pyo3(signature = (command, session_key, request_id=None))]
+fn begin_mcp_execution(
+    mut command: PyRefMut<'_, PyMcpCommand>,
+    session_key: &[u8],
+    request_id: Option<&str>,
+) -> PyResult<PyMcpExecutionSession> {
+    let key: [u8; 32] = session_key
+        .try_into()
+        .map_err(|_| PyValueError::new_err("MCP session key must contain 32 bytes"))?;
+    let action_commitment = command.action_commitment_bytes()?;
+    let authority_commitment = command.authority_commitment;
+    let context_commitment = command.context_commitment;
+    let inner = command
+        .inner
+        .take()
+        .ok_or_else(|| PyRuntimeError::new_err("MCP command has already been consumed"))?;
+    let session = McpExecutionSession::begin(
+        inner,
+        action_commitment,
+        authority_commitment,
+        context_commitment,
+        request_id,
+        McpSessionKey::new(key),
+    )
+    .map_err(session_error)?;
+    Ok(PyMcpExecutionSession { inner: session })
+}
+
+#[pyfunction]
+fn resume_mcp_execution(
+    session_key: &[u8],
+    reference: &str,
+    record_json: &[u8],
+) -> PyResult<PyMcpExecutionSession> {
+    let key: [u8; 32] = session_key
+        .try_into()
+        .map_err(|_| PyValueError::new_err("MCP session key must contain 32 bytes"))?;
+    let inner = McpExecutionSession::resume(McpSessionKey::new(key), reference, record_json)
+        .map_err(session_error)?;
+    Ok(PyMcpExecutionSession { inner })
 }
 
 #[pymethods]
@@ -633,12 +866,139 @@ fn canonical_action_commitment(call: &McpToolCall) -> PyResult<[u8; 32]> {
     )
 }
 
+fn session_step(step: McpSessionStep) -> PyMcpSessionStep {
+    match step {
+        McpSessionStep::Reserve { execution_id } => PyMcpSessionStep {
+            kind: "reserve",
+            execution_id,
+            service: None,
+            tool: None,
+            bytes: None,
+        },
+        McpSessionStep::MarkProviderEntry { execution_id } => PyMcpSessionStep {
+            kind: "mark-provider-entry",
+            execution_id,
+            service: None,
+            tool: None,
+            bytes: None,
+        },
+        McpSessionStep::Invoke {
+            execution_id,
+            service,
+            tool,
+            arguments_json,
+        } => PyMcpSessionStep {
+            kind: "invoke",
+            execution_id,
+            service: Some(service),
+            tool: Some(tool),
+            bytes: Some(arguments_json),
+        },
+        McpSessionStep::PersistReceipt {
+            execution_id,
+            receipt_json,
+        } => PyMcpSessionStep {
+            kind: "persist-receipt",
+            execution_id,
+            service: None,
+            tool: None,
+            bytes: Some(receipt_json),
+        },
+        McpSessionStep::Reconcile {
+            execution_id,
+            service,
+        } => PyMcpSessionStep {
+            kind: "reconcile",
+            execution_id,
+            service: Some(service),
+            tool: None,
+            bytes: None,
+        },
+    }
+}
+
+fn session_terminal(value: &McpTerminal) -> PyMcpSessionTerminal {
+    match value {
+        McpTerminal::Completed {
+            execution_id,
+            output_json,
+            receipt_json,
+        } => PyMcpSessionTerminal {
+            kind: "completed",
+            execution_id: execution_id.clone(),
+            output_json: Some(output_json.clone()),
+            receipt_json: Some(receipt_json.clone()),
+            reference: None,
+            record_json: None,
+        },
+        McpTerminal::NotApplied { execution_id } => PyMcpSessionTerminal {
+            kind: "not-applied",
+            execution_id: execution_id.clone(),
+            output_json: None,
+            receipt_json: None,
+            reference: None,
+            record_json: None,
+        },
+        McpTerminal::ExactReplay { execution_id } => PyMcpSessionTerminal {
+            kind: "exact-replay",
+            execution_id: execution_id.clone(),
+            output_json: None,
+            receipt_json: None,
+            reference: None,
+            record_json: None,
+        },
+        McpTerminal::Conflict { execution_id } => PyMcpSessionTerminal {
+            kind: "conflict",
+            execution_id: execution_id.clone(),
+            output_json: None,
+            receipt_json: None,
+            reference: None,
+            record_json: None,
+        },
+        McpTerminal::Recoverable {
+            execution_id,
+            reference,
+            record_json,
+        } => PyMcpSessionTerminal {
+            kind: "recoverable",
+            execution_id: execution_id.clone(),
+            output_json: None,
+            receipt_json: None,
+            reference: Some(reference.as_str().to_owned()),
+            record_json: Some(record_json.clone()),
+        },
+    }
+}
+
+fn parse_cause(value: &str) -> PyResult<McpCause> {
+    match value {
+        "cancelled" => Ok(McpCause::Cancelled),
+        "invalid-output" => Ok(McpCause::InvalidOutput),
+        "limit-exceeded" => Ok(McpCause::LimitExceeded),
+        "timeout" => Ok(McpCause::Timeout),
+        "unavailable" => Ok(McpCause::Unavailable),
+        "unknown" => Ok(McpCause::Unknown),
+        _ => Err(PyValueError::new_err("invalid MCP cause category")),
+    }
+}
+
+fn session_error(error: auths_profile_mcp::McpSessionError) -> PyErr {
+    PyRuntimeError::new_err(format!("MCP session rejected transition: {error:?}"))
+}
+
+fn session_capability_error() -> PyErr {
+    PyTypeError::new_err("MCP execution sessions are non-copyable native capabilities")
+}
+
 pub fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyMcpCall>()?;
     module.add_class::<PyNativeMcpPlan>()?;
     module.add_class::<PyMcpCommand>()?;
     module.add_class::<PyMcpPlanCommand>()?;
     module.add_class::<PyMcpGatewayCall>()?;
+    module.add_class::<PyMcpSessionStep>()?;
+    module.add_class::<PyMcpSessionTerminal>()?;
+    module.add_class::<PyMcpExecutionSession>()?;
     module.add_function(wrap_pyfunction!(validate_mcp_service, module)?)?;
     module.add_function(wrap_pyfunction!(mcp_call, module)?)?;
     module.add_function(wrap_pyfunction!(review_mcp_call, module)?)?;
@@ -648,5 +1008,7 @@ pub fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(consume_mcp_command, module)?)?;
     module.add_function(wrap_pyfunction!(seal_mcp_plan_command, module)?)?;
     module.add_function(wrap_pyfunction!(consume_mcp_plan_command, module)?)?;
+    module.add_function(wrap_pyfunction!(begin_mcp_execution, module)?)?;
+    module.add_function(wrap_pyfunction!(resume_mcp_execution, module)?)?;
     Ok(())
 }

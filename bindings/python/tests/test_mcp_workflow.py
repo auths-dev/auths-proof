@@ -31,6 +31,7 @@ from auths import (
 )
 from auths.profiles.mcp import (
     AuthorizationRequest,
+    DevelopmentMcpProvider,
     McpAuthorized,
     McpAuthorizationResult,
     McpDenied,
@@ -38,9 +39,11 @@ from auths.profiles.mcp import (
     McpGatewayCancelled,
     McpGatewayError,
     McpIndeterminate,
+    McpHandlerOutcome,
     McpPlanAuthorized,
     McpPlanDenied,
     McpProfile,
+    McpToolContext,
     mcp,
 )
 from auths import _native as native_abi
@@ -205,6 +208,46 @@ def test_mcp_review_is_available_before_approval() -> None:
     assert review.title
     assert review.fields
     assert len(review.action_commitment) == 32
+
+
+def test_development_provider_is_bounded_and_disposable() -> None:
+    calls: list[str] = []
+
+    async def publish(arguments, context):
+        calls.append(context.tool)
+        return {"published": arguments["name"]}
+
+    async def scenario() -> None:
+        provider = mcp.development_provider(
+            tools={"publish_report": publish},
+            timeout_ms=50,
+        )
+        assert isinstance(provider, DevelopmentMcpProvider)
+        result = await provider.invoke(
+            "reports",
+            "publish_report",
+            {"name": "weekly"},
+            McpToolContext("execution", "reports", "publish_report"),
+        )
+        assert result == {"published": "weekly"}
+        missing = await provider.invoke(
+            "reports",
+            "missing",
+            {},
+            McpToolContext("execution", "reports", "missing"),
+        )
+        assert missing == McpHandlerOutcome("not-applied", cause="invalid-output")
+        await provider.aclose()
+        with pytest.raises(asyncio.CancelledError):
+            await provider.invoke(
+                "reports",
+                "publish_report",
+                {},
+                McpToolContext("execution", "reports", "publish_report"),
+            )
+
+    asyncio.run(scenario())
+    assert calls == ["publish_report"]
 
 
 @pytest.mark.asyncio

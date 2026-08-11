@@ -654,6 +654,7 @@ digraph auths_architecture {
   "xtask" -> "auths-opentofu" [label="normal"];
   "xtask" -> "auths-ports" [label="normal"];
   "xtask" -> "auths-postgresql" [label="normal"];
+  "xtask" -> "auths-profile-mcp" [label="normal"];
   "xtask" -> "auths-proof-exchange-testkit" [label="normal"];
   "xtask" -> "auths-radicle" [label="normal"];
   "xtask" -> "auths-raw-key" [label="normal"];

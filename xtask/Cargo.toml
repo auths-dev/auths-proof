@@ -15,6 +15,7 @@ auths-did-web = { workspace = true, features = ["std"] }
 auths-hsm-attested = { workspace = true, features = ["std"] }
 auths-model.workspace = true
 auths-ports = { workspace = true, features = ["std"] }
+auths-profile-mcp.workspace = true
 auths-raw-key = { workspace = true, features = ["std"] }
 auths-registries = { workspace = true, features = ["std"] }
 auths-signature = { workspace = true, features = ["std"] }

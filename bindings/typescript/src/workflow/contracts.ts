@@ -387,6 +387,18 @@ export interface WorkflowWasmEngine {
     name: string,
     argumentsValue: unknown,
   ): Uint8Array;
+  beginMcpExecutionV1(
+    proofCbor: Uint8Array,
+    canonicalActionCbor: Uint8Array,
+    trustedContextCbor: Uint8Array,
+    requestId: string | undefined,
+    sessionKey: Uint8Array,
+  ): WorkflowMcpExecutionSession;
+  resumeMcpExecutionV1(
+    sessionKey: Uint8Array,
+    reference: string,
+    recordJson: Uint8Array,
+  ): WorkflowMcpExecutionSession;
   canonicalizeProfilePlanMemberV1(
     profileId: string,
     profileVersion: number,
@@ -648,6 +660,39 @@ export interface WorkflowMcpActionPreparation {
   readonly audience: string;
   readonly resource: string;
   readonly displayDigestHex: string;
+  free?(): void;
+}
+
+export interface WorkflowMcpSessionStep {
+  readonly kind: "reserve" | "mark-provider-entry" | "invoke" | "persist-receipt" | "reconcile";
+  readonly executionId: string;
+  readonly service?: string;
+  readonly tool?: string;
+  readonly bytes?: Uint8Array;
+}
+
+export interface WorkflowMcpSessionTerminal {
+  readonly kind: "completed" | "not-applied" | "exact-replay" | "conflict" | "recoverable";
+  readonly executionId: string;
+  readonly outputJson?: Uint8Array;
+  readonly receiptJson?: Uint8Array;
+  readonly reference?: string;
+  readonly recordJson?: Uint8Array;
+}
+
+export interface WorkflowMcpExecutionSession {
+  readonly executionId: string;
+  nextStep(): WorkflowMcpSessionStep;
+  acceptReservation(result: "acquired" | "exact-replay" | "conflict"): void;
+  acceptProviderEntry(): void;
+  cancelBeforeProvider(): void;
+  acceptHandler(
+    effect: "not-applied" | "applied" | "possible",
+    outputJson?: Uint8Array,
+    cause?: "cancelled" | "invalid-output" | "limit-exceeded" | "timeout" | "unavailable" | "unknown",
+  ): void;
+  acceptReceipt(persisted: boolean): void;
+  terminal(): WorkflowMcpSessionTerminal | null;
   free?(): void;
 }
 

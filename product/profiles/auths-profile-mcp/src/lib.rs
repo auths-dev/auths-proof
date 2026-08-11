@@ -2,6 +2,10 @@
 
 #![forbid(unsafe_code)]
 
+mod session;
+
+pub use session::*;
+
 use auths_model::{
     Audience, CanonicalAction, CapabilityId, MediaType, Permission, ProfileId, ProfileRef,
     ResourceId,

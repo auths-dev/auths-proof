@@ -60,6 +60,8 @@ async function loadPackagedWorkflowEngineOnce(): Promise<PackagedWorkflowEngine>
     typeof loaded.parseCanonicalEdgeActionV1 !== "function" ||
     typeof loaded.prepareMcpActionV1 !== "function" ||
     typeof loaded.canonicalizeMcpPlanMemberV1 !== "function" ||
+    typeof loaded.beginMcpExecutionV1 !== "function" ||
+    typeof loaded.resumeMcpExecutionV1 !== "function" ||
     typeof loaded.canonicalizeProfilePlanMemberV1 !== "function" ||
     typeof loaded.prepareProfileActionV1 !== "function" ||
     typeof loaded.profileReceiptBindingsV1 !== "function" ||

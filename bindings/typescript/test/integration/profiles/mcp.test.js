@@ -283,6 +283,52 @@ test("MCP facade canonicalizes signs assembles and authorizes locally", async ()
   }
 });
 
+test("MCP development provider is bounded and disposable", async () => {
+  const calls = [];
+  const provider = mcp.developmentProvider({
+    timeoutMs: 50,
+    tools: {
+      async publish_report(argumentsValue, context) {
+        calls.push(context.tool);
+        return { published: argumentsValue.name };
+      },
+    },
+  });
+  const signal = new AbortController().signal;
+  assert.deepEqual(
+    await provider.invoke(
+      "reports",
+      "publish_report",
+      { name: "weekly" },
+      { executionId: "execution", service: "reports", tool: "publish_report" },
+      signal,
+    ),
+    { published: "weekly" },
+  );
+  assert.deepEqual(
+    await provider.invoke(
+      "reports",
+      "missing",
+      {},
+      { executionId: "execution", service: "reports", tool: "missing" },
+      signal,
+    ),
+    { effect: "not-applied", cause: "invalid-output" },
+  );
+  await provider.close();
+  await assert.rejects(
+    () => provider.invoke(
+      "reports",
+      "publish_report",
+      {},
+      { executionId: "execution", service: "reports", tool: "publish_report" },
+      signal,
+    ),
+    { name: "AbortError" },
+  );
+  assert.deepEqual(calls, ["publish_report"]);
+});
+
 test("shared Rust workflow projection matches TypeScript", async () => {
   const projection = workflowProjection();
   const verifier = await loadVerifier();

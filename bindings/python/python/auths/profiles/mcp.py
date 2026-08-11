@@ -6,6 +6,7 @@ import asyncio
 import json
 import time
 from dataclasses import dataclass, field
+from types import MappingProxyType
 from typing import (
     Awaitable,
     Callable,
@@ -13,6 +14,7 @@ from typing import (
     Literal,
     Mapping,
     Optional,
+    Protocol,
     Sequence,
     Tuple,
     TypeVar,
@@ -21,7 +23,9 @@ from typing import (
 )
 
 from .. import _native as native
+from .._mcp_profile import MCP_PROFILE
 from .._plan import PlanApprovalSession
+from ..product_errors import CauseCategory, cause_category_from
 from ..workflow import (
     ApprovalConfiguration,
     ApprovalProvider,
@@ -40,8 +44,18 @@ VerificationStage = Literal[
 ]
 McpOutcome = Literal["succeeded", "failed", "cancelled", "outcome-unknown"]
 McpExecutionState = Literal["committed", "outcome-unknown"]
+McpHandlerEffect = Literal["not-applied", "applied", "possible"]
+McpHandlerCause = Literal[
+    "cancelled",
+    "invalid-output",
+    "limit-exceeded",
+    "timeout",
+    "unavailable",
+    "unknown",
+]
 
 _PLAN_TOKEN = object()
+GatewayResult = TypeVar("GatewayResult")
 
 
 @dataclass(frozen=True)
@@ -364,6 +378,182 @@ class McpGatewayError(AuthsWorkflowError):
         self.completed_receipts = completed_receipts
 
 
+@dataclass(frozen=True)
+class McpHandlerOutcome(Generic[GatewayResult]):
+    effect: McpHandlerEffect
+    result: Optional[GatewayResult] = None
+    cause: Optional[McpHandlerCause] = None
+
+    def __post_init__(self) -> None:
+        if self.effect == "applied" and self.cause is not None:
+            raise ValueError("applied MCP outcome cannot carry a failure cause")
+        if self.effect != "applied" and self.result is not None:
+            raise ValueError("non-applied MCP outcome cannot carry a result")
+
+
+@dataclass(frozen=True)
+class McpToolContext:
+    execution_id: str
+    service: str
+    tool: str
+
+
+class McpClosedProvider(Protocol):
+    async def invoke(
+        self,
+        service: str,
+        tool: str,
+        arguments: Mapping[str, object],
+        context: McpToolContext,
+    ) -> object: ...
+
+    async def reconcile(
+        self, execution_id: str, service: str
+    ) -> McpHandlerOutcome[object]: ...
+
+
+McpToolHandler = Callable[[Mapping[str, object], McpToolContext], Awaitable[object]]
+McpReconciler = Callable[[str, str], Awaitable[McpHandlerOutcome[object]]]
+
+
+class DevelopmentMcpProvider:
+    def __init__(
+        self,
+        *,
+        tools: Mapping[str, McpToolHandler],
+        timeout_ms: Optional[int] = None,
+        reconcile: Optional[McpReconciler] = None,
+    ) -> None:
+        entries = tuple(tools.items())
+        limits = MCP_PROFILE["limits"]
+        if not entries or len(entries) > limits["toolCount"]:
+            raise ValueError("MCP tool declarations are outside profile limits")
+        parsed: dict[str, McpToolHandler] = {}
+        for name, handler in entries:
+            if (
+                not isinstance(name, str)
+                or not name
+                or len(name.encode()) > limits["toolNameBytes"]
+                or not all(
+                    character.isascii() and (character.isalnum() or character in "._-")
+                    for character in name
+                )
+                or not callable(handler)
+                or name in parsed
+            ):
+                raise ValueError("invalid MCP tool declaration")
+            parsed[name] = handler
+        duration = limits["defaultDurationMs"] if timeout_ms is None else timeout_ms
+        if (
+            type(duration) is not int
+            or duration < 1
+            or duration > limits["maximumDurationMs"]
+        ):
+            raise ValueError("MCP handler timeout is outside profile limits")
+        if reconcile is not None and not callable(reconcile):
+            raise TypeError("MCP reconciler is not callable")
+        self._tools = MappingProxyType(parsed)
+        self._timeout_seconds = duration / 1000
+        self._reconcile = reconcile
+        self._closed = False
+
+    async def invoke(
+        self,
+        service: str,
+        tool: str,
+        arguments: Mapping[str, object],
+        context: McpToolContext,
+    ) -> object:
+        self._assert_open()
+        handler = self._tools.get(tool)
+        if handler is None:
+            return McpHandlerOutcome("not-applied", cause="invalid-output")
+        return await asyncio.wait_for(
+            handler(arguments, context),
+            timeout=self._timeout_seconds,
+        )
+
+    async def reconcile(
+        self, execution_id: str, service: str
+    ) -> McpHandlerOutcome[object]:
+        self._assert_open()
+        if self._reconcile is None:
+            return McpHandlerOutcome("possible", cause="unavailable")
+        return await asyncio.wait_for(
+            self._reconcile(execution_id, service),
+            timeout=self._timeout_seconds,
+        )
+
+    async def aclose(self) -> None:
+        self._closed = True
+
+    async def __aenter__(self) -> DevelopmentMcpProvider:
+        self._assert_open()
+        return self
+
+    async def __aexit__(self, *_: object) -> None:
+        await self.aclose()
+
+    def _assert_open(self) -> None:
+        if self._closed:
+            raise asyncio.CancelledError
+
+
+class McpExecutionStore(Protocol):
+    async def reserve(
+        self, execution_id: str
+    ) -> Literal["acquired", "exact-replay", "conflict"]: ...
+
+    async def mark_provider_entry(self, execution_id: str) -> None: ...
+
+    async def save_recovery(self, reference: str, record_json: bytes) -> None: ...
+
+    async def load_recovery(self, reference: str) -> Optional[bytes]: ...
+
+
+class McpReceiptSink(Protocol):
+    async def persist(self, execution_id: str, receipt_json: bytes) -> None: ...
+
+
+@dataclass(frozen=True)
+class McpExecutionResources:
+    provider: McpClosedProvider
+    state: McpExecutionStore
+    receipts: McpReceiptSink
+    session_key: bytes
+    request_id: Optional[str] = None
+
+    def __post_init__(self) -> None:
+        key = bytes(self.session_key)
+        if len(key) != 32:
+            raise ValueError("MCP session key must contain 32 bytes")
+        object.__setattr__(self, "session_key", key)
+
+
+@dataclass(frozen=True)
+class McpCompleted:
+    kind: Literal["completed"]
+    execution_id: str
+    result: object
+    receipt: bytes
+
+
+@dataclass(frozen=True)
+class McpNotApplied:
+    kind: Literal["not-applied", "exact-replay", "conflict"]
+    execution_id: str
+
+
+@dataclass(frozen=True)
+class McpRecoverable:
+    kind: Literal["recoverable"]
+    execution_id: str
+    execution_reference: str
+
+
+McpClosedResult = Union[McpCompleted, McpNotApplied, McpRecoverable]
+
+
 class McpGatewayCancelled(AuthsWorkflowError):
     def __init__(
         self,
@@ -381,9 +571,6 @@ class McpGatewayCancelled(AuthsWorkflowError):
         )
         self.receipt = receipt
         self.completed_receipts = completed_receipts
-
-
-GatewayResult = TypeVar("GatewayResult")
 
 
 class McpGateway(Generic[GatewayResult]):
@@ -430,15 +617,15 @@ class McpGateway(Generic[GatewayResult]):
                     "outcome-unknown",
                 )
             ) from None
-        return result, _receipt(
-            idempotency_key, binding, None, "succeeded"
-        )
+        return result, _receipt(idempotency_key, binding, None, "succeeded")
 
     async def execute_plan(
         self, command: native.McpPlanCommand, *, idempotency_key: str
     ) -> Tuple[Tuple[GatewayResult, ...], Tuple[McpReceipt, ...]]:
         if type(command) is not native.McpPlanCommand or not idempotency_key:
-            raise TypeError("gateway requires a native MCP plan command and idempotency key")
+            raise TypeError(
+                "gateway requires a native MCP plan command and idempotency key"
+            )
         plan_commitment = bytes(command.plan_commitment)
         bindings = tuple(
             (bytes(action), bytes(authority), bytes(context))
@@ -495,6 +682,19 @@ class McpGateway(Generic[GatewayResult]):
 class McpFacade:
     def profile(self, *, service: str) -> McpProfile:
         return McpProfile(service)
+
+    def development_provider(
+        self,
+        *,
+        tools: Mapping[str, McpToolHandler],
+        timeout_ms: Optional[int] = None,
+        reconcile: Optional[McpReconciler] = None,
+    ) -> DevelopmentMcpProvider:
+        return DevelopmentMcpProvider(
+            tools=tools,
+            timeout_ms=timeout_ms,
+            reconcile=reconcile,
+        )
 
 
 mcp = McpFacade()
@@ -638,6 +838,207 @@ async def _authorize_mcp(
         local_configuration=bytes(native_result.local_configuration),
         result_cbor=bytes(native_result.result_cbor),
     )
+
+
+async def execute_mcp_closed(
+    agent: AttachedAgent,
+    action: McpAction,
+    resources: McpExecutionResources,
+    request: Optional[AuthorizationRequest] = None,
+) -> Union[McpDenied, McpIndeterminate, McpClosedResult]:
+    authorization = await _authorize_mcp(agent, action, request)
+    if not isinstance(authorization, McpAuthorized):
+        return authorization
+    session = native.begin_mcp_execution(
+        authorization.command,
+        resources.session_key,
+        resources.request_id,
+    )
+    return await _drive_mcp_session(session, resources)
+
+
+async def resume_mcp_closed(
+    reference: str,
+    resources: McpExecutionResources,
+) -> McpClosedResult:
+    record = await resources.state.load_recovery(_bounded_reference(reference))
+    if record is None:
+        raise AuthsWorkflowError(
+            "gateway-conflict", "MCP execution reference has no matching state"
+        )
+    session = native.resume_mcp_execution(
+        resources.session_key,
+        reference,
+        bytes(record),
+    )
+    return await _drive_mcp_session(session, resources)
+
+
+async def _drive_mcp_session(
+    session: native.McpExecutionSession,
+    resources: McpExecutionResources,
+) -> McpClosedResult:
+    while True:
+        terminal = session.terminal()
+        if terminal is not None:
+            return await _project_terminal(terminal, resources.state)
+        step = session.next_step()
+        if step.kind == "reserve":
+            session.accept_reservation(await resources.state.reserve(step.execution_id))
+        elif step.kind == "mark-provider-entry":
+            try:
+                await resources.state.mark_provider_entry(step.execution_id)
+            except asyncio.CancelledError:
+                session.cancel_before_provider()
+            else:
+                session.accept_provider_entry()
+        elif step.kind == "invoke":
+            await _invoke_mcp_handler(session, step, resources.provider)
+        elif step.kind == "persist-receipt":
+            try:
+                await resources.receipts.persist(
+                    step.execution_id, _required_bytes(step.bytes)
+                )
+            except Exception:
+                try:
+                    session.accept_receipt(False)
+                except RuntimeError:
+                    pass
+            else:
+                session.accept_receipt(True)
+        elif step.kind == "reconcile":
+            await _reconcile_mcp_handler(
+                session,
+                step.execution_id,
+                _required_string(step.service),
+                resources.provider,
+            )
+        else:
+            raise RuntimeError("native MCP session released an unknown step")
+
+
+async def _invoke_mcp_handler(
+    session: native.McpExecutionSession,
+    step: native.McpSessionStep,
+    provider: McpClosedProvider,
+) -> None:
+    service = _required_string(step.service)
+    tool = _required_string(step.tool)
+    try:
+        arguments = json.loads(_required_bytes(step.bytes))
+        if not isinstance(arguments, dict):
+            raise ValueError("MCP arguments must be an object")
+    except (TypeError, ValueError, json.JSONDecodeError):
+        session.accept_handler("possible", None, "invalid-output")
+        return
+    try:
+        observed = await provider.invoke(
+            service,
+            tool,
+            arguments,
+            McpToolContext(step.execution_id, service, tool),
+        )
+        _accept_mcp_observation(session, observed)
+    except asyncio.CancelledError:
+        session.accept_handler("possible", None, "cancelled")
+    except Exception as error:
+        session.accept_handler("possible", None, _profile_cause(error))
+
+
+async def _reconcile_mcp_handler(
+    session: native.McpExecutionSession,
+    execution_id: str,
+    service: str,
+    provider: McpClosedProvider,
+) -> None:
+    try:
+        observed = await provider.reconcile(execution_id, service)
+        _accept_mcp_observation(session, observed)
+    except asyncio.CancelledError:
+        session.accept_handler("possible", None, "cancelled")
+    except Exception as error:
+        session.accept_handler("possible", None, _profile_cause(error))
+
+
+def _accept_mcp_observation(
+    session: native.McpExecutionSession,
+    observed: object,
+) -> None:
+    if isinstance(observed, McpHandlerOutcome):
+        if observed.effect == "applied":
+            _accept_applied(session, observed.result)
+        else:
+            session.accept_handler(observed.effect, None, observed.cause)
+        return
+    _accept_applied(session, observed)
+
+
+def _accept_applied(session: native.McpExecutionSession, value: object) -> None:
+    try:
+        output = json.dumps(
+            value,
+            allow_nan=False,
+            ensure_ascii=False,
+            separators=(",", ":"),
+        ).encode()
+        session.accept_handler("applied", output)
+    except (TypeError, ValueError, RuntimeError):
+        session.accept_handler("possible", None, "invalid-output")
+
+
+async def _project_terminal(
+    terminal: native.McpSessionTerminal,
+    state: McpExecutionStore,
+) -> McpClosedResult:
+    if terminal.kind == "completed":
+        return McpCompleted(
+            "completed",
+            terminal.execution_id,
+            json.loads(_required_bytes(terminal.output_json)),
+            _required_bytes(terminal.receipt_json),
+        )
+    if terminal.kind == "recoverable":
+        reference = _bounded_reference(terminal.reference)
+        await state.save_recovery(reference, _required_bytes(terminal.record_json))
+        return McpRecoverable("recoverable", terminal.execution_id, reference)
+    if terminal.kind not in ("not-applied", "exact-replay", "conflict"):
+        raise RuntimeError("native MCP session returned an unknown terminal result")
+    return McpNotApplied(
+        cast(Literal["not-applied", "exact-replay", "conflict"], terminal.kind),
+        terminal.execution_id,
+    )
+
+
+def _profile_cause(value: object) -> McpHandlerCause:
+    cause = cause_category_from(value)
+    if cause is CauseCategory.INVALID_RESPONSE:
+        return "invalid-output"
+    if cause in (CauseCategory.CONFLICT, CauseCategory.CORRUPT_STATE):
+        return "unknown"
+    return cast(McpHandlerCause, cause.value)
+
+
+def _bounded_reference(value: Optional[str]) -> str:
+    if (
+        not isinstance(value, str)
+        or len(value) != 134
+        or not value.startswith("mcp1.")
+        or any(character not in "0123456789abcdef." for character in value[5:])
+    ):
+        raise ValueError("invalid MCP execution reference")
+    return value
+
+
+def _required_string(value: Optional[str]) -> str:
+    if value is None:
+        raise RuntimeError("native MCP step omitted a required field")
+    return value
+
+
+def _required_bytes(value: Optional[bytes]) -> bytes:
+    if value is None:
+        raise RuntimeError("native MCP step omitted bounded bytes")
+    return bytes(value)
 
 
 async def _authorize_mcp_plan(
@@ -826,6 +1227,7 @@ __all__ = [
     "AuthorizationExplanation",
     "AuthorizationMetrics",
     "AuthorizationRequest",
+    "DevelopmentMcpProvider",
     "McpAction",
     "McpAuthorizationResult",
     "McpAuthorized",
@@ -835,7 +1237,14 @@ __all__ = [
     "McpGatewayCancelled",
     "McpGatewayCall",
     "McpGatewayError",
+    "McpClosedProvider",
+    "McpClosedResult",
+    "McpCompleted",
+    "McpExecutionResources",
+    "McpExecutionStore",
+    "McpHandlerOutcome",
     "McpIndeterminate",
+    "McpNotApplied",
     "McpPlan",
     "McpPlanAuthority",
     "McpPlanAuthorizationResult",
@@ -846,6 +1255,12 @@ __all__ = [
     "McpPlanMemberResult",
     "McpProfile",
     "McpReceipt",
+    "McpReceiptSink",
+    "McpRecoverable",
     "McpReview",
+    "McpToolContext",
+    "McpToolHandler",
+    "execute_mcp_closed",
     "mcp",
+    "resume_mcp_closed",
 ]

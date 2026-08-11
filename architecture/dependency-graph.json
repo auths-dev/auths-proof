@@ -6240,6 +6240,18 @@
     {
       "source": "auths-profile-mcp",
       "source_layer": "product",
+      "target": "hmac",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-profile-mcp",
+      "source_layer": "product",
       "target": "rmcp",
       "target_layer": null,
       "scope": "external",
@@ -14051,6 +14063,18 @@
       "source": "xtask",
       "source_layer": "tooling",
       "target": "auths-postgresql",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "xtask",
+      "source_layer": "tooling",
+      "target": "auths-profile-mcp",
       "target_layer": "product",
       "scope": "internal",
       "kind": "normal",
