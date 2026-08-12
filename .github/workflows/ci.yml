@@ -265,17 +265,7 @@ jobs:
           --cores 2
           github:AeneasVerif/aeneas/3a8586facab25b31bdb1e1f5f45acd60d1cc5ff0#aeneas
           --out-link target/formal-tools
-      - uses: leanprover/lean-action@38fbc41a8c28c4cbaec22d7f7de508ec2e7c0dd9 # v1.5.0
-        with:
-          auto-config: false
-          build: false
-          test: false
-          lint: false
-          mk_all-check: false
-          check-reservoir-eligibility: false
-          leanchecker: false
-          nanoda: false
-          lake-package-directory: formal
+      - uses: ./.github/actions/setup-lean
       - name: Install pinned Kani
         run: |
           cargo install kani-verifier --version 0.67.0 --locked
