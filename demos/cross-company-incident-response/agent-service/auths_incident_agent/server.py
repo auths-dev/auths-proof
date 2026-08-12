@@ -11,8 +11,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
-from auths import AuthsError
 from auths._application_profile import ApplicationGatewayError
+from auths._workflow import AuthsWorkflowError
 from auths.testkit import DevelopmentReceiptAttestor
 
 from . import sdk
@@ -158,7 +158,7 @@ def execute_workflow(payload: dict[str, Any]) -> tuple[int, dict[str, Any]]:
             "stateClaim": error.receipt.state_claim,
             "completed": len(error.completed_receipts),
         }
-    except AuthsError as error:
+    except AuthsWorkflowError as error:
         status = {
             "gateway-exact-replay": HTTPStatus.CONFLICT,
             "gateway-conflict": HTTPStatus.CONFLICT,
@@ -357,7 +357,7 @@ class Handler(BaseHTTPRequestHandler):
                     receipt_attestor=RECEIPT_ATTESTOR,
                 )
             )
-        except AuthsError as error:
+        except AuthsWorkflowError as error:
             retry_code = error.code
         else:
             retry_code = "unexpected-success"
