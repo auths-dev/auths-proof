@@ -70,6 +70,7 @@ async function loadPackagedWorkflowEngineOnce(): Promise<PackagedWorkflowEngine>
     typeof loaded.attestDecisionReceiptV1 !== "function" ||
     typeof loaded.attestExecutionReceiptV1 !== "function" ||
     typeof loaded.verifyRawKeyReceiptV1 !== "function" ||
+    typeof loaded.verifyReceiptLinkV1 !== "function" ||
     typeof loaded.prepareRawKeyAuthorityV1 !== "function" ||
     typeof loaded.deriveEd25519RawKeyIdentityV1 !== "function" ||
     typeof loaded.developmentEd25519PublicKeyV1 !== "function" ||

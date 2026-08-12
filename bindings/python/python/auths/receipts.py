@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import base64
+import json
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -49,6 +51,16 @@ class AttestedReceipt:
         object.__setattr__(self, "bytes", bytes(self.bytes))
 
 
+@dataclass(frozen=True)
+class Receipt:
+    decision: AttestedReceipt
+    execution: AttestedReceipt
+
+    def __post_init__(self) -> None:
+        if self.decision.kind != "decision" or self.execution.kind != "execution":
+            raise ValueError("Auths receipt pair has invalid kinds")
+
+
 def verify_receipt(receipt: AttestedReceipt) -> None:
     if type(receipt) is not AttestedReceipt:
         raise TypeError("attested receipt is required")
@@ -61,6 +73,105 @@ def verify_receipt(receipt: AttestedReceipt) -> None:
         receipt.signer.suite,
         receipt.signer.evidence,
     )
+
+
+def verify_linked_receipt(receipt: Receipt) -> None:
+    if type(receipt) is not Receipt:
+        raise TypeError("Auths receipt is required")
+    verify_receipt(receipt.decision)
+    verify_receipt(receipt.execution)
+    native.verify_receipt_link_v1(
+        receipt.decision.bytes,
+        receipt.decision.receipt_id,
+        receipt.execution.bytes,
+        receipt.execution.receipt_id,
+    )
+
+
+def encode_linked_receipt(receipt: Receipt) -> bytes:
+    if type(receipt) is not Receipt:
+        raise TypeError("Auths receipt is required")
+    return json.dumps(
+        {
+            "schema": "auths.portable-receipt/1",
+            "decision": _receipt_projection(receipt.decision),
+            "execution": _receipt_projection(receipt.execution),
+        },
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode()
+
+
+def decode_linked_receipt(value: bytes) -> Receipt:
+    encoded = bytes(value)
+    if not encoded or len(encoded) > 1024 * 1024:
+        raise ValueError("portable Auths receipt is outside bounds")
+    try:
+        parsed = json.loads(encoded)
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        raise ValueError("portable Auths receipt is malformed") from None
+    if type(parsed) is not dict or parsed.get("schema") != "auths.portable-receipt/1":
+        raise ValueError("unsupported portable Auths receipt")
+    return Receipt(
+        _parse_receipt_projection(parsed.get("decision"), "decision"),
+        _parse_receipt_projection(parsed.get("execution"), "execution"),
+    )
+
+
+def _receipt_projection(receipt: AttestedReceipt) -> dict[str, object]:
+    return {
+        "receiptId": _base64url(receipt.receipt_id),
+        "bytes": _base64url(receipt.bytes),
+        "signer": {
+            "principal": receipt.signer.principal,
+            "verificationMethod": receipt.signer.verification_method,
+            "suite": receipt.signer.suite,
+            "evidence": _base64url(receipt.signer.evidence),
+        },
+    }
+
+
+def _parse_receipt_projection(value: object, kind: str) -> AttestedReceipt:
+    if type(value) is not dict or type(value.get("signer")) is not dict:
+        raise ValueError("portable Auths receipt member is malformed")
+    signer = value["signer"]
+    return AttestedReceipt(
+        kind,
+        _decode_base64url(value.get("receiptId"), 32, 32),
+        _decode_base64url(value.get("bytes"), 1, 768 * 1024),
+        ReceiptSigner(
+            _bounded_text(signer.get("principal")),
+            _bounded_text(signer.get("verificationMethod")),
+            _bounded_text(signer.get("suite")),
+            _decode_base64url(signer.get("evidence"), 1, 128 * 1024),
+        ),
+    )
+
+
+def _bounded_text(value: object) -> str:
+    if type(value) is not str or not value or len(value) > 1024:
+        raise ValueError("portable Auths receipt text is outside bounds")
+    return value
+
+
+def _base64url(value: bytes) -> str:
+    return base64.urlsafe_b64encode(value).rstrip(b"=").decode("ascii")
+
+
+def _decode_base64url(value: object, minimum: int, maximum: int) -> bytes:
+    if type(value) is not str or not value or len(value) > maximum * 2:
+        raise ValueError("portable Auths receipt bytes are outside bounds")
+    try:
+        decoded = base64.b64decode(
+            value + "=" * ((4 - len(value) % 4) % 4),
+            altchars=b"-_",
+            validate=True,
+        )
+    except (ValueError, base64.binascii.Error):
+        raise ValueError("portable Auths receipt bytes are malformed") from None
+    if not minimum <= len(decoded) <= maximum or _base64url(decoded) != value:
+        raise ValueError("portable Auths receipt bytes are not canonical")
+    return decoded
 
 
 async def _attest_decision(
@@ -97,4 +208,13 @@ async def _attest_execution(
     )
 
 
-__all__ = ["AttestedReceipt", "ReceiptAttestor", "ReceiptSigner", "verify_receipt"]
+__all__ = [
+    "AttestedReceipt",
+    "ReceiptAttestor",
+    "ReceiptSigner",
+    "Receipt",
+    "decode_linked_receipt",
+    "encode_linked_receipt",
+    "verify_receipt",
+    "verify_linked_receipt",
+]

@@ -14,12 +14,25 @@ from .profiles.mcp import (
     McpExecutionStore,
     McpIndeterminate,
     McpNotApplied,
+    McpPlan,
+    McpPlanCompleted,
+    McpPlanDenied,
+    McpPlanIndeterminate,
+    McpPlanRecoveryResult,
     McpReceiptSink,
     McpRecoverable,
     McpToolAuthority,
     execute_mcp_closed,
+    execute_mcp_plan_closed,
     resources_for_mcp_authority,
     resume_mcp_closed,
+)
+from .receipts import (
+    Receipt,
+    ReceiptAttestor,
+    decode_linked_receipt,
+    encode_linked_receipt,
+    verify_linked_receipt,
 )
 from .workflow import (
     AttachedAgent,
@@ -41,11 +54,6 @@ class Actor:
 
 
 Authority = McpToolAuthority
-
-
-@dataclass(frozen=True)
-class Receipt:
-    bytes: bytes
 
 
 @dataclass(frozen=True)
@@ -86,6 +94,28 @@ class ExecutionReference:
         raise TypeError("Auths execution reference is not serializable")
 
 
+def encode_execution_reference(reference: ExecutionReference) -> bytes:
+    if type(reference) is not ExecutionReference:
+        raise TypeError("forged Auths execution reference")
+    return reference._value.encode()
+
+
+def decode_execution_reference(value: bytes) -> ExecutionReference:
+    try:
+        parsed = bytes(value).decode("ascii")
+    except (TypeError, UnicodeDecodeError):
+        raise ValueError("invalid Auths execution reference") from None
+    if (
+        len(parsed) != 134
+        or not parsed.startswith("mcp1.")
+        or parsed[69] != "."
+        or any(character not in "0123456789abcdef" for character in parsed[5:69])
+        or any(character not in "0123456789abcdef" for character in parsed[70:])
+    ):
+        raise ValueError("invalid Auths execution reference")
+    return ExecutionReference(_REFERENCE_TOKEN, parsed)
+
+
 @dataclass(frozen=True)
 class RecoveryResult:
     kind: Literal["recoverable", "not-applied", "exact-replay", "conflict"]
@@ -93,7 +123,30 @@ class RecoveryResult:
     reference: Optional[ExecutionReference] = None
 
 
-ExecutionResult = Union[Completed, Denied, Indeterminate, RecoveryResult]
+@dataclass(frozen=True)
+class PlanCompleted:
+    kind: Literal["completed"]
+    results: tuple[object, ...]
+    receipts: tuple[Receipt, ...]
+
+
+@dataclass(frozen=True)
+class PlanRecoveryResult:
+    kind: Literal["recoverable", "not-applied", "exact-replay", "conflict"]
+    execution_id: str
+    completed_results: tuple[object, ...]
+    completed_receipts: tuple[Receipt, ...]
+    reference: Optional[ExecutionReference] = None
+
+
+ExecutionResult = Union[
+    Completed,
+    PlanCompleted,
+    Denied,
+    Indeterminate,
+    RecoveryResult,
+    PlanRecoveryResult,
+]
 
 
 @dataclass(frozen=True)
@@ -102,6 +155,7 @@ class _AuthsResources:
     authority: McpToolAuthority
     state: McpExecutionStore
     receipts: McpReceiptSink
+    receipt_attestor: ReceiptAttestor
     session_key: bytes
     child_signer: Callable[[], Awaitable[Signer]]
     dispose: Callable[[], Awaitable[None]]
@@ -140,24 +194,30 @@ class Auths:
     async def execute(
         self,
         *,
-        action: McpAction,
+        action: Optional[McpAction] = None,
+        plan: Optional[McpPlan] = None,
         provider: McpClosedProvider,
         request_id: Optional[str] = None,
     ) -> ExecutionResult:
         self._assert_active()
         self._assert_provider(provider)
-        result = await execute_mcp_closed(
-            self._resources.agent,
-            action,
-            McpExecutionResources(
-                provider,
-                self._resources.state,
-                self._resources.receipts,
-                self._resources.session_key,
-                request_id,
-            ),
+        execution = McpExecutionResources(
+            provider,
+            self._resources.state,
+            self._resources.receipts,
+            self._resources.receipt_attestor,
+            self._resources.session_key,
+            request_id,
         )
-        return _project_execution(result)
+        if action is not None and plan is None:
+            return _project_execution(
+                await execute_mcp_closed(self._resources.agent, action, execution)
+            )
+        if plan is not None and action is None:
+            return _project_plan_execution(
+                await execute_mcp_plan_closed(self._resources.agent, plan, execution)
+            )
+        raise TypeError("Auths execute requires exactly one action or plan")
 
     async def resume(
         self,
@@ -175,6 +235,7 @@ class Auths:
                 provider,
                 self._resources.state,
                 self._resources.receipts,
+                self._resources.receipt_attestor,
                 self._resources.session_key,
             ),
         )
@@ -223,6 +284,7 @@ class Auths:
                 authority,
                 self._resources.state,
                 self._resources.receipts,
+                self._resources.receipt_attestor,
                 self._resources.session_key,
                 self._resources.child_signer,
                 dispose,
@@ -294,13 +356,25 @@ async def _create_auths(configuration: AuthsConfiguration) -> Auths:
     return Auths(await configuration._open(), configuration.diagnostics)
 
 
+def verify_receipt(receipt: Receipt) -> None:
+    verify_linked_receipt(receipt)
+
+
+def encode_receipt(receipt: Receipt) -> bytes:
+    return encode_linked_receipt(receipt)
+
+
+def decode_receipt(value: bytes) -> Receipt:
+    return decode_linked_receipt(value)
+
+
 def _project_execution(value: object) -> ExecutionResult:
     if isinstance(value, McpCompleted):
         return Completed(
             "completed",
             value.execution_id,
             value.result,
-            Receipt(bytes(value.receipt)),
+            Receipt(value.receipt.decision, value.receipt.execution),
         )
     if isinstance(value, McpDenied):
         return Denied("denied", value.code)
@@ -317,6 +391,33 @@ def _project_execution(value: object) -> ExecutionResult:
     raise RuntimeError("MCP execution returned an unsupported result")
 
 
+def _project_plan_execution(value: object) -> ExecutionResult:
+    if isinstance(value, McpPlanCompleted):
+        return PlanCompleted(
+            "completed",
+            value.results,
+            tuple(Receipt(item.decision, item.execution) for item in value.receipts),
+        )
+    if isinstance(value, McpPlanDenied):
+        return Denied("denied", value.result.code)
+    if isinstance(value, McpPlanIndeterminate):
+        return Indeterminate("indeterminate", value.result.code)
+    if isinstance(value, McpPlanRecoveryResult):
+        return PlanRecoveryResult(
+            value.kind,
+            value.execution_id,
+            value.completed_results,
+            tuple(
+                Receipt(item.decision, item.execution)
+                for item in value.completed_receipts
+            ),
+            ExecutionReference(_REFERENCE_TOKEN, value.execution_reference)
+            if value.execution_reference is not None
+            else None,
+        )
+    raise RuntimeError("MCP plan execution returned an unsupported result")
+
+
 __all__ = [
     "Actor",
     "Auths",
@@ -324,9 +425,16 @@ __all__ = [
     "Authority",
     "Completed",
     "Denied",
+    "decode_execution_reference",
+    "decode_receipt",
+    "encode_execution_reference",
+    "encode_receipt",
     "ExecutionReference",
     "ExecutionResult",
     "Indeterminate",
+    "PlanCompleted",
+    "PlanRecoveryResult",
     "Receipt",
     "RecoveryResult",
+    "verify_receipt",
 ]

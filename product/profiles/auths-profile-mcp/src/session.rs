@@ -246,6 +246,12 @@ pub struct McpExecutionSession {
     action_commitment: [u8; 32],
     authority_commitment: [u8; 32],
     context_commitment: [u8; 32],
+    canonical_action: Vec<u8>,
+    decision_receipt_id: [u8; 32],
+    decision_receipt: Vec<u8>,
+    plan_commitment: Option<[u8; 32]>,
+    member_index: Option<u16>,
+    member_count: Option<u16>,
     state: SessionState,
 }
 
@@ -277,6 +283,12 @@ struct RecoveryRecord {
     action_commitment: String,
     authority_commitment: String,
     context_commitment: String,
+    canonical_action: String,
+    decision_receipt_id: String,
+    decision_receipt: String,
+    plan_commitment: Option<String>,
+    member_index: Option<u16>,
+    member_count: Option<u16>,
     output: Option<Value>,
     receipt: Option<Value>,
 }
@@ -302,6 +314,75 @@ impl McpExecutionSession {
         action_commitment: [u8; 32],
         authority_commitment: [u8; 32],
         context_commitment: [u8; 32],
+        canonical_action: Vec<u8>,
+        decision_receipt_id: [u8; 32],
+        decision_receipt: Vec<u8>,
+        request_id: Option<&str>,
+        key: McpSessionKey,
+    ) -> Result<Self, McpSessionError> {
+        Self::begin_inner(
+            command,
+            action_commitment,
+            authority_commitment,
+            context_commitment,
+            canonical_action,
+            decision_receipt_id,
+            decision_receipt,
+            None,
+            request_id,
+            key,
+        )
+    }
+
+    /// Consumes one verified member of an exact ordered plan.
+    ///
+    /// # Errors
+    ///
+    /// Returns a typed session error for invalid plan membership or session input.
+    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::needless_pass_by_value)]
+    pub fn begin_plan_member(
+        command: McpCommand,
+        action_commitment: [u8; 32],
+        authority_commitment: [u8; 32],
+        context_commitment: [u8; 32],
+        canonical_action: Vec<u8>,
+        decision_receipt_id: [u8; 32],
+        decision_receipt: Vec<u8>,
+        plan_commitment: [u8; 32],
+        member_index: u16,
+        member_count: u16,
+        request_id: Option<&str>,
+        key: McpSessionKey,
+    ) -> Result<Self, McpSessionError> {
+        if member_count == 0 || member_index >= member_count {
+            return Err(McpSessionError::InvalidTransition);
+        }
+        Self::begin_inner(
+            command,
+            action_commitment,
+            authority_commitment,
+            context_commitment,
+            canonical_action,
+            decision_receipt_id,
+            decision_receipt,
+            Some((plan_commitment, member_index, member_count)),
+            request_id,
+            key,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::needless_pass_by_value)]
+    fn begin_inner(
+        command: McpCommand,
+        action_commitment: [u8; 32],
+        authority_commitment: [u8; 32],
+        context_commitment: [u8; 32],
+        canonical_action: Vec<u8>,
+        decision_receipt_id: [u8; 32],
+        decision_receipt: Vec<u8>,
+        plan: Option<([u8; 32], u16, u16)>,
         request_id: Option<&str>,
         key: McpSessionKey,
     ) -> Result<Self, McpSessionError> {
@@ -312,6 +393,13 @@ impl McpExecutionSession {
             })
         {
             return Err(McpSessionError::InvalidRequestId);
+        }
+        if canonical_action.is_empty()
+            || canonical_action.len() > auths_model::HARD_MAX_ACTION_BYTES
+            || decision_receipt.is_empty()
+            || decision_receipt.len() > auths_model::HARD_MAX_ACTION_BYTES
+        {
+            return Err(McpSessionError::InvalidHandlerOutput);
         }
         let arguments_json = serde_json_canonicalizer::to_vec(command.arguments())
             .map_err(|_| McpSessionError::InvalidHandlerOutput)?;
@@ -332,6 +420,12 @@ impl McpExecutionSession {
             action_commitment,
             authority_commitment,
             context_commitment,
+            canonical_action,
+            decision_receipt_id,
+            decision_receipt,
+            plan_commitment: plan.map(|value| value.0),
+            member_index: plan.map(|value| value.1),
+            member_count: plan.map(|value| value.2),
             state: SessionState::ReadyReserve,
         })
     }
@@ -367,6 +461,20 @@ impl McpExecutionSession {
         let action_commitment = parse_digest(&record.action_commitment)?;
         let authority_commitment = parse_digest(&record.authority_commitment)?;
         let context_commitment = parse_digest(&record.context_commitment)?;
+        let canonical_action = parse_bounded_hex(&record.canonical_action)?;
+        let decision_receipt_id = parse_digest(&record.decision_receipt_id)?;
+        let decision_receipt = parse_bounded_hex(&record.decision_receipt)?;
+        let plan = match (
+            record.plan_commitment.as_deref(),
+            record.member_index,
+            record.member_count,
+        ) {
+            (None, None, None) => None,
+            (Some(commitment), Some(index), Some(count)) if count > 0 && index < count => {
+                Some((parse_digest(commitment)?, index, count))
+            }
+            _ => return Err(McpSessionError::InvalidRecoveryRecord),
+        };
         let state = match record.kind {
             RecoveryKind::Possible => SessionState::ReadyReconcile,
             RecoveryKind::ReceiptPending => {
@@ -392,6 +500,12 @@ impl McpExecutionSession {
             action_commitment,
             authority_commitment,
             context_commitment,
+            canonical_action,
+            decision_receipt_id,
+            decision_receipt,
+            plan_commitment: plan.map(|value| value.0),
+            member_index: plan.map(|value| value.1),
+            member_count: plan.map(|value| value.2),
             state,
         })
     }
@@ -399,6 +513,36 @@ impl McpExecutionSession {
     #[must_use]
     pub fn execution_id(&self) -> &str {
         &self.execution_id
+    }
+
+    #[must_use]
+    pub fn canonical_action(&self) -> &[u8] {
+        &self.canonical_action
+    }
+
+    #[must_use]
+    pub const fn decision_receipt_id(&self) -> &[u8; 32] {
+        &self.decision_receipt_id
+    }
+
+    #[must_use]
+    pub fn decision_receipt(&self) -> &[u8] {
+        &self.decision_receipt
+    }
+
+    #[must_use]
+    pub const fn plan_commitment(&self) -> Option<&[u8; 32]> {
+        self.plan_commitment.as_ref()
+    }
+
+    #[must_use]
+    pub const fn member_index(&self) -> Option<u16> {
+        self.member_index
+    }
+
+    #[must_use]
+    pub const fn member_count(&self) -> Option<u16> {
+        self.member_count
     }
 
     /// Releases exactly one bounded side-effect request.
@@ -623,6 +767,12 @@ impl McpExecutionSession {
             action_commitment: hex::encode(self.action_commitment),
             authority_commitment: hex::encode(self.authority_commitment),
             context_commitment: hex::encode(self.context_commitment),
+            canonical_action: hex::encode(&self.canonical_action),
+            decision_receipt_id: hex::encode(self.decision_receipt_id),
+            decision_receipt: hex::encode(&self.decision_receipt),
+            plan_commitment: self.plan_commitment.map(hex::encode),
+            member_index: self.member_index,
+            member_count: self.member_count,
             output,
             receipt,
         };
@@ -711,6 +861,14 @@ fn parse_digest(value: &str) -> Result<[u8; 32], McpSessionError> {
         .map_err(|_| McpSessionError::InvalidRecoveryRecord)
 }
 
+fn parse_bounded_hex(value: &str) -> Result<Vec<u8>, McpSessionError> {
+    let decoded = hex::decode(value).map_err(|_| McpSessionError::InvalidRecoveryRecord)?;
+    if decoded.is_empty() || decoded.len() > auths_model::HARD_MAX_ACTION_BYTES {
+        return Err(McpSessionError::InvalidRecoveryRecord);
+    }
+    Ok(decoded)
+}
+
 fn json_depth(value: &Value) -> usize {
     match value {
         Value::Array(values) => 1 + values.iter().map(json_depth).max().unwrap_or(0),
@@ -736,6 +894,9 @@ mod tests {
             [1; 32],
             [2; 32],
             [3; 32],
+            vec![1],
+            [4; 32],
+            vec![2],
             Some("request-1"),
             McpSessionKey::new([9; 32]),
         )
@@ -786,6 +947,9 @@ mod tests {
             [1; 32],
             [2; 32],
             [3; 32],
+            vec![1],
+            [4; 32],
+            vec![2],
             Some("request-1"),
             McpSessionKey::new([9; 32]),
         )
@@ -795,6 +959,9 @@ mod tests {
             [1; 32],
             [2; 32],
             [4; 32],
+            vec![1],
+            [4; 32],
+            vec![2],
             Some("request-1"),
             McpSessionKey::new([9; 32]),
         )
@@ -804,6 +971,9 @@ mod tests {
             [1; 32],
             [5; 32],
             [3; 32],
+            vec![1],
+            [4; 32],
+            vec![2],
             Some("request-1"),
             McpSessionKey::new([9; 32]),
         )
@@ -848,6 +1018,55 @@ mod tests {
             McpExecutionSession::resume(McpSessionKey::new([8; 32]), &reference, &record).err(),
             Some(McpSessionError::InvalidExecutionReference)
         );
+    }
+
+    #[test]
+    fn ordered_plan_binding_survives_authenticated_recovery() {
+        let mut session = McpExecutionSession::begin_plan_member(
+            command(),
+            [1; 32],
+            [2; 32],
+            [3; 32],
+            vec![1],
+            [4; 32],
+            vec![2],
+            [7; 32],
+            1,
+            2,
+            Some("incident-plan"),
+            McpSessionKey::new([9; 32]),
+        )
+        .unwrap();
+        session.next_step().unwrap();
+        session
+            .accept_reservation(McpReservationResult::Acquired)
+            .unwrap();
+        session.next_step().unwrap();
+        session.accept_provider_entry().unwrap();
+        session.next_step().unwrap();
+        session
+            .accept_handler(
+                McpHandlerResult::parse(McpHandlerEffect::Possible, None, Some(McpCause::Unknown))
+                    .unwrap(),
+            )
+            .unwrap();
+        let Some(McpTerminal::Recoverable {
+            reference,
+            record_json,
+            ..
+        }) = session.terminal()
+        else {
+            panic!("expected recoverable plan member");
+        };
+        let resumed = McpExecutionSession::resume(
+            McpSessionKey::new([9; 32]),
+            reference.as_str(),
+            record_json,
+        )
+        .unwrap();
+        assert_eq!(resumed.plan_commitment(), Some(&[7; 32]));
+        assert_eq!(resumed.member_index(), Some(1));
+        assert_eq!(resumed.member_count(), Some(2));
     }
 
     #[test]

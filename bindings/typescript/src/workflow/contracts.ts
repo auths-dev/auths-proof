@@ -391,6 +391,12 @@ export interface WorkflowWasmEngine {
     proofCbor: Uint8Array,
     canonicalActionCbor: Uint8Array,
     trustedContextCbor: Uint8Array,
+    decisionReceiptId: Uint8Array,
+    decisionReceipt: Uint8Array,
+    hasPlan: boolean,
+    planCommitment: Uint8Array,
+    memberIndex: number,
+    memberCount: number,
     requestId: string | undefined,
     sessionKey: Uint8Array,
   ): WorkflowMcpExecutionSession;
@@ -480,6 +486,12 @@ export interface WorkflowWasmEngine {
     verificationMethod: string,
     suite: string,
     rawKeyEvidence: Uint8Array,
+  ): void;
+  verifyReceiptLinkV1(
+    decision: Uint8Array,
+    decisionId: Uint8Array,
+    execution: Uint8Array,
+    executionId: Uint8Array,
   ): void;
   prepareRawKeyAuthorityV1(
     root: string,
@@ -683,6 +695,12 @@ export interface WorkflowMcpSessionTerminal {
 
 export interface WorkflowMcpExecutionSession {
   readonly executionId: string;
+  readonly canonicalAction: Uint8Array;
+  readonly decisionReceiptId: Uint8Array;
+  readonly decisionReceipt: Uint8Array;
+  readonly planCommitment?: Uint8Array;
+  readonly memberIndex?: number;
+  readonly memberCount?: number;
   nextStep(): WorkflowMcpSessionStep;
   acceptReservation(result: "acquired" | "exact-replay" | "conflict"): void;
   acceptProviderEntry(): void;

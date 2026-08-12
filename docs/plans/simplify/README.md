@@ -157,7 +157,7 @@ ordered-plan codes.
   [06 — Progressive package layout](06_PROGRESSIVE_PACKAGE_LAYOUT.md).
 - [x] Complete the Spec 12 contract inventory without prematurely publishing
   candidate mechanisms.
-- [ ] Prototype the user journeys in
+- [x] Prototype the user journeys in
   [11 — Outcome-first recipes](11_OUTCOME_FIRST_RECIPES.md) before freezing API
   names.
 

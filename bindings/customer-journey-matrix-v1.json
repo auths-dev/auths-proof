@@ -29,7 +29,7 @@
       "semanticParityPercent": 100
     },
     "moderatedRecipeThreeCohort": {
-      "status": "not-measured",
+      "status": "awaiting-independent-cohort",
       "cleanMachineDefinition": "supported runtime with an empty package cache and no Rust toolchain",
       "cohortSize": 0,
       "completions": [],
@@ -38,34 +38,54 @@
     },
     "maintainedRecipes": [
       {
-        "id": "typescript-identity",
+        "id": "typescript-01-authenticate-identity",
         "language": "typescript",
-        "path": "bindings/typescript/examples/identity-only/index.ts"
+        "path": "bindings/recipes/typescript/01-authenticate-identity.ts"
       },
       {
-        "id": "typescript-verify",
+        "id": "typescript-02-verify-authority",
         "language": "typescript",
-        "path": "bindings/typescript/examples/verify/index.ts"
+        "path": "bindings/recipes/typescript/02-verify-authority.ts"
       },
       {
-        "id": "typescript-protected-effect",
+        "id": "typescript-03-execute-exact-action",
         "language": "typescript",
-        "path": "bindings/typescript/examples/quickstart/index.ts"
+        "path": "bindings/recipes/typescript/03-execute-exact-action.ts"
       },
       {
-        "id": "typescript-delegation",
+        "id": "typescript-04-delegate-to-agent",
         "language": "typescript",
-        "path": "bindings/typescript/examples/delegate-and-authorize/index.ts"
+        "path": "bindings/recipes/typescript/04-delegate-to-agent.ts"
       },
       {
-        "id": "typescript-attachment",
+        "id": "typescript-05-cross-organization-plan",
         "language": "typescript",
-        "path": "bindings/typescript/examples/attach-agent/index.ts"
+        "path": "bindings/recipes/typescript/05-cross-organization-plan.ts"
       },
       {
-        "id": "python-identity",
+        "id": "python-01-authenticate-identity",
         "language": "python",
-        "path": "bindings/python/examples/identity_quickstart.py"
+        "path": "bindings/recipes/python/01_authenticate_identity.py"
+      },
+      {
+        "id": "python-02-verify-authority",
+        "language": "python",
+        "path": "bindings/recipes/python/02_verify_authority.py"
+      },
+      {
+        "id": "python-03-execute-exact-action",
+        "language": "python",
+        "path": "bindings/recipes/python/03_execute_exact_action.py"
+      },
+      {
+        "id": "python-04-delegate-to-agent",
+        "language": "python",
+        "path": "bindings/recipes/python/04_delegate_to_agent.py"
+      },
+      {
+        "id": "python-05-cross-organization-plan",
+        "language": "python",
+        "path": "bindings/recipes/python/05_cross_organization_plan.py"
       }
     ]
   },

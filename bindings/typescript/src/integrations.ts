@@ -1,5 +1,5 @@
 import { approvalPolicy, noApproval } from "./approvals.js";
-import { DevelopmentEd25519Signer } from "./internal/development.js";
+import { DevelopmentEd25519Signer, DevelopmentReceiptAttestor } from "./internal/development.js";
 import {
   createAuths,
   createAuthsConfiguration,
@@ -15,6 +15,7 @@ import {
 } from "./profiles/mcp/index.js";
 import { prepareRawKeyAuthority } from "./verifier/authority.js";
 import { loadAuths } from "./workflow-client.js";
+import type { ApprovalConfiguration } from "./workflow.js";
 
 const DEVELOPMENT_DIAGNOSTICS = Object.freeze([
   "mode=development",
@@ -27,6 +28,7 @@ const DEVELOPMENT_DIAGNOSTICS = Object.freeze([
 
 export interface DevelopmentAuthsOptions {
   readonly authority: McpToolAuthority;
+  readonly approval?: ApprovalConfiguration;
 }
 
 export interface RecoverableDevelopmentAuthsOptions extends DevelopmentAuthsOptions {
@@ -111,10 +113,13 @@ function developmentConfiguration(
     opened = true;
     const rootSigner = await DevelopmentEd25519Signer.fromSeed(await developmentSeed(sessionKey, "root"));
     const actorSigner = await DevelopmentEd25519Signer.fromSeed(await developmentSeed(sessionKey, "actor"));
+    const receiptAttestor = await DevelopmentReceiptAttestor.fromSeed(await developmentSeed(sessionKey, "receipts"));
     let client;
     try {
-      const policy = await approvalPolicy.none({ policyId: "approval.development.none" });
-      const approval = Object.freeze({ policy, provider: noApproval });
+      const approval = options.approval ?? Object.freeze({
+        policy: await approvalPolicy.none({ policyId: "approval.development.none" }),
+        provider: noApproval,
+      });
       const actor = await actorSigner.publicIdentity();
       const now = BigInt(Math.floor(Date.now() / 1000));
       const prepared = await prepareRawKeyAuthority({
@@ -142,16 +147,21 @@ function developmentConfiguration(
         authority: options.authority,
         state,
         receipts: state,
+        receiptAttestor,
         sessionKey: sessionKey.slice(),
         childSigner: async () => DevelopmentEd25519Signer.fromSeed(
           await developmentSeed(sessionKey, `child:${childIndex++}`),
         ),
-        dispose: () => client!.dispose(),
+        dispose: async () => {
+          receiptAttestor.dispose();
+          await client!.dispose();
+        },
       };
     } catch (error) {
       await rootSigner.dispose().catch(() => undefined);
       if (client !== undefined) await client.dispose().catch(() => undefined);
       else await actorSigner.dispose().catch(() => undefined);
+      receiptAttestor.dispose();
       throw error;
     }
   });

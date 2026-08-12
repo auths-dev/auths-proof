@@ -82,11 +82,18 @@ _PRODUCT_EXPORTS = (
     "Authority",
     "Completed",
     "Denied",
+    "decode_execution_reference",
+    "decode_receipt",
+    "encode_execution_reference",
+    "encode_receipt",
     "ExecutionReference",
     "ExecutionResult",
     "Indeterminate",
+    "PlanCompleted",
+    "PlanRecoveryResult",
     "Receipt",
     "RecoveryResult",
+    "verify_receipt",
 )
 
 __all__ = [*_WORKFLOW_EXPORTS, *_BOOTSTRAP_EXPORTS, *_PRODUCT_EXPORTS]

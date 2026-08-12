@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 
 from auths.identity import (
     IdentityRegistry,
@@ -29,12 +30,27 @@ async def main() -> None:
         suites=[DevelopmentSignatureSuite()],
     )
     validated = await decode_identity(packet).validate(registry)
-    authenticated = await validated.authenticate(
-        b"publish report",
-        b"auths-development-signature",
-        registry,
+    await validated.authenticate(
+        b"publish weekly report", b"auths-development-signature", registry
     )
-    print(authenticated.identity_id)
+    changed_rejected = False
+    try:
+        await validated.authenticate(
+            b"delete weekly report", b"changed-signature", registry
+        )
+    except ValueError:
+        changed_rejected = True
+    if not changed_rejected:
+        raise RuntimeError("changed message authenticated")
+    print(
+        json.dumps(
+            {
+                "recipe": "01-authenticate-identity",
+                "outcome": "authenticated",
+                "changedRejected": changed_rejected,
+            }
+        )
+    )
 
 
 if __name__ == "__main__":

@@ -19,7 +19,7 @@ class DevelopmentEd25519Signer(Signer):
     lifecycle: SignerLifecycle = "ephemeral"
 
     def __init__(self, seed: Optional[bytes] = None) -> None:
-        self._key = (
+        self._key: Optional[native.DevelopmentEd25519Key] = (
             native.DevelopmentEd25519Key.generate()
             if seed is None
             else native.DevelopmentEd25519Key.from_seed(bytes(seed))
@@ -62,8 +62,12 @@ class DevelopmentEd25519Signer(Signer):
 
 
 class DevelopmentReceiptAttestor:
-    def __init__(self) -> None:
-        self._key = native.DevelopmentEd25519Key.generate()
+    def __init__(self, seed: Optional[bytes] = None) -> None:
+        self._key = (
+            native.DevelopmentEd25519Key.generate()
+            if seed is None
+            else native.DevelopmentEd25519Key.from_seed(bytes(seed))
+        )
         self.signer = ReceiptSigner(
             self._key.principal,
             self._key.verification_method,
@@ -72,7 +76,12 @@ class DevelopmentReceiptAttestor:
         )
 
     async def sign(self, preimage: bytes) -> bytes:
+        if self._key is None:
+            raise RuntimeError("development receipt attestor is closed")
         return bytes(self._key.sign(preimage))
+
+    async def aclose(self) -> None:
+        self._key = None
 
 
 __all__ = ["DevelopmentEd25519Signer", "DevelopmentReceiptAttestor"]

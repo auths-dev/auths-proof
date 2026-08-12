@@ -43,8 +43,8 @@ use auths_receipts::{
     AttestedDecisionReceipt, AttestedExecutionReceipt, ConfiguredReceiptVerifier, DecisionClass,
     ExecutionOutcome, ReceiptSigner, application_execution_lease_digest, decode_decision,
     decode_execution, encode_attested_decision, encode_attested_execution,
-    prepare_decision_receipt, prepare_execution_receipt, verify_decision_attestation,
-    verify_execution_attestation,
+    prepare_decision_receipt, prepare_execution_receipt, verify_attested_decision_bytes,
+    verify_attested_execution_bytes, verify_decision_attestation, verify_execution_attestation,
 };
 use auths_registries::ImmutableRegistries;
 use serde::{Deserialize, Serialize};
@@ -3267,6 +3267,42 @@ impl McpExecutionSessionV1 {
         self.inner.execution_id().to_owned()
     }
 
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = canonicalAction)]
+    pub fn canonical_action(&self) -> Vec<u8> {
+        self.inner.canonical_action().to_vec()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = decisionReceiptId)]
+    pub fn decision_receipt_id(&self) -> Vec<u8> {
+        self.inner.decision_receipt_id().to_vec()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = decisionReceipt)]
+    pub fn decision_receipt(&self) -> Vec<u8> {
+        self.inner.decision_receipt().to_vec()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = planCommitment)]
+    pub fn plan_commitment(&self) -> Option<Vec<u8>> {
+        self.inner.plan_commitment().map(|value| value.to_vec())
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = memberIndex)]
+    pub fn member_index(&self) -> Option<u16> {
+        self.inner.member_index()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = memberCount)]
+    pub fn member_count(&self) -> Option<u16> {
+        self.inner.member_count()
+    }
+
     /// Releases the next bounded I/O step.
     ///
     /// # Errors
@@ -3380,12 +3416,23 @@ pub fn begin_mcp_execution_v1(
     proof_cbor: &[u8],
     canonical_action_cbor: &[u8],
     trusted_context_cbor: &[u8],
+    decision_receipt_id: &[u8],
+    decision_receipt: &[u8],
+    has_plan: bool,
+    plan_commitment: &[u8],
+    member_index: u16,
+    member_count: u16,
     request_id: Option<String>,
     session_key: &[u8],
 ) -> Result<McpExecutionSessionV1, JsValue> {
     let key: [u8; 32] = session_key
         .try_into()
         .map_err(|_| js_error(EngineError::Abi("MCP session key must contain 32 bytes")))?;
+    let decision_receipt_id: [u8; 32] = decision_receipt_id.try_into().map_err(|_| {
+        js_error(EngineError::Abi(
+            "MCP decision receipt ID must contain 32 bytes",
+        ))
+    })?;
     let raw_key = auths_raw_key::RawKeyMethod::new().map_err(js_error)?;
     let did_key = auths_did_key::DidKeyMethod::new().map_err(js_error)?;
     let did_keri = auths_did_keri::DidKeriMethod::new().map_err(js_error)?;
@@ -3412,16 +3459,46 @@ pub fn begin_mcp_execution_v1(
     let proof = auths_codec::decode_bundle(proof_cbor, &VerifierLimits::default_deployment())
         .map_err(js_error)?;
     let context = auths_codec::decode_verifier_context(trusted_context_cbor).map_err(js_error)?;
-    let inner = McpExecutionSession::begin(
-        command,
-        action_commitment,
-        mcp_authority_commitment(proof.grants()).map_err(js_error)?,
-        *auths_codec::context_digest(&context)
-            .map_err(js_error)?
-            .as_bytes(),
-        request_id.as_deref(),
-        McpSessionKey::new(key),
-    )
+    let authority_commitment = mcp_authority_commitment(proof.grants()).map_err(js_error)?;
+    let context_commitment = *auths_codec::context_digest(&context)
+        .map_err(js_error)?
+        .as_bytes();
+    let inner = if has_plan {
+        let plan_commitment: [u8; 32] = plan_commitment.try_into().map_err(|_| {
+            js_error(EngineError::Abi(
+                "MCP plan commitment must contain 32 bytes",
+            ))
+        })?;
+        McpExecutionSession::begin_plan_member(
+            command,
+            action_commitment,
+            authority_commitment,
+            context_commitment,
+            canonical_action_cbor.to_vec(),
+            decision_receipt_id,
+            decision_receipt.to_vec(),
+            plan_commitment,
+            member_index,
+            member_count,
+            request_id.as_deref(),
+            McpSessionKey::new(key),
+        )
+    } else {
+        if !plan_commitment.is_empty() || member_index != 0 || member_count != 0 {
+            return Err(js_error(EngineError::Abi("unexpected MCP plan binding")));
+        }
+        McpExecutionSession::begin(
+            command,
+            action_commitment,
+            authority_commitment,
+            context_commitment,
+            canonical_action_cbor.to_vec(),
+            decision_receipt_id,
+            decision_receipt.to_vec(),
+            request_id.as_deref(),
+            McpSessionKey::new(key),
+        )
+    }
     .map_err(js_error)?;
     Ok(McpExecutionSessionV1 { inner })
 }
@@ -3773,6 +3850,35 @@ pub fn verify_raw_key_receipt_v1(
                 .map_err(js_error)?;
         }
         _ => return Err(js_error(EngineError::Abi("unsupported receipt kind"))),
+    }
+    Ok(())
+}
+
+/// Verifies the structural link between one decision and execution receipt.
+///
+/// # Errors
+///
+/// Returns a JavaScript error for malformed receipts, mismatched identifiers,
+/// or an execution linked to another decision.
+#[wasm_bindgen(js_name = verifyReceiptLinkV1)]
+pub fn verify_receipt_link_v1(
+    decision: &[u8],
+    decision_id: &[u8],
+    execution: &[u8],
+    execution_id: &[u8],
+) -> Result<(), JsValue> {
+    let decision_id = auths_model::ReceiptId::new(receipt_array32(
+        decision_id,
+        "decision receipt id must contain 32 bytes",
+    )?);
+    verify_attested_decision_bytes(decision, decision_id).map_err(js_error)?;
+    let execution_id = auths_model::ReceiptId::new(receipt_array32(
+        execution_id,
+        "execution receipt id must contain 32 bytes",
+    )?);
+    let execution = verify_attested_execution_bytes(execution, execution_id).map_err(js_error)?;
+    if execution.receipt().decision_receipt() != decision_id {
+        return Err(js_error(EngineError::Abi("receipt linkage mismatch")));
     }
     Ok(())
 }

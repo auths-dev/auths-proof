@@ -73,6 +73,11 @@ export {
 } from "./plans.js";
 export {
   createAuths,
+  decodeExecutionReference,
+  decodeReceipt,
+  encodeExecutionReference,
+  encodeReceipt,
+  verifyReceipt,
   type Actor,
   type Auths,
   type AuthsConfiguration,
@@ -82,6 +87,10 @@ export {
   ExecutionReference,
   type ExecutionResult,
   type Indeterminate,
+  type PlanCompleted,
+  type PlanExecutionResult,
+  type PlanRecoveryResult,
   type Receipt,
   type RecoveryResult,
+  type SingleExecutionResult,
 } from "./product.js";

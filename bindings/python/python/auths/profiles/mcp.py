@@ -26,6 +26,13 @@ from .. import _native as native
 from .._mcp_profile import MCP_PROFILE
 from .._plan import PlanApprovalSession
 from ..product_errors import CauseCategory, cause_category_from
+from ..receipts import (
+    AttestedReceipt,
+    ReceiptAttestor,
+    _attest_decision,
+    _attest_execution,
+    verify_receipt,
+)
 from ..workflow import (
     ApprovalConfiguration,
     ApprovalProvider,
@@ -567,6 +574,7 @@ class McpExecutionResources:
     provider: McpClosedProvider
     state: McpExecutionStore
     receipts: McpReceiptSink
+    attestor: ReceiptAttestor
     session_key: bytes
     request_id: Optional[str] = None
 
@@ -582,7 +590,13 @@ class McpCompleted:
     kind: Literal["completed"]
     execution_id: str
     result: object
-    receipt: bytes
+    receipt: McpAttestedReceipt
+
+
+@dataclass(frozen=True)
+class McpAttestedReceipt:
+    decision: AttestedReceipt
+    execution: AttestedReceipt
 
 
 @dataclass(frozen=True)
@@ -599,6 +613,25 @@ class McpRecoverable:
 
 
 McpClosedResult = Union[McpCompleted, McpNotApplied, McpRecoverable]
+
+
+@dataclass(frozen=True)
+class McpPlanCompleted:
+    kind: Literal["completed"]
+    results: Tuple[object, ...]
+    receipts: Tuple[McpAttestedReceipt, ...]
+
+
+@dataclass(frozen=True)
+class McpPlanRecoveryResult:
+    kind: Literal["recoverable", "not-applied", "exact-replay", "conflict"]
+    execution_id: str
+    completed_results: Tuple[object, ...]
+    completed_receipts: Tuple[McpAttestedReceipt, ...]
+    execution_reference: Optional[str] = None
+
+
+McpPlanClosedResult = Union[McpPlanCompleted, McpPlanRecoveryResult]
 
 
 class McpGatewayCancelled(AuthsWorkflowError):
@@ -778,6 +811,12 @@ class McpFacade:
             else McpProfile(service)
         )
         return profile.call(name, arguments)
+
+    def plan(self, actions: Sequence[McpAction]) -> McpPlan:
+        values = tuple(actions)
+        if not values or type(values[0]) is not McpAction:
+            raise TypeError("MCP plan requires MCP actions")
+        return values[0].profile.plan(values)
 
 
 mcp = McpFacade()
@@ -969,12 +1008,75 @@ async def execute_mcp_closed(
     authorization = await _authorize_mcp(agent, action, request)
     if not isinstance(authorization, McpAuthorized):
         return authorization
+    signer = resources.attestor.signer
+    decision_preparation = native.prepare_mcp_command_decision_receipt_v1(
+        authorization.command,
+        int(time.time()),
+        signer.principal,
+        signer.verification_method,
+        signer.suite,
+    )
+    decision_receipt = await _attest_decision(decision_preparation, resources.attestor)
     session = native.begin_mcp_execution(
         authorization.command,
+        decision_receipt.receipt_id,
+        decision_receipt.bytes,
         resources.session_key,
         resources.request_id,
     )
-    return await _drive_mcp_session(session, resources)
+    return await _drive_mcp_session(session, resources, decision_receipt)
+
+
+async def execute_mcp_plan_closed(
+    agent: AttachedAgent,
+    plan: McpPlan,
+    resources: McpExecutionResources,
+) -> Union[McpPlanDenied, McpPlanIndeterminate, McpPlanClosedResult]:
+    authorization = await _authorize_mcp_plan(agent, plan, None)
+    if not isinstance(authorization, McpPlanAuthorized):
+        return authorization
+    signer = resources.attestor.signer
+    preparations = native.prepare_mcp_plan_decision_receipts_v1(
+        authorization.command,
+        int(time.time()),
+        signer.principal,
+        signer.verification_method,
+        signer.suite,
+    )
+    decisions = tuple(
+        [
+            await _attest_decision(preparation, resources.attestor)
+            for preparation in preparations
+        ]
+    )
+    results: list[object] = []
+    receipts: list[McpAttestedReceipt] = []
+    for index, decision in enumerate(decisions):
+        session = native.begin_mcp_plan_member_execution(
+            authorization.command,
+            index,
+            decision.receipt_id,
+            decision.bytes,
+            resources.session_key,
+            resources.request_id,
+        )
+        member = await _drive_mcp_session(
+            session,
+            resources,
+            decision,
+        )
+        if isinstance(member, McpCompleted):
+            results.append(member.result)
+            receipts.append(member.receipt)
+            continue
+        return McpPlanRecoveryResult(
+            member.kind,
+            member.execution_id,
+            tuple(results),
+            tuple(receipts),
+            member.execution_reference if isinstance(member, McpRecoverable) else None,
+        )
+    return McpPlanCompleted("completed", tuple(results), tuple(receipts))
 
 
 async def resume_mcp_closed(
@@ -991,17 +1093,26 @@ async def resume_mcp_closed(
         reference,
         bytes(record),
     )
-    return await _drive_mcp_session(session, resources)
+    decision_receipt = AttestedReceipt(
+        "decision",
+        bytes(session.decision_receipt_id),
+        bytes(session.decision_receipt),
+        resources.attestor.signer,
+    )
+    verify_receipt(decision_receipt)
+    return await _drive_mcp_session(session, resources, decision_receipt)
 
 
 async def _drive_mcp_session(
     session: native.McpExecutionSession,
     resources: McpExecutionResources,
+    decision_receipt: AttestedReceipt,
 ) -> McpClosedResult:
+    receipt: Optional[McpAttestedReceipt] = None
     while True:
         terminal = session.terminal()
         if terminal is not None:
-            return await _project_terminal(terminal, resources.state)
+            return await _project_terminal(terminal, resources.state, receipt)
         step = session.next_step()
         if step.kind == "reserve":
             session.accept_reservation(await resources.state.reserve(step.execution_id))
@@ -1016,8 +1127,27 @@ async def _drive_mcp_session(
             await _invoke_mcp_handler(session, step, resources.provider)
         elif step.kind == "persist-receipt":
             try:
+                signer = resources.attestor.signer
+                preparation = native.prepare_application_execution_receipt_v1(
+                    decision_receipt.receipt_id,
+                    step.execution_id,
+                    session.plan_commitment,
+                    session.member_index,
+                    session.member_count,
+                    bytes(session.canonical_action),
+                    "succeeded",
+                    _required_bytes(step.bytes),
+                    int(time.time()),
+                    signer.principal,
+                    signer.verification_method,
+                    signer.suite,
+                )
+                execution_receipt = await _attest_execution(
+                    preparation, resources.attestor
+                )
+                receipt = McpAttestedReceipt(decision_receipt, execution_receipt)
                 await resources.receipts.persist(
-                    step.execution_id, _required_bytes(step.bytes)
+                    step.execution_id, execution_receipt.bytes
                 )
             except Exception:
                 try:
@@ -1109,13 +1239,16 @@ def _accept_applied(session: native.McpExecutionSession, value: object) -> None:
 async def _project_terminal(
     terminal: native.McpSessionTerminal,
     state: McpExecutionStore,
+    receipt: Optional[McpAttestedReceipt],
 ) -> McpClosedResult:
     if terminal.kind == "completed":
+        if receipt is None:
+            raise RuntimeError("native MCP completion omitted its signed receipt")
         return McpCompleted(
             "completed",
             terminal.execution_id,
             json.loads(_required_bytes(terminal.output_json)),
-            _required_bytes(terminal.receipt_json),
+            receipt,
         )
     if terminal.kind == "recoverable":
         reference = _bounded_reference(terminal.reference)
@@ -1369,10 +1502,13 @@ __all__ = [
     "McpPlanAuthority",
     "McpPlanAuthorizationResult",
     "McpPlanAuthorized",
+    "McpPlanClosedResult",
+    "McpPlanCompleted",
     "McpPlanDenied",
     "McpPlanIndeterminate",
     "McpPlanMemberAuthorized",
     "McpPlanMemberResult",
+    "McpPlanRecoveryResult",
     "McpProfile",
     "McpReceipt",
     "McpReceiptSink",
@@ -1382,6 +1518,7 @@ __all__ = [
     "McpToolHandler",
     "McpToolAuthority",
     "execute_mcp_closed",
+    "execute_mcp_plan_closed",
     "mcp",
     "resume_mcp_closed",
 ]

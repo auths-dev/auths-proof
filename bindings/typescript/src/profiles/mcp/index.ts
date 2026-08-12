@@ -3,6 +3,7 @@ import {
   type AuthorizationResult,
   type ApprovalConfiguration,
   type AttachedAgent,
+  type PlanAuthorizationResult,
   type Profile,
   engineForClient,
   registerProfileRuntime,
@@ -12,6 +13,12 @@ import {
   authorizePreparedAction,
   type VerifiedArtifactView,
 } from "../../internal/authorization.js";
+import {
+  attestAuthorizedDecision,
+  attestExecution,
+  attestedReceipt,
+  verifyAttestedReceipt,
+} from "../../internal/receipt-attestation.js";
 import { causeCategoryFrom } from "../../product-errors.js";
 import { MCP_PROFILE } from "../../generated/mcp-profile.js";
 import type {
@@ -25,6 +32,10 @@ import {
   type VerifiedPlanCommand,
 } from "../../plans.js";
 import { loadPackagedWorkflowEngine } from "../../verifier/wasm.js";
+import type {
+  ApplicationReceiptAttestor,
+  AttestedApplicationReceipt,
+} from "../application/index.js";
 
 const PROFILE_ID = "auths.mcp";
 const PROFILE_VERSION = 1;
@@ -51,6 +62,7 @@ interface McpCommandResources {
   readonly profile: McpProfile;
   readonly name: string;
   readonly argumentsJson: Uint8Array;
+  readonly artifacts: VerifiedArtifactView;
 }
 
 const actionResources = new WeakMap<McpAction, McpActionResources>();
@@ -75,6 +87,11 @@ export class McpCommand {
     commandResources.set(this, {
       ...resources,
       argumentsJson: resources.argumentsJson.slice(),
+      artifacts: Object.freeze({
+        proofCbor: resources.artifacts.proofCbor.slice(),
+        canonicalActionCbor: resources.artifacts.canonicalActionCbor.slice(),
+        trustedContextCbor: resources.artifacts.trustedContextCbor.slice(),
+      }),
     });
     Object.freeze(this);
   }
@@ -206,10 +223,21 @@ export interface McpExecutionResources {
   readonly provider: McpClosedProvider;
   readonly state: McpExecutionState;
   readonly receipts: McpReceiptSink;
+  readonly attestor: ApplicationReceiptAttestor;
   readonly sessionKey: Uint8Array;
   readonly signal?: AbortSignal;
   readonly requestId?: string;
 }
+
+export interface McpAttestedReceipt {
+  readonly decision: AttestedApplicationReceipt;
+  readonly execution: AttestedApplicationReceipt;
+}
+
+export type McpPlanClosedResult =
+  | Readonly<{ readonly kind: "completed"; readonly results: readonly unknown[]; readonly receipts: readonly McpAttestedReceipt[] }>
+  | Readonly<{ readonly kind: "recoverable"; readonly executionId: string; readonly executionReference: string; readonly completedResults: readonly unknown[]; readonly completedReceipts: readonly McpAttestedReceipt[] }>
+  | Readonly<{ readonly kind: "not-applied" | "exact-replay" | "conflict"; readonly executionId: string; readonly completedResults: readonly unknown[]; readonly completedReceipts: readonly McpAttestedReceipt[] }>;
 
 export interface McpDevelopmentProviderOptions {
   readonly tools: Readonly<Record<string, McpToolHandler>>;
@@ -223,7 +251,7 @@ export interface McpDevelopmentProviderOptions {
 }
 
 export type McpClosedResult =
-  | Readonly<{ readonly kind: "completed"; readonly executionId: string; readonly result: unknown; readonly receipt: Uint8Array }>
+  | Readonly<{ readonly kind: "completed"; readonly executionId: string; readonly result: unknown; readonly receipt: McpAttestedReceipt }>
   | Readonly<{ readonly kind: "not-applied" | "exact-replay" | "conflict"; readonly executionId: string }>
   | Readonly<{ readonly kind: "recoverable"; readonly executionId: string; readonly executionReference: string }>;
 
@@ -403,6 +431,12 @@ export const mcp = Object.freeze({
     const profile = options.service === undefined ? developmentProfile() : mintMcpProfile(boundedService(options.service));
     return profile.call(options.name, options.arguments);
   },
+  plan(actions: readonly McpAction[]): Promise<ProfilePlan<McpAction>> {
+    if (!Array.isArray(actions) || actions.length === 0) throw new TypeError("MCP plan requires actions");
+    const state = actionResources.get(actions[0]!);
+    if (state === undefined) throw new TypeError("MCP plan contains a forged action");
+    return state.profile.plan(actions);
+  },
 });
 
 export function resourcesForMcpAuthority(authority: McpToolAuthority): Readonly<{
@@ -559,6 +593,7 @@ async function authorizeMcp(
     );
   }
   const argumentsJson = preparation.argumentsJson.slice();
+  let verifiedArtifacts: VerifiedArtifactView | undefined;
   const result = await authorizePreparedAction(
     agent,
     preparation,
@@ -569,15 +604,26 @@ async function authorizeMcp(
       Object.freeze({ label: "Canonical digest", value: preparation.displayDigestHex }),
     ]),
     approvalOverride,
-    observeArtifacts,
+    (value) => {
+      verifiedArtifacts = Object.freeze({
+        proofCbor: value.proofCbor.slice(),
+        canonicalActionCbor: value.canonicalActionCbor.slice(),
+        trustedContextCbor: value.trustedContextCbor.slice(),
+      });
+      observeArtifacts?.(verifiedArtifacts);
+    },
   );
   if (result.kind !== "authorized") return result;
+  if (verifiedArtifacts === undefined) {
+    throw new AuthsWorkflowError("gateway-failed", "native MCP authorization omitted execution artifacts");
+  }
   return Object.freeze({
     ...result,
     command: mintMcpCommand({
       profile,
       name: action.name,
       argumentsJson,
+      artifacts: verifiedArtifacts,
     }),
   });
 }
@@ -601,14 +647,72 @@ export async function executeMcpClosed(
     throw new AuthsWorkflowError("gateway-failed", "native MCP authorization omitted execution artifacts");
   }
   const engine = engineForClient(resourcesForAttachedAgent(agent).client);
+  const decisionReceipt = await attestAuthorizedDecision(engine, artifacts, resources.attestor);
   const session = engine.beginMcpExecutionV1(
     artifacts.proofCbor,
     artifacts.canonicalActionCbor,
     artifacts.trustedContextCbor,
+    decisionReceipt.receiptId,
+    decisionReceipt.bytes,
+    false,
+    new Uint8Array(),
+    0,
+    0,
     resources.requestId,
     sessionKey,
   );
-  return driveMcpSession(session, resources);
+  return driveMcpSession(session, resources, decisionReceipt);
+}
+
+export async function executeMcpPlanClosed(
+  agent: AttachedAgent<Profile>,
+  plan: ProfilePlan<McpAction>,
+  resources: McpExecutionResources,
+): Promise<Exclude<PlanAuthorizationResult<McpCommand>, { readonly kind: "authorized" }> | McpPlanClosedResult> {
+  const authorization = await agent.authorizePlan(plan);
+  if (authorization.kind !== "authorized") return authorization;
+  const commands = commandsForGateway(authorization.command as VerifiedPlanCommand<McpCommand>);
+  const results: unknown[] = [];
+  const receipts: McpAttestedReceipt[] = [];
+  const engine = engineForClient(resourcesForAttachedAgent(agent).client);
+  for (let index = 0; index < commands.length; index += 1) {
+    const command = commands[index];
+    const state = commandResources.get(command);
+    if (state === undefined) {
+      throw new AuthsWorkflowError("gateway-failed", "verified MCP plan omitted member artifacts");
+    }
+    commandResources.delete(command);
+    const decision = await attestAuthorizedDecision(engine, state.artifacts, resources.attestor);
+    const session = engine.beginMcpExecutionV1(
+      state.artifacts.proofCbor,
+      state.artifacts.canonicalActionCbor,
+      state.artifacts.trustedContextCbor,
+      decision.receiptId,
+      decision.bytes,
+      true,
+      plan.commitment,
+      index,
+      commands.length,
+      resources.requestId,
+      boundedSessionKey(resources.sessionKey),
+    );
+    const member = await driveMcpSession(session, resources, decision);
+    if (member.kind === "completed") {
+      results.push(member.result);
+      receipts.push(member.receipt);
+      continue;
+    }
+    return Object.freeze({
+      ...member,
+      completedResults: Object.freeze([...results]),
+      completedReceipts: Object.freeze([...receipts]),
+    });
+  }
+  return Object.freeze({
+    kind: "completed",
+    results: Object.freeze(results),
+    receipts: Object.freeze(receipts),
+  });
 }
 
 export async function resumeMcpClosed(
@@ -626,18 +730,27 @@ export async function resumeMcpClosed(
     boundedReference(reference),
     record.slice(),
   );
-  return driveMcpSession(session, resources);
+  const decisionReceipt = attestedReceipt({
+    kind: "decision",
+    receiptId: requiredBytes(session.decisionReceiptId),
+    bytes: requiredBytes(session.decisionReceipt),
+    signer: resources.attestor.signer,
+  });
+  verifyAttestedReceipt(engine, decisionReceipt);
+  return driveMcpSession(session, resources, decisionReceipt);
 }
 
 async function driveMcpSession(
   session: WorkflowMcpExecutionSession,
   resources: Omit<McpExecutionResources, "requestId">,
+  decisionReceipt: AttestedApplicationReceipt,
 ): Promise<McpClosedResult> {
   const signal = resources.signal ?? new AbortController().signal;
+  let receipt: McpAttestedReceipt | undefined;
   try {
     for (;;) {
       const terminal = session.terminal();
-      if (terminal !== null) return projectTerminal(terminal, resources.state);
+      if (terminal !== null) return projectTerminal(terminal, resources.state, receipt);
       const step = session.nextStep();
       switch (step.kind) {
         case "reserve":
@@ -656,7 +769,25 @@ async function driveMcpSession(
           break;
         case "persist-receipt":
           try {
-            await resources.receipts.persist(step.executionId, requiredBytes(step.bytes));
+            const execution = await attestExecution(await loadPackagedWorkflowEngine(), {
+              attestor: resources.attestor,
+              decisionReceiptId: decisionReceipt.receiptId,
+              idempotencyKey: step.executionId,
+              commandBytes: requiredBytes(session.canonicalAction),
+              result: requiredBytes(step.bytes),
+              ...(session.planCommitment === undefined
+                ? {}
+                : {
+                    planCommitment: session.planCommitment,
+                    memberIndex: requiredPlanMember(session.memberIndex),
+                    memberCount: requiredPlanMember(session.memberCount),
+                  }),
+            });
+            receipt = Object.freeze({
+              decision: attestedReceipt(decisionReceipt),
+              execution: attestedReceipt(execution),
+            });
+            await resources.receipts.persist(step.executionId, execution.bytes);
             session.acceptReceipt(true);
           } catch {
             try {
@@ -752,13 +883,17 @@ function isMcpOutcome(value: unknown): value is McpHandlerOutcome<unknown> {
 async function projectTerminal(
   terminal: WorkflowMcpSessionTerminal,
   state: McpExecutionState,
+  receipt: McpAttestedReceipt | undefined,
 ): Promise<McpClosedResult> {
   if (terminal.kind === "completed") {
+    if (receipt === undefined) {
+      throw new AuthsWorkflowError("gateway-failed", "native MCP completion omitted its signed receipt");
+    }
     return Object.freeze({
       kind: "completed",
       executionId: terminal.executionId,
       result: JSON.parse(new TextDecoder().decode(requiredBytes(terminal.outputJson))),
-      receipt: requiredBytes(terminal.receiptJson).slice(),
+      receipt,
     });
   }
   if (terminal.kind === "recoverable") {
@@ -795,6 +930,13 @@ function profileCause(value: unknown): McpHandlerCause {
 
 function requiredString(value: string | undefined): string {
   if (value === undefined) throw new AuthsWorkflowError("gateway-failed", "native MCP step omitted a required field");
+  return value;
+}
+
+function requiredPlanMember(value: number | undefined): number {
+  if (!Number.isSafeInteger(value) || value === undefined || value < 0 || value > 256) {
+    throw new TypeError("native MCP session omitted a valid plan member binding");
+  }
   return value;
 }
 

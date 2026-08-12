@@ -6,8 +6,8 @@ use auths_receipts::{
     AttestedDecisionReceipt, AttestedExecutionReceipt, ConfiguredReceiptVerifier, DecisionClass,
     ExecutionOutcome, ReceiptSigner, application_execution_lease_digest, decode_decision,
     decode_execution, encode_attested_decision, encode_attested_execution,
-    prepare_decision_receipt, prepare_execution_receipt, verify_decision_attestation,
-    verify_execution_attestation,
+    prepare_decision_receipt, prepare_execution_receipt, verify_attested_decision_bytes,
+    verify_attested_execution_bytes, verify_decision_attestation, verify_execution_attestation,
 };
 use pyo3::{exceptions::PyValueError, prelude::*, types::PyBytes};
 
@@ -256,6 +256,24 @@ fn verify_raw_key_receipt_v1(
     Ok(())
 }
 
+#[pyfunction]
+fn verify_receipt_link_v1(
+    decision: &[u8],
+    decision_id: &[u8],
+    execution: &[u8],
+    execution_id: &[u8],
+) -> PyResult<()> {
+    let decision_id = ReceiptId::new(array32(decision_id, "decision receipt id")?);
+    verify_attested_decision_bytes(decision, decision_id).map_err(value_error)?;
+    let execution_id = ReceiptId::new(array32(execution_id, "execution receipt id")?);
+    let execution =
+        verify_attested_execution_bytes(execution, execution_id).map_err(value_error)?;
+    if execution.receipt().decision_receipt() != decision_id {
+        return Err(PyValueError::new_err("receipt linkage mismatch"));
+    }
+    Ok(())
+}
+
 fn receipt_signer(
     verifier: &str,
     verification_method: &str,
@@ -291,5 +309,6 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(attest_decision_receipt_v1, module)?)?;
     module.add_function(wrap_pyfunction!(attest_execution_receipt_v1, module)?)?;
     module.add_function(wrap_pyfunction!(verify_raw_key_receipt_v1, module)?)?;
+    module.add_function(wrap_pyfunction!(verify_receipt_link_v1, module)?)?;
     Ok(())
 }

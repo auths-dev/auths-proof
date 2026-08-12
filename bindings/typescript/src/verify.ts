@@ -19,3 +19,9 @@ export {
   ImmutableArtifactCache,
   type ImmutableArtifactCacheOptions,
 } from "./verifier/cache.js";
+export {
+  decodeLinkedReceipt as decodeReceipt,
+  encodeLinkedReceipt as encodeReceipt,
+  verifyLinkedReceipt as verifyReceipt,
+  type LinkedAttestedReceipt as Receipt,
+} from "./internal/receipt-attestation.js";

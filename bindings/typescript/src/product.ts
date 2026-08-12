@@ -2,18 +2,29 @@ import type { Signer } from "./workflow.js";
 import type { AttachedAgent, Profile } from "./workflow.js";
 import {
   executeMcpClosed,
+  executeMcpPlanClosed,
   resumeMcpClosed,
   resourcesForMcpAuthority,
   type McpAction,
   type McpClosedProvider,
   type McpExecutionState,
   type McpReceiptSink,
+  type McpAttestedReceipt,
   type McpToolAuthority,
+  type McpPlanClosedResult,
 } from "./profiles/mcp/index.js";
+import type { ProfilePlan } from "./plans.js";
+import type { ApplicationReceiptAttestor } from "./profiles/application/index.js";
+import {
+  decodeLinkedReceipt,
+  encodeLinkedReceipt,
+  verifyLinkedReceipt,
+} from "./internal/receipt-attestation.js";
 
 const configurationResources = new WeakMap<AuthsConfiguration, InternalConfiguration>();
 const referenceResources = new WeakMap<ExecutionReference, string>();
 type RawMcpExecution = Awaited<ReturnType<typeof executeMcpClosed>>;
+type RawMcpPlanExecution = Awaited<ReturnType<typeof executeMcpPlanClosed>>;
 
 export interface Actor {
   readonly principal: string;
@@ -26,15 +37,27 @@ export interface AuthsConfiguration {
   readonly diagnostics: readonly string[];
 }
 
-export interface Receipt {
-  readonly bytes: Uint8Array;
-}
+export type Receipt = McpAttestedReceipt;
 
 export interface Completed {
   readonly kind: "completed";
   readonly executionId: string;
   readonly result: unknown;
   readonly receipt: Receipt;
+}
+
+export interface PlanCompleted {
+  readonly kind: "completed";
+  readonly results: readonly unknown[];
+  readonly receipts: readonly Receipt[];
+}
+
+export interface PlanRecoveryResult {
+  readonly kind: "recoverable" | "not-applied" | "exact-replay" | "conflict";
+  readonly executionId: string;
+  readonly completedResults: readonly unknown[];
+  readonly completedReceipts: readonly Receipt[];
+  readonly reference?: ExecutionReference;
 }
 
 export interface Denied {
@@ -63,6 +86,23 @@ export class ExecutionReference {
   }
 }
 
+export function encodeExecutionReference(reference: ExecutionReference): Uint8Array {
+  const value = referenceResources.get(reference);
+  if (value === undefined) throw new TypeError("forged Auths execution reference");
+  return new TextEncoder().encode(value);
+}
+
+export function decodeExecutionReference(input: Uint8Array): ExecutionReference {
+  if (!(input instanceof Uint8Array) || input.length !== 134) {
+    throw new TypeError("invalid Auths execution reference");
+  }
+  const value = new TextDecoder("utf-8", { fatal: true }).decode(input);
+  if (!/^mcp1\.[0-9a-f]{64}\.[0-9a-f]{64}$/.test(value)) {
+    throw new TypeError("invalid Auths execution reference");
+  }
+  return ExecutionReference.create(REFERENCE_TOKEN, value);
+}
+
 const REFERENCE_TOKEN = Symbol("auths-execution-reference");
 
 export interface RecoveryResult {
@@ -71,7 +111,9 @@ export interface RecoveryResult {
   readonly reference?: ExecutionReference;
 }
 
-export type ExecutionResult = Completed | Denied | Indeterminate | RecoveryResult;
+export type ExecutionResult = Completed | PlanCompleted | Denied | Indeterminate | RecoveryResult | PlanRecoveryResult;
+export type SingleExecutionResult = Completed | Denied | Indeterminate | RecoveryResult;
+export type PlanExecutionResult = PlanCompleted | Denied | Indeterminate | PlanRecoveryResult;
 
 export interface Auths {
   readonly actor: Actor;
@@ -81,11 +123,16 @@ export interface Auths {
     action: McpAction;
     provider: McpClosedProvider;
     requestId?: string;
-  }>): Promise<ExecutionResult>;
+  }>): Promise<SingleExecutionResult>;
+  execute(input: Readonly<{
+    plan: ProfilePlan<McpAction>;
+    provider: McpClosedProvider;
+    requestId?: string;
+  }>): Promise<PlanExecutionResult>;
   resume(input: Readonly<{
     reference: ExecutionReference;
     provider: McpClosedProvider;
-  }>): Promise<ExecutionResult>;
+  }>): Promise<SingleExecutionResult>;
   delegate(input: Readonly<{
     authority: McpToolAuthority;
     name?: string;
@@ -104,6 +151,7 @@ export interface AuthsResources {
   readonly authority: McpToolAuthority;
   readonly state: McpExecutionState;
   readonly receipts: McpReceiptSink;
+  readonly receiptAttestor: ApplicationReceiptAttestor;
   readonly sessionKey: Uint8Array;
   readonly childSigner: () => Promise<Signer>;
   readonly dispose: () => Promise<void>;
@@ -128,27 +176,41 @@ class AuthsFacade implements Auths {
     action: McpAction;
     provider: McpClosedProvider;
     requestId?: string;
+  }>): Promise<SingleExecutionResult>;
+  async execute(input: Readonly<{
+    plan: ProfilePlan<McpAction>;
+    provider: McpClosedProvider;
+    requestId?: string;
+  }>): Promise<PlanExecutionResult>;
+  async execute(input: Readonly<{
+    action?: McpAction;
+    plan?: ProfilePlan<McpAction>;
+    provider: McpClosedProvider;
+    requestId?: string;
   }>): Promise<ExecutionResult> {
     this.#assertActive();
     this.#assertProvider(input.provider);
-    const result = await executeMcpClosed(
-      this.#resources.agent,
-      input.action,
-      {
-        provider: input.provider,
-        state: this.#resources.state,
-        receipts: this.#resources.receipts,
-        sessionKey: this.#resources.sessionKey,
-        ...(input.requestId === undefined ? {} : { requestId: input.requestId }),
-      },
-    );
-    return projectExecution(result);
+    const execution = {
+      provider: input.provider,
+      state: this.#resources.state,
+      receipts: this.#resources.receipts,
+      attestor: this.#resources.receiptAttestor,
+      sessionKey: this.#resources.sessionKey,
+      ...(input.requestId === undefined ? {} : { requestId: input.requestId }),
+    };
+    if (input.action !== undefined && input.plan === undefined) {
+      return projectExecution(await executeMcpClosed(this.#resources.agent, input.action, execution));
+    }
+    if (input.plan !== undefined && input.action === undefined) {
+      return projectPlanExecution(await executeMcpPlanClosed(this.#resources.agent, input.plan, execution));
+    }
+    throw new TypeError("Auths execute requires exactly one action or plan");
   }
 
   async resume(input: Readonly<{
     reference: ExecutionReference;
     provider: McpClosedProvider;
-  }>): Promise<ExecutionResult> {
+  }>): Promise<SingleExecutionResult> {
     this.#assertActive();
     this.#assertProvider(input.provider);
     const reference = referenceResources.get(input.reference);
@@ -160,6 +222,7 @@ class AuthsFacade implements Auths {
         provider: input.provider,
         state: this.#resources.state,
         receipts: this.#resources.receipts,
+        attestor: this.#resources.receiptAttestor,
         sessionKey: this.#resources.sessionKey,
       },
     ));
@@ -248,13 +311,25 @@ export async function createAuths(configuration: AuthsConfiguration): Promise<Au
   return new AuthsFacade(await resources.open(), resources.diagnostics);
 }
 
-function projectExecution(value: RawMcpExecution): ExecutionResult {
+export async function verifyReceipt(receipt: Receipt): Promise<void> {
+  await verifyLinkedReceipt(receipt);
+}
+
+export function encodeReceipt(receipt: Receipt): Uint8Array {
+  return encodeLinkedReceipt(receipt);
+}
+
+export function decodeReceipt(input: Uint8Array): Receipt {
+  return decodeLinkedReceipt(input);
+}
+
+function projectExecution(value: RawMcpExecution): SingleExecutionResult {
   if (value.kind === "completed") {
     return Object.freeze({
       kind: "completed" as const,
       executionId: value.executionId,
       result: value.result,
-      receipt: Object.freeze({ bytes: value.receipt.slice() }),
+      receipt: value.receipt,
     });
   }
   if (value.kind === "denied" || value.kind === "indeterminate") {
@@ -268,4 +343,22 @@ function projectExecution(value: RawMcpExecution): ExecutionResult {
     });
   }
   return Object.freeze({ kind: value.kind, executionId: value.executionId });
+}
+
+function projectPlanExecution(value: RawMcpPlanExecution): PlanExecutionResult {
+  if ("failedIndex" in value) {
+    return Object.freeze({ kind: value.kind, code: value.result.code });
+  }
+  if (value.kind === "completed") {
+    return Object.freeze({ kind: "completed", results: value.results, receipts: value.receipts });
+  }
+  return Object.freeze({
+    kind: value.kind,
+    executionId: value.executionId,
+    completedResults: value.completedResults,
+    completedReceipts: value.completedReceipts,
+    ...(value.kind === "recoverable"
+      ? { reference: ExecutionReference.create(REFERENCE_TOKEN, value.executionReference) }
+      : {}),
+  });
 }

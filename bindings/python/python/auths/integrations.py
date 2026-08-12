@@ -21,7 +21,7 @@ from typing import (
     runtime_checkable,
 )
 
-from ._development import DevelopmentEd25519Signer
+from ._development import DevelopmentEd25519Signer, DevelopmentReceiptAttestor
 from ._product import (
     Auths,
     AuthsConfiguration,
@@ -36,7 +36,7 @@ from .profiles.mcp import (
     McpToolAuthority,
     resources_for_mcp_authority,
 )
-from .workflow import Approval, AuthsClient, Validity
+from .workflow import Approval, ApprovalConfiguration, AuthsClient, Validity
 
 InputT = TypeVar("InputT", contravariant=True)
 OutputT = TypeVar("OutputT", covariant=True)
@@ -146,7 +146,9 @@ class _FileMcpResources(McpExecutionStore, McpReceiptSink):
         except FileNotFoundError:
             raise ValueError("recoverable development execution is missing") from None
         if existing != _RESERVED_EXECUTION_RECORD:
-            raise ValueError("invalid recoverable development provider-entry transition")
+            raise ValueError(
+                "invalid recoverable development provider-entry transition"
+            )
         await asyncio.to_thread(
             _atomic_write,
             path,
@@ -212,7 +214,12 @@ class _PendingAuths(Awaitable[Auths]):
 
 
 class _Development:
-    def create_auths(self, *, authority: McpToolAuthority) -> _PendingAuths:
+    def create_auths(
+        self,
+        *,
+        authority: McpToolAuthority,
+        approval: Optional[ApprovalConfiguration] = None,
+    ) -> _PendingAuths:
         resources = _MemoryMcpResources()
         return _PendingAuths(
             _development_configuration(
@@ -221,6 +228,7 @@ class _Development:
                 resources,
                 secrets.token_bytes(32),
                 _DEVELOPMENT_DIAGNOSTICS,
+                approval,
             )
         )
 
@@ -229,6 +237,7 @@ class _Development:
         *,
         directory: Path,
         authority: McpToolAuthority,
+        approval: Optional[ApprovalConfiguration] = None,
     ) -> _PendingAuths:
         root = Path(directory)
         if not root.is_absolute():
@@ -251,6 +260,7 @@ class _Development:
                 resources,
                 key,
                 diagnostics,
+                approval,
             )
         )
 
@@ -272,6 +282,7 @@ def _development_configuration(
     receipts: McpReceiptSink,
     session_key: bytes,
     diagnostics: tuple[str, ...],
+    configured_approval: Optional[ApprovalConfiguration],
 ) -> AuthsConfiguration:
     profile, permissions, namespaces, audiences = resources_for_mcp_authority(authority)
     opened = False
@@ -282,15 +293,18 @@ def _development_configuration(
         if opened:
             raise TypeError("development Auths configuration is single-use")
         opened = True
-        root_signer = DevelopmentEd25519Signer(
-            _development_seed(session_key, "root")
-        )
-        actor_signer = DevelopmentEd25519Signer(
-            _development_seed(session_key, "actor")
+        root_signer = DevelopmentEd25519Signer(_development_seed(session_key, "root"))
+        actor_signer = DevelopmentEd25519Signer(_development_seed(session_key, "actor"))
+        receipt_attestor = DevelopmentReceiptAttestor(
+            _development_seed(session_key, "receipts")
         )
         client: Optional[AuthsClient] = None
         try:
-            approval = Approval.none("approval.development.none")
+            approval = (
+                Approval.none("approval.development.none")
+                if configured_approval is None
+                else configured_approval
+            )
             actor = await actor_signer.public_identity()
             now = int(time.time())
             prepared = await prepare_raw_key_authority(
@@ -319,6 +333,7 @@ def _development_configuration(
             await root_signer.aclose()
 
             async def dispose() -> None:
+                await receipt_attestor.aclose()
                 await client.aclose()
 
             async def child_signer() -> DevelopmentEd25519Signer:
@@ -334,6 +349,7 @@ def _development_configuration(
                 authority,
                 state,
                 receipts,
+                receipt_attestor,
                 bytes(session_key),
                 child_signer,
                 dispose,
@@ -344,6 +360,7 @@ def _development_configuration(
                 await client.aclose()
             else:
                 await actor_signer.aclose()
+            await receipt_attestor.aclose()
             raise
 
     return _create_auths_configuration("development", diagnostics, open_resources)

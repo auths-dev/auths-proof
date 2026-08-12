@@ -173,6 +173,10 @@ export class DevelopmentReceiptAttestor implements ApplicationReceiptAttestor {
     return new DevelopmentReceiptAttestor(await DevelopmentEd25519Key.generate());
   }
 
+  static async fromSeed(seed: Uint8Array): Promise<DevelopmentReceiptAttestor> {
+    return new DevelopmentReceiptAttestor(await DevelopmentEd25519Key.fromSeed(seed));
+  }
+
   sign(preimage: Uint8Array): Promise<Uint8Array> {
     return this.#key.sign(preimage);
   }

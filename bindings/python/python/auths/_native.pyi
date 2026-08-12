@@ -106,6 +106,12 @@ def verify_raw_key_receipt_v1(
     suite: str,
     raw_key_evidence: bytes,
 ) -> None: ...
+def verify_receipt_link_v1(
+    decision: bytes,
+    decision_id: bytes,
+    execution: bytes,
+    execution_id: bytes,
+) -> None: ...
 
 class Principal:
     def __init__(self, value: str) -> None: ...
@@ -387,6 +393,18 @@ class McpSessionTerminal:
 class McpExecutionSession:
     @property
     def execution_id(self) -> str: ...
+    @property
+    def canonical_action(self) -> bytes: ...
+    @property
+    def decision_receipt_id(self) -> bytes: ...
+    @property
+    def decision_receipt(self) -> bytes: ...
+    @property
+    def plan_commitment(self) -> Optional[bytes]: ...
+    @property
+    def member_index(self) -> Optional[int]: ...
+    @property
+    def member_count(self) -> Optional[int]: ...
     def next_step(self) -> McpSessionStep: ...
     def accept_reservation(self, result: str) -> None: ...
     def accept_provider_entry(self) -> None: ...
@@ -744,6 +762,30 @@ def consume_mcp_plan_command(
 ) -> List[McpGatewayCall]: ...
 def begin_mcp_execution(
     command: McpCommand,
+    decision_receipt_id: bytes,
+    decision_receipt: bytes,
+    session_key: bytes,
+    request_id: Optional[str] = ...,
+) -> McpExecutionSession: ...
+def prepare_mcp_command_decision_receipt_v1(
+    command: McpCommand,
+    decided_at: int,
+    verifier: str,
+    verification_method: str,
+    suite: str,
+) -> ReceiptPreparation: ...
+def prepare_mcp_plan_decision_receipts_v1(
+    command: McpPlanCommand,
+    decided_at: int,
+    verifier: str,
+    verification_method: str,
+    suite: str,
+) -> List[ReceiptPreparation]: ...
+def begin_mcp_plan_member_execution(
+    command: McpPlanCommand,
+    member_index: int,
+    decision_receipt_id: bytes,
+    decision_receipt: bytes,
     session_key: bytes,
     request_id: Optional[str] = ...,
 ) -> McpExecutionSession: ...
