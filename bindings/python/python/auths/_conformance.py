@@ -12,7 +12,9 @@ from typing import (
     Protocol,
     Sequence,
     Tuple,
+    TypeVar,
     Union,
+    cast,
 )
 
 from ._mechanism_conformance import CONFORMANCE_CATALOG
@@ -69,16 +71,20 @@ class ByteTransportCandidate(Protocol):
     async def aclose(self) -> None: ...
 
 
-FactoryResult = Union[object, Awaitable[object]]
-AtomicStoreFactory = Callable[[], FactoryResult]
-ByteTransportFactory = Callable[[Callable[[bytes], Awaitable[bytes]]], FactoryResult]
+ResolvedT = TypeVar("ResolvedT")
+FactoryResult = Union[ResolvedT, Awaitable[ResolvedT]]
+SignerFactory = Callable[[], FactoryResult[Signer]]
+AtomicStoreFactory = Callable[[], FactoryResult[AtomicReservationStoreCandidate]]
+ByteTransportFactory = Callable[
+    [Callable[[bytes], Awaitable[bytes]]], FactoryResult[ByteTransportCandidate]
+]
 McpProviderFactory = Callable[..., McpClosedProvider]
 
 
 async def certify_signer(
-    factory: Callable[[], FactoryResult], metadata: ConformanceMetadata
+    factory: SignerFactory, metadata: ConformanceMetadata
 ) -> ConformanceReport:
-    outcomes = []
+    outcomes: list[tuple[str, bool]] = []
     for case in (
         "transaction-binding",
         "principal-binding",
@@ -198,15 +204,15 @@ async def certify_byte_transport(
 async def certify_mcp_provider(
     factory: McpProviderFactory, metadata: ConformanceMetadata
 ) -> ConformanceReport:
-    outcomes = []
-    calls = 0
+    outcomes: list[tuple[str, bool]] = []
+    calls: list[int] = [0]
     request_bound = False
 
     async def publish(
         arguments: Mapping[str, object], context: McpToolContext
     ) -> object:
-        nonlocal calls, request_bound
-        calls += 1
+        nonlocal request_bound
+        calls[0] += 1
         request_bound = (
             arguments.get("report") == "weekly"
             and context.service == "development"
@@ -226,7 +232,7 @@ async def certify_mcp_provider(
         outcomes.append(
             (
                 "mcp/exact-call",
-                completed.kind == "completed" and calls == 1 and request_bound,
+                completed.kind == "completed" and calls[0] == 1 and request_bound,
             )
         )
         denied = await auths.execute(
@@ -235,7 +241,7 @@ async def certify_mcp_provider(
             request_id="conformance-denied",
         )
         outcomes.append(
-            ("mcp/deny-before-entry", denied.kind == "denied" and calls == 1)
+            ("mcp/deny-before-entry", denied.kind == "denied" and calls[0] == 1)
         )
         concurrent = await asyncio.gather(
             auths.execute(
@@ -254,7 +260,7 @@ async def certify_mcp_provider(
                 "mcp/concurrent-single-entry",
                 sorted(value.kind for value in concurrent)
                 == ["completed", "exact-replay"]
-                and calls == 2,
+                and calls[0] == 2,
             )
         )
     except Exception:
@@ -267,20 +273,18 @@ async def certify_mcp_provider(
     finally:
         await auths.aclose()
 
-    ambiguous_calls = 0
+    ambiguous_calls: list[int] = [0]
 
     async def ambiguous(
         arguments: Mapping[str, object], context: McpToolContext
     ) -> object:
-        nonlocal ambiguous_calls
-        ambiguous_calls += 1
-        return McpHandlerOutcome("possible", cause="unknown")
+        ambiguous_calls[0] += 1
+        return McpHandlerOutcome[object]("possible", cause="unknown")
 
     async def forbidden(
         arguments: Mapping[str, object], context: McpToolContext
     ) -> object:
-        nonlocal ambiguous_calls
-        ambiguous_calls += 100
+        ambiguous_calls[0] += 100
         return None
 
     async def reconcile(execution_id: str, service: str) -> McpHandlerOutcome[object]:
@@ -298,17 +302,22 @@ async def certify_mcp_provider(
         outcomes.append(
             (
                 "mcp/ambiguous-no-blind-retry",
-                pending.kind == "recoverable" and ambiguous_calls == 1,
+                pending.kind == "recoverable" and ambiguous_calls[0] == 1,
             )
         )
+        if pending.kind != "recoverable":
+            raise RuntimeError("ambiguous execution did not produce recovery authority")
+        reference = pending.reference
+        if reference is None:
+            raise RuntimeError("recovery authority is missing its execution reference")
         resumed = await recovery.resume(
-            reference=pending.reference,
+            reference=reference,
             provider=factory(tools={"publish_report": forbidden}, reconcile=reconcile),
         )
         outcomes.append(
             (
                 "mcp/reconcile-without-reentry",
-                resumed.kind == "completed" and ambiguous_calls == 1,
+                resumed.kind == "completed" and ambiguous_calls[0] == 1,
             )
         )
     except Exception:
@@ -355,29 +364,27 @@ async def certify_mcp_provider(
     return _report("auths.mcp/1/provider/1", metadata, outcomes)
 
 
-async def _signer_binding_case(factory: Callable[[], FactoryResult], case: str) -> bool:
+async def _signer_binding_case(factory: SignerFactory, case: str) -> bool:
     signer = await _resolve(factory())
     try:
         request = await _signing_request(signer, case)
         response = await signer.sign(request)
         if case == "transaction-binding":
-            return response.transaction_digest == request.transaction_digest
+            return bool(response.transaction_digest == request.transaction_digest)
         if case == "principal-binding":
-            return (
+            return bool(
                 response.principal.principal.value == request.principal.principal.value
             )
         if case == "descriptor-binding":
-            return response.principal.matches(request.principal)
-        return response.request_id == request.request_id
+            return bool(response.principal.matches(request.principal))
+        return bool(response.request_id == request.request_id)
     except Exception:
         return False
     finally:
         await _close(signer)
 
 
-async def _signer_rejection_case(
-    factory: Callable[[], FactoryResult], case: str
-) -> bool:
+async def _signer_rejection_case(factory: SignerFactory, case: str) -> bool:
     signer = await _resolve(factory())
     try:
         request = await _signing_request(signer, case)
@@ -511,8 +518,8 @@ async def _durability_case(
         reopen = getattr(first, "reopen", None)
         if not callable(reopen):
             return False
-        second = await _resolve(reopen())
-        return await second.reserve(record) == "exact-replay"
+        second = cast(AtomicReservationStoreCandidate, await _resolve(reopen()))
+        return bool(await second.reserve(record) == "exact-replay")
     except Exception:
         return False
     finally:
@@ -625,17 +632,17 @@ def _reservation(key: str, byte: int, value: bytes) -> AtomicReservationRecord:
     return AtomicReservationRecord(key, bytes([byte]) * 32, bytes(value))
 
 
-async def _resolve(value: FactoryResult):
-    return await value if isawaitable(value) else value
+async def _resolve(value: FactoryResult[ResolvedT]) -> ResolvedT:
+    return cast(ResolvedT, await value) if isawaitable(value) else value
 
 
 async def _close(value: object) -> None:
     close = getattr(value, "aclose", None)
     if callable(close):
-        await close()
+        await cast(Callable[[], Awaitable[object]], close)()
 
 
-def _ensure_outcomes(outcomes: list, *case_ids: str) -> None:
+def _ensure_outcomes(outcomes: list[tuple[str, bool]], *case_ids: str) -> None:
     present = {identifier for identifier, _ in outcomes}
     outcomes.extend(
         (identifier, False) for identifier in case_ids if identifier not in present

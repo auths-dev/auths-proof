@@ -9,6 +9,7 @@ export const SDK_RUNTIME_CONTRACT = Object.freeze({
   capabilities: Object.freeze([
     "authority.delegate",
     "authority.plans",
+    "diagnostics.doctor",
     "identity.compact-v2",
     "identity.descriptor-v1",
     "identity.registry-v1",

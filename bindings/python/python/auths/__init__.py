@@ -6,6 +6,7 @@ from importlib import import_module
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from ._doctor import DoctorReport as DoctorReport, doctor as doctor
     from ._product import (
         Actor as Actor,
         Auths as Auths,
@@ -34,12 +35,14 @@ __all__ = [
     "Authority",
     "Completed",
     "Denied",
+    "DoctorReport",
     "ExecutionReference",
     "ExecutionResult",
     "Indeterminate",
     "Receipt",
     "RecommendedAction",
     "RecoveryResult",
+    "doctor",
 ]
 
 _OWNERS = {
@@ -51,12 +54,14 @@ _OWNERS = {
     "Authority": "._product",
     "Completed": "._product",
     "Denied": "._product",
+    "DoctorReport": "._doctor",
     "ExecutionReference": "._product",
     "ExecutionResult": "._product",
     "Indeterminate": "._product",
     "Receipt": "._product",
     "RecommendedAction": "._product_errors",
     "RecoveryResult": "._product",
+    "doctor": "._doctor",
 }
 
 

@@ -1,5 +1,5 @@
 # Installed @auths-dev/sdk public API v1
-# declaration-sha256 04eeb7773640edf7d36c308e3a10fd96946c1b6755e05d5eec284d76c9d58d3f
+# declaration-sha256 f5e52c1ce98f31ddfc28a5e529dc46f617f325c0dbce9961e398d706a1faa11e
 .	Actor	type
 .	approval	value
 .	ApprovalPolicy	type
@@ -11,6 +11,11 @@
 .	Completed	type
 .	createAuths	value
 .	Denied	type
+.	doctor	value
+.	DoctorMode	type
+.	DoctorOptions	type
+.	DoctorReport	type
+.	DoctorState	type
 .	ExecutionReference	value+type
 .	ExecutionResult	type
 .	Indeterminate	type

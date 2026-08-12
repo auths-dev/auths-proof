@@ -130,6 +130,7 @@ runtime values:
   approval
   AuthsError
   ExecutionReference
+  doctor
 
 type exports:
   Actor
@@ -146,6 +147,10 @@ type exports:
   RecoveryResult
   AuthsErrorCode
   RecommendedAction
+  DoctorMode
+  DoctorOptions
+  DoctorReport
+  DoctorState
 ```
 
 Profile actions and provider/handler types remain under their qualified
@@ -191,6 +196,8 @@ Receipt
 RecoveryResult
 AuthsErrorCode
 RecommendedAction
+DoctorReport
+doctor
 ```
 
 Every public Python surface is a real typed module or package with explicit
@@ -200,21 +207,21 @@ Lazy internal loading is allowed; ambiguous public topology is not.
 ## Exact final import examples
 
 ```ts
-import { approval, createAuths } from "@auths-dev/sdk";
-import { identity } from "@auths-dev/sdk/identity";
-import { inspectDecision, verify, verifyReceipt } from "@auths-dev/sdk/verify";
+import { approval, createAuths, doctor } from "@auths-dev/sdk";
+import { loadIdentity } from "@auths-dev/sdk/identity";
+import { inspectDecision, loadVerifier, verifyReceipt } from "@auths-dev/sdk/verify";
 import { mcp } from "@auths-dev/sdk/profiles";
 import { development } from "@auths-dev/sdk/integrations";
-import { mcpFixtures } from "@auths-dev/sdk/testkit";
+import { certifyMcpProvider } from "@auths-dev/sdk/testkit";
 ```
 
 ```python
-from auths import Approval, Auths
+from auths import Approval, Auths, doctor
 from auths.identity import IdentityRegistry, decode_identity
 from auths.verify import inspect_decision, verify, verify_receipt
 from auths.profiles import mcp
 from auths.integrations import development
-from auths.testkit import mcp_fixtures
+from auths.testkit import certify_mcp_provider
 ```
 
 After framework passes the extraction gate, its additional imports are:

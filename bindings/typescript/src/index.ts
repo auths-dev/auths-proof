@@ -1,6 +1,13 @@
 export { approval } from "./approvals.js";
 export type { ApprovalPolicy } from "./workflow.js";
 export {
+  doctor,
+  type DoctorMode,
+  type DoctorOptions,
+  type DoctorReport,
+  type DoctorState,
+} from "./doctor.js";
+export {
   AuthsError,
   type AuthsErrorCode,
   type RecommendedAction,

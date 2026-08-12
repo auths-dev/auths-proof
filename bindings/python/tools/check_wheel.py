@@ -8,6 +8,8 @@ from pathlib import Path, PurePosixPath
 REQUIRED_PACKAGE_FILES = {
     "auths/__init__.py",
     "auths/__init__.pyi",
+    "auths/__main__.py",
+    "auths/_doctor.py",
     "auths/_native.pyi",
     "auths/_application_profile.py",
     "auths/_approvals.py",

@@ -1,6 +1,6 @@
 {
   "schema": "auths.performance/1",
-  "recordedAt": "2026-08-11",
+  "recordedAt": "2026-08-12",
   "environment": {
     "platform": "darwin",
     "architecture": "arm64",
@@ -15,16 +15,16 @@
   "measurements": {
     "coldStartMs": 45.5,
     "warmVerificationP95Ms": 0.93,
-    "wasmBoundarySerializeSmallP95Ms": 0.0031,
-    "wasmBoundarySerializeMediumP95Ms": 0.0168,
-    "wasmBoundarySerializeMaximumP95Ms": 0.236,
+    "wasmBoundarySerializeSmallP95Ms": 0.006,
+    "wasmBoundarySerializeMediumP95Ms": 0.024,
+    "wasmBoundarySerializeMaximumP95Ms": 0.26,
     "batch64Ms": 111,
-    "plan64Ms": 3.1,
+    "plan64Ms": 4.2,
     "chromiumWarmVerificationP95Ms": 15,
     "chromiumWorkerColdStartMs": 150,
     "residentMemoryBytes": 103000000,
     "wasmBytes": 2034841,
     "compressedWasmBytes": 528788,
-    "distBytes": 326403
+    "distBytes": 486774
   }
 }

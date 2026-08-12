@@ -55,7 +55,7 @@ def main() -> None:
     wheel = Path(sys.argv[2])
     started = time.perf_counter()
     verify_module = importlib.import_module("auths.verify")
-    mcp_module = importlib.import_module("auths.profiles.mcp")
+    profiles_module = importlib.import_module("auths.profiles")
     native_module = importlib.import_module("auths._native")
     cold_initialize_ms = (time.perf_counter() - started) * 1000
 
@@ -70,7 +70,7 @@ def main() -> None:
     verify_many((item,) * 32)
     single = _timings(lambda: verify(*item), 100)
     batch = _timings(lambda: verify_many((item,) * 32), 100)
-    profile = mcp_module.mcp.profile(service="performance")
+    profile = profiles_module.mcp.profile(service="performance")
     actions = tuple(
         profile.call("read_record", {"index": index}) for index in range(64)
     )
@@ -85,9 +85,15 @@ def main() -> None:
     measurement = {
         "coldInitializeMs": round(cold_initialize_ms, 3),
         "singleVerifyMsP95": round(_p95(single), 3),
-        "pyO3BoundarySerializeSmallP95Ms": round(_native_boundary(native_module, 64), 3),
-        "pyO3BoundarySerializeMediumP95Ms": round(_native_boundary(native_module, 4096), 3),
-        "pyO3BoundarySerializeMaximumP95Ms": round(_native_boundary(native_module, 65536), 3),
+        "pyO3BoundarySerializeSmallP95Ms": round(
+            _native_boundary(native_module, 64), 3
+        ),
+        "pyO3BoundarySerializeMediumP95Ms": round(
+            _native_boundary(native_module, 4096), 3
+        ),
+        "pyO3BoundarySerializeMaximumP95Ms": round(
+            _native_boundary(native_module, 65536), 3
+        ),
         "batch32MsP95": round(_p95(batch), 3),
         "plan64MsP95": round(_p95(plans), 3),
         "verifyPeakBytes": verify_peak_bytes,
@@ -117,8 +123,12 @@ def main() -> None:
             if measurement[key] > limit:
                 raise SystemExit(f"{key} exceeded the cross-platform hard limit")
     if matching_environment and not capture:
-        runtime_threshold = 1 + baseline["reviewThresholds"]["runtimeRegressionPercent"] / 100
-        wheel_threshold = 1 + baseline["reviewThresholds"]["wheelSizeRegressionPercent"] / 100
+        runtime_threshold = (
+            1 + baseline["reviewThresholds"]["runtimeRegressionPercent"] / 100
+        )
+        wheel_threshold = (
+            1 + baseline["reviewThresholds"]["wheelSizeRegressionPercent"] / 100
+        )
         for key in (
             "coldInitializeMs",
             "singleVerifyMsP95",
@@ -142,7 +152,16 @@ def main() -> None:
                 f"observed {measurement['wheelBytes']}, budget {wheel_budget:.0f}"
             )
 
-    print(json.dumps({"environment": current_environment, "matchingEnvironment": matching_environment, "measurement": measurement}, sort_keys=True))
+    print(
+        json.dumps(
+            {
+                "environment": current_environment,
+                "matchingEnvironment": matching_environment,
+                "measurement": measurement,
+            },
+            sort_keys=True,
+        )
+    )
 
 
 if __name__ == "__main__":

@@ -29,23 +29,14 @@ const wasmBoundarySerializeMaximumP95Ms = boundaryP95(engine, 65536);
 const batchStarted = performance.now();
 await verifier.verifyMany(Array.from({ length: 64 }, () => input));
 const batchMs = performance.now() - batchStarted;
-const { defineProfile } = await import(new URL("dist/profile-kit.js", root));
-const profile = defineProfile({
-  id: "auths.performance/1",
-  version: 1,
-  canonicalize(value) {
-    return {
-      mediaType: "application/octet-stream",
-      body: Uint8Array.of(value),
-      permission: { capability: "benchmark/use", resource: `benchmark://${value}` },
-      resourceNamespace: "benchmark://",
-      audience: "benchmark://local",
-      display: [{ label: "Item", value: String(value) }],
-    };
-  },
-});
+const { mcp } = await import(new URL("dist/profiles.js", root));
+const profile = mcp.profile({ service: "performance" });
+const actions = Array.from(
+  { length: 64 },
+  (_unused, index) => profile.call("read_record", { index }),
+);
 const planStarted = performance.now();
-await profile.plan(Array.from({ length: 64 }, (_unused, index) => profile.action(index)));
+await profile.plan(actions);
 const plan64Ms = performance.now() - planStarted;
 const wasm = await readFile(new URL("wasm/auths_proof_wasm_bg.wasm", root));
 const distBytes = await directoryBytes(new URL("dist/", root));

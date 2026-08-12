@@ -7,12 +7,14 @@ AuthsError
 AuthsErrorCode
 Completed
 Denied
+DoctorReport
 ExecutionReference
 ExecutionResult
 Indeterminate
 Receipt
 RecommendedAction
 RecoveryResult
+doctor
 
 [auths.identity]
 AuthenticatedIdentity

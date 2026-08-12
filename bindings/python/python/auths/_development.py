@@ -19,17 +19,18 @@ class DevelopmentEd25519Signer(Signer):
     lifecycle: SignerLifecycle = "ephemeral"
 
     def __init__(self, seed: Optional[bytes] = None) -> None:
-        self._key: Optional[native.DevelopmentEd25519Key] = (
+        key = (
             native.DevelopmentEd25519Key.generate()
             if seed is None
             else native.DevelopmentEd25519Key.from_seed(bytes(seed))
         )
-        principal = native.Principal(self._key.principal)
+        self._key: Optional[native.DevelopmentEd25519Key] = key
+        principal = native.Principal(key.principal)
         self._descriptor = PrincipalDescriptor(
             principal,
-            self._key.principal_method,
-            self._key.verification_method,
-            self._key.suite,
+            key.principal_method,
+            key.verification_method,
+            key.suite,
         )
         self.closed = False
 
@@ -38,41 +39,47 @@ class DevelopmentEd25519Signer(Signer):
         return self._descriptor
 
     async def sign(self, request: SigningRequest) -> SigningResponse:
-        self._assert_active()
+        key = self._active_key()
         return SigningResponse(
             request.request_id,
             request.principal,
             request.transaction_digest,
-            bytes(self._key.sign(request.signing_preimage)),
+            bytes(key.sign(request.signing_preimage)),
             (
                 ControlEvidence(
-                    self._key.evidence_type,
-                    self._key.media_type,
-                    bytes(self._key.evidence),
+                    key.evidence_type,
+                    key.media_type,
+                    bytes(key.evidence),
                 ),
             ),
         )
 
     async def aclose(self) -> None:
+        self._key = None
         self.closed = True
 
-    def _assert_active(self) -> None:
-        if self.closed:
+    def _active_key(self) -> native.DevelopmentEd25519Key:
+        if self._key is None:
             raise RuntimeError("development signer is closed")
+        return self._key
+
+    def _assert_active(self) -> None:
+        self._active_key()
 
 
 class DevelopmentReceiptAttestor:
     def __init__(self, seed: Optional[bytes] = None) -> None:
-        self._key = (
+        key = (
             native.DevelopmentEd25519Key.generate()
             if seed is None
             else native.DevelopmentEd25519Key.from_seed(bytes(seed))
         )
+        self._key: Optional[native.DevelopmentEd25519Key] = key
         self.signer = ReceiptSigner(
-            self._key.principal,
-            self._key.verification_method,
-            self._key.suite,
-            bytes(self._key.evidence),
+            key.principal,
+            key.verification_method,
+            key.suite,
+            bytes(key.evidence),
         )
 
     async def sign(self, preimage: bytes) -> bytes:

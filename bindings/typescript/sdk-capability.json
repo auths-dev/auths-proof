@@ -27,6 +27,7 @@
       "bounded native batch verification with single-item equivalence",
       "bounded trust evidence acquisition and offline bundles",
       "versioned adapter conformance and an exact runtime contract",
+      "bounded auths doctor diagnostics for runtime and configuration readiness",
       "idempotent closed runtime with reconciliation and durable reference state",
       "exact purpose-labelled root, identity, verify, profiles, integrations, framework, and testkit entry points"
     ],

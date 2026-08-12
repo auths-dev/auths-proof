@@ -13,6 +13,7 @@ from typing import (
     Generic,
     Literal,
     Mapping,
+    NoReturn,
     Optional,
     Protocol,
     Sequence,
@@ -204,7 +205,7 @@ class McpToolAuthority:
     def __deepcopy__(self, _: object) -> None:
         raise TypeError("MCP authority is not copyable")
 
-    def __reduce__(self) -> None:
+    def __reduce__(self) -> NoReturn:
         raise TypeError("MCP authority is not serializable")
 
 
@@ -518,10 +519,10 @@ class DevelopmentMcpProvider:
     ) -> object:
         self._assert_open()
         if service != self.service:
-            return McpHandlerOutcome("not-applied", cause="invalid-output")
+            return McpHandlerOutcome[object]("not-applied", cause="invalid-output")
         handler = self._tools.get(tool)
         if handler is None:
-            return McpHandlerOutcome("not-applied", cause="invalid-output")
+            return McpHandlerOutcome[object]("not-applied", cause="invalid-output")
         return await asyncio.wait_for(
             handler(arguments, context),
             timeout=self._timeout_seconds,
@@ -1175,9 +1176,10 @@ async def _invoke_mcp_handler(
     service = _required_string(step.service)
     tool = _required_string(step.tool)
     try:
-        arguments = json.loads(_required_bytes(step.bytes))
-        if not isinstance(arguments, dict):
+        parsed: object = json.loads(_required_bytes(step.bytes))
+        if type(parsed) is not dict:
             raise ValueError("MCP arguments must be an object")
+        arguments = cast(dict[str, object], parsed)
     except (TypeError, ValueError, json.JSONDecodeError):
         session.accept_handler("possible", None, "invalid-output")
         return
@@ -1215,10 +1217,11 @@ def _accept_mcp_observation(
     observed: object,
 ) -> None:
     if isinstance(observed, McpHandlerOutcome):
-        if observed.effect == "applied":
-            _accept_applied(session, observed.result)
+        outcome = cast(McpHandlerOutcome[object], observed)
+        if outcome.effect == "applied":
+            _accept_applied(session, outcome.result)
         else:
-            session.accept_handler(observed.effect, None, observed.cause)
+            session.accept_handler(outcome.effect, None, outcome.cause)
         return
     _accept_applied(session, observed)
 

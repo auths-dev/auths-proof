@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from inspect import isawaitable
 from types import MappingProxyType
-from typing import Any, Awaitable, Callable, Generic, Mapping, TypeVar, Union
+from typing import Any, Awaitable, Callable, Generic, Mapping, TypeVar, Union, cast
 
 from ._development import (
     DevelopmentEd25519Signer,
@@ -105,10 +105,11 @@ async def product_waist_conformance(
 def _product_waist_manifest(value: object) -> Mapping[str, Any]:
     if type(value) is not dict:
         raise TypeError("product-waist manifest must be an object")
-    schema = _manifest_text(value.get("schema"), "schema")
-    owner = _manifest_text(value.get("semanticOwner"), "semanticOwner")
-    projection = _manifest_text(value.get("fixtureProjection"), "fixtureProjection")
-    raw_cases = value.get("cases")
+    item = cast(dict[str, object], value)
+    schema = _manifest_text(item.get("schema"), "schema")
+    owner = _manifest_text(item.get("semanticOwner"), "semanticOwner")
+    projection = _manifest_text(item.get("fixtureProjection"), "fixtureProjection")
+    raw_cases = item.get("cases")
     if (
         schema != "auths.simplified-product-waist-conformance/1"
         or owner != "Rust"
@@ -117,12 +118,13 @@ def _product_waist_manifest(value: object) -> Mapping[str, Any]:
         raise TypeError("unsupported product-waist manifest")
     seen: set[str] = set()
     parsed: list[Mapping[str, str]] = []
-    for candidate in raw_cases:
+    for candidate in cast(list[object], raw_cases):
         if type(candidate) is not dict:
             raise TypeError("product-waist case must be an object")
-        identifier = _manifest_text(candidate.get("id"), "case id")
-        boundary = _manifest_text(candidate.get("boundary"), "case boundary")
-        expected = _manifest_text(candidate.get("expected"), "case expected code")
+        case = cast(dict[str, object], candidate)
+        identifier = _manifest_text(case.get("id"), "case id")
+        boundary = _manifest_text(case.get("boundary"), "case boundary")
+        expected = _manifest_text(case.get("expected"), "case expected code")
         parts = identifier.split("/")
         if (
             len(parts) != 2

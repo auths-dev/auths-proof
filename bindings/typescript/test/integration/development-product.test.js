@@ -97,6 +97,21 @@ test("development reservations admit one concurrent provider entry", async () =>
   }
 });
 
+test("development resources close explicitly and through async disposal", async () => {
+  const auths = await development.createAuths({
+    authority: mcp.allowTools(["publish_report"]),
+  });
+  await auths[Symbol.asyncDispose]();
+  await auths.close();
+  await assert.rejects(
+    auths.execute({
+      action: mcp.callTool({ name: "publish_report", arguments: {} }),
+      provider: mcp.developmentProvider({ tools: { async publish_report() {} } }),
+    }),
+    /closed/,
+  );
+});
+
 test("recoverable development state rejects corrupted recovery records", async () => {
   const directory = await mkdtemp(join(tmpdir(), "auths-corrupt-recovery-"));
   const authority = mcp.allowTools(["publish_report"]);

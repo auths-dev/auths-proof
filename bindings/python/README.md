@@ -84,3 +84,7 @@ Auths has authorized and durably reserved the exact action.
 Supported Python, platform, ABI and semantic-subject claims are recorded in
 `sdk-runtime-contract.json`. Public API and wheel-content snapshots reject
 undeclared or obsolete prelaunch modules.
+
+Run `python -m auths doctor` to inspect bounded installed runtime, ABI and
+profile facts. The report never reads application secrets or prints protocol
+payloads.

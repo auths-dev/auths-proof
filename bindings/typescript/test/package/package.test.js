@@ -24,6 +24,7 @@ test("package exposes bounded public surfaces and includes contributor docs", as
   assert.ok(manifest.files.includes("sdk-capability.json"));
   assert.ok(manifest.files.includes("performance-baseline.json"));
   assert.ok(manifest.files.includes("wasm/auths_proof_wasm_bg.wasm"));
+  assert.deepEqual(manifest.bin, { auths: "./dist/doctor-cli.js" });
   assert.equal(manifest.files.some((entry) => entry.includes("test/")), false);
   assert.deepEqual([...manifest.files].sort(), [
     "CONTRIBUTING.md",
@@ -55,6 +56,8 @@ test("packed contents carry the published artifacts and no source or tests", asy
     "dist/index.js",
     "dist/index.d.ts",
     "dist/framework.js",
+    "dist/doctor-cli.js",
+    "dist/doctor.js",
     "dist/identity.js",
     "dist/integrations.js",
     "dist/profiles.js",

@@ -29,7 +29,7 @@ test("packed package exposes only the reviewed public topology", async () => {
       const root = await import("@auths-dev/sdk");
       const names = Object.keys(root).sort();
       const allowed = [
-        "AuthsError", "ExecutionReference", "approval", "createAuths",
+        "AuthsError", "ExecutionReference", "approval", "createAuths", "doctor",
       ];
       if (JSON.stringify(names) !== JSON.stringify(allowed)) {
         throw new Error("root drifted: " + names.join(","));
@@ -44,21 +44,22 @@ test("packed package exposes only the reviewed public topology", async () => {
       }
     `);
     await writeFile(join(directory, "consumer.ts"), `
-      import { approval, type Auths, type AuthsErrorCode } from "@auths-dev/sdk";
+      import { approval, doctor, type Auths, type AuthsErrorCode, type DoctorReport } from "@auths-dev/sdk";
       import { loadIdentity } from "@auths-dev/sdk/identity";
       import { inspectDecision, verifyReceipt } from "@auths-dev/sdk/verify";
       import { mcp, type McpAction } from "@auths-dev/sdk/profiles";
       import { development } from "@auths-dev/sdk/integrations";
       import type { AtomicReservationStore, Signer } from "@auths-dev/sdk/framework";
       import { certifyAtomicStore } from "@auths-dev/sdk/testkit";
-      void approval; void loadIdentity; void inspectDecision; void verifyReceipt;
+      void approval; void doctor; void loadIdentity; void inspectDecision; void verifyReceipt;
       void mcp; void development; void certifyAtomicStore;
       declare const auths: Auths;
       declare const code: AuthsErrorCode;
       declare const action: McpAction;
       declare const store: AtomicReservationStore;
       declare const signer: Signer;
-      void auths; void code; void action; void store; void signer;
+      declare const report: DoctorReport;
+      void auths; void code; void action; void store; void signer; void report;
     `);
     await writeFile(join(directory, "tsconfig.json"), JSON.stringify({
       compilerOptions: {

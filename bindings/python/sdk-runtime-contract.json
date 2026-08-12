@@ -23,6 +23,17 @@
     "mcpProfile": "auths.mcp/1",
     "lifecycle": "auths.product.reservation-execution-contract/1"
   },
+  "capabilities": [
+    "authority.delegate",
+    "authority.plans",
+    "diagnostics.doctor",
+    "identity.descriptor-v1",
+    "identity.resolution",
+    "runtime.closed-execution",
+    "verification.batch-v1",
+    "verification.single-v1",
+    "workflow.approval"
+  ],
   "modules": [
     "auths",
     "auths.identity",

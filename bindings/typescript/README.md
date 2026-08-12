@@ -89,6 +89,10 @@ in `sdk-runtime-contract.json`. Public declarations are frozen in
 `api/public-api.txt`, and packed-artifact tests prove that removed prelaunch
 subpaths do not resolve.
 
+Run `npx --package @auths-dev/sdk auths doctor` to inspect bounded installed
+runtime, ABI and profile facts. The report never reads application secrets or
+prints protocol payloads.
+
 ## Capability status
 
 The closed product workflow and its installed-artifact evidence are complete

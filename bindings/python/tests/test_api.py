@@ -21,6 +21,36 @@ CORPUS = Path(__file__).parents[3] / "core" / "fixtures" / "v1" / "valid"
 BINDING_VECTORS = Path(__file__).parents[3] / "target" / "binding-vectors"
 
 
+def test_doctor_reports_only_bounded_installed_runtime_facts() -> None:
+    report = auths.doctor(mode="development", state="in-memory")
+    assert report.status == "ready"
+    assert report.native_abi_compatible
+    assert report.profiles == ("mcp/1",)
+    assert report.warnings == (
+        "development custody and trust are not production",
+        "in-memory state is not production durable",
+    )
+    command = subprocess.run(
+        [sys.executable, "-m", "auths", "doctor"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert command.returncode == 0
+    assert "Native ABI       compatible" in command.stdout
+    assert "Profiles         mcp/1" in command.stdout
+    assert not any(
+        value in command.stdout.lower()
+        for value in (
+            "credential",
+            "private key",
+            "signature",
+            "proof bytes",
+            "command bytes",
+        )
+    )
+
+
 def test_identity_and_verify_imports_do_not_load_effect_workflow() -> None:
     source = """
 import sys

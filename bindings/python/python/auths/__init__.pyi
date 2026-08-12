@@ -8,6 +8,8 @@ from ._product import ExecutionResult as ExecutionResult
 from ._product import Indeterminate as Indeterminate
 from ._product import Receipt as Receipt
 from ._product import RecoveryResult as RecoveryResult
+from ._doctor import DoctorReport as DoctorReport
+from ._doctor import doctor as doctor
 from ._product_errors import AuthsError as AuthsError
 from ._product_errors import AuthsErrorCode as AuthsErrorCode
 from ._product_errors import RecommendedAction as RecommendedAction

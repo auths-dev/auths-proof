@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from enum import Enum
 from asyncio import CancelledError
 from types import MappingProxyType
-from typing import Any, Final, Mapping, Optional, Sequence, Tuple
+from typing import Any, Final, Mapping, Optional, Sequence, Tuple, cast
 
 from ._error_registry import ERROR_REGISTRY
 
@@ -174,7 +174,7 @@ def create_support_bundle(
     capabilities: Sequence[str],
     errors: Sequence[AuthsError] = (),
 ) -> Mapping[str, Any]:
-    parsed_errors = []
+    parsed_errors: list[dict[str, Any]] = []
     for error in errors:
         if type(error) is not AuthsError:
             raise TypeError("support bundle errors must be AuthsError values")
@@ -252,9 +252,12 @@ def _parse_details(value: object) -> AuthsErrorDetails:
     ):
         raise ValueError("possible Auths effects require explicit reconciliation")
     raw_causes = item.get("causes")
-    if not isinstance(raw_causes, list) or len(raw_causes) > 8:
+    if type(raw_causes) is not list:
         raise ValueError("Auths error causes are invalid")
-    causes = tuple(CauseCategory(_token(cause)) for cause in raw_causes)
+    cause_values = cast(list[object], raw_causes)
+    if len(cause_values) > 8:
+        raise ValueError("Auths error causes are invalid")
+    causes = tuple(CauseCategory(_token(cause)) for cause in cause_values)
     return AuthsErrorDetails(
         family=definition["family"],
         code=code,
@@ -290,7 +293,7 @@ def _entered(value: object) -> EnteredBoundaries:
 def _mapping(value: object) -> Mapping[str, Any]:
     if not isinstance(value, Mapping):
         raise TypeError("Auths error value must be a mapping")
-    return value
+    return cast(Mapping[str, Any], value)
 
 
 def _reference(value: object) -> Optional[str]:

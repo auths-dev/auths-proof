@@ -44,6 +44,7 @@ from ._receipts import (
 
 InputT = TypeVar("InputT")
 CommandT = TypeVar("CommandT")
+CredentialCommandT = TypeVar("CredentialCommandT", contravariant=True)
 ResultT = TypeVar("ResultT")
 ApplicationOutcome = Literal["succeeded", "failed", "cancelled", "outcome-unknown"]
 ApplicationExecutionState = Literal["committed", "released", "outcome-unknown"]
@@ -348,9 +349,9 @@ class ApplicationExecutionStore(Protocol):
     ) -> Literal["stored", "conflict", "unavailable"]: ...
 
 
-class ApplicationCredentialProvider(Protocol, Generic[CommandT]):
+class ApplicationCredentialProvider(Protocol, Generic[CredentialCommandT]):
     async def acquire(
-        self, command: CommandT, context: ApplicationExecutionContext
+        self, command: CredentialCommandT, context: ApplicationExecutionContext
     ) -> object: ...
 
 

@@ -130,10 +130,11 @@ def runtime_diagnostic(
             "verification",
             "authority",
             "delegation",
+            "doctor",
             "plans",
             "runtime-state",
         ),
-        profiles=("auths.mcp/1", "auths.http/1"),
+        profiles=("auths.mcp/1",),
         trust_configuration=trust,
         adapters=adapter_values,
     )

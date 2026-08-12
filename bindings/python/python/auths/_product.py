@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass
 from types import TracebackType
-from typing import Awaitable, Callable, Literal, Optional, Type, Union
+from typing import Awaitable, Callable, Literal, NoReturn, Optional, Type, Union
 
 from .profiles._mcp import (
     McpAction,
@@ -90,7 +90,7 @@ class ExecutionReference:
     def __deepcopy__(self, _: object) -> None:
         raise TypeError("Auths execution reference is not copyable")
 
-    def __reduce__(self) -> None:
+    def __reduce__(self) -> NoReturn:
         raise TypeError("Auths execution reference is not serializable")
 
     @classmethod

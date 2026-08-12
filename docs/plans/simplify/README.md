@@ -1,6 +1,6 @@
 # Auths SDK simplification program
 
-**Status:** proposed executable program
+**Status:** Milestone D engineering complete; independent evidence gates remain
 **Lifecycle:** prelaunch clean break
 **Scope:** Rust semantic waist, TypeScript SDK, Python SDK, packaging, examples,
 and extension ecosystem
@@ -186,18 +186,18 @@ surface is pruned.
 
 ### Milestone D — Atomic public cutover
 
-- [ ] Apply [04 — Prelaunch API pruning](04_PRELAUNCH_API_PRUNING.md),
+- [x] Apply [04 — Prelaunch API pruning](04_PRELAUNCH_API_PRUNING.md),
   [05 — Primary product waist](05_PRIMARY_PRODUCT_WAIST.md),
   [06 — Progressive package layout](06_PROGRESSIVE_PACKAGE_LAYOUT.md), and
   [10 — Frictionless packaging](10_FRICTIONLESS_PACKAGING.md) as one public
   cutover.
-- [ ] Publish the first four installed-artifact recipes from
+- [x] Publish the first four installed-artifact recipes from
   [11 — Outcome-first recipes](11_OUTCOME_FIRST_RECIPES.md).
 - [ ] Pass the Recipe 3 unfamiliar-developer gate: at least four of five
   Auths-new developers finish unaided in fifteen minutes on a clean machine.
-- [ ] Delete replaced paths, tests, and docs in the same pull request. Add no
+- [x] Delete replaced paths, tests, and docs in the same pull request. Add no
   aliases, deprecations, shims, or migration machinery.
-- [ ] Apply Spec 12's two-independent-vertical evidence gate and publish or
+- [x] Apply Spec 12's two-independent-vertical evidence gate and publish or
   omit `/framework` explicitly.
 
 Exit: the unfamiliar-developer gate passes, TypeScript and Python expose the same six required surfaces plus

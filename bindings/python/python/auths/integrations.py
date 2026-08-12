@@ -11,13 +11,16 @@ import time
 from pathlib import Path
 from types import TracebackType
 from typing import (
+    Any,
     Awaitable,
     Generic,
+    Generator,
     Literal,
     Optional,
     Protocol,
     Type,
     TypeVar,
+    cast,
     runtime_checkable,
 )
 
@@ -192,7 +195,7 @@ class _PendingAuths(Awaitable[Auths]):
         self._configuration = configuration
         self._auths: Optional[Auths] = None
 
-    def __await__(self):
+    def __await__(self) -> Generator[Any, None, Auths]:
         return self._open().__await__()
 
     async def _open(self) -> Auths:
@@ -390,14 +393,17 @@ def _development_session_key(root: Path) -> bytes:
         return key
     except FileExistsError:
         try:
-            parsed = json.loads(path.read_bytes())
+            parsed: object = json.loads(path.read_bytes())
+            if type(parsed) is not dict:
+                raise ValueError
+            item = cast(dict[str, object], parsed)
+            session_key = item.get("sessionKey")
             if (
-                type(parsed) is not dict
-                or parsed.get("schema") != "auths.recoverable-development/1"
-                or type(parsed.get("sessionKey")) is not str
+                item.get("schema") != "auths.recoverable-development/1"
+                or type(session_key) is not str
             ):
                 raise ValueError
-            existing = bytes.fromhex(parsed["sessionKey"])
+            existing = bytes.fromhex(session_key)
             if len(existing) != 32:
                 raise ValueError
             return existing
