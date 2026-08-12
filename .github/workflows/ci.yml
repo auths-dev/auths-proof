@@ -181,7 +181,11 @@ jobs:
           rustc --version
           cargo --version
           go version
-          sccache --version
+          if command -v sccache >/dev/null 2>&1; then
+            sccache --version
+          else
+            echo "sccache unavailable; compiling without the optional shared cache"
+          fi
       - name: Run authoritative repository CI
         env:
           AUTHS_EVOLUTION_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
