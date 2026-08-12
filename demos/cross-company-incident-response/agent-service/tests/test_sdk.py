@@ -3,7 +3,11 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+import pytest
+from cryptography.exceptions import InvalidTag
+
 from auths_incident_agent import sdk
+from auths_incident_agent.disclosures import AesGcmDisclosureProtector
 
 
 ROOT = Path(os.environ.get("AUTHS_REPO_ROOT", Path(__file__).resolve().parents[4]))
@@ -25,7 +29,9 @@ def test_mutation_is_denied_by_native_verifier() -> None:
 def test_replay_and_runtime_transitions() -> None:
     assert sdk.replay_attack()["evidence"]["second"] == "exact-replay"
     assert sdk.expired_attack()["blocked"] is True
-    assert sdk.remote_failure_attack("unknown")["evidence"]["state"] == "outcome-unknown"
+    assert (
+        sdk.remote_failure_attack("unknown")["evidence"]["state"] == "outcome-unknown"
+    )
 
 
 def test_rotation_recipe() -> None:
@@ -40,4 +46,18 @@ def test_rotation_recipe() -> None:
 def test_failure_matrix() -> None:
     assert sdk.remote_failure_attack("before")["evidence"]["state"] == "released"
     assert sdk.remote_failure_attack("after")["evidence"]["state"] == "committed"
-    assert sdk.remote_failure_attack("unknown")["evidence"]["state"] == "outcome-unknown"
+    assert (
+        sdk.remote_failure_attack("unknown")["evidence"]["state"] == "outcome-unknown"
+    )
+
+
+def test_disclosure_ciphertext_is_bound_to_tenant_and_receipt() -> None:
+    protector = AesGcmDisclosureProtector(b"k" * 32)
+    receipt_id = b"r" * 32
+    protected = protector.protect("northstar", receipt_id, b"exact material")
+
+    assert protector.reveal("northstar", receipt_id, protected) == b"exact material"
+    with pytest.raises(InvalidTag):
+        protector.reveal("edgeshield", receipt_id, protected)
+    with pytest.raises(InvalidTag):
+        protector.reveal("northstar", b"x" * 32, protected)

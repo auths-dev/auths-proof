@@ -114,6 +114,23 @@ def verify_receipt_link_v1(
     execution: bytes,
     execution_id: bytes,
 ) -> None: ...
+def prepare_receipt_disclosure_v1(
+    execution_id: bytes,
+    profile_id: str,
+    profile_version: int,
+    command: bytes,
+    result: Optional[bytes],
+) -> bytes: ...
+def inspect_raw_key_receipt_v1(
+    decision_id: bytes,
+    decision_bytes: bytes,
+    decision_evidence: bytes,
+    execution_id: bytes,
+    execution_bytes: bytes,
+    execution_evidence: bytes,
+    mode: str,
+    disclosure: Optional[bytes],
+) -> bytes: ...
 
 class Principal:
     def __init__(self, value: str) -> None: ...

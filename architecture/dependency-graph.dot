@@ -318,6 +318,7 @@ digraph auths_architecture {
   "auths-profile-api" -> "auths-verifier" [label="normal"];
   "auths-profile-domains" -> "auths-model" [label="normal"];
   "auths-profile-domains" -> "auths-profile-api" [label="normal"];
+  "auths-profile-domains" -> "auths-receipts" [label="normal"];
   "auths-profile-domains" -> "auths-verifier" [label="normal"];
   "auths-profile-kit" -> "auths-codec" [label="normal"];
   "auths-profile-kit" -> "auths-model" [label="normal"];
@@ -659,6 +660,7 @@ digraph auths_architecture {
   "xtask" -> "auths-proof-exchange-testkit" [label="normal"];
   "xtask" -> "auths-radicle" [label="normal"];
   "xtask" -> "auths-raw-key" [label="normal"];
+  "xtask" -> "auths-receipts" [label="normal"];
   "xtask" -> "auths-records-api" [label="normal"];
   "xtask" -> "auths-registries" [label="normal"];
   "xtask" -> "auths-signature" [label="normal"];

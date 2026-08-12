@@ -493,6 +493,25 @@ export interface WorkflowWasmEngine {
     execution: Uint8Array,
     executionId: Uint8Array,
   ): void;
+  prepareReceiptDisclosureV1(
+    executionId: Uint8Array,
+    profileId: string,
+    profileVersion: number,
+    command: Uint8Array,
+    hasResult: boolean,
+    result: Uint8Array,
+  ): Uint8Array;
+  inspectRawKeyReceiptV1(
+    decisionId: Uint8Array,
+    decisionBytes: Uint8Array,
+    decisionEvidence: Uint8Array,
+    executionId: Uint8Array,
+    executionBytes: Uint8Array,
+    executionEvidence: Uint8Array,
+    mode: string,
+    hasDisclosure: boolean,
+    disclosure: Uint8Array,
+  ): Uint8Array;
   prepareRawKeyAuthorityV1(
     root: string,
     subject: string,

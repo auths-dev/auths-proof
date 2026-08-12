@@ -191,8 +191,12 @@ const server = http.createServer(async (request: any, response: any) => {
       if (url.searchParams.get("response_type") !== "code" || !redirectUri || !clientId || !challenge) {
         return json(response, 400, { error: "invalid_request" });
       }
+      const loginHint = url.searchParams.get("login_hint") ?? "northstar-commander";
+      if (loginHint !== "northstar-commander" && loginHint !== "northstar-security") {
+        return json(response, 400, { error: "access_denied" });
+      }
       const code = randomBytes(24).toString("base64url");
-      state.codes[code] = { sub: "northstar-commander", challenge, redirectUri, clientId, expiresAt: Date.now() + 120_000 };
+      state.codes[code] = { sub: loginHint, challenge, redirectUri, clientId, expiresAt: Date.now() + 120_000 };
       persist(state);
       const redirect = new URL(redirectUri);
       redirect.searchParams.set("code", code);

@@ -14,7 +14,11 @@
 | observe a definite effect | Rust lifecycle transition and native receipt | committed; never retry blindly |
 | lose response after effect | real Northstar effect plus lost response | `outcome-unknown`; retry blocked; explicit reconciliation required |
 | withdraw approval mid-plan | bounded plan approval session | completed approval retained; no second member command |
+| read receipts without authentication | unauthenticated or invalid bearer request | verified opaque commitments only; disclosure is not loaded or decrypted |
+| use operator access to recover exact material | Northstar commander OIDC request | profile-owned summary only; no command, result, receipt bytes, or key material |
+| move disclosure ciphertext across receipts or tenants | AES-GCM reveal with mismatched authenticated context | decryption fails before native inspection |
+| mutate disclosed command, result, profile, or receipt binding | Rust-owned disclosure inspection | stable typed failure; no partial summary or full view |
 
 Pre-effect attack responses include the delta of credential acquisitions and provider calls, and are considered blocked only when both remain zero. The ambiguous post-effect case instead proves one provider entry, zero retry entries, and a native transition from `outcome-unknown` to `reconciled-committed`.
 
-Trust assumptions are deliberately narrow: local dummy keys and certificates are generated on launch, the service endpoints accept only one closed incident and two closed effects, and cloud resources are demo-labelled. The demo does not claim an independent security review, production custody, highly available storage, or production identity-provider configuration.
+Trust assumptions are deliberately narrow: local dummy keys and certificates are generated on launch, the service endpoints accept only one closed incident and two closed effects, and cloud resources are demo-labelled. The hosted agent uses a stable Fly secret for disclosure encryption but does not claim production envelope encryption, independent key rotation, retention policy, an independent security review, production custody, highly available storage, or production identity-provider configuration.

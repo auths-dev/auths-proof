@@ -9,19 +9,20 @@ import urllib.request
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from auths._application_profile import ApplicationGatewayError
 from auths._workflow import AuthsWorkflowError
 from auths.testkit import DevelopmentReceiptAttestor
 
 from . import sdk
+from .approval_adapters import verify_oidc_token
 from .custody import ProcessEd25519Signer
 from .execution import SqliteExecutionStore
 from .incident import execute_incident_plan
 
 
-SCHEMA = "auths-incident-demo/2"
+SCHEMA = "auths-incident-demo/3"
 INCIDENT = "INC-2026-0811"
 REGION = "eu-west-2"
 _configured_repo_root = os.environ.get("AUTHS_REPO_ROOT")
@@ -31,7 +32,7 @@ REPO_ROOT = (
     else Path(__file__).resolve().parents[4]
 )
 STATE_PATH = Path(
-    os.environ.get("AGENT_STATE_PATH", "/tmp/auths-incident-demo/agent.sqlite3")
+    os.environ.get("AGENT_STATE_PATH", "/tmp/auths-incident-demo/agent-v3.sqlite3")
 )
 NORTHSTAR_URL = os.environ.get("NORTHSTAR_URL", "http://localhost:7101")
 EDGESHIELD_URL = os.environ.get("EDGESHIELD_URL", "http://localhost:7102")
@@ -81,7 +82,7 @@ def internal_headers() -> dict[str, str]:
     return {} if not SERVICE_TOKEN else {"authorization": f"Bearer {SERVICE_TOKEN}"}
 
 
-def state_payload() -> dict[str, Any]:
+def state_payload(mode: Literal["opaque", "summary", "full"]) -> dict[str, Any]:
     try:
         northstar = get_json(f"{NORTHSTAR_URL}/api/actors")
         edgeshield = get_json(f"{EDGESHIELD_URL}/api/actors")
@@ -99,13 +100,51 @@ def state_payload() -> dict[str, Any]:
             "region": REGION,
             "status": "mitigated" if committed == 2 else "active",
         },
+        "identityProvider": NORTHSTAR_URL,
+        "receiptView": mode,
         "actors": [*northstar.get("actors", []), *edgeshield.get("actors", [])],
         "evidence": evidence,
-        "executions": executions,
-        "receipts": executions,
+        "executions": [
+            {
+                key: value[key]
+                for key in (
+                    "idempotencyKey",
+                    "commandCommitment",
+                    "authorityCommitment",
+                    "contextCommitment",
+                    "planCommitment",
+                    "memberIndex",
+                    "memberCount",
+                    "state",
+                    "outcome",
+                    "observedAt",
+                    "completedAt",
+                )
+            }
+            for value in executions
+        ],
+        "receipts": STORE.receipt_views(mode),
         "counters": snapshot["counters"],
         "timeline": snapshot["timeline"],
     }
+
+
+def viewer_mode(
+    authorization: str | None,
+) -> Literal["opaque", "summary", "full"]:
+    if authorization is None or not authorization.startswith("Bearer "):
+        return "opaque"
+    try:
+        claims = verify_oidc_token(
+            authorization[7:],
+            get_json(f"{NORTHSTAR_URL}/jwks.json"),
+            issuer=NORTHSTAR_URL,
+            audience="auths-incident-control-room",
+            subjects=("northstar-commander", "northstar-security"),
+        )
+    except Exception:
+        return "opaque"
+    return "full" if claims["sub"] == "northstar-security" else "summary"
 
 
 def execute_workflow(payload: dict[str, Any]) -> tuple[int, dict[str, Any]]:
@@ -175,7 +214,7 @@ def execute_workflow(payload: dict[str, Any]) -> tuple[int, dict[str, Any]]:
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "auths-incident-demo-agent/2"
+    server_version = "auths-incident-demo-agent/3"
 
     def do_OPTIONS(self) -> None:
         self.send_response(HTTPStatus.NO_CONTENT)
@@ -191,7 +230,10 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/api/fixture":
             return self.respond(HTTPStatus.OK, sdk.portable_fixture(REPO_ROOT))
         if self.path == "/api/state":
-            return self.respond(HTTPStatus.OK, state_payload())
+            return self.respond(
+                HTTPStatus.OK,
+                state_payload(viewer_mode(self.headers.get("authorization"))),
+            )
         if self.path == "/api/proposal":
             return self.respond(
                 HTTPStatus.OK,
@@ -217,10 +259,14 @@ class Handler(BaseHTTPRequestHandler):
                 },
             )
         if self.path == "/api/receipts":
-            snapshot = STORE.snapshot()
+            mode = viewer_mode(self.headers.get("authorization"))
             return self.respond(
                 HTTPStatus.OK,
-                {"schema": SCHEMA, "receipts": snapshot["executions"]},
+                {
+                    "schema": SCHEMA,
+                    "mode": mode,
+                    "receipts": STORE.receipt_views(mode),
+                },
             )
         return self.respond(
             HTTPStatus.NOT_FOUND, {"schema": SCHEMA, "code": "not-found"}
@@ -429,7 +475,7 @@ class Handler(BaseHTTPRequestHandler):
     def _headers(self) -> None:
         self.send_header("access-control-allow-origin", ALLOWED_ORIGIN)
         self.send_header("access-control-allow-methods", "GET, POST, OPTIONS")
-        self.send_header("access-control-allow-headers", "content-type")
+        self.send_header("access-control-allow-headers", "content-type, authorization")
         self.send_header("cache-control", "no-store")
 
     def log_message(self, format: str, *args: object) -> None:

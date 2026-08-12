@@ -17,6 +17,7 @@ auths-model.workspace = true
 auths-ports = { workspace = true, features = ["std"] }
 auths-profile-mcp.workspace = true
 auths-raw-key = { workspace = true, features = ["std"] }
+auths-receipts.workspace = true
 auths-registries = { workspace = true, features = ["std"] }
 auths-signature = { workspace = true, features = ["std"] }
 auths-spiffe-x509 = { workspace = true, features = ["std"] }
@@ -35,6 +36,7 @@ auths-proof-exchange-testkit.workspace = true
 auths-radicle = { workspace = true, features = ["fixture-support"] }
 auths-records-api.workspace = true
 auths-stripe = { workspace = true, features = ["fixture-support"] }
+ed25519-dalek.workspace = true
 hex.workspace = true
 serde.workspace = true
 serde_json.workspace = true

@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import json
 import sqlite3
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -16,18 +17,53 @@ from auths._application_profile import (
     ApplicationReceipt,
     ApplicationReservation,
 )
-from auths._receipts import AttestedReceipt, verify_receipt
+from auths._receipts import AttestedReceipt, ReceiptSigner, verify_receipt
 from auths._runtime import RuntimeApplied, RuntimeKernel, TransitionGates
+from auths.verify import (
+    InvalidReceiptInspection,
+    Receipt,
+    ReceiptViewMode,
+    VerifiedDisclosedReceipt,
+    VerifiedOpaqueReceipt,
+    create_receipt_disclosure,
+    inspect_receipt,
+)
 
+from .disclosures import AesGcmDisclosureProtector
 from .domain_profile import EdgeActionInput
 
 
+TENANT = "northstar-fashion"
+
+
 class SqliteExecutionStore:
-    def __init__(self, path: Path, *, plan_lifetime: int = 600) -> None:
+    def __init__(
+        self,
+        path: Path,
+        *,
+        plan_lifetime: int = 600,
+        disclosure_protector: AesGcmDisclosureProtector | None = None,
+    ) -> None:
         self._path = path
         self._plan_lifetime = plan_lifetime
         self._kernel = RuntimeKernel()
+        self._disclosure_protector = (
+            AesGcmDisclosureProtector()
+            if disclosure_protector is None
+            else disclosure_protector
+        )
+        self._pending_disclosures: dict[str, tuple[bytes, bytes]] = {}
+        self._pending_lock = threading.Lock()
         self._initialize()
+
+    def stage_disclosure(
+        self, idempotency_key: str, command: bytes, result: bytes
+    ) -> None:
+        with self._pending_lock:
+            self._pending_disclosures[idempotency_key] = (
+                bytes(command),
+                bytes(result),
+            )
 
     async def reserve(self, value: ApplicationReservation) -> str:
         connection = self._database()
@@ -183,6 +219,23 @@ class SqliteExecutionStore:
         verify_receipt(decision_receipt)
         if execution_receipt is not None:
             verify_receipt(execution_receipt)
+        with self._pending_lock:
+            pending = self._pending_disclosures.pop(idempotency_key, None)
+        protected_disclosure = None
+        if execution_receipt is not None and pending is not None:
+            linked = Receipt(decision_receipt, execution_receipt)
+            disclosure = create_receipt_disclosure(
+                linked,
+                profile_id="auths.edge",
+                profile_version=1,
+                command=pending[0],
+                result=pending[1],
+            )
+            protected_disclosure = self._disclosure_protector.protect(
+                TENANT,
+                execution_receipt.receipt_id,
+                disclosure,
+            )
         connection = self._database()
         try:
             connection.execute("BEGIN IMMEDIATE")
@@ -191,7 +244,8 @@ class SqliteExecutionStore:
             connection.execute(
                 """
                 UPDATE executions
-                SET state = ?, outcome = ?, decision_receipt = ?, execution_receipt = ?, completed_at = ?
+                SET state = ?, outcome = ?, decision_receipt = ?, execution_receipt = ?,
+                    protected_disclosure = ?, completed_at = ?
                 WHERE idempotency_key = ?
                 """,
                 (
@@ -201,6 +255,7 @@ class SqliteExecutionStore:
                     None
                     if execution_receipt is None
                     else _receipt_json(execution_receipt),
+                    protected_disclosure,
                     int(time.time()),
                     idempotency_key,
                 ),
@@ -268,7 +323,51 @@ class SqliteExecutionStore:
             ]
         return {"executions": executions, "counters": counters, "timeline": timeline}
 
+    def receipt_views(self, mode: ReceiptViewMode) -> list[dict[str, Any]]:
+        views: list[dict[str, Any]] = []
+        with self._database() as connection:
+            rows = tuple(
+                connection.execute(
+                    "SELECT * FROM executions ORDER BY observed_at, idempotency_key"
+                )
+            )
+        for row in rows:
+            if row["decision_receipt"] is None or row["execution_receipt"] is None:
+                views.append(
+                    {
+                        "kind": "unavailable",
+                        "mode": mode,
+                        "state": row["state"],
+                        "outcome": row["outcome"],
+                    }
+                )
+                continue
+            decision = _receipt_from_json(row["decision_receipt"])
+            execution = _receipt_from_json(row["execution_receipt"])
+            disclosure = None
+            if mode != "opaque" and row["protected_disclosure"] is not None:
+                disclosure = self._disclosure_protector.reveal(
+                    TENANT,
+                    execution.receipt_id,
+                    bytes(row["protected_disclosure"]),
+                )
+            inspected = inspect_receipt(
+                Receipt(decision, execution),
+                mode=mode,
+                disclosure=disclosure,
+            )
+            views.append(
+                _inspection_json(
+                    inspected,
+                    decision if mode == "full" else None,
+                    execution if mode == "full" else None,
+                )
+            )
+        return views
+
     def reset(self) -> None:
+        with self._pending_lock:
+            self._pending_disclosures.clear()
         with self._database() as connection:
             connection.execute("DELETE FROM executions")
             connection.execute("DELETE FROM plans")
@@ -413,6 +512,7 @@ class SqliteExecutionStore:
                   outcome TEXT,
                   decision_receipt TEXT,
                   execution_receipt TEXT,
+                  protected_disclosure BLOB,
                   observed_at INTEGER NOT NULL,
                   completed_at INTEGER
                 );
@@ -497,6 +597,11 @@ class IncidentProvider:
             )
             if self._fault == "unknown-after-firewall":
                 raise RuntimeError("provider response was lost after the effect")
+            self._store.stage_disclosure(
+                context.idempotency_key,
+                context.canonical_command,
+                canonical_result(result),
+            )
             return result
         if command == EdgeActionInput(
             "northstar",
@@ -521,7 +626,13 @@ class IncidentProvider:
                 },
                 credential,
             )
-            return {"transport": delivery, "provider": result}
+            combined = {"transport": delivery, "provider": result}
+            self._store.stage_disclosure(
+                context.idempotency_key,
+                context.canonical_command,
+                canonical_result(combined),
+            )
+            return combined
         raise ProviderOperationError("unsupported")
 
 
@@ -611,6 +722,92 @@ def _receipt_json(value: AttestedReceipt) -> str:
         separators=(",", ":"),
         sort_keys=True,
     )
+
+
+def _receipt_from_json(value: str) -> AttestedReceipt:
+    item = json.loads(value)
+    signer = item["signer"]
+    return AttestedReceipt(
+        item["kind"],
+        bytes.fromhex(item["receiptId"]),
+        base64.b64decode(item["bytes"], validate=True),
+        ReceiptSigner(
+            signer["principal"],
+            signer["verificationMethod"],
+            signer["suite"],
+            base64.b64decode(signer["evidence"], validate=True),
+        ),
+    )
+
+
+def _inspection_json(
+    value: VerifiedOpaqueReceipt | VerifiedDisclosedReceipt | InvalidReceiptInspection,
+    decision: AttestedReceipt | None,
+    execution: AttestedReceipt | None,
+) -> dict[str, Any]:
+    if isinstance(value, InvalidReceiptInspection):
+        return {"kind": value.kind, "mode": value.mode, "code": value.code}
+    metadata = value.receipt
+    commitments = metadata.commitments
+    output: dict[str, Any] = {
+        "kind": value.kind,
+        "mode": value.mode,
+        "receipt": {
+            "decisionReceiptId": metadata.decision_receipt_id,
+            "executionReceiptId": metadata.execution_receipt_id,
+            "profile": {
+                "id": metadata.profile.id,
+                "version": metadata.profile.version,
+            },
+            "decision": metadata.decision,
+            "reasons": list(metadata.reasons),
+            "outcome": metadata.outcome,
+            "decidedAt": metadata.decided_at,
+            "completedAt": metadata.completed_at,
+            "decisionSigner": {
+                "principal": metadata.decision_signer.principal,
+                "verificationMethod": metadata.decision_signer.verification_method,
+                "suite": metadata.decision_signer.suite,
+            },
+            "executionSigner": {
+                "principal": metadata.execution_signer.principal,
+                "verificationMethod": metadata.execution_signer.verification_method,
+                "suite": metadata.execution_signer.suite,
+            },
+            "commitments": {
+                "proof": commitments.proof,
+                "action": commitments.action,
+                "context": commitments.context,
+                "principalStatus": commitments.principal_status,
+                "grantStatus": commitments.grant_status,
+                "executionLease": commitments.execution_lease,
+                "command": commitments.command,
+                "result": commitments.result,
+            },
+        },
+    }
+    if isinstance(value, VerifiedOpaqueReceipt):
+        return output
+    output["summary"] = {
+        "title": value.summary.title,
+        "fields": [
+            {"label": field.label, "value": field.value}
+            for field in value.summary.fields
+        ],
+    }
+    if value.disclosure is not None:
+        output["disclosure"] = {
+            "command": base64.b64encode(value.disclosure.command).decode(),
+            "result": None
+            if value.disclosure.result is None
+            else base64.b64encode(value.disclosure.result).decode(),
+        }
+    if decision is not None and execution is not None:
+        output["evidence"] = {
+            "decision": json.loads(_receipt_json(decision)),
+            "execution": json.loads(_receipt_json(execution)),
+        }
+    return output
 
 
 def _execution_json(row: sqlite3.Row) -> dict[str, Any]:

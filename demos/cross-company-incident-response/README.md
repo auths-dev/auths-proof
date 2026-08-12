@@ -59,8 +59,9 @@ these URLs as evidence for this implementation.
    transactionally reserves each member before acquiring a provider credential.
    The firewall operation uses HTTPS; the cache member's exact canonical bytes
    cross a real Iroh connection before the gated provider call.
-7. Inspect both Rust-owned signed receipts. They bind the proof, canonical
-   action, context, plan position, idempotency key, provider result, and outcome.
+7. Inspect both Rust-owned signed receipts. Public viewers see verified opaque
+   commitments, Northstar operators see a bounded profile-owned summary, and a
+   Northstar security auditor can reveal the exact verified evidence.
 
 ### Happy path and fail-closed branches
 
@@ -138,6 +139,27 @@ TypeScript independently evaluate the same P-256/WebAuthn artifact and the
 same Rust-generated decision/execution receipt projections. The live effect
 path uses the packaged Ed25519 raw-key authority workflow.
 
+## Receipt disclosure
+
+The signed receipts intentionally contain commitments rather than operational
+plaintext. Exact canonical commands and provider results are stored separately
+by the agent service as AES-256-GCM ciphertext. The authenticated encryption
+context binds the tenant and execution receipt ID, so ciphertext cannot be
+moved between organizations or receipts. Decryption alone is not authorization:
+the service authenticates a Northstar OIDC actor, selects a closed view, and
+then asks Rust to verify the receipts and disclosure before returning anything.
+
+| Viewer | Authentication | Returned view |
+| --- | --- | --- |
+| Public | none, missing token, or invalid token | signed receipt metadata and commitments only |
+| Northstar commander | OIDC authorization code + PKCE | maintained `auths.edge/1` summary; no exact bytes |
+| Northstar security auditor | OIDC authorization code + PKCE | summary plus exact canonical command, result, and signed evidence |
+
+Opaque inspection never loads or decrypts the disclosure. Summary inspection
+never returns exact material. Full inspection is deliberately sensitive and is
+only appropriate for an application-authorized audit path. None of the three
+views is executable authority.
+
 See [architecture](docs/architecture.md), [threat model](docs/threat-model.md),
 and [feature evidence](docs/feature-matrix.md).
 
@@ -164,6 +186,11 @@ machines with auto-stop, uses isolated
 ephemeral hosted state (the local stack retains deterministic persistence), and
 sets random secrets that are never written to the repository. It does not
 create paid persistent volumes.
+
+The agent deployment must retain a stable `AUTHS_RECEIPT_DISCLOSURE_KEY` Fly
+secret. Rotating or losing it makes existing disclosure ciphertext unreadable;
+production systems would use envelope encryption, KMS/HSM-backed custody,
+durable tenant-scoped storage, explicit retention, and audited key rotation.
 
 ## Implementation specification
 

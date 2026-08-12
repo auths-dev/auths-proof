@@ -103,11 +103,26 @@ h1 em { color: var(--acid); font-style: normal; }
 .timeline-event strong { display: block; font-size: 11px; margin-top: 4px; }
 .timeline-event p { color: var(--muted); font-size: 10px; margin: 4px 0 0; line-height: 1.45; }
 .receipts-section { margin: 46px 0; }
+.receipt-title-row { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 8px; }
+.receipt-title-row .section-head { margin-bottom: 0; }
+.receipt-access { display: flex; gap: 4px; padding: 3px; border: 1px solid var(--line); border-radius: 7px; background: #0b0f12; }
+.receipt-access button { border: 0; background: transparent; color: var(--muted); padding: 7px 10px; border-radius: 4px; cursor: pointer; font: 10px var(--mono); }
+.receipt-access button.active { background: #20292e; color: var(--text); }
+.receipt-access-status { margin: 0 0 14px; color: var(--muted); font: 10px/1.5 var(--mono); }
 .receipt-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .receipt { background: #0b0f12; border: 1px solid var(--line); border-radius: 8px; padding: 18px; }
 .receipt-head { display: flex; justify-content: space-between; gap: 10px; }
 .receipt h3 { margin: 0; font-size: 12px; }
 .receipt pre { color: #92a0a7; font: 8px/1.55 var(--mono); white-space: pre-wrap; word-break: break-word; max-height: 260px; overflow: auto; }
+.receipt-mode { display: inline-flex; margin: 12px 0; padding: 4px 7px; border: 1px solid var(--line); border-radius: 999px; color: var(--cyan); font: 9px var(--mono); }
+.receipt-summary { display: grid; gap: 7px; margin: 8px 0 12px; }
+.receipt-field { display: grid; grid-template-columns: 110px 1fr; gap: 10px; border-top: 1px solid #1b252a; padding-top: 7px; font: 10px/1.4 var(--mono); }
+.receipt-field span { color: var(--muted); }
+.receipt-field strong { color: var(--text); overflow-wrap: anywhere; }
+.receipt-meta { color: var(--muted); font: 9px/1.55 var(--mono); }
+.receipt-meta code { color: #9bb0ba; }
+.receipt details { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 10px; }
+.receipt summary { cursor: pointer; color: var(--cyan); font: 9px var(--mono); }
 .verified { color: var(--acid); font: 8px var(--mono); }
 .empty { border: 1px dashed var(--line); color: var(--muted); padding: 32px; text-align: center; font: 10px var(--mono); grid-column: 1 / -1; }
 .attack-section { padding: 28px; display: grid; grid-template-columns: 260px 1fr; gap: 28px; }
@@ -123,4 +138,4 @@ footer { max-width: 1500px; margin: 0 auto; padding: 22px 32px 40px; border-top:
 .skeleton { color: var(--muted); }
 body[data-org="northstar"] .actor[data-org="edgeshield"], body[data-org="edgeshield"] .actor[data-org="northstar"] { display: none; }
 @media (max-width: 1100px) { .workspace { grid-template-columns: 1fr 1.4fr; } .timeline-column { grid-column: 1 / -1; } .timeline { max-height: none; } .attack-section { grid-template-columns: 1fr; } .attack-output { grid-column: 1; } }
-@media (max-width: 720px) { .topbar { padding: 12px 16px; grid-template-columns: 1fr auto; } .incident-title { display: none; } main { padding: 16px; } .hero { padding: 28px 22px; grid-template-columns: 1fr; gap: 30px; } .hero-actions { width: 100%; } .metric-strip { grid-template-columns: 1fr 1fr; } .metric:nth-child(2) { border-right: 0; } .workspace { grid-template-columns: 1fr; } .timeline-column { grid-column: auto; } .receipt-grid { grid-template-columns: 1fr; } .attack-grid { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 720px) { .topbar { padding: 12px 16px; grid-template-columns: 1fr auto; } .incident-title { display: none; } main { padding: 16px; } .hero { padding: 28px 22px; grid-template-columns: 1fr; gap: 30px; } .hero-actions { width: 100%; } .metric-strip { grid-template-columns: 1fr 1fr; } .metric:nth-child(2) { border-right: 0; } .workspace { grid-template-columns: 1fr; } .timeline-column { grid-column: auto; } .receipt-title-row { align-items: flex-start; flex-direction: column; } .receipt-access { width: 100%; overflow-x: auto; } .receipt-grid { grid-template-columns: 1fr; } .attack-grid { grid-template-columns: 1fr 1fr; } }

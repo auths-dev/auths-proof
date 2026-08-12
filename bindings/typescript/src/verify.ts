@@ -29,3 +29,21 @@ export {
   inspectDecision,
   type DecisionInspection,
 } from "./inspection.js";
+export {
+  createReceiptDisclosure,
+  inspectReceipt,
+  type InvalidReceiptInspection,
+  type ReceiptDisclosureMaterial,
+  type ReceiptDisclosureProtector,
+  type ReceiptDisclosureStore,
+  type ReceiptInspectionCommitments,
+  type ReceiptInspectionMetadata,
+  type ReceiptInspectionProfile,
+  type ReceiptInspectionResult,
+  type ReceiptInspectionSigner,
+  type ReceiptSummary,
+  type ReceiptSummaryField,
+  type ReceiptViewMode,
+  type VerifiedDisclosedReceipt,
+  type VerifiedOpaqueReceipt,
+} from "./receipt-inspection.js";

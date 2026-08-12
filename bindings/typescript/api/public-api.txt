@@ -1,5 +1,5 @@
 # Installed @auths-dev/sdk public API v1
-# declaration-sha256 7c6f83d7d23dda2c94daf4b1e2654389f05d8761cc1049eaab5fd452c7fb17b9
+# declaration-sha256 75446565678a0cb9189a5bafb6731f421334f4549a8d1195fb5fec115765dff3
 .	Actor	type
 .	approval	value
 .	ApprovalPolicy	type
@@ -56,6 +56,7 @@
 ./identity	VerificationMaterialInput	type
 ./identity	VerificationRelationshipInput	type
 ./verify	AuthorizedResult	type
+./verify	createReceiptDisclosure	value
 ./verify	DecisionInspection	type
 ./verify	decodeReceipt	value
 ./verify	DeniedResult	type
@@ -65,8 +66,21 @@
 ./verify	ImmutableArtifactCacheOptions	type
 ./verify	IndeterminateResult	type
 ./verify	inspectDecision	value
+./verify	inspectReceipt	value
+./verify	InvalidReceiptInspection	type
 ./verify	loadVerifier	value
 ./verify	Receipt	type
+./verify	ReceiptDisclosureMaterial	type
+./verify	ReceiptDisclosureProtector	type
+./verify	ReceiptDisclosureStore	type
+./verify	ReceiptInspectionCommitments	type
+./verify	ReceiptInspectionMetadata	type
+./verify	ReceiptInspectionProfile	type
+./verify	ReceiptInspectionResult	type
+./verify	ReceiptInspectionSigner	type
+./verify	ReceiptSummary	type
+./verify	ReceiptSummaryField	type
+./verify	ReceiptViewMode	type
 ./verify	VerdictKind	type
 ./verify	VerificationBatchOptions	type
 ./verify	VerificationInput	type
@@ -75,6 +89,8 @@
 ./verify	VerificationResult	type
 ./verify	VerificationStage	type
 ./verify	VerifiedAction	value+type
+./verify	VerifiedDisclosedReceipt	type
+./verify	VerifiedOpaqueReceipt	type
 ./verify	Verifier	value+type
 ./verify	verifyReceipt	value
 ./profiles	executeMcpClosed	value
