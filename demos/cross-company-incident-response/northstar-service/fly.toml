@@ -8,6 +8,7 @@ primary_region = "lhr"
   PORT = "8080"
   NORTHSTAR_PUBLIC_URL = "https://auths-incident-demo-northstar.fly.dev"
   NORTHSTAR_STATE_PATH = "/tmp/auths-incident-demo/northstar.json"
+  AUTHS_INCIDENT_ALLOWED_ORIGIN = "https://auths-incident-demo-control-room.vercel.app"
 
 [http_service]
   internal_port = 8080
