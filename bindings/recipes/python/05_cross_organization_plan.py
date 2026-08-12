@@ -10,38 +10,26 @@ from pathlib import Path
 
 from auths import (
     Approval,
-    ApprovalRequest,
-    ApprovalResponse,
-    decode_execution_reference,
-    decode_receipt,
-    encode_execution_reference,
-    encode_receipt,
-    verify_receipt,
+    ExecutionReference,
 )
-from auths.approvals import threshold_approval
 from auths.integrations import development
-from auths.profiles import mcp
-from auths.profiles.mcp import McpHandlerOutcome
+from auths.profiles import McpHandlerOutcome, mcp
+from auths.verify import decode_receipt, encode_receipt, verify_receipt
 
 
 class OrganizationApproval:
     def __init__(self, organization: str) -> None:
         self.organization = organization
 
-    async def approve(self, request: ApprovalRequest) -> ApprovalResponse:
-        return ApprovalResponse(
-            request.request_id,
-            request.transaction_digest,
-            request.policy,
-            "approved",
-        )
+    async def approve(self, request):
+        return Approval.response(request, decision="approved")
 
 
 def plan_approval():
     providers = (OrganizationApproval("company-a"), OrganizationApproval("company-b"))
     return Approval.plan_once(
         "approval.cross-company-plan",
-        threshold_approval(providers, threshold=2),
+        Approval.threshold(providers, threshold=2),
         max_uses=2,
         requirements=("company-a", "company-b"),
     )
@@ -85,7 +73,7 @@ async def phase_one(root: Path) -> None:
         ):
             raise RuntimeError("ordered plan did not stop with one completed member")
         (root / "reference.bin").write_bytes(
-            encode_execution_reference(result.reference)
+            result.reference.to_bytes()
         )
         (root / "python-receipt.json").write_bytes(
             encode_receipt(result.completed_receipts[0])
@@ -118,7 +106,7 @@ async def phase_two(root: Path) -> None:
         approval=plan_approval(),
     ) as auths:
         result = await auths.resume(
-            reference=decode_execution_reference((root / "reference.bin").read_bytes()),
+            reference=ExecutionReference.from_bytes((root / "reference.bin").read_bytes()),
             provider=provider,
         )
         if result.kind != "completed" or entries != 0:

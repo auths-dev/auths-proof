@@ -1,4 +1,4 @@
-import { verifyReceipt } from "@auths-dev/sdk";
+import { verifyReceipt } from "@auths-dev/sdk/verify";
 import { development } from "@auths-dev/sdk/integrations";
 import { mcp } from "@auths-dev/sdk/profiles";
 

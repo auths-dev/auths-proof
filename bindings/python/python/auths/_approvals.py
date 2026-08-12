@@ -6,8 +6,8 @@ import asyncio
 from typing import Sequence
 
 from ._native import ApprovalPolicyReference, approval_policy_reference
-from .errors import ProviderOperationError
-from .workflow import (
+from ._errors import ProviderOperationError
+from ._workflow import (
     Approval,
     ApprovalConfiguration,
     ApprovalDecision,
@@ -66,6 +66,7 @@ def threshold_approval(
     providers: Sequence[ApprovalProvider], *, threshold: int
 ) -> ApprovalProvider:
     return ThresholdApprovalProvider(providers, threshold=threshold)
+
 
 __all__ = [
     "Approval",

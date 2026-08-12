@@ -26,7 +26,7 @@ from ._native import (
     validate_trusted_authority,
 )
 from ._native import inspect_plan as _inspect_plan
-from .workflow import (
+from ._workflow import (
     AllowedBodies,
     AnyBody,
     BudgetCeiling,
@@ -64,8 +64,12 @@ class ProofReference:
 
     @classmethod
     def parse(cls, value: str) -> ProofReference:
-        if len(value) != 64 or any(character not in "0123456789abcdef" for character in value):
-            raise ValueError("proof reference must be 64 lowercase hexadecimal characters")
+        if len(value) != 64 or any(
+            character not in "0123456789abcdef" for character in value
+        ):
+            raise ValueError(
+                "proof reference must be 64 lowercase hexadecimal characters"
+            )
         return cls(bytes.fromhex(value))
 
 
@@ -157,7 +161,9 @@ class ProofPlanBuilder:
 
     def _members(self, members: Sequence[ProofPlan]) -> Tuple[ProofPlan, ...]:
         values = tuple(members)
-        if any(type(value) is not ProofPlan or value._owner is not self for value in values):
+        if any(
+            type(value) is not ProofPlan or value._owner is not self for value in values
+        ):
             raise ValueError("proof plan member belongs to another builder")
         return values
 
@@ -166,6 +172,7 @@ def _native_proof_plan(plan: ProofPlan) -> _NativeAuthorizationPlan:
     if type(plan) is not ProofPlan:
         raise TypeError("expected a sealed Auths proof plan")
     return plan._native
+
 
 __all__ = [
     "AllowedBodies",

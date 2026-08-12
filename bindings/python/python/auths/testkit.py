@@ -11,13 +11,20 @@ from ._development import (
     DevelopmentEd25519Signer,
     DevelopmentReceiptAttestor,
 )
-from .approvals import (
+from ._diagnostics import (
+    DiagnosticEngine,
+    DiagnosticExplanation,
+    DiagnosticResult,
+    DiagnosticVerifier,
+    create_diagnostic_verifier,
+)
+from ._approvals import (
     ApprovalDecision,
     ApprovalProvider,
     ApprovalRequest,
     ApprovalResponse,
 )
-from .custody import (
+from ._custody import (
     PrincipalDescriptor,
     Signer,
     SignerLifecycle,
@@ -32,8 +39,8 @@ from .identity import (
     ResolvedIdentityRecord,
     VerificationMaterial,
 )
-from .observability import AuthsEvent
-from .conformance import (
+from ._observability import AuthsEvent
+from ._conformance import (
     CONFORMANCE_CATALOG,
     AtomicReservationRecord,
     AtomicReservationStoreCandidate,
@@ -321,6 +328,10 @@ def check_telemetry(telemetry: RecordingTelemetry) -> AuthsEvent:
 
 __all__ = [
     "ADAPTER_CONTRACT_VERSION",
+    "DiagnosticEngine",
+    "DiagnosticExplanation",
+    "DiagnosticResult",
+    "DiagnosticVerifier",
     "DevelopmentApproval",
     "DevelopmentEd25519Signer",
     "DevelopmentReceiptAttestor",
@@ -336,6 +347,7 @@ __all__ = [
     "check_identity_method",
     "check_signer",
     "check_telemetry",
+    "create_diagnostic_verifier",
     "product_waist_conformance",
     "AtomicReservationRecord",
     "AtomicReservationStoreCandidate",

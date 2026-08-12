@@ -19,20 +19,16 @@
       "bounded three-input local verification",
       "three-valued result projection",
       "stable code and configuration commitment projection",
-      "repository-local pre-review principal and trusted-authority loading",
-      "repository-local transaction-bound signer and approval ports",
-      "repository-local pre-review attach, delegate, authorize, and explain workflow",
-      "repository-local pre-review sealed profile commands",
-      "repository-local Rust-compiled typed trust and lifecycle surfaces",
-      "repository-local native authorization-plan composition",
-      "repository-local maintained HTTP, Git, deployment, supply-chain, and edge profiles",
-      "repository-local optional runtime ports and custody conformance contracts",
+      "closed create, delegate, execute, resume, and verify product workflow",
+      "qualified MCP profile with opaque one-use execution sessions",
+      "evidence-gated signer and atomic reservation framework contracts",
+      "development and recoverable local compositions",
       "standalone method- and suite-agnostic identity descriptors",
       "bounded native batch verification with single-item equivalence",
       "bounded trust evidence acquisition and offline bundles",
       "versioned adapter conformance and an exact runtime contract",
       "idempotent closed runtime with reconciliation and durable reference state",
-      "redacted telemetry timelines and deterministic support bundles"
+      "exact purpose-labelled root, identity, verify, profiles, integrations, framework, and testkit entry points"
     ],
     "excluded": [
       "promoted full workflow SDK release claim",
@@ -42,18 +38,18 @@
     ]
   },
   "eliteScorecard": {
-    "timeToValue": { "status": "verified", "evidence": ["examples/identity-only/index.ts", "examples/quickstart/index.ts", "test/package/packed-consumer.test.js", "test/package/packed-node.test.js"] },
+    "timeToValue": { "status": "verified", "evidence": ["../recipes/typescript/01-authenticate-identity.ts", "../recipes/typescript/03-execute-exact-action.ts", "test/package/packed-consumer.test.js", "test/package/packed-node.test.js"] },
     "progressiveAdoption": { "status": "verified", "evidence": ["package.json", "test/package/package.test.js"] },
     "semanticSafety": { "status": "verified", "evidence": ["test/contract/nonforgeability.ts", "test/integration/non-forgeability.test.js", "test/integration/scenario-corpus.test.js"] },
     "typeSafety": { "status": "verified", "evidence": ["test/contract/nonforgeability.ts", "src/workflow/errors.ts"] },
-    "productionIntegration": { "status": "verified", "evidence": ["src/testkit/adapter-conformance.ts", "adapters/durable-json/"] },
-    "operationalCompleteness": { "status": "verified", "evidence": ["src/runtime.ts", "test/unit/runtime.test.js", "docs/lifecycle-recipes.md"] },
-    "debuggability": { "status": "verified", "evidence": ["src/observability.ts", "src/diagnostics.ts", "test/unit/observability.test.js"] },
-    "extensibility": { "status": "verified", "evidence": ["src/identity.ts", "src/profiles/application/index.ts", "docs/adapter-authoring.md"] },
+    "productionIntegration": { "status": "verified", "evidence": ["src/framework.ts", "src/testkit/conformance.ts"] },
+    "operationalCompleteness": { "status": "verified", "evidence": ["src/product.ts", "src/integrations.ts", "test/unit/product.test.js"] },
+    "debuggability": { "status": "verified", "evidence": ["src/verify.ts", "src/testkit/index.ts", "test/integration/inspection.test.js"] },
+    "extensibility": { "status": "verified", "evidence": ["src/framework.ts", "src/testkit/conformance.ts"] },
     "portability": { "status": "verified", "evidence": ["../../.github/workflows/typescript-sdk.yml", "test/package/packed-browser.mjs"] },
     "runtimeContract": { "status": "verified", "evidence": ["sdk-runtime-contract.json", "tools/runtime-contract.mjs", "docs/support-matrix.md"] },
     "securityEvidence": { "status": "external-review-required", "evidence": ["docs/threat-model.md", "test/integration/scenario-corpus.test.js"] },
     "documentation": { "status": "verified", "evidence": ["README.md", "docs/support-matrix.md", "docs/production-integration.md", "docs/errors-and-recovery.md"] },
-    "crossSdkParity": { "status": "python-follow-up", "evidence": ["docs/customer-journey-matrix.md"] }
+    "crossSdkParity": { "status": "verified", "evidence": ["../customer-journey-matrix-v1.json", "../public-topology-v1.json"] }
   }
 }

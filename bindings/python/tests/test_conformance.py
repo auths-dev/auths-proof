@@ -3,7 +3,8 @@ from __future__ import annotations
 import asyncio
 import time
 
-from auths import Principal, PrincipalDescriptor
+from auths._native import Principal
+from auths.framework import PrincipalDescriptor, ProviderOperationError, SigningResponse
 from auths.testkit import (
     ConformanceMetadata,
     certify_atomic_store,
@@ -11,9 +12,7 @@ from auths.testkit import (
     certify_mcp_provider,
     certify_signer,
 )
-from auths.errors import ProviderOperationError
 from auths.profiles import mcp
-from auths.workflow import SigningResponse
 
 
 METADATA = ConformanceMetadata("test.candidate", "1")

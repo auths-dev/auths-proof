@@ -4,11 +4,19 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
-from typing import Literal, Optional, Protocol, Sequence, Tuple, Union, runtime_checkable
+from typing import (
+    Literal,
+    Optional,
+    Protocol,
+    Sequence,
+    Tuple,
+    Union,
+    runtime_checkable,
+)
 
 from . import _native as native
 from ._native import SignedObject
-from .workflow import (
+from ._workflow import (
     ApprovalConfiguration,
     ApprovalPolicyReference,
     AuthsWorkflowError,
@@ -36,8 +44,12 @@ class ProtocolDigest:
 
     @classmethod
     def parse(cls, value: str) -> ProtocolDigest:
-        if len(value) != 64 or any(character not in "0123456789abcdef" for character in value):
-            raise ValueError("protocol digest must be 64 lowercase hexadecimal characters")
+        if len(value) != 64 or any(
+            character not in "0123456789abcdef" for character in value
+        ):
+            raise ValueError(
+                "protocol digest must be 64 lowercase hexadecimal characters"
+            )
         return cls(bytes.fromhex(value))
 
 
@@ -160,7 +172,9 @@ class LifecycleAuthor:
         )
         return SignedPrincipalStatus(
             _SIGNED_TOKEN,
-            await self._sign(unsigned, request.issuer, request.valid_until, "Principal status"),
+            await self._sign(
+                unsigned, request.issuer, request.valid_until, "Principal status"
+            ),
         )
 
     async def grant_status(self, request: GrantStatusRequest) -> SignedGrantStatus:
@@ -179,19 +193,26 @@ class LifecycleAuthor:
         )
         return SignedGrantStatus(
             _SIGNED_TOKEN,
-            await self._sign(unsigned, request.issuer, request.valid_until, "Grant status"),
+            await self._sign(
+                unsigned, request.issuer, request.valid_until, "Grant status"
+            ),
         )
 
     def close(self) -> None:
         self._closed = True
 
     async def _sign(
-        self, unsigned: native.UnsignedObject, issuer: Principal, expires_at: int, label: str
+        self,
+        unsigned: native.UnsignedObject,
+        issuer: Principal,
+        expires_at: int,
+        label: str,
     ) -> SignedObject:
         descriptor = await _call_public_identity(self._signer, "lifecycle signer")
         if descriptor.principal.value != issuer.value:
             raise AuthsWorkflowError(
-                "invalid-principal", "lifecycle signer does not control the declared issuer"
+                "invalid-principal",
+                "lifecycle signer does not control the declared issuer",
             )
         result = await _SigningCoordinator().execute(
             unsigned=unsigned,
@@ -200,7 +221,10 @@ class LifecycleAuthor:
             approval=self._approval,
             required_approval=self._required_approval,
             expires_at=expires_at,
-            display=(ReviewField("Operation", label), ReviewField("Issuer", issuer.value)),
+            display=(
+                ReviewField("Operation", label),
+                ReviewField("Issuer", issuer.value),
+            ),
         )
         return result.signed_object
 
@@ -347,6 +371,7 @@ class StatusProvider(Protocol):
     async def grant(
         self, identifier: ProtocolDigest, *, observed_at: int
     ) -> GrantStatusSnapshot: ...
+
 
 __all__ = [
     "CriticalExtension",

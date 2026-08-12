@@ -4,8 +4,7 @@ import asyncio
 from pathlib import Path
 
 from auths.integrations import development
-from auths.profiles import mcp
-from auths.profiles.mcp import McpHandlerOutcome
+from auths.profiles import McpHandlerOutcome, mcp
 
 
 def test_development_composition_executes_and_denies_before_io() -> None:

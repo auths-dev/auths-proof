@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createAuths, ExecutionReference } from "../../dist/index.js";
-import { mcp } from "../../dist/mcp.js";
+import { mcp } from "../../dist/profiles.js";
 
 test("product waist accepts only integration-owned composition and authority values", async () => {
   const authority = mcp.allowTools(["publish_report"]);

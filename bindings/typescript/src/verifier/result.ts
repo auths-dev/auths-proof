@@ -117,7 +117,7 @@ export interface VerificationOptions {
  *
  * Application code cannot construct one and cannot supply the engine whose
  * output selects the authorized branch. Caller-supplied engines belong on
- * `@auths-dev/sdk/diagnostics`, whose results are never effect-capable.
+ * `@auths-dev/sdk/testkit`, whose results are never effect-capable.
  */
 export class Auths {
   readonly #engine: PortableWasmEngine;

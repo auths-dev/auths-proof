@@ -149,6 +149,11 @@ export function thresholdApproval(options: ThresholdApprovalOptions): ApprovalPr
   });
 }
 
+export const approval = Object.freeze({
+  ...approvalPolicy,
+  threshold: thresholdApproval,
+});
+
 function copyApprovalRequest(request: ApprovalRequest): ApprovalRequest {
   return Object.freeze({
     ...request,

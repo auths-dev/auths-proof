@@ -50,7 +50,9 @@ class VerificationRelationship:
 
     def __post_init__(self) -> None:
         values = tuple(self.verification_material)
-        if not values or any(type(value) is not VerificationMaterial for value in values):
+        if not values or any(
+            type(value) is not VerificationMaterial for value in values
+        ):
             raise ValueError("verification relationship requires typed material")
         object.__setattr__(self, "verification_material", values)
 
@@ -64,7 +66,11 @@ class ResolutionEvidence:
     history: Tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
-        if not self.source or self.observed_at < 0 or self.expires_at < self.observed_at:
+        if (
+            not self.source
+            or self.observed_at < 0
+            or self.expires_at < self.observed_at
+        ):
             raise ValueError("invalid identity resolution evidence")
         object.__setattr__(self, "provenance", tuple(self.provenance))
         object.__setattr__(self, "history", tuple(self.history))
@@ -81,13 +87,19 @@ class ResolvedIdentityRecord:
     def __post_init__(self) -> None:
         object.__setattr__(self, "method_material", bytes(self.method_material))
         values = tuple(self.relationships)
-        if not values or any(type(value) is not VerificationRelationship for value in values):
-            raise ValueError("resolved identity has no typed verification relationships")
+        if not values or any(
+            type(value) is not VerificationRelationship for value in values
+        ):
+            raise ValueError(
+                "resolved identity has no typed verification relationships"
+            )
         object.__setattr__(self, "relationships", values)
 
     def relationship(self, relationship_id: str) -> VerificationRelationship:
         values = tuple(
-            value for value in self.relationships if value.relationship_id == relationship_id
+            value
+            for value in self.relationships
+            if value.relationship_id == relationship_id
         )
         if len(values) != 1:
             raise ValueError("identity relationship is missing or ambiguous")
@@ -227,9 +239,7 @@ class ValidatedIdentity:
         )
         suite = registry.suite(relationship.suite_id)
         await _bounded_await(
-            suite.verify(
-                relationship.verification_material, preimage, signature_bytes
-            ),
+            suite.verify(relationship.verification_material, preimage, signature_bytes),
             timeout,
         )
         return AuthenticatedIdentity(
@@ -311,8 +321,13 @@ class RawKeyIdentityMethod:
     async def validate(self, identity: ResolvedIdentity) -> None:
         record = identity.record
         relationship = record.relationship("default-signing")
-        if relationship.purpose != "authentication" or len(relationship.verification_material) != 1:
-            raise ValueError("raw-key identity has an invalid verification relationship")
+        if (
+            relationship.purpose != "authentication"
+            or len(relationship.verification_material) != 1
+        ):
+            raise ValueError(
+                "raw-key identity has an invalid verification relationship"
+            )
         validate_raw_key_identity_v2(
             record.method_id,
             record.identity_id,
@@ -448,7 +463,11 @@ def _exact_registry(
     for value in values:
         identifier = getattr(value, attribute, None)
         version = getattr(value, "version", None)
-        if not isinstance(identifier, str) or not identifier or type(version) is not int:
+        if (
+            not isinstance(identifier, str)
+            or not identifier
+            or type(version) is not int
+        ):
             raise TypeError(label + " does not declare an exact identifier and version")
         if identifier in result:
             raise ValueError("duplicate " + label)

@@ -10,6 +10,8 @@ from typing import Any, Final, Mapping, Optional, Sequence, Tuple
 
 from ._error_registry import ERROR_REGISTRY
 
+AuthsErrorCode = str
+
 MAX_TOKEN_BYTES: Final = 128
 MAX_TEXT_BYTES: Final = 256
 TOKEN_CHARS: Final = frozenset("abcdefghijklmnopqrstuvwxyz0123456789._:/-")
@@ -319,6 +321,7 @@ def _sorted_tokens(values: Sequence[str]) -> Tuple[str, ...]:
 
 
 __all__ = [
+    "AuthsErrorCode",
     "AuthsError",
     "AuthsErrorDetails",
     "CauseCategory",

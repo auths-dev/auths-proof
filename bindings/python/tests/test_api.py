@@ -12,7 +12,7 @@ import pytest
 import auths
 import auths._native as native_implementation
 from auths.verify import Authorized, Denied, verify
-from auths.inspection import canonical_action_bytes
+from auths._inspection import canonical_action_bytes
 
 VerifiedAction = native_implementation.VerifiedAction
 
@@ -28,7 +28,7 @@ import auths.identity
 import auths.verify
 forbidden = [
     name for name in sys.modules
-    if name.startswith(('auths.workflow', 'auths.approvals', 'auths.custody', 'auths.profiles'))
+    if name.startswith(('auths._workflow', 'auths._approvals', 'auths._custody', 'auths.profiles'))
 ]
 if forbidden:
     raise RuntimeError(','.join(forbidden))
@@ -69,9 +69,10 @@ def test_public_verification_is_inert_and_native_api_seals_the_action() -> None:
     assert result.required_configuration == result.local_configuration
     assert len(result.local_configuration) == 32
     assert not hasattr(result, "action")
-    assert canonical_action_bytes(native_action()) == (
-        CORPUS / "raw-key-chain.action.cbor"
-    ).read_bytes()
+    assert (
+        canonical_action_bytes(native_action())
+        == (CORPUS / "raw-key-chain.action.cbor").read_bytes()
+    )
     assert (
         result.result_cbor == (BINDING_VECTORS / "authorized.result.cbor").read_bytes()
     )

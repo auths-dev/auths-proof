@@ -8,7 +8,7 @@ import { createDiagnosticVerifier } from "../../dist/diagnostics.js";
 import { inspectDecision } from "../../dist/inspection.js";
 import { McpAction, McpCommand, mcp } from "../../dist/mcp.js";
 import { ApplicationCommand, defineProfile } from "../../dist/profile-kit.js";
-import { ProfilePlan, VerifiedPlanCommand } from "../../dist/index.js";
+import { ProfilePlan, VerifiedPlanCommand } from "../../dist/internal-sdk.js";
 import * as publicRoot from "../../dist/index.js";
 import { development, InMemoryApplicationExecutionStore } from "../../dist/testkit/index.js";
 import { mcpFixture, packagedWasm } from "./helpers/mcp-fixture.js";

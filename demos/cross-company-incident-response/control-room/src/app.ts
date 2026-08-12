@@ -1,6 +1,5 @@
-import { approvalPolicy } from "@auths-dev/sdk";
-import { BoundedApprovalSession } from "@auths-dev/sdk/approvals";
-import { development } from "@auths-dev/sdk/testkit";
+import { approval } from "@auths-dev/sdk";
+import { BoundedApprovalSession, development } from "@auths-dev/sdk/testkit";
 import { loadVerifier } from "@auths-dev/sdk/verify";
 
 declare global {
@@ -147,7 +146,7 @@ async function liveMutationAttack(): Promise<Json> {
 }
 
 async function liveWithdrawalAttack(): Promise<Json> {
-  const policy = await approvalPolicy.planOnce({ maxUses: 2, expiresInSeconds: 60 });
+  const policy = await approval.planOnce({ maxUses: 2, expiresInSeconds: 60 });
   const plan = new Uint8Array(32).fill(1);
   const first = new Uint8Array(32).fill(2);
   const second = new Uint8Array(32).fill(3);

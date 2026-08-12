@@ -7,7 +7,7 @@ from typing import Callable, Optional
 
 import pytest
 
-from auths import (
+from auths._workflow import (
     AnyBody,
     Approval,
     ApprovalRequest,
@@ -30,9 +30,9 @@ from auths import (
     SnapshotRequired,
     TrustedAuthority,
     Validity,
-    _native as native,
 )
-from auths.inspection import parse_signed_object, parse_unsigned_object
+from auths import _native as native
+from auths._inspection import parse_signed_object, parse_unsigned_object
 
 
 VECTORS = Path(__file__).parents[3] / "target" / "binding-vectors"

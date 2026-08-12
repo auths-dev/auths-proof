@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any, Final
 
-ERROR_REGISTRY: Final[dict[str, Any]] = json.loads(r'''{
+ERROR_REGISTRY: Final[dict[str, Any]] = json.loads(r"""{
   "schema": "auths.error-registry/1",
   "definitions": [
     {
@@ -468,4 +468,4 @@ ERROR_REGISTRY: Final[dict[str, Any]] = json.loads(r'''{
     }
   ]
 }
-''')
+""")

@@ -3,14 +3,16 @@ from __future__ import annotations
 import time
 from typing import Any, Literal
 
-from auths import Approval, AuthsClient, Signer, Validity, prepare_raw_key_authority
-from auths.approvals import threshold_approval
-from auths.profile_kit import (
+from auths import Approval
+from auths._approvals import threshold_approval
+from auths._application_profile import (
     ApplicationGatewayOptions,
     ApplicationPlanAuthorized,
 )
-from auths.profiles import DomainProfileOptions, EdgeActionInput, load_domain_profiles
-from auths.receipts import ReceiptAttestor
+from auths._bootstrap import prepare_raw_key_authority
+from auths._receipts import ReceiptAttestor
+from auths._workflow import AuthsClient, Validity
+from auths.framework import Signer
 
 from .approval_adapters import (
     EdgeShieldSignedApproval,
@@ -24,6 +26,7 @@ from .execution import (
     application_receipt_json,
     canonical_result,
 )
+from .domain_profile import DomainProfileOptions, EdgeActionInput, load_domain_profiles
 
 
 async def execute_incident_plan(

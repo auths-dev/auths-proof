@@ -1,13 +1,11 @@
-"""Rust-owned closed domain profiles."""
-
 from __future__ import annotations
 
 import json
 from dataclasses import dataclass
 from typing import Literal, Optional, cast
 
-from .. import _native as native
-from ..profile_kit import (
+from auths import _native as native
+from auths._application_profile import (
     ApplicationProfile,
     CanonicalProfileAction,
     ProfileBudget,
@@ -15,7 +13,7 @@ from ..profile_kit import (
     ProfilePermission,
     define_profile,
 )
-from ..workflow import ReviewField
+from auths._workflow import ReviewField
 
 
 @dataclass(frozen=True)
@@ -126,12 +124,3 @@ def _integer(value: dict[object, object], key: str) -> int:
     if type(field) is not int or field < 0:
         raise ValueError("native edge action omitted " + key)
     return field
-
-
-__all__ = [
-    "DomainProfileOptions",
-    "DomainProfiles",
-    "EdgeActionInput",
-    "EdgeProfile",
-    "load_domain_profiles",
-]

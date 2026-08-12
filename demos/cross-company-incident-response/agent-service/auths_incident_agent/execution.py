@@ -9,16 +9,17 @@ import urllib.request
 from pathlib import Path
 from typing import Any, Literal, Optional
 
-from auths.errors import ProviderOperationError
-from auths.profile_kit import (
+from auths._errors import ProviderOperationError
+from auths._application_profile import (
     ApplicationExecutionContext,
     ApplicationOutcome,
     ApplicationReceipt,
     ApplicationReservation,
 )
-from auths.profiles.domains import EdgeActionInput
-from auths.receipts import AttestedReceipt, verify_receipt
-from auths.runtime import RuntimeApplied, RuntimeKernel, TransitionGates
+from auths._receipts import AttestedReceipt, verify_receipt
+from auths._runtime import RuntimeApplied, RuntimeKernel, TransitionGates
+
+from .domain_profile import EdgeActionInput
 
 
 class SqliteExecutionStore:

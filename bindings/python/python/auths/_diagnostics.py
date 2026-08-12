@@ -11,7 +11,7 @@ from ._native import (
     diagnostic_input_limits_v1,
     native_abi_version,
 )
-from .inspection import InspectionMetrics, VerificationStage, VerdictKind
+from ._inspection import InspectionMetrics, VerificationStage, VerdictKind
 
 
 @runtime_checkable
@@ -115,7 +115,10 @@ def runtime_diagnostic(
     if trust is not None and len(trust) != 32:
         raise ValueError("trust configuration commitment must contain 32 bytes")
     adapter_values = tuple(sorted((adapters or {}).items()))
-    if any(not name or type(version) is not int or version < 1 for name, version in adapter_values):
+    if any(
+        not name or type(version) is not int or version < 1
+        for name, version in adapter_values
+    ):
         raise ValueError("adapter contract declarations are invalid")
     return RuntimeDiagnostic(
         package_version=version,

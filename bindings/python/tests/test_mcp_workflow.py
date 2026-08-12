@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Optional
 import pytest
 
-from auths import (
+from auths._workflow import (
     Approval,
     ApprovalRequest,
     ApprovalResponse,
@@ -27,9 +27,9 @@ from auths import (
     SigningResponse,
     TrustedAuthority,
     Validity,
-    _native as native,
 )
-from auths.profiles.mcp import (
+from auths import _native as native
+from auths.profiles._mcp import (
     AuthorizationRequest,
     DevelopmentMcpProvider,
     McpAuthorized,
@@ -47,8 +47,8 @@ from auths.profiles.mcp import (
     mcp,
 )
 from auths import _native as native_abi
-from auths.diagnostics import create_diagnostic_verifier
-from auths.inspection import (
+from auths._diagnostics import create_diagnostic_verifier
+from auths._inspection import (
     inspect_decision,
     parse_signed_object,
     parse_trusted_context_bytes,

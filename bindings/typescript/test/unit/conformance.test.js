@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { ProviderOperationError } from "../../dist/custody.js";
-import { mcp } from "../../dist/mcp.js";
+import { ProviderOperationError } from "../../dist/framework.js";
+import { mcp } from "../../dist/profiles.js";
 import {
   certifyAtomicStore,
   certifyByteTransport,

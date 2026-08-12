@@ -8,7 +8,7 @@ import {
   loadAuths,
   signedGrantSource,
   trustedContextSource,
-} from "../../../dist/index.js";
+} from "../../../dist/internal-sdk.js";
 
 const ROOT = "key:sha256:qogx823wE-Cfoq_WXwDS1D6S8jMOhJssOpaNRZOJCKs";
 const SUBJECT = "key:sha256:MPL4hHxgoCRRtbEjYAedm50CmSM11XgLojSwwYeRi1E";

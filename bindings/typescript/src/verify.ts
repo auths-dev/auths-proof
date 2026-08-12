@@ -25,3 +25,7 @@ export {
   verifyLinkedReceipt as verifyReceipt,
   type LinkedAttestedReceipt as Receipt,
 } from "./internal/receipt-attestation.js";
+export {
+  inspectDecision,
+  type DecisionInspection,
+} from "./inspection.js";

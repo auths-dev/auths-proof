@@ -22,7 +22,7 @@ from typing import (
 
 from . import _native as native
 from ._plan import PlanApprovalSession
-from .workflow import (
+from ._workflow import (
     ApprovalConfiguration,
     ApprovalProvider,
     AttachedAgent,
@@ -34,8 +34,8 @@ from .workflow import (
     _SigningCoordinator,
     _transaction_expiry,
 )
-from .errors import ProviderOperationError
-from .receipts import (
+from ._errors import ProviderOperationError
+from ._receipts import (
     AttestedReceipt,
     ReceiptAttestor,
     _attest_decision,

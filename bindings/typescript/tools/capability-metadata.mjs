@@ -52,8 +52,8 @@ if (
   throw new Error("publication status contradicts unresolved blockers");
 }
 for (const statement of [
-  "typed attach, delegate, authorize, inspect, and closed-gateway workflow",
-  "this README does not upgrade those claims",
+  "closed product workflow",
+  "This README does not promote those repository-local claims",
   "Publication, promotion, and independent-review status",
 ]) {
   if (!readme.includes(statement)) {

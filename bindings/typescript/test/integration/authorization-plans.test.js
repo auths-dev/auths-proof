@@ -5,7 +5,7 @@ import {
   AuthorizationPlan,
   loadAuthorizationPlanBuilder,
   proofReference,
-} from "../../dist/authority.js";
+} from "../../dist/authorization-plans.js";
 
 test("general authorization plans are composed and summarized by Rust", async () => {
   const builder = await loadAuthorizationPlanBuilder();

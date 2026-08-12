@@ -182,7 +182,9 @@ class BudgetStore(Protocol):
 
 @runtime_checkable
 class ReceiptStore(Protocol):
-    async def put(self, receipt_id: str, receipt: bytes) -> Literal["stored", "duplicate"]: ...
+    async def put(
+        self, receipt_id: str, receipt: bytes
+    ) -> Literal["stored", "duplicate"]: ...
 
 
 @runtime_checkable
@@ -199,9 +201,7 @@ ResultT = TypeVar("ResultT", covariant=True)
 
 @runtime_checkable
 class ClosedExecutor(Protocol, Generic[CommandT, ResultT]):
-    async def execute(
-        self, command: CommandT, *, idempotency_key: str
-    ) -> ResultT: ...
+    async def execute(self, command: CommandT, *, idempotency_key: str) -> ResultT: ...
 
 
 @runtime_checkable
@@ -258,7 +258,9 @@ class InMemoryRuntimeStore(CommandStore, ReceiptStore, ChallengeStore, BudgetSto
             existing = self._budget_reservations.get(commitment)
             if existing is not None:
                 if existing != (algebra, amount):
-                    raise ValueError("action commitment is bound to another reservation")
+                    raise ValueError(
+                        "action commitment is bound to another reservation"
+                    )
                 return "duplicate"
             ceiling = self._budget_ceilings.get(algebra)
             if ceiling is None:
@@ -287,7 +289,9 @@ class InMemoryRuntimeStore(CommandStore, ReceiptStore, ChallengeStore, BudgetSto
             self._commands[state.command_id] = state
             return "stored"
 
-    async def put(self, receipt_id: str, receipt: bytes) -> Literal["stored", "duplicate"]:
+    async def put(
+        self, receipt_id: str, receipt: bytes
+    ) -> Literal["stored", "duplicate"]:
         value = bytes(receipt)
         async with self._lock:
             current = self._receipts.get(receipt_id)

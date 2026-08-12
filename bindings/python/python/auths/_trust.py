@@ -7,9 +7,9 @@ from dataclasses import dataclass
 from typing import Literal, Optional, Protocol, Sequence, Tuple, runtime_checkable
 
 from . import _native as native
-from .authority import ProofPlan, _native_proof_plan
-from .lifecycle import GrantStatusSnapshot, PrincipalStatusSnapshot
-from .workflow import (
+from ._authority import ProofPlan, _native_proof_plan
+from ._lifecycle import GrantStatusSnapshot, PrincipalStatusSnapshot
+from ._workflow import (
     BudgetCeiling,
     Permission,
     Principal,

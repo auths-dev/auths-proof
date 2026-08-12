@@ -20,7 +20,6 @@ import type {
   ApplicationReceiptSigner,
   AttestedApplicationReceipt,
 } from "../profiles/application/index.js";
-export { profileConformance } from "./profile-conformance.js";
 export {
   custodyConformance,
   type CustodyConformanceCase,
@@ -56,6 +55,15 @@ export {
   InMemoryReceiptPort,
   InMemoryReplayPort,
 } from "./runtime.js";
+export {
+  DiagnosticVerifier,
+  createDiagnosticVerifier,
+  type DiagnosticResult,
+} from "../verifier/diagnostic.js";
+export {
+  BoundedApprovalSession,
+  type BoundedApprovalSessionOptions,
+} from "../approvals.js";
 
 class DevelopmentApprovalProvider implements ApprovalProvider {
   readonly #decision: "approved" | "rejected";

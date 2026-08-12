@@ -1,6 +1,6 @@
 {
   "schema": "auths.semantic-freeze/1",
-  "freezeVersion": 67,
+  "freezeVersion": 68,
   "publicSurface": {
     "rustRoots": [
       "auths",
@@ -532,7 +532,7 @@
     },
     {
       "id": "auths.identity.protocol",
-      "version": 12,
+      "version": 13,
       "classification": "frozen-meaning",
       "categories": [
         "identity-protocol-versions",
@@ -555,7 +555,7 @@
         "core/fixtures/identity/v1/vectors.json",
         "core/spec/identity/v1"
       ],
-      "sha256": "f0aaedd66e4251a2d44add88d7db8bb4e0526c44e8a22e0c1767e423eb145355"
+      "sha256": "6cccf5683a9cbb1c2a4869f2fd6520c1531aed176982f372c1c3e63773d928a6"
     },
     {
       "id": "auths.modular-components",
@@ -593,7 +593,7 @@
     },
     {
       "id": "auths.portable-abi-bindings",
-      "version": 33,
+      "version": 34,
       "classification": "frozen-meaning",
       "categories": [
         "portable-abi",
@@ -610,7 +610,7 @@
         "core/crates/auths-model/src/lib.rs",
         "core/spec/v1/auths-proof.cddl"
       ],
-      "sha256": "408a101d428aecde41a0293abbb3792879d0860c02b0a7facc8115f52045b7c5"
+      "sha256": "2f4a7e707d7866b5b43f5125ea6c6664624bfec278d6d7bf320240f5c18152df"
     },
     {
       "id": "auths.product.bounded-domains",
@@ -668,7 +668,7 @@
     },
     {
       "id": "auths.product.development-composition",
-      "version": 1,
+      "version": 2,
       "classification": "frozen-meaning",
       "categories": [
         "explicit-development-mode",
@@ -683,11 +683,11 @@
         "bindings/typescript/src/internal/development-store-node.ts",
         "bindings/typescript/src/internal/development.ts"
       ],
-      "sha256": "f1fcdb43a81450ba47a756c793f6263a46e7b19877363d447aa28ca53903f115"
+      "sha256": "cf01ee437e6a128b3965cd414e29a9ea22b41aa1a7f874dd4bb72f4162845a07"
     },
     {
       "id": "auths.product.error-recovery-contract",
-      "version": 3,
+      "version": 4,
       "classification": "frozen-meaning",
       "categories": [
         "error-envelope",
@@ -698,7 +698,7 @@
       ],
       "owners": [
         "bindings/python/python/auths/_error_registry.py",
-        "bindings/python/python/auths/product_errors.py",
+        "bindings/python/python/auths/_product_errors.py",
         "bindings/typescript/src/generated/error-registry.ts",
         "bindings/typescript/src/product-errors.ts",
         "docs/reference/error-codes.md",
@@ -707,11 +707,11 @@
         "product/fixtures/v1/errors",
         "xtask/src/error_registry.rs"
       ],
-      "sha256": "9721bc2939ef897c56052065fc8aefb519472557f282262b900e2bbbab613189"
+      "sha256": "3d4f8fbb5ebf247562e1f63ec66931e6ee3cb20f99ce3c873fa980b76d252a6f"
     },
     {
       "id": "auths.product.facade",
-      "version": 2,
+      "version": 3,
       "classification": "frozen-meaning",
       "categories": [
         "create",
@@ -722,11 +722,11 @@
       ],
       "owners": [
         "bindings/python/python/auths/_product.py",
-        "bindings/python/python/auths/profiles/mcp.py",
+        "bindings/python/python/auths/profiles/_mcp.py",
         "bindings/typescript/src/product.ts",
         "bindings/typescript/src/profiles/mcp/index.ts"
       ],
-      "sha256": "672d2db8f3d92600806bdf5bb71c0810d9259ca40767e7408fc8d2c78def3e30"
+      "sha256": "b13ad03782a9988e6147c2e682f80d77a4c240c922f329320f4be4fef65eaf3e"
     },
     {
       "id": "auths.product.lifecycle",
@@ -749,7 +749,7 @@
     },
     {
       "id": "auths.product.mcp-closed-execution",
-      "version": 3,
+      "version": 4,
       "classification": "frozen-meaning",
       "categories": [
         "profile-session",
@@ -760,7 +760,7 @@
       ],
       "owners": [
         "bindings/python/python/auths/_mcp_profile.py",
-        "bindings/python/python/auths/profiles/mcp.py",
+        "bindings/python/python/auths/profiles/_mcp.py",
         "bindings/python/src/mcp.rs",
         "bindings/typescript/src/generated/mcp-profile.ts",
         "bindings/typescript/src/profiles/mcp/index.ts",
@@ -769,11 +769,11 @@
         "product/profiles/auths-profile-mcp/src/session.rs",
         "xtask/src/mcp_session_contract.rs"
       ],
-      "sha256": "28b8a31a12c9c307a546b3a5642fda07160f6a55b514f1e32b91b9e07d1ac043"
+      "sha256": "aa42b10d6a1bdf205644229358ef577bb6cd3859a59c7945190a5ca6321e9ed5"
     },
     {
       "id": "auths.product.mechanism-profile-conformance",
-      "version": 1,
+      "version": 2,
       "classification": "frozen-meaning",
       "categories": [
         "contract-inventory",
@@ -782,17 +782,17 @@
         "profile-owned-provider-conformance"
       ],
       "owners": [
-        "bindings/python/python/auths/conformance.py",
+        "bindings/python/python/auths/_conformance.py",
         "bindings/typescript/src/testkit/conformance.ts",
         "core/testkit/auths-testkit/src/mechanism_conformance.rs",
         "product/conformance/v1/mechanism-profile-conformance.json",
         "xtask/src/mechanism_conformance.rs"
       ],
-      "sha256": "bcbe488d7f07bf9101a45b2a38c6476e2924501764aff6aafc686533c8764d98"
+      "sha256": "bca6fdc0d9f851bcc6d4b9ae40290fb4c99e33d7bb897ff4ca09f6e864ada7c6"
     },
     {
       "id": "auths.product.public-sdk-contract",
-      "version": 25,
+      "version": 26,
       "classification": "frozen-meaning",
       "categories": [
         "rust-sdk-contract",
@@ -809,7 +809,7 @@
         "product/runtime/auths-runtime/src",
         "product/sdk/auths-sdk/src"
       ],
-      "sha256": "8449924241a5ba60ab16911ad3810cd4f4fc3afcef3d9f705a01870fbdef8965"
+      "sha256": "cc3b9c08b09e6d6436608c4bb8c02354e9f4c13c6546f1c76437d3df281bceaa"
     },
     {
       "id": "auths.product.receipts",
@@ -827,7 +827,7 @@
     },
     {
       "id": "auths.product.simplified-waist",
-      "version": 4,
+      "version": 5,
       "classification": "frozen-meaning",
       "categories": [
         "product-waist-invariants",
@@ -843,11 +843,11 @@
         "product/conformance/v1/simplified-product-waist.json",
         "xtask/src/product_waist.rs"
       ],
-      "sha256": "92bf19ee43f895a2083e14fe1e152e16bd96d132efa7bbaede9e3e4646cdb7a3"
+      "sha256": "d3e828fc962b1cc8e4b9921639ce1c6d18cec9b82aded9f8db43b07c1d4cf26e"
     },
     {
       "id": "auths.product.vocabulary",
-      "version": 2,
+      "version": 3,
       "classification": "frozen-meaning",
       "categories": [
         "customer-vocabulary",
@@ -865,7 +865,7 @@
         "product/sdk/auths-sdk/Cargo.toml",
         "xtask/src/sdk_vocabulary.rs"
       ],
-      "sha256": "6ad3eee03ed2af72db01b589980ed22f1a7e4da4cfded91e35f0b67df3b6a066"
+      "sha256": "feeb9787dc755155ac6c3908836bbad32165737ba3b50a9e6ff9625c8ee92a5f"
     },
     {
       "id": "auths.release.benchmark-contract",
@@ -886,7 +886,7 @@
     },
     {
       "id": "auths.release.public-surface",
-      "version": 67,
+      "version": 68,
       "classification": "release-metadata",
       "categories": [
         "package-names",
@@ -969,7 +969,7 @@
         "xtask/src/release_control.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "f55e897ffbd0aae3352929edc46502ef1bfb818a278fabb30489126cdfcf9da5"
+      "sha256": "6ee084c376297fcf854c03e1a76a14e3de0269bc3865e756811090d872a68caf"
     }
   ]
 }

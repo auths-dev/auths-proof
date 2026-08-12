@@ -24,21 +24,14 @@ from typing import (
 )
 
 if TYPE_CHECKING:
-    from .profiles.mcp import (
+    from .profiles._mcp import (
         AuthorizationRequest,
         McpAction,
         McpAuthorizationResult,
         McpPlan,
         McpPlanAuthorizationResult,
     )
-    from .profiles.http import (
-        HttpAction,
-        HttpAuthorizationRequest,
-        HttpAuthorizationResult,
-        HttpPlan,
-        HttpPlanAuthorizationResult,
-    )
-    from .profile_kit import (
+    from ._application_profile import (
         ApplicationAction,
         ApplicationPlan,
         ApplicationPlanResult,
@@ -62,13 +55,13 @@ from ._native import (
     validate_root_authority,
     validate_trusted_authority,
 )
-from .errors import (
+from ._errors import (
     AuthsError,
     AuthsWorkflowError,
     ProviderFailureKind,
     ProviderOperationError,
 )
-from .observability import AuthsEvent, Telemetry
+from ._observability import AuthsEvent, Telemetry
 
 SignerLifecycle = Literal["durable", "ephemeral"]
 SigningObjectKind = Literal["grant", "action", "principal-status", "grant-status"]
@@ -193,6 +186,27 @@ class ApprovalConfiguration:
 
 class Approval:
     """Typed builders for committed approval policies."""
+
+    @staticmethod
+    def threshold(
+        providers: Sequence[ApprovalProvider], *, threshold: int
+    ) -> ApprovalProvider:
+        from ._approvals import threshold_approval
+
+        return threshold_approval(providers, threshold=threshold)
+
+    @staticmethod
+    def response(
+        request: ApprovalRequest, *, decision: ApprovalDecision
+    ) -> ApprovalResponse:
+        if type(request) is not ApprovalRequest:
+            raise TypeError("approval response requires an Auths approval request")
+        return ApprovalResponse(
+            request.request_id,
+            request.transaction_digest,
+            request.policy,
+            decision,
+        )
 
     @staticmethod
     def none(
@@ -1173,14 +1187,6 @@ class AttachedAgent:
     @overload
     async def authorize(
         self,
-        action: HttpAction,
-        *,
-        request: Optional[HttpAuthorizationRequest] = None,
-    ) -> HttpAuthorizationResult: ...
-
-    @overload
-    async def authorize(
-        self,
         action: ApplicationAction[Any],
         *,
         request: Optional[ApplicationRequest] = None,
@@ -1189,14 +1195,11 @@ class AttachedAgent:
     async def authorize(
         self, action: object, *, request: Optional[object] = None
     ) -> object:
-        from .profiles.http import HttpAction, _authorize_http
-        from .profiles.mcp import McpAction, _authorize_mcp
-        from .profile_kit import ApplicationAction, _authorize_application
+        from .profiles._mcp import McpAction, _authorize_mcp
+        from ._application_profile import ApplicationAction, _authorize_application
 
         if type(action) is McpAction:
             return await _authorize_mcp(self, action, cast(Any, request))
-        if type(action) is HttpAction:
-            return await _authorize_http(self, action, cast(Any, request))
         if type(action) is ApplicationAction:
             return await _authorize_application(
                 self, cast(Any, action), cast(Any, request)
@@ -1215,15 +1218,6 @@ class AttachedAgent:
     @overload
     async def authorize_plan(
         self,
-        plan: HttpPlan,
-        *,
-        approval_provider: Optional[ApprovalProvider] = None,
-        requests: Optional[Sequence[HttpAuthorizationRequest]] = None,
-    ) -> HttpPlanAuthorizationResult: ...
-
-    @overload
-    async def authorize_plan(
-        self,
         plan: ApplicationPlan[Any],
         *,
         approval_provider: Optional[ApprovalProvider] = None,
@@ -1237,19 +1231,11 @@ class AttachedAgent:
         approval_provider: Optional[ApprovalProvider] = None,
         requests: Optional[Sequence[object]] = None,
     ) -> object:
-        from .profiles.http import HttpPlan, _authorize_http_plan
-        from .profiles.mcp import McpPlan, _authorize_mcp_plan
-        from .profile_kit import ApplicationPlan, _authorize_application_plan
+        from .profiles._mcp import McpPlan, _authorize_mcp_plan
+        from ._application_profile import ApplicationPlan, _authorize_application_plan
 
         if type(plan) is McpPlan:
             return await _authorize_mcp_plan(
-                self,
-                plan,
-                approval_provider,
-                cast(Any, requests),
-            )
-        if type(plan) is HttpPlan:
-            return await _authorize_http_plan(
                 self,
                 plan,
                 approval_provider,

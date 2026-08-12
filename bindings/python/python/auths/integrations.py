@@ -29,14 +29,14 @@ from ._product import (
     _create_auths,
     _create_auths_configuration,
 )
-from .bootstrap import prepare_raw_key_authority
-from .profiles.mcp import (
+from ._bootstrap import prepare_raw_key_authority
+from .profiles._mcp import (
     McpExecutionStore,
     McpReceiptSink,
     McpToolAuthority,
     resources_for_mcp_authority,
 )
-from .workflow import Approval, ApprovalConfiguration, AuthsClient, Validity
+from ._workflow import Approval, ApprovalConfiguration, AuthsClient, Validity
 
 InputT = TypeVar("InputT", contravariant=True)
 OutputT = TypeVar("OutputT", covariant=True)

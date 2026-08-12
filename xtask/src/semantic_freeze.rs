@@ -4,7 +4,7 @@ use crate::*;
 
 const INVENTORY_PATH: &str = "release/semantic-freeze.json";
 const INVENTORY_SCHEMA: &str = "auths.semantic-freeze/1";
-const FREEZE_VERSION: u64 = 67;
+const FREEZE_VERSION: u64 = 68;
 const PUBLIC_RUST_ROOTS: [&str; 10] = [
     "auths",
     "auths-byte-channel",
@@ -184,7 +184,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.identity.protocol",
-            12,
+            13,
             FreezeClassification::FrozenMeaning,
             &[
                 "identity-protocol-versions",
@@ -243,7 +243,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.portable-abi-bindings",
-            33,
+            34,
             FreezeClassification::FrozenMeaning,
             &["portable-abi", "authoring-abi", "binding-contracts"],
             vec![
@@ -259,7 +259,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.public-sdk-contract",
-            25,
+            26,
             FreezeClassification::FrozenMeaning,
             &[
                 "rust-sdk-contract",
@@ -279,7 +279,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.mcp-closed-execution",
-            3,
+            4,
             FreezeClassification::FrozenMeaning,
             &[
                 "profile-session",
@@ -294,7 +294,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
                 "bindings/typescript/src/generated/mcp-profile.ts".to_owned(),
                 "bindings/typescript/src/profiles/mcp/index.ts".to_owned(),
                 "bindings/python/python/auths/_mcp_profile.py".to_owned(),
-                "bindings/python/python/auths/profiles/mcp.py".to_owned(),
+                "bindings/python/python/auths/profiles/_mcp.py".to_owned(),
                 "bindings/python/src/mcp.rs".to_owned(),
                 "bindings/wasm/auths-proof-wasm/src/lib.rs".to_owned(),
                 "xtask/src/mcp_session_contract.rs".to_owned(),
@@ -302,7 +302,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.simplified-waist",
-            4,
+            5,
             FreezeClassification::FrozenMeaning,
             &[
                 "product-waist-invariants",
@@ -321,7 +321,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.facade",
-            2,
+            3,
             FreezeClassification::FrozenMeaning,
             &[
                 "create",
@@ -334,12 +334,12 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
                 "bindings/typescript/src/product.ts".to_owned(),
                 "bindings/python/python/auths/_product.py".to_owned(),
                 "bindings/typescript/src/profiles/mcp/index.ts".to_owned(),
-                "bindings/python/python/auths/profiles/mcp.py".to_owned(),
+                "bindings/python/python/auths/profiles/_mcp.py".to_owned(),
             ],
         )?,
         freeze_entry(
             "auths.product.development-composition",
-            1,
+            2,
             FreezeClassification::FrozenMeaning,
             &[
                 "explicit-development-mode",
@@ -357,7 +357,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.mechanism-profile-conformance",
-            1,
+            2,
             FreezeClassification::FrozenMeaning,
             &[
                 "contract-inventory",
@@ -369,13 +369,13 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
                 "core/testkit/auths-testkit/src/mechanism_conformance.rs".to_owned(),
                 "product/conformance/v1/mechanism-profile-conformance.json".to_owned(),
                 "bindings/typescript/src/testkit/conformance.ts".to_owned(),
-                "bindings/python/python/auths/conformance.py".to_owned(),
+                "bindings/python/python/auths/_conformance.py".to_owned(),
                 "xtask/src/mechanism_conformance.rs".to_owned(),
             ],
         )?,
         freeze_entry(
             "auths.product.vocabulary",
-            2,
+            3,
             FreezeClassification::FrozenMeaning,
             &[
                 "customer-vocabulary",
@@ -396,7 +396,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.error-recovery-contract",
-            3,
+            4,
             FreezeClassification::FrozenMeaning,
             &[
                 "error-envelope",
@@ -411,7 +411,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
                 "product/fixtures/v1/errors".to_owned(),
                 "bindings/typescript/src/product-errors.ts".to_owned(),
                 "bindings/typescript/src/generated/error-registry.ts".to_owned(),
-                "bindings/python/python/auths/product_errors.py".to_owned(),
+                "bindings/python/python/auths/_product_errors.py".to_owned(),
                 "bindings/python/python/auths/_error_registry.py".to_owned(),
                 "xtask/src/error_registry.rs".to_owned(),
                 "docs/reference/error-codes.md".to_owned(),
@@ -558,7 +558,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
     ]);
     entries.push(freeze_entry(
         "auths.release.public-surface",
-        67,
+        68,
         FreezeClassification::ReleaseMetadata,
         &[
             "package-names",

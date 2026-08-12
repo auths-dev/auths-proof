@@ -5,17 +5,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  approvalPolicy,
-  decodeExecutionReference,
-  decodeReceipt,
-  encodeExecutionReference,
-  encodeReceipt,
-  thresholdApproval,
-  verifyReceipt,
-  type ApprovalProvider,
+  approval,
+  ExecutionReference,
 } from "@auths-dev/sdk";
 import { development } from "@auths-dev/sdk/integrations";
 import { mcp } from "@auths-dev/sdk/profiles";
+import { decodeReceipt, encodeReceipt, verifyReceipt } from "@auths-dev/sdk/verify";
 
 const self = fileURLToPath(import.meta.url);
 const mode = process.argv[2];
@@ -58,7 +53,7 @@ async function phaseOne(root: string): Promise<void> {
     if (result.kind !== "recoverable" || result.reference === undefined || result.completedReceipts.length !== 1) {
       throw new Error("ordered plan did not stop with one completed member");
     }
-    await writeFile(join(root, "reference.bin"), encodeExecutionReference(result.reference));
+    await writeFile(join(root, "reference.bin"), result.reference.encode());
     await writeFile(join(root, "typescript-receipt.json"), encodeReceipt(result.completedReceipts[0]!));
   } finally {
     await auths.close();
@@ -84,7 +79,7 @@ async function phaseTwo(root: string): Promise<void> {
     },
   });
   try {
-    const reference = decodeExecutionReference(await readFile(join(root, "reference.bin")));
+    const reference = ExecutionReference.decode(await readFile(join(root, "reference.bin")));
     const result = await auths.resume({ reference, provider });
     if (result.kind !== "completed" || entries !== 0) throw new Error("recovery re-entered the provider");
     await verifyReceipt(result.receipt);
@@ -97,16 +92,16 @@ async function phaseTwo(root: string): Promise<void> {
 async function planApproval() {
   const providers = [approver("company-a"), approver("company-b")];
   return {
-    policy: await approvalPolicy.planOnce({
+    policy: await approval.planOnce({
       policyId: "approval.cross-company-plan",
       maxUses: 2,
       requirements: ["company-a", "company-b"],
     }),
-    provider: thresholdApproval({ threshold: 2, providers }),
+    provider: approval.threshold({ threshold: 2, providers }),
   };
 }
 
-function approver(_organization: string): ApprovalProvider {
+function approver(_organization: string) {
   return {
     async approve(request) {
       return {

@@ -7,8 +7,8 @@ from dataclasses import dataclass
 from typing import Optional, Sequence
 
 from . import _native as native
-from .trust import AssurancePolicy, AssuranceRequirement, TrustAnchor, compile_trust
-from .workflow import (
+from ._trust import AssurancePolicy, AssuranceRequirement, TrustAnchor, compile_trust
+from ._workflow import (
     ApprovalConfiguration,
     BudgetCeiling,
     Permission,

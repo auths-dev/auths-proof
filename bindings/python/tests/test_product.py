@@ -5,7 +5,8 @@ import pickle
 
 import pytest
 
-from auths import AuthsConfiguration, ExecutionReference
+from auths import ExecutionReference
+from auths._product import AuthsConfiguration
 from auths.profiles import mcp
 
 

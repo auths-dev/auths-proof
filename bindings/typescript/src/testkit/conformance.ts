@@ -5,7 +5,7 @@ import {
   type McpClosedProvider,
   type McpHandlerOutcome,
   type McpToolContext,
-} from "../mcp.js";
+} from "../profiles/mcp/index.js";
 import { CONFORMANCE_CATALOG } from "../generated/mechanism-conformance.js";
 import { custodyConformance } from "./custody-conformance.js";
 import type {

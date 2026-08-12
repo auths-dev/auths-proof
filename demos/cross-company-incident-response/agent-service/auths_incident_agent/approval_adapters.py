@@ -10,7 +10,7 @@ import urllib.parse
 import urllib.request
 from typing import Any
 
-from auths import ApprovalRequest, ApprovalResponse
+from auths._workflow import ApprovalRequest, ApprovalResponse
 from auths import _native as native
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec

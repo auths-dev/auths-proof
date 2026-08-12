@@ -1,7 +1,7 @@
 """Signing requests, responses, and custody provider ports."""
 
 from ._native import PrincipalDescriptor
-from .workflow import (
+from ._workflow import (
     ControlEvidence,
     ProviderFailureKind,
     ProviderOperationError,

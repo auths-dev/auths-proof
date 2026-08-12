@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from auths.product_errors import (
+from auths._product_errors import (
     AuthsError,
     EffectState,
     RecommendedAction,

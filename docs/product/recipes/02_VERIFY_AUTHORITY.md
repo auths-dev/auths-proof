@@ -88,4 +88,4 @@ The executable includes its failure exercise and asserts that no unauthorized or
 
 ## Take it to production
 
-Load trusted context from your governed trust source and retain the exact profile/semantic versions used by issued evidence.
+Load the verification context from your governed trust source and retain the exact profile/semantic versions used by issued evidence.

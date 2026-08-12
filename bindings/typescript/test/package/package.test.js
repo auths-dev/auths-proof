@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { npmSync } from "./helpers/packed-install.mjs";
@@ -10,20 +12,11 @@ test("package exposes bounded public surfaces and includes contributor docs", as
   );
   assert.deepEqual(Object.keys(manifest.exports).sort(), [
     ".",
-    "./approvals",
-    "./authority",
-    "./custody",
-    "./diagnostics",
+    "./framework",
     "./identity",
-    "./inspection",
-    "./lifecycle",
-    "./mcp",
-    "./observability",
-    "./profile-kit",
+    "./integrations",
     "./profiles",
-    "./runtime",
     "./testkit",
-    "./trust",
     "./verify",
   ]);
   assert.ok(manifest.files.includes("docs"));
@@ -51,6 +44,7 @@ test("packed contents carry the published artifacts and no source or tests", asy
   const listing = npmSync(["pack", "--dry-run", "--json"], {
     cwd: fileURLToPath(new URL("../../", import.meta.url)),
     encoding: "utf8",
+    env: { ...process.env, npm_config_cache: join(tmpdir(), "auths-package-test-npm-cache") },
     stdio: ["ignore", "pipe", "ignore"],
   });
   const [packed] = JSON.parse(listing);
@@ -60,20 +54,11 @@ test("packed contents carry the published artifacts and no source or tests", asy
     "package.json",
     "dist/index.js",
     "dist/index.d.ts",
-    "dist/approvals.js",
-    "dist/authority.js",
-    "dist/custody.js",
-    "dist/diagnostics.js",
+    "dist/framework.js",
     "dist/identity.js",
-    "dist/inspection.js",
-    "dist/lifecycle.js",
-    "dist/mcp.js",
-    "dist/observability.js",
-    "dist/profile-kit.js",
+    "dist/integrations.js",
     "dist/profiles.js",
-    "dist/runtime.js",
     "dist/testkit/index.js",
-    "dist/trust.js",
     "dist/verify.js",
     "wasm/auths_proof_wasm.js",
     "wasm/auths_proof_wasm_bg.wasm",
@@ -99,7 +84,7 @@ test("packed contents carry the published artifacts and no source or tests", asy
 });
 
 test("public facade barrels contain exports only", async () => {
-  for (const name of ["authority.ts", "custody.ts", "index.ts", "mcp.ts", "profile-kit.ts", "profiles.ts", "workflow.ts"]) {
+  for (const name of ["framework.ts", "profiles.ts"]) {
     const source = await readFile(new URL(`../../src/${name}`, import.meta.url), "utf8");
     assert.doesNotMatch(
       source,
@@ -141,8 +126,8 @@ test("published entry points omit package coordination hooks", async () => {
   for (const modulePath of [
     "../../dist/index.js",
     "../../dist/verify.js",
-    "../../dist/inspection.js",
-    "../../dist/diagnostics.js",
+    "../../dist/identity.js",
+    "../../dist/framework.js",
   ]) {
     const exports = await import(modulePath);
     for (const name of forbidden) {

@@ -1,6 +1,6 @@
 """Qualified Auths effect verticals."""
 
-from .mcp import (
+from ._mcp import (
     DevelopmentMcpProvider,
     McpAction,
     McpClosedProvider,

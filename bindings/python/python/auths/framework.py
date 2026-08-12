@@ -1,7 +1,7 @@
 """Proven contracts for custom mechanisms and verticals."""
 
 from ._mechanisms import AtomicReservationRecord, AtomicReservationStore
-from .custody import (
+from ._custody import (
     ControlEvidence,
     PrincipalDescriptor,
     ProviderFailureKind,

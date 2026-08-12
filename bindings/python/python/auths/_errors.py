@@ -108,7 +108,9 @@ class ProviderOperationError(AuthsError):
 
 
 class RuntimeStateError(AuthsError):
-    def __init__(self, code: str, *, retry: RetryClass, effect_state: EffectState) -> None:
+    def __init__(
+        self, code: str, *, retry: RetryClass, effect_state: EffectState
+    ) -> None:
         super().__init__(
             "runtime state transition failed",
             ErrorDetails(

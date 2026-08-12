@@ -68,7 +68,9 @@ def support_bundle(
     runtime: Mapping[str, AttributeValue],
 ) -> bytes:
     values = tuple(events)
-    if len(values) > MAX_EVENTS or any(type(value) is not AuthsEvent for value in values):
+    if len(values) > MAX_EVENTS or any(
+        type(value) is not AuthsEvent for value in values
+    ):
         raise ValueError("support bundle event collection is invalid")
     runtime_values = tuple(runtime.items())
     _validate_attributes(runtime_values)
@@ -110,7 +112,9 @@ def _validate_attributes(
         if type(value) is int and not -(1 << 63) <= value < (1 << 63):
             raise ValueError("telemetry integer is outside supported bounds")
         if type(value) not in (str, int, bool):
-            raise TypeError("telemetry attributes must be low-cardinality scalar values")
+            raise TypeError(
+                "telemetry attributes must be low-cardinality scalar values"
+            )
         names.add(key)
 
 

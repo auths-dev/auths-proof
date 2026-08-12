@@ -2,14 +2,13 @@ from __future__ import annotations
 
 import base64
 import hashlib
-import json
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
-from auths import Principal
-from auths.lifecycle import record_compromise, rotate_identity
-from auths.runtime import RuntimeKernel, TransitionGates
+from auths._lifecycle import record_compromise, rotate_identity
+from auths._native import Principal
+from auths._runtime import RuntimeKernel, TransitionGates
 from auths.verify import verify
 
 
@@ -216,7 +215,11 @@ def withdrawal_attack() -> dict[str, Any]:
         "approval",
         "approval-cancelled",
         "The bounded plan session retains the first receipt and refuses the unapproved second member.",
-        {"completedSteps": ["firewall-eu-west-2"], "unresolved": ["cache-eu-west-2"], "providerCalls": 1},
+        {
+            "completedSteps": ["firewall-eu-west-2"],
+            "unresolved": ["cache-eu-west-2"],
+            "providerCalls": 1,
+        },
     )
 
 
@@ -227,7 +230,11 @@ def scope_attack() -> dict[str, Any]:
         "authority",
         "delegation-expanded",
         "The TypeScript live-session child planner rejected an all-region resource outside the parent namespace.",
-        {"parent": "edge://northstar/eu-west-2", "child": "edge://northstar/*", "signerCalls": 0},
+        {
+            "parent": "edge://northstar/eu-west-2",
+            "child": "edge://northstar/*",
+            "signerCalls": 0,
+        },
     )
 
 

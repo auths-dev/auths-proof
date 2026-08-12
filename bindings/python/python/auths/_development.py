@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Optional
 
 from . import _native as native
-from .custody import (
+from ._custody import (
     ControlEvidence,
     PrincipalDescriptor,
     Signer,
@@ -11,7 +11,7 @@ from .custody import (
     SigningRequest,
     SigningResponse,
 )
-from .receipts import ReceiptSigner
+from ._receipts import ReceiptSigner
 
 
 class DevelopmentEd25519Signer(Signer):

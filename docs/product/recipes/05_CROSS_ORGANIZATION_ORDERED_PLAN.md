@@ -160,40 +160,25 @@ import sys
 import tempfile
 from pathlib import Path
 
-from auths import (
-    Approval,
-    ApprovalRequest,
-    ApprovalResponse,
-    decode_execution_reference,
-    decode_receipt,
-    encode_execution_reference,
-    encode_receipt,
-    verify_receipt,
-)
-from auths.approvals import threshold_approval
+from auths import Approval, ExecutionReference
 from auths.integrations import development
-from auths.profiles import mcp
-from auths.profiles.mcp import McpHandlerOutcome
+from auths.profiles import McpHandlerOutcome, mcp
+from auths.verify import decode_receipt, encode_receipt, verify_receipt
 
 
 class OrganizationApproval:
     def __init__(self, organization: str) -> None:
         self.organization = organization
 
-    async def approve(self, request: ApprovalRequest) -> ApprovalResponse:
-        return ApprovalResponse(
-            request.request_id,
-            request.transaction_digest,
-            request.policy,
-            "approved",
-        )
+    async def approve(self, request):
+        return Approval.response(request, decision="approved")
 
 
 def plan_approval():
     providers = (OrganizationApproval("company-a"), OrganizationApproval("company-b"))
     return Approval.plan_once(
         "approval.cross-company-plan",
-        threshold_approval(providers, threshold=2),
+        Approval.threshold(providers, threshold=2),
         max_uses=2,
         requirements=("company-a", "company-b"),
     )

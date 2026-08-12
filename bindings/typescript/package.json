@@ -58,7 +58,7 @@
     "test:runtime-contract": "npm run build && node tools/runtime-contract.mjs",
     "test:performance": "npm run build && node tools/performance.mjs",
     "test:contract": "tsc -p test/contract/tsconfig.json",
-    "test:examples": "npm run build && tsc -p examples/tsconfig.json",
+    "test:examples": "npm run build && node --test test/package/packed-examples.test.js",
     "test:integration": "npm run build && npm run build:wasm && npm run build:vectors && node tools/run-tests.mjs integration",
     "test:integration:built": "npm run build && node tools/run-tests.mjs integration",
     "test:package": "npm run build && node tools/run-tests.mjs package",

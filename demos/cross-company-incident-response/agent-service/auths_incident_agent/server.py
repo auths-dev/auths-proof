@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from auths import AuthsError
-from auths.profile_kit import ApplicationGatewayError
+from auths._application_profile import ApplicationGatewayError
 from auths.testkit import DevelopmentReceiptAttestor
 
 from . import sdk

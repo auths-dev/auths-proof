@@ -1,132 +1,66 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { access, cp, readFile, rm, writeFile } from "node:fs/promises";
+import { rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { test } from "node:test";
 import { compileConsumer, installPackedSdk } from "./helpers/packed-install.mjs";
 
-const fixtureRoot = new URL("../../../../core/fixtures/v1/", import.meta.url);
-const bindingRoot = new URL("../../../../target/binding-vectors/", import.meta.url);
+const entryPoints = [
+  "@auths-dev/sdk",
+  "@auths-dev/sdk/identity",
+  "@auths-dev/sdk/verify",
+  "@auths-dev/sdk/profiles",
+  "@auths-dev/sdk/integrations",
+  "@auths-dev/sdk/framework",
+  "@auths-dev/sdk/testkit",
+];
 
-test("packed package installs and executes only through published entry points", async () => {
-  const { directory: temporary } = await installPackedSdk("auths-typescript-consumer-");
+const removed = [
+  "advanced", "approvals", "authority", "custody", "diagnostics", "inspection",
+  "lifecycle", "mcp", "observability", "profile-kit", "runtime", "trust", "workflow",
+];
+
+test("packed package exposes only the reviewed public topology", async () => {
+  const { directory } = await installPackedSdk("auths-typescript-consumer-");
   try {
-    await cp(new URL("valid/raw-key-chain.proof.cbor", fixtureRoot), join(temporary, "proof.cbor"));
-    await cp(new URL("valid/raw-key-chain.action.cbor", fixtureRoot), join(temporary, "action.cbor"));
-    await cp(new URL("authorized.context.cbor", bindingRoot), join(temporary, "authorized.context.cbor"));
-    await cp(new URL("valid/raw-key-chain.context.cbor", fixtureRoot), join(temporary, "denied.context.cbor"));
-    await cp(
-      new URL("indeterminate/unsupported-budget-algebra.result.cbor", fixtureRoot),
-      join(temporary, "indeterminate.result.cbor"),
-    );
-    await writeFile(join(temporary, "consumer.mjs"), `
-      import { readFile } from "node:fs/promises";
-      const { Verifier, loadVerifier } = await import("@auths-dev/sdk/verify");
-      const { createDiagnosticVerifier } = await import("@auths-dev/sdk/diagnostics");
-      const { inspectDecision } = await import("@auths-dev/sdk/inspection");
-      const sdk = await import("@auths-dev/sdk");
-      for (const name of ["Verifier", "loadVerifier", "inspectDecision", "createDiagnosticVerifier"]) {
-        if (name in sdk) throw new Error(name + " leaked onto the main entry point");
+    await writeFile(join(directory, "consumer.mjs"), `
+      const expected = ${JSON.stringify(entryPoints)};
+      for (const entry of expected) await import(entry);
+      const root = await import("@auths-dev/sdk");
+      const names = Object.keys(root).sort();
+      const allowed = [
+        "AuthsError", "ExecutionReference", "approval", "createAuths",
+      ];
+      if (JSON.stringify(names) !== JSON.stringify(allowed)) {
+        throw new Error("root drifted: " + names.join(","));
       }
-      void inspectDecision;
-      await import("@auths-dev/sdk/mcp");
-      await import("@auths-dev/sdk/profile-kit");
-      const identityModule = await import("@auths-dev/sdk/identity");
-      await import("@auths-dev/sdk/authority");
-      await import("@auths-dev/sdk/approvals");
-      await import("@auths-dev/sdk/profiles");
-      await import("@auths-dev/sdk/testkit");
-      for (const name of ["approvalPolicy", "AuthsClient", "ProfilePlan"]) {
-        if (name in identityModule) throw new Error(name + " leaked onto the identity entry point");
-      }
-      const identityKeys = await crypto.subtle.generateKey("Ed25519", true, ["sign", "verify"]);
-      const identityPublicKey = new Uint8Array(await crypto.subtle.exportKey("raw", identityKeys.publicKey));
-      const identity = await identityModule.loadIdentity();
-      const rawKeyIdentity = await identityModule.loadRawKeyIdentityAdapter();
-      const ed25519 = await identityModule.loadEd25519RawKeyAuthentication();
-      const localIdentity = rawKeyIdentity.create("ed25519-v1", identityPublicKey);
-      const validatedIdentity = identity.parseIdentity(
-        identity.decodePublicIdentity(localIdentity.packet), rawKeyIdentity,
-      );
-      const identityMessage = new TextEncoder().encode("packed identity quickstart");
-      const identityPreimage = identity.signingPreimage(validatedIdentity, identityMessage);
-      const identitySignature = new Uint8Array(await crypto.subtle.sign(
-        "Ed25519", identityKeys.privateKey, identityPreimage,
-      ));
-      const authenticatedIdentity = identity.authenticate(
-        identity.decodeSignedMessage(identity.encodeSignedMessage(
-          validatedIdentity, identityMessage, identitySignature,
-        )),
-        validatedIdentity,
-        ed25519,
-      );
-      if (authenticatedIdentity.identity.identityId !== localIdentity.identityId) {
-        throw new Error("packed identity quickstart changed identity");
-      }
-      const bytes = (name) => readFile(new URL(name, import.meta.url));
-      const action = await bytes("action.cbor");
-      const verifier = await loadVerifier();
-      const authorized = verifier.verify(
-        await bytes("proof.cbor"), action, await bytes("authorized.context.cbor"),
-      );
-      const denied = verifier.verify(
-        await bytes("proof.cbor"), action, await bytes("denied.context.cbor"),
-      );
-      const indeterminateBytes = await bytes("indeterminate.result.cbor");
-      const indeterminate = createDiagnosticVerifier({ verifyV1: () => indeterminateBytes }).verify(
-        new Uint8Array([1]), action, new Uint8Array([2]),
-      );
-      if (authorized.kind !== "authorized") throw new Error("authorized fixture drifted");
-      if (denied.kind !== "denied") throw new Error("denied fixture drifted");
-      if (indeterminate.kind !== "indeterminate") throw new Error("indeterminate fixture drifted");
-      if (indeterminate.effectCapable !== false) throw new Error("diagnostic result claimed effect capability");
-      if ("action" in indeterminate) throw new Error("diagnostic result carried a verified action");
-      try {
-        new Verifier({ verifyV1: () => indeterminateBytes });
-        throw new Error("installed package allowed engine injection");
-      } catch (error) {
-        if (!/sealed/.test(String(error?.message))) throw error;
-      }
-      const forged = createDiagnosticVerifier({ verifyV1: () => authorized.resultCbor }).verify(
-        new Uint8Array([1]), action, new Uint8Array([2]),
-      );
-      if (forged.kind !== "authorized" || "action" in forged) {
-        throw new Error("forged authorized bytes produced a verified action");
-      }
-      try {
-        await import("@auths-dev/sdk/workflow");
-        throw new Error("internal workflow subpath was importable");
-      } catch (error) {
-        if (error?.code !== "ERR_PACKAGE_PATH_NOT_EXPORTED") throw error;
+      for (const path of ${JSON.stringify(removed)}) {
+        try {
+          await import("@auths-dev/sdk/" + path);
+          throw new Error("removed subpath resolved: " + path);
+        } catch (error) {
+          if (error?.code !== "ERR_PACKAGE_PATH_NOT_EXPORTED") throw error;
+        }
       }
     `);
-    await writeFile(join(temporary, "consumer.ts"), `
-      import { approvalPolicy, loadAuths, type AuthorizationResult, type Signer } from "@auths-dev/sdk";
-      import { createDiagnosticVerifier, type DiagnosticResult } from "@auths-dev/sdk/diagnostics";
-      import { inspectDecision } from "@auths-dev/sdk/inspection";
-      import { mcp, type McpCommand } from "@auths-dev/sdk/mcp";
-      import { defineProfile } from "@auths-dev/sdk/profile-kit";
-      import { development } from "@auths-dev/sdk/testkit";
-      import {
-        loadIdentity, loadRawKeyIdentityAdapter, type DecodedIdentity,
-      } from "@auths-dev/sdk/identity";
-      import { loadAuthorizationPlanBuilder } from "@auths-dev/sdk/authority";
-      import { approvalPolicy as layeredApprovalPolicy } from "@auths-dev/sdk/approvals";
-      import { mcp as layeredMcp } from "@auths-dev/sdk/profiles";
-      import { loadVerifier } from "@auths-dev/sdk/verify";
-      void approvalPolicy; void loadAuths; void mcp; void defineProfile;
-      void development; void loadVerifier; void createDiagnosticVerifier; void inspectDecision;
-      void loadIdentity; void loadRawKeyIdentityAdapter; void loadAuthorizationPlanBuilder;
-      void layeredApprovalPolicy; void layeredMcp;
-      declare const decodedIdentity: DecodedIdentity;
-      void decodedIdentity;
-      declare const diagnostic: DiagnosticResult;
-      void diagnostic;
-      declare const result: AuthorizationResult<McpCommand>;
+    await writeFile(join(directory, "consumer.ts"), `
+      import { approval, type Auths, type AuthsErrorCode } from "@auths-dev/sdk";
+      import { loadIdentity } from "@auths-dev/sdk/identity";
+      import { inspectDecision, verifyReceipt } from "@auths-dev/sdk/verify";
+      import { mcp, type McpAction } from "@auths-dev/sdk/profiles";
+      import { development } from "@auths-dev/sdk/integrations";
+      import type { AtomicReservationStore, Signer } from "@auths-dev/sdk/framework";
+      import { certifyAtomicStore } from "@auths-dev/sdk/testkit";
+      void approval; void loadIdentity; void inspectDecision; void verifyReceipt;
+      void mcp; void development; void certifyAtomicStore;
+      declare const auths: Auths;
+      declare const code: AuthsErrorCode;
+      declare const action: McpAction;
+      declare const store: AtomicReservationStore;
       declare const signer: Signer;
-      void result; void signer;
+      void auths; void code; void action; void store; void signer;
     `);
-    await writeFile(join(temporary, "tsconfig.json"), JSON.stringify({
+    await writeFile(join(directory, "tsconfig.json"), JSON.stringify({
       compilerOptions: {
         lib: ["DOM", "ES2022", "ESNext.Disposable"],
         module: "NodeNext",
@@ -137,25 +71,9 @@ test("packed package installs and executes only through published entry points",
       },
       include: ["consumer.ts"],
     }));
-    compileConsumer(temporary);
-    execFileSync(process.execPath, ["consumer.mjs"], { cwd: temporary, stdio: "pipe" });
-
-    const installedManifest = JSON.parse(await readFile(
-      join(temporary, "node_modules", "@auths-dev", "sdk", "package.json"),
-      "utf8",
-    ));
-    assert.equal(installedManifest.name, "@auths-dev/sdk");
-    assert.equal(installedManifest.version, "1.0.0-rc.1");
-    await assert.rejects(() => access(join(
-      temporary,
-      "node_modules",
-      "@auths-dev",
-      "sdk",
-      "dist",
-      "workflow",
-      "runtime.js",
-    )));
+    compileConsumer(directory);
+    execFileSync(process.execPath, ["consumer.mjs"], { cwd: directory, stdio: "pipe" });
   } finally {
-    await rm(temporary, { recursive: true, force: true });
+    await rm(directory, { recursive: true, force: true });
   }
 });

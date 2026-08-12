@@ -8,7 +8,7 @@ import {
   prepareRawKeyAuthority,
   signedGrantSource,
   trustedContextSource,
-} from "../../../dist/index.js";
+} from "../../../dist/internal-sdk.js";
 import { inspectDecision } from "../../../dist/inspection.js";
 import { loadVerifier } from "../../../dist/verify.js";
 import { McpAction, McpCommand, mcp } from "../../../dist/mcp.js";

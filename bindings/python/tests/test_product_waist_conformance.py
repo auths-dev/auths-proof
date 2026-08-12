@@ -44,9 +44,7 @@ def test_product_waist_runner_executes_every_rust_owned_case() -> None:
 
 
 def test_product_waist_runner_rejects_case_set_drift() -> None:
-    cases = {
-        candidate["id"]: lambda _expected: None for candidate in MANIFEST["cases"]
-    }
+    cases = {candidate["id"]: lambda _expected: None for candidate in MANIFEST["cases"]}
     cases.pop("command/forged-construction")
     with pytest.raises(TypeError, match="missing=command/forged-construction"):
         asyncio.run(product_waist_conformance(MANIFEST, cases))

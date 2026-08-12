@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from types import TracebackType
 from typing import Awaitable, Callable, Literal, Optional, Type, Union
 
-from .profiles.mcp import (
+from .profiles._mcp import (
     McpAction,
     McpClosedProvider,
     McpCompleted,
@@ -27,14 +27,14 @@ from .profiles.mcp import (
     resources_for_mcp_authority,
     resume_mcp_closed,
 )
-from .receipts import (
+from ._receipts import (
     Receipt,
     ReceiptAttestor,
     decode_linked_receipt,
     encode_linked_receipt,
     verify_linked_receipt,
 )
-from .workflow import (
+from ._workflow import (
     AttachedAgent,
     DelegatedAuthority,
     ExpiryOnly,
@@ -92,6 +92,13 @@ class ExecutionReference:
 
     def __reduce__(self) -> None:
         raise TypeError("Auths execution reference is not serializable")
+
+    @classmethod
+    def from_bytes(cls, value: bytes) -> ExecutionReference:
+        return decode_execution_reference(value)
+
+    def to_bytes(self) -> bytes:
+        return encode_execution_reference(self)
 
 
 def encode_execution_reference(reference: ExecutionReference) -> bytes:

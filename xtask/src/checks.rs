@@ -217,12 +217,20 @@ pub(crate) fn npm_package_smoke() -> Result<(), String> {
     fs::write(
         &smoke,
         "import * as auths from '@auths-dev/sdk';\n\
+         import * as identity from '@auths-dev/sdk/identity';\n\
          import * as verify from '@auths-dev/sdk/verify';\n\
-         import * as diagnostics from '@auths-dev/sdk/diagnostics';\n\
-         if (typeof auths.loadAuths !== 'function') throw new Error('loadAuths export missing');\n\
+         import * as profiles from '@auths-dev/sdk/profiles';\n\
+         import * as integrations from '@auths-dev/sdk/integrations';\n\
+         import * as framework from '@auths-dev/sdk/framework';\n\
+         import * as testkit from '@auths-dev/sdk/testkit';\n\
+         if (typeof auths.createAuths !== 'function') throw new Error('createAuths export missing');\n\
+         if (typeof identity.loadIdentity !== 'function') throw new Error('loadIdentity export missing');\n\
          if (typeof verify.Verifier !== 'function') throw new Error('Verifier export missing');\n\
          if (typeof verify.loadVerifier !== 'function') throw new Error('loadVerifier export missing');\n\
-         if (typeof diagnostics.createDiagnosticVerifier !== 'function') throw new Error('createDiagnosticVerifier export missing');\n\
+         if (typeof profiles.mcp !== 'object') throw new Error('MCP profile missing');\n\
+         if (typeof integrations.development !== 'object') throw new Error('development integration missing');\n\
+         if (typeof framework !== 'object') throw new Error('framework export missing');\n\
+         if (typeof testkit.createDiagnosticVerifier !== 'function') throw new Error('diagnostic testkit missing');\n\
          if ('Verifier' in auths) throw new Error('raw verifier leaked onto the root entry point');\n\
          if ('loadVerifier' in auths) throw new Error('raw loader leaked onto the root entry point');\n\
          if ('createDiagnosticVerifier' in auths) throw new Error('diagnostic verifier leaked onto the root entry point');\n",

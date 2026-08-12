@@ -1,35 +1,29 @@
-import { type Signer } from "../../src/index.js";
-import { Verifier, VerifiedAction } from "../../src/verify.js";
-import { ApplicationCommand } from "../../src/profile-kit.js";
-import { defineProfile } from "../../src/profile-kit.js";
-import { McpCommand } from "../../src/mcp.js";
-import { ProfilePlan, VerifiedPlanCommand } from "../../src/plans.js";
 import * as publicRoot from "../../src/index.js";
-import * as verification from "../../src/verify.js";
-import * as inspectionApi from "../../src/inspection.js";
-import * as diagnostics from "../../src/diagnostics.js";
+import type { Signer } from "../../src/framework.js";
+import { McpCommand, type McpClosedProvider } from "../../src/profiles/mcp/index.js";
+import { Verifier, VerifiedAction, type AuthorizedResult } from "../../src/verify.js";
+import { ProfilePlan, VerifiedPlanCommand } from "../../src/plans.js";
+import {
+  createDiagnosticVerifier,
+  type DiagnosticResult,
+} from "../../src/testkit/index.js";
 import type {
   AuthenticatedIdentityMessage,
   DecodedIdentity,
   ValidatedIdentity,
 } from "../../src/identity.js";
-import { AuthorizationPlan, type ProofReference } from "../../src/authorization-plans.js";
-import type {
-  GitCommand,
-  GitGateway,
-  HttpCommand,
-  HttpGateway,
-} from "../../src/profiles/domains/index.js";
-import type { TrustedContextConfiguration } from "../../src/trust.js";
 
 // @ts-expect-error package coordination is not part of the public root
 publicRoot.registerProfileRuntime;
 
-// @ts-expect-error attached-agent resources are package-private
-publicRoot.resourcesForAttachedAgent;
+// @ts-expect-error effect-free verification is not re-exported from root
+publicRoot.loadVerifier;
 
-// @ts-expect-error the verifier surface does not expose workflow internals
-verification.engineForClient;
+// @ts-expect-error framework ports are absent from the product root
+publicRoot.AtomicReservationStore;
+
+// @ts-expect-error conformance machinery is confined to testkit
+publicRoot.certifyAtomicStore;
 
 // @ts-expect-error verified actions are package-minted
 new VerifiedAction(Symbol(), new Uint8Array());
@@ -37,79 +31,29 @@ new VerifiedAction(Symbol(), new Uint8Array());
 // @ts-expect-error the capability-minting verifier is package-minted
 new Verifier({ verifyV1: () => new Uint8Array() });
 
-// @ts-expect-error raw verification is not on the supported root entry point
-publicRoot.loadVerifier;
-
-// @ts-expect-error the raw verifier type is not on the supported root entry point
-publicRoot.Verifier;
-
-// @ts-expect-error decision inspection is a separate inert surface
-publicRoot.inspectDecision;
-
-// @ts-expect-error canonical commitment is an inspection surface
-publicRoot.commitCanonical;
-
-// @ts-expect-error diagnostic verification never reaches the root entry point
-publicRoot.createDiagnosticVerifier;
-
-// @ts-expect-error framework execution stores are absent from the product root
-publicRoot.ApplicationExecutionStore;
-
-// @ts-expect-error framework credential ports are absent from the product root
-publicRoot.ApplicationCredentialProvider;
-
-// @ts-expect-error conformance machinery is confined to the testkit entry point
-publicRoot.productWaistConformance;
-
-// @ts-expect-error application commands are profile/verifier-minted
-new ApplicationCommand(Symbol(), {}, {});
-
-const applicationProfile = defineProfile({
-  id: "example.contract/1",
-  version: 1,
-  canonicalize() {
-    return {
-      mediaType: "application/octet-stream",
-      body: new Uint8Array([1]),
-      permission: { capability: "example/use", resource: "example://one" },
-      resourceNamespace: "example://",
-      audience: "example://one",
-      display: [{ label: "Action", value: "one" }],
-    };
-  },
-});
-
-// @ts-expect-error applications cannot produce the private command-factory token
-applicationProfile.createVerifiedCommand(Symbol(), applicationProfile.inspectAction(applicationProfile.action({})));
-
-// @ts-expect-error MCP commands are profile/verifier-minted
+// @ts-expect-error MCP commands are profile-minted
 new McpCommand(Symbol(), {});
 
 // @ts-expect-error plans require a package-owned profile token
 new ProfilePlan(Symbol(), {}, [], {});
 
-// @ts-expect-error verified plans are created only after every member authorizes
+// @ts-expect-error verified plans are released only after every member authorizes
 new VerifiedPlanCommand(Symbol(), []);
 
-declare const inspection: inspectionApi.DecisionInspection;
-declare const diagnostic: diagnostics.DiagnosticResult;
+const diagnostic = createDiagnosticVerifier({ verifyV1: () => new Uint8Array() });
+type DiagnosticDecision = ReturnType<typeof diagnostic.verify>;
+declare const diagnosticDecision: DiagnosticDecision;
+declare const diagnosticResult: DiagnosticResult;
 
-// @ts-expect-error inspection evidence is not a gateway-accepted command
-const promotedCommand: McpCommand = inspection;
-void promotedCommand;
-
-// @ts-expect-error diagnostic results are never gateway-accepted commands
-const promotedDiagnostic: McpCommand = diagnostic;
-void promotedDiagnostic;
+// @ts-expect-error diagnostic evidence is not a gateway command
+const diagnosticCommand: McpCommand = diagnosticDecision;
+void diagnosticCommand;
 
 // @ts-expect-error diagnostic results carry no verified action
-diagnostic.action;
+diagnosticResult.action;
 
-// @ts-expect-error inspection evidence carries no verified action
-inspection.action;
-
-// @ts-expect-error a caller-supplied engine cannot produce an authorized SDK result
-const promotedResult: verification.AuthorizedResult = diagnostic;
+// @ts-expect-error caller-supplied engines cannot produce effect-capable authorization
+const promotedResult: AuthorizedResult = diagnosticResult;
 void promotedResult;
 
 // @ts-expect-error a signer without an exact sign operation is not a Signer
@@ -125,7 +69,6 @@ const invalidSigner: Signer = {
     };
   },
 };
-
 void invalidSigner;
 
 // @ts-expect-error decoded identities require package-owned parsing
@@ -148,44 +91,15 @@ const forgedValidatedIdentity: ValidatedIdentity = {
   packet: forgedDecodedIdentity.packet,
 };
 
-// @ts-expect-error authenticated messages require a suite parse transition
+// @ts-expect-error authenticated messages require a suite transition
 const forgedAuthenticatedMessage: AuthenticatedIdentityMessage = {
   identity: forgedValidatedIdentity,
   message: new Uint8Array(),
 };
-
 void forgedAuthenticatedMessage;
 
-// @ts-expect-error authorization plans require a native builder token
-new AuthorizationPlan(Symbol(), "proof", {}, 0);
+declare const provider: McpClosedProvider;
+declare const raw: Uint8Array;
 
-// @ts-expect-error proof references are parsed nominal values, not raw bytes
-const rawProofReference: ProofReference = new Uint8Array(32);
-void rawProofReference;
-
-declare const httpCommand: HttpCommand;
-declare const gitCommand: GitCommand;
-declare const httpGateway: HttpGateway<void>;
-declare const gitGateway: GitGateway<void>;
-
-// @ts-expect-error domain command types are profile-specific
-const substitutedGitCommand: GitCommand = httpCommand;
-void substitutedGitCommand;
-
-// @ts-expect-error an HTTP gateway cannot parse a Git command
-httpGateway.parse(gitCommand);
-
-// @ts-expect-error a Git gateway cannot parse an HTTP command
-gitGateway.parse(httpCommand);
-
-declare const trustWithoutPrincipalStatus: Omit<
-  TrustedContextConfiguration,
-  "principalStatus"
->;
-
-const rawTrustConfiguration: TrustedContextConfiguration = {
-  ...trustWithoutPrincipalStatus,
-  // @ts-expect-error typed trust configuration does not accept raw snapshot bytes
-  principalStatus: new Uint8Array(),
-};
-void rawTrustConfiguration;
+// @ts-expect-error provider invocation requires a profile-owned command session
+provider.invoke(raw);

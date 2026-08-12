@@ -25,15 +25,15 @@ from typing import (
 from .. import _native as native
 from .._mcp_profile import MCP_PROFILE
 from .._plan import PlanApprovalSession
-from ..product_errors import CauseCategory, cause_category_from
-from ..receipts import (
+from .._product_errors import CauseCategory, cause_category_from
+from .._receipts import (
     AttestedReceipt,
     ReceiptAttestor,
     _attest_decision,
     _attest_execution,
     verify_receipt,
 )
-from ..workflow import (
+from .._workflow import (
     ApprovalConfiguration,
     ApprovalProvider,
     AttachedAgent,

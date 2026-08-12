@@ -7,29 +7,50 @@ from pathlib import Path, PurePosixPath
 
 REQUIRED_PACKAGE_FILES = {
     "auths/__init__.py",
+    "auths/__init__.pyi",
     "auths/_native.pyi",
+    "auths/_application_profile.py",
+    "auths/_approvals.py",
+    "auths/_authority.py",
+    "auths/_bootstrap.py",
+    "auths/_conformance.py",
+    "auths/_custody.py",
+    "auths/_development.py",
+    "auths/_diagnostics.py",
+    "auths/_errors.py",
+    "auths/_inspection.py",
+    "auths/_lifecycle.py",
     "auths/_mechanism_conformance.py",
     "auths/_plan.py",
+    "auths/_product.py",
+    "auths/_product_errors.py",
+    "auths/_receipts.py",
+    "auths/_runtime.py",
+    "auths/_trust.py",
+    "auths/_workflow.py",
+    "auths/framework.py",
+    "auths/identity.py",
+    "auths/integrations.py",
+    "auths/profiles/__init__.py",
+    "auths/profiles/_mcp.py",
+    "auths/py.typed",
+    "auths/testkit.py",
+    "auths/verify.py",
+}
+REMOVED_PUBLIC_FILES = {
     "auths/approvals.py",
     "auths/authority.py",
     "auths/custody.py",
-    "auths/conformance.py",
     "auths/diagnostics.py",
-    "auths/errors.py",
-    "auths/identity.py",
     "auths/inspection.py",
-    "auths/integrations.py",
     "auths/lifecycle.py",
     "auths/observability.py",
     "auths/profile_kit.py",
-    "auths/profiles/__init__.py",
+    "auths/profiles/domains.py",
     "auths/profiles/http.py",
     "auths/profiles/mcp.py",
-    "auths/py.typed",
     "auths/runtime.py",
-    "auths/testkit.py",
     "auths/trust.py",
-    "auths/verify.py",
     "auths/workflow.py",
 }
 FORBIDDEN_PARTS = {
@@ -71,6 +92,11 @@ def main() -> None:
         if missing:
             raise SystemExit(
                 "wheel omitted required package files: " + ", ".join(sorted(missing))
+            )
+        removed = REMOVED_PUBLIC_FILES & files
+        if removed:
+            raise SystemExit(
+                "wheel retained removed public modules: " + ", ".join(sorted(removed))
             )
         extensions = {
             name

@@ -1,36 +1,12 @@
-export {
-  approvalPolicy,
-  noApproval,
-  thresholdApproval,
-  type ApprovalPolicyOptions,
-  type ThresholdApprovalOptions,
-} from "./approvals.js";
-export type {
-  ApprovalConfiguration,
-  ApprovalMode,
-  ApprovalPolicy,
-  ApprovalPolicyReference,
-  ApprovalProvider,
-  ApprovalRequest,
-  ApprovalResponse,
-} from "./workflow.js";
+export { approval } from "./approvals.js";
+export type { ApprovalPolicy } from "./workflow.js";
 export {
   AuthsError,
-  errorReferenceUrl,
-  formatAuthsError,
-  isAuthsError,
   type AuthsErrorCode,
-  type AuthsErrorDetails,
-  type EffectState,
-  type RetryClass,
+  type RecommendedAction,
 } from "./product-errors.js";
 export {
   createAuths,
-  decodeExecutionReference,
-  decodeReceipt,
-  encodeExecutionReference,
-  encodeReceipt,
-  verifyReceipt,
   type Actor,
   type Auths,
   type AuthsConfiguration,
@@ -40,10 +16,6 @@ export {
   ExecutionReference,
   type ExecutionResult,
   type Indeterminate,
-  type PlanCompleted,
-  type PlanExecutionResult,
-  type PlanRecoveryResult,
   type Receipt,
   type RecoveryResult,
-  type SingleExecutionResult,
 } from "./product.js";

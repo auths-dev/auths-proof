@@ -291,10 +291,70 @@ forbidden_patterns = [
 ]
 
 [[binding_semantics.allowances]]
-path = "bindings/typescript/src/testkit/index.ts"
+path = "bindings/typescript/src/internal/development.ts"
 pattern = "crypto.subtle"
 status = "permanent"
-reason = "Non-production ephemeral development signer. External custody is deliberately outside the kernel, so a stand-in signer must hold a key locally; it is labelled ephemeral and ships only on the testkit entry point."
+reason = "Non-production local signer and receipt-attestor keys are mechanism state, while Rust owns every signed preimage and verification meaning."
+
+[[binding_semantics.allowances]]
+path = "bindings/typescript/src/integrations.ts"
+pattern = "getRandomValues"
+status = "permanent"
+reason = "The development composition creates local session entropy; Rust consumes the derived keys but the random source is an integration mechanism."
+
+[[binding_semantics.allowances]]
+path = "bindings/typescript/src/integrations.ts"
+pattern = "DataView"
+status = "permanent"
+reason = "The development-only key derivation length-prefixes a local role label and does not define an Auths protocol or customer evidence format."
+
+[[binding_semantics.allowances]]
+path = "bindings/typescript/src/integrations.ts"
+pattern = "crypto.subtle"
+status = "permanent"
+reason = "The development-only composition derives local deterministic mechanism keys; Rust continues to own all Auths commitments and signing preimages."
+
+[[binding_semantics.allowances]]
+path = "bindings/typescript/src/internal/development-store-node.ts"
+pattern = "getRandomValues"
+status = "permanent"
+reason = "Recoverable development state requires a local session secret; the random source is mechanism state and carries no portable Auths meaning."
+
+[[binding_semantics.allowances]]
+path = "bindings/typescript/src/internal/development-store-node.ts"
+pattern = "JSON.stringify"
+status = "permanent"
+reason = "The disposable development store encodes its private local record envelope; signed and semantic Auths bytes remain Rust-owned and opaque."
+
+[[binding_semantics.allowances]]
+path = "bindings/typescript/src/internal/development-store-node.ts"
+pattern = "crypto.subtle"
+status = "permanent"
+reason = "The disposable development store hashes private local record names; it does not create a protocol commitment or verification result."
+
+[[binding_semantics.allowances]]
+path = "bindings/typescript/src/internal/receipt-attestation.ts"
+pattern = "JSON.stringify"
+status = "permanent"
+reason = "The development receipt signer serializes a bounded private attestation envelope around Rust-owned receipt claims and is not a protocol codec."
+
+[[binding_semantics.allowances]]
+path = "bindings/typescript/src/profiles/mcp/index.ts"
+pattern = "JSON.stringify"
+status = "permanent"
+reason = "MCP handler results are bounded provider payloads; Rust owns the action, execution and receipt commitments rather than this provider representation."
+
+[[binding_semantics.allowances]]
+path = "bindings/python/python/auths/integrations.py"
+pattern = "hashlib"
+status = "permanent"
+reason = "The Python development composition hashes private local record names and derives mechanism keys without defining portable Auths semantics."
+
+[[binding_semantics.allowances]]
+path = "bindings/python/python/auths/integrations.py"
+pattern = "secrets."
+status = "permanent"
+reason = "The Python development composition creates local session and file entropy; the values are mechanism state and never Auths protocol meaning."
 
 [[binding_semantics.allowances]]
 path = "bindings/typescript/src/profiles/mcp/index.ts"

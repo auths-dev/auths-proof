@@ -81,6 +81,14 @@ export class ExecutionReference {
     return new ExecutionReference(token, value);
   }
 
+  static decode(input: Uint8Array): ExecutionReference {
+    return decodeExecutionReference(input);
+  }
+
+  encode(): Uint8Array {
+    return encodeExecutionReference(this);
+  }
+
   toJSON(): never {
     throw new TypeError("Auths execution references are not serializable");
   }

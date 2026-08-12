@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from auths import PrincipalDescriptor, SigningRequest, SigningResponse
+from auths.framework import PrincipalDescriptor, SigningRequest, SigningResponse
 from auths.testkit import DevelopmentEd25519Signer
 
 
