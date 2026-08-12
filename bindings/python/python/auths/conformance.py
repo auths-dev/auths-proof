@@ -16,6 +16,7 @@ from typing import (
 )
 
 from ._mechanism_conformance import CONFORMANCE_CATALOG
+from ._mechanisms import AtomicReservationRecord, AtomicReservationStore
 from .custody import ProviderOperationError, Signer, SigningRequest
 from .integrations import development
 from .profiles import mcp
@@ -53,21 +54,7 @@ class ConformanceReport:
     claim: Literal["test-results-only-not-security-certification"]
 
 
-@dataclass(frozen=True)
-class AtomicReservationRecord:
-    key: str
-    commitment: bytes
-    value: bytes
-
-
-class AtomicReservationStoreCandidate(Protocol):
-    async def reserve(
-        self, record: AtomicReservationRecord
-    ) -> Literal["acquired", "exact-replay", "conflict"]: ...
-
-    async def aclose(self) -> None: ...
-
-    async def reopen(self) -> AtomicReservationStoreCandidate: ...
+AtomicReservationStoreCandidate = AtomicReservationStore
 
 
 class ByteTransportCandidate(Protocol):

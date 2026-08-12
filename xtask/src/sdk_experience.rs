@@ -253,15 +253,11 @@ fn python_surface() -> Result<PublicSurface, String> {
 pub(crate) fn classify_typescript_entry(entry: &str) -> &'static str {
     match entry {
         "." => "product",
-        "./identity" | "./verify" | "./inspection" | "./diagnostics" | "./observability" => {
-            "component"
-        }
-        "./mcp" | "./profiles" => "profile",
+        "./identity" | "./verify" => "component",
+        "./profiles" => "profile",
+        "./integrations" => "integration",
+        "./framework" => "framework",
         "./testkit" => "testkit",
-        "./profile-kit" => "framework",
-        "./approvals" | "./authority" | "./custody" | "./lifecycle" | "./runtime" | "./trust" => {
-            "internal-leak"
-        }
         _ => "internal-leak",
     }
 }
@@ -269,15 +265,10 @@ pub(crate) fn classify_typescript_entry(entry: &str) -> &'static str {
 pub(crate) fn classify_python_module(module: &str) -> &'static str {
     match module {
         "auths" => "product",
-        "auths.identity"
-        | "auths.verify"
-        | "auths.inspection"
-        | "auths.diagnostics"
-        | "auths.observability"
-        | "auths.errors" => "component",
-        value if value.starts_with("auths.profiles.") => "profile",
+        "auths.identity" | "auths.verify" => "component",
+        "auths.profiles" => "profile",
         "auths.testkit" => "testkit",
-        "auths.profile_kit" => "framework",
+        "auths.framework" => "framework",
         "auths.integrations" => "integration",
         _ => "internal-leak",
     }
@@ -385,9 +376,11 @@ mod tests {
     #[test]
     fn ownership_classification_is_explicit() {
         assert_eq!(classify_typescript_entry("."), "product");
-        assert_eq!(classify_typescript_entry("./mcp"), "profile");
+        assert_eq!(classify_typescript_entry("./profiles"), "profile");
+        assert_eq!(classify_typescript_entry("./framework"), "framework");
         assert_eq!(classify_typescript_entry("./authority"), "internal-leak");
         assert_eq!(classify_python_module("auths.integrations"), "integration");
+        assert_eq!(classify_python_module("auths.framework"), "framework");
         assert_eq!(classify_python_module("auths.authority"), "internal-leak");
     }
 }

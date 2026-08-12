@@ -8,6 +8,10 @@ import {
 } from "../mcp.js";
 import { CONFORMANCE_CATALOG } from "../generated/mechanism-conformance.js";
 import { custodyConformance } from "./custody-conformance.js";
+import type {
+  AtomicReservationRecord,
+  AtomicReservationStore,
+} from "../internal/mechanisms.js";
 
 export interface ConformanceMetadata {
   readonly implementation: string;
@@ -36,17 +40,7 @@ export interface ConformanceReport {
   readonly claim: "test-results-only-not-security-certification";
 }
 
-export interface AtomicReservationRecord {
-  readonly key: string;
-  readonly commitment: Uint8Array;
-  readonly value: Uint8Array;
-}
-
-export interface AtomicReservationStoreCandidate {
-  reserve(record: AtomicReservationRecord): Promise<"acquired" | "exact-replay" | "conflict">;
-  reopen?(): AtomicReservationStoreCandidate | Promise<AtomicReservationStoreCandidate>;
-  close?(): void | Promise<void>;
-}
+export type AtomicReservationStoreCandidate = AtomicReservationStore;
 
 export interface ByteTransportCandidate {
   exchange(

@@ -40,7 +40,6 @@ export {
   certifyByteTransport,
   certifyMcpProvider,
   certifySigner,
-  type AtomicReservationRecord,
   type AtomicReservationStoreCandidate,
   type ByteTransportCandidate,
   type ByteTransportFactory,
@@ -49,6 +48,7 @@ export {
   type ConformanceReport,
   type McpProviderFactory,
 } from "./conformance.js";
+export type { AtomicReservationRecord } from "../internal/mechanisms.js";
 export {
   InMemoryBudgetPort,
   InMemoryChallengePort,

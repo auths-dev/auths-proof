@@ -8,69 +8,29 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
-    "./mcp": {
-      "types": "./dist/mcp.d.ts",
-      "import": "./dist/mcp.js"
-    },
-    "./profile-kit": {
-      "types": "./dist/profile-kit.d.ts",
-      "import": "./dist/profile-kit.js"
-    },
-    "./testkit": {
-      "types": "./dist/testkit/index.d.ts",
-      "import": "./dist/testkit/index.js"
-    },
-    "./integrations": {
-      "types": "./dist/integrations.d.ts",
-      "import": "./dist/integrations.js"
+    "./identity": {
+      "types": "./dist/identity.d.ts",
+      "import": "./dist/identity.js"
     },
     "./verify": {
       "types": "./dist/verify.d.ts",
       "import": "./dist/verify.js"
     },
-    "./inspection": {
-      "types": "./dist/inspection.d.ts",
-      "import": "./dist/inspection.js"
-    },
-    "./diagnostics": {
-      "types": "./dist/diagnostics.d.ts",
-      "import": "./dist/diagnostics.js"
-    },
-    "./observability": {
-      "types": "./dist/observability.d.ts",
-      "import": "./dist/observability.js"
-    },
-    "./identity": {
-      "types": "./dist/identity.d.ts",
-      "import": "./dist/identity.js"
-    },
-    "./authority": {
-      "types": "./dist/authority.d.ts",
-      "import": "./dist/authority.js"
-    },
-    "./approvals": {
-      "types": "./dist/approvals.d.ts",
-      "import": "./dist/approvals.js"
-    },
     "./profiles": {
       "types": "./dist/profiles.d.ts",
       "import": "./dist/profiles.js"
     },
-    "./lifecycle": {
-      "types": "./dist/lifecycle.d.ts",
-      "import": "./dist/lifecycle.js"
+    "./integrations": {
+      "types": "./dist/integrations.d.ts",
+      "import": "./dist/integrations.js"
     },
-    "./trust": {
-      "types": "./dist/trust.d.ts",
-      "import": "./dist/trust.js"
+    "./framework": {
+      "types": "./dist/framework.d.ts",
+      "import": "./dist/framework.js"
     },
-    "./runtime": {
-      "types": "./dist/runtime.d.ts",
-      "import": "./dist/runtime.js"
-    },
-    "./custody": {
-      "types": "./dist/custody.d.ts",
-      "import": "./dist/custody.js"
+    "./testkit": {
+      "types": "./dist/testkit/index.d.ts",
+      "import": "./dist/testkit/index.js"
     }
   },
   "files": [

@@ -153,7 +153,7 @@ ordered-plan codes.
   remains the final-name freeze gate.
 - [x] Design the root facade and opaque profile session from
   [05 — Primary product waist](05_PRIMARY_PRODUCT_WAIST.md).
-- [ ] Design the six-required-plus-evidence-gated-framework topology in
+- [x] Design the six-required-plus-evidence-gated-framework topology in
   [06 — Progressive package layout](06_PROGRESSIVE_PACKAGE_LAYOUT.md).
 - [x] Complete the Spec 12 contract inventory without prematurely publishing
   candidate mechanisms.
