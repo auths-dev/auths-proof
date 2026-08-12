@@ -240,11 +240,11 @@ development quickstart or delay the public cutover.
 
 ### Launch gate — Stable evolution contract
 
-- [ ] Complete [13 — Post-1.0 evolution and versioning](13_POST_1_0_EVOLUTION_AND_VERSIONING.md).
-- [ ] Prove patch, minor, major, profile-successor, error-retirement, persisted
+- [x] Complete [13 — Post-1.0 evolution and versioning](13_POST_1_0_EVOLUTION_AND_VERSIONING.md).
+- [x] Prove patch, minor, major, profile-successor, error-retirement, persisted
   evidence, and emergency-security release behavior across Rust, TypeScript,
   and Python.
-- [ ] Block every `1.0.0` publication until the stability acceptance criteria
+- [x] Block every `1.0.0` publication until the stability acceptance criteria
   pass.
 
 Exit: the prelaunch clean-break rule has an explicit end, and every stable API,

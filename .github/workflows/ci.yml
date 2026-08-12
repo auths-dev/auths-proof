@@ -144,6 +144,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          fetch-depth: 0
           persist-credentials: false
       - name: Start telemetry
         run: echo "AUTHS_PHASE_STARTED=$(date +%s)" >> "$GITHUB_ENV"
@@ -182,6 +183,8 @@ jobs:
           go version
           sccache --version
       - name: Run authoritative repository CI
+        env:
+          AUTHS_EVOLUTION_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: cargo xtask ci authoritative
       - name: Record authoritative telemetry
         if: always()

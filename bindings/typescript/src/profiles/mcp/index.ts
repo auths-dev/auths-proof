@@ -403,12 +403,16 @@ export class McpProfile implements Profile<McpAction, McpCommand> {
 
 export interface McpProfileOptions {
   readonly service: string;
+  readonly version?: 1;
 }
 
 export const mcp = Object.freeze({
   profile(options: McpProfileOptions): McpProfile {
     if (options === null || typeof options !== "object") {
       throw new AuthsWorkflowError("invalid-profile", "MCP profile options are missing");
+    }
+    if (options.version !== undefined && options.version !== PROFILE_VERSION) {
+      throw new AuthsWorkflowError("invalid-profile", "unsupported MCP profile version");
     }
     return mintMcpProfile(boundedService(options.service));
   },

@@ -1,0 +1,71 @@
+{
+  "schema": "auths.evolution-policy/1",
+  "lifecycle": "prelaunch",
+  "stableLaunch": {
+    "ready": false,
+    "blockers": [
+      "independent-security-review",
+      "moderated-recipe-three-cohort",
+      "second-qualified-effect-vertical"
+    ]
+  },
+  "axes": [
+    {
+      "id": "package",
+      "owner": "release-engineering",
+      "artifacts": ["Cargo.toml", "bindings/typescript/package.json", "bindings/python/pyproject.toml"],
+      "rule": "semantic-versioning"
+    },
+    {
+      "id": "abi",
+      "owner": "bindings",
+      "artifacts": ["bindings/wasm/auths-proof-wasm/authoring-abi-v1.json", "bindings/python/native-abi-v2.json"],
+      "rule": "exact-packaged-coherence"
+    },
+    {
+      "id": "semantic-subject",
+      "owner": "rust-core",
+      "artifacts": ["release/semantic-freeze.json"],
+      "rule": "immutable-identity"
+    },
+    {
+      "id": "profile",
+      "owner": "profile-maintainers",
+      "artifacts": ["product/profiles/auths-profile-mcp/profile-v1.json"],
+      "rule": "exact-version-selection"
+    },
+    {
+      "id": "conformance",
+      "owner": "assurance",
+      "artifacts": ["product/conformance/v1/mechanism-profile-conformance.json", "product/conformance/v1/simplified-product-waist.json"],
+      "rule": "immutable-case-identity"
+    }
+  ],
+  "diffRules": [
+    { "prefix": "bindings/typescript/api/", "axis": "package", "floor": "major" },
+    { "prefix": "bindings/python/api/", "axis": "package", "floor": "major" },
+    { "prefix": "bindings/wasm/auths-proof-wasm/authoring-abi-v1.json", "axis": "abi", "floor": "patch" },
+    { "prefix": "bindings/python/native-abi-v2.json", "axis": "abi", "floor": "patch" },
+    { "prefix": "release/semantic-freeze.json", "axis": "semantic-subject", "floor": "minor" },
+    { "prefix": "product/profiles/", "axis": "profile", "floor": "minor" },
+    { "prefix": "product/errors/v1/", "axis": "package", "floor": "minor" },
+    { "prefix": "product/receipts/", "axis": "semantic-subject", "floor": "major" },
+    { "prefix": "product/conformance/", "axis": "conformance", "floor": "minor" },
+    { "prefix": "release/evolution-lifecycle-v1.json", "axis": "package", "floor": "minor" },
+    { "prefix": "docs/", "axis": "package", "floor": "patch" }
+  ],
+  "support": {
+    "profileVerificationMajors": 2,
+    "profileVerificationMinimumMonths": 12,
+    "profileAuthoringMinimumMonths": 12,
+    "retirementNoticeMinimumDays": 90,
+    "stableErrorRemovalFloor": "major"
+  },
+  "registries": {
+    "lifecycle": "release/evolution-lifecycle-v1.json",
+    "mixedVersionFixtures": "release/fixtures/evolution/mixed-version-v1.json",
+    "mockReleases": "release/fixtures/evolution/mock-releases-v1.json",
+    "migrationHarness": "release/fixtures/evolution/migration-harness-v1.json",
+    "generatedSupportPage": "docs/product/COMPATIBILITY_AND_SUPPORT.md"
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "schema": "auths.evolution-lifecycle/1",
+  "profiles": [
+    {
+      "id": "auths.mcp",
+      "version": 1,
+      "status": "prelaunch",
+      "successor": null,
+      "verificationSupportUntil": null,
+      "authoringSupportUntil": null,
+      "retirementAnnouncedAt": null
+    }
+  ],
+  "errors": [
+    { "code": "core.forged-execution-reference", "status": "active", "replacement": null, "finalProducingVersion": null },
+    { "code": "core.internal-invariant", "status": "active", "replacement": null, "finalProducingVersion": null },
+    { "code": "core.invalid-configuration", "status": "active", "replacement": null, "finalProducingVersion": null },
+    { "code": "core.malformed-input", "status": "active", "replacement": null, "finalProducingVersion": null },
+    { "code": "core.native-runtime-unavailable", "status": "active", "replacement": null, "finalProducingVersion": null },
+    { "code": "core.unsupported-abi", "status": "active", "replacement": null, "finalProducingVersion": null },
+    { "code": "core.unsupported-semantic-subject", "status": "active", "replacement": null, "finalProducingVersion": null },
+    { "code": "mcp.cancelled-before-entry", "status": "active", "replacement": null, "finalProducingVersion": null },
+    { "code": "mcp.handler-failed", "status": "active", "replacement": null, "finalProducingVersion": null },
+    { "code": "mcp.handler-timeout", "status": "active", "replacement": null, "finalProducingVersion": null },
+    { "code": "mcp.invalid-handler-output", "status": "active", "replacement": null, "finalProducingVersion": null },
+    { "code": "mcp.receipt-persist-failed", "status": "active", "replacement": null, "finalProducingVersion": null },
+    { "code": "mcp.reconciliation-pending", "status": "active", "replacement": null, "finalProducingVersion": null },
+    { "code": "mcp.replay", "status": "active", "replacement": null, "finalProducingVersion": null },
+    { "code": "mcp.reservation-conflict", "status": "active", "replacement": null, "finalProducingVersion": null },
+    { "code": "plan.action-substituted", "status": "active", "replacement": null, "finalProducingVersion": null },
+    { "code": "plan.member-failed-before-entry", "status": "active", "replacement": null, "finalProducingVersion": null },
+    { "code": "plan.member-interrupted", "status": "active", "replacement": null, "finalProducingVersion": null },
+    { "code": "plan.reconciliation-pending", "status": "active", "replacement": null, "finalProducingVersion": null },
+    { "code": "plan.resume-reference-invalid", "status": "active", "replacement": null, "finalProducingVersion": null }
+  ],
+  "conformanceSuites": [
+    { "id": "auths.mechanism-profile-conformance", "version": 1, "status": "prelaunch" },
+    { "id": "auths.simplified-product-waist-conformance", "version": 1, "status": "prelaunch" }
+  ]
+}

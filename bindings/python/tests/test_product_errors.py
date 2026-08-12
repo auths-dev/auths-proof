@@ -15,6 +15,9 @@ from auths._product_errors import (
     create_support_bundle,
     format_auths_error,
 )
+from auths.profiles import mcp
+from auths.verify import decode_receipt
+from auths._workflow import AuthsWorkflowError
 
 ROOT = Path(__file__).parents[3]
 FIXTURES = json.loads((ROOT / "product/fixtures/v1/errors/manifest.json").read_text())[
@@ -64,3 +67,28 @@ def test_provider_failures_collapse_to_bounded_cause_categories() -> None:
     failure = TimeoutError("credential=never-cross-this-boundary")
     assert cause_category_from(failure) is CauseCategory.TIMEOUT
     assert "credential" not in cause_category_from(failure).value
+
+
+def test_future_error_codes_remain_bounded_without_inferred_recovery() -> None:
+    future = {
+        **FIXTURES[0],
+        "code": "future.new-code",
+        "retry": "safe",
+        "effect": "applied",
+        "executionReference": "secret-reference",
+        "causes": ["future-cause"],
+    }
+    error = AuthsError.parse(future)
+    assert error.code == "future.new-code"
+    assert error.details.family == "unknown"
+    assert error.retry is RetryClass.UNKNOWN
+    assert error.effect is EffectState.UNKNOWN
+    assert error.execution_reference is None
+    assert error.recommended_action is RecommendedAction.CONTACT_SUPPORT
+
+
+def test_future_profile_and_receipt_versions_fail_before_interpretation() -> None:
+    with pytest.raises(AuthsWorkflowError, match="unsupported MCP profile version"):
+        mcp.profile(service="future", version=2)  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="unsupported portable Auths receipt"):
+        decode_receipt(b'{"schema":"auths.portable-receipt/2"}')

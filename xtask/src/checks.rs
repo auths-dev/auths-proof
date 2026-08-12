@@ -12,6 +12,7 @@ pub(crate) fn ci_authoritative() -> Result<(), String> {
     format_all()?;
     arch(false)?;
     crate::binding_semantics::binding_semantics()?;
+    evolution_policy(false)?;
     semantic_freeze(false)?;
     sdk_experience(false)?;
     sdk_vocabulary()?;

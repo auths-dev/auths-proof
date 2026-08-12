@@ -761,7 +761,11 @@ class McpGateway(Generic[GatewayResult]):
 
 
 class McpFacade:
-    def profile(self, *, service: str) -> McpProfile:
+    def profile(self, *, service: str, version: Literal[1] = 1) -> McpProfile:
+        if version != 1:
+            raise AuthsWorkflowError(
+                "invalid-profile", "unsupported MCP profile version"
+            )
         return McpProfile(service)
 
     def development_provider(

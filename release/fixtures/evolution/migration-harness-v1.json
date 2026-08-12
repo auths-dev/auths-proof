@@ -1,0 +1,17 @@
+{
+  "schema": "auths.migration-harness/1",
+  "owner": "Rust",
+  "contract": {
+    "crashSafe": true,
+    "idempotent": true,
+    "preservesOriginalCommitment": true,
+    "auditableBeforeAfter": true,
+    "bindingAuthored": false,
+    "requiredCrashPoints": [
+      "before-write",
+      "after-write-before-sync",
+      "after-sync-before-commit"
+    ]
+  },
+  "migrations": []
+}

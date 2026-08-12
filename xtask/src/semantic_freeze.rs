@@ -4,7 +4,7 @@ use crate::*;
 
 const INVENTORY_PATH: &str = "release/semantic-freeze.json";
 const INVENTORY_SCHEMA: &str = "auths.semantic-freeze/1";
-const FREEZE_VERSION: u64 = 69;
+const FREEZE_VERSION: u64 = 71;
 const PUBLIC_RUST_ROOTS: [&str; 10] = [
     "auths",
     "auths-byte-channel",
@@ -184,7 +184,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.identity.protocol",
-            14,
+            15,
             FreezeClassification::FrozenMeaning,
             &[
                 "identity-protocol-versions",
@@ -243,7 +243,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.portable-abi-bindings",
-            35,
+            37,
             FreezeClassification::FrozenMeaning,
             &["portable-abi", "authoring-abi", "binding-contracts"],
             vec![
@@ -279,7 +279,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.mcp-closed-execution",
-            5,
+            6,
             FreezeClassification::FrozenMeaning,
             &[
                 "profile-session",
@@ -321,7 +321,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.facade",
-            4,
+            5,
             FreezeClassification::FrozenMeaning,
             &[
                 "create",
@@ -375,7 +375,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.vocabulary",
-            4,
+            5,
             FreezeClassification::FrozenMeaning,
             &[
                 "customer-vocabulary",
@@ -396,7 +396,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.error-recovery-contract",
-            5,
+            7,
             FreezeClassification::FrozenMeaning,
             &[
                 "error-envelope",
@@ -488,6 +488,30 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
             ],
         )?,
         freeze_entry(
+            "auths.release.evolution-contract",
+            2,
+            FreezeClassification::FrozenMeaning,
+            &[
+                "version-axes",
+                "release-classification",
+                "support-windows",
+                "retirement-lifecycle",
+                "mixed-version-behavior",
+                "migration-contract",
+                "stable-launch-gate",
+            ],
+            vec![
+                ".github/workflows/ci.yml".to_owned(),
+                "bindings/python/api/public-api.txt".to_owned(),
+                "bindings/typescript/api/public-api.txt".to_owned(),
+                "docs/product/COMPATIBILITY_AND_SUPPORT.md".to_owned(),
+                "release/evolution-lifecycle-v1.json".to_owned(),
+                "release/evolution-policy-v1.json".to_owned(),
+                "release/fixtures/evolution".to_owned(),
+                "xtask/src/evolution_policy.rs".to_owned(),
+            ],
+        )?,
+        freeze_entry(
             "auths.release.benchmark-contract",
             1,
             FreezeClassification::FrozenMeaning,
@@ -536,6 +560,9 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         "architecture.toml".to_owned(),
         "docs/plans/PHASE_7_RELEASE_OWNER_DECISIONS.md".to_owned(),
         "release/public-naming.toml".to_owned(),
+        "release/evolution-lifecycle-v1.json".to_owned(),
+        "release/evolution-policy-v1.json".to_owned(),
+        "release/fixtures/evolution".to_owned(),
         "release/README.md".to_owned(),
         "release/RELEASE_CONTROL.md".to_owned(),
         "release/RELEASE_RUNBOOK.md".to_owned(),
@@ -549,6 +576,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         "release/owner-authorization.schema.json".to_owned(),
         "xtask/src/architecture.rs".to_owned(),
         "xtask/src/checks.rs".to_owned(),
+        "xtask/src/evolution_policy.rs".to_owned(),
         "xtask/src/fixtures.rs".to_owned(),
         "xtask/src/main.rs".to_owned(),
         "xtask/src/public_naming.rs".to_owned(),
@@ -558,7 +586,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
     ]);
     entries.push(freeze_entry(
         "auths.release.public-surface",
-        69,
+        71,
         FreezeClassification::ReleaseMetadata,
         &[
             "package-names",

@@ -28,6 +28,7 @@ class EffectState(str, Enum):
     NOT_APPLIED = "not-applied"
     POSSIBLE = "possible"
     APPLIED = "applied"
+    UNKNOWN = "unknown"
 
 
 class RecommendedAction(str, Enum):
@@ -210,7 +211,7 @@ def _parse_details(value: object) -> AuthsErrorDetails:
     code = _token(item.get("code"))
     definition = _DEFINITIONS.get(code)
     if definition is None:
-        raise ValueError("unknown Auths error code")
+        return _unknown_details(item, code)
     operation = _token(item.get("operation"))
     stage = _token(item.get("stage"))
     if operation != definition["operation"] or stage not in definition["stages"]:
@@ -273,6 +274,35 @@ def _parse_details(value: object) -> AuthsErrorDetails:
         decision_reference=decision_reference,
         receipt_reference=receipt_reference,
         causes=causes,
+    )
+
+
+def _unknown_details(item: Mapping[str, Any], code: str) -> AuthsErrorDetails:
+    _token(item.get("operation"))
+    _token(item.get("stage"))
+    _text(item.get("summary"))
+    correlation_id = _token(item.get("correlationId"))
+    raw_causes = item.get("causes")
+    if type(raw_causes) is not list:
+        raise ValueError("Auths error causes are invalid")
+    cause_values = cast(list[object], raw_causes)
+    if len(cause_values) > 8:
+        raise ValueError("Auths error causes are invalid")
+    return AuthsErrorDetails(
+        family="unknown",
+        code=code,
+        operation="unknown",
+        stage="unknown",
+        summary="Unknown Auths error code",
+        correlation_id=correlation_id,
+        retry=RetryClass.UNKNOWN,
+        effect=EffectState.UNKNOWN,
+        entered=EnteredBoundaries(False, False, False, False, False),
+        recommended_action=RecommendedAction.CONTACT_SUPPORT,
+        execution_reference=None,
+        decision_reference=None,
+        receipt_reference=None,
+        causes=() if not cause_values else (CauseCategory.UNKNOWN,),
     )
 
 

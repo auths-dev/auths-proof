@@ -2,10 +2,10 @@ import { ERROR_REGISTRY } from "./generated/error-registry.js";
 
 type Definition = (typeof ERROR_REGISTRY.definitions)[number];
 
-export type AuthsErrorCode = Definition["code"];
-export type ErrorFamily = Definition["family"];
+export type AuthsErrorCode = Definition["code"] | (string & {});
+export type ErrorFamily = Definition["family"] | "unknown";
 export type RetryClass = Definition["outcomes"][number]["retry"];
-export type EffectState = Definition["outcomes"][number]["effect"];
+export type EffectState = Definition["outcomes"][number]["effect"] | "unknown";
 export type RecommendedAction = Definition["recommendedAction"];
 export type CauseCategory =
   | "cancelled"
@@ -163,7 +163,7 @@ function parseDetails(input: unknown): AuthsErrorDetails {
   if (value.schema !== "auths.error/1") throw new TypeError("unsupported Auths error schema");
   const code = parseToken(value.code);
   const definition = definitions.get(code);
-  if (definition === undefined) throw new TypeError("unknown Auths error code");
+  if (definition === undefined) return parseUnknownDetails(value, code);
   const operation = parseToken(value.operation);
   const stage = parseToken(value.stage);
   const summary = parseText(value.summary);
@@ -222,6 +222,33 @@ function parseDetails(input: unknown): AuthsErrorDetails {
     ...(executionReference === undefined ? {} : { executionReference }),
     ...(decisionReference === undefined ? {} : { decisionReference }),
     ...(receiptReference === undefined ? {} : { receiptReference }),
+  });
+}
+
+function parseUnknownDetails(
+  value: Record<string, unknown>,
+  code: string,
+): AuthsErrorDetails {
+  parseToken(value.operation);
+  parseToken(value.stage);
+  parseText(value.summary);
+  const correlationId = parseToken(value.correlationId);
+  const rawCauses = array(value.causes);
+  if (rawCauses.length > 8) throw new TypeError("Auths error has too many cause categories");
+  const unknownCauses: readonly CauseCategory[] = rawCauses.length === 0 ? [] : ["unknown"];
+  return Object.freeze({
+    schema: "auths.error/1",
+    family: "unknown",
+    code,
+    operation: "unknown",
+    stage: "unknown",
+    summary: "Unknown Auths error code",
+    correlationId,
+    retry: "unknown",
+    effect: "unknown",
+    entered: Object.freeze({ approval: false, signer: false, state: false, credential: false, provider: false }),
+    recommendedAction: "contact-support",
+    causes: Object.freeze(unknownCauses),
   });
 }
 
