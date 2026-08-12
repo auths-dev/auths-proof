@@ -213,6 +213,22 @@ def execute_workflow(payload: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         }
 
 
+def reset_demo() -> None:
+    for service, status in (
+        (
+            "northstar",
+            post_json(f"{NORTHSTAR_URL}/api/reset", {}, internal_headers())[0],
+        ),
+        (
+            "edgeshield",
+            post_json(f"{EDGESHIELD_URL}/api/reset", {}, edge_headers())[0],
+        ),
+    ):
+        if status != HTTPStatus.OK:
+            raise RuntimeError(f"{service} reset failed")
+    STORE.reset()
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "auths-incident-demo-agent/3"
 
@@ -279,9 +295,7 @@ class Handler(BaseHTTPRequestHandler):
                 status, result = execute_workflow(payload)
                 return self.respond(status, result)
             if self.path == "/api/reset":
-                STORE.reset()
-                post_json(f"{NORTHSTAR_URL}/api/reset", {}, internal_headers())
-                post_json(f"{EDGESHIELD_URL}/api/reset", {}, edge_headers())
+                reset_demo()
                 return self.respond(HTTPStatus.OK, {"schema": SCHEMA, "reset": True})
             if self.path.startswith("/api/attack/"):
                 return self.respond(
@@ -364,9 +378,7 @@ class Handler(BaseHTTPRequestHandler):
         return result
 
     def unknown_outcome_attack(self) -> dict[str, Any]:
-        STORE.reset()
-        post_json(f"{NORTHSTAR_URL}/api/reset", {}, internal_headers())
-        post_json(f"{EDGESHIELD_URL}/api/reset", {}, edge_headers())
+        reset_demo()
         try:
             asyncio.run(
                 execute_incident_plan(
@@ -424,7 +436,7 @@ class Handler(BaseHTTPRequestHandler):
             "gateway-exact-replay",
         )
         no_retry_effect = counters == before_retry
-        return {
+        result = {
             "attack": "remote-unknown",
             "blocked": first.receipt.outcome == "outcome-unknown"
             and len(unknown) == 1
@@ -449,6 +461,8 @@ class Handler(BaseHTTPRequestHandler):
                 - before_retry["provider_calls"],
             },
         }
+        reset_demo()
+        return result
 
     def read_json(self) -> dict[str, Any]:
         length = int(self.headers.get("content-length", "0"))

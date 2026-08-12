@@ -158,8 +158,10 @@ function canonicalMaterial(value: unknown): unknown {
 async function runWorkflow(): Promise<void> {
   const button = element<HTMLButtonElement>("run");
   button.disabled = true;
-  element("run-status").textContent = "Trusted backend is authorizing the exact plan…";
+  element("run-status").textContent = "Preparing a fresh deterministic incident…";
   try {
+    await request("/api/reset", { method: "POST", body: "{}" });
+    element("run-status").textContent = "Trusted backend is authorizing the exact plan…";
     const result = await request("/api/workflow/execute", {
       method: "POST",
       body: JSON.stringify({ incidentId, transport: "https" }),
