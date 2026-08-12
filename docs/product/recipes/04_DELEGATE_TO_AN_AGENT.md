@@ -75,9 +75,7 @@ async def main() -> None:
             name="report-agent",
             expires_in_seconds=300,
         )
-        action = mcp.call_tool(
-            name="publish_report", arguments={"report": "weekly"}
-        )
+        action = mcp.call_tool(name="publish_report", arguments={"report": "weekly"})
         first = await agent.execute(
             action=action, provider=provider, request_id="delegated-once"
         )
@@ -85,9 +83,7 @@ async def main() -> None:
             action=action, provider=provider, request_id="delegated-once"
         )
         broader = await agent.execute(
-            action=mcp.call_tool(
-                name="delete_report", arguments={"report": "weekly"}
-            ),
+            action=mcp.call_tool(name="delete_report", arguments={"report": "weekly"}),
             provider=provider,
             request_id="delegated-broader",
         )

@@ -10,4 +10,4 @@ assert ApplicationExecutionStore
 async def capability_boundaries(
     auths: Auths, provider: McpClosedProvider, raw: bytes
 ) -> None:
-    await auths.execute(action=raw, provider=provider)  # type: ignore[call-overload]
+    await auths.execute(action=raw, provider=provider)  # type: ignore[arg-type]

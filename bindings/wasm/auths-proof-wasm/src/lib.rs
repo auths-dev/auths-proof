@@ -2908,6 +2908,11 @@ pub fn derive_ed25519_raw_key_identity_v1(public_key: &[u8]) -> Result<RawKeyIde
     })
 }
 
+/// Derives the Ed25519 public key for a deterministic development seed.
+///
+/// # Errors
+///
+/// Returns a JavaScript error unless the seed is exactly 32 bytes.
 #[wasm_bindgen(js_name = developmentEd25519PublicKeyV1)]
 pub fn development_ed25519_public_key_v1(seed: &[u8]) -> Result<Vec<u8>, JsValue> {
     let seed: [u8; 32] = seed
@@ -3410,7 +3415,7 @@ impl McpExecutionSessionV1 {
 ///
 /// Returns a JavaScript error for incompatible artifacts, a denied action, or
 /// invalid bounded session configuration.
-#[allow(clippy::needless_pass_by_value)]
+#[allow(clippy::needless_pass_by_value, clippy::too_many_arguments)]
 #[wasm_bindgen(js_name = beginMcpExecutionV1)]
 pub fn begin_mcp_execution_v1(
     proof_cbor: &[u8],

@@ -96,8 +96,8 @@
       "expected": "context-commitment-mismatch",
       "evidence": {
         "rust": "bindings/wasm/auths-proof-wasm/examples/generate-node-vectors.rs",
-        "typescript": "bindings/typescript/test/integration/lifecycle-trust.test.js",
-        "python": "bindings/python/tests/test_elite_sdk.py"
+        "typescript": "bindings/typescript/test/integration/scenario-corpus.test.js",
+        "python": "bindings/python/tests/test_api.py"
       }
     },
     {
@@ -207,7 +207,7 @@
       "evidence": {
         "rust": "product/runtime/auths-lifecycle/src/transition.rs",
         "typescript": "bindings/typescript/test/unit/runtime-contract.test.js",
-        "python": "bindings/python/tests/test_elite_sdk.py"
+        "python": "bindings/python/tests/test_mcp_workflow.py"
       }
     },
     {
@@ -217,7 +217,7 @@
       "evidence": {
         "rust": "product/runtime/auths-lifecycle/src/transition.rs",
         "typescript": "bindings/typescript/test/unit/runtime-contract.test.js",
-        "python": "bindings/python/tests/test_elite_sdk.py"
+        "python": "bindings/python/tests/test_mcp_workflow.py"
       }
     },
     {
@@ -227,7 +227,7 @@
       "evidence": {
         "rust": "product/runtime/auths-lifecycle/src/transition.rs",
         "typescript": "bindings/typescript/test/unit/runtime-contract.test.js",
-        "python": "bindings/python/tests/test_elite_sdk.py"
+        "python": "bindings/python/tests/test_mcp_workflow.py"
       }
     },
     {
@@ -237,7 +237,7 @@
       "evidence": {
         "rust": "product/runtime/auths-lifecycle/src/transition.rs",
         "typescript": "bindings/typescript/test/unit/runtime-contract.test.js",
-        "python": "bindings/python/tests/test_elite_sdk.py"
+        "python": "bindings/python/tests/test_mcp_workflow.py"
       }
     },
     {
@@ -327,7 +327,7 @@
       "evidence": {
         "rust": "exchange/crates/auths-proof-exchange-port/src/lib.rs",
         "typescript": "bindings/typescript/test/integration/identity.test.js",
-        "python": "bindings/python/tests/test_elite_sdk.py"
+        "python": "bindings/python/tests/test_conformance.py"
       }
     },
     {

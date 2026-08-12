@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-CONFORMANCE_CATALOG = json.loads(r"""{
+CONFORMANCE_CATALOG = json.loads(r'''{
   "schema": "auths.mechanism-profile-conformance/1",
   "suiteVersion": 1,
   "semanticSubject": "auths.mechanism-profile-conformance/1",
@@ -208,6 +208,6 @@ CONFORMANCE_CATALOG = json.loads(r"""{
     }
   ]
 }
-""")
+''')
 
 __all__ = ["CONFORMANCE_CATALOG"]

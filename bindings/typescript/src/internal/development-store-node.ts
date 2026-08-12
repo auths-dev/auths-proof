@@ -1,5 +1,6 @@
 import type { McpExecutionState, McpReceiptSink } from "../profiles/mcp/index.js";
 import { mkdir, open, readFile, rename, unlink } from "node:fs/promises";
+import { platform } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
 const MANIFEST = "auths-development-v1.json";
@@ -137,6 +138,7 @@ async function atomicWrite(path: string, bytes: Uint8Array): Promise<void> {
 }
 
 async function syncDirectory(path: string): Promise<void> {
+  if (platform() === "win32") return;
   const handle = await open(path, "r");
   try {
     await handle.sync();

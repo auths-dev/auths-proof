@@ -13,7 +13,7 @@ Use a supported Node.js or CPython runtime and install the single Auths package.
 Source: `typescript/03-execute-exact-action.ts`
 
 ```typescript
-import { verifyReceipt } from "@auths-dev/sdk";
+import { verifyReceipt } from "@auths-dev/sdk/verify";
 import { development } from "@auths-dev/sdk/integrations";
 import { mcp } from "@auths-dev/sdk/profiles";
 
@@ -75,9 +75,7 @@ async def main() -> None:
         authority=mcp.allow_tools(["publish_report"])
     ) as auths:
         completed = await auths.execute(
-            action=mcp.call_tool(
-                name="publish_report", arguments={"report": "weekly"}
-            ),
+            action=mcp.call_tool(name="publish_report", arguments={"report": "weekly"}),
             provider=provider,
             request_id="recipe-three-success",
         )
@@ -85,9 +83,7 @@ async def main() -> None:
             raise RuntimeError(f"unexpected result: {completed.kind}")
         verify_receipt(completed.receipt)
         denied = await auths.execute(
-            action=mcp.call_tool(
-                name="delete_report", arguments={"report": "weekly"}
-            ),
+            action=mcp.call_tool(name="delete_report", arguments={"report": "weekly"}),
             provider=provider,
             request_id="recipe-three-denied",
         )

@@ -17,3 +17,7 @@ declare module "node:path" {
   export function join(...parts: string[]): string;
   export function resolve(path: string): string;
 }
+
+declare module "node:os" {
+  export function platform(): string;
+}

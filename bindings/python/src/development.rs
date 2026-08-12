@@ -14,6 +14,7 @@ pub struct PyDevelopmentEd25519Key {
 }
 
 #[pymethods]
+#[allow(clippy::unused_self)]
 impl PyDevelopmentEd25519Key {
     #[staticmethod]
     fn generate() -> PyResult<Self> {

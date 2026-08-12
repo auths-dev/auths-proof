@@ -105,7 +105,7 @@ async fn serve() -> Result<(), ()> {
     );
     let cert_fingerprint = env::var("EDGESHIELD_CLIENT_CERT_FINGERPRINT")
         .unwrap_or_else(|_| "local-client-certificate-fingerprint".to_owned());
-    let store = load_or_create(&path).map_err(|_| ())?;
+    let store = load_or_create(&path)?;
     let transport = IrohConfig::new(
         Arc::<[u8]>::from(ALPN),
         MAX_ENVELOPE,
@@ -163,7 +163,7 @@ async fn health() -> Json<serde_json::Value> {
 async fn actors(State(state): State<AppState>) -> Json<serde_json::Value> {
     let store = state.store.lock().await;
     let current =
-        principal_for_seed(&store.current_seed).unwrap_or_else(|_| "unavailable".to_owned());
+        principal_for_seed(&store.current_seed).unwrap_or_else(|()| "unavailable".to_owned());
     Json(serde_json::json!({
         "actors": [
             {
@@ -252,7 +252,7 @@ async fn approve(
     let signing = SigningKey::from_bytes(&seed);
     let signature = signing.sign(&digest);
     let principal =
-        principal_for_seed(&store.current_seed).unwrap_or_else(|_| "unavailable".to_owned());
+        principal_for_seed(&store.current_seed).unwrap_or_else(|()| "unavailable".to_owned());
     store.approvals = store.approvals.saturating_add(1);
     push_event(
         &mut store,
@@ -353,11 +353,11 @@ async fn rotate(State(state): State<AppState>, headers: HeaderMap) -> impl IntoR
     if getrandom::fill(&mut seed).is_err() {
         return error(StatusCode::INTERNAL_SERVER_ERROR, "entropy-unavailable");
     }
-    store.previous_principal = previous.clone();
+    store.previous_principal.clone_from(&previous);
     store.current_seed = hex::encode(seed);
     store.key_sequence = store.key_sequence.saturating_add(1);
     let current =
-        principal_for_seed(&store.current_seed).unwrap_or_else(|_| "unavailable".to_owned());
+        principal_for_seed(&store.current_seed).unwrap_or_else(|()| "unavailable".to_owned());
     push_event(
         &mut store,
         "rotation",

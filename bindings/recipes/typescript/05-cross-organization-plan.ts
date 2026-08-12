@@ -15,6 +15,7 @@ import { decodeReceipt, encodeReceipt, verifyReceipt } from "@auths-dev/sdk/veri
 const self = fileURLToPath(import.meta.url);
 const mode = process.argv[2];
 const directory = process.argv[3];
+type ApprovalProvider = Parameters<typeof approval.threshold>[0]["providers"][number];
 
 if (mode === "verify") {
   const receipt = decodeReceipt(await readFile(required(directory)));
@@ -101,7 +102,7 @@ async function planApproval() {
   };
 }
 
-function approver(_organization: string) {
+function approver(_organization: string): ApprovalProvider {
   return {
     async approve(request) {
       return {

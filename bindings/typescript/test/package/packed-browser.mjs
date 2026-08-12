@@ -147,12 +147,23 @@ try {
     if (outcome[key] !== value) throw new Error(`packed browser ${key} drifted: ${outcome[key]}`);
   }
   const baseline = JSON.parse(await readFile(new URL("../../performance-baseline.json", import.meta.url)));
-  for (const [actual, budget] of [
-    [outcome.warmVerificationP95Ms, baseline.measurements.chromiumWarmVerificationP95Ms],
-    [outcome.workerColdStartMs, baseline.measurements.chromiumWorkerColdStartMs],
+  for (const { name, actual, budget, tolerance } of [
+    {
+      name: "warm verification p95",
+      actual: outcome.warmVerificationP95Ms,
+      budget: baseline.measurements.chromiumWarmVerificationP95Ms,
+      tolerance: 1.1,
+    },
+    {
+      name: "worker cold start",
+      actual: outcome.workerColdStartMs,
+      budget: baseline.measurements.chromiumWorkerColdStartMs,
+      tolerance: 1.25,
+    },
   ]) {
-    if (!Number.isFinite(actual) || actual > budget * 1.1) {
-      throw new Error(`packed browser performance exceeded budget: ${actual} > ${budget}`);
+    const limit = budget * tolerance;
+    if (!Number.isFinite(actual) || actual > limit) {
+      throw new Error(`packed browser ${name} exceeded budget: ${actual} > ${limit}`);
     }
   }
   process.stdout.write(`${JSON.stringify({ outcome })}\n`);

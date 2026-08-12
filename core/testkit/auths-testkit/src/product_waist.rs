@@ -152,6 +152,7 @@ pub fn simplified_product_waist_manifest() -> ProductWaistManifest {
     }
 }
 
+#[allow(clippy::too_many_lines)]
 fn product_waist_cases() -> Vec<ProductWaistCase> {
     let command_rust = "bindings/python/src/mcp.rs";
     let command_typescript = "bindings/typescript/test/integration/profiles/mcp.test.js";
@@ -161,7 +162,7 @@ fn product_waist_cases() -> Vec<ProductWaistCase> {
     let delegation_python = "bindings/python/tests/test_workflow.py";
     let lifecycle_rust = "product/runtime/auths-lifecycle/src/transition.rs";
     let runtime_typescript = "bindings/typescript/test/unit/runtime-contract.test.js";
-    let runtime_python = "bindings/python/tests/test_elite_sdk.py";
+    let runtime_python = "bindings/python/tests/test_mcp_workflow.py";
     let receipt_rust = "product/receipts/auths-receipts/src/lib.rs";
     let fixture_rust = "bindings/wasm/auths-proof-wasm/examples/generate-node-vectors.rs";
 
@@ -227,8 +228,8 @@ fn product_waist_cases() -> Vec<ProductWaistCase> {
             "authorization",
             "context-commitment-mismatch",
             fixture_rust,
-            "bindings/typescript/test/integration/lifecycle-trust.test.js",
-            "bindings/python/tests/test_elite_sdk.py",
+            "bindings/typescript/test/integration/scenario-corpus.test.js",
+            "bindings/python/tests/test_api.py",
         ),
         case(
             "substitution/profile",
@@ -412,7 +413,7 @@ fn product_waist_cases() -> Vec<ProductWaistCase> {
             "transport-is-not-authority",
             "exchange/crates/auths-proof-exchange-port/src/lib.rs",
             "bindings/typescript/test/integration/identity.test.js",
-            "bindings/python/tests/test_elite_sdk.py",
+            "bindings/python/tests/test_conformance.py",
         ),
         case(
             "receipt/mutated-decision",

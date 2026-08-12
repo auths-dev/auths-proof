@@ -35,6 +35,7 @@ pub struct ConformanceCase {
 }
 
 #[must_use]
+#[allow(clippy::too_many_lines)]
 pub fn mechanism_profile_conformance_catalog() -> ConformanceCatalog {
     ConformanceCatalog {
         schema: "auths.mechanism-profile-conformance/1",
@@ -147,6 +148,9 @@ pub fn mechanism_profile_conformance_catalog() -> ConformanceCatalog {
 }
 
 impl ConformanceCatalog {
+    /// # Errors
+    ///
+    /// Returns an error when the catalog identity, contracts, suites, or cases are invalid.
     pub fn validate(&self) -> Result<(), String> {
         if self.schema != "auths.mechanism-profile-conformance/1"
             || self.suite_version != 1

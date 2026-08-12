@@ -89,7 +89,7 @@ jobs:
             bindings/python/adapter-contracts.json
             bindings/python/external/full_workflow_consumer.py
             bindings/python/external/conformance_consumer.py
-            bindings/python/examples/identity_quickstart.py
+            bindings/recipes/python/01_authenticate_identity.py
             bindings/python/identity-conformance-v1.json
             bindings/python/native-abi-v2.json
             bindings/python/performance-baseline.json
@@ -187,7 +187,7 @@ jobs:
         shell: bash
         working-directory: ${{ runner.temp }}
         run: >-
-          python "${{ github.workspace }}/consumer/bindings/python/examples/identity_quickstart.py"
+          python "${{ github.workspace }}/consumer/bindings/recipes/python/01_authenticate_identity.py"
       - name: Execute installed Auths-owned conformance
         shell: bash
         working-directory: ${{ runner.temp }}
