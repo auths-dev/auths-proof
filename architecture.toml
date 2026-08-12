@@ -69,7 +69,6 @@ no_std_packages = [
   "auths-did-keri",
   "auths-did-key",
   "auths-did-web",
-  "auths-errors",
   "auths-hsm-attested",
   "auths-identity",
   "auths-identity-authority",

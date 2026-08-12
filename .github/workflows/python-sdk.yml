@@ -85,6 +85,7 @@ jobs:
           path: |
             target/binding-vectors/
             bindings/customer-journey-matrix-v1.json
+            bindings/public-topology-v1.json
             bindings/python/api/public-api.txt
             bindings/python/adapter-contracts.json
             bindings/python/external/full_workflow_consumer.py
