@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { AuthsWorkflowError, ProviderOperationError } from "../../dist/index.js";
+import { AuthsWorkflowError, ProviderOperationError } from "../../dist/workflow/errors.js";
 
 test("workflow and provider errors expose bounded recovery metadata", () => {
   const workflow = new AuthsWorkflowError("approval-timeout", "approval timed out", {

@@ -21,32 +21,31 @@ for (let index = 0; index < 100; index += 1) {
   timings.push(performance.now() - before);
 }
 timings.sort((left, right) => left - right);
+const { loadPackagedWorkflowEngine } = await import(new URL("dist/internal/wasm.js", root));
+const engine = await loadPackagedWorkflowEngine();
+const wasmBoundarySerializeSmallP95Ms = boundaryP95(engine, 64);
+const wasmBoundarySerializeMediumP95Ms = boundaryP95(engine, 4096);
+const wasmBoundarySerializeMaximumP95Ms = boundaryP95(engine, 65536);
 const batchStarted = performance.now();
 await verifier.verifyMany(Array.from({ length: 64 }, () => input));
 const batchMs = performance.now() - batchStarted;
-const { defineProfile } = await import(new URL("dist/profile-kit.js", root));
-const profile = defineProfile({
-  id: "auths.performance/1",
-  version: 1,
-  canonicalize(value) {
-    return {
-      mediaType: "application/octet-stream",
-      body: Uint8Array.of(value),
-      permission: { capability: "benchmark/use", resource: `benchmark://${value}` },
-      resourceNamespace: "benchmark://",
-      audience: "benchmark://local",
-      display: [{ label: "Item", value: String(value) }],
-    };
-  },
-});
+const { mcp } = await import(new URL("dist/profiles.js", root));
+const profile = mcp.profile({ service: "performance" });
+const actions = Array.from(
+  { length: 64 },
+  (_unused, index) => profile.call("read_record", { index }),
+);
 const planStarted = performance.now();
-await profile.plan(Array.from({ length: 64 }, (_unused, index) => profile.action(index)));
+await profile.plan(actions);
 const plan64Ms = performance.now() - planStarted;
 const wasm = await readFile(new URL("wasm/auths_proof_wasm_bg.wasm", root));
 const distBytes = await directoryBytes(new URL("dist/", root));
 const measurement = {
   coldStartMs,
   warmVerificationP95Ms: timings[Math.floor(timings.length * 0.95)],
+  wasmBoundarySerializeSmallP95Ms,
+  wasmBoundarySerializeMediumP95Ms,
+  wasmBoundarySerializeMaximumP95Ms,
   batch64Ms: batchMs,
   plan64Ms,
   residentMemoryBytes: process.memoryUsage().rss,
@@ -64,7 +63,16 @@ if (process.argv.includes("--print")) {
     baseline.environment.architecture === process.arch &&
     baseline.environment.node === process.versions.node;
   if (matchingEnvironment) {
-    for (const key of ["coldStartMs", "warmVerificationP95Ms", "batch64Ms", "plan64Ms", "residentMemoryBytes"]) {
+    for (const key of [
+      "coldStartMs",
+      "warmVerificationP95Ms",
+      "wasmBoundarySerializeSmallP95Ms",
+      "wasmBoundarySerializeMediumP95Ms",
+      "wasmBoundarySerializeMaximumP95Ms",
+      "batch64Ms",
+      "plan64Ms",
+      "residentMemoryBytes",
+    ]) {
       assert.ok(measurement[key] <= baseline.measurements[key] * 1.1, `${key} exceeded 10% budget`);
     }
   }
@@ -72,6 +80,18 @@ if (process.argv.includes("--print")) {
     assert.ok(measurement[key] <= baseline.measurements[key] * 1.15, `${key} exceeded 15% budget`);
   }
   process.stdout.write(`${JSON.stringify({ matchingEnvironment, measurement }, null, 2)}\n`);
+}
+
+function boundaryP95(engine, size) {
+  const value = new Uint8Array(size);
+  const samples = [];
+  for (let index = 0; index < 100; index += 1) {
+    const before = performance.now();
+    engine.commitCanonicalV1("auths.performance-boundary.v1", value);
+    samples.push(performance.now() - before);
+  }
+  samples.sort((left, right) => left - right);
+  return samples[Math.floor(samples.length * 0.95)];
 }
 
 async function directoryBytes(directory) {

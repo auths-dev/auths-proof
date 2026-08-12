@@ -3,10 +3,28 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Awaitable, Callable, Generic, TypeVar
+from inspect import isawaitable
+from types import MappingProxyType
+from typing import Any, Awaitable, Callable, Generic, Mapping, TypeVar, Union, cast
 
-from .approvals import ApprovalDecision, ApprovalProvider, ApprovalRequest, ApprovalResponse
-from .custody import (
+from ._development import (
+    DevelopmentEd25519Signer,
+    DevelopmentReceiptAttestor,
+)
+from ._diagnostics import (
+    DiagnosticEngine,
+    DiagnosticExplanation,
+    DiagnosticResult,
+    DiagnosticVerifier,
+    create_diagnostic_verifier,
+)
+from ._approvals import (
+    ApprovalDecision,
+    ApprovalProvider,
+    ApprovalRequest,
+    ApprovalResponse,
+)
+from ._custody import (
     PrincipalDescriptor,
     Signer,
     SignerLifecycle,
@@ -21,9 +39,120 @@ from .identity import (
     ResolvedIdentityRecord,
     VerificationMaterial,
 )
-from .observability import AuthsEvent
+from ._observability import AuthsEvent
+from ._conformance import (
+    CONFORMANCE_CATALOG,
+    AtomicReservationRecord,
+    AtomicReservationStoreCandidate,
+    ByteTransportCandidate,
+    ConformanceCaseResult,
+    ConformanceMetadata,
+    ConformanceReport,
+    certify_atomic_store,
+    certify_byte_transport,
+    certify_mcp_provider,
+    certify_signer,
+)
 
 ADAPTER_CONTRACT_VERSION = 1
+
+
+@dataclass(frozen=True)
+class ProductWaistExpected:
+    boundary: str
+    code: str
+
+
+@dataclass(frozen=True)
+class ProductWaistConformanceReport:
+    schema: str
+    manifest_schema: str
+    fixture_projection: str
+    passed: tuple[str, ...]
+
+
+async def product_waist_conformance(
+    manifest_input: object,
+    cases: Mapping[
+        str,
+        Callable[[ProductWaistExpected], Union[object, Awaitable[object]]],
+    ],
+) -> ProductWaistConformanceReport:
+    manifest = _product_waist_manifest(manifest_input)
+    required = tuple(item["id"] for item in manifest["cases"])
+    supplied = tuple(cases)
+    if len(supplied) != len(set(supplied)) or set(supplied) != set(required):
+        missing = sorted(set(required) - set(supplied))
+        unexpected = sorted(set(supplied) - set(required))
+        raise TypeError(
+            "product-waist case mismatch; "
+            f"missing={','.join(missing)}; unexpected={','.join(unexpected)}"
+        )
+    for item in manifest["cases"]:
+        result = cases[item["id"]](
+            ProductWaistExpected(item["boundary"], item["expected"])
+        )
+        if isawaitable(result):
+            await result
+    return ProductWaistConformanceReport(
+        "auths.simplified-product-waist-conformance-result/1",
+        manifest["schema"],
+        manifest["fixtureProjection"],
+        required,
+    )
+
+
+def _product_waist_manifest(value: object) -> Mapping[str, Any]:
+    if type(value) is not dict:
+        raise TypeError("product-waist manifest must be an object")
+    item = cast(dict[str, object], value)
+    schema = _manifest_text(item.get("schema"), "schema")
+    owner = _manifest_text(item.get("semanticOwner"), "semanticOwner")
+    projection = _manifest_text(item.get("fixtureProjection"), "fixtureProjection")
+    raw_cases = item.get("cases")
+    if (
+        schema != "auths.simplified-product-waist-conformance/1"
+        or owner != "Rust"
+        or type(raw_cases) is not list
+    ):
+        raise TypeError("unsupported product-waist manifest")
+    seen: set[str] = set()
+    parsed: list[Mapping[str, str]] = []
+    for candidate in cast(list[object], raw_cases):
+        if type(candidate) is not dict:
+            raise TypeError("product-waist case must be an object")
+        case = cast(dict[str, object], candidate)
+        identifier = _manifest_text(case.get("id"), "case id")
+        boundary = _manifest_text(case.get("boundary"), "case boundary")
+        expected = _manifest_text(case.get("expected"), "case expected code")
+        parts = identifier.split("/")
+        if (
+            len(parts) != 2
+            or any(not part or not part.replace("-", "").isalnum() for part in parts)
+            or identifier.lower() != identifier
+            or identifier in seen
+        ):
+            raise TypeError(f"invalid or duplicate product-waist case: {identifier}")
+        seen.add(identifier)
+        parsed.append(
+            MappingProxyType(
+                {"id": identifier, "boundary": boundary, "expected": expected}
+            )
+        )
+    return MappingProxyType(
+        {
+            "schema": schema,
+            "semanticOwner": owner,
+            "fixtureProjection": projection,
+            "cases": tuple(parsed),
+        }
+    )
+
+
+def _manifest_text(value: object, name: str) -> str:
+    if type(value) is not str or not value or len(value) > 512:
+        raise TypeError(f"product-waist {name} is invalid")
+    return value
 
 
 class DevelopmentApproval(ApprovalProvider):
@@ -45,7 +174,9 @@ class DevelopmentSigner(Signer):
     kind = "auths.testkit.development-signer"
     lifecycle: SignerLifecycle = "durable"
 
-    def __init__(self, principal: PrincipalDescriptor, *, signature_byte: int = 7) -> None:
+    def __init__(
+        self, principal: PrincipalDescriptor, *, signature_byte: int = 7
+    ) -> None:
         if not 0 <= signature_byte <= 255:
             raise ValueError("signature byte must fit in one byte")
         self._principal = principal
@@ -173,7 +304,10 @@ async def check_identity_method(
     result = await method.resolve(identity)
     if type(result) is not ResolvedIdentityRecord:
         raise AssertionError("identity method returned the wrong resolved type")
-    if result.method_id != method.method_id or result.identity_id != identity.identity_id:
+    if (
+        result.method_id != method.method_id
+        or result.identity_id != identity.identity_id
+    ):
         raise AssertionError("identity method changed the requested identity")
     await method.validate(ResolvedIdentity(identity, result))
     return result
@@ -196,15 +330,36 @@ def check_telemetry(telemetry: RecordingTelemetry) -> AuthsEvent:
 
 __all__ = [
     "ADAPTER_CONTRACT_VERSION",
+    "DiagnosticEngine",
+    "DiagnosticExplanation",
+    "DiagnosticResult",
+    "DiagnosticVerifier",
     "DevelopmentApproval",
+    "DevelopmentEd25519Signer",
+    "DevelopmentReceiptAttestor",
     "DevelopmentIdentityMethod",
     "DevelopmentSignatureSuite",
     "DevelopmentSigner",
     "FixedClock",
     "MemoryGateway",
+    "ProductWaistConformanceReport",
+    "ProductWaistExpected",
     "RecordingTelemetry",
     "check_approval_provider",
     "check_identity_method",
     "check_signer",
     "check_telemetry",
+    "create_diagnostic_verifier",
+    "product_waist_conformance",
+    "AtomicReservationRecord",
+    "AtomicReservationStoreCandidate",
+    "ByteTransportCandidate",
+    "CONFORMANCE_CATALOG",
+    "ConformanceCaseResult",
+    "ConformanceMetadata",
+    "ConformanceReport",
+    "certify_atomic_store",
+    "certify_byte_transport",
+    "certify_mcp_provider",
+    "certify_signer",
 ]

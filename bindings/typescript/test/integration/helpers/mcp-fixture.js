@@ -4,7 +4,7 @@ import {
   loadAuths,
   signedGrantSource,
   trustedContextSource,
-} from "../../../dist/index.js";
+} from "../../../dist/internal-sdk.js";
 import { mcp } from "../../../dist/mcp.js";
 
 export const ROOT = "key:sha256:qogx823wE-Cfoq_WXwDS1D6S8jMOhJssOpaNRZOJCKs";

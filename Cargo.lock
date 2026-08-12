@@ -397,6 +397,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "auths-cross-company-incident-edgeshield-demo"
+version = "1.0.0-rc.1"
+dependencies = [
+ "auths-iroh",
+ "auths-raw-key",
+ "axum",
+ "ed25519-dalek 2.2.0",
+ "getrandom 0.3.4",
+ "hex",
+ "iroh",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "tokio",
+ "tower",
+ "tower-http 0.7.0",
+]
+
+[[package]]
 name = "auths-custody"
 version = "1.0.0-rc.1"
 dependencies = [
@@ -461,6 +480,13 @@ dependencies = [
  "auths-profile-api",
  "auths-sdk",
  "thiserror 2.0.19",
+]
+
+[[package]]
+name = "auths-errors"
+version = "1.0.0-rc.1"
+dependencies = [
+ "serde",
 ]
 
 [[package]]
@@ -953,10 +979,12 @@ dependencies = [
 name = "auths-profile-mcp"
 version = "1.0.0-rc.1"
 dependencies = [
+ "auths-codec",
  "auths-model",
  "auths-profile-api",
  "auths-verifier",
  "hex",
+ "hmac 0.12.1",
  "rmcp",
  "serde",
  "serde_json",
@@ -1157,15 +1185,18 @@ dependencies = [
  "auths-profile-domains",
  "auths-profile-mcp",
  "auths-raw-key",
+ "auths-receipts",
  "auths-registries",
  "auths-sdk",
  "auths-signature",
  "auths-signature-ed25519",
  "auths-verifier",
+ "ed25519-dalek 2.2.0",
  "getrandom 0.3.4",
  "pyo3",
  "serde_json",
  "serde_json_canonicalizer",
+ "sha2 0.10.9",
  "subtle",
 ]
 
@@ -1185,6 +1216,7 @@ dependencies = [
  "auths-profile-domains",
  "auths-profile-mcp",
  "auths-raw-key",
+ "auths-receipts",
  "auths-registries",
  "auths-signature",
  "auths-signature-ed25519",
@@ -1195,6 +1227,7 @@ dependencies = [
  "serde-wasm-bindgen",
  "serde_json",
  "serde_json_canonicalizer",
+ "sha2 0.10.9",
  "wasm-bindgen",
 ]
 
@@ -1281,6 +1314,7 @@ dependencies = [
 name = "auths-receipts"
 version = "1.0.0-rc.1"
 dependencies = [
+ "auths-codec",
  "auths-model",
  "auths-ports",
  "minicbor",
@@ -1399,6 +1433,7 @@ dependencies = [
  "auths-custody",
  "auths-did-keri",
  "auths-did-key",
+ "auths-errors",
  "auths-kernel-runtime",
  "auths-model",
  "auths-ports",
@@ -6946,6 +6981,7 @@ dependencies = [
  "auths-did-keri",
  "auths-did-key",
  "auths-did-web",
+ "auths-errors",
  "auths-github",
  "auths-hsm-attested",
  "auths-kubernetes",
@@ -6954,6 +6990,7 @@ dependencies = [
  "auths-opentofu",
  "auths-ports",
  "auths-postgresql",
+ "auths-profile-mcp",
  "auths-proof-exchange-testkit",
  "auths-radicle",
  "auths-raw-key",

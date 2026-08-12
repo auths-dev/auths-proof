@@ -7,13 +7,14 @@ rust-version.workspace = true
 repository.workspace = true
 homepage = "https://auths.dev"
 documentation = "https://docs.rs/auths-sdk"
-description = "Idiomatic embedded Auths enforcement SDK"
+description = "Product facade for exact authority, protected actions, and signed receipts"
 
 [dependencies]
 auths-author.workspace = true
 auths-custody.workspace = true
 auths-did-keri = { workspace = true, features = ["std"] }
 auths-did-key.workspace = true
+auths-errors.workspace = true
 auths-kernel-runtime.workspace = true
 auths-model.workspace = true
 auths-ports.workspace = true

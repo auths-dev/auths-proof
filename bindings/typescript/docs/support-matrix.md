@@ -11,7 +11,7 @@ WASM, subpath, profile, or ABI mismatch before publication.
 | Bundling | Direct ESM package exports; no deep imports or CommonJS contract |
 | Identity ABI | 1 |
 | Authoring ABI | 1 |
-| Profiles | MCP, HTTP, Git, deployment, supply-chain, and edge version 1 |
+| Profiles | MCP version 1 |
 
 The package has no mandatory account, cloud call, daemon, vendor adapter, key
 store, approval service, resolver, telemetry exporter, database, or transport.

@@ -27,14 +27,17 @@ auths-profile-domains.workspace = true
 auths-profile-mcp.workspace = true
 auths-raw-key = { workspace = true, features = ["std"] }
 auths-registries = { workspace = true, features = ["std"] }
+auths-receipts.workspace = true
 auths-signature = { workspace = true, features = ["std"] }
 auths-signature-ed25519.workspace = true
 auths-sdk.workspace = true
 auths-verifier = { workspace = true, features = ["std"] }
+ed25519-dalek.workspace = true
 getrandom.workspace = true
 pyo3.workspace = true
 serde_json.workspace = true
 serde_json_canonicalizer.workspace = true
+sha2.workspace = true
 subtle.workspace = true
 
 [lints]

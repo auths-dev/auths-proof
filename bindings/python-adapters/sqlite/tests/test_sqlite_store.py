@@ -4,32 +4,38 @@ from pathlib import Path
 
 import pytest
 
-from auths.runtime import CommandState
-from auths_sqlite import SQLiteRuntimeStore
+from auths.framework import AtomicReservationRecord
+from auths.testkit import ConformanceMetadata, certify_atomic_store
+from auths_sqlite import SQLiteAtomicReservationStore
 
 
 @pytest.mark.asyncio
-async def test_sqlite_store_persists_atomic_runtime_state(tmp_path: Path) -> None:
-    path = tmp_path / "runtime.sqlite3"
-    store = SQLiteRuntimeStore(path, budget_ceilings={"numeric-ceiling-v1": 3})
-    challenge = bytes([1]) * 32
-    assert await store.issue(challenge, expires_at=100)
-    assert await store.claim(challenge, now=10) == "claimed"
-    assert await store.claim(challenge, now=10) == "duplicate"
-    assert await store.reserve(bytes([2]) * 32, "numeric-ceiling-v1", 2) == "reserved"
-    assert await store.reserve(bytes([3]) * 32, "numeric-ceiling-v1", 2) == "exhausted"
-    state = CommandState(
-        "command-1",
-        bytes([4]) * 32,
-        bytes([5]) * 32,
-        bytes([6]) * 32,
-        "decision-recorded",
-        0,
-        "request-1",
-        10,
+async def test_sqlite_store_is_durable_and_conformant(tmp_path: Path) -> None:
+    sequence = 0
+
+    def factory() -> SQLiteAtomicReservationStore:
+        nonlocal sequence
+        sequence += 1
+        return SQLiteAtomicReservationStore(tmp_path / f"store-{sequence}.sqlite3")
+
+    report = await certify_atomic_store(
+        factory,
+        ConformanceMetadata(
+            "auths.sqlite.atomic-reservation",
+            "1",
+            capabilities=("durable-reopen",),
+        ),
     )
-    assert await store.compare_and_swap(None, state) == "stored"
-    assert await store.compare_and_swap(None, state) == "conflict"
-    assert await SQLiteRuntimeStore(path).load("command-1") == state
-    assert await store.put("receipt-1", b"receipt") == "stored"
-    assert await store.put("receipt-1", b"receipt") == "duplicate"
+    assert report.passed
+
+    store = SQLiteAtomicReservationStore(tmp_path / "durable.sqlite3")
+    record = AtomicReservationRecord("execution-1", bytes([1]) * 32, b"reserved")
+    assert await store.reserve(record) == "acquired"
+    reopened = await store.reopen()
+    assert await reopened.reserve(record) == "exact-replay"
+    assert (
+        await reopened.reserve(
+            AtomicReservationRecord("execution-1", bytes([2]) * 32, b"different")
+        )
+        == "conflict"
+    )

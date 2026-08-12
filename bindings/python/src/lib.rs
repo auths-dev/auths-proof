@@ -4,9 +4,12 @@
 
 mod application;
 mod authoring;
+mod development;
+mod domains;
 mod http;
 mod identity;
 mod mcp;
+mod receipts;
 mod result;
 mod runtime;
 mod workflow;
@@ -30,10 +33,13 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(generate_challenge_v1, module)?)?;
     authoring::register(module)?;
     application::register(module)?;
+    development::register(module)?;
+    domains::register(module)?;
     identity::register(module)?;
     http::register(module)?;
     mcp::register(module)?;
     result::register(module)?;
+    receipts::register(module)?;
     runtime::register(module)?;
     workflow::register(module)?;
     Ok(())

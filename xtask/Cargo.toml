@@ -8,12 +8,14 @@ publish = false
 
 [dependencies]
 auths-codec = { workspace = true, features = ["std"] }
+auths-errors = { workspace = true, features = ["std"] }
 auths-did-key = { workspace = true, features = ["std"] }
 auths-did-keri = { workspace = true, features = ["std"] }
 auths-did-web = { workspace = true, features = ["std"] }
 auths-hsm-attested = { workspace = true, features = ["std"] }
 auths-model.workspace = true
 auths-ports = { workspace = true, features = ["std"] }
+auths-profile-mcp.workspace = true
 auths-raw-key = { workspace = true, features = ["std"] }
 auths-registries = { workspace = true, features = ["std"] }
 auths-signature = { workspace = true, features = ["std"] }

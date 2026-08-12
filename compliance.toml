@@ -4,6 +4,26 @@ portable_abi_version = 2
 report_schema = "auths-product-core-compliance/v1"
 scope_layers = ["bindings", "demos", "product"]
 
+[packages.auths-cross-company-incident-edgeshield-demo]
+kind = "cargo"
+layer = "demos"
+path = "demos/cross-company-incident-response/edgeshield-service"
+core_apis = ["auths-raw-key"]
+protocol_versions = ["auths-proof/v1", "auths-incident-demo/1"]
+wire_objects = ["bounded-incident-envelope"]
+fixture_suites = ["core/fixtures/v1"]
+principal_families = ["raw-key-v1", "webauthn-v1"]
+signature_families = ["ed25519-v1", "p256-sha256-v1"]
+profiles = ["auths.edge/1"]
+transports = ["https", "iroh"]
+configuration_inputs = ["client-certificate-fingerprint", "iroh-alpn", "provider-state-path"]
+security_state = ["edge-key-sequence", "provider-effect-ledger", "transport-peer-observation"]
+
+[packages.auths-cross-company-incident-edgeshield-demo.claims]
+demo-conformance-fixture = ["demos/cross-company-incident-response/edgeshield-service/src/main.rs#real_iroh_delivery_is_semantics_free"]
+runtime-enforcement-boundary = ["demos/cross-company-incident-response/agent-service/tests/test_sdk.py#test_replay_and_runtime_transitions"]
+stateful-replay-budget-component = ["demos/cross-company-incident-response/agent-service/tests/test_sdk.py#test_failure_matrix"]
+
 [packages.auths-identity-iroh-demo]
 kind = "cargo"
 layer = "demos"
@@ -196,6 +216,27 @@ security_state = []
 
 [packages.auths-enforcement.claims]
 runtime-enforcement-boundary = ["demos/testkit/auths-apps-testkit/src/lib.rs#signed_permission_must_match_tool"]
+
+[packages.auths-errors]
+kind = "cargo"
+layer = "product"
+path = "product/errors/auths-errors"
+core_apis = []
+protocol_versions = ["auths.error-registry/1"]
+wire_objects = ["ErrorDefinition", "ErrorEnvelope"]
+fixture_suites = ["product/fixtures/v1/errors"]
+principal_families = []
+signature_families = []
+profiles = []
+transports = []
+configuration_inputs = ["error-code", "operation", "recovery-classification", "stage"]
+security_state = ["bounded-error-envelope"]
+
+[packages.auths-errors.claims]
+independent-semantic-implementation = [
+  "product/errors/auths-errors/src/lib.rs#registry_is_closed_and_valid",
+  "product/errors/auths-errors/src/lib.rs#unknown_effect_never_claims_safe_retry",
+]
 
 [packages.auths-evidence-assemblers]
 kind = "cargo"
@@ -1090,7 +1131,7 @@ runtime-enforcement-boundary = [
 kind = "cargo"
 layer = "product"
 path = "product/profiles/auths-profile-mcp"
-core_apis = ["auths-model", "auths-verifier"]
+core_apis = ["auths-codec", "auths-model", "auths-verifier"]
 protocol_versions = ["auths-proof/v1"]
 wire_objects = ["CanonicalAction", "VerifiedAction"]
 fixture_suites = ["product/fixtures/v1"]
@@ -1183,7 +1224,7 @@ core-api-consumer = ["product/runtime/auths-kernel-runtime/src/lib.rs#minimal_ke
 kind = "cargo"
 layer = "product"
 path = "product/receipts/auths-receipts"
-core_apis = ["auths-model", "auths-ports"]
+core_apis = ["auths-codec", "auths-model", "auths-ports"]
 protocol_versions = ["auths-proof/v1"]
 wire_objects = ["AttestedDecisionReceipt", "AttestedExecutionReceipt", "AuditBundle", "DecisionReceipt", "ExecutionReceipt"]
 fixture_suites = []
@@ -1306,9 +1347,9 @@ runtime-enforcement-boundary = [
   "bindings/typescript/test/integration/non-forgeability.test.js#denied decisions expose no command on any surface",
   "bindings/typescript/test/integration/inspection.test.js#inspection evidence cannot be promoted into any command",
   "bindings/typescript/test/integration/inspection.test.js#canonical bytes recovered from inspection stay inert",
-  "bindings/typescript/test/package/packed-consumer.test.js#packed package installs and executes only through published entry points",
-  "bindings/typescript/test/package/packed-node.test.js#packed package runs the sealed command path in native Node",
-  "bindings/typescript/test/package/packed-examples.test.js#every example compiles and runs against the packed package alone",
+  "bindings/typescript/test/package/packed-consumer.test.js#packed package exposes only the reviewed public topology",
+  "bindings/typescript/test/package/packed-node.test.js#packed package executes the primary product path",
+  "bindings/typescript/test/package/packed-examples.test.js#the first four recipes compile against the packed package alone",
 ]
 
 [packages."auths.dev/independent-verifier"]

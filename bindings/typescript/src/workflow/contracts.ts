@@ -387,6 +387,24 @@ export interface WorkflowWasmEngine {
     name: string,
     argumentsValue: unknown,
   ): Uint8Array;
+  beginMcpExecutionV1(
+    proofCbor: Uint8Array,
+    canonicalActionCbor: Uint8Array,
+    trustedContextCbor: Uint8Array,
+    decisionReceiptId: Uint8Array,
+    decisionReceipt: Uint8Array,
+    hasPlan: boolean,
+    planCommitment: Uint8Array,
+    memberIndex: number,
+    memberCount: number,
+    requestId: string | undefined,
+    sessionKey: Uint8Array,
+  ): WorkflowMcpExecutionSession;
+  resumeMcpExecutionV1(
+    sessionKey: Uint8Array,
+    reference: string,
+    recordJson: Uint8Array,
+  ): WorkflowMcpExecutionSession;
   canonicalizeProfilePlanMemberV1(
     profileId: string,
     profileVersion: number,
@@ -416,6 +434,65 @@ export interface WorkflowWasmEngine {
     challenge: Uint8Array,
     evaluationTime: bigint,
   ): WorkflowProfileActionPreparation;
+  profileReceiptBindingsV1(
+    proofCbor: Uint8Array,
+    canonicalActionCbor: Uint8Array,
+    trustedContextCbor: Uint8Array,
+  ): WorkflowProfileReceiptBindings;
+  prepareAuthorizedDecisionReceiptV1(
+    proofCbor: Uint8Array,
+    canonicalActionCbor: Uint8Array,
+    trustedContextCbor: Uint8Array,
+    decidedAt: bigint,
+    verifier: string,
+    verificationMethod: string,
+    suite: string,
+  ): WorkflowReceiptPreparation;
+  prepareApplicationExecutionReceiptV1(
+    decisionReceiptId: Uint8Array,
+    idempotencyKey: string,
+    hasPlan: boolean,
+    planCommitment: Uint8Array,
+    memberIndex: number,
+    memberCount: number,
+    commandBytes: Uint8Array,
+    outcome: "succeeded" | "failed",
+    hasResult: boolean,
+    result: Uint8Array,
+    completedAt: bigint,
+    verifier: string,
+    verificationMethod: string,
+    suite: string,
+  ): WorkflowReceiptPreparation;
+  attestDecisionReceiptV1(
+    canonical: Uint8Array,
+    verifier: string,
+    verificationMethod: string,
+    suite: string,
+    signature: Uint8Array,
+  ): Uint8Array;
+  attestExecutionReceiptV1(
+    canonical: Uint8Array,
+    verifier: string,
+    verificationMethod: string,
+    suite: string,
+    signature: Uint8Array,
+  ): Uint8Array;
+  verifyRawKeyReceiptV1(
+    kind: "decision" | "execution",
+    attested: Uint8Array,
+    expectedId: Uint8Array,
+    verifier: string,
+    verificationMethod: string,
+    suite: string,
+    rawKeyEvidence: Uint8Array,
+  ): void;
+  verifyReceiptLinkV1(
+    decision: Uint8Array,
+    decisionId: Uint8Array,
+    execution: Uint8Array,
+    executionId: Uint8Array,
+  ): void;
   prepareRawKeyAuthorityV1(
     root: string,
     subject: string,
@@ -433,6 +510,7 @@ export interface WorkflowWasmEngine {
     remainingDepth: number,
   ): WorkflowRawKeyAuthorityPreparation;
   deriveEd25519RawKeyIdentityV1(publicKey: Uint8Array): WorkflowRawKeyIdentity;
+  developmentEd25519PublicKeyV1(seed: Uint8Array): Uint8Array;
   AuthorizationPlanBuilderV1: new () => WorkflowAuthorizationPlanBuilder;
   WorkflowProofBuilderV1: new () => WorkflowProofBuilder;
   commitCanonicalV1(domain: string, canonical: Uint8Array): Uint8Array;
@@ -598,6 +676,45 @@ export interface WorkflowMcpActionPreparation {
   free?(): void;
 }
 
+export interface WorkflowMcpSessionStep {
+  readonly kind: "reserve" | "mark-provider-entry" | "invoke" | "persist-receipt" | "reconcile";
+  readonly executionId: string;
+  readonly service?: string;
+  readonly tool?: string;
+  readonly bytes?: Uint8Array;
+}
+
+export interface WorkflowMcpSessionTerminal {
+  readonly kind: "completed" | "not-applied" | "exact-replay" | "conflict" | "recoverable";
+  readonly executionId: string;
+  readonly outputJson?: Uint8Array;
+  readonly receiptJson?: Uint8Array;
+  readonly reference?: string;
+  readonly recordJson?: Uint8Array;
+}
+
+export interface WorkflowMcpExecutionSession {
+  readonly executionId: string;
+  readonly canonicalAction: Uint8Array;
+  readonly decisionReceiptId: Uint8Array;
+  readonly decisionReceipt: Uint8Array;
+  readonly planCommitment?: Uint8Array;
+  readonly memberIndex?: number;
+  readonly memberCount?: number;
+  nextStep(): WorkflowMcpSessionStep;
+  acceptReservation(result: "acquired" | "exact-replay" | "conflict"): void;
+  acceptProviderEntry(): void;
+  cancelBeforeProvider(): void;
+  acceptHandler(
+    effect: "not-applied" | "applied" | "possible",
+    outputJson?: Uint8Array,
+    cause?: "cancelled" | "invalid-output" | "limit-exceeded" | "timeout" | "unavailable" | "unknown",
+  ): void;
+  acceptReceipt(persisted: boolean): void;
+  terminal(): WorkflowMcpSessionTerminal | null;
+  free?(): void;
+}
+
 export interface WorkflowActionPreparation {
   readonly canonicalActionCbor: Uint8Array;
   readonly actionEnvelopeCbor: Uint8Array;
@@ -607,6 +724,20 @@ export interface WorkflowActionPreparation {
 }
 
 export type WorkflowProfileActionPreparation = WorkflowActionPreparation;
+
+export interface WorkflowProfileReceiptBindings {
+  readonly actionCommitment: Uint8Array;
+  readonly authorityCommitment: Uint8Array;
+  readonly contextCommitment: Uint8Array;
+  free?(): void;
+}
+
+export interface WorkflowReceiptPreparation {
+  readonly receiptId: Uint8Array;
+  readonly canonical: Uint8Array;
+  readonly signingPreimage: Uint8Array;
+  free?(): void;
+}
 
 export interface WorkflowRawKeyAuthorityPreparation {
   readonly statementCbor: Uint8Array;

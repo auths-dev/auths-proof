@@ -19,6 +19,8 @@ use thiserror::Error;
 pub use auths_author as authority;
 /// Identity-agnostic external key-custody integration.
 pub use auths_custody as custody;
+/// Stable error, recovery, and redaction contract used by every SDK.
+pub use auths_errors as errors;
 /// Canonical protocol model used by explicit advanced configuration.
 pub use auths_model as model;
 /// Re-exported closed deployment action and profile.

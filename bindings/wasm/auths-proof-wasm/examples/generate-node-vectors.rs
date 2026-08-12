@@ -462,9 +462,41 @@ fn write_shared_workflow_projection(
     )?;
     let plan_approval =
         auths_author::commit_plan_approval(plan.plan().as_bytes(), &[7; 32], 2, 350)?;
+    let receipt_signer = auths_receipts::ReceiptSigner::new(
+        actor.clone(),
+        auths_model::VerificationMethod::parse(actor.as_str())?,
+        auths_model::SignatureSuiteId::parse("ed25519-v1")?,
+    );
+    let decision_receipt = auths_receipts::prepare_decision_receipt(
+        auths_codec::proof_digest(artifacts.proof())?,
+        canonical,
+        artifacts.context(),
+        auths_receipts::DecisionClass::Authorized,
+        vec!["authorized".to_owned()],
+        auths_model::Timestamp::new(60),
+        &receipt_signer,
+    )?;
+    let result_bytes = br#"{"provider":"ok"}"#;
+    let plan_digest = auths_model::Digest::new(*plan.plan().as_bytes());
+    let execution_receipt = auths_receipts::prepare_execution_receipt(
+        decision_receipt.id(),
+        "workflow-fixture",
+        Some(plan_digest),
+        Some((0, 2)),
+        &action_cbor,
+        auths_receipts::ExecutionOutcome::Succeeded,
+        Some(result_bytes),
+        auths_model::Timestamp::new(70),
+        &receipt_signer,
+    )?;
+    let execution_lease = auths_receipts::application_execution_lease_digest(
+        "workflow-fixture",
+        Some(plan_digest),
+        Some((0, 2)),
+    )?;
     let resources = result.resources();
     let projection = serde_json::json!({
-        "schema": "auths.full-workflow-projection/1",
+        "schema": "auths.full-workflow-projection/2",
         "verdict": decision_label(result.decision()),
         "stage": stage_label(result.stage()),
         "code": result.code().code(),
@@ -502,6 +534,29 @@ fn write_shared_workflow_projection(
             "service": call.service(),
             "name": call.name(),
             "argumentsJson": String::from_utf8(serde_json_canonicalizer::to_vec(call.arguments())?)?,
+        },
+        "receipts": {
+            "signer": {
+                "principal": actor.as_str(),
+                "verificationMethod": actor.as_str(),
+                "suite": "ed25519-v1",
+            },
+            "decision": {
+                "id": hex(decision_receipt.id().as_bytes()),
+                "canonical": hex(decision_receipt.canonical()),
+                "signingPreimage": hex(decision_receipt.signing_preimage()),
+            },
+            "execution": {
+                "idempotencyKey": "workflow-fixture",
+                "memberIndex": 0,
+                "memberCount": 2,
+                "completedAt": 70,
+                "result": hex(result_bytes),
+                "lease": hex(execution_lease.as_bytes()),
+                "id": hex(execution_receipt.id().as_bytes()),
+                "canonical": hex(execution_receipt.canonical()),
+                "signingPreimage": hex(execution_receipt.signing_preimage()),
+            },
         },
     });
     fs::write(

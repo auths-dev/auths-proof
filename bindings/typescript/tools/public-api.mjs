@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import ts from "typescript";
 
@@ -10,24 +10,19 @@ const comparePublicNames = (left, right) => {
   return folded === 0 ? -compareText(left, right) : folded;
 };
 
-const entries = new Map([
-  [".", "dist/index.d.ts"],
-  ["./verify", "dist/verify.d.ts"],
-  ["./inspection", "dist/inspection.d.ts"],
-  ["./diagnostics", "dist/diagnostics.d.ts"],
-  ["./observability", "dist/observability.d.ts"],
-  ["./identity", "dist/identity.d.ts"],
-  ["./authority", "dist/authority.d.ts"],
-  ["./approvals", "dist/approvals.d.ts"],
-  ["./profiles", "dist/profiles.d.ts"],
-  ["./trust", "dist/trust.d.ts"],
-  ["./lifecycle", "dist/lifecycle.d.ts"],
-  ["./runtime", "dist/runtime.d.ts"],
-  ["./custody", "dist/custody.d.ts"],
-  ["./mcp", "dist/mcp.d.ts"],
-  ["./profile-kit", "dist/profile-kit.d.ts"],
-  ["./testkit", "dist/testkit/index.d.ts"],
-]);
+const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
+const topology = JSON.parse(await readFile(new URL("../../public-topology-v1.json", import.meta.url), "utf8"));
+const expectedPackages = topology.layers.flatMap((layer) => layer.typescript);
+const expectedSubpaths = expectedPackages.map((value) => value === packageJson.name
+  ? "."
+  : `.${value.slice(packageJson.name.length)}`);
+if (JSON.stringify(Object.keys(packageJson.exports)) !== JSON.stringify(expectedSubpaths)) {
+  throw new Error("TypeScript package exports drifted from bindings/public-topology-v1.json");
+}
+const entries = new Map(Object.entries(packageJson.exports).map(([subpath, value]) => [
+  subpath,
+  value.types.replace(/^\.\//, ""),
+]));
 
 const program = ts.createProgram([...entries.values()], {
   module: ts.ModuleKind.NodeNext,
@@ -68,6 +63,10 @@ for (const [subpath, filename] of entries) {
   }
 }
 const actual = `${lines.join("\n")}\n`;
+if (process.argv.includes("--update")) {
+  await writeFile(new URL("../api/public-api.txt", import.meta.url), actual);
+  process.exit(0);
+}
 if (process.argv.includes("--print")) {
   process.stdout.write(actual);
   process.exit(0);

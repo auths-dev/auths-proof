@@ -4,16 +4,21 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   AuthsWorkflowError,
-  commandsForGateway,
   loadAuths,
   prepareRawKeyAuthority,
   signedGrantSource,
   trustedContextSource,
-} from "../../../dist/index.js";
+} from "../../../dist/internal-sdk.js";
 import { inspectDecision } from "../../../dist/inspection.js";
 import { loadVerifier } from "../../../dist/verify.js";
 import { McpAction, McpCommand, mcp } from "../../../dist/mcp.js";
-import { ApplicationAction, ApplicationCommand, defineProfile } from "../../../dist/profile-kit.js";
+import {
+  ApplicationAction,
+  ApplicationCommand,
+  defineProfile,
+  verifyApplicationReceipt,
+} from "../../../dist/profile-kit.js";
+import { development, InMemoryApplicationExecutionStore } from "../../../dist/testkit/index.js";
 import {
   ACTOR,
   RAW_EVIDENCE,
@@ -63,13 +68,92 @@ test("application profile kit uses the native authoring and verification path", 
     const result = await agent.authorize(action);
     assert.equal(result.kind, "authorized", `${result.stage}:${result.code}`);
     assert.equal(result.command instanceof ApplicationCommand, true);
-    const gateway = profile.gateway(async (command) => command.permission.resource);
+    const gateway = profile.gateway({
+      state: new InMemoryApplicationExecutionStore(),
+      credentials: { async acquire() { return undefined; } },
+      receipts: await development.receiptAttestor(),
+      canonicalizeResult: (value) => new TextEncoder().encode(value),
+      execute: async (command) => command.permission.resource,
+    });
     assert.equal(
-      await gateway.execute(result.command),
+      (await gateway.execute(result.command, { idempotencyKey: "application-profile" })).output,
       "mcp://reports/tools/update_demo_record",
     );
     assert.throws(() => new ApplicationCommand(Symbol(), {}, {}), /sealed/);
     assert.equal(profile.createVerifiedCommand, undefined);
+    await client.dispose();
+  } finally {
+    Date.now = originalNow;
+  }
+});
+
+test("application plan gateway keeps exact bytes opaque and stores native signed receipts", async () => {
+  const originalNow = Date.now;
+  Date.now = () => 50_000;
+  try {
+    const profile = defineProfile({
+      id: "auths.mcp",
+      version: 1,
+      canonicalize(input) {
+        return {
+          mediaType: "application/vnd.auths.mcp-call.v1+json",
+          body: new TextEncoder().encode(
+            `{"arguments":{"value":"${input.value}"},"name":"update_demo_record","profile":"auths.mcp","profile_version":1,"service":"reports"}`,
+          ),
+          permission: { capability: "tools/call", resource: "mcp://reports/tools/update_demo_record" },
+          resourceNamespace: "mcp://reports",
+          audience: "mcp://reports",
+          display: [{ label: "Value", value: input.value }],
+        };
+      },
+      decodeVerified(canonical) {
+        return JSON.parse(new TextDecoder().decode(canonical.body)).arguments.value;
+      },
+    });
+    const { client, agent } = await fixture(undefined, false, profile);
+    const plan = await profile.plan([
+      profile.action({ value: "first" }),
+      profile.action({ value: "second" }),
+    ]);
+    const authorization = await agent.authorizePlan(plan);
+    assert.equal(authorization.kind, "authorized");
+    const stages = [];
+    const gateway = profile.gateway({
+      state: new InMemoryApplicationExecutionStore(),
+      credentials: {
+        async acquire(command, context) {
+          stages.push(`credential:${command}`);
+          assert.ok(context.canonicalCommand.length > 0);
+          return undefined;
+        },
+      },
+      receipts: await development.receiptAttestor(),
+      canonicalizeResult: (value) => new TextEncoder().encode(value),
+      async execute(command, _credential, context) {
+        stages.push(`provider:${command}`);
+        assert.ok(context.canonicalCommand.length > 0);
+        return command;
+      },
+    });
+    const execution = await gateway.executePlan(authorization.command, {
+      idempotencyKey: "application-plan",
+    });
+    assert.deepEqual(execution.outputs, ["first", "second"]);
+    assert.deepEqual(stages, [
+      "credential:first",
+      "provider:first",
+      "credential:second",
+      "provider:second",
+    ]);
+    for (const receipt of execution.receipts) {
+      await verifyApplicationReceipt(receipt.decisionReceipt);
+      await verifyApplicationReceipt(receipt.executionReceipt);
+      assert.equal(receipt.stateClaim, "committed");
+    }
+    await assert.rejects(
+      () => gateway.executePlan(authorization.command, { idempotencyKey: "application-plan" }),
+      /consumed|forged/,
+    );
     await client.dispose();
   } finally {
     Date.now = originalNow;
@@ -199,6 +283,53 @@ test("MCP facade canonicalizes signs assembles and authorizes locally", async ()
   }
 });
 
+test("MCP development provider is bounded and disposable", async () => {
+  const calls = [];
+  const provider = mcp.developmentProvider({
+    service: "reports",
+    timeoutMs: 50,
+    tools: {
+      async publish_report(argumentsValue, context) {
+        calls.push(context.tool);
+        return { published: argumentsValue.name };
+      },
+    },
+  });
+  const signal = new AbortController().signal;
+  assert.deepEqual(
+    await provider.invoke(
+      "reports",
+      "publish_report",
+      { name: "weekly" },
+      { executionId: "execution", service: "reports", tool: "publish_report" },
+      signal,
+    ),
+    { published: "weekly" },
+  );
+  assert.deepEqual(
+    await provider.invoke(
+      "reports",
+      "missing",
+      {},
+      { executionId: "execution", service: "reports", tool: "missing" },
+      signal,
+    ),
+    { effect: "not-applied", cause: "invalid-output" },
+  );
+  await provider.close();
+  await assert.rejects(
+    () => provider.invoke(
+      "reports",
+      "publish_report",
+      {},
+      { executionId: "execution", service: "reports", tool: "publish_report" },
+      signal,
+    ),
+    { name: "AbortError" },
+  );
+  assert.deepEqual(calls, ["publish_report"]);
+});
+
 test("shared Rust workflow projection matches TypeScript", async () => {
   const projection = workflowProjection();
   const verifier = await loadVerifier();
@@ -209,7 +340,7 @@ test("shared Rust workflow projection matches TypeScript", async () => {
   );
   const inspection = await inspectDecision(result);
 
-  assert.equal(projection.schema, "auths.full-workflow-projection/1");
+  assert.equal(projection.schema, "auths.full-workflow-projection/2");
   assert.equal(result.kind, projection.verdict);
   assert.equal(result.stage, projection.stage);
   assert.equal(result.code, projection.code);
@@ -237,6 +368,42 @@ test("shared Rust workflow projection matches TypeScript", async () => {
     hex(wasm.commitPlanApprovalV1(plan.commitment, new Uint8Array(32).fill(7), 2, 350n)),
     projection.commitments.planApproval,
   );
+  const receiptSigner = projection.receipts.signer;
+  const decisionReceipt = wasm.prepareAuthorizedDecisionReceiptV1(
+    vector("workflow.proof.cbor"),
+    vector("workflow.action.cbor"),
+    vector("workflow.context.cbor"),
+    60n,
+    receiptSigner.principal,
+    receiptSigner.verificationMethod,
+    receiptSigner.suite,
+  );
+  assert.equal(hex(decisionReceipt.receiptId), projection.receipts.decision.id);
+  assert.equal(hex(decisionReceipt.canonical), projection.receipts.decision.canonical);
+  assert.equal(
+    hex(decisionReceipt.signingPreimage),
+    projection.receipts.decision.signingPreimage,
+  );
+  const expectedExecution = projection.receipts.execution;
+  const executionReceipt = wasm.prepareApplicationExecutionReceiptV1(
+    decisionReceipt.receiptId,
+    expectedExecution.idempotencyKey,
+    true,
+    plan.commitment,
+    expectedExecution.memberIndex,
+    expectedExecution.memberCount,
+    vector("workflow.action.cbor"),
+    "succeeded",
+    true,
+    Uint8Array.from(Buffer.from(expectedExecution.result, "hex")),
+    BigInt(expectedExecution.completedAt),
+    receiptSigner.principal,
+    receiptSigner.verificationMethod,
+    receiptSigner.suite,
+  );
+  assert.equal(hex(executionReceipt.receiptId), expectedExecution.id);
+  assert.equal(hex(executionReceipt.canonical), expectedExecution.canonical);
+  assert.equal(hex(executionReceipt.signingPreimage), expectedExecution.signingPreimage);
 
   const originalNow = Date.now;
   Date.now = () => 50_000;
@@ -305,13 +472,11 @@ test("MCP plan approval prompts once and releases only a sealed plan command", a
     assert.equal(result.command.count, 2);
     assert.equal(counters.approvals, 1);
     assert.equal(counters.signatures, 2);
-    const commands = commandsForGateway(result.command);
-    assert.equal(commands.length, 2);
     const values = [];
     const gateway = profile.gateway(async (call) => {
       values.push(JSON.parse(new TextDecoder().decode(call.argumentsJson)).value);
     });
-    for (const command of commands) await gateway.execute(command);
+    await gateway.executePlan(result.command);
     assert.deepEqual(values, ["first", "second"]);
     assert.throws(() => new McpCommand(Symbol(), {}), /sealed/);
     await client.dispose();

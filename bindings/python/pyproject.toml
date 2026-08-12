@@ -5,7 +5,7 @@ build-backend = "maturin"
 [project]
 name = "auths"
 version = "1.0.0rc1"
-description = "Embedded Auths Full Workflow SDK with native Rust semantics"
+description = "Prove exact authority, execute protected actions, and leave signed receipts"
 readme = "README.md"
 requires-python = ">=3.9"
 license = "MIT OR Apache-2.0"

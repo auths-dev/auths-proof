@@ -1,52 +1,28 @@
 from __future__ import annotations
 
 import argparse
+import importlib
+import json
 from pathlib import Path
+from types import ModuleType
 
-import auths
-import auths.approvals
-import auths.authority
-import auths.custody
-import auths.diagnostics
-import auths.errors
-import auths.identity
-import auths.inspection
-import auths.integrations
-import auths.lifecycle
-import auths.observability
-import auths.profile_kit
-import auths.profiles.http
-import auths.profiles.mcp
-import auths.runtime
-import auths.testkit
-import auths.trust
-import auths.verify
+
+def public_modules() -> tuple[ModuleType, ...]:
+    topology_path = Path(__file__).parents[2] / "public-topology-v1.json"
+    topology = json.loads(topology_path.read_text())
+    names = tuple(
+        name for layer in topology["layers"] for name in layer["python"]
+    )
+    return tuple(importlib.import_module(name) for name in names)
 
 
 def projection() -> str:
-    sections = {
-        "auths": auths.__all__,
-        "auths.approvals": auths.approvals.__all__,
-        "auths.authority": auths.authority.__all__,
-        "auths.custody": auths.custody.__all__,
-        "auths.diagnostics": auths.diagnostics.__all__,
-        "auths.errors": auths.errors.__all__,
-        "auths.identity": auths.identity.__all__,
-        "auths.inspection": auths.inspection.__all__,
-        "auths.integrations": auths.integrations.__all__,
-        "auths.lifecycle": auths.lifecycle.__all__,
-        "auths.observability": auths.observability.__all__,
-        "auths.profile_kit": auths.profile_kit.__all__,
-        "auths.profiles.http": auths.profiles.http.__all__,
-        "auths.profiles.mcp": auths.profiles.mcp.__all__,
-        "auths.runtime": auths.runtime.__all__,
-        "auths.testkit": auths.testkit.__all__,
-        "auths.trust": auths.trust.__all__,
-        "auths.verify": auths.verify.__all__,
-    }
     lines = []
-    for module, names in sections.items():
-        lines.append("[" + module + "]")
+    for module in public_modules():
+        names = getattr(module, "__all__", None)
+        if type(names) is not list or any(type(name) is not str for name in names):
+            raise SystemExit(f"{module.__name__} must define an explicit string __all__")
+        lines.append("[" + module.__name__ + "]")
         lines.extend(sorted(names))
         lines.append("")
     return "\n".join(lines)

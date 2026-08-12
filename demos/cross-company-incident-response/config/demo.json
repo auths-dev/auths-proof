@@ -1,0 +1,19 @@
+{
+  "schema": "auths-incident-demo/1",
+  "incident_id": "INC-2026-0811",
+  "tenant": "northstar-fashion",
+  "region": "eu-west-2",
+  "authority_seconds": 600,
+  "operations": [
+    {
+      "id": "firewall-eu-west-2",
+      "transport": "https",
+      "command": "apply-config"
+    },
+    {
+      "id": "cache-eu-west-2",
+      "transport": "iroh",
+      "command": "execute"
+    }
+  ]
+}

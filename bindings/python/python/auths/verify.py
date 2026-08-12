@@ -6,6 +6,21 @@ from dataclasses import dataclass
 from typing import Iterable, Literal, Optional, Tuple, Union
 
 from ._native import NativeVerificationResult, verify_many_v1, verify_v1
+from ._inspection import (
+    ApprovalInspection,
+    DecisionCommitments,
+    DecisionInspection,
+    DecisionSummary,
+    InspectionMetrics,
+    KernelSummary,
+    inspect_decision,
+)
+from ._receipts import (
+    Receipt,
+    decode_linked_receipt as decode_receipt,
+    encode_linked_receipt as encode_receipt,
+    verify_linked_receipt as verify_receipt,
+)
 
 VerdictKind = Literal["authorized", "denied", "indeterminate"]
 VerificationStage = Literal[
@@ -144,13 +159,24 @@ def _explain(kind: VerdictKind, code: str) -> Explanation:
 
 
 __all__ = [
+    "ApprovalInspection",
     "Authorized",
+    "DecisionCommitments",
+    "DecisionInspection",
+    "DecisionSummary",
     "Denied",
+    "Receipt",
+    "decode_receipt",
+    "encode_receipt",
     "Explanation",
     "Indeterminate",
+    "InspectionMetrics",
+    "KernelSummary",
     "VerificationInput",
     "VerificationMetrics",
     "VerificationResult",
+    "inspect_decision",
     "verify",
     "verify_many",
+    "verify_receipt",
 ]

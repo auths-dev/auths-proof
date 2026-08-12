@@ -8,7 +8,9 @@ import { createDiagnosticVerifier } from "../../dist/diagnostics.js";
 import { inspectDecision } from "../../dist/inspection.js";
 import { McpAction, McpCommand, mcp } from "../../dist/mcp.js";
 import { ApplicationCommand, defineProfile } from "../../dist/profile-kit.js";
-import { ProfilePlan, VerifiedPlanCommand, commandsForGateway } from "../../dist/index.js";
+import { ProfilePlan, VerifiedPlanCommand } from "../../dist/internal-sdk.js";
+import * as publicRoot from "../../dist/index.js";
+import { development, InMemoryApplicationExecutionStore } from "../../dist/testkit/index.js";
 import { mcpFixture, packagedWasm } from "./helpers/mcp-fixture.js";
 
 const authorizedFixture = async () => {
@@ -84,7 +86,7 @@ test("inspection evidence cannot be promoted into any command", async () => {
     assert.throws(() => new ApplicationCommand(Symbol(), inspection, inspection), /sealed/);
     assert.throws(() => new VerifiedPlanCommand(Symbol(), [inspection]), /sealed/);
     assert.throws(() => new ProfilePlan(Symbol(), profile, [], {}), /sealed/);
-    assert.throws(() => commandsForGateway(inspection), /sealed|plan/);
+    assert.equal("commandsForGateway" in publicRoot, false);
 
     await client.dispose();
   });
@@ -144,7 +146,13 @@ test("application profile inspection cannot mint its own command", async () => {
     assert.equal(result.kind, "authorized", `${result.stage}:${result.code}`);
 
     const inspection = await inspectDecision(result);
-    const gateway = profile.gateway(async (command) => command.permission.resource);
+    const gateway = profile.gateway({
+      state: new InMemoryApplicationExecutionStore(),
+      credentials: { async acquire() { return undefined; } },
+      receipts: await development.receiptAttestor(),
+      canonicalizeResult: (value) => new TextEncoder().encode(value),
+      execute: async (command) => command.permission.resource,
+    });
     await assert.rejects(() => gateway.execute(inspection), /forged/);
     assert.equal(profile.createVerifiedCommand, undefined);
 

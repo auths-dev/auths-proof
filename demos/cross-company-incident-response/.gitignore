@@ -1,0 +1,16 @@
+.local/
+control-room/build/
+control-room/public/app.js
+control-room/public/config.js
+control-room/public/vendor/
+control-room/public/vendor-v*/
+northstar-service/dist/
+northstar-service/node_modules/
+control-room/node_modules/
+infrastructure/certs/*
+!infrastructure/certs/.gitkeep
+infrastructure/state/*
+!infrastructure/state/.gitkeep
+**/__pycache__/
+*.pyc
+.vercel/

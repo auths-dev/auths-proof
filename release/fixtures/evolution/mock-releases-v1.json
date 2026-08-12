@@ -1,0 +1,12 @@
+{
+  "schema": "auths.mock-releases/1",
+  "releases": [
+    { "id": "documentation-patch", "kind": "normal", "changedPaths": ["docs/product/GLOSSARY.md"], "expectedFloor": "patch", "expectedAxes": ["package"], "newSemanticSubject": false },
+    { "id": "add-error-minor", "kind": "normal", "changedPaths": ["product/errors/v1/registry.json"], "expectedFloor": "minor", "expectedAxes": ["package"], "newSemanticSubject": false },
+    { "id": "remove-public-api-major", "kind": "normal", "changedPaths": ["bindings/typescript/api/public-api.txt", "bindings/python/api/public-api.txt"], "expectedFloor": "major", "expectedAxes": ["package"], "newSemanticSubject": false },
+    { "id": "profile-successor", "kind": "normal", "changedPaths": ["product/profiles/auths-profile-mcp/profile-v2.json"], "expectedFloor": "minor", "expectedAxes": ["profile"], "newSemanticSubject": true },
+    { "id": "error-retirement", "kind": "normal", "changedPaths": ["release/evolution-lifecycle-v1.json"], "expectedFloor": "minor", "expectedAxes": ["package"], "newSemanticSubject": false },
+    { "id": "receipt-schema-major", "kind": "normal", "changedPaths": ["product/receipts/auths-receipts/src/lib.rs"], "expectedFloor": "major", "expectedAxes": ["semantic-subject"], "newSemanticSubject": true },
+    { "id": "emergency-security-rejection", "kind": "emergency", "changedPaths": ["core/crates/auths-verifier/src/lib.rs"], "expectedFloor": "patch", "expectedAxes": ["semantic-subject"], "newSemanticSubject": true }
+  ]
+}

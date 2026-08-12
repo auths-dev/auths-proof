@@ -15,8 +15,12 @@ Start with:
 - [`RELEASE_CANDIDATE_NOTES.md`](RELEASE_CANDIDATE_NOTES.md) for the text that
   will become the GitHub prerelease description; and
 - [`SLSA_BUILD_LEVEL_3_ASSESSMENT.md`](SLSA_BUILD_LEVEL_3_ASSESSMENT.md) for
-  the assessed build-platform boundary.
+  the assessed build-platform boundary; and
+- [`../docs/product/COMPATIBILITY_AND_SUPPORT.md`](../docs/product/COMPATIBILITY_AND_SUPPORT.md)
+  for the generated cross-language evolution, support, and retirement contract.
 
 The JSON schemas, fixtures, subject catalogue, naming authority, and semantic
-freeze are machine-enforced inputs. Do not hand-edit generated evidence merely
-to make a release pass.
+freeze are machine-enforced inputs. `cargo xtask evolution-policy` validates
+the five version axes, mock classifications, mixed-version behavior, lifecycle
+metadata, and the stable-publication gate. Do not hand-edit generated evidence
+merely to make a release pass.

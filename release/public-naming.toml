@@ -234,7 +234,7 @@ owner_pr = "AP34-PR3"
 
 [[release_order]]
 tier = 0
-packages = ["auths-algebra-kernel", "auths-byte-channel", "auths-identity", "auths-model", "auths-multikey", "auths-proof-exchange-model", "auths-raw-key-core", "auths-signature-core"]
+packages = ["auths-algebra-kernel", "auths-byte-channel", "auths-errors", "auths-identity", "auths-model", "auths-multikey", "auths-proof-exchange-model", "auths-raw-key-core", "auths-signature-core"]
 
 [[release_order]]
 tier = 1

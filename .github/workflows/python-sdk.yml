@@ -85,10 +85,12 @@ jobs:
           path: |
             target/binding-vectors/
             bindings/customer-journey-matrix-v1.json
+            bindings/public-topology-v1.json
             bindings/python/api/public-api.txt
             bindings/python/adapter-contracts.json
             bindings/python/external/full_workflow_consumer.py
-            bindings/python/examples/identity_quickstart.py
+            bindings/python/external/conformance_consumer.py
+            bindings/recipes/python/01_authenticate_identity.py
             bindings/python/identity-conformance-v1.json
             bindings/python/native-abi-v2.json
             bindings/python/performance-baseline.json
@@ -186,7 +188,12 @@ jobs:
         shell: bash
         working-directory: ${{ runner.temp }}
         run: >-
-          python "${{ github.workspace }}/consumer/bindings/python/examples/identity_quickstart.py"
+          python "${{ github.workspace }}/consumer/bindings/recipes/python/01_authenticate_identity.py"
+      - name: Execute installed Auths-owned conformance
+        shell: bash
+        working-directory: ${{ runner.temp }}
+        run: >-
+          python "${{ github.workspace }}/consumer/bindings/python/external/conformance_consumer.py"
       - name: Check exact package/native contracts
         shell: bash
         run: python consumer/bindings/python/tools/check_contract.py
@@ -225,7 +232,6 @@ jobs:
         run: >-
           python -m mypy --strict --warn-unused-ignores
           consumer/bindings/python/typecheck/mcp_consumer.py
-          consumer/bindings/python/typecheck/elite_consumer.py
           consumer/bindings/python/typecheck/workflow_consumer.py
           consumer/bindings/python/typecheck/mypy_negative.py
       - name: Check strict Pyright source contract

@@ -34,9 +34,20 @@ use auths_profile_domains::{
     reference_canonicalize_deployment, reference_canonicalize_edge, reference_canonicalize_git,
     reference_canonicalize_http, reference_canonicalize_supply_chain,
 };
-use auths_profile_mcp::{McpProfile, McpToolCall};
+use auths_profile_mcp::{
+    McpCause, McpExecutionSession, McpHandlerEffect, McpHandlerResult, McpProfile,
+    McpReservationResult, McpSessionKey, McpSessionStep, McpTerminal, McpToolCall,
+    mcp_authority_commitment,
+};
+use auths_receipts::{
+    AttestedDecisionReceipt, AttestedExecutionReceipt, ConfiguredReceiptVerifier, DecisionClass,
+    ExecutionOutcome, ReceiptSigner, application_execution_lease_digest, decode_decision,
+    decode_execution, encode_attested_decision, encode_attested_execution,
+    prepare_decision_receipt, prepare_execution_receipt, verify_attested_decision_bytes,
+    verify_attested_execution_bytes, verify_decision_attestation, verify_execution_attestation,
+};
 use auths_registries::ImmutableRegistries;
-use serde::{Deserialize, Serialize as _};
+use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::{collections::BTreeSet, fmt};
 use wasm_bindgen::prelude::*;
@@ -2474,6 +2485,64 @@ pub struct ProfileActionPreparationV1 {
     resource: String,
 }
 
+/// Receipt commitments derived from the exact artifacts consumed by verification.
+#[wasm_bindgen]
+pub struct ProfileReceiptBindingsV1 {
+    action: Vec<u8>,
+    authority: Vec<u8>,
+    context: Vec<u8>,
+}
+
+/// Canonical native receipt bytes and their exact attestation preimage.
+#[wasm_bindgen]
+pub struct ReceiptPreparationV1 {
+    id: Vec<u8>,
+    canonical: Vec<u8>,
+    signing_preimage: Vec<u8>,
+}
+
+#[wasm_bindgen]
+impl ReceiptPreparationV1 {
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = receiptId)]
+    pub fn receipt_id(&self) -> Vec<u8> {
+        self.id.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter)]
+    pub fn canonical(&self) -> Vec<u8> {
+        self.canonical.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = signingPreimage)]
+    pub fn signing_preimage(&self) -> Vec<u8> {
+        self.signing_preimage.clone()
+    }
+}
+
+#[wasm_bindgen]
+impl ProfileReceiptBindingsV1 {
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = actionCommitment)]
+    pub fn action_commitment(&self) -> Vec<u8> {
+        self.action.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = authorityCommitment)]
+    pub fn authority_commitment(&self) -> Vec<u8> {
+        self.authority.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = contextCommitment)]
+    pub fn context_commitment(&self) -> Vec<u8> {
+        self.context.clone()
+    }
+}
+
 #[wasm_bindgen]
 pub struct DomainActionFieldsV1 {
     body: Vec<u8>,
@@ -2839,6 +2908,22 @@ pub fn derive_ed25519_raw_key_identity_v1(public_key: &[u8]) -> Result<RawKeyIde
     })
 }
 
+/// Derives the Ed25519 public key for a deterministic development seed.
+///
+/// # Errors
+///
+/// Returns a JavaScript error unless the seed is exactly 32 bytes.
+#[wasm_bindgen(js_name = developmentEd25519PublicKeyV1)]
+pub fn development_ed25519_public_key_v1(seed: &[u8]) -> Result<Vec<u8>, JsValue> {
+    let seed: [u8; 32] = seed
+        .try_into()
+        .map_err(|_| js_error("development Ed25519 seed must contain 32 bytes"))?;
+    Ok(ed25519_dalek::SigningKey::from_bytes(&seed)
+        .verifying_key()
+        .to_bytes()
+        .to_vec())
+}
+
 #[wasm_bindgen]
 impl RawKeyAuthorityPreparationV1 {
     /// Returns the unsigned canonical root-grant statement.
@@ -3118,6 +3203,716 @@ impl ProfileActionPreparationV1 {
     pub fn resource(&self) -> String {
         self.resource.clone()
     }
+}
+
+/// Derives receipt commitments from the exact canonical verification inputs.
+///
+/// # Errors
+///
+/// Returns a JavaScript error when any input is malformed or non-canonical.
+#[wasm_bindgen(js_name = profileReceiptBindingsV1)]
+pub fn profile_receipt_bindings_v1(
+    proof_cbor: &[u8],
+    canonical_action_cbor: &[u8],
+    trusted_context_cbor: &[u8],
+) -> Result<ProfileReceiptBindingsV1, JsValue> {
+    let limits = VerifierLimits::default_deployment();
+    let proof = auths_codec::decode_bundle(proof_cbor, &limits).map_err(js_error)?;
+    let action =
+        auths_codec::decode_canonical_action(canonical_action_cbor, &limits).map_err(js_error)?;
+    let context = auths_codec::decode_verifier_context(trusted_context_cbor).map_err(js_error)?;
+    let canonical_action = auths_codec::encode_canonical_action(&action).map_err(js_error)?;
+    Ok(ProfileReceiptBindingsV1 {
+        action: auths_codec::domain_commitment("auths.canonical-action.v1", &canonical_action)
+            .map_err(js_error)?
+            .as_bytes()
+            .to_vec(),
+        authority: auths_codec::proof_digest(&proof)
+            .map_err(js_error)?
+            .as_bytes()
+            .to_vec(),
+        context: auths_codec::context_digest(&context)
+            .map_err(js_error)?
+            .as_bytes()
+            .to_vec(),
+    })
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct McpSessionStepProjection {
+    kind: &'static str,
+    execution_id: String,
+    service: Option<String>,
+    tool: Option<String>,
+    bytes: Option<Vec<u8>>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct McpSessionTerminalProjection {
+    kind: &'static str,
+    execution_id: String,
+    output_json: Option<Vec<u8>>,
+    receipt_json: Option<Vec<u8>>,
+    reference: Option<String>,
+    record_json: Option<Vec<u8>>,
+}
+
+#[wasm_bindgen(js_name = McpExecutionSessionV1)]
+pub struct McpExecutionSessionV1 {
+    inner: McpExecutionSession,
+}
+
+#[wasm_bindgen(js_class = McpExecutionSessionV1)]
+impl McpExecutionSessionV1 {
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = executionId)]
+    pub fn execution_id(&self) -> String {
+        self.inner.execution_id().to_owned()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = canonicalAction)]
+    pub fn canonical_action(&self) -> Vec<u8> {
+        self.inner.canonical_action().to_vec()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = decisionReceiptId)]
+    pub fn decision_receipt_id(&self) -> Vec<u8> {
+        self.inner.decision_receipt_id().to_vec()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = decisionReceipt)]
+    pub fn decision_receipt(&self) -> Vec<u8> {
+        self.inner.decision_receipt().to_vec()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = planCommitment)]
+    pub fn plan_commitment(&self) -> Option<Vec<u8>> {
+        self.inner.plan_commitment().map(|value| value.to_vec())
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = memberIndex)]
+    pub fn member_index(&self) -> Option<u16> {
+        self.inner.member_index()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = memberCount)]
+    pub fn member_count(&self) -> Option<u16> {
+        self.inner.member_count()
+    }
+
+    /// Releases the next bounded I/O step.
+    ///
+    /// # Errors
+    ///
+    /// Returns a JavaScript error until the prior result arrives or after termination.
+    #[wasm_bindgen(js_name = nextStep)]
+    pub fn next_step(&mut self) -> Result<JsValue, JsValue> {
+        let step = self.inner.next_step().map_err(js_error)?;
+        serde_wasm_bindgen::to_value(&mcp_session_step(step)).map_err(js_error)
+    }
+
+    /// Accepts the atomic reservation observation.
+    ///
+    /// # Errors
+    ///
+    /// Returns a JavaScript error for an unknown result or invalid transition.
+    #[wasm_bindgen(js_name = acceptReservation)]
+    pub fn accept_reservation(&mut self, result: &str) -> Result<(), JsValue> {
+        let result = match result {
+            "acquired" => McpReservationResult::Acquired,
+            "exact-replay" => McpReservationResult::ExactReplay,
+            "conflict" => McpReservationResult::Conflict,
+            _ => return Err(js_error(EngineError::Abi("invalid MCP reservation result"))),
+        };
+        self.inner.accept_reservation(result).map_err(js_error)
+    }
+
+    /// Accepts durable provider-entry evidence.
+    ///
+    /// # Errors
+    ///
+    /// Returns a JavaScript error unless provider entry is the pending step.
+    #[wasm_bindgen(js_name = acceptProviderEntry)]
+    pub fn accept_provider_entry(&mut self) -> Result<(), JsValue> {
+        self.inner.accept_provider_entry().map_err(js_error)
+    }
+
+    /// Terminates safely when cancellation arrives before provider entry.
+    ///
+    /// # Errors
+    ///
+    /// Returns a JavaScript error after provider entry or outside that step.
+    #[wasm_bindgen(js_name = cancelBeforeProvider)]
+    pub fn cancel_before_provider(&mut self) -> Result<(), JsValue> {
+        self.inner.cancel_before_provider().map_err(js_error)
+    }
+
+    /// Accepts one bounded handler or reconciliation result.
+    ///
+    /// # Errors
+    ///
+    /// Returns a JavaScript error for invalid classifications, bounds, or transitions.
+    #[allow(clippy::needless_pass_by_value)]
+    #[wasm_bindgen(js_name = acceptHandler)]
+    pub fn accept_handler(
+        &mut self,
+        effect: &str,
+        output_json: Option<Vec<u8>>,
+        cause: Option<String>,
+    ) -> Result<(), JsValue> {
+        let effect = match effect {
+            "not-applied" => McpHandlerEffect::NotApplied,
+            "applied" => McpHandlerEffect::Applied,
+            "possible" => McpHandlerEffect::Possible,
+            _ => return Err(js_error(EngineError::Abi("invalid MCP handler effect"))),
+        };
+        let cause = cause
+            .as_deref()
+            .map(parse_mcp_cause)
+            .transpose()
+            .map_err(js_error)?;
+        let result =
+            McpHandlerResult::parse(effect, output_json.as_deref(), cause).map_err(js_error)?;
+        self.inner.accept_handler(result).map_err(js_error)
+    }
+
+    /// Accepts receipt persistence evidence.
+    ///
+    /// # Errors
+    ///
+    /// Returns a JavaScript error for an invalid transition or persistence failure.
+    #[wasm_bindgen(js_name = acceptReceipt)]
+    pub fn accept_receipt(&mut self, persisted: bool) -> Result<(), JsValue> {
+        self.inner.accept_receipt(persisted).map_err(js_error)
+    }
+
+    /// Projects the terminal result without exposing the session capability.
+    ///
+    /// # Errors
+    ///
+    /// Returns a JavaScript error only if the bounded projection cannot be encoded.
+    pub fn terminal(&self) -> Result<JsValue, JsValue> {
+        match self.inner.terminal() {
+            Some(value) => {
+                serde_wasm_bindgen::to_value(&mcp_session_terminal(value)).map_err(js_error)
+            }
+            None => Ok(JsValue::NULL),
+        }
+    }
+}
+
+/// Verifies exact artifacts and opens one closed MCP execution session.
+///
+/// # Errors
+///
+/// Returns a JavaScript error for incompatible artifacts, a denied action, or
+/// invalid bounded session configuration.
+#[allow(clippy::needless_pass_by_value, clippy::too_many_arguments)]
+#[wasm_bindgen(js_name = beginMcpExecutionV1)]
+pub fn begin_mcp_execution_v1(
+    proof_cbor: &[u8],
+    canonical_action_cbor: &[u8],
+    trusted_context_cbor: &[u8],
+    decision_receipt_id: &[u8],
+    decision_receipt: &[u8],
+    has_plan: bool,
+    plan_commitment: &[u8],
+    member_index: u16,
+    member_count: u16,
+    request_id: Option<String>,
+    session_key: &[u8],
+) -> Result<McpExecutionSessionV1, JsValue> {
+    let key: [u8; 32] = session_key
+        .try_into()
+        .map_err(|_| js_error(EngineError::Abi("MCP session key must contain 32 bytes")))?;
+    let decision_receipt_id: [u8; 32] = decision_receipt_id.try_into().map_err(|_| {
+        js_error(EngineError::Abi(
+            "MCP decision receipt ID must contain 32 bytes",
+        ))
+    })?;
+    let raw_key = auths_raw_key::RawKeyMethod::new().map_err(js_error)?;
+    let did_key = auths_did_key::DidKeyMethod::new().map_err(js_error)?;
+    let did_keri = auths_did_keri::DidKeriMethod::new().map_err(js_error)?;
+    let ed25519 = auths_signature::Ed25519Suite::new().map_err(js_error)?;
+    let p256 = auths_signature::P256Sha256Suite::new().map_err(js_error)?;
+    let methods: [&dyn PrincipalMethod; 3] = [&raw_key, &did_key, &did_keri];
+    let suites: [&dyn SignatureSuite; 2] = [&ed25519, &p256];
+    let registries = ImmutableRegistries::new(&methods, &suites).map_err(js_error)?;
+    let sealed = auths_verifier::verify_v1_sealed(
+        proof_cbor,
+        canonical_action_cbor,
+        trusted_context_cbor,
+        &registries,
+    )
+    .map_err(js_error)?;
+    let (_, _, action) = sealed.into_parts();
+    let action =
+        action.ok_or_else(|| js_error(EngineError::Abi("MCP action is not authorized")))?;
+    let command = McpProfile.decode_verified(&action).map_err(js_error)?;
+    let action_commitment =
+        *auths_codec::domain_commitment("auths.canonical-action.v1", canonical_action_cbor)
+            .map_err(js_error)?
+            .as_bytes();
+    let proof = auths_codec::decode_bundle(proof_cbor, &VerifierLimits::default_deployment())
+        .map_err(js_error)?;
+    let context = auths_codec::decode_verifier_context(trusted_context_cbor).map_err(js_error)?;
+    let authority_commitment = mcp_authority_commitment(proof.grants()).map_err(js_error)?;
+    let context_commitment = *auths_codec::context_digest(&context)
+        .map_err(js_error)?
+        .as_bytes();
+    let inner = if has_plan {
+        let plan_commitment: [u8; 32] = plan_commitment.try_into().map_err(|_| {
+            js_error(EngineError::Abi(
+                "MCP plan commitment must contain 32 bytes",
+            ))
+        })?;
+        McpExecutionSession::begin_plan_member(
+            command,
+            action_commitment,
+            authority_commitment,
+            context_commitment,
+            canonical_action_cbor.to_vec(),
+            decision_receipt_id,
+            decision_receipt.to_vec(),
+            plan_commitment,
+            member_index,
+            member_count,
+            request_id.as_deref(),
+            McpSessionKey::new(key),
+        )
+    } else {
+        if !plan_commitment.is_empty() || member_index != 0 || member_count != 0 {
+            return Err(js_error(EngineError::Abi("unexpected MCP plan binding")));
+        }
+        McpExecutionSession::begin(
+            command,
+            action_commitment,
+            authority_commitment,
+            context_commitment,
+            canonical_action_cbor.to_vec(),
+            decision_receipt_id,
+            decision_receipt.to_vec(),
+            request_id.as_deref(),
+            McpSessionKey::new(key),
+        )
+    }
+    .map_err(js_error)?;
+    Ok(McpExecutionSessionV1 { inner })
+}
+
+/// Authenticates and resumes one stored MCP execution.
+///
+/// # Errors
+///
+/// Returns a JavaScript error for a forged, corrupt, or mismatched record.
+#[wasm_bindgen(js_name = resumeMcpExecutionV1)]
+pub fn resume_mcp_execution_v1(
+    session_key: &[u8],
+    reference: &str,
+    record_json: &[u8],
+) -> Result<McpExecutionSessionV1, JsValue> {
+    let key: [u8; 32] = session_key
+        .try_into()
+        .map_err(|_| js_error(EngineError::Abi("MCP session key must contain 32 bytes")))?;
+    let inner = McpExecutionSession::resume(McpSessionKey::new(key), reference, record_json)
+        .map_err(js_error)?;
+    Ok(McpExecutionSessionV1 { inner })
+}
+
+fn mcp_session_step(step: McpSessionStep) -> McpSessionStepProjection {
+    match step {
+        McpSessionStep::Reserve { execution_id } => McpSessionStepProjection {
+            kind: "reserve",
+            execution_id,
+            service: None,
+            tool: None,
+            bytes: None,
+        },
+        McpSessionStep::MarkProviderEntry { execution_id } => McpSessionStepProjection {
+            kind: "mark-provider-entry",
+            execution_id,
+            service: None,
+            tool: None,
+            bytes: None,
+        },
+        McpSessionStep::Invoke {
+            execution_id,
+            service,
+            tool,
+            arguments_json,
+        } => McpSessionStepProjection {
+            kind: "invoke",
+            execution_id,
+            service: Some(service),
+            tool: Some(tool),
+            bytes: Some(arguments_json),
+        },
+        McpSessionStep::PersistReceipt {
+            execution_id,
+            receipt_json,
+        } => McpSessionStepProjection {
+            kind: "persist-receipt",
+            execution_id,
+            service: None,
+            tool: None,
+            bytes: Some(receipt_json),
+        },
+        McpSessionStep::Reconcile {
+            execution_id,
+            service,
+        } => McpSessionStepProjection {
+            kind: "reconcile",
+            execution_id,
+            service: Some(service),
+            tool: None,
+            bytes: None,
+        },
+    }
+}
+
+fn mcp_session_terminal(value: &McpTerminal) -> McpSessionTerminalProjection {
+    match value {
+        McpTerminal::Completed {
+            execution_id,
+            output_json,
+            receipt_json,
+        } => McpSessionTerminalProjection {
+            kind: "completed",
+            execution_id: execution_id.clone(),
+            output_json: Some(output_json.clone()),
+            receipt_json: Some(receipt_json.clone()),
+            reference: None,
+            record_json: None,
+        },
+        McpTerminal::NotApplied { execution_id } => {
+            terminal_without_data("not-applied", execution_id)
+        }
+        McpTerminal::ExactReplay { execution_id } => {
+            terminal_without_data("exact-replay", execution_id)
+        }
+        McpTerminal::Conflict { execution_id } => terminal_without_data("conflict", execution_id),
+        McpTerminal::Recoverable {
+            execution_id,
+            reference,
+            record_json,
+        } => McpSessionTerminalProjection {
+            kind: "recoverable",
+            execution_id: execution_id.clone(),
+            output_json: None,
+            receipt_json: None,
+            reference: Some(reference.as_str().to_owned()),
+            record_json: Some(record_json.clone()),
+        },
+    }
+}
+
+fn terminal_without_data(kind: &'static str, execution_id: &str) -> McpSessionTerminalProjection {
+    McpSessionTerminalProjection {
+        kind,
+        execution_id: execution_id.to_owned(),
+        output_json: None,
+        receipt_json: None,
+        reference: None,
+        record_json: None,
+    }
+}
+
+fn parse_mcp_cause(value: &str) -> Result<McpCause, EngineError> {
+    match value {
+        "cancelled" => Ok(McpCause::Cancelled),
+        "invalid-output" => Ok(McpCause::InvalidOutput),
+        "limit-exceeded" => Ok(McpCause::LimitExceeded),
+        "timeout" => Ok(McpCause::Timeout),
+        "unavailable" => Ok(McpCause::Unavailable),
+        "unknown" => Ok(McpCause::Unknown),
+        _ => Err(EngineError::Abi("invalid MCP cause category")),
+    }
+}
+
+/// Prepares one canonical authorized decision receipt from exact verified
+/// artifacts.
+///
+/// # Errors
+///
+/// Returns a JavaScript error for malformed, non-canonical, or out-of-limit
+/// inputs.
+#[wasm_bindgen(js_name = prepareAuthorizedDecisionReceiptV1)]
+pub fn prepare_authorized_decision_receipt_v1(
+    proof_cbor: &[u8],
+    canonical_action_cbor: &[u8],
+    trusted_context_cbor: &[u8],
+    decided_at: u64,
+    verifier: &str,
+    verification_method: &str,
+    suite: &str,
+) -> Result<ReceiptPreparationV1, JsValue> {
+    let limits = VerifierLimits::default_deployment();
+    let proof = auths_codec::decode_bundle(proof_cbor, &limits).map_err(js_error)?;
+    if auths_codec::encode_bundle(&proof)
+        .map_err(js_error)?
+        .as_slice()
+        != proof_cbor
+    {
+        return Err(js_error(EngineError::Abi("proof is not canonical")));
+    }
+    let action =
+        auths_codec::decode_canonical_action(canonical_action_cbor, &limits).map_err(js_error)?;
+    if auths_codec::encode_canonical_action(&action)
+        .map_err(js_error)?
+        .as_slice()
+        != canonical_action_cbor
+    {
+        return Err(js_error(EngineError::Abi("action is not canonical")));
+    }
+    let context = auths_codec::decode_verifier_context(trusted_context_cbor).map_err(js_error)?;
+    if auths_codec::encode_verifier_context(&context)
+        .map_err(js_error)?
+        .as_slice()
+        != trusted_context_cbor
+    {
+        return Err(js_error(EngineError::Abi(
+            "trusted context is not canonical",
+        )));
+    }
+    let signer = receipt_signer(verifier, verification_method, suite).map_err(js_error)?;
+    let authority_commitment = auths_codec::proof_digest(&proof).map_err(js_error)?;
+    let prepared = prepare_decision_receipt(
+        authority_commitment,
+        &action,
+        &context,
+        DecisionClass::Authorized,
+        vec!["authorized".to_owned()],
+        Timestamp::new(decided_at),
+        &signer,
+    )
+    .map_err(js_error)?;
+    Ok(receipt_preparation(prepared))
+}
+
+/// Prepares one canonical application execution receipt.
+///
+/// # Errors
+///
+/// Returns a JavaScript error for an invalid decision, lease, command,
+/// result, outcome, or signer.
+#[allow(clippy::too_many_arguments)]
+#[wasm_bindgen(js_name = prepareApplicationExecutionReceiptV1)]
+pub fn prepare_application_execution_receipt_v1(
+    decision_receipt_id: &[u8],
+    idempotency_key: &str,
+    has_plan: bool,
+    plan_commitment: &[u8],
+    member_index: u16,
+    member_count: u16,
+    command_bytes: &[u8],
+    outcome: &str,
+    has_result: bool,
+    result: &[u8],
+    completed_at: u64,
+    verifier: &str,
+    verification_method: &str,
+    suite: &str,
+) -> Result<ReceiptPreparationV1, JsValue> {
+    if command_bytes.is_empty() || command_bytes.len() > auths_model::HARD_MAX_ACTION_BYTES {
+        return Err(js_error(EngineError::Abi(
+            "command bytes are outside bounds",
+        )));
+    }
+    let decision =
+        auths_model::ReceiptId::new(receipt_array32(decision_receipt_id, "decision receipt id")?);
+    let plan = has_plan
+        .then(|| receipt_array32(plan_commitment, "plan commitment").map(Digest::new))
+        .transpose()?;
+    if !has_plan && !plan_commitment.is_empty() {
+        return Err(js_error(EngineError::Abi("unexpected plan commitment")));
+    }
+    let member = has_plan.then_some((member_index, member_count));
+    application_execution_lease_digest(idempotency_key, plan, member).map_err(js_error)?;
+    if !has_result && !result.is_empty() {
+        return Err(js_error(EngineError::Abi("unexpected execution result")));
+    }
+    let signer = receipt_signer(verifier, verification_method, suite).map_err(js_error)?;
+    let prepared = prepare_execution_receipt(
+        decision,
+        idempotency_key,
+        plan,
+        member,
+        command_bytes,
+        match outcome {
+            "succeeded" => ExecutionOutcome::Succeeded,
+            "failed" => ExecutionOutcome::Failed,
+            _ => {
+                return Err(js_error(EngineError::Abi(
+                    "execution outcome cannot be attested",
+                )));
+            }
+        },
+        has_result.then_some(result),
+        Timestamp::new(completed_at),
+        &signer,
+    )
+    .map_err(js_error)?;
+    Ok(receipt_preparation(prepared))
+}
+
+/// Attaches an exact verifier signature to canonical decision receipt bytes.
+///
+/// # Errors
+///
+/// Returns a JavaScript error for malformed receipt, signer, or signature
+/// inputs.
+#[wasm_bindgen(js_name = attestDecisionReceiptV1)]
+pub fn attest_decision_receipt_v1(
+    canonical: &[u8],
+    verifier: &str,
+    verification_method: &str,
+    suite: &str,
+    signature: &[u8],
+) -> Result<Vec<u8>, JsValue> {
+    let receipt = decode_decision(canonical).map_err(js_error)?;
+    let signer = receipt_signer(verifier, verification_method, suite).map_err(js_error)?;
+    encode_attested_decision(&AttestedDecisionReceipt::new(
+        receipt,
+        signer,
+        SignatureBytes::new(signature.to_vec()).map_err(js_error)?,
+    ))
+    .map_err(js_error)
+}
+
+/// Attaches an exact verifier signature to canonical execution receipt bytes.
+///
+/// # Errors
+///
+/// Returns a JavaScript error for malformed receipt, signer, or signature
+/// inputs.
+#[wasm_bindgen(js_name = attestExecutionReceiptV1)]
+pub fn attest_execution_receipt_v1(
+    canonical: &[u8],
+    verifier: &str,
+    verification_method: &str,
+    suite: &str,
+    signature: &[u8],
+) -> Result<Vec<u8>, JsValue> {
+    let receipt = decode_execution(canonical).map_err(js_error)?;
+    let signer = receipt_signer(verifier, verification_method, suite).map_err(js_error)?;
+    encode_attested_execution(&AttestedExecutionReceipt::new(
+        receipt,
+        signer,
+        SignatureBytes::new(signature.to_vec()).map_err(js_error)?,
+    ))
+    .map_err(js_error)
+}
+
+/// Verifies a canonical receipt attestation under one exact raw Ed25519 key.
+///
+/// # Errors
+///
+/// Returns a JavaScript error for any structural, identity, suite, or
+/// signature mismatch.
+#[allow(clippy::too_many_arguments)]
+#[wasm_bindgen(js_name = verifyRawKeyReceiptV1)]
+pub fn verify_raw_key_receipt_v1(
+    kind: &str,
+    attested: &[u8],
+    expected_id: &[u8],
+    verifier: &str,
+    verification_method: &str,
+    suite: &str,
+    raw_key_evidence: &[u8],
+) -> Result<(), JsValue> {
+    let expected_verifier = PrincipalId::parse(verifier).map_err(js_error)?;
+    let signer = ReceiptSigner::new(
+        expected_verifier.clone(),
+        VerificationMethod::parse(verification_method).map_err(js_error)?,
+        SignatureSuiteId::parse(suite).map_err(js_error)?,
+    );
+    let descriptor = auths_raw_key::RawKeyDescriptor::decode(raw_key_evidence)
+        .map_err(|_| js_error(EngineError::Abi("invalid raw-key receipt evidence")))?;
+    if descriptor.principal().map_err(js_error)? != expected_verifier || descriptor.suite() != suite
+    {
+        return Err(js_error(EngineError::Abi(
+            "receipt key does not match signer",
+        )));
+    }
+    let expected = auths_model::ReceiptId::new(receipt_array32(expected_id, "receipt id")?);
+    let suite = auths_signature::Ed25519Suite::new().map_err(js_error)?;
+    let configured = ConfiguredReceiptVerifier::new(signer, descriptor.public_key(), &suite);
+    match kind {
+        "decision" => {
+            verify_decision_attestation(attested, expected, &expected_verifier, &configured)
+                .map_err(js_error)?;
+        }
+        "execution" => {
+            verify_execution_attestation(attested, expected, &expected_verifier, &configured)
+                .map_err(js_error)?;
+        }
+        _ => return Err(js_error(EngineError::Abi("unsupported receipt kind"))),
+    }
+    Ok(())
+}
+
+/// Verifies the structural link between one decision and execution receipt.
+///
+/// # Errors
+///
+/// Returns a JavaScript error for malformed receipts, mismatched identifiers,
+/// or an execution linked to another decision.
+#[wasm_bindgen(js_name = verifyReceiptLinkV1)]
+pub fn verify_receipt_link_v1(
+    decision: &[u8],
+    decision_id: &[u8],
+    execution: &[u8],
+    execution_id: &[u8],
+) -> Result<(), JsValue> {
+    let decision_id = auths_model::ReceiptId::new(receipt_array32(
+        decision_id,
+        "decision receipt id must contain 32 bytes",
+    )?);
+    verify_attested_decision_bytes(decision, decision_id).map_err(js_error)?;
+    let execution_id = auths_model::ReceiptId::new(receipt_array32(
+        execution_id,
+        "execution receipt id must contain 32 bytes",
+    )?);
+    let execution = verify_attested_execution_bytes(execution, execution_id).map_err(js_error)?;
+    if execution.receipt().decision_receipt() != decision_id {
+        return Err(js_error(EngineError::Abi("receipt linkage mismatch")));
+    }
+    Ok(())
+}
+
+fn receipt_signer(
+    verifier: &str,
+    verification_method: &str,
+    suite: &str,
+) -> Result<ReceiptSigner, EngineError> {
+    Ok(ReceiptSigner::new(
+        PrincipalId::parse(verifier)?,
+        VerificationMethod::parse(verification_method)?,
+        SignatureSuiteId::parse(suite)?,
+    ))
+}
+
+#[allow(clippy::needless_pass_by_value)]
+fn receipt_preparation(value: auths_receipts::PreparedReceipt) -> ReceiptPreparationV1 {
+    ReceiptPreparationV1 {
+        id: value.id().as_bytes().to_vec(),
+        canonical: value.canonical().to_vec(),
+        signing_preimage: value.signing_preimage().to_vec(),
+    }
+}
+
+fn receipt_array32(value: &[u8], label: &'static str) -> Result<[u8; 32], JsValue> {
+    value
+        .try_into()
+        .map_err(|_| js_error(EngineError::Abi(label)))
 }
 
 /// Prepares one action whose semantics were canonicalized by an

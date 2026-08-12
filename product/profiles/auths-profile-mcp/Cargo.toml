@@ -9,10 +9,12 @@ homepage.workspace = true
 description = "Canonical Auths action profile for exact MCP tool calls"
 
 [dependencies]
+auths-codec.workspace = true
 auths-model.workspace = true
 auths-verifier.workspace = true
 auths-profile-api.workspace = true
 hex.workspace = true
+hmac.workspace = true
 rmcp.workspace = true
 serde.workspace = true
 serde_json.workspace = true

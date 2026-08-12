@@ -1,178 +1,90 @@
-# Auths for Python
+# `auths`
 
-`auths` is the Python SDK for identity exchange, authentication, delegated
-authority, protected actions, and reliable effect execution. Protocol meaning
-is implemented by the embedded Rust core; Python coordinates typed application
-values and replaceable async providers.
+Auths proves what software may do, executes the exact protected action through
+a closed profile, and leaves a verifiable receipt.
 
-Release wheels include the native core. Applications do not need Rust, Node,
-a hosted Auths service, or private-key export.
+## Install
 
-## Identity without permissions
-
-`auths.identity` is credential-shape agnostic. An identity method owns its
-method material, while a relationship names its purpose, suite, and one or
-more opaque verification-material objects. A suite may therefore consume one
-Ed25519 key, a P-256 credential, a threshold set, a classical/post-quantum
-hybrid, or resolver-provided material without changing the identity API.
-
-```python
-from auths.identity import IdentityRegistry, decode_identity
-
-registry = IdentityRegistry(methods=[method], suites=[suite])
-decoded = decode_identity(packet)
-resolved = await decoded.resolve(registry)
-validated = await resolved.validate(registry)
-authenticated = await validated.authenticate(
-    message,
-    signature,
-    registry,
-    relationship_id="signing-2026",
-)
+```bash
+pip install auths
 ```
 
-Decoded, resolved, validated, and authenticated identities are distinct types.
-Authentication grants no permission. The explicit `authority_input` bridge
-preserves method, relationship, suite, purpose, provenance, and assurance when
-an application later chooses to introduce authority.
+Published wheels include the native implementation. Consumers do not need a
+Rust toolchain.
 
-The runnable [identity quickstart](examples/identity_quickstart.py) uses
-clearly named development adapters. Production applications replace them with
-method, resolver, and suite adapters; Auths does not own that ecosystem.
-
-Importing `auths.identity` does not load workflow, approvals, trust, lifecycle,
-profiles, or runtime modules.
-
-`auths.integrations.exchange_identity` is a bounded async byte-transport port.
-It carries public identity packets without importing or creating authority.
-
-## Verification without workflow
-
-Teams that already possess proof, action, and trusted-context bytes use the
-effect-free verifier directly:
+## Protect one MCP action
 
 ```python
-from auths.verify import Authorized, Denied, Indeterminate, verify
+from auths.integrations import development
+from auths.profiles import mcp
 
-decision = verify(proof_cbor, action_cbor, trusted_context_cbor)
 
-match decision:
-    case Authorized():
-        record(decision)
-    case Denied() | Indeterminate():
-        record(decision)
+async def publish_report(arguments: dict[str, object]) -> object:
+    return {"published": True, "arguments": arguments}
+
+
+provider = mcp.development_provider(tools={"publish_report": publish_report})
+async with development.create_auths(
+    authority=mcp.allow_tools(("publish_report",)),
+) as auths:
+    result = await auths.execute(
+        action=mcp.call_tool(
+            name="publish_report",
+            arguments={"period": "weekly"},
+        ),
+        provider=provider,
+    )
+    print(result)
 ```
 
-The public result is inert evidence and cannot become a gateway command.
-`auths.inspection` provides bounded projections. `auths.diagnostics` accepts
-caller-supplied or differential engines, and its output is always inert.
-`verify_many` is bounded, order-preserving, releases the GIL during pure native
-work, and has the same result meaning as independent `verify` calls.
+## Public modules
 
-## Protected actions
+One wheel provides the same progressive topology as TypeScript:
 
-The integrated workflow loads trust, binds a signed root grant, delegates only
-narrower authority, obtains approval, signs the exact transaction, verifies it
-locally, and returns a profile-specific one-use command only for an authorized
-result.
+| Import | Purpose |
+| --- | --- |
+| `auths` | create, delegate, execute, resume, product results and errors |
+| `auths.identity` | standalone identity decoding and authentication |
+| `auths.verify` | effect-free proof, decision and receipt verification |
+| `auths.profiles` | qualified effect domains; initially MCP |
+| `auths.integrations` | maintained compositions and mechanism adapters |
+| `auths.framework` | proven signer and atomic-reservation contracts |
+| `auths.testkit` | deterministic fixtures and conformance suites |
 
-```python
-from auths import Approval, AuthsClient
-from auths.profiles.mcp import McpAuthorized, mcp
+All public modules have explicit `__all__` and typed installed-wheel coverage.
+The root does not re-export the other modules. Internal security machinery
+remains private.
 
-profile = mcp.profile(service="reports")
-approval = Approval.every_action("approval.reports", approval_provider)
+## Identity without capabilities
 
-async with AuthsClient(
-    signer=signer,
-    trusted_authority=trusted_authority,
-    telemetry=telemetry,
-) as client:
-    async with await client.attach_agent(
-        name="reports-agent",
-        profile=profile,
-        authority=root_grant,
-        approval=approval,
-    ) as agent:
-        decision = await agent.authorize(
-            profile.call("publish_report", {"month": "august"})
-        )
-        if isinstance(decision, McpAuthorized):
-            response, receipt = await profile.gateway(execute).execute(
-                decision.command,
-                idempotency_key=request_id,
-            )
-```
+`auths.identity` is independent of grants, approvals and execution. It carries
+method- and suite-labelled identity data without forcing an application into
+the protected workflow.
 
-MCP plans commit exact order and membership. Plan-once approval is finite,
-bound to that commitment, and cannot leak commands from a partial plan. The
-installed-wheel [full workflow consumer](external/full_workflow_consumer.py)
-is executed in CI on Linux, macOS, and Windows with the Rust toolchain removed.
+## Verification without effects
 
-## Profiles
+`auths.verify` is deterministic and effect-free. Verification never becomes
+authorization and returns no executable handle. Differential tools belong to
+`auths.testkit`.
 
-Two maintained profiles prove the closed-command boundary:
+## Resource ownership
 
-- `auths.profiles.mcp` protects canonical MCP tool calls;
-- `auths.profiles.http` protects canonical origin-bound HTTP requests and
-  returns profile receipts.
+Use `async with` for the normal path. Explicit `await auths.aclose()` is also
+supported for applications that cannot use a context manager. Both forms are
+idempotent and close owned signers and native sessions.
 
-`auths.profile_kit` lets applications define another typed profile. Its
-canonicalizer and decoder remain profile-owned, while Rust constructs the
-canonical action, commits plans, verifies proofs, and brands matching one-use
-commands. The kit deliberately has no generic executor.
+## Production boundary
 
-All effectful gateways require an idempotency key. They consume the native
-command before calling application code and report `outcome-unknown` when a
-provider may have been entered without a trustworthy outcome. Receipts bind
-the exact action, proof authority, trusted context, native lifecycle state,
-observed provider outcome, and ordered plan membership when applicable.
+The development composition uses ephemeral keys and in-memory state. It is not
+production durable. Production applications provide qualified profile
+integrations plus the narrowly proven framework mechanisms they need. Provider
+credentials remain behind the profile gateway and are acquired only after
+Auths has authorized and durably reserved the exact action.
 
-## Trust, lifecycle, approvals, and runtime
+Supported Python, platform, ABI and semantic-subject claims are recorded in
+`sdk-runtime-contract.json`. Public API and wheel-content snapshots reject
+undeclared or obsolete prelaunch modules.
 
-- `auths.trust` compiles typed anchors, assurance requirements, proof plans,
-  status snapshots, evidence limits, and offline evidence into a native
-  trusted context.
-- `auths.lifecycle` authors signed principal and grant status, builds typed
-  snapshots, and supplies withdrawal, rotation, and compromise recipes;
-  `auths.trust.replace_policy` performs a clean current-policy replacement.
-- `auths.authority` exposes attenuation and Rust-owned all-of, any-of, and
-  threshold proof plans.
-- `auths.approvals` supports committed no-approval, grant-only, every-action,
-  risk-gated, custom, exact plan-once, and bounded threshold-provider paths.
-- `auths.runtime` exposes Rust-owned transition, replay, additive budget, and
-  exclusive-capacity decisions behind challenge, budget, command, receipt,
-  clock, executor, and reconciliation protocols. Its in-memory implementation
-  is for deterministic development and conformance tests.
-
-Provider orchestration is async-native. The SDK has no second blocking facade,
-hidden event loop, hidden retry, or claim of remote atomicity or exactly-once
-execution.
-
-## Errors and operations
-
-`AuthsError` exposes bounded family, code, operation, stage, correlation,
-retry, effect-state, remediation, and cause-code fields. SDK representations,
-events, timelines, and support bundles reject secret-bearing or unbounded
-attributes. Raw proof, signature, credential, private material, and provider
-payloads are not placed in operational messages.
-
-`auths.testkit` contains explicit development adapters and executable port
-checks. Production signers, approval systems, resolvers, stores, telemetry
-exporters, transports, and frameworks remain replaceable integrations.
-Maintained boundary recipes are in
-[Python integration recipes](docs/INTEGRATION_RECIPES.md); durable state is
-demonstrated by the separately packaged `auths-sqlite` adapter.
-
-## Release boundary
-
-This package is prelaunch. There are no compatibility shims, deprecated
-aliases, legacy readers, migration helpers, dual execution paths, or old/new
-ABI windows. `auths.advanced`, `auths.native`, and `auths.mcp` do not exist.
-
-The current package/native pair uses ABI 2 and fails closed on disagreement.
-Repository qualification covers abi3 wheels for CPython 3.9–3.14 on Linux,
-macOS, and Windows, strict mypy and Pyright, exact public API and wheel-content
-snapshots, differential fixtures, hostile-handle checks, and installed-wheel
-consumers. Publication, production readiness, and independent-review claims
-remain blocked until their separate evidence gates pass.
+Run `python -m auths doctor` to inspect bounded installed runtime, ABI and
+profile facts. The report never reads application secrets or prints protocol
+payloads.

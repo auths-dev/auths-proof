@@ -7,7 +7,7 @@ import {
   ProviderOperationError,
   loadAuths,
   trustedContextSource,
-} from "../../../dist/index.js";
+} from "../../../dist/internal-sdk.js";
 import {
   SigningCoordinator,
   WasmSigningAdapter,

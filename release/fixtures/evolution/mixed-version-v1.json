@@ -1,0 +1,13 @@
+{
+  "schema": "auths.mixed-version-fixtures/1",
+  "cases": [
+    { "id": "coherent-current", "package": "1.0.0", "abi": "authoring/1", "semanticSubject": "auths-v1", "profile": "auths.mcp/1", "receiptSchema": "auths.receipt/1", "stateSchema": "auths.state/1", "expected": "compatible", "stage": "complete" },
+    { "id": "wasm-abi-mismatch", "package": "1.0.0", "abi": "authoring/2", "semanticSubject": "auths-v1", "profile": "auths.mcp/1", "receiptSchema": "auths.receipt/1", "stateSchema": "auths.state/1", "expected": "reject", "stage": "initialization" },
+    { "id": "native-abi-mismatch", "package": "1.0.0", "abi": "native/3", "semanticSubject": "auths-v1", "profile": "auths.mcp/1", "receiptSchema": "auths.receipt/1", "stateSchema": "auths.state/1", "expected": "reject", "stage": "initialization" },
+    { "id": "semantic-subject-mismatch", "package": "1.0.0", "abi": "authoring/1", "semanticSubject": "auths-v2", "profile": "auths.mcp/1", "receiptSchema": "auths.receipt/1", "stateSchema": "auths.state/1", "expected": "reject", "stage": "initialization" },
+    { "id": "future-profile", "package": "1.0.0", "abi": "authoring/1", "semanticSubject": "auths-v1", "profile": "auths.mcp/2", "receiptSchema": "auths.receipt/1", "stateSchema": "auths.state/1", "expected": "reject", "stage": "profile-selection" },
+    { "id": "future-receipt", "package": "1.0.0", "abi": "authoring/1", "semanticSubject": "auths-v1", "profile": "auths.mcp/1", "receiptSchema": "auths.receipt/2", "stateSchema": "auths.state/1", "expected": "reject", "stage": "receipt-decode" },
+    { "id": "future-state", "package": "1.0.0", "abi": "authoring/1", "semanticSubject": "auths-v1", "profile": "auths.mcp/1", "receiptSchema": "auths.receipt/1", "stateSchema": "auths.state/2", "expected": "reject", "stage": "state-decode" },
+    { "id": "old-receipt-verification", "package": "2.0.0", "abi": "authoring/2", "semanticSubject": "auths-v2", "profile": "auths.mcp/2", "receiptSchema": "auths.receipt/1", "stateSchema": "auths.state/2", "expected": "verify-only", "stage": "receipt-verify" }
+  ]
+}

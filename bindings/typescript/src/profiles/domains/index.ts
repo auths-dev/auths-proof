@@ -275,6 +275,12 @@ function edgeNative(input: EdgeActionInput): unknown {
 }
 
 function record(value: unknown): Readonly<Record<string, unknown>> {
+  if (value instanceof Map) {
+    if ([...value.keys()].some((key) => typeof key !== "string")) {
+      throw new AuthsWorkflowError("invalid-profile", "native profile returned a non-text map key");
+    }
+    return Object.freeze(Object.fromEntries(value)) as Readonly<Record<string, unknown>>;
+  }
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
     throw new AuthsWorkflowError("invalid-profile", "native profile returned a non-object action");
   }

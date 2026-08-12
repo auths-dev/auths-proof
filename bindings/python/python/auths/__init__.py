@@ -1,4 +1,4 @@
-"""Auths identity, authority, and protected-action SDK."""
+"""Create, delegate, execute, resume, and verify protected actions."""
 
 from __future__ import annotations
 
@@ -6,75 +6,73 @@ from importlib import import_module
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from .workflow import *  # noqa: F403
+    from ._doctor import DoctorReport as DoctorReport, doctor as doctor
+    from ._product import (
+        Actor as Actor,
+        Auths as Auths,
+        Authority as Authority,
+        Completed as Completed,
+        Denied as Denied,
+        ExecutionReference as ExecutionReference,
+        ExecutionResult as ExecutionResult,
+        Indeterminate as Indeterminate,
+        Receipt as Receipt,
+        RecoveryResult as RecoveryResult,
+    )
+    from ._product_errors import (
+        AuthsError as AuthsError,
+        AuthsErrorCode as AuthsErrorCode,
+        RecommendedAction as RecommendedAction,
+    )
+    from ._workflow import Approval as Approval
 
-_WORKFLOW_EXPORTS = (
-    "ActionConstraintSummary",
-    "AgentIdentity",
-    "AllowedBodies",
-    "AnyBody",
+__all__ = [
+    "Actor",
     "Approval",
-    "ApprovalConfiguration",
-    "ApprovalDecision",
-    "ApprovalMode",
-    "ApprovalPolicy",
-    "ApprovalPolicyReference",
-    "ApprovalProvider",
-    "ApprovalRequest",
-    "ApprovalResponse",
-    "AttachedAgent",
-    "AuthorityExplanation",
-    "AuthsClient",
+    "Auths",
     "AuthsError",
-    "AuthsWorkflowError",
-    "BudgetCeiling",
-    "BudgetSummary",
-    "ControlEvidence",
-    "DelegatedActionConstraint",
-    "DelegatedAuthority",
-    "DelegatedBudget",
-    "DelegatedStatus",
-    "DelegationReview",
-    "EffectiveAuthoritySummary",
-    "ExactBody",
-    "ExpiryOnly",
-    "InheritAction",
-    "InheritBudget",
-    "InheritStatus",
-    "NoBudget",
-    "Permission",
-    "Principal",
-    "PrincipalDescriptor",
-    "Profile",
-    "ProviderFailureKind",
-    "ProviderOperationError",
-    "ReviewField",
-    "SignatureSummary",
-    "SignedGrantInput",
-    "SignedGrantLoadRequest",
-    "SignedGrantMaterial",
-    "SignedGrantProvider",
-    "SignedGrantSource",
-    "Signer",
-    "SignerLifecycle",
-    "SigningObjectKind",
-    "SigningRequest",
-    "SigningResponse",
-    "SnapshotRequired",
-    "StatusSummary",
-    "TrustedAuthority",
-    "TrustedAuthoritySnapshot",
-    "Validity",
-)
+    "AuthsErrorCode",
+    "Authority",
+    "Completed",
+    "Denied",
+    "DoctorReport",
+    "ExecutionReference",
+    "ExecutionResult",
+    "Indeterminate",
+    "Receipt",
+    "RecommendedAction",
+    "RecoveryResult",
+    "doctor",
+]
 
-__all__ = list(_WORKFLOW_EXPORTS)
+_OWNERS = {
+    "Actor": "._product",
+    "Approval": "._workflow",
+    "Auths": "._product",
+    "AuthsError": "._product_errors",
+    "AuthsErrorCode": "._product_errors",
+    "Authority": "._product",
+    "Completed": "._product",
+    "Denied": "._product",
+    "DoctorReport": "._doctor",
+    "ExecutionReference": "._product",
+    "ExecutionResult": "._product",
+    "Indeterminate": "._product",
+    "Receipt": "._product",
+    "RecommendedAction": "._product_errors",
+    "RecoveryResult": "._product",
+    "doctor": "._doctor",
+}
 
 
 def __getattr__(name: str) -> Any:
-    if name not in _WORKFLOW_EXPORTS:
+    owner = _OWNERS.get(name)
+    if owner is None:
         raise AttributeError(f"module 'auths' has no attribute {name!r}")
-    return getattr(import_module(".workflow", __name__), name)
+    value = getattr(import_module(owner, __name__), name)
+    globals()[name] = value
+    return value
 
 
 def __dir__() -> list[str]:
-    return sorted((*globals(), *_WORKFLOW_EXPORTS))
+    return sorted((*globals(), *__all__))

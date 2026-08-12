@@ -18,12 +18,14 @@ digraph auths_architecture {
   "auths-codec" [group="core"];
   "auths-composition" [group="core"];
   "auths-config" [group="product"];
+  "auths-cross-company-incident-edgeshield-demo" [group="demos"];
   "auths-custody" [group="product"];
   "auths-deployment" [group="product"];
   "auths-did-keri" [group="core"];
   "auths-did-key" [group="core"];
   "auths-did-web" [group="core"];
   "auths-enforcement" [group="product"];
+  "auths-errors" [group="product"];
   "auths-evidence-assemblers" [group="product"];
   "auths-explain" [group="product"];
   "auths-formal-refinement" [group="core"];
@@ -160,6 +162,8 @@ digraph auths_architecture {
   "auths-config" -> "auths-codec" [label="normal"];
   "auths-config" -> "auths-model" [label="normal"];
   "auths-config" -> "auths-proof-exchange-model" [label="normal"];
+  "auths-cross-company-incident-edgeshield-demo" -> "auths-iroh" [label="normal"];
+  "auths-cross-company-incident-edgeshield-demo" -> "auths-raw-key" [label="normal"];
   "auths-custody" -> "auths-author" [label="normal"];
   "auths-custody" -> "auths-model" [label="normal"];
   "auths-deployment" -> "auths-enforcement" [label="normal"];
@@ -319,6 +323,7 @@ digraph auths_architecture {
   "auths-profile-kit" -> "auths-model" [label="normal"];
   "auths-profile-kit" -> "auths-profile-api" [label="normal"];
   "auths-profile-kit" -> "auths-verifier" [label="dev"];
+  "auths-profile-mcp" -> "auths-codec" [label="normal"];
   "auths-profile-mcp" -> "auths-model" [label="normal"];
   "auths-profile-mcp" -> "auths-profile-api" [label="normal"];
   "auths-profile-mcp" -> "auths-verifier" [label="normal"];
@@ -403,6 +408,7 @@ digraph auths_architecture {
   "auths-proof-python" -> "auths-profile-domains" [label="normal"];
   "auths-proof-python" -> "auths-profile-mcp" [label="normal"];
   "auths-proof-python" -> "auths-raw-key" [label="normal"];
+  "auths-proof-python" -> "auths-receipts" [label="normal"];
   "auths-proof-python" -> "auths-registries" [label="normal"];
   "auths-proof-python" -> "auths-sdk" [label="normal"];
   "auths-proof-python" -> "auths-signature" [label="normal"];
@@ -420,6 +426,7 @@ digraph auths_architecture {
   "auths-proof-wasm" -> "auths-profile-domains" [label="normal"];
   "auths-proof-wasm" -> "auths-profile-mcp" [label="normal"];
   "auths-proof-wasm" -> "auths-raw-key" [label="normal"];
+  "auths-proof-wasm" -> "auths-receipts" [label="normal"];
   "auths-proof-wasm" -> "auths-registries" [label="normal"];
   "auths-proof-wasm" -> "auths-signature" [label="normal"];
   "auths-proof-wasm" -> "auths-signature-ed25519" [label="normal"];
@@ -454,6 +461,7 @@ digraph auths_architecture {
   "auths-raw-key" -> "auths-model" [label="normal"];
   "auths-raw-key" -> "auths-ports" [label="normal"];
   "auths-raw-key" -> "auths-raw-key-core" [label="normal"];
+  "auths-receipts" -> "auths-codec" [label="normal"];
   "auths-receipts" -> "auths-model" [label="normal"];
   "auths-receipts" -> "auths-ports" [label="normal"];
   "auths-records-api" -> "auths-bounded-policy" [label="normal"];
@@ -500,6 +508,7 @@ digraph auths_architecture {
   "auths-sdk" -> "auths-custody" [label="normal"];
   "auths-sdk" -> "auths-did-keri" [label="normal"];
   "auths-sdk" -> "auths-did-key" [label="normal"];
+  "auths-sdk" -> "auths-errors" [label="normal"];
   "auths-sdk" -> "auths-kernel-runtime" [label="normal"];
   "auths-sdk" -> "auths-model" [label="normal"];
   "auths-sdk" -> "auths-ports" [label="normal"];
@@ -637,6 +646,7 @@ digraph auths_architecture {
   "xtask" -> "auths-did-keri" [label="normal"];
   "xtask" -> "auths-did-key" [label="normal"];
   "xtask" -> "auths-did-web" [label="normal"];
+  "xtask" -> "auths-errors" [label="normal"];
   "xtask" -> "auths-github" [label="normal"];
   "xtask" -> "auths-hsm-attested" [label="normal"];
   "xtask" -> "auths-kubernetes" [label="normal"];
@@ -645,6 +655,7 @@ digraph auths_architecture {
   "xtask" -> "auths-opentofu" [label="normal"];
   "xtask" -> "auths-ports" [label="normal"];
   "xtask" -> "auths-postgresql" [label="normal"];
+  "xtask" -> "auths-profile-mcp" [label="normal"];
   "xtask" -> "auths-proof-exchange-testkit" [label="normal"];
   "xtask" -> "auths-radicle" [label="normal"];
   "xtask" -> "auths-raw-key" [label="normal"];

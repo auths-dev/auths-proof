@@ -4,8 +4,116 @@ Permission = Tuple[str, str]
 Budget = Tuple[str, int]
 
 def generate_challenge_v1() -> bytes: ...
+
 StatusPolicy = Tuple[str, int]
 CriticalExtension = Tuple[str, bytes]
+
+class DevelopmentEd25519Key:
+    @staticmethod
+    def generate() -> DevelopmentEd25519Key: ...
+    @staticmethod
+    def from_seed(seed: bytes) -> DevelopmentEd25519Key: ...
+    @property
+    def principal(self) -> str: ...
+    @property
+    def principal_method(self) -> str: ...
+    @property
+    def verification_method(self) -> str: ...
+    @property
+    def suite(self) -> str: ...
+    @property
+    def evidence_type(self) -> str: ...
+    @property
+    def media_type(self) -> str: ...
+    @property
+    def evidence(self) -> bytes: ...
+    def sign(self, preimage: bytes) -> bytes: ...
+
+class DomainActionProjection:
+    @property
+    def media_type(self) -> str: ...
+    @property
+    def body(self) -> bytes: ...
+    @property
+    def capability(self) -> str: ...
+    @property
+    def resource(self) -> str: ...
+    @property
+    def budget(self) -> Optional[Budget]: ...
+    @property
+    def review_title(self) -> str: ...
+    @property
+    def review_fields(self) -> List[Tuple[str, str]]: ...
+
+def canonicalize_edge_action_v1(
+    fleet: str,
+    device: str,
+    command: str,
+    sequence: int,
+    state_digest: Optional[str],
+) -> DomainActionProjection: ...
+def parse_canonical_edge_action_v1(body: bytes) -> DomainActionProjection: ...
+
+class ReceiptPreparation:
+    @property
+    def receipt_id(self) -> bytes: ...
+    @property
+    def canonical(self) -> bytes: ...
+    @property
+    def signing_preimage(self) -> bytes: ...
+
+def prepare_authorized_decision_receipt_v1(
+    proof_cbor: bytes,
+    canonical_action_cbor: bytes,
+    trusted_context_cbor: bytes,
+    decided_at: int,
+    verifier: str,
+    verification_method: str,
+    suite: str,
+) -> ReceiptPreparation: ...
+def prepare_application_execution_receipt_v1(
+    decision_receipt_id_bytes: bytes,
+    idempotency_key: str,
+    plan_commitment: Optional[bytes],
+    member_index: Optional[int],
+    member_count: Optional[int],
+    command_bytes: bytes,
+    outcome: str,
+    result: Optional[bytes],
+    completed_at: int,
+    verifier: str,
+    verification_method: str,
+    suite: str,
+) -> ReceiptPreparation: ...
+def attest_decision_receipt_v1(
+    canonical: bytes,
+    verifier: str,
+    verification_method: str,
+    suite: str,
+    signature: bytes,
+) -> bytes: ...
+def attest_execution_receipt_v1(
+    canonical: bytes,
+    verifier: str,
+    verification_method: str,
+    suite: str,
+    signature: bytes,
+) -> bytes: ...
+def verify_raw_key_receipt_v1(
+    kind: str,
+    attested: bytes,
+    expected_id: bytes,
+    verifier: str,
+    verification_method: str,
+    suite: str,
+    raw_key_evidence: bytes,
+) -> None: ...
+def verify_receipt_link_v1(
+    decision: bytes,
+    decision_id: bytes,
+    execution: bytes,
+    execution_id: bytes,
+) -> None: ...
 
 class Principal:
     def __init__(self, value: str) -> None: ...
@@ -257,6 +365,60 @@ class McpGatewayCall:
     def name(self) -> str: ...
     @property
     def arguments_json(self) -> bytes: ...
+
+class McpSessionStep:
+    @property
+    def kind(self) -> str: ...
+    @property
+    def execution_id(self) -> str: ...
+    @property
+    def service(self) -> Optional[str]: ...
+    @property
+    def tool(self) -> Optional[str]: ...
+    @property
+    def bytes(self) -> Optional[bytes]: ...
+
+class McpSessionTerminal:
+    @property
+    def kind(self) -> str: ...
+    @property
+    def execution_id(self) -> str: ...
+    @property
+    def output_json(self) -> Optional[bytes]: ...
+    @property
+    def receipt_json(self) -> Optional[bytes]: ...
+    @property
+    def reference(self) -> Optional[str]: ...
+    @property
+    def record_json(self) -> Optional[bytes]: ...
+
+class McpExecutionSession:
+    @property
+    def execution_id(self) -> str: ...
+    @property
+    def canonical_action(self) -> bytes: ...
+    @property
+    def decision_receipt_id(self) -> bytes: ...
+    @property
+    def decision_receipt(self) -> bytes: ...
+    @property
+    def plan_commitment(self) -> Optional[bytes]: ...
+    @property
+    def member_index(self) -> Optional[int]: ...
+    @property
+    def member_count(self) -> Optional[int]: ...
+    def next_step(self) -> McpSessionStep: ...
+    def accept_reservation(self, result: str) -> None: ...
+    def accept_provider_entry(self) -> None: ...
+    def cancel_before_provider(self) -> None: ...
+    def accept_handler(
+        self,
+        effect: str,
+        output_json: Optional[bytes] = ...,
+        cause: Optional[str] = ...,
+    ) -> None: ...
+    def accept_receipt(self, persisted: bool) -> None: ...
+    def terminal(self) -> Optional[McpSessionTerminal]: ...
 
 class AssurancePolicy:
     def __init__(
@@ -600,6 +762,40 @@ def seal_mcp_plan_command(
 def consume_mcp_plan_command(
     command: McpPlanCommand, expected_service: str
 ) -> List[McpGatewayCall]: ...
+def begin_mcp_execution(
+    command: McpCommand,
+    decision_receipt_id: bytes,
+    decision_receipt: bytes,
+    session_key: bytes,
+    request_id: Optional[str] = ...,
+) -> McpExecutionSession: ...
+def prepare_mcp_command_decision_receipt_v1(
+    command: McpCommand,
+    decided_at: int,
+    verifier: str,
+    verification_method: str,
+    suite: str,
+) -> ReceiptPreparation: ...
+def prepare_mcp_plan_decision_receipts_v1(
+    command: McpPlanCommand,
+    decided_at: int,
+    verifier: str,
+    verification_method: str,
+    suite: str,
+) -> List[ReceiptPreparation]: ...
+def begin_mcp_plan_member_execution(
+    command: McpPlanCommand,
+    member_index: int,
+    decision_receipt_id: bytes,
+    decision_receipt: bytes,
+    session_key: bytes,
+    request_id: Optional[str] = ...,
+) -> McpExecutionSession: ...
+def resume_mcp_execution(
+    session_key: bytes,
+    reference: str,
+    record_json: bytes,
+) -> McpExecutionSession: ...
 def status_snapshot(
     kind: str,
     identifier: bytes,
@@ -695,7 +891,9 @@ def authorize_http(
     context: TrustedContext,
 ) -> Tuple[NativeVerificationResult, Optional[HttpCommand]]: ...
 def inspect_http_action(action: HttpAction) -> bytes: ...
-def consume_http_command(command: HttpCommand, expected_origin: str) -> HttpGatewayRequest: ...
+def consume_http_command(
+    command: HttpCommand, expected_origin: str
+) -> HttpGatewayRequest: ...
 def seal_http_plan_command(
     commands: List[HttpCommand], expected_origin: str, expected_commitment: bytes
 ) -> HttpPlanCommand: ...
@@ -714,7 +912,9 @@ def application_action(
     audience: str,
 ) -> ApplicationAction: ...
 def application_action_commitment_v1(action: ApplicationAction) -> bytes: ...
-def commit_application_plan(actions: List[ApplicationAction]) -> NativeApplicationPlan: ...
+def commit_application_plan(
+    actions: List[ApplicationAction],
+) -> NativeApplicationPlan: ...
 def prepare_application_action(
     action: ApplicationAction,
     actor: Principal,
@@ -746,6 +946,20 @@ def consume_application_plan_command(
     expected_profile_id: str,
     expected_profile_version: int,
 ) -> List[ApplicationGatewayCall]: ...
+def prepare_application_command_decision_receipt_v1(
+    command: ApplicationCommand,
+    decided_at: int,
+    verifier: str,
+    verification_method: str,
+    suite: str,
+) -> ReceiptPreparation: ...
+def prepare_application_plan_decision_receipts_v1(
+    command: ApplicationPlanCommand,
+    decided_at: int,
+    verifier: str,
+    verification_method: str,
+    suite: str,
+) -> List[ReceiptPreparation]: ...
 def runtime_transition_v1(
     current: Optional[str],
     operation: str,
@@ -773,6 +987,7 @@ def runtime_exclusive_capacity_v1(
     has_live_owner: bool, owner_is_exact_replay: bool
 ) -> bool: ...
 def runtime_execution_state_v1(outcome: str) -> str: ...
+def runtime_application_execution_state_v1(outcome: str) -> str: ...
 def decode_diagnostic_result_v1(result_cbor: bytes) -> NativeVerificationResult: ...
 def commit_canonical_v1(domain: str, canonical: bytes) -> bytes: ...
 def diagnostic_input_limits_v1() -> Tuple[int, int, int]: ...

@@ -1,0 +1,29 @@
+{
+  "schema": "auths.recipe-experience-evidence/1",
+  "automated": {
+    "runner": "bindings/recipes/tools/run.mjs",
+    "languages": ["typescript", "python"],
+    "recipesPerLanguage": 5,
+    "crossLanguageReceiptVerification": true,
+    "timings": [
+      { "language": "typescript", "recipe": "01", "elapsedMs": 165 },
+      { "language": "python", "recipe": "01", "elapsedMs": 161 },
+      { "language": "typescript", "recipe": "02", "elapsedMs": 184 },
+      { "language": "python", "recipe": "02", "elapsedMs": 143 },
+      { "language": "typescript", "recipe": "03", "elapsedMs": 211 },
+      { "language": "python", "recipe": "03", "elapsedMs": 169 },
+      { "language": "typescript", "recipe": "04", "elapsedMs": 212 },
+      { "language": "python", "recipe": "04", "elapsedMs": 173 },
+      { "language": "typescript", "recipe": "05", "elapsedMs": 605 },
+      { "language": "python", "recipe": "05", "elapsedMs": 501 }
+    ],
+    "measurement": "local clean temporary consumers; installed npm tarball and wheel; Apple arm64"
+  },
+  "moderatedRecipeThreeCohort": {
+    "status": "awaiting-independent-cohort",
+    "requiredCompletions": 4,
+    "requiredCohort": 5,
+    "maximumMinutes": 15,
+    "participants": []
+  }
+}

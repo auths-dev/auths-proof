@@ -15,12 +15,19 @@ import {
 } from "../workflow.js";
 import { SigningCoordinator, WasmSigningAdapter } from "./signing.js";
 
+export interface VerifiedArtifactView {
+  readonly proofCbor: Uint8Array;
+  readonly canonicalActionCbor: Uint8Array;
+  readonly trustedContextCbor: Uint8Array;
+}
+
 /** Completes the profile-independent signing, proof, and verification path. */
 export async function authorizePreparedAction(
   agent: AttachedAgent<Profile>,
   preparation: WorkflowActionPreparation,
   display: readonly ReviewField[],
   approvalOverride?: ApprovalConfiguration,
+  observeArtifacts?: (artifacts: VerifiedArtifactView) => void,
 ): Promise<WorkflowVerificationResult> {
   const resources = resourcesForAttachedAgent(agent);
   const engine = engineForClient(resources.client);
@@ -122,6 +129,11 @@ export async function authorizePreparedAction(
         ...(telemetry === undefined ? {} : { telemetry }),
       },
     );
+    observeArtifacts?.(Object.freeze({
+      proofCbor: artifacts.proofCbor.slice(),
+      canonicalActionCbor: preparation.canonicalActionCbor.slice(),
+      trustedContextCbor: artifacts.trustedContextCbor.slice(),
+    }));
     void emitAuthsEvent(telemetry, {
       name: "auths.construction.completed",
       timestamp: Date.now(),

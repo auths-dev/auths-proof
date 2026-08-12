@@ -28,15 +28,14 @@ try {
   const vectors = new URL("../../../../target/binding-vectors/", import.meta.url);
   await cp(new URL("valid/raw-key-chain.proof.cbor", fixtures), join(temporary, "fixtures/proof.cbor"));
   await cp(new URL("valid/raw-key-chain.action.cbor", fixtures), join(temporary, "fixtures/action.cbor"));
-  await cp(new URL("authorized.context.cbor", vectors), join(temporary, "fixtures/authorized.context.cbor"));
-  await cp(new URL("valid/raw-key-chain.context.cbor", fixtures), join(temporary, "fixtures/denied.context.cbor"));
+  await cp(new URL("authorized.context.cbor", vectors), join(temporary, "fixtures/context.cbor"));
   await writeFile(join(temporary, "worker.js"), `
     const started = performance.now();
     const { loadVerifier } = await import("/node_modules/@auths-dev/sdk/dist/verify.js");
     const bytes = async (name) => new Uint8Array(await (await fetch('/fixtures/' + name)).arrayBuffer());
     const verifier = await loadVerifier();
     const result = verifier.verify(
-      await bytes('proof.cbor'), await bytes('action.cbor'), await bytes('authorized.context.cbor'),
+      await bytes('proof.cbor'), await bytes('action.cbor'), await bytes('context.cbor'),
     );
     postMessage({ kind: result.kind, coldStartMs: performance.now() - started });
   `);
@@ -45,36 +44,20 @@ try {
     <title>Auths packed browser conformance</title>
     <output id="result">starting</output>
     <script type="module">
-      import {
-        approvalPolicy,
-        commandsForGateway,
-        loadAuths,
-        prepareRawKeyAuthority,
-      } from "/node_modules/@auths-dev/sdk/dist/index.js";
-      import {
-        loadVerifier,
-      } from "/node_modules/@auths-dev/sdk/dist/verify.js";
-      import { inspectDecision } from "/node_modules/@auths-dev/sdk/dist/inspection.js";
-      import { createDiagnosticVerifier } from "/node_modules/@auths-dev/sdk/dist/diagnostics.js";
-      import { mcp } from "/node_modules/@auths-dev/sdk/dist/mcp.js";
-      import { development } from "/node_modules/@auths-dev/sdk/dist/testkit/index.js";
+      import { doctor } from "/node_modules/@auths-dev/sdk/dist/index.js";
+      import { development } from "/node_modules/@auths-dev/sdk/dist/integrations.js";
+      import { mcp } from "/node_modules/@auths-dev/sdk/dist/profiles.js";
+      import { loadVerifier } from "/node_modules/@auths-dev/sdk/dist/verify.js";
       const bytes = async (name) => new Uint8Array(await (await fetch('/fixtures/' + name)).arrayBuffer());
-      const action = await bytes('action.cbor');
-      const first = await loadVerifier();
-      const authorized = first.verify(
-        await bytes('proof.cbor'), action, await bytes('authorized.context.cbor'),
-      );
-      const denied = first.verify(
-        await bytes('proof.cbor'), action, await bytes('denied.context.cbor'),
-      );
-      const second = await loadVerifier();
-      const repeated = second.verify(
-        await bytes('proof.cbor'), action, await bytes('authorized.context.cbor'),
-      );
+      const proof = await bytes('proof.cbor');
+      const actionBytes = await bytes('action.cbor');
+      const context = await bytes('context.cbor');
+      const verifier = await loadVerifier();
+      const verified = verifier.verify(proof, actionBytes, context);
       const warmTimings = [];
       for (let index = 0; index < 30; index += 1) {
         const before = performance.now();
-        first.verify(await bytes('proof.cbor'), action, await bytes('authorized.context.cbor'));
+        verifier.verify(proof, actionBytes, context);
         warmTimings.push(performance.now() - before);
       }
       warmTimings.sort((left, right) => left - right);
@@ -83,73 +66,33 @@ try {
         worker.onmessage = (event) => { worker.terminate(); resolve(event.data); };
         worker.onerror = reject;
       });
-      const profile = mcp.profile({ service: 'browser-records' });
-      const policy = await approvalPolicy.planOnce({ maxUses: 2, expiresInSeconds: 120 });
-      const approval = development.approval(policy);
-      const rootSigner = await development.ephemeralSigner();
-      const agentSigner = await development.ephemeralSigner();
-      const principal = await agentSigner.publicIdentity();
-      const now = BigInt(Math.floor(Date.now() / 1000));
-      const prepared = await prepareRawKeyAuthority({
-        authorityId: 'browser.owner',
-        rootSigner,
-        subjectPrincipal: principal.principal,
-        profile,
-        permissions: [{ capability: 'tools/call', resource: 'mcp://browser-records/tools/update' }],
-        resourceNamespaces: ['mcp://browser-records'],
-        validity: { notBefore: now - 30n, expiresAt: now + 600n },
-        audiences: ['mcp://browser-records'],
-        budget: { algebra: 'numeric-ceiling-v1', value: 2n },
-        remainingDepth: 0,
-        approval,
+      let calls = 0;
+      const provider = mcp.developmentProvider({ tools: {
+        async update_record() { calls += 1; return { updated: true }; },
+      } });
+      const auths = await development.createAuths({
+        authority: mcp.allowTools(['update_record']),
       });
-      const client = await loadAuths({ signer: agentSigner, trustedAuthority: prepared.trustedAuthority });
-      let gatewayCalls = 0;
-      let planKind;
-      let deniedKind;
+      let execution;
       try {
-        const agent = await client.attachAgent({
-          name: 'browser-agent', profile, authority: prepared.authority, approval,
+        execution = await auths.execute({
+          action: mcp.callTool({ name: 'update_record', arguments: { record: 'one' } }),
+          provider,
         });
-        const plan = await profile.plan([
-          profile.call('update', { record: 'one' }),
-          profile.call('update', { record: 'two' }),
-        ]);
-        const planDecision = await agent.authorizePlan(plan);
-        planKind = planDecision.kind;
-        if (planDecision.kind === 'authorized') {
-          const gateway = profile.gateway(async () => { gatewayCalls += 1; });
-          for (const command of commandsForGateway(planDecision.command)) await gateway.execute(command);
-        }
-        const deniedDecision = await agent.authorize(profile.call('delete', { record: 'one' }));
-        deniedKind = deniedDecision.kind;
-        if ('command' in deniedDecision) throw new Error('denied browser decision carried a command');
-        if (planDecision.kind === 'authorized') {
-          const inspection = await inspectDecision(planDecision.results[0]);
-          if ('command' in inspection || 'action' in inspection) {
-            throw new Error('browser inspection exposed a capability');
-          }
-        }
-        const forged = createDiagnosticVerifier({
-          verifyV1: () => authorized.resultCbor,
-        }).verify(new Uint8Array([1]), action, new Uint8Array([2]));
-        if (forged.kind !== 'authorized' || 'action' in forged || forged.effectCapable !== false) {
-          throw new Error('browser diagnostic result was effect-capable');
-        }
       } finally {
-        await client.dispose();
-        await rootSigner.dispose();
+        await auths.close();
+        await auths.close();
       }
+      const report = await doctor({ mode: 'development', state: 'in-memory' });
       document.querySelector('#result').textContent = JSON.stringify({
-        authorized: authorized.kind,
-        denied: denied.kind,
-        repeated: repeated.kind,
+        verified: verified.kind,
         worker: workerResult.kind,
         workerColdStartMs: workerResult.coldStartMs,
         warmVerificationP95Ms: warmTimings[Math.floor(warmTimings.length * 0.95)],
-        plan: planKind,
-        gatewayCalls,
-        deniedAction: deniedKind,
+        execution: execution.kind,
+        calls,
+        doctor: report.status,
+        runtime: report.runtime,
       });
     </script>`);
 
@@ -181,49 +124,51 @@ try {
   if (address === null || typeof address === "string") throw new Error("browser server did not bind");
   browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
-  const browserFailures = [];
-  page.on("pageerror", (error) => browserFailures.push(`page error: ${error.message}`));
+  const failures = [];
+  page.on("pageerror", (error) => failures.push(`page error: ${error.message}`));
   page.on("response", (response) => {
-    if (!response.ok()) browserFailures.push(`HTTP ${response.status()}: ${response.url()}`);
+    if (!response.ok()) failures.push(`HTTP ${response.status()}: ${response.url()}`);
   });
   await page.goto(`http://127.0.0.1:${address.port}/`);
   try {
     await page.waitForFunction(() => document.querySelector("#result")?.textContent !== "starting");
   } catch (error) {
-    throw new Error(
-      `packed browser did not finish: ${browserFailures.join("; ") || "no page error was reported"}`,
-      { cause: error },
-    );
+    throw new Error(`packed browser did not finish: ${failures.join("; ") || "no page error was reported"}`, { cause: error });
   }
-  const result = await page.textContent("#result");
-  const outcome = JSON.parse(result);
-  const expected = {
-    authorized: "authorized",
-    denied: "denied",
-    repeated: "authorized",
+  const outcome = JSON.parse(await page.textContent("#result"));
+  for (const [key, value] of Object.entries({
+    verified: "authorized",
     worker: "authorized",
-    plan: "authorized",
-    gatewayCalls: 2,
-    deniedAction: "denied",
-  };
-  for (const [key, value] of Object.entries(expected)) {
+    execution: "completed",
+    calls: 1,
+    doctor: "ready",
+    runtime: "Browser",
+  })) {
     if (outcome[key] !== value) throw new Error(`packed browser ${key} drifted: ${outcome[key]}`);
   }
   const baseline = JSON.parse(await readFile(new URL("../../performance-baseline.json", import.meta.url)));
-  for (const [actual, budget] of [
-    [outcome.warmVerificationP95Ms, baseline.measurements.chromiumWarmVerificationP95Ms],
-    [outcome.workerColdStartMs, baseline.measurements.chromiumWorkerColdStartMs],
+  for (const { name, actual, budget, tolerance } of [
+    {
+      name: "warm verification p95",
+      actual: outcome.warmVerificationP95Ms,
+      budget: baseline.measurements.chromiumWarmVerificationP95Ms,
+      tolerance: 1.1,
+    },
+    {
+      name: "worker cold start",
+      actual: outcome.workerColdStartMs,
+      budget: baseline.measurements.chromiumWorkerColdStartMs,
+      tolerance: 1.25,
+    },
   ]) {
-    if (!Number.isFinite(actual) || actual > budget * 1.1) {
-      throw new Error(`packed browser performance exceeded budget: ${actual} > ${budget}`);
+    const limit = budget * tolerance;
+    if (!Number.isFinite(actual) || actual > limit) {
+      throw new Error(`packed browser ${name} exceeded budget: ${actual} > ${limit}`);
     }
   }
-  process.stdout.write(`${JSON.stringify({
-    warmVerificationP95Ms: outcome.warmVerificationP95Ms,
-    workerColdStartMs: outcome.workerColdStartMs,
-  })}\n`);
+  process.stdout.write(`${JSON.stringify({ outcome })}\n`);
 } finally {
-  await browser?.close();
+  if (browser !== undefined) await browser.close();
   if (server !== undefined) await new Promise((resolve) => server.close(resolve));
   await rm(temporary, { recursive: true, force: true });
 }

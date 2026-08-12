@@ -108,6 +108,7 @@
     "runtime_additive_capacity_v1",
     "runtime_exclusive_capacity_v1",
     "runtime_execution_state_v1",
+    "runtime_application_execution_state_v1",
     "decode_diagnostic_result_v1",
     "commit_canonical_v1",
     "diagnostic_input_limits_v1",

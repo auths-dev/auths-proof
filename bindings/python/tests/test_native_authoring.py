@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from auths import _native as native
-from auths.inspection import (
+from auths._inspection import (
     mcp_action_bytes,
     parse_signed_object,
     parse_unsigned_object,

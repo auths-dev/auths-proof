@@ -60,10 +60,20 @@ async function loadPackagedWorkflowEngineOnce(): Promise<PackagedWorkflowEngine>
     typeof loaded.parseCanonicalEdgeActionV1 !== "function" ||
     typeof loaded.prepareMcpActionV1 !== "function" ||
     typeof loaded.canonicalizeMcpPlanMemberV1 !== "function" ||
+    typeof loaded.beginMcpExecutionV1 !== "function" ||
+    typeof loaded.resumeMcpExecutionV1 !== "function" ||
     typeof loaded.canonicalizeProfilePlanMemberV1 !== "function" ||
     typeof loaded.prepareProfileActionV1 !== "function" ||
+    typeof loaded.profileReceiptBindingsV1 !== "function" ||
+    typeof loaded.prepareAuthorizedDecisionReceiptV1 !== "function" ||
+    typeof loaded.prepareApplicationExecutionReceiptV1 !== "function" ||
+    typeof loaded.attestDecisionReceiptV1 !== "function" ||
+    typeof loaded.attestExecutionReceiptV1 !== "function" ||
+    typeof loaded.verifyRawKeyReceiptV1 !== "function" ||
+    typeof loaded.verifyReceiptLinkV1 !== "function" ||
     typeof loaded.prepareRawKeyAuthorityV1 !== "function" ||
     typeof loaded.deriveEd25519RawKeyIdentityV1 !== "function" ||
+    typeof loaded.developmentEd25519PublicKeyV1 !== "function" ||
     typeof loaded.AuthorizationPlanBuilderV1 !== "function" ||
     typeof loaded.WorkflowProofBuilderV1 !== "function" ||
     typeof loaded.inspectSignedGrantV1 !== "function" ||

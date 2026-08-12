@@ -1,0 +1,93 @@
+{
+  "schema": "auths.sdk-vocabulary/1",
+  "enforcement": "prototype",
+  "securityNouns": {
+    "Identity": "who or what is presenting a credential",
+    "Authority": "the bounded things an identity may do",
+    "Action": "the exact inert operation being proposed",
+    "Approval": "optional confirmation of one exact transaction",
+    "Receipt": "signed evidence of a decision or observed effect"
+  },
+  "operations": {
+    "authenticate": "prove control of identity material over exact bytes",
+    "verify": "evaluate proof or receipt evidence without executing an effect",
+    "create": "bind an Auths facade to identity, authority, trust, and resources",
+    "delegate": "create narrower authority for another identity",
+    "execute": "authorize and run an exact action through its qualified profile",
+    "resume": "continue a commitment-bound incomplete execution",
+    "approve": "confirm an exact transaction without granting authority"
+  },
+  "ownerConcepts": {
+    "product": "protected action workflow",
+    "component": "independently adoptable identity or verification",
+    "profile": "qualified effect-domain action family",
+    "integration": "cross-domain mechanism or composition",
+    "framework": "custom vertical construction",
+    "testkit": "fixtures and conformance",
+    "internal-leak": "public mechanism without a final customer owner"
+  },
+  "equivalentNames": [
+    {
+      "concept": "create",
+      "typescript": "createAuths",
+      "python": "Auths"
+    },
+    {
+      "concept": "delegate",
+      "typescript": "delegate",
+      "python": "delegate"
+    },
+    {
+      "concept": "execute",
+      "typescript": "execute",
+      "python": "execute"
+    },
+    {
+      "concept": "resume",
+      "typescript": "resume",
+      "python": "resume"
+    },
+    {
+      "concept": "verify",
+      "typescript": "verify",
+      "python": "verify"
+    }
+  ],
+  "sameMeaningCandidates": [
+    ["loadAuths", "createAuths"],
+    ["AuthsClient", "Auths"],
+    ["AttachedAgent", "Auths"],
+    ["authorize", "execute"],
+    ["trusted context", "trust configuration"],
+    ["profile", "action family"]
+  ],
+  "beginnerDocuments": [
+    "bindings/typescript/README.md",
+    "bindings/python/README.md",
+    "docs/product/recipes/01_AUTHENTICATE_IDENTITY.md",
+    "docs/product/recipes/02_VERIFY_AUTHORITY.md",
+    "docs/product/recipes/03_EXECUTE_ONE_ACTION.md",
+    "docs/product/recipes/04_DELEGATE_TO_AN_AGENT.md"
+  ],
+  "forbiddenBeginnerTerms": [
+    "advanced namespace",
+    "native command",
+    "trusted context",
+    "lifecycle transition",
+    "canonical cbor"
+  ],
+  "misuseRules": [
+    {
+      "pattern": "authentication grants authority",
+      "reason": "identity authentication never grants permission"
+    },
+    {
+      "pattern": "approval grants authority",
+      "reason": "approval confirms but never creates authority"
+    },
+    {
+      "pattern": "authorization authenticates",
+      "reason": "authorization and identity authentication are distinct"
+    }
+  ]
+}
