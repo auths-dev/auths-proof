@@ -27,6 +27,10 @@ pub struct ReceiptDisclosure {
 }
 
 impl ReceiptDisclosure {
+    /// # Errors
+    ///
+    /// Returns [`ReceiptInspectionError::DisclosureLimitExceeded`] when the
+    /// command is empty or either payload exceeds its disclosure bound.
     pub fn new(
         receipt_id: ReceiptId,
         profile: ProfileRef,
@@ -78,6 +82,11 @@ pub struct ReceiptProjection {
 }
 
 impl ReceiptProjection {
+    /// # Errors
+    ///
+    /// Returns [`ReceiptInspectionError::ProjectionLimitExceeded`] when the
+    /// title or fields are empty, oversized, too numerous, or contain control
+    /// characters.
     pub fn new(
         title: impl Into<String>,
         fields: Vec<(String, String)>,
@@ -113,6 +122,10 @@ impl ReceiptProjection {
 }
 
 pub trait ReceiptProfileInspector {
+    /// # Errors
+    ///
+    /// Returns a receipt inspection error when the profile or its material is
+    /// unsupported, malformed, or cannot be projected within the output bounds.
     fn project(
         &self,
         profile: &ProfileRef,
@@ -267,6 +280,11 @@ impl ReceiptInspection {
 }
 
 #[allow(clippy::too_many_arguments)]
+/// # Errors
+///
+/// Returns a receipt inspection error when either attestation is invalid, the
+/// receipts are not linked, the requested disclosure is absent or inconsistent
+/// with the receipt commitments, or the profile projection fails.
 pub fn inspect_attested_execution_receipt(
     decision_bytes: &[u8],
     decision_id: ReceiptId,
@@ -358,6 +376,10 @@ pub fn inspect_attested_execution_receipt(
     })
 }
 
+/// # Errors
+///
+/// Returns [`ReceiptInspectionError::DisclosureMalformed`] when the disclosure
+/// cannot be encoded as canonical CBOR.
 pub fn encode_receipt_disclosure(
     disclosure: &ReceiptDisclosure,
 ) -> Result<Vec<u8>, ReceiptInspectionError> {
@@ -396,6 +418,11 @@ pub fn encode_receipt_disclosure(
     Ok(encoder.into_writer())
 }
 
+/// # Errors
+///
+/// Returns a receipt inspection error when the input exceeds disclosure bounds,
+/// is malformed or non-canonical, uses an unsupported version or kind, or
+/// contains an invalid profile or payload.
 pub fn decode_receipt_disclosure(
     input: &[u8],
 ) -> Result<ReceiptDisclosure, ReceiptInspectionError> {
@@ -483,6 +510,10 @@ pub struct ReceiptDisclosureLocator {
 }
 
 impl ReceiptDisclosureLocator {
+    /// # Errors
+    ///
+    /// Returns [`ReceiptInspectionError::TenantOutsideBounds`] when the tenant
+    /// is empty, oversized, or contains control characters.
     pub fn new(
         tenant: impl Into<String>,
         receipt_id: ReceiptId,
@@ -511,12 +542,20 @@ impl ReceiptDisclosureLocator {
 pub trait ReceiptDisclosureProtector {
     type Error;
 
+    /// # Errors
+    ///
+    /// Returns the protector's error when the plaintext cannot be protected for
+    /// the supplied locator.
     fn protect(
         &self,
         locator: &ReceiptDisclosureLocator,
         plaintext: &[u8],
     ) -> Result<Vec<u8>, Self::Error>;
 
+    /// # Errors
+    ///
+    /// Returns the protector's error when the protected bytes cannot be
+    /// authenticated or revealed for the supplied locator.
     fn reveal(
         &self,
         locator: &ReceiptDisclosureLocator,
@@ -527,10 +566,19 @@ pub trait ReceiptDisclosureProtector {
 pub trait ReceiptDisclosureStore {
     type Error;
 
+    /// # Errors
+    ///
+    /// Returns the store's error when the protected disclosure cannot be saved.
     fn put(&self, locator: &ReceiptDisclosureLocator, protected: &[u8]) -> Result<(), Self::Error>;
 
+    /// # Errors
+    ///
+    /// Returns the store's error when the disclosure cannot be read.
     fn get(&self, locator: &ReceiptDisclosureLocator) -> Result<Option<Vec<u8>>, Self::Error>;
 
+    /// # Errors
+    ///
+    /// Returns the store's error when the disclosure cannot be deleted.
     fn delete(&self, locator: &ReceiptDisclosureLocator) -> Result<(), Self::Error>;
 }
 

@@ -3919,6 +3919,7 @@ pub fn prepare_receipt_disclosure_v1(
 }
 
 /// Verifies linked receipts and returns an inert bounded view.
+#[must_use]
 #[allow(clippy::too_many_arguments)]
 #[wasm_bindgen(js_name = inspectRawKeyReceiptV1)]
 pub fn inspect_raw_key_receipt_v1(
