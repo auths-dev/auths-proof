@@ -248,7 +248,9 @@ test("recoverable development state rejects corrupted recovery records", async (
 async function waitForProviderCheckpoint(directory) {
   const deadline = Date.now() + 20_000;
   while (Date.now() < deadline) {
-    const executions = (await readdir(directory)).filter((name) => name.startsWith("execution-"));
+    const executions = (await readdir(directory)).filter(
+      (name) => name.startsWith("execution-") && name.endsWith(".json"),
+    );
     for (const name of executions) {
       const record = JSON.parse(await readFile(join(directory, name), "utf8"));
       if (record.stage === "provider") return;
