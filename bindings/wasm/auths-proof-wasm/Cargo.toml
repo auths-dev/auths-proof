@@ -31,6 +31,7 @@ auths-signature.workspace = true
 auths-signature-ed25519.workspace = true
 auths-verifier.workspace = true
 ed25519-dalek.workspace = true
+hex.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_json_canonicalizer.workspace = true

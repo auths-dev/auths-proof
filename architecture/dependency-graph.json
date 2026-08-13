@@ -6000,6 +6000,18 @@
     {
       "source": "auths-profile-domains",
       "source_layer": "product",
+      "target": "auths-receipts",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-profile-domains",
+      "source_layer": "product",
       "target": "auths-verifier",
       "target_layer": "core",
       "scope": "internal",
@@ -7741,6 +7753,18 @@
     {
       "source": "auths-proof-python",
       "source_layer": "bindings",
+      "target": "hex",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-proof-python",
+      "source_layer": "bindings",
       "target": "pyo3",
       "target_layer": null,
       "scope": "external",
@@ -8034,6 +8058,18 @@
       "features": [
         "alloc"
       ]
+    },
+    {
+      "source": "auths-proof-wasm",
+      "source_layer": "bindings",
+      "target": "hex",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
     },
     {
       "source": "auths-proof-wasm",
@@ -14138,6 +14174,18 @@
     {
       "source": "xtask",
       "source_layer": "tooling",
+      "target": "auths-receipts",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "xtask",
+      "source_layer": "tooling",
       "target": "auths-records-api",
       "target_layer": "product",
       "scope": "internal",
@@ -14241,6 +14289,20 @@
       "default_features": false,
       "features": [
         "std"
+      ]
+    },
+    {
+      "source": "xtask",
+      "source_layer": "tooling",
+      "target": "ed25519-dalek",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc"
       ]
     },
     {

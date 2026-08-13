@@ -138,7 +138,11 @@ jobs:
   authoritative-run:
     name: authoritative implementation
     needs: [ci-plan, formal-update-gate]
-    if: needs.ci-plan.outputs.authoritative_required == 'true'
+    if: >-
+      always() &&
+      needs.ci-plan.result == 'success' &&
+      needs.formal-update-gate.result == 'success' &&
+      needs.ci-plan.outputs.authoritative_required == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
@@ -181,7 +185,11 @@ jobs:
           rustc --version
           cargo --version
           go version
-          sccache --version
+          if command -v sccache >/dev/null 2>&1; then
+            sccache --version
+          else
+            echo "sccache unavailable; compiling without the optional shared cache"
+          fi
       - name: Run authoritative repository CI
         env:
           AUTHS_EVOLUTION_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
@@ -196,7 +204,11 @@ jobs:
   formal-translation-run:
     name: formal-translation implementation
     needs: [ci-plan, formal-update-gate]
-    if: needs.ci-plan.outputs.formal_translation_required == 'true'
+    if: >-
+      always() &&
+      needs.ci-plan.result == 'success' &&
+      needs.formal-update-gate.result == 'success' &&
+      needs.ci-plan.outputs.formal_translation_required == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     outputs:
@@ -261,17 +273,7 @@ jobs:
           --cores 2
           github:AeneasVerif/aeneas/3a8586facab25b31bdb1e1f5f45acd60d1cc5ff0#aeneas
           --out-link target/formal-tools
-      - uses: leanprover/lean-action@38fbc41a8c28c4cbaec22d7f7de508ec2e7c0dd9 # v1.5.0
-        with:
-          auto-config: false
-          build: false
-          test: false
-          lint: false
-          mk_all-check: false
-          check-reservoir-eligibility: false
-          leanchecker: false
-          nanoda: false
-          lake-package-directory: formal
+      - uses: ./.github/actions/setup-lean
       - name: Install pinned Kani
         run: |
           cargo install kani-verifier --version 0.67.0 --locked
@@ -335,7 +337,11 @@ jobs:
   compliance-run:
     name: compliance implementation
     needs: [ci-plan, formal-update-gate]
-    if: needs.ci-plan.outputs.compliance_required == 'true'
+    if: >-
+      always() &&
+      needs.ci-plan.result == 'success' &&
+      needs.formal-update-gate.result == 'success' &&
+      needs.ci-plan.outputs.compliance_required == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -388,7 +394,11 @@ jobs:
   dependencies-run:
     name: dependencies implementation
     needs: [ci-plan, formal-update-gate]
-    if: needs.ci-plan.outputs.dependencies_required == 'true'
+    if: >-
+      always() &&
+      needs.ci-plan.result == 'success' &&
+      needs.formal-update-gate.result == 'success' &&
+      needs.ci-plan.outputs.dependencies_required == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -418,7 +428,11 @@ jobs:
   secrets-run:
     name: secrets implementation
     needs: [ci-plan, formal-update-gate]
-    if: needs.ci-plan.outputs.secrets_required == 'true'
+    if: >-
+      always() &&
+      needs.ci-plan.result == 'success' &&
+      needs.formal-update-gate.result == 'success' &&
+      needs.ci-plan.outputs.secrets_required == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -448,7 +462,11 @@ jobs:
   opentofu-live-run:
     name: opentofu-live implementation
     needs: [ci-plan, formal-update-gate]
-    if: needs.ci-plan.outputs.opentofu_live_required == 'true'
+    if: >-
+      always() &&
+      needs.ci-plan.result == 'success' &&
+      needs.formal-update-gate.result == 'success' &&
+      needs.ci-plan.outputs.opentofu_live_required == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
@@ -522,7 +540,11 @@ jobs:
   postgresql-live-run:
     name: postgresql-live implementation
     needs: [ci-plan, formal-update-gate]
-    if: needs.ci-plan.outputs.postgresql_live_required == 'true'
+    if: >-
+      always() &&
+      needs.ci-plan.result == 'success' &&
+      needs.formal-update-gate.result == 'success' &&
+      needs.ci-plan.outputs.postgresql_live_required == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
@@ -625,7 +647,11 @@ jobs:
   records-api-live-run:
     name: records-api-live implementation
     needs: [ci-plan, formal-update-gate]
-    if: needs.ci-plan.outputs.records_api_live_required == 'true'
+    if: >-
+      always() &&
+      needs.ci-plan.result == 'success' &&
+      needs.formal-update-gate.result == 'success' &&
+      needs.ci-plan.outputs.records_api_live_required == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:

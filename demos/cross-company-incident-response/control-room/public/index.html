@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="dark">
-    <meta name="auths-schema" content="auths-incident-demo/1">
+    <meta name="auths-schema" content="auths-incident-demo/3">
     <title>Auths · Cross-company incident control room</title>
     <link rel="stylesheet" href="/styles.css">
     <script type="importmap">
@@ -85,7 +85,15 @@
       </div>
 
       <section class="receipts-section">
-        <div class="section-head"><span>04</span><h2>Independent receipts</h2></div>
+        <div class="receipt-title-row">
+          <div class="section-head"><span>04</span><h2>Independent receipts</h2></div>
+          <div class="receipt-access" role="group" aria-label="Receipt access level">
+            <button class="active" data-receipt-role="public">Public commitments</button>
+            <button data-receipt-role="northstar-commander">Operator summary</button>
+            <button data-receipt-role="northstar-security">Auditor evidence</button>
+          </div>
+        </div>
+        <p id="receipt-access-status" class="receipt-access-status">Unauthenticated viewers receive verified commitments only.</p>
         <div id="receipts" class="receipt-grid"><div class="empty">No effects executed. Receipts will appear here.</div></div>
       </section>
 

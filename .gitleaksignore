@@ -21,6 +21,9 @@ ac9f830dde718845f010e95f329e4d63c7f57037:adapters/auths-proof-did-key/src/lib.rs
 # credential-shaped literal is present in the matched source line.
 9a72cffbcd1064cfc6b4adf9b2f701264a6d3dc6:core/adapters/auths-identity-raw-key/src/lib.rs:generic-api-key:12
 
+# Official Elan release checksum pinned by the Lean bootstrap action.
+cd8e30389486c885a800b6b663a4fd922d0c312e:.github/actions/setup-lean/action.yml:generic-api-key:17
+
 # Public canonical Stripe fixture digests and workflow identifiers.
 1c1ab69068daa2339e192932e6bc206ef71e2cbf:product/integrations/auths-stripe/fixtures/v1/exact-action.json:generic-api-key:1
 efb528e35421277c60c4997c4a34fa52dcb83fdf:product/fixtures/v1/stripe/action.json:generic-api-key:1

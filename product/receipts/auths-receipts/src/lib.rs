@@ -2,6 +2,15 @@
 
 #![forbid(unsafe_code)]
 
+mod disclosure;
+
+pub use disclosure::{
+    ReceiptDisclosure, ReceiptDisclosureLocator, ReceiptDisclosureProtector,
+    ReceiptDisclosureStore, ReceiptInspection, ReceiptInspectionError, ReceiptProfileInspector,
+    ReceiptProjection, ReceiptViewMode, VerifiedReceiptMetadata, decode_receipt_disclosure,
+    encode_receipt_disclosure, inspect_attested_execution_receipt,
+};
+
 use auths_model::{
     CanonicalAction, ContextDigest, Digest, PROTOCOL_V1, PrincipalId, ProfileRef, ReceiptId,
     SignatureBytes, SignatureSuiteId, StatusSnapshotId, Timestamp, VerificationMethod,

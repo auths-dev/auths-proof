@@ -102,6 +102,7 @@ pub(crate) fn product_fixtures(update: bool) -> Result<(), String> {
     expected.extend(opentofu_product_fixtures()?);
     expected.extend(postgresql_product_fixtures()?);
     expected.extend(bounded_policy_contract_fixtures()?);
+    expected.extend(receipt_disclosure_fixtures()?);
     let directory = root().join("product/fixtures/v1");
     if update {
         fs::create_dir_all(&directory)
@@ -135,6 +136,135 @@ pub(crate) fn product_fixtures(update: bool) -> Result<(), String> {
     }
     println!("product fixtures are stable");
     Ok(())
+}
+
+fn receipt_disclosure_fixtures() -> Result<BTreeMap<PathBuf, Vec<u8>>, String> {
+    use auths_model::{
+        ContextDigest, Digest, ProfileId, ProfileRef, ReceiptId, SignatureBytes, SignatureSuiteId,
+        StatusSnapshotId, Timestamp, VerificationMethod,
+    };
+    use auths_raw_key::{RawKeyDescriptor, RawKeyType};
+    use auths_receipts::{
+        AttestedDecisionReceipt, AttestedExecutionReceipt, DecisionClass, DecisionReceipt,
+        ExecutionOutcome, ReceiptDisclosure, ReceiptSigner, decision_receipt_id,
+        decision_signing_preimage, decode_execution, encode_attested_decision,
+        encode_attested_execution, encode_receipt_disclosure, execution_signing_preimage,
+        prepare_execution_receipt,
+    };
+    use ed25519_dalek::{Signer as _, SigningKey};
+
+    let signing = SigningKey::from_bytes(&[41_u8; 32]);
+    let descriptor = RawKeyDescriptor::new(
+        RawKeyType::Ed25519,
+        signing.verifying_key().to_bytes().to_vec(),
+    )
+    .map_err(|_| "could not construct receipt fixture raw key".to_owned())?;
+    let principal = descriptor.principal().map_err(|error| error.to_string())?;
+    let signer = ReceiptSigner::new(
+        principal.clone(),
+        VerificationMethod::parse(principal.as_str()).map_err(|error| error.to_string())?,
+        SignatureSuiteId::parse("ed25519-v1").map_err(|error| error.to_string())?,
+    );
+    let profile = ProfileRef::new(
+        ProfileId::parse("auths.edge").map_err(|error| error.to_string())?,
+        1,
+    )
+    .map_err(|error| error.to_string())?;
+    let decision = DecisionReceipt::new(
+        Digest::new([1; 32]),
+        Digest::new([2; 32]),
+        ContextDigest::new([3; 32]),
+        StatusSnapshotId::new([4; 32]),
+        StatusSnapshotId::new([5; 32]),
+        profile.clone(),
+        DecisionClass::Authorized,
+        vec!["authorized".into()],
+        Timestamp::new(1_786_528_700),
+    )
+    .map_err(|error| error.to_string())?;
+    let decision_id = decision_receipt_id(&decision).map_err(|error| error.to_string())?;
+    let decision_signature = signing
+        .sign(&decision_signing_preimage(&decision, &signer).map_err(|error| error.to_string())?);
+    let attested_decision = encode_attested_decision(&AttestedDecisionReceipt::new(
+        decision,
+        signer.clone(),
+        SignatureBytes::new(decision_signature.to_bytes().to_vec())
+            .map_err(|error| error.to_string())?,
+    ))
+    .map_err(|error| error.to_string())?;
+    let command = br#"{"command":"apply-config","device":"firewall-eu-west-2","fleet":"northstar","profile":"auths.edge","profile_version":1,"sequence":185,"state_digest":"0000000000000000000000000000000000000000000000000000000000000184"}"#.to_vec();
+    let result =
+        br#"{"observed":true,"outcome":"executed","providerCalls":1,"revision":"fw-185"}"#.to_vec();
+    let execution_prepared = prepare_execution_receipt(
+        decision_id,
+        "INC-2026-0811:remediation:v1:0",
+        None,
+        None,
+        &command,
+        ExecutionOutcome::Succeeded,
+        Some(&result),
+        Timestamp::new(1_786_528_772),
+        &signer,
+    )
+    .map_err(|error| error.to_string())?;
+    let execution =
+        decode_execution(execution_prepared.canonical()).map_err(|error| error.to_string())?;
+    let execution_signature = signing
+        .sign(&execution_signing_preimage(&execution, &signer).map_err(|error| error.to_string())?);
+    let execution_id = execution_prepared.id();
+    let attested_execution = encode_attested_execution(&AttestedExecutionReceipt::new(
+        execution,
+        signer,
+        SignatureBytes::new(execution_signature.to_bytes().to_vec())
+            .map_err(|error| error.to_string())?,
+    ))
+    .map_err(|error| error.to_string())?;
+    let disclosure = encode_receipt_disclosure(
+        &ReceiptDisclosure::new(execution_id, profile, command.clone(), Some(result.clone()))
+            .map_err(|error| error.to_string())?,
+    )
+    .map_err(|error| error.to_string())?;
+    let member = |kind: &str, id: ReceiptId, bytes: &[u8]| {
+        serde_json::json!({
+            "kind": kind,
+            "receiptIdHex": hex::encode(id.as_bytes()),
+            "bytesHex": hex::encode(bytes),
+            "signer": {
+                "principal": principal.as_str(),
+                "verificationMethod": principal.as_str(),
+                "suite": "ed25519-v1",
+                "evidenceHex": hex::encode(descriptor.encode()),
+            },
+        })
+    };
+    let fixture = serde_json::json!({
+        "schema": "auths.receipt-disclosure-fixture/1",
+        "profile": { "id": "auths.edge", "version": 1 },
+        "commandHex": hex::encode(&command),
+        "resultHex": hex::encode(&result),
+        "receipt": {
+            "decision": member("decision", decision_id, &attested_decision),
+            "execution": member("execution", execution_id, &attested_execution),
+        },
+        "disclosureHex": hex::encode(&disclosure),
+        "cases": [
+            { "id": "public-opaque", "mode": "opaque", "mutation": "none", "kind": "verified-opaque" },
+            { "id": "operator-summary", "mode": "summary", "mutation": "none", "kind": "verified-disclosed" },
+            { "id": "auditor-full", "mode": "full", "mutation": "none", "kind": "verified-disclosed" },
+            { "id": "missing-disclosure", "mode": "summary", "mutation": "missing", "kind": "invalid", "code": "disclosure-required" },
+            { "id": "malformed-disclosure", "mode": "summary", "mutation": "malformed", "kind": "invalid", "code": "disclosure-malformed" },
+            { "id": "wrong-receipt", "mode": "summary", "mutation": "receipt-id", "kind": "invalid", "code": "disclosure-receipt-mismatch" },
+            { "id": "wrong-profile", "mode": "summary", "mutation": "profile", "kind": "invalid", "code": "disclosure-profile-mismatch" },
+            { "id": "changed-command", "mode": "summary", "mutation": "command", "kind": "invalid", "code": "disclosure-command-mismatch" },
+            { "id": "changed-result", "mode": "summary", "mutation": "result", "kind": "invalid", "code": "disclosure-result-mismatch" },
+            { "id": "wrong-key", "mode": "opaque", "mutation": "evidence", "kind": "invalid", "code": "receipt-invalid-evidence" },
+            { "id": "mutated-receipt", "mode": "opaque", "mutation": "receipt", "kind": "invalid", "code": "receipt-invalid-signature" },
+        ],
+    });
+    Ok(BTreeMap::from([(
+        PathBuf::from("receipt-disclosure/inspection-v1.json"),
+        serde_json::to_vec(&fixture).map_err(|error| error.to_string())?,
+    )]))
 }
 
 fn bounded_policy_contract_fixtures() -> Result<BTreeMap<PathBuf, Vec<u8>>, String> {

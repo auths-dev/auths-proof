@@ -112,7 +112,8 @@
     "decode_diagnostic_result_v1",
     "commit_canonical_v1",
     "diagnostic_input_limits_v1",
-    "commitments_equal_v1"
+    "commitments_equal_v1",
+    "prepare_receipt_disclosure_v1"
   ],
   "inspection": [
     "inspect_verified_action",
@@ -121,6 +122,7 @@
     "inspect_plan",
     "inspect_mcp_action",
     "inspect_trusted_context",
+    "inspect_raw_key_receipt_v1",
     "parse_unsigned",
     "parse_signed",
     "parse_trusted_context",

@@ -6,7 +6,7 @@ primary_region = "lhr"
 
 [env]
   PORT = "8080"
-  AGENT_STATE_PATH = "/tmp/auths-incident-demo/agent.sqlite3"
+  AGENT_STATE_PATH = "/tmp/auths-incident-demo/agent-v3.sqlite3"
   AUTHS_REPO_ROOT = "/repo"
   NORTHSTAR_URL = "https://auths-incident-demo-northstar.fly.dev"
   EDGESHIELD_URL = "https://auths-incident-demo-edgeshield.fly.dev"

@@ -1,15 +1,20 @@
 use auths_model::{
-    Digest, PrincipalId, ReceiptId, SignatureBytes, SignatureSuiteId, Timestamp, VerificationMethod,
+    Digest, PrincipalId, ProfileId, ProfileRef, ReceiptId, SignatureBytes, SignatureSuiteId,
+    Timestamp, VerificationMethod,
 };
+use auths_profile_domains::DomainReceiptInspector;
 use auths_raw_key::RawKeyDescriptor;
 use auths_receipts::{
     AttestedDecisionReceipt, AttestedExecutionReceipt, ConfiguredReceiptVerifier, DecisionClass,
-    ExecutionOutcome, ReceiptSigner, application_execution_lease_digest, decode_decision,
-    decode_execution, encode_attested_decision, encode_attested_execution,
+    ExecutionOutcome, ReceiptDisclosure, ReceiptInspection, ReceiptSigner, ReceiptViewMode,
+    VerifiedReceiptMetadata, application_execution_lease_digest, decode_attested_decision,
+    decode_attested_execution, decode_decision, decode_execution, encode_attested_decision,
+    encode_attested_execution, encode_receipt_disclosure, inspect_attested_execution_receipt,
     prepare_decision_receipt, prepare_execution_receipt, verify_attested_decision_bytes,
     verify_attested_execution_bytes, verify_decision_attestation, verify_execution_attestation,
 };
 use pyo3::{exceptions::PyValueError, prelude::*, types::PyBytes};
+use serde_json::{Value, json};
 
 #[derive(Clone)]
 #[pyclass(
@@ -274,6 +279,219 @@ fn verify_receipt_link_v1(
     Ok(())
 }
 
+#[pyfunction]
+fn prepare_receipt_disclosure_v1<'py>(
+    py: Python<'py>,
+    execution_id: &[u8],
+    profile_id: &str,
+    profile_version: u16,
+    command: &[u8],
+    result: Option<&[u8]>,
+) -> PyResult<Bound<'py, PyBytes>> {
+    let disclosure = ReceiptDisclosure::new(
+        ReceiptId::new(array32(execution_id, "execution receipt id")?),
+        ProfileRef::new(
+            ProfileId::parse(profile_id).map_err(value_error)?,
+            profile_version,
+        )
+        .map_err(value_error)?,
+        command.to_vec(),
+        result.map(<[u8]>::to_vec),
+    )
+    .map_err(value_error)?;
+    let encoded = encode_receipt_disclosure(&disclosure).map_err(value_error)?;
+    Ok(PyBytes::new(py, &encoded))
+}
+
+#[pyfunction]
+#[allow(clippy::too_many_arguments)]
+fn inspect_raw_key_receipt_v1<'py>(
+    py: Python<'py>,
+    decision_id: &[u8],
+    decision_bytes: &[u8],
+    decision_evidence: &[u8],
+    execution_id: &[u8],
+    execution_bytes: &[u8],
+    execution_evidence: &[u8],
+    mode: &str,
+    disclosure: Option<&[u8]>,
+) -> Bound<'py, PyBytes> {
+    let output = inspect_raw_key_receipt(
+        decision_id,
+        decision_bytes,
+        decision_evidence,
+        execution_id,
+        execution_bytes,
+        execution_evidence,
+        mode,
+        disclosure,
+    )
+    .unwrap_or_else(|code| json!({ "kind": "invalid", "mode": mode, "code": code }));
+    let encoded = serde_json::to_vec(&output).unwrap_or_else(|_| {
+        br#"{"kind":"invalid","mode":"opaque","code":"inspection-output-failed"}"#.to_vec()
+    });
+    PyBytes::new(py, &encoded)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn inspect_raw_key_receipt(
+    decision_id: &[u8],
+    decision_bytes: &[u8],
+    decision_evidence: &[u8],
+    execution_id: &[u8],
+    execution_bytes: &[u8],
+    execution_evidence: &[u8],
+    mode: &str,
+    disclosure: Option<&[u8]>,
+) -> Result<Value, String> {
+    let mode = match mode {
+        "opaque" => ReceiptViewMode::Opaque,
+        "summary" => ReceiptViewMode::Summary,
+        "full" => ReceiptViewMode::Full,
+        _ => return Err("inspection-mode-unsupported".into()),
+    };
+    let decision_id = ReceiptId::new(
+        decision_id
+            .try_into()
+            .map_err(|_| "receipt-id-outside-bounds")?,
+    );
+    let execution_id = ReceiptId::new(
+        execution_id
+            .try_into()
+            .map_err(|_| "receipt-id-outside-bounds")?,
+    );
+    let decision_attested = decode_attested_decision(decision_bytes)
+        .map_err(|error| inspection_receipt_error(error).to_owned())?;
+    let execution_attested = decode_attested_execution(execution_bytes)
+        .map_err(|error| inspection_receipt_error(error).to_owned())?;
+    let decision_descriptor = RawKeyDescriptor::decode(decision_evidence)
+        .map_err(|_| "receipt-invalid-evidence".to_owned())?;
+    let execution_descriptor = RawKeyDescriptor::decode(execution_evidence)
+        .map_err(|_| "receipt-invalid-evidence".to_owned())?;
+    let decision_principal = decision_descriptor
+        .principal()
+        .map_err(|_| "receipt-invalid-evidence".to_owned())?;
+    let execution_principal = execution_descriptor
+        .principal()
+        .map_err(|_| "receipt-invalid-evidence".to_owned())?;
+    if decision_attested.signer().verifier() != &decision_principal
+        || decision_attested.signer().suite().as_str() != decision_descriptor.suite()
+        || execution_attested.signer().verifier() != &execution_principal
+        || execution_attested.signer().suite().as_str() != execution_descriptor.suite()
+    {
+        return Err("receipt-key-does-not-match-signer".into());
+    }
+    let decision_suite =
+        auths_signature::Ed25519Suite::new().map_err(|_| "receipt-suite-unavailable".to_owned())?;
+    let execution_suite =
+        auths_signature::Ed25519Suite::new().map_err(|_| "receipt-suite-unavailable".to_owned())?;
+    let decision_policy = ConfiguredReceiptVerifier::new(
+        decision_attested.signer().clone(),
+        decision_descriptor.public_key(),
+        &decision_suite,
+    );
+    let execution_policy = ConfiguredReceiptVerifier::new(
+        execution_attested.signer().clone(),
+        execution_descriptor.public_key(),
+        &execution_suite,
+    );
+    let inspection = inspect_attested_execution_receipt(
+        decision_bytes,
+        decision_id,
+        &decision_principal,
+        &decision_policy,
+        execution_bytes,
+        execution_id,
+        &execution_principal,
+        &execution_policy,
+        mode,
+        disclosure,
+        (mode != ReceiptViewMode::Opaque)
+            .then_some(&DomainReceiptInspector as &dyn auths_receipts::ReceiptProfileInspector),
+    )
+    .map_err(|error| error.code().to_owned())?;
+    Ok(inspection_json(&inspection))
+}
+
+fn inspection_json(inspection: &ReceiptInspection) -> Value {
+    match inspection {
+        ReceiptInspection::VerifiedOpaque { metadata } => json!({
+            "kind": "verified-opaque",
+            "mode": "opaque",
+            "receipt": metadata_json(metadata),
+        }),
+        ReceiptInspection::VerifiedDisclosed {
+            metadata,
+            mode,
+            projection,
+            disclosure,
+        } => json!({
+            "kind": "verified-disclosed",
+            "mode": match mode { ReceiptViewMode::Summary => "summary", ReceiptViewMode::Full => "full", ReceiptViewMode::Opaque => "opaque" },
+            "receipt": metadata_json(metadata),
+            "summary": {
+                "title": projection.title(),
+                "fields": projection.fields().iter().map(|(label, value)| json!({ "label": label, "value": value })).collect::<Vec<_>>(),
+            },
+            "disclosure": disclosure.as_ref().map(|value| json!({
+                "commandHex": hex::encode(value.command()),
+                "resultHex": value.result().map(hex::encode),
+            })),
+        }),
+    }
+}
+
+fn metadata_json(metadata: &VerifiedReceiptMetadata) -> Value {
+    json!({
+        "decisionReceiptId": hex::encode(metadata.decision_id().as_bytes()),
+        "executionReceiptId": hex::encode(metadata.execution_id().as_bytes()),
+        "profile": { "id": metadata.profile().id().as_str(), "version": metadata.profile().version() },
+        "decision": match metadata.decision() { DecisionClass::Authorized => "authorized", DecisionClass::Denied => "denied", DecisionClass::Indeterminate => "indeterminate" },
+        "reasons": metadata.reasons(),
+        "outcome": match metadata.outcome() { ExecutionOutcome::Succeeded => "succeeded", ExecutionOutcome::Failed => "failed" },
+        "decidedAt": metadata.decided_at().get().to_string(),
+        "completedAt": metadata.completed_at().get().to_string(),
+        "decisionSigner": signer_json(metadata.decision_signer()),
+        "executionSigner": signer_json(metadata.execution_signer()),
+        "commitments": {
+            "proof": hex::encode(metadata.proof_digest().as_bytes()),
+            "action": hex::encode(metadata.action_digest().as_bytes()),
+            "context": hex::encode(metadata.context_digest().as_bytes()),
+            "principalStatus": hex::encode(metadata.principal_status().as_bytes()),
+            "grantStatus": hex::encode(metadata.grant_status().as_bytes()),
+            "executionLease": hex::encode(metadata.execution_lease().as_bytes()),
+            "command": hex::encode(metadata.command_digest().as_bytes()),
+            "result": metadata.result_digest().map(|value| hex::encode(value.as_bytes())),
+        },
+    })
+}
+
+fn signer_json(signer: &ReceiptSigner) -> Value {
+    json!({
+        "principal": signer.verifier().as_str(),
+        "verificationMethod": signer.verification_method().as_str(),
+        "suite": signer.suite().as_str(),
+    })
+}
+
+fn inspection_receipt_error(error: auths_receipts::ReceiptError) -> &'static str {
+    match error {
+        auths_receipts::ReceiptError::Malformed | auths_receipts::ReceiptError::InvalidReason => {
+            "receipt-malformed"
+        }
+        auths_receipts::ReceiptError::NonCanonical => "receipt-non-canonical",
+        auths_receipts::ReceiptError::UnsupportedProtocol => "receipt-unsupported",
+        auths_receipts::ReceiptError::LimitExceeded => "receipt-limit-exceeded",
+        auths_receipts::ReceiptError::DigestMismatch => "receipt-id-mismatch",
+        auths_receipts::ReceiptError::LinkageMismatch | auths_receipts::ReceiptError::Duplicate => {
+            "receipt-linkage-mismatch"
+        }
+        auths_receipts::ReceiptError::UnexpectedSigner => "receipt-unexpected-signer",
+        auths_receipts::ReceiptError::InvalidSignature
+        | auths_receipts::ReceiptError::SigningUnavailable => "receipt-invalid-signature",
+    }
+}
+
 fn receipt_signer(
     verifier: &str,
     verification_method: &str,
@@ -310,5 +528,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(attest_execution_receipt_v1, module)?)?;
     module.add_function(wrap_pyfunction!(verify_raw_key_receipt_v1, module)?)?;
     module.add_function(wrap_pyfunction!(verify_receipt_link_v1, module)?)?;
+    module.add_function(wrap_pyfunction!(prepare_receipt_disclosure_v1, module)?)?;
+    module.add_function(wrap_pyfunction!(inspect_raw_key_receipt_v1, module)?)?;
     Ok(())
 }

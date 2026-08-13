@@ -66,12 +66,12 @@ class NorthstarOidcApproval:
             },
         )
         access_token = str(token.get("access_token", ""))
-        _verify_oidc_token(
+        verify_oidc_token(
             access_token,
             _get(f"{self._base_url}/jwks.json"),
             issuer=self._base_url,
             audience=self._client_id,
-            subject="northstar-commander",
+            subjects=("northstar-commander",),
         )
         result = _post(
             f"{self._base_url}/api/approve",
@@ -149,14 +149,14 @@ def _response(request: ApprovalRequest, decision: str) -> ApprovalResponse:
     )
 
 
-def _verify_oidc_token(
+def verify_oidc_token(
     token: str,
     jwks: dict[str, Any],
     *,
     issuer: str,
     audience: str,
-    subject: str,
-) -> None:
+    subjects: tuple[str, ...],
+) -> dict[str, Any]:
     parts = token.split(".")
     if len(parts) != 3:
         raise ValueError("invalid OIDC token")
@@ -166,7 +166,7 @@ def _verify_oidc_token(
         header.get("alg") != "ES256"
         or claims.get("iss") != issuer
         or claims.get("aud") != audience
-        or claims.get("sub") != subject
+        or claims.get("sub") not in subjects
         or type(claims.get("exp")) is not int
         or claims["exp"] < int(time.time())
     ):
@@ -201,6 +201,7 @@ def _verify_oidc_token(
         f"{parts[0]}.{parts[1]}".encode(),
         ec.ECDSA(hashes.SHA256()),
     )
+    return claims
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):

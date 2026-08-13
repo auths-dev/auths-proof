@@ -650,24 +650,28 @@ fn aeneas_version_matches(actual: &str, expected_commit: &str) -> bool {
 fn validate_workflow_gates(root: &Path) -> Result<(), String> {
     let ci = fs::read_to_string(root.join(".github/workflows/ci.yml"))
         .map_err(|error| format!("could not read hosted CI workflow: {error}"))?;
-    validate_gate_source(
-        "hosted CI",
-        &ci,
-        &[
-            "leanprover/lean-action@",
-            "kani-verifier --version 0.67.0",
-            "cargo xtask ci authoritative",
-            "cargo xtask ci formal-translation",
-            "cargo xtask ci compliance",
-            "target/formal/",
-        ],
-    )?;
+    validate_ci_workflow_gates(&ci)?;
 
     let release = fs::read_to_string(root.join(".github/workflows/release.yml"))
         .map_err(|error| format!("could not read release workflow: {error}"))?;
     let builder = fs::read_to_string(root.join(".github/workflows/release-builder.yml"))
         .map_err(|error| format!("could not read reusable release builder: {error}"))?;
     validate_release_workflow_gates(&release, &builder)
+}
+
+fn validate_ci_workflow_gates(ci: &str) -> Result<(), String> {
+    validate_gate_source(
+        "hosted CI",
+        ci,
+        &[
+            "uses: ./.github/actions/setup-lean",
+            "kani-verifier --version 0.67.0",
+            "cargo xtask ci authoritative",
+            "cargo xtask ci formal-translation",
+            "cargo xtask ci compliance",
+            "target/formal/",
+        ],
+    )
 }
 
 fn validate_release_workflow_gates(orchestration: &str, builder: &str) -> Result<(), String> {
@@ -1294,7 +1298,22 @@ fn format_command_failure(arguments: &[String], directory: &Path, output: &Outpu
 mod tests {
     use super::*;
 
+    const CI_GATES: &str = "uses: ./.github/actions/setup-lean\nkani-verifier --version 0.67.0\ncargo xtask ci authoritative\ncargo xtask ci formal-translation\ncargo xtask ci compliance\ntarget/formal/\n";
     const BUILDER_GATES: &str = "leanprover/lean-action@\nkani-verifier --version 0.67.0\ncargo xtask release-check\ncargo xtask formal qualify aeneas\n";
+
+    #[test]
+    fn hosted_ci_uses_the_pinned_lean_setup() {
+        validate_ci_workflow_gates(CI_GATES).expect("hosted CI gates must satisfy formal policy");
+    }
+
+    #[test]
+    fn hosted_ci_cannot_omit_pinned_lean_setup() {
+        let error = validate_ci_workflow_gates(
+            "kani-verifier --version 0.67.0\ncargo xtask ci authoritative\ncargo xtask ci formal-translation\ncargo xtask ci compliance\ntarget/formal/\n",
+        )
+        .expect_err("missing pinned Lean setup must fail");
+        assert!(error.contains("hosted CI omits required formal gate"));
+    }
 
     #[test]
     fn reusable_release_builder_owns_formal_gates() {

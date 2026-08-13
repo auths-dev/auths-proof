@@ -12,6 +12,7 @@ const incidentId = "INC-2026-0811";
 type Json = Record<string, any>;
 let state: Json = {};
 let proposal: Json = {};
+let viewerToken = sessionStorage.getItem("auths.incident.viewer-token") ?? "";
 
 const attacks = [
   ["scope-expansion", "Expand eu-west-2 → all regions"],
@@ -30,7 +31,11 @@ const attacks = [
 async function request(path: string, options: RequestInit = {}): Promise<Json> {
   const response = await fetch(`${api}${path}`, {
     ...options,
-    headers: { "content-type": "application/json", ...(options.headers ?? {}) },
+    headers: {
+      "content-type": "application/json",
+      ...(viewerToken ? { authorization: `Bearer ${viewerToken}` } : {}),
+      ...(options.headers ?? {}),
+    },
   });
   const body = await response.json() as Json;
   if (!response.ok) throw Object.assign(new Error(body.code ?? `HTTP ${response.status}`), { body });
@@ -93,16 +98,70 @@ function render(): void {
   element("timeline").innerHTML = timeline.map((item: Json) => `<article class="timeline-event ${escape(item.company)}"><time>${new Date(Number(item.at) * 1000).toLocaleTimeString()}</time><strong>${escape(item.kind)}</strong><p>${escape(item.detail)}</p></article>`).join("");
 
   const receipts = state.receipts ?? [];
+  const receiptMode = String(state.receiptView ?? "opaque");
+  element("receipt-access-status").textContent = {
+    opaque: "Unauthenticated viewer · signatures and commitments verified · action and result withheld.",
+    summary: "Northstar operator · profile-owned summary · exact command and result bytes remain protected.",
+    full: "Northstar security auditor · verified summary plus explicit canonical evidence.",
+  }[receiptMode] ?? "Receipt access unavailable.";
+  document.querySelectorAll<HTMLButtonElement>("[data-receipt-role]").forEach((button) => {
+    const expected = button.dataset.receiptRole === "public"
+      ? "opaque"
+      : button.dataset.receiptRole === "northstar-security" ? "full" : "summary";
+    button.classList.toggle("active", expected === receiptMode);
+  });
   element("receipts").innerHTML = receipts.length === 0
     ? `<div class="empty">No effects executed. Receipts will appear here.</div>`
-    : receipts.map((receipt: Json) => `<article class="receipt"><div class="receipt-head"><h3>Plan member ${Number(receipt.memberIndex) + 1}</h3><span class="verified">✓ NATIVE SIGNED RECEIPTS</span></div><pre>${escape(JSON.stringify(receipt, null, 2))}</pre></article>`).join("");
+    : receipts.map((receipt: Json, index: number) => renderReceipt(receipt, index)).join("");
+}
+
+function renderReceipt(receipt: Json, index: number): string {
+  if (!receipt.receipt) {
+    return `<article class="receipt"><div class="receipt-head"><h3>Plan member ${index + 1}</h3><span class="verified">RECEIPT PENDING</span></div><p class="receipt-meta">${escape(receipt.state)} · ${escape(receipt.outcome)}</p></article>`;
+  }
+  const metadata = receipt.receipt;
+  const fields = receipt.summary?.fields ?? [];
+  const summary = receipt.kind === "verified-opaque"
+    ? `<div class="receipt-summary">
+        <div class="receipt-field"><span>Profile</span><strong>${escape(metadata.profile?.id)} v${escape(metadata.profile?.version)}</strong></div>
+        <div class="receipt-field"><span>Outcome</span><strong>${escape(metadata.outcome)}</strong></div>
+        <div class="receipt-field"><span>Action</span><strong>withheld · commitment ${escape(String(metadata.commitments?.command ?? "").slice(0, 16))}…</strong></div>
+        <div class="receipt-field"><span>Result</span><strong>withheld · digest only</strong></div>
+      </div>`
+    : `<div class="receipt-summary">${fields.map((field: Json) => `<div class="receipt-field"><span>${escape(field.label)}</span><strong>${escape(field.value)}</strong></div>`).join("")}</div>`;
+  const evidence = receipt.mode === "full" && receipt.disclosure
+    ? `<details><summary>Show exact canonical material and signed evidence</summary>
+        <pre>${escape(JSON.stringify({
+          command: canonicalMaterial(receipt.disclosure.command),
+          result: canonicalMaterial(receipt.disclosure.result),
+          signedReceipts: receipt.evidence,
+        }, null, 2))}</pre>
+      </details>`
+    : "";
+  return `<article class="receipt">
+    <div class="receipt-head"><h3>Plan member ${index + 1}</h3><span class="verified">✓ RUST VERIFIED</span></div>
+    <span class="receipt-mode">${escape(receipt.mode)} view</span>
+    ${summary}
+    <p class="receipt-meta">${escape(metadata.outcome)} · ${escape(new Date(Number(metadata.completedAt) * 1000).toISOString())}<br>
+      signer <code>${escape(String(metadata.executionSigner?.principal ?? "").slice(0, 30))}…</code><br>
+      receipt <code>${escape(String(metadata.executionReceiptId ?? "").slice(0, 24))}…</code></p>
+    ${evidence}
+  </article>`;
+}
+
+function canonicalMaterial(value: unknown): unknown {
+  if (typeof value !== "string") return null;
+  const decoded = new TextDecoder("utf-8", { fatal: true }).decode(bytes(value));
+  try { return JSON.parse(decoded); } catch { return decoded; }
 }
 
 async function runWorkflow(): Promise<void> {
   const button = element<HTMLButtonElement>("run");
   button.disabled = true;
-  element("run-status").textContent = "Trusted backend is authorizing the exact plan…";
+  element("run-status").textContent = "Preparing a fresh deterministic incident…";
   try {
+    await request("/api/reset", { method: "POST", body: "{}" });
+    element("run-status").textContent = "Trusted backend is authorizing the exact plan…";
     const result = await request("/api/workflow/execute", {
       method: "POST",
       body: JSON.stringify({ incidentId, transport: "https" }),
@@ -207,7 +266,82 @@ function wire(): void {
     button.classList.add("active");
     document.body.dataset.org = button.dataset.org;
   }));
+  document.querySelectorAll<HTMLButtonElement>("[data-receipt-role]").forEach((button) => button.addEventListener("click", () => {
+    const role = button.dataset.receiptRole;
+    if (role === "public") {
+      viewerToken = "";
+      sessionStorage.removeItem("auths.incident.viewer-token");
+      sessionStorage.removeItem("auths.incident.viewer-role");
+      void refresh();
+      return;
+    }
+    if (role) void beginViewerLogin(role);
+  }));
+}
+
+async function beginViewerLogin(subject: string): Promise<void> {
+  const verifier = base64Url(crypto.getRandomValues(new Uint8Array(48)));
+  const challenge = base64Url(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier))));
+  const oauthState = base64Url(crypto.getRandomValues(new Uint8Array(24)));
+  sessionStorage.setItem("auths.incident.pkce-verifier", verifier);
+  sessionStorage.setItem("auths.incident.oauth-state", oauthState);
+  sessionStorage.setItem("auths.incident.viewer-role", subject);
+  const redirectUri = `${location.origin}${location.pathname}`;
+  const authorize = new URL("/authorize", String(state.identityProvider));
+  authorize.search = new URLSearchParams({
+    response_type: "code",
+    client_id: "auths-incident-control-room",
+    redirect_uri: redirectUri,
+    scope: "openid profile",
+    code_challenge: challenge,
+    code_challenge_method: "S256",
+    state: oauthState,
+    login_hint: subject,
+  }).toString();
+  location.assign(authorize);
+}
+
+async function completeViewerLogin(): Promise<void> {
+  const query = new URLSearchParams(location.search);
+  const code = query.get("code");
+  if (!code) return;
+  const expectedState = sessionStorage.getItem("auths.incident.oauth-state");
+  const verifier = sessionStorage.getItem("auths.incident.pkce-verifier");
+  if (!expectedState || query.get("state") !== expectedState || !verifier) {
+    throw new Error("Northstar OIDC callback did not match this browser session");
+  }
+  const response = await fetch(new URL("/token", String(state.identityProvider)), {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "authorization_code",
+      client_id: "auths-incident-control-room",
+      redirect_uri: `${location.origin}${location.pathname}`,
+      code,
+      code_verifier: verifier,
+    }),
+  });
+  const token = await response.json() as Json;
+  if (!response.ok || typeof token.access_token !== "string") throw new Error("Northstar OIDC login failed");
+  viewerToken = token.access_token;
+  sessionStorage.setItem("auths.incident.viewer-token", viewerToken);
+  sessionStorage.removeItem("auths.incident.pkce-verifier");
+  sessionStorage.removeItem("auths.incident.oauth-state");
+  history.replaceState({}, "", location.pathname);
+}
+
+function base64Url(value: Uint8Array): string {
+  let binary = "";
+  for (const byte of value) binary += String.fromCharCode(byte);
+  return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
+}
+
+async function bootstrap(): Promise<void> {
+  await refresh();
+  await completeViewerLogin();
+  if (viewerToken) await refresh();
+  await crossVerify();
 }
 
 wire();
-await Promise.all([refresh(), crossVerify()]);
+await bootstrap();

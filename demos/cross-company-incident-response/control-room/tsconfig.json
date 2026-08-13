@@ -12,6 +12,7 @@
     "baseUrl": ".",
     "paths": {
       "@auths-dev/sdk": ["../../../bindings/typescript/dist/index.d.ts"],
+      "@auths-dev/sdk/testkit": ["../../../bindings/typescript/dist/testkit/index.d.ts"],
       "@auths-dev/sdk/*": ["../../../bindings/typescript/dist/*"]
     }
   },

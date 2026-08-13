@@ -8,6 +8,7 @@ use auths_model::{
     ProfileId, ProfileRef, ResourceId,
 };
 use auths_profile_api::{ActionProfile, ProfileContractError, ReviewDisplay};
+use auths_receipts::{ReceiptInspectionError, ReceiptProfileInspector, ReceiptProjection};
 use auths_verifier::VerifiedAction;
 use serde::{Serialize, de::DeserializeOwned};
 use sha2::{Digest as _, Sha256};
@@ -864,6 +865,82 @@ pub type SupplyChainProfile = DomainProfile<SupplyChainAction>;
 pub type SupplyChainCommand = DomainCommand<SupplyChainAction>;
 pub type EdgeProfile = DomainProfile<EdgeAction>;
 pub type EdgeCommand = DomainCommand<EdgeAction>;
+
+/// Receipt projection registry for maintained domain profiles.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct DomainReceiptInspector;
+
+impl ReceiptProfileInspector for DomainReceiptInspector {
+    fn project(
+        &self,
+        profile: &ProfileRef,
+        command: &[u8],
+        result: Option<&[u8]>,
+    ) -> Result<ReceiptProjection, ReceiptInspectionError> {
+        match (profile.id().as_str(), profile.version()) {
+            ("auths.http", 1) => receipt_projection(
+                command,
+                result,
+                &HttpProfile::default(),
+                reference_canonicalize_http,
+            ),
+            ("auths.git", 1) => receipt_projection(
+                command,
+                result,
+                &GitProfile::default(),
+                reference_canonicalize_git,
+            ),
+            ("auths.deploy", 1) => receipt_projection(
+                command,
+                result,
+                &DeploymentProfile::default(),
+                reference_canonicalize_deployment,
+            ),
+            ("auths.supply-chain", 1) => receipt_projection(
+                command,
+                result,
+                &SupplyChainProfile::default(),
+                reference_canonicalize_supply_chain,
+            ),
+            ("auths.edge", 1) => receipt_projection(
+                command,
+                result,
+                &EdgeProfile::default(),
+                reference_canonicalize_edge,
+            ),
+            _ => Err(ReceiptInspectionError::UnsupportedProfile),
+        }
+    }
+}
+
+fn receipt_projection<P>(
+    command: &[u8],
+    result: Option<&[u8]>,
+    profile: &P,
+    canonicalize: fn(&[u8]) -> Result<CanonicalAction, ProfileContractError>,
+) -> Result<ReceiptProjection, ReceiptInspectionError>
+where
+    P: ActionProfile,
+{
+    let action =
+        canonicalize(command).map_err(|_| ReceiptInspectionError::InvalidProfileMaterial)?;
+    if action.body() != command {
+        return Err(ReceiptInspectionError::InvalidProfileMaterial);
+    }
+    let display = profile
+        .review_display(&action)
+        .map_err(|_| ReceiptInspectionError::InvalidProfileMaterial)?;
+    let mut fields = display.fields().to_vec();
+    fields.push((
+        "Result material".into(),
+        if result.is_some() {
+            "disclosed · digest matched".into()
+        } else {
+            "not present".into()
+        },
+    ));
+    ReceiptProjection::new(display.title(), fields)
+}
 
 /// Reference canonicalizer for the closed HTTP profile.
 ///

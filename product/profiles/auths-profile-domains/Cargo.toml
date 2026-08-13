@@ -11,6 +11,7 @@ description = "Target V1 HTTP, Git, deployment, supply-chain, and edge action pr
 [dependencies]
 auths-model.workspace = true
 auths-profile-api.workspace = true
+auths-receipts.workspace = true
 auths-verifier.workspace = true
 hex.workspace = true
 serde.workspace = true
