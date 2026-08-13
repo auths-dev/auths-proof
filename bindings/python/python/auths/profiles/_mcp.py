@@ -554,16 +554,31 @@ class DevelopmentMcpProvider:
             raise asyncio.CancelledError
 
 
+@dataclass(frozen=True)
+class McpRecoveryCheckpoint:
+    execution_id: str
+    reference: str
+    record_json: bytes
+
+
 class McpExecutionStore(Protocol):
     async def reserve(
-        self, execution_id: str
+        self, execution_id: str, recovery: McpRecoveryCheckpoint
     ) -> Literal["acquired", "exact-replay", "conflict"]: ...
 
-    async def mark_provider_entry(self, execution_id: str) -> None: ...
+    async def mark_provider_entry(
+        self, execution_id: str, recovery: McpRecoveryCheckpoint
+    ) -> None: ...
 
-    async def save_recovery(self, reference: str, record_json: bytes) -> None: ...
+    async def save_recovery(self, recovery: McpRecoveryCheckpoint) -> None: ...
 
     async def load_recovery(self, reference: str) -> Optional[bytes]: ...
+
+    async def load_pending(
+        self, execution_id: str
+    ) -> Optional[McpRecoveryCheckpoint]: ...
+
+    async def clear_pending(self, execution_id: str) -> None: ...
 
 
 class McpReceiptSink(Protocol):
@@ -1032,6 +1047,51 @@ async def execute_mcp_closed(
     return await _drive_mcp_session(session, resources, decision_receipt)
 
 
+async def recover_mcp_closed(
+    agent: AttachedAgent,
+    action: McpAction,
+    resources: McpExecutionResources,
+    request: Optional[AuthorizationRequest] = None,
+) -> Union[McpDenied, McpIndeterminate, McpClosedResult]:
+    authorization = await _authorize_mcp(agent, action, request)
+    if not isinstance(authorization, McpAuthorized):
+        return authorization
+    signer = resources.attestor.signer
+    decision_preparation = native.prepare_mcp_command_decision_receipt_v1(
+        authorization.command,
+        int(time.time()),
+        signer.principal,
+        signer.verification_method,
+        signer.suite,
+    )
+    decision_receipt = await _attest_decision(decision_preparation, resources.attestor)
+    fresh = native.begin_mcp_execution(
+        authorization.command,
+        decision_receipt.receipt_id,
+        decision_receipt.bytes,
+        resources.session_key,
+        resources.request_id,
+    )
+    pending = await resources.state.load_pending(fresh.execution_id)
+    if pending is None:
+        raise AuthsWorkflowError(
+            "gateway-conflict", "MCP execution has no pending recovery checkpoint"
+        )
+    session = native.resume_mcp_execution(
+        resources.session_key,
+        pending.reference,
+        pending.record_json,
+    )
+    recovered_decision = AttestedReceipt(
+        "decision",
+        bytes(session.decision_receipt_id),
+        bytes(session.decision_receipt),
+        resources.attestor.signer,
+    )
+    verify_receipt(recovered_decision)
+    return await _drive_mcp_session(session, resources, recovered_decision)
+
+
 async def execute_mcp_plan_closed(
     agent: AttachedAgent,
     plan: McpPlan,
@@ -1120,10 +1180,16 @@ async def _drive_mcp_session(
             return await _project_terminal(terminal, resources.state, receipt)
         step = session.next_step()
         if step.kind == "reserve":
-            session.accept_reservation(await resources.state.reserve(step.execution_id))
+            session.accept_reservation(
+                await resources.state.reserve(
+                    step.execution_id, _recovery_checkpoint(session)
+                )
+            )
         elif step.kind == "mark-provider-entry":
             try:
-                await resources.state.mark_provider_entry(step.execution_id)
+                await resources.state.mark_provider_entry(
+                    step.execution_id, _recovery_checkpoint(session)
+                )
             except asyncio.CancelledError:
                 session.cancel_before_provider()
             else:
@@ -1251,6 +1317,7 @@ async def _project_terminal(
     if terminal.kind == "completed":
         if receipt is None:
             raise RuntimeError("native MCP completion omitted its signed receipt")
+        await state.clear_pending(terminal.execution_id)
         return McpCompleted(
             "completed",
             terminal.execution_id,
@@ -1258,14 +1325,34 @@ async def _project_terminal(
             receipt,
         )
     if terminal.kind == "recoverable":
-        reference = _bounded_reference(terminal.reference)
-        await state.save_recovery(reference, _required_bytes(terminal.record_json))
-        return McpRecoverable("recoverable", terminal.execution_id, reference)
+        recovery = _terminal_recovery(terminal)
+        await state.save_recovery(recovery)
+        return McpRecoverable("recoverable", terminal.execution_id, recovery.reference)
     if terminal.kind not in ("not-applied", "exact-replay", "conflict"):
         raise RuntimeError("native MCP session returned an unknown terminal result")
+    if terminal.kind == "not-applied":
+        await state.clear_pending(terminal.execution_id)
     return McpNotApplied(
         cast(Literal["not-applied", "exact-replay", "conflict"], terminal.kind),
         terminal.execution_id,
+    )
+
+
+def _recovery_checkpoint(
+    session: native.McpExecutionSession,
+) -> McpRecoveryCheckpoint:
+    return _terminal_recovery(session.checkpoint())
+
+
+def _terminal_recovery(
+    terminal: native.McpSessionTerminal,
+) -> McpRecoveryCheckpoint:
+    if terminal.kind != "recoverable":
+        raise RuntimeError("native MCP checkpoint was not recoverable")
+    return McpRecoveryCheckpoint(
+        terminal.execution_id,
+        _bounded_reference(terminal.reference),
+        _required_bytes(terminal.record_json),
     )
 
 
@@ -1520,6 +1607,7 @@ __all__ = [
     "McpReceipt",
     "McpReceiptSink",
     "McpRecoverable",
+    "McpRecoveryCheckpoint",
     "McpReview",
     "McpToolContext",
     "McpToolHandler",
@@ -1527,5 +1615,6 @@ __all__ = [
     "execute_mcp_closed",
     "execute_mcp_plan_closed",
     "mcp",
+    "recover_mcp_closed",
     "resume_mcp_closed",
 ]

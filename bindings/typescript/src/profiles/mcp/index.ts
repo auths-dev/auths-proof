@@ -209,10 +209,18 @@ export interface McpClosedProvider {
 }
 
 export interface McpExecutionState {
-  reserve(executionId: string): Promise<"acquired" | "exact-replay" | "conflict">;
-  markProviderEntry(executionId: string): Promise<void>;
-  saveRecovery(reference: string, recordJson: Uint8Array): Promise<void>;
+  reserve(executionId: string, recovery: McpRecoveryCheckpoint): Promise<"acquired" | "exact-replay" | "conflict">;
+  markProviderEntry(executionId: string, recovery: McpRecoveryCheckpoint): Promise<void>;
+  saveRecovery(recovery: McpRecoveryCheckpoint): Promise<void>;
   loadRecovery(reference: string): Promise<Uint8Array | undefined>;
+  loadPending(executionId: string): Promise<McpRecoveryCheckpoint | undefined>;
+  clearPending(executionId: string): Promise<void>;
+}
+
+export interface McpRecoveryCheckpoint {
+  readonly executionId: string;
+  readonly reference: string;
+  readonly recordJson: Uint8Array;
 }
 
 export interface McpReceiptSink {
@@ -668,6 +676,60 @@ export async function executeMcpClosed(
   return driveMcpSession(session, resources, decisionReceipt);
 }
 
+export async function recoverMcpClosed(
+  agent: AttachedAgent<Profile>,
+  action: McpAction,
+  resources: McpExecutionResources,
+): Promise<Exclude<AuthorizationResult<McpCommand>, { readonly kind: "authorized" }> | McpClosedResult> {
+  const sessionKey = boundedSessionKey(resources.sessionKey);
+  let artifacts: VerifiedArtifactView | undefined;
+  const authorization = await authorizeMcp(agent, actionResources.get(action)?.profile ?? invalidProfile(), action, undefined, (value) => {
+    artifacts = Object.freeze({
+      proofCbor: value.proofCbor.slice(),
+      canonicalActionCbor: value.canonicalActionCbor.slice(),
+      trustedContextCbor: value.trustedContextCbor.slice(),
+    });
+  });
+  if (authorization.kind !== "authorized") return authorization;
+  if (artifacts === undefined) {
+    throw new AuthsWorkflowError("gateway-failed", "native MCP authorization omitted recovery artifacts");
+  }
+  const engine = engineForClient(resourcesForAttachedAgent(agent).client);
+  const freshDecision = await attestAuthorizedDecision(engine, artifacts, resources.attestor);
+  const fresh = engine.beginMcpExecutionV1(
+    artifacts.proofCbor,
+    artifacts.canonicalActionCbor,
+    artifacts.trustedContextCbor,
+    freshDecision.receiptId,
+    freshDecision.bytes,
+    false,
+    new Uint8Array(),
+    0,
+    0,
+    resources.requestId,
+    sessionKey,
+  );
+  const executionId = fresh.executionId;
+  fresh.free?.();
+  const pending = await resources.state.loadPending(executionId);
+  if (pending === undefined) {
+    throw new AuthsWorkflowError("gateway-conflict", "MCP execution has no pending recovery checkpoint");
+  }
+  const session = engine.resumeMcpExecutionV1(
+    sessionKey,
+    boundedReference(pending.reference),
+    requiredBytes(pending.recordJson),
+  );
+  const decisionReceipt = attestedReceipt({
+    kind: "decision",
+    receiptId: requiredBytes(session.decisionReceiptId),
+    bytes: requiredBytes(session.decisionReceipt),
+    signer: resources.attestor.signer,
+  });
+  verifyAttestedReceipt(engine, decisionReceipt);
+  return driveMcpSession(session, resources, decisionReceipt);
+}
+
 export async function executeMcpPlanClosed(
   agent: AttachedAgent<Profile>,
   plan: ProfilePlan<McpAction>,
@@ -758,14 +820,14 @@ async function driveMcpSession(
       const step = session.nextStep();
       switch (step.kind) {
         case "reserve":
-          session.acceptReservation(await resources.state.reserve(step.executionId));
+          session.acceptReservation(await resources.state.reserve(step.executionId, recoveryCheckpoint(session)));
           break;
         case "mark-provider-entry":
           if (signal.aborted) {
             session.cancelBeforeProvider();
             break;
           }
-          await resources.state.markProviderEntry(step.executionId);
+          await resources.state.markProviderEntry(step.executionId, recoveryCheckpoint(session));
           session.acceptProviderEntry();
           break;
         case "invoke":
@@ -893,6 +955,7 @@ async function projectTerminal(
     if (receipt === undefined) {
       throw new AuthsWorkflowError("gateway-failed", "native MCP completion omitted its signed receipt");
     }
+    await state.clearPending(terminal.executionId);
     return Object.freeze({
       kind: "completed",
       executionId: terminal.executionId,
@@ -901,11 +964,28 @@ async function projectTerminal(
     });
   }
   if (terminal.kind === "recoverable") {
-    const reference = boundedReference(terminal.reference);
-    await state.saveRecovery(reference, requiredBytes(terminal.recordJson));
+    const recovery = terminalRecovery(terminal);
+    await state.saveRecovery(recovery);
+    const reference = recovery.reference;
     return Object.freeze({ kind: "recoverable", executionId: terminal.executionId, executionReference: reference });
   }
+  if (terminal.kind === "not-applied") await state.clearPending(terminal.executionId);
   return Object.freeze({ kind: terminal.kind, executionId: terminal.executionId });
+}
+
+function recoveryCheckpoint(session: WorkflowMcpExecutionSession): McpRecoveryCheckpoint {
+  return terminalRecovery(session.checkpoint());
+}
+
+function terminalRecovery(terminal: WorkflowMcpSessionTerminal): McpRecoveryCheckpoint {
+  if (terminal.kind !== "recoverable") {
+    throw new AuthsWorkflowError("gateway-failed", "native MCP checkpoint was not recoverable");
+  }
+  return Object.freeze({
+    executionId: terminal.executionId,
+    reference: boundedReference(terminal.reference),
+    recordJson: requiredBytes(terminal.recordJson),
+  });
 }
 
 function invalidProfile(): never {

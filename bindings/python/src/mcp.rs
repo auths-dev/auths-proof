@@ -415,6 +415,13 @@ impl PyMcpExecutionSession {
         self.inner.member_count()
     }
 
+    fn checkpoint(&self) -> PyResult<PyMcpSessionTerminal> {
+        self.inner
+            .checkpoint()
+            .map(|value| session_terminal(&value))
+            .map_err(session_error)
+    }
+
     fn next_step(&mut self) -> PyResult<PyMcpSessionStep> {
         self.inner
             .next_step()

@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import multiprocessing
+import time
 from pathlib import Path
 
 from auths.integrations import development
@@ -92,6 +95,77 @@ def test_recoverable_development_state_reconciles_without_reentry(
     assert calls == 1
 
 
+def test_recoverable_development_state_survives_process_death_after_provider_entry(
+    tmp_path: Path,
+) -> None:
+    process = multiprocessing.get_context("spawn").Process(
+        target=_run_gateway_until_terminated,
+        args=(tmp_path,),
+    )
+    process.start()
+    try:
+        _wait_for_provider_checkpoint(tmp_path)
+        process.terminate()
+        process.join(timeout=10)
+        assert not process.is_alive()
+        time.sleep(1.1)
+
+        async def scenario() -> None:
+            invokes = 0
+            reconciles = 0
+
+            async def forbidden_handler(arguments, context):
+                nonlocal invokes
+                invokes += 1
+                raise AssertionError("provider was entered again")
+
+            async def reconcile(execution_id, service):
+                nonlocal reconciles
+                reconciles += 1
+                return McpHandlerOutcome("applied", {"published": "weekly"})
+
+            auths = await development.create_recoverable_auths(
+                directory=tmp_path,
+                authority=mcp.allow_tools(["publish_report"]),
+            )
+            try:
+                action = mcp.call_tool(
+                    name="publish_report", arguments={"name": "weekly"}
+                )
+                completed = await auths.recover(
+                    action=action,
+                    provider=mcp.development_provider(
+                        tools={"publish_report": forbidden_handler},
+                        reconcile=reconcile,
+                    ),
+                    request_id="crash-weekly-32",
+                )
+                assert completed.kind == "completed"
+                assert invokes == 0
+                assert reconciles == 1
+                try:
+                    await auths.recover(
+                        action=action,
+                        provider=mcp.development_provider(
+                            tools={"publish_report": forbidden_handler},
+                            reconcile=reconcile,
+                        ),
+                        request_id="crash-weekly-32",
+                    )
+                except Exception as error:
+                    assert "no pending" in str(error)
+                else:
+                    raise AssertionError("completed execution remained recoverable")
+            finally:
+                await auths.aclose()
+
+        asyncio.run(scenario())
+    finally:
+        if process.is_alive():
+            process.terminate()
+            process.join(timeout=10)
+
+
 def test_development_reservation_admits_one_concurrent_provider_entry() -> None:
     calls = 0
 
@@ -151,8 +225,10 @@ def test_recoverable_development_state_rejects_corruption(tmp_path: Path) -> Non
         )
         assert pending.kind == "recoverable"
         await first.aclose()
-        recovery = next(tmp_path.glob("recovery-*.json"))
-        recovery.write_bytes(b"{")
+        recoveries = tuple(tmp_path.glob("recovery-*.json"))
+        assert recoveries
+        for recovery in recoveries:
+            recovery.write_bytes(b"{")
         second = await development.create_recoverable_auths(
             directory=tmp_path,
             authority=authority,
@@ -173,3 +249,31 @@ def test_recoverable_development_state_rejects_corruption(tmp_path: Path) -> Non
             await second.aclose()
 
     asyncio.run(scenario())
+
+
+def _run_gateway_until_terminated(directory: Path) -> None:
+    async def publish(arguments, context):
+        await asyncio.Future()
+
+    async def scenario() -> None:
+        auths = await development.create_recoverable_auths(
+            directory=directory,
+            authority=mcp.allow_tools(["publish_report"]),
+        )
+        await auths.execute(
+            action=mcp.call_tool(name="publish_report", arguments={"name": "weekly"}),
+            provider=mcp.development_provider(tools={"publish_report": publish}),
+            request_id="crash-weekly-32",
+        )
+
+    asyncio.run(scenario())
+
+
+def _wait_for_provider_checkpoint(directory: Path) -> None:
+    deadline = time.monotonic() + 20
+    while time.monotonic() < deadline:
+        for path in directory.glob("execution-*.json"):
+            if json.loads(path.read_bytes()).get("stage") == "provider":
+                return
+        time.sleep(0.025)
+    raise AssertionError("gateway did not reach its durable provider checkpoint")

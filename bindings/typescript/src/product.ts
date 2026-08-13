@@ -3,6 +3,7 @@ import type { AttachedAgent, Profile } from "./workflow.js";
 import {
   executeMcpClosed,
   executeMcpPlanClosed,
+  recoverMcpClosed,
   resumeMcpClosed,
   resourcesForMcpAuthority,
   type McpAction,
@@ -141,6 +142,11 @@ export interface Auths {
     reference: ExecutionReference;
     provider: McpClosedProvider;
   }>): Promise<SingleExecutionResult>;
+  recover(input: Readonly<{
+    action: McpAction;
+    provider: McpClosedProvider;
+    requestId?: string;
+  }>): Promise<SingleExecutionResult>;
   delegate(input: Readonly<{
     authority: McpToolAuthority;
     name?: string;
@@ -232,6 +238,27 @@ class AuthsFacade implements Auths {
         receipts: this.#resources.receipts,
         attestor: this.#resources.receiptAttestor,
         sessionKey: this.#resources.sessionKey,
+      },
+    ));
+  }
+
+  async recover(input: Readonly<{
+    action: McpAction;
+    provider: McpClosedProvider;
+    requestId?: string;
+  }>): Promise<SingleExecutionResult> {
+    this.#assertActive();
+    this.#assertProvider(input.provider);
+    return projectExecution(await recoverMcpClosed(
+      this.#resources.agent,
+      input.action,
+      {
+        provider: input.provider,
+        state: this.#resources.state,
+        receipts: this.#resources.receipts,
+        attestor: this.#resources.receiptAttestor,
+        sessionKey: this.#resources.sessionKey,
+        ...(input.requestId === undefined ? {} : { requestId: input.requestId }),
       },
     ));
   }

@@ -3310,6 +3310,16 @@ impl McpExecutionSessionV1 {
         self.inner.member_count()
     }
 
+    /// Projects authenticated recovery material for the pending durable step.
+    ///
+    /// # Errors
+    ///
+    /// Returns a JavaScript error when the current state has no crash-safe checkpoint.
+    pub fn checkpoint(&self) -> Result<JsValue, JsValue> {
+        let checkpoint = self.inner.checkpoint().map_err(js_error)?;
+        serde_wasm_bindgen::to_value(&mcp_session_terminal(&checkpoint)).map_err(js_error)
+    }
+
     /// Releases the next bounded I/O step.
     ///
     /// # Errors

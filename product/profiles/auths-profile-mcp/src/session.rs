@@ -296,6 +296,7 @@ struct RecoveryRecord {
 #[derive(Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 enum RecoveryKind {
+    Reserved,
     Possible,
     ReceiptPending,
 }
@@ -476,6 +477,7 @@ impl McpExecutionSession {
             _ => return Err(McpSessionError::InvalidRecoveryRecord),
         };
         let state = match record.kind {
+            RecoveryKind::Reserved => SessionState::ReadyProviderEntry,
             RecoveryKind::Possible => SessionState::ReadyReconcile,
             RecoveryKind::ReceiptPending => {
                 let output = record
@@ -543,6 +545,39 @@ impl McpExecutionSession {
     #[must_use]
     pub const fn member_count(&self) -> Option<u16> {
         self.member_count
+    }
+
+    /// Projects authenticated recovery material for the pending durable step.
+    ///
+    /// The caller must commit this projection atomically with the matching
+    /// reservation or provider-entry transition. The projection carries no
+    /// authority to widen or replace the verified command.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`McpSessionError::InvalidTransition`] when no crash-safe
+    /// checkpoint exists for the current state.
+    pub fn checkpoint(&self) -> Result<McpTerminal, McpSessionError> {
+        let (kind, output, receipt) = match &self.state {
+            SessionState::WaitingReservation | SessionState::ReadyProviderEntry => {
+                (RecoveryKind::Reserved, None, None)
+            }
+            SessionState::WaitingProviderEntry
+            | SessionState::ReadyInvoke
+            | SessionState::WaitingHandler
+            | SessionState::ReadyReconcile
+            | SessionState::WaitingReconcile => (RecoveryKind::Possible, None, None),
+            SessionState::ReadyReceipt { output, receipt }
+            | SessionState::WaitingReceipt { output, receipt } => (
+                RecoveryKind::ReceiptPending,
+                Some(output.clone()),
+                Some(receipt.clone()),
+            ),
+            SessionState::ReadyReserve | SessionState::Terminal(_) | SessionState::Invalid => {
+                return Err(McpSessionError::InvalidTransition);
+            }
+        };
+        self.recovery_terminal(kind, output, receipt)
     }
 
     /// Releases exactly one bounded side-effect request.
@@ -698,8 +733,11 @@ impl McpExecutionSession {
             });
             Ok(())
         } else {
-            self.state =
-                self.recoverable(RecoveryKind::ReceiptPending, Some(output), Some(receipt))?;
+            self.state = SessionState::Terminal(self.recovery_terminal(
+                RecoveryKind::ReceiptPending,
+                Some(output),
+                Some(receipt),
+            )?);
             Err(McpSessionError::ReceiptPersistenceFailed)
         }
     }
@@ -722,7 +760,11 @@ impl McpExecutionSession {
                 let receipt = self.receipt(&output, result.cause)?;
                 SessionState::ReadyReceipt { output, receipt }
             }
-            McpHandlerEffect::Possible => self.recoverable(RecoveryKind::Possible, None, None)?,
+            McpHandlerEffect::Possible => SessionState::Terminal(self.recovery_terminal(
+                RecoveryKind::Possible,
+                None,
+                None,
+            )?),
         };
         Ok(())
     }
@@ -746,12 +788,12 @@ impl McpExecutionSession {
             .map_err(|_| McpSessionError::InvalidHandlerOutput)
     }
 
-    fn recoverable(
+    fn recovery_terminal(
         &self,
         kind: RecoveryKind,
         output: Option<Value>,
         receipt: Option<Vec<u8>>,
-    ) -> Result<SessionState, McpSessionError> {
+    ) -> Result<McpTerminal, McpSessionError> {
         let receipt = receipt
             .map(|bytes| serde_json::from_slice(&bytes))
             .transpose()
@@ -779,11 +821,11 @@ impl McpExecutionSession {
         let record_json = serde_json_canonicalizer::to_vec(&record)
             .map_err(|_| McpSessionError::InvalidRecoveryRecord)?;
         let reference = create_reference(&self.key, &self.execution_id, &record_json)?;
-        Ok(SessionState::Terminal(McpTerminal::Recoverable {
+        Ok(McpTerminal::Recoverable {
             execution_id: self.execution_id.clone(),
             reference,
             record_json,
-        }))
+        })
     }
 }
 
@@ -1018,6 +1060,55 @@ mod tests {
             McpExecutionSession::resume(McpSessionKey::new([8; 32]), &reference, &record).err(),
             Some(McpSessionError::InvalidExecutionReference)
         );
+    }
+
+    #[test]
+    fn durable_step_checkpoints_resume_without_widening_provider_entry() {
+        let mut reserved = session();
+        reserved.next_step().unwrap();
+        let McpTerminal::Recoverable {
+            reference,
+            record_json,
+            ..
+        } = reserved.checkpoint().unwrap()
+        else {
+            panic!("expected reserved checkpoint");
+        };
+        let mut resumed = McpExecutionSession::resume(
+            McpSessionKey::new([9; 32]),
+            reference.as_str(),
+            &record_json,
+        )
+        .unwrap();
+        assert!(matches!(
+            resumed.next_step().unwrap(),
+            McpSessionStep::MarkProviderEntry { .. }
+        ));
+
+        let mut entered = session();
+        entered.next_step().unwrap();
+        entered
+            .accept_reservation(McpReservationResult::Acquired)
+            .unwrap();
+        entered.next_step().unwrap();
+        let McpTerminal::Recoverable {
+            reference,
+            record_json,
+            ..
+        } = entered.checkpoint().unwrap()
+        else {
+            panic!("expected provider checkpoint");
+        };
+        let mut resumed = McpExecutionSession::resume(
+            McpSessionKey::new([9; 32]),
+            reference.as_str(),
+            &record_json,
+        )
+        .unwrap();
+        assert!(matches!(
+            resumed.next_step().unwrap(),
+            McpSessionStep::Reconcile { .. }
+        ));
     }
 
     #[test]

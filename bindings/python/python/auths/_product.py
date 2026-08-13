@@ -24,6 +24,7 @@ from .profiles._mcp import (
     McpToolAuthority,
     execute_mcp_closed,
     execute_mcp_plan_closed,
+    recover_mcp_closed,
     resources_for_mcp_authority,
     resume_mcp_closed,
 )
@@ -244,6 +245,29 @@ class Auths:
                 self._resources.receipts,
                 self._resources.receipt_attestor,
                 self._resources.session_key,
+            ),
+        )
+        return _project_execution(result)
+
+    async def recover(
+        self,
+        *,
+        action: McpAction,
+        provider: McpClosedProvider,
+        request_id: Optional[str] = None,
+    ) -> ExecutionResult:
+        self._assert_active()
+        self._assert_provider(provider)
+        result = await recover_mcp_closed(
+            self._resources.agent,
+            action,
+            McpExecutionResources(
+                provider,
+                self._resources.state,
+                self._resources.receipts,
+                self._resources.receipt_attestor,
+                self._resources.session_key,
+                request_id,
             ),
         )
         return _project_execution(result)
