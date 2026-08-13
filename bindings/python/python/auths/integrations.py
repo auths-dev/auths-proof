@@ -354,7 +354,7 @@ class _Development:
         if not root.is_absolute():
             raise ValueError("recoverable development directory must be absolute")
         root.mkdir(parents=True, exist_ok=True)
-        key = _development_session_key(root)
+        key, authority_not_before = _development_session(root)
         resources = _FileMcpResources(root)
         diagnostics = tuple(
             "state=file-backed-single-machine-not-production-durable"
@@ -372,6 +372,7 @@ class _Development:
                 key,
                 diagnostics,
                 approval,
+                authority_not_before,
             )
         )
 
@@ -394,6 +395,7 @@ def _development_configuration(
     session_key: bytes,
     diagnostics: tuple[str, ...],
     configured_approval: Optional[ApprovalConfiguration],
+    authority_not_before: Optional[int] = None,
 ) -> AuthsConfiguration:
     profile, permissions, namespaces, audiences = resources_for_mcp_authority(authority)
     opened = False
@@ -417,7 +419,11 @@ def _development_configuration(
                 else configured_approval
             )
             actor = await actor_signer.public_identity()
-            now = int(time.time())
+            now = (
+                int(time.time())
+                if authority_not_before is None
+                else authority_not_before
+            )
             prepared = await prepare_raw_key_authority(
                 authority_id="development.local",
                 root_signer=root_signer,
@@ -484,12 +490,14 @@ def _development_seed(session_key: bytes, role: str) -> bytes:
     ).digest()
 
 
-def _development_session_key(root: Path) -> bytes:
-    path = root / "auths-development-v1.json"
+def _development_session(root: Path) -> tuple[bytes, int]:
+    path = root / "auths-development-v2.json"
     key = secrets.token_bytes(32)
+    authority_not_before = int(time.time())
     record = json.dumps(
         {
-            "schema": "auths.recoverable-development/1",
+            "schema": "auths.recoverable-development/2",
+            "authorityNotBefore": authority_not_before,
             "sessionKey": key.hex(),
         },
         separators=(",", ":"),
@@ -498,7 +506,7 @@ def _development_session_key(root: Path) -> bytes:
     try:
         _exclusive_write(path, record)
         _sync_directory(root)
-        return key
+        return key, authority_not_before
     except FileExistsError:
         try:
             parsed: object = json.loads(path.read_bytes())
@@ -506,15 +514,19 @@ def _development_session_key(root: Path) -> bytes:
                 raise ValueError
             item = cast(dict[str, object], parsed)
             session_key = item.get("sessionKey")
+            existing_not_before = item.get("authorityNotBefore")
             if (
-                item.get("schema") != "auths.recoverable-development/1"
+                set(item) != {"schema", "authorityNotBefore", "sessionKey"}
+                or item.get("schema") != "auths.recoverable-development/2"
                 or type(session_key) is not str
+                or type(existing_not_before) is not int
+                or existing_not_before < 0
             ):
                 raise ValueError
             existing = bytes.fromhex(session_key)
             if len(existing) != 32:
                 raise ValueError
-            return existing
+            return existing, existing_not_before
         except (OSError, ValueError, json.JSONDecodeError):
             raise ValueError("recoverable development manifest is corrupt") from None
 

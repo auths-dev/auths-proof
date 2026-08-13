@@ -108,6 +108,7 @@ def test_recoverable_development_state_survives_process_death_after_provider_ent
         process.terminate()
         process.join(timeout=10)
         assert not process.is_alive()
+        time.sleep(1.1)
 
         async def scenario() -> None:
             invokes = 0

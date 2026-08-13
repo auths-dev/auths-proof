@@ -126,6 +126,7 @@ export const development = Object.freeze({
       opened.resources,
       opened.sessionKey,
       RECOVERABLE_DEVELOPMENT_DIAGNOSTICS,
+      opened.authorityNotBefore,
     ));
   },
 });
@@ -144,6 +145,7 @@ function developmentConfiguration(
   state: McpExecutionState & McpReceiptSink,
   sessionKey: Uint8Array,
   diagnostics: readonly string[] = DEVELOPMENT_DIAGNOSTICS,
+  authorityNotBefore?: bigint,
 ): AuthsConfiguration {
   const authority = resourcesForMcpAuthority(options.authority);
   let opened = false;
@@ -161,7 +163,7 @@ function developmentConfiguration(
         provider: noApproval,
       });
       const actor = await actorSigner.publicIdentity();
-      const now = BigInt(Math.floor(Date.now() / 1000));
+      const now = authorityNotBefore ?? BigInt(Math.floor(Date.now() / 1000));
       const prepared = await prepareRawKeyAuthority({
         authorityId: "development.local",
         rootSigner,

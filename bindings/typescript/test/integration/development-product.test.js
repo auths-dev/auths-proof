@@ -3,6 +3,7 @@ import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { once } from "node:events";
+import { setTimeout as delay } from "node:timers/promises";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { development } from "../../dist/integrations.js";
@@ -90,6 +91,7 @@ test("recoverable development state survives process death after provider entry"
     await waitForProviderCheckpoint(directory);
     worker.kill(process.platform === "win32" ? undefined : "SIGKILL");
     await once(worker, "exit");
+    await delay(1_100);
     const authority = mcp.allowTools(["publish_report"]);
     const auths = await development.createRecoverableAuths({ directory, authority });
     let invokes = 0;

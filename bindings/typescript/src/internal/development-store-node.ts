@@ -3,11 +3,12 @@ import { mkdir, open, readFile, rename, unlink } from "node:fs/promises";
 import { platform } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
-const MANIFEST = "auths-development-v1.json";
+const MANIFEST = "auths-development-v2.json";
 
 export interface RecoverableDevelopmentResources {
   readonly resources: McpExecutionState & McpReceiptSink;
   readonly sessionKey: Uint8Array;
+  readonly authorityNotBefore: bigint;
 }
 
 export async function openRecoverableDevelopmentResources(directory: string): Promise<RecoverableDevelopmentResources> {
@@ -15,17 +16,20 @@ export async function openRecoverableDevelopmentResources(directory: string): Pr
   await mkdir(root, { recursive: true });
   const manifestPath = join(root, MANIFEST);
   let sessionKey: Uint8Array;
+  let authorityNotBefore: bigint;
   try {
     const parsed: unknown = JSON.parse(await readFile(manifestPath, "utf8"));
-    sessionKey = parseManifest(parsed);
+    ({ sessionKey, authorityNotBefore } = parseManifest(parsed));
   } catch (error) {
     if (isMissing(error)) {
       sessionKey = crypto.getRandomValues(new Uint8Array(32));
+      authorityNotBefore = BigInt(Math.floor(Date.now() / 1000));
       try {
         const handle = await open(manifestPath, "wx", 0o600);
         try {
           await handle.writeFile(JSON.stringify({
-            schema: "auths.recoverable-development/1",
+            schema: "auths.recoverable-development/2",
+            authorityNotBefore: Number(authorityNotBefore),
             sessionKey: toHex(sessionKey),
           }));
           await handle.sync();
@@ -36,13 +40,13 @@ export async function openRecoverableDevelopmentResources(directory: string): Pr
       } catch (creationError) {
         if (!isExists(creationError)) throw creationError;
         const parsed: unknown = JSON.parse(await readFile(manifestPath, "utf8"));
-        sessionKey = parseManifest(parsed);
+        ({ sessionKey, authorityNotBefore } = parseManifest(parsed));
       }
     } else {
       throw new TypeError("recoverable development manifest is corrupt");
     }
   }
-  return Object.freeze({ resources: new FileMcpResources(root), sessionKey });
+  return Object.freeze({ resources: new FileMcpResources(root), sessionKey, authorityNotBefore });
 }
 
 class FileMcpResources implements McpExecutionState, McpReceiptSink {
@@ -244,13 +248,17 @@ function equalBytes(left: Uint8Array, right: Uint8Array): boolean {
   return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
-function parseManifest(value: unknown): Uint8Array {
+function parseManifest(value: unknown): Readonly<{ sessionKey: Uint8Array; authorityNotBefore: bigint }> {
   if (value === null || typeof value !== "object" || Array.isArray(value)) throw new TypeError();
   const record = value as Record<string, unknown>;
-  if (record.schema !== "auths.recoverable-development/1" || typeof record.sessionKey !== "string") throw new TypeError();
+  if (Object.keys(record).sort().join(",") !== "authorityNotBefore,schema,sessionKey"
+    || record.schema !== "auths.recoverable-development/2"
+    || typeof record.sessionKey !== "string"
+    || !Number.isSafeInteger(record.authorityNotBefore)
+    || (record.authorityNotBefore as number) < 0) throw new TypeError();
   const key = fromHex(record.sessionKey);
   if (key.length !== 32) throw new TypeError();
-  return key;
+  return Object.freeze({ sessionKey: key, authorityNotBefore: BigInt(record.authorityNotBefore as number) });
 }
 
 async function digest(value: string): Promise<string> {
