@@ -105,7 +105,10 @@ test("recoverable development state survives process death after provider entry"
     });
     try {
       const action = mcp.callTool({ name: "publish_report", arguments: { name: "weekly" } });
-      const completed = await auths.recover({ action, provider, requestId: "crash-weekly-32" });
+      let completed = await auths.recover({ action, provider, requestId: "crash-weekly-32" });
+      if (completed.kind === "recoverable") {
+        completed = await auths.resume({ reference: completed.reference, provider });
+      }
       assert.equal(completed.kind, "completed");
       assert.equal(invokes, 0);
       assert.equal(reconciles, 1);
