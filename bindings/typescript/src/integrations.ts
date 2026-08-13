@@ -10,6 +10,7 @@ import {
 import {
   resourcesForMcpAuthority,
   type McpExecutionState,
+  type McpExecutionObserver,
   type McpRecoveryCheckpoint,
   type McpReceiptSink,
   type McpToolAuthority,
@@ -30,6 +31,7 @@ const DEVELOPMENT_DIAGNOSTICS = Object.freeze([
 export interface DevelopmentAuthsOptions {
   readonly authority: McpToolAuthority;
   readonly approval?: ApprovalConfiguration;
+  readonly observer?: McpExecutionObserver;
 }
 
 export interface RecoverableDevelopmentAuthsOptions extends DevelopmentAuthsOptions {
@@ -148,6 +150,7 @@ function developmentConfiguration(
   authorityNotBefore?: bigint,
 ): AuthsConfiguration {
   const authority = resourcesForMcpAuthority(options.authority);
+  const observer = developmentObserver(options.observer);
   let opened = false;
   let childIndex = 0;
   return createAuthsConfiguration("development", diagnostics, async (): Promise<AuthsResources> => {
@@ -194,6 +197,7 @@ function developmentConfiguration(
         childSigner: async () => DevelopmentEd25519Signer.fromSeed(
           await developmentSeed(sessionKey, `child:${childIndex++}`),
         ),
+        ...(observer === undefined ? {} : { observer }),
         dispose: async () => {
           receiptAttestor.dispose();
           await client!.dispose();
@@ -207,6 +211,14 @@ function developmentConfiguration(
       throw error;
     }
   });
+}
+
+function developmentObserver(value: McpExecutionObserver | undefined): McpExecutionObserver | undefined {
+  if (value === undefined) return undefined;
+  if (value === null || typeof value !== "object" || typeof value.checkpoint !== "function") {
+    throw new TypeError("invalid MCP execution observer");
+  }
+  return value;
 }
 
 const RECOVERABLE_DEVELOPMENT_DIAGNOSTICS = Object.freeze(

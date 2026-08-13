@@ -80,6 +80,9 @@ DevelopmentMcpProvider
 McpAction
 McpClosedProvider
 McpCompleted
+McpExecutionCheckpointEvent
+McpExecutionCheckpointStage
+McpExecutionObserver
 McpHandlerOutcome
 McpPlan
 McpPlanCompleted

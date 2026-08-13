@@ -11,6 +11,7 @@ from .profiles._mcp import (
     McpCompleted,
     McpDenied,
     McpExecutionResources,
+    McpExecutionObserver,
     McpExecutionStore,
     McpIndeterminate,
     McpNotApplied,
@@ -167,6 +168,7 @@ class _AuthsResources:
     session_key: bytes
     child_signer: Callable[[], Awaitable[Signer]]
     dispose: Callable[[], Awaitable[None]]
+    observer: Optional[McpExecutionObserver] = None
 
 
 class AuthsConfiguration:
@@ -216,6 +218,7 @@ class Auths:
             self._resources.receipt_attestor,
             self._resources.session_key,
             request_id,
+            self._resources.observer,
         )
         if action is not None and plan is None:
             return _project_execution(
@@ -245,6 +248,8 @@ class Auths:
                 self._resources.receipts,
                 self._resources.receipt_attestor,
                 self._resources.session_key,
+                None,
+                self._resources.observer,
             ),
         )
         return _project_execution(result)
@@ -268,6 +273,7 @@ class Auths:
                 self._resources.receipt_attestor,
                 self._resources.session_key,
                 request_id,
+                self._resources.observer,
             ),
         )
         return _project_execution(result)
@@ -319,6 +325,7 @@ class Auths:
                 self._resources.session_key,
                 self._resources.child_signer,
                 dispose,
+                self._resources.observer,
             ),
             self.diagnostics,
         )
