@@ -503,32 +503,43 @@ def _development_session(root: Path) -> tuple[bytes, int]:
         separators=(",", ":"),
         sort_keys=True,
     ).encode()
-    try:
-        _exclusive_write(path, record)
-        _sync_directory(root)
+    if _publish_new_file(path, record):
         return key, authority_not_before
-    except FileExistsError:
+    try:
+        parsed: object = json.loads(path.read_bytes())
+        if type(parsed) is not dict:
+            raise ValueError
+        item = cast(dict[str, object], parsed)
+        session_key = item.get("sessionKey")
+        existing_not_before = item.get("authorityNotBefore")
+        if (
+            set(item) != {"schema", "authorityNotBefore", "sessionKey"}
+            or item.get("schema") != "auths.recoverable-development/2"
+            or type(session_key) is not str
+            or type(existing_not_before) is not int
+            or existing_not_before < 0
+        ):
+            raise ValueError
+        existing = bytes.fromhex(session_key)
+        if len(existing) != 32:
+            raise ValueError
+        return existing, existing_not_before
+    except (OSError, ValueError, json.JSONDecodeError):
+        raise ValueError("recoverable development manifest is corrupt") from None
+
+
+def _publish_new_file(path: Path, value: bytes) -> bool:
+    temporary = path.with_name(f"{path.name}.{secrets.token_hex(16)}.tmp")
+    try:
+        _exclusive_write(temporary, value)
         try:
-            parsed: object = json.loads(path.read_bytes())
-            if type(parsed) is not dict:
-                raise ValueError
-            item = cast(dict[str, object], parsed)
-            session_key = item.get("sessionKey")
-            existing_not_before = item.get("authorityNotBefore")
-            if (
-                set(item) != {"schema", "authorityNotBefore", "sessionKey"}
-                or item.get("schema") != "auths.recoverable-development/2"
-                or type(session_key) is not str
-                or type(existing_not_before) is not int
-                or existing_not_before < 0
-            ):
-                raise ValueError
-            existing = bytes.fromhex(session_key)
-            if len(existing) != 32:
-                raise ValueError
-            return existing, existing_not_before
-        except (OSError, ValueError, json.JSONDecodeError):
-            raise ValueError("recoverable development manifest is corrupt") from None
+            os.link(temporary, path)
+        except FileExistsError:
+            return False
+        _sync_directory(path.parent)
+        return True
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def _exclusive_write(path: Path, value: bytes) -> None:

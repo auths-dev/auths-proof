@@ -119,6 +119,22 @@ test("recoverable development state survives process death after provider entry"
   }
 });
 
+test("recoverable development manifest publishes atomically under process startup contention", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "auths-manifest-race-"));
+  const authority = mcp.allowTools(["publish_report"]);
+  const instances = [];
+  try {
+    instances.push(...await Promise.all(Array.from(
+      { length: 100 },
+      () => development.createRecoverableAuths({ directory, authority }),
+    )));
+    assert.equal(new Set(instances.map((auths) => auths.actor.principal)).size, 1);
+  } finally {
+    await Promise.all(instances.map((auths) => auths.close()));
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test("development reservations admit one concurrent provider entry", async () => {
   let calls = 0;
   const provider = mcp.developmentProvider({

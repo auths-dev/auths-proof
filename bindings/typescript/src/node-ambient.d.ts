@@ -5,6 +5,7 @@ declare module "node:fs/promises" {
     close(): Promise<void>;
   }
   export function mkdir(path: string, options: { recursive: boolean }): Promise<void>;
+  export function link(existingPath: string, newPath: string): Promise<void>;
   export function open(path: string, flags: string, mode?: number): Promise<FileHandle>;
   export function readFile(path: string): Promise<Uint8Array>;
   export function readFile(path: string, encoding: "utf8"): Promise<string>;
