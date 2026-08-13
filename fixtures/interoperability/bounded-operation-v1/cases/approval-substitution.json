@@ -1,0 +1,21 @@
+{
+  "attempt": 1,
+  "base": "../scenario.json",
+  "expected": {
+    "authorization": "denied",
+    "execution": "not-attempted",
+    "reason": "An approval from another transaction cannot satisfy this exact operation.",
+    "retry": "forbidden",
+    "runtime": "not-entered"
+  },
+  "id": "approval-substitution",
+  "mutations": [
+    {
+      "operation": "replace",
+      "path": "/approval_evidence/edgeshield-approver/transaction",
+      "target": "presentation",
+      "value": "INC-INTEROP-OTHER"
+    }
+  ],
+  "schema": "auths-proof-interoperability-case/v1"
+}

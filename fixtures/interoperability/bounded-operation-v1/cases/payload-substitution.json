@@ -1,0 +1,21 @@
+{
+  "attempt": 1,
+  "base": "../scenario.json",
+  "expected": {
+    "authorization": "denied",
+    "execution": "not-attempted",
+    "reason": "The presented payload bytes do not match the authority and approval commitment.",
+    "retry": "forbidden",
+    "runtime": "not-entered"
+  },
+  "id": "payload-substitution",
+  "mutations": [
+    {
+      "operation": "replace",
+      "path": "/operation/payload_canonical_utf8",
+      "target": "presentation",
+      "value": "{\"action\":\"upsert-deny-rule\",\"cidr\":\"198.51.100.0/24\",\"incident\":\"INC-INTEROP-0001\",\"region\":\"eu-west-2\",\"rule\":\"deny-abusive-network\"}"
+    }
+  ],
+  "schema": "auths-proof-interoperability-case/v1"
+}

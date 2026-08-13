@@ -1,7 +1,10 @@
 # Auths business launch roadmap
 
-**Status:** Proposed execution roadmap. Product, pricing, repository, license,
-publication, customer, and security-review decisions remain owner-controlled.
+**Status:** Evidence-driven execution roadmap. Product, pricing, repository,
+license, publication, customer, and security-review decisions remain
+owner-controlled.
+
+**Last reorganized:** 2026-08-13
 
 **Companion strategy:** [Auths Product and Go-to-Market
 Strategy](GO_TO_MARKET_STRATEGY.md)
@@ -17,19 +20,99 @@ workflow closure](../specs/0036_sdk_ergonomics.md)
 
 ## 1. Purpose
 
-This document turns the product strategy into a launch sequence for an open
-protocol project and a venture-scale company around it.
+This document governs the path from a technically credible open protocol to a
+validated product and company.
 
-It recommends a starting product wedge, defines V1 and V2 epics, supplies
-implementation-shaped subtasks and API sketches, and proposes a clean
-open-core boundary. It does not replace the technical phase gates or turn an
-unvalidated commercial hypothesis into an approved build.
+It is deliberately organized around two facts:
 
-In this document, **V1** and **V2** refer to commercial product releases. They
-do not rename the Auths protocol, the `1.0.0-rc.1` release candidate, or any
-assurance claim.
+1. Auths has demonstrated unusually high engineering throughput.
+2. Customer evidence, independent trust, procurement, renewal, and production
+   operating history cannot be generated at the same speed as code.
 
-## 2. Business thesis
+The roadmap therefore does not limit ambition according to conventional
+solo-founder estimates. Nor does it treat rapid implementation as evidence
+that a product hypothesis is correct.
+
+Its job is to make Auths' engineering velocity produce information:
+
+```text
+hypothesis
+    -> smallest useful implementation
+    -> real external observation
+    -> continue, change, sell, operate, or stop
+```
+
+V1 and V2 in this document refer to commercial product stages. They do not
+rename the Auths protocol, the `1.0.0-rc.1` release candidate, or an assurance
+claim.
+
+## 2. Execution premise: engineering is not the scarce resource
+
+### 2.1 Observed repository velocity
+
+The first repository commit was created on 2026-07-24. At the 2026-08-13
+measurement point—less than 20 days later—the history contained:
+
+- 383 commits;
+- 299 non-merge commits;
+- 76 identifiable merged pull requests;
+- 19 active development days; and
+- a Rust core, TypeScript and Python SDKs, formal evidence, cross-language
+  fixtures, production-shaped demos, package validation, and extensive CI.
+
+Commit counts and lines of code are not customer value. Generated artifacts,
+documentation, and merge commits also make raw totals imperfect. Even with
+those caveats, the history is strong evidence that Auths should not be planned
+using an ordinary solo-founder implementation rate.
+
+This history is a planning input, not a permanent productivity promise. The
+roadmap must not require exhaustion, treat every day as a record day, or use
+historical speed to erase review and operational risk.
+
+### 2.2 The actual constraints
+
+The limiting factors are increasingly:
+
+- access to qualified users and economic buyers;
+- elapsed time using Auths in maintained external workflows;
+- independent security and architectural review;
+- procurement and deployment decisions;
+- operation through failures, upgrades, incidents, and recovery;
+- willingness to pay, expand, and renew; and
+- choosing one valuable problem from many technically possible ones.
+
+Auths can build an approval router quickly. It cannot infer from that build
+whether approval routing is the first product customers will buy.
+
+Auths can package an on-premises control plane quickly. It cannot manufacture
+evidence that on-premises deployment is a real procurement requirement.
+
+### 2.3 Product maturity states
+
+Every roadmap item MUST use one of these states. A later state includes, but
+does not replace, the evidence from earlier states.
+
+| State | Meaning | Evidence |
+| --- | --- | --- |
+| **Hypothesized** | A plausible problem, surface, or product exists on paper | written claim and falsification condition |
+| **Implemented** | The bounded behavior exists and passes its stated repository evidence | code, fixtures, CI, demo, exact exclusions |
+| **Externally usable** | A non-core user can install and exercise it without private help or source dependencies | clean-environment external-consumer evidence |
+| **Validated** | Independent users demonstrate that it solves a repeated, important problem | observed workflows, repeated use, maintenance, measured outcome |
+| **Sold** | A qualified buyer commits money or equivalent procurement authority to the exact outcome | paid pilot, purchase order, signed design engagement, or equivalent |
+| **Operationally proven** | It has survived real operation, support, failure, recovery, upgrade, and time | operating history, exercises, incidents, support and renewal evidence |
+
+These terms are not interchangeable:
+
+- implemented is not validated;
+- validated is not sold;
+- sold is not production-proven;
+- a polished demo is not an externally maintained integration; and
+- an enthusiastic user is not necessarily an economic buyer.
+
+Every status report, experiment, epic, and launch claim must name the actual
+state.
+
+## 3. Business thesis
 
 AI agents increasingly act through credentials that are broader and longer-
 lived than the task they are performing. Identity systems can establish who
@@ -56,76 +139,43 @@ Local Auths enforcement ---- denied/indeterminate ----> no effect
         |
         | authorized, sealed command
         v
-Closed provider gateway ----> GitHub / MCP / HTTP / database / cloud
+Closed provider gateway ----> payment / code / cloud / data / tool
 ```
 
-The open project should make this model credible and useful without an Auths-
-hosted service. The company should sell the operational coordination that
-organizations need once they use the model across teams, environments,
-agents, and providers.
+The open project should make this useful without an Auths-hosted service. The
+company should sell the operational coordination organizations need once they
+use the model across teams, environments, agents, and providers.
 
-### 2.1 The first product hypothesis
+### 3.1 First commercial hypothesis
 
-The recommended first commercial wedge is an **Agent Action Gateway**:
+The current category hypothesis is an **Agent Action Gateway**:
 
-> A customer-operated enforcement gateway that lets teams attach an agent,
+> A customer-operated enforcement gateway that lets a team attach an agent,
 > delegate exact authority, stop out-of-authority actions before provider
-> execution, and produce inspectable evidence.
+> execution, and retain inspectable evidence.
 
-The gateway is a useful label for a product bundle, not a new semantic center.
-The open verifier still decides authorization locally. Profile-owned gateways
-still own exact provider effects. A commercial deployment may coordinate
-trusted configuration, approvals, receipts, and operations, but it must not
-privately redefine what `authorized` means.
+This is a hypothesis, not a committed SKU. AP-SPEC-031 selects or rejects the
+first paid problem from external evidence.
 
-This wedge is recommended because it:
+The gateway is a product bundle, not a semantic center. The open verifier
+decides authorization locally. Profile-owned gateways own exact provider
+effects. Commercial coordination may distribute trusted state, route
+approvals, retain receipts, and operate deployments; it may not privately
+redefine `authorized`.
 
-- demonstrates a visible outcome: the forbidden action does not happen;
-- complements identity, secrets, and agent-framework products;
-- supports headless, supervised, hosted, and on-premises use;
-- begins with one workflow and expands by profile rather than by universal
-  policy language;
-- creates real demand signals for approval, inventory, receipt, and lifecycle
-  products; and
-- keeps the open SDK as the adoption engine.
+### 3.2 Product ladder
 
-AP-SPEC-031 still controls final product selection. If design partners show a
-different repeated, budgeted problem, this roadmap must be revised.
-
-### 2.2 Product ladder
-
-| Layer | Product | Customer outcome | Default boundary |
-| --- | --- | --- | --- |
-| Adoption | Open protocol, verifier, SDKs, profiles, fixtures | Build and verify bounded authority locally | open source |
-| First wedge | Agent Action Gateway | Stop unauthorized agent effects and retain evidence | open enforcement path plus commercial operations |
-| Operations | Auths Control Plane | Manage organizations, trusted state, approvals, grants, and environments | commercial hosted/on-premises |
-| Integration | Enterprise connectors | Connect identity, custody, KMS/HSM, SIEM, workflow, and provider systems | commercial where vendor-specific |
-| Assurance | Support and assurance | Deploy, review, operate, and upgrade with confidence | commercial service |
-
-## 3. Users, champions, and buyer hypotheses
-
-The initial user is an agent-framework maintainer or platform engineer. The
-likely champion is the person responsible for the internal agent platform,
-developer platform, or application security program. The economic buyer is
-not yet known; likely hypotheses include a VP of Engineering, platform leader,
-CISO, or security engineering leader.
-
-Research must keep these roles separate:
-
-| Role | Job to be done | Evidence to collect |
-| --- | --- | --- |
-| SDK user | Protect an action without learning protocol internals | setup time, glue code, failures |
-| Agent owner | Give an agent freedom inside a fixed boundary | denied effects, approval burden |
-| Platform operator | Manage agents and authority across environments | repeated operational work |
-| Security reviewer | Understand the trust boundary and evidence | review time, unresolved risks |
-| Economic buyer | Reduce a costly, urgent operational risk | budget, procurement, commitment |
-
-No launch plan should assume that the most enthusiastic developer controls a
-budget.
+| Layer | Candidate product | Customer outcome | Default boundary | Current maturity |
+| --- | --- | --- | --- | --- |
+| Adoption | Open protocol, verifier, SDKs, profiles, fixtures | Build and verify bounded authority locally | open source | implemented in substantial part; external validation incomplete |
+| Proof surfaces | GitHub, payments, cross-company incident response | Understand and test the value in concrete effects | open demos and profiles | implemented demonstrations; market role unvalidated |
+| First paid wedge | Agent Action Gateway or evidence-selected alternative | Stop unsafe effects and retain evidence | open enforcement plus paid operations/service | hypothesized |
+| Operations | Auths Control Plane | Operate authority across teams and environments | commercial hosted/on-premises | architectural option, not committed backlog |
+| Assurance | Support, review, deployment, and operations | Adopt with credible assistance and evidence | commercial service | partially implementable; unsold |
 
 ## 4. Product principles
 
-Every product decision should preserve these rules:
+Every product decision must preserve these rules:
 
 1. Identity and authority remain distinct.
 2. Authority is committed to the action and travels with it.
@@ -140,6 +190,10 @@ Every product decision should preserve these rules:
    operation-tag executor.
 10. Commercial code may operate open semantics but may not privately alter
     them.
+11. Fast implementation must be used to test a hypothesis, not silently turn
+    it into strategy.
+12. New profiles remain vertical until cross-domain evidence earns a shared
+    abstraction.
 
 ## 5. Open-core boundary
 
@@ -191,7 +245,7 @@ layering model, and a sixth top-level shipping layer plus a second license is
 an architectural and legal decision, not a folder-creation shortcut.
 
 Before the first proprietary implementation, record an ADR and owner decision
-between these options:
+between these options.
 
 #### Option A — separate private enterprise repository (recommended)
 
@@ -208,36 +262,18 @@ auths-enterprise/               # private, commercial license
   services/approval-router/
   services/receipt-index/
   services/trust-distributor/
-  connectors/identity/
-  connectors/custody/
-  connectors/siem/
-  deployments/hosted/
-  deployments/on-prem/
+  connectors/
+  deployments/
   docs/
 ```
 
 The enterprise repository consumes published, immutable open packages. It may
 not use private hooks into the verifier or receive unreleased semantic logic.
-This provides the clearest contribution, licensing, release, and trust
-boundary.
 
 #### Option B — an `ee/` tree in the monorepo
 
 This may be chosen later if atomic development materially outweighs licensing
-and contribution complexity:
-
-```text
-ee/
-  LICENSE
-  README.md
-  control-plane/
-  approval-router/
-  receipt-index/
-  connectors/
-  deployments/
-```
-
-If chosen, CI MUST enforce:
+and contribution complexity. If chosen, CI MUST enforce:
 
 ```text
 ee/*  ---> published public Auths interfaces
@@ -245,7 +281,7 @@ open  -X-> ee/*
 ```
 
 The `ee/` tree needs a commercial license, explicit file headers, separate
-artifact manifests, isolated build and test jobs, no inclusion in open source
+artifact manifests, isolated build and test jobs, no inclusion in open-source
 packages, and no reverse dependency from open code. An ADR must update the
 architecture classifier before the directory exists.
 
@@ -264,578 +300,503 @@ Before implementation, answer:
 5. Can the enterprise implementation consume a stable public interface? If
    not, improve the public interface before adding a private hook.
 
-## 6. Launch stages
+## 6. Two-speed operating model
+
+Auths must operate two concurrent loops.
 
 ```text
-Foundation
-   |
-   v
-V1 design-partner preview
-   |
-   | repeatable activation + paid problem evidence
-   v
-V1 general launch
-   |
-   | operational demand + reliable customer deployment
-   v
-V2 enterprise operations
+ENGINEERING LOOP                         EVIDENCE LOOP
+bounded hypothesis                      qualified conversation
+      |                                         |
+2–10 day implementation                 observed current workflow
+      |                                         |
+executable demonstration                buyer and pain mapping
+      |                                         |
+external-consumer test                  commitment / refusal / budget
+      +-------------------+---------------------+
+                          |
+                    decision record
+                          |
+             continue | change | sell | stop
 ```
 
-Calendar dates should be assigned only after scope, owner capacity, review
-timing, and design-partner availability are known. Entry and exit evidence is
-more important than an invented date.
+The engineering loop may run faster. It must not declare the evidence loop
+complete.
 
-## 7. Foundation epics
+### 6.1 Three-week evidence cycle
 
-### F0-E1 — Freeze the category and message
+Until the first paid wedge is selected, work in repeating three-week cycles.
+Each cycle should produce:
 
-**Outcome:** A technical buyer understands Auths in one minute.
+- 15 cumulative qualified conversations in the first cycle, then enough new
+  conversations to test changed hypotheses;
+- at least five observed current workflows in the first cycle;
+- no more than two bounded engineering experiments;
+- one externally testable demonstration or concierge workflow;
+- an updated competitor and alternative-solution ledger;
+- one explicit continue/change/stop decision; and
+- a written account of what was learned that could not have been learned from
+  repository work alone.
 
-Subtasks:
+The cycle is not successful merely because the implementations ship.
 
-- Write one category statement: “portable authority for agent actions.”
+### 6.2 Initial founder-capacity allocation
+
+Until a paid problem is selected, use this as the default allocation and
+review it every three weeks:
+
+| Work | Starting allocation | Why |
+| --- | ---: | --- |
+| Customer, buyer, and partner discovery | 40% | highest-latency missing evidence |
+| Evidence-triggered engineering | 35% | exploit demonstrated implementation speed |
+| Security review, operations, and release integrity | 15% | protect the credibility of the product |
+| Competitive analysis and category communication | 10% | make the distinction legible to buyers and investors |
+
+This is not a permanent organization design. Once a sold pilot exists, the
+allocation follows the pilot's success criteria and support burden.
+
+### 6.3 Build authorization levels
+
+| Level | Permitted work | Required evidence | Default time box |
+| --- | --- | --- | --- |
+| **L0 — research artifact** | interview guide, mockup, sample report, architecture sketch | named hypothesis | hours to 2 days |
+| **L1 — disposable experiment** | local prototype, demo variation, concierge tooling | observed problem or comparison question | 2–5 days |
+| **L2 — open vertical** | profile-owned end-to-end implementation with fixtures and CI | repeated technical need or strategic open-core value | 5–10 days |
+| **L3 — pilot product** | deployable paid surface, runbooks, bounded support | E4 pilot path and named buyer | pilot-specific |
+| **L4 — operated product** | availability, retention, tenancy, recovery, support | sale plus explicit operational obligations | contract-specific |
+
+L0–L2 work can be fast and aggressive. L3 and L4 require evidence because
+they create support, security, data, and reliability obligations—not because
+the code is necessarily difficult.
+
+## 7. Immediate executable roadmap
+
+This is the committed execution sequence. The V2 option map in Section 13 is
+not part of this queue.
+
+### Track A — Commercial discovery, starting immediately
+
+**State:** specified; execution evidence incomplete.
+
+**Three-week outcome:** identify a repeated problem worth deeper solution
+validation, or explicitly record that no wedge is yet supported.
+
+Tasks:
+
+1. Conduct 15 qualified conversations across agent-framework maintainers,
+   internal-agent platform teams, security/platform leaders, and likely
+   economic buyers.
+2. Observe at least five current workflows involving credentials, approvals,
+   consequential actions, incident response, or audit evidence.
+3. Record user, champion, operator, security reviewer, and economic buyer
+   separately.
+4. Ask what has already been built, bought, or rejected.
+5. Test payments, code change, and cross-company infrastructure response as
+   distinct value stories.
+6. Ask for a concrete next commitment and a budget range; do not ask only
+   whether Auths sounds useful.
+7. Maintain the AP-SPEC-031 hypothesis ledger.
+
+Early discovery passes when:
+
+- the same named problem appears in at least three independent organizations;
+- at least one plausible buyer discusses a real budget or paid engagement;
+- the current alternative and cost of doing nothing are understood; and
+- the next solution experiment has a falsifiable success condition.
+
+Early discovery does **not** require three integrations or independent
+maintenance. Those belong to later solution validation.
+
+### Track B — Category and competitive clarity
+
+**State:** category hypothesis exists; direct-capability comparison incomplete.
+
+**Outcome:** a technical buyer understands Auths in one minute and can explain
+why it is not simply identity, OAuth scopes, cloud IAM, or another capability
+token.
+
+Tasks:
+
+- Test “portable authority for consequential software actions.”
 - Lead with the protected effect, not formal methods or cryptography.
-- Publish an identity-versus-authority explanation.
-- Document local, headless, hosted, and on-premises deployment shapes.
-- Define prohibited claims until external review completes.
-- Test the message with at least ten target users and record confusion.
+- Publish identity-versus-authority and transport-versus-authority
+  explanations.
+- Produce a primary-source comparison covering UCAN, Biscuit, ZCAP-LD,
+  macaroons, SPIFFE, OAuth/DPoP/GNAP where relevant, Cedar, OPA, and cloud IAM.
+- Compare exact action binding, attenuation, replay/budget state, approvals,
+  sealed commands, closed effects, receipts, local verification, cryptographic
+  agility, and assurance evidence.
+- State where Auths overlaps or composes; do not claim generic superiority.
+- Define prohibited claims until independent review completes.
 
-Exit evidence:
+Time box: five working days for the initial category and competitor packet.
 
-- most target users can restate the difference between identity and authority;
-- the demo can show an authorized action and a stopped action; and
-- published claims match the exact assurance bundle.
+Stop/change rule: if qualified users consistently restate Auths as “another
+token format” or “another policy engine,” revise the category and onboarding
+before adding broader platform surface.
 
-### F0-E2 — Close the SDK activation loop
+### Track C — SDK activation and external use
 
-**Outcome:** A new developer protects one action quickly and without protocol
-glue.
+**State:** substantial Rust, TypeScript, and Python implementation exists;
+external activation evidence remains the governing test.
 
-Subtasks:
+**Outcome:** an unfamiliar developer protects one effect without learning
+protocol internals.
 
-- Complete the governing AP-SPEC-027, AP-SPEC-035, and AP-SPEC-036 units.
-- Keep TypeScript as the primary product-design surface.
-- Make the GitHub sandbox demo an external released-package consumer.
-- Add one MCP example using the same attach/delegate/authorize shape.
+Tasks:
+
+- Keep the five simple product verbs as the normal path.
+- Preserve TypeScript/Python semantic parity over Rust-owned meaning.
 - Measure time to first denial and first sandboxed effect.
-- File an Auths issue for every repeated piece of application glue.
-- Publish a capability matrix with honest preview labels.
-
-Target API:
-
-```ts
-const auths = await loadAuths({ signer, trustedAuthority });
-const agent = await auths.attachAgent({ authority, approval });
-const child = await agent.delegate({ authority: narrower, signer: ephemeral });
-const result = await child.authorize(profile.action(input));
-
-if (result.kind === "authorized") {
-  await gateway.execute(result.command);
-}
-```
+- Require clean installed-package consumption on supported platforms.
+- File an Auths issue for repeated application glue.
+- Publish an honest capability and runtime matrix.
+- Keep raw protocol and framework construction behind progressive disclosure.
 
 Exit evidence:
 
-- no hand-authored protocol encoding or capability brands;
-- a clean external install passes on supported platforms;
-- forbidden side effects are tested; and
-- the friction scorecard reaches the AP-SPEC-036 target.
+- no hand-authored protocol encoding or unchecked capability brands;
+- clean external installs pass;
+- an unfamiliar developer completes the chosen recipe;
+- forbidden effects are tested; and
+- repeated friction results in product simplification, not tutorial prose
+  covering accidental complexity.
 
-### F0-E3 — Establish commercial discovery
+### Track D — Three proof surfaces with different jobs
 
-**Outcome:** Product selection is based on pain and willingness to pay.
+Do not force one demo to carry every product message.
 
-Subtasks:
+| Surface | Role | Why it exists | Commercial status |
+| --- | --- | --- | --- |
+| **GitHub change** | developer activation | familiar, reversible, sandboxable, easy to install | onboarding candidate, not assumed paid wedge |
+| **Stripe refund/payout** | economic value proof | exact amount, object, use count, time, and approval make bounded authority legible | leading paid-wedge experiment |
+| **Cross-company incident response** | enterprise future proof | demonstrates separate organizations, identity systems, clouds, agents, approvals, transport, and receipts | strategic showcase, not production claim |
 
-- Recruit three to five design partners from framework and internal-agent
-  teams.
-- Observe current credential, approval, incident, and audit workflows.
-- Map user, champion, operator, reviewer, and economic buyer separately.
-- Test hosted, on-premises, hybrid, and fully local preferences.
-- Quantify the cost of existing approval and incident work.
-- Ask for a concrete next commitment, not general enthusiasm.
-- Maintain a hypothesis ledger under AP-SPEC-031.
+Each surface must show:
 
-Exit evidence:
+- an authorized effect;
+- an out-of-authority effect stopped before provider execution;
+- mutation, replay, expiry, and ambiguous-outcome behavior;
+- a safe disclosure view for resulting evidence; and
+- the distinction between authorization and observed provider success.
+
+The first paid wedge is selected from evidence. Repository investment alone
+does not select it, but the thirteen Stripe demo directories are valid evidence
+that payments can be tested quickly and should not be ignored in positioning.
+
+### Track E — Independent trust and release credibility
+
+**State:** extensive internal evidence exists; independence and elapsed
+operational evidence remain incomplete.
+
+Tasks:
+
+- Complete the applicable independent review and remediation gates.
+- Keep public claims tied to exact assurance artifacts and exclusions.
+- Publish reproducible packages only when promotion evidence passes.
+- Establish a security contact and vulnerability process.
+- Recruit independent SDK and integration maintainers.
+- Record what is mathematically modeled, mechanically connected to shipping
+  code, empirically tested, or outside the assurance boundary.
+
+Independent review is not delayed until the commercial product is complete.
+It should run in parallel because reviewer availability is a high-latency
+constraint.
+
+## 8. Product and buyer discovery
+
+The initial SDK user is likely an agent-framework maintainer or platform
+engineer. The likely champion owns the internal agent platform, developer
+platform, or application security program. The economic buyer is not yet
+known.
+
+| Role | Job to be done | Evidence to collect |
+| --- | --- | --- |
+| SDK user | Protect an action without learning protocol internals | setup time, glue, failures |
+| Agent owner | Give an agent freedom inside a fixed boundary | denied effects, approval burden |
+| Platform operator | Manage agents and authority across environments | repeated operational work |
+| Security reviewer | Understand trust boundaries and evidence | review time, unresolved risk |
+| Economic buyer | Reduce an urgent, costly risk | budget, procurement, commitment |
+
+No launch plan may assume the most enthusiastic developer controls a budget.
+
+### 8.1 Discovery versus validation
+
+The roadmap uses two distinct gates.
+
+**Problem discovery** asks:
+
+- Does a repeated problem exist?
+- Who feels it?
+- What does it cost?
+- Who can buy a solution?
+- What alternatives are already trusted?
+
+**Solution validation** asks:
+
+- Can Auths solve it in the customer's real workflow?
+- Can a non-core maintainer own the integration?
+- Does Auths reduce risk or operating work measurably?
+- Will the customer pay for and continue using the result?
+
+Solution validation may require:
 
 - at least three real integrations;
-- at least two independently maintained integrations;
-- a repeated operational problem; and
-- credible willingness to pay from the likely buyer.
+- at least two integrations maintainable outside the core project;
+- the same operational need in at least two organizations;
+- E3 or stronger commitment; and
+- a credible E4 paid-pilot path.
 
-### F0-E4 — Decide the company boundary
+Those are deliberately stronger than the early-discovery gate.
 
-**Outcome:** Proprietary work cannot contaminate or weaken the open protocol.
+## 9. V1: evidence-selected product vertical
 
-Subtasks:
+### 9.1 V1 promise
 
-- Obtain legal advice on trademarks, inbound contributions, and the commercial
-  license.
-- Record the separate-repository versus `ee/` decision in an ADR.
-- Define public interfaces enterprise code may consume.
-- Add dependency and artifact-boundary enforcement.
-- Define coordinated disclosure and security support policies.
-- Decide whether a CLA is needed; do not impose one by default.
-- Publish a plain-language open-core promise.
+The provisional promise is:
 
-Exit evidence:
-
-- approved license and repository decision;
-- automated no-reverse-dependency check;
-- contribution documentation; and
-- no enterprise-only semantic requirement in the local safety path.
-
-## 8. V1 product definition
-
-### 8.1 V1 promise
-
-> Attach an agent, give it bounded authority for a real tool, stop actions
-> outside that authority, and understand the resulting evidence—without
+> Attach an agent, give it bounded authority for a consequential action, stop
+> actions outside that authority, and understand the resulting evidence—without
 > sending verification to Auths.
 
-V1 should focus on one excellent workflow, not broad platform surface area.
-The recommended flagship is a GitHub change plan because it is visible,
-sandboxable, consequential enough to matter, and naturally demonstrates
-branch, path, action, approval, and pull-request constraints. MCP is the first
-runtime adapter and should share the same authority model.
+V1 is one excellent outcome vertical, not every operational surface Auths can
+eventually support.
 
-### 8.2 V1 packaging hypothesis
+### 9.2 V1 selection gate
 
-- **Community:** open protocol, SDKs, local gateway interfaces, reference
-  profiles, conformance tools, and self-operated examples.
-- **Design-partner pilot:** deployment help, an early customer-operated action
-  gateway, basic approval routing, receipt export, and direct support.
-- **Enterprise pilot:** on-premises packaging and one or two required
-  connectors, only after the customer problem is validated.
+V1 scope is selected only when:
 
-Do not place a toll on local verification or price per local authorization.
-Candidate value metrics to test include managed agents, protected production
-environments, active governed workflows, or an annual platform subscription.
+- one recurring problem has been observed in at least three organizations;
+- a named user, champion, operator, reviewer, and likely buyer are understood;
+- a bounded Auths implementation demonstrates the outcome;
+- at least one organization reaches E3 commitment;
+- a paid or formally sponsored pilot path exists;
+- the deployment and data boundary are understood;
+- the wedge passes the open-core boundary test; and
+- competing wedges are explicitly deferred or rejected.
 
-## 9. V1 epics
+Selection may produce a no-build decision. That is better than converting
+velocity into an unsupported product.
 
-### V1-E1 — Open SDK and profile release
+### 9.3 Candidate V1 components
 
-**Outcome:** The open product is a credible adoption path.
+These components are option inventory. Only those required by the selected
+vertical become committed work.
 
-Subtasks:
+| Candidate | Current state | Evidence that activates product work | Maximum work before evidence |
+| --- | --- | --- | --- |
+| Open SDK/profile release | substantially implemented | external activation and release gates | bounded friction fixes |
+| Customer-operated closed gateway | implemented in several vertical forms | customer workflow needs protected effect | one vertical |
+| Approval routing | open mechanisms exist | repeated approval coordination pain | concierge or one provider |
+| Evidence export/inspection | implemented in bounded local form | reviewer/operator repeatedly needs it | sample export and local viewer |
+| Durable receipt search | hypothesized commercial operation | repeated cross-fleet investigation need | static/ephemeral index prototype |
+| Grant/agent inventory | hypothesized commercial operation | repeated inability to answer “what authority exists?” | sample report over synthetic/exported data |
+| Trust/status distribution | architectural option | repeated multi-environment freshness problem | signed snapshot proof |
+| Deployment/support package | partially specifiable | sponsor requires assistance to pilot | paid design engagement |
 
-- Finish TypeScript Full Workflow capability and Python parity.
-- Publish exact supported-platform and browser matrices.
-- Ship application-profile authoring and conformance kits.
-- Ship development custody separately from production custody ports.
-- Provide MCP and GitHub reference profiles or integrations.
-- Add migration, compatibility, and deprecation policy.
-- Keep raw protocol APIs visibly advanced.
-- Generate API docs and compile every example in CI.
+### 9.4 V1 launch evidence
 
-Launch gate:
+V1 may be described as launched only when all applicable evidence exists:
 
-- independent review and release claims permit publication;
-- packages are reproducible and provenance subjects are correct;
-- external-consumer tests pass from immutable artifacts; and
-- no normal example bypasses the sealed command boundary.
+- exact release and assurance claims are current;
+- required independent review and remediation gates pass;
+- TypeScript and Python labels match actual installed behavior;
+- the selected profile demonstrates closed enforcement;
+- denied and indeterminate actions cause no provider effect;
+- required approval modes work;
+- customer deployment and recovery are documented;
+- security reporting and support ownership exist;
+- the open-core repository and license decision is recorded;
+- at least one integration is maintainable without the core author; and
+- every claim names its exclusions.
 
-### V1-E2 — Customer-operated Agent Action Gateway
+“V1 launched” does not automatically mean “operationally proven.” That state
+requires elapsed customer operation and recovery evidence.
 
-**Outcome:** A team can protect one real provider workflow.
+## 10. Commercial experiments and money
 
-Subtasks:
+Auths must test money directly. Price ranges below are experiments, not public
+pricing or revenue forecasts.
 
-- Define a public `ClosedGateway<Command, Receipt>` interface per profile.
-- Implement one production-shaped GitHub gateway outside the verifier.
-- Implement one MCP gateway with explicit server/tool audience binding.
-- Require profile-scoped credentials and prohibit mutation credentials shared
-  across unrelated actions.
-- Add idempotency, reconciliation, and partial-effect receipts per profile.
-- Add dry-run or sandbox deployment modes.
-- Prove denied and indeterminate decisions execute zero provider effects.
+| Offer hypothesis | Initial range to test | What the customer receives | Strong signal | Falsification condition |
+| --- | ---: | --- | --- | --- |
+| Authority architecture review | $5k–$15k | threat/workflow review and bounded integration design | qualified buyer pays for a named workflow | praise without budget or access |
+| Design-partner implementation | $15k–$40k | one bounded sandbox/reversible integration with success criteria | sponsor supplies engineering/security time and payment | free custom work with no operator |
+| Paid production pilot | $25k–$75k | one reviewed consequential workflow, deployment, runbooks, support | procurement path and success owner exist | pilot cannot name measurable outcome |
+| Annual operations product | $50k–$200k | evidence-selected coordination surface and support | conversion or renewal after pilot | value depends on withholding local verification |
 
-Illustrative boundary:
+The exact price, currency, terms, support burden, and packaging remain owner
+decisions. Interviews should test outcomes and willingness to pay, not ask
+prospects to select features from the V2 map.
 
-```ts
-interface GitHubGateway {
-  execute(command: VerifiedGitHubChangePlan): Promise<GitHubExecutionReceipt>;
-}
+### 10.1 Runway and funding model
 
-// There is deliberately no execute(operationTag, payload, credential).
-```
+Before proprietary product work begins, record:
 
-Launch gate:
+- available founder runway in months;
+- monthly personal and company burn;
+- the maximum unfunded operating-service commitment;
+- the maximum time allowed before reassessing the wedge;
+- the milestone that justifies the first hire; and
+- the milestone that would make external funding useful rather than merely
+  available.
 
-- one design partner operates the gateway in its own environment;
-- credentials remain profile- and action-scoped;
-- restart and retry cannot escape authority; and
-- provider failure and partial-effect behavior are documented and tested.
+A reasonable initial fundraising evidence gate is:
 
-### V1-E3 — Minimal approval routing
+- a repeated urgent problem in at least three organizations;
+- at least one paid pilot or equivalent procurement commitment;
+- a credible route from open adoption to paid operations;
+- independent evidence supporting the security boundary; and
+- a concrete use of funds that accelerates sales, review, integrations, or
+  operations rather than compensating for speculative scope.
 
-**Outcome:** Teams can choose autonomy or supervision without changing
-authorization semantics.
+This is a gate hypothesis, not a claim about investor requirements.
 
-Subtasks:
+## 11. Success measures
 
-- Implement grant-only, action-only, plan-once, always, and headless modes.
-- Bind approvals to exact transaction and configuration commitments.
-- Start with one local user-presence provider and one headless provider.
-- Add a provider-neutral webhook or workflow port only if a design partner
-  requires it.
-- Record required and executed approval configuration in receipts.
-- Test cancellation, expiry, replay, mutation, and provider unavailability.
+Measure behavior by maturity state.
 
-Illustrative policy:
+### Implemented and externally usable
 
-```ts
-const approval = approvalPolicy.planOnce({
-  expiresIn: "5m",
-  maxUses: 1,
-  require: ["human-presence"],
-});
-```
+- time to first local denial;
+- time to first sandboxed authorized effect;
+- hand-written protocol/security glue;
+- clean installed-package success by supported runtime;
+- parity failures across Rust, TypeScript, and Python; and
+- forbidden-effect coverage across maintained profiles.
 
-Launch gate:
+### Validated
 
-- autonomous users can run inside fixed authority without prompts;
-- supervised users can require an exact human decision; and
-- approval evidence is never described as identity unless independently
-  established.
+- independent maintained integrations;
+- repeated workflows with narrower child authority than parent;
+- denial explanations resolved without core support;
+- repeated operational problems across organizations;
+- retained use after the first demonstration; and
+- measured reduction in credential scope, approval work, or investigation
+  time.
 
-### V1-E4 — Evidence export and local inspection
+### Sold
 
-**Outcome:** A developer and reviewer can explain why an action did or did not
-happen.
+- paid design engagements;
+- paid or formally sponsored pilots;
+- named economic buyers;
+- procurement progress;
+- contract value and support obligation; and
+- conversion from integration to paid operation.
 
-Subtasks:
+### Operationally proven
 
-- Expose stable stages, codes, commitments, authority summaries, and work
-  metrics.
-- Produce a bounded local receipt bundle.
-- Add redaction and safe-to-log classifications.
-- Export JSON without exposing credentials, private material, or full payloads
-  by default.
-- Provide a local inspector example, not a mandatory hosted dashboard.
-- Document authorization evidence separately from provider execution evidence.
-
-Launch gate:
-
-- a non-core maintainer diagnoses representative denial and indeterminate
-  cases; and
-- inspection data cannot be converted into a verified command.
-
-### V1-E5 — Pilot operations and support
-
-**Outcome:** The company can support a small number of real deployments.
-
-Subtasks:
-
-- Write deployment, backup, recovery, upgrade, and rollback runbooks.
-- Define support severity and response targets that can actually be staffed.
-- Create a security contact and vulnerability intake process.
-- Establish a release channel and compatibility notification process.
-- Collect product telemetry only with explicit consent and bounded fields.
-- Keep customer proofs, credentials, action bodies, and receipts out of default
-  telemetry.
-- Run failure exercises with each pilot.
-
-Launch gate:
-
-- support obligations are written and staffed;
-- recovery exercises pass;
-- customer data boundaries are approved; and
-- no unreviewed consequential effect is presented as production-ready.
-
-### V1-E6 — V1 go to market
-
-**Outcome:** Auths reaches the narrow audience with a demonstrable promise.
-
-Subtasks:
-
-- Publish the GitHub sandbox demonstration with both allowed and stopped
-  paths.
-- Publish the MCP delegation reference flow.
-- Write technical material on identity versus authority, terminal denial,
-  local verification, and authority that travels with an action.
-- Offer an “agent authority design review” to qualified teams.
-- Co-develop integrations with three to five design partners.
-- Contribute profile and conformance support to selected framework ecosystems.
-- Present exact assurance evidence without broad security claims.
-- Turn repeated onboarding questions into SDK and documentation fixes.
-
-Primary channels:
-
-- agent-framework and MCP maintainer communities;
-- security and platform engineering communities;
-- technical essays and executable demos;
-- direct founder-led outreach to internal-agent teams;
-- partner integrations and conference workshops; and
-- open conformance fixtures that other implementers can run.
-
-Avoid broad paid acquisition until activation and buyer evidence exist.
-
-V1 funnel:
-
-```text
-Essay or demo
-    -> sandbox denial
-    -> SDK integration
-    -> authority design review
-    -> design-partner workflow
-    -> customer-operated pilot
-    -> paid operational product
-```
-
-### V1-E7 — Commercial validation
-
-**Outcome:** One paid product problem is selected or explicitly rejected.
-
-Subtasks:
-
-- Run problem and buyer interviews under AP-SPEC-031.
-- Price-test outcomes, not feature bundles.
-- Request paid pilot or equivalent procurement evidence.
-- Compare approval, inventory, receipt, policy-distribution, connector, and
-  support needs.
-- Test annual platform and support packaging.
-- Record why the open SDK is insufficient for the paid operational job.
-- Select at most one first commercial problem.
-
-Launch gate:
-
-- named economic buyer;
-- repeated urgent problem;
-- agreed deployment model;
-- willingness-to-pay evidence;
-- open-core boundary review; and
-- owner-approved product and packaging decision.
-
-## 10. V1 launch checklist
-
-V1 may launch only when all applicable items have evidence:
-
-- [ ] Exact release and assurance claims are current.
-- [ ] Required independent review and remediation gates pass.
-- [ ] TypeScript external-consumer activation meets its scorecard.
-- [ ] Python capability labels match real behavior.
-- [ ] One GitHub and one MCP path demonstrate closed enforcement.
-- [ ] Denied and indeterminate actions cause no provider effect.
-- [ ] Approval modes work in headless and supervised configurations.
-- [ ] Customer-operated deployment and recovery are documented.
-- [ ] Security reporting and support ownership exist.
-- [ ] Open-core repository and license decision is recorded.
-- [ ] A design partner can maintain an integration without the core author.
-- [ ] Every public claim names its exclusions.
-
-## 11. V1 success measures
-
-Use a small set of behavior metrics:
-
-- median time to first local denial;
-- median time to first sandboxed authorized effect;
-- number of hand-written protocol or security glue lines;
-- percentage of integrations maintained without a core author;
-- number of real workflows with narrower child authority than parent;
-- rate of denial explanations resolved without core support;
-- number of qualified teams moving from demo to integration;
-- number moving from integration to customer-operated pilot;
-- paid pilot or procurement commitments; and
-- forbidden-effect test coverage across maintained profiles.
+- production duration;
+- upgrade, rollback, backup, and recovery exercises;
+- incidents and time to resolution;
+- ambiguous provider outcomes successfully reconciled;
+- support load per deployment;
+- expansion and renewal; and
+- customer-operated recovery without core-author intervention.
 
 Downloads and stars are useful distribution signals, not product-market fit.
 
-## 12. V2 product definition
+## 12. Competitive and alternative-solution workstream
 
-V2 should turn one-workflow enforcement into organization-scale operation.
-The recommended V2 product is **Auths Control Plane**, available hosted and
-on-premises, with the local verifier and customer-operated gateway remaining
-independent.
+Before the first formal design-partner call packet is considered complete,
+publish an evidence-based comparison answering:
 
-### 12.1 V2 promise
+> Why not use the identity provider, scoped credential, policy engine, or
+> capability-token system we already have?
 
-> Operate bounded agent authority across teams and environments: distribute
-> trusted state, route approvals, inventory grants, revoke compromised
-> authority, retain evidence, and integrate existing enterprise systems.
+The comparison must include direct and adjacent alternatives, using their
+primary specifications and documentation:
 
-V2 scope must be earned by repeated V1 operations. It should not become a
-generic identity platform, secrets manager, agent framework, or universal
-policy engine.
+- UCAN;
+- Biscuit;
+- ZCAP-LD;
+- macaroons;
+- OAuth scopes, token exchange, DPoP, and GNAP where applicable;
+- SPIFFE/SPIRE;
+- Cedar, OPA, and relationship-based authorization systems;
+- cloud IAM and provider-specific restricted credentials; and
+- application-specific signed requests and approval workflows.
 
-## 13. V2 epics
+Required dimensions:
 
-### V2-E1 — Organization and environment model
+- identity versus authority ownership;
+- attenuation and delegation;
+- exact application-byte/effect commitment;
+- offline/local verification;
+- replay, use, budget, and lifecycle state;
+- transaction-bound approvals;
+- sealed-command and closed-gateway boundary;
+- denial, indeterminate, and provider-unknown outcomes;
+- authorization and execution receipts;
+- cryptographic, identity, transport, and provider agility;
+- formal and differential evidence; and
+- operational complexity.
 
-**Outcome:** Customers can separate authority administration across real
-organizational boundaries.
+The result must identify overlap, composition, and disadvantages. It must not
+manufacture differentiation by mischaracterizing another project.
 
-Subtasks:
+## 13. V2 architectural option map
 
-- Model organization, project, environment, profile installation, and
-  operator role.
-- Keep these as control-plane administration, not protocol identity truth.
-- Define tenant isolation and data residency boundaries.
-- Support hosted and on-premises deployments from the same public contracts.
-- Add explicit export and deletion behavior.
-- Integrate enterprise SSO for control-plane access without coupling Auths
-  authority semantics to one identity provider.
+V2 records plausible company architecture. It is **not** a nine-epic
+engineering queue, a promise to customers, or permission to create a broad
+control plane.
 
-### V2-E2 — Signed trust and policy distribution
+Each option is uncommitted until its activation evidence exists.
 
-**Outcome:** Fleets receive current trusted configuration without outsourcing
-verification.
+| Option | Customer job | Activation evidence | Cheapest informative test | Operational obligation created |
+| --- | --- | --- | --- | --- |
+| Organization/environment administration | separate authority operation across teams | two customers repeat administration pain | clickable model and access review | tenancy, access control, deletion |
+| Signed trust/status distribution | deliver current trusted state to fleets | repeated multi-environment staleness/rollout problem | signed snapshot plus local verification | availability, rollout, rollback, freshness |
+| Agent/grant/revocation inventory | know what authority exists and end it | operators cannot answer inventory questions from local tools | report over exported/synthetic data | completeness, privacy, lifecycle accuracy |
+| Enterprise approval orchestration | route exact approvals through existing workflows | repeated cross-team routing/escalation pain | concierge service or one demanded connector | delivery, identity mapping, audit, outage behavior |
+| Durable receipt service | find/export evidence across a fleet | real investigations require cross-receipt search | bounded ephemeral index | retention, integrity, deletion, legal hold |
+| Connector platform | fit existing custody/identity/SIEM systems | paid deployment blocked by the same connector class | one public-port adapter | credential handling, rotation, vendor support |
+| On-premises productization | satisfy sovereignty or procurement constraints | sponsor makes it a written buying requirement | architecture workshop and install spike | upgrades, backup, air gap, support matrix |
+| Governance/assurance package | shorten security and deployment review | exact evidence changes buyer progress | reviewed security packet | claim maintenance, incident communication |
 
-Subtasks:
+### 13.1 V2 build rule
 
-- Define signed, versioned trust bundles using public formats.
-- Support staged rollout, rollback, expiry, and environment pinning.
-- Cache sufficient state for bounded offline verification.
-- Surface stale, missing, and conflicting state as indeterminate where
-  semantics require it.
-- Publish control-plane compatibility and migration evidence.
+For any option:
 
-Illustrative consumption:
+1. Record the buyer, problem, current workaround, and falsification condition.
+2. Use L0 or L1 work to test it first.
+3. Require the same need in at least two organizations before a reusable
+   product design.
+4. Require a paid or formally sponsored pilot path before L3 work.
+5. Consume stable open interfaces; never add a private verifier hook.
+6. Keep provider/domain semantics vertical.
+7. Record data, security, availability, support, and recovery obligations
+   before accepting them.
+8. Mark the result implemented, validated, sold, or operationally proven—never
+   simply “done.”
 
-```ts
-const snapshot = await trustStore.loadPinned({
-  organization: "acme",
-  environment: "production",
-  version: "2027-04-15.3",
-});
+### 13.2 V2 sequence after evidence
 
-const auths = await loadAuths({
-  signer,
-  trustedAuthority: snapshot.verifyLocally(rootKeys),
-});
+When evidence activates one option, build only the minimum coherent slice:
+
+```text
+repeated customer problem
+        |
+        v
+one bounded prototype or concierge test
+        |
+        v
+paid pilot with explicit success criteria
+        |
+        v
+customer-operated deployment and recovery
+        |
+        v
+repeat with second customer
+        |
+        v
+extract reusable commercial product
 ```
 
-The control plane distributes a candidate snapshot. The open SDK verifies and
-interprets it locally.
+Do not build the surrounding options merely because they appear adjacent in a
+control-plane diagram.
 
-### V2-E3 — Agent, grant, and revocation inventory
-
-**Outcome:** Operators know what authority exists and can end it safely.
-
-Subtasks:
-
-- Inventory principals, agents, grant chains, profiles, audiences, budgets,
-  and expirations.
-- Show effective authority and delegation ancestry.
-- Implement revocation/status publication using open formats.
-- Measure propagation and stale-state windows.
-- Add compromised-authority and departed-operator runbooks.
-- Keep private keys outside the inventory service.
-
-### V2-E4 — Enterprise approval orchestration
-
-**Outcome:** Organizations route exact approvals through existing workflows.
-
-Subtasks:
-
-- Add group, escalation, schedule, separation-of-duty, and break-glass rules.
-- Integrate approved chat, ticketing, and pager systems.
-- Bind every response to the exact transaction and policy configuration.
-- Preserve headless operation when policy permits it.
-- Expose provider outages without converting them into denials or approvals.
-- Retain bounded evidence for later review.
-
-### V2-E5 — Durable receipt service
-
-**Outcome:** Customers can find and export authorization and execution evidence
-across a fleet.
-
-Subtasks:
-
-- Ingest profile-owned receipt envelopes without creating a global semantic
-  union.
-- Index common envelope fields and profile-specific opaque projections.
-- Implement retention, redaction, legal hold, export, and deletion policies.
-- Integrate SIEM and object storage.
-- Separate authorization decision, approval, gateway attempt, reconciliation,
-  and final effect state.
-- Define integrity and completeness limitations explicitly.
-
-### V2-E6 — Connector platform
-
-**Outcome:** Auths fits existing enterprise custody and operations.
-
-Subtasks:
-
-- Prioritize connectors from paid customer evidence.
-- Start with one cloud KMS/HSM, one enterprise identity provider, and one SIEM
-  only if demanded.
-- Keep connector protocols behind public provider-neutral ports.
-- Add capability negotiation and unsupported-platform errors.
-- Test credential scoping, rotation, revocation, outage, and recovery.
-- Never make one connector the required identity or custody method.
-
-### V2-E7 — On-premises productization
-
-**Outcome:** Regulated or sovereignty-sensitive customers can operate Auths in
-their environment.
-
-Subtasks:
-
-- Define supported Kubernetes and non-Kubernetes deployment shapes from
-  customer evidence.
-- Provide signed artifacts, SBOMs, provenance, upgrade, rollback, backup, and
-  disaster-recovery procedures.
-- Document all outbound network requirements and support an offline mode where
-  promised.
-- Add customer-managed storage and key options.
-- Establish version-support and patch policies.
-- Test air-gapped update procedures only if sold.
-
-### V2-E8 — Governance and assurance package
-
-**Outcome:** Buyers can review and operate the system with accurate evidence.
-
-Subtasks:
-
-- Maintain independent security review and remediation history.
-- Publish precise protocol, implementation, SDK, and product claim boundaries.
-- Offer deployment architecture reviews and threat-model workshops.
-- Provide control mappings only where reviewed; do not imply certification.
-- Define incident communication and support escalation.
-- Commission specialized review as enterprise surfaces expand.
-
-### V2-E9 — V2 go to market
-
-**Outcome:** Distribution moves from founder-led experiments to a repeatable
-enterprise motion without losing technical credibility.
-
-Subtasks:
-
-- Turn the strongest V1 workflow into a documented customer case study with
-  permission.
-- Build solution guides for agent platforms, internal developer platforms,
-  and regulated deployments.
-- Recruit a small set of systems-integrator and framework partners.
-- Offer paid architecture and deployment pilots.
-- Create a security-review packet and on-premises evaluation kit.
-- Develop buyer-specific material for platform, security, and engineering
-  leadership.
-- Measure pilot-to-production conversion and time blocked in procurement.
-
-## 14. V2 entry and exit gates
-
-V2 work begins only when:
-
-- V1 has real customer-operated use;
-- the first commercial product problem and buyer are selected;
-- at least two customers repeat the same operational need;
-- the open-core and license boundary is approved; and
-- the company can support the operational promises it is about to make.
-
-V2 launches only when:
-
-- hosted and on-premises isolation and recovery evidence pass;
-- trust distribution preserves local verification and bounded offline use;
-- revocation/status behavior and stale-state limits are documented;
-- enterprise approvals remain transaction-bound;
-- receipt integrity, completeness, privacy, and retention limits are explicit;
-- supported connectors have failure and credential-rotation tests;
-- security review covers the commercial attack surface; and
-- customer support and incident ownership are staffed.
-
-## 15. What not to build before evidence
+## 14. What not to build before evidence
 
 Defer the following unless several real integrations require them:
 
@@ -852,37 +813,27 @@ Defer the following unless several real integrations require them:
 - compliance badges without completed assessments; and
 - per-verification pricing that discourages local safety checks.
 
-## 16. Commercial experiments
+High shipping velocity makes this list more important, not less. These items
+are technically buildable; the risk is building them before learning whether
+they create customer value or weaken Auths' product boundary.
 
-Run low-cost experiments before full product implementation:
-
-| Hypothesis | Experiment | Strong signal |
-| --- | --- | --- |
-| Teams pay to stop unsafe agent effects | paid authority-design and gateway pilot | budgeted pilot with real workflow owner |
-| Approval routing is the first paid pain | manually operate a bounded routing service | repeated use and renewal request |
-| Receipt search has operational value | prototype index over exported local receipts | security/operator uses it in review |
-| On-premises is required | deployment architecture workshop | procurement requirement and sponsor |
-| Framework distribution works | maintained upstream example/adapter | non-core installs and retained usage |
-| Assurance creates purchase confidence | share exact review packet | shorter security review or buyer commitment |
-
-Every experiment needs a falsification condition. “They liked the demo” is not
-a purchase signal.
-
-## 17. Suggested operating cadence
+## 15. Operating cadence
 
 ### Weekly
 
+- Conduct scheduled buyer/user conversations before optional new engineering.
 - Review SDK friction and newly filed core issues.
-- Review design-partner integration progress.
 - Record denied effects, unexpected glue, and support questions.
+- Review every active build against its hypothesis and time box.
 - Keep public claims aligned with current evidence.
 
-### Monthly
+### Every three weeks
 
-- Review buyer, deployment, and willingness-to-pay evidence.
-- Re-rank commercial hypotheses.
-- Audit open-core boundary proposals.
-- Stop features without integration or buyer evidence.
+- Review the hypothesis ledger and maturity-state table.
+- Decide continue, change, sell, operate, or stop for each experiment.
+- Re-rank wedges and V2 options using external evidence.
+- Review founder allocation, runway, and support commitments.
+- Stop or archive work without a learning objective.
 
 ### At each release gate
 
@@ -892,70 +843,100 @@ a purchase signal.
 - Review security findings and unresolved exclusions.
 - Decide explicitly whether to publish, promote, defer, or stop.
 
-## 18. Decision register
+### At each customer commitment
+
+- Name the exact effect and success metric.
+- Bound data, credentials, deployment, availability, and support.
+- Record what is implemented versus externally validated.
+- Price the obligation rather than an aspirational feature list.
+- Refuse any term that makes the open local path deceptively unsafe.
+
+## 16. Decision register
 
 ### Decided
 
 - Auths is an open protocol plus a company built around operational tools and
   services.
 - The open local path cannot depend on an Auths-hosted service.
-- TypeScript is the first product-design SDK; Python follows with semantic
+- Rust owns protocol meaning; TypeScript and Python must preserve semantic
   parity.
-- MCP is the first runtime adapter and delegation is the flagship idea.
+- Identity, cryptography, transport, providers, custody, and approval remain
+  swappable behind explicit ports and profiles.
 - The product supports autonomous and supervised configurations.
-- The initial audience is framework builders and internal-agent teams.
-- No CLI workstream is planned before SDK and integration evidence.
-- Commercial code may coordinate open semantics but not redefine them.
+- New profiles begin as complete verticals.
+- No broad CLI, generic policy language, or control plane is planned without
+  evidence.
+- Fast implementation does not upgrade a hypothesis to a product fact.
 
 ### Recommended hypotheses requiring evidence
 
-- “Agent Action Gateway” is the first product category and paid wedge.
-- GitHub change plans are the first compelling sandbox workflow.
-- The enterprise repository should be separate from `auths-proof`.
-- V2 should focus on a hosted/on-premises control plane.
-- Annual platform/support pricing is a better fit than per-verification usage.
+- “Agent Action Gateway” is a useful product category.
+- Payments are the clearest economic-value proof surface.
+- GitHub is the easiest developer activation surface.
+- Cross-company incident response is the strongest enterprise future story.
+- A separate private enterprise repository is preferable to `ee/`.
+- Annual platform/support pricing fits better than per-verification usage.
+- One or more V2 operational options can become a venture-scale product.
 
 ### Owner decisions still required
 
-- the exact first paid product;
-- the economic buyer;
-- pricing and packaging;
+- the first paid problem and economic buyer;
+- exact V1 scope;
+- price, packaging, pilot terms, and support commitments;
+- runway and funding plan;
 - separate enterprise repository versus `ee/`;
 - commercial license and contribution model;
-- hosted service data boundaries;
-- support commitments;
-- design-partner and customer agreements;
+- hosted-service data boundaries;
 - publication and promotion of release artifacts; and
 - wording of production, security, and compliance claims.
 
-## 19. Immediate next actions
+## 17. Immediate next actions
 
-1. Finish the current TypeScript SDK sequence and use
-   `auths-agent-demo` as external-consumer evidence.
-2. Implement AP-SPEC-036 only through separately authorized bounded PR units.
-3. Run AP-SPEC-030 design-partner recruitment and AP-SPEC-031 discovery in
-   parallel with safe repository-local engineering.
-4. Produce the GitHub sandbox and MCP demonstrations around the same
-   attach/delegate/authorize mental model.
-5. Validate the Agent Action Gateway problem before building a broad control
-   plane.
-6. Record the enterprise repository and licensing decision before creating
-   proprietary code.
-7. Select V1 scope from observed activation and commercial evidence.
-8. Begin V2 only after repeated V1 operational demand exists.
+Execute in this order, with engineering and evidence work overlapping where
+shown:
 
-## 20. Final boundary
+1. Start the three-week commercial-discovery cycle: 15 conversations and five
+   observed workflows.
+2. Write the primary-source “why Auths versus alternatives” comparison.
+3. Package the GitHub path as the fastest unfamiliar-developer activation
+   test.
+4. Package one Stripe refund or payout path as the economic-value test.
+5. Use the cross-company incident response demo for enterprise architecture
+   conversations, while preserving its demo/non-production exclusions.
+6. Run only bounded SDK or demo changes that answer observed questions.
+7. Ask qualified prospects for a paid architecture review, design engagement,
+   or pilot—not general enthusiasm.
+8. Select one V1 vertical, change the hypothesis, or record no-build based on
+   the evidence.
+9. Record the enterprise repository, license, runway, and support decisions
+   before proprietary operated-product work.
+10. Activate at most one V2 option at a time from repeated customer evidence.
 
-Auths should be generous with the mechanism that makes the protocol trustworthy
-and useful: semantics, verification, authoring, delegation, enforcement
-interfaces, evidence, and conformance.
+## 18. Final boundary
 
-The company can build substantial value around the difficult organizational
-work that begins after one action works: distributing trusted state, operating
-fleets, routing approvals, managing lifecycle and revocation, retaining
-evidence, integrating enterprise systems, and supporting deployments.
+Auths should remain extremely ambitious. Its demonstrated engineering velocity
+makes a broad technical future plausible and justifies preserving a concrete
+architectural option map.
 
-That is a credible open-core business only if the open path remains complete.
-The strongest commercial product will make Auths easier to operate at scale,
-not make users dependent on a private answer to whether an action was
-authorized.
+The roadmap must nevertheless keep four statements separate:
+
+```text
+we built it
+    != users repeatedly need it
+    != a buyer paid for it
+    != we have operated it reliably over time
+```
+
+The open project should be generous with the mechanism that makes the protocol
+trustworthy and useful: semantics, verification, authoring, delegation,
+enforcement interfaces, evidence, conformance, and local inspection.
+
+The company can create substantial value around the organizational work that
+begins after one action works: distributing trusted state, operating fleets,
+routing approvals, managing lifecycle and revocation, retaining evidence,
+integrating enterprise systems, and supporting deployments.
+
+The strongest use of Auths' shipping speed is not to complete the longest
+possible feature list. It is to run unusually fast, technically credible,
+falsifiable experiments until the market reveals which part of the authority
+layer should become the company.

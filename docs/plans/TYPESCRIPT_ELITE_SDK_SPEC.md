@@ -1,6 +1,9 @@
 # TypeScript Elite SDK Product Specification
 
 **Status:** TypeScript implementation complete; promotion gates remain external
+**Superseding product-surface target:** [SDK simplification program](simplify/README.md);
+its clean-break names replace the implemented baseline when that program lands
+**Stable evolution gate:** [Post-1.0 evolution and versioning](simplify/13_POST_1_0_EVOLUTION_AND_VERSIONING.md)
 **Baseline:** `670c801` on 2026-08-11
 **Lifecycle:** Prelaunch; no external users or production state require
 backward compatibility
@@ -150,41 +153,38 @@ switch (decision.kind) {
 
 Verification is a first-class adoption layer, not an expert-only escape hatch.
 An authorized result from `@auths-dev/sdk/verify` remains inert evidence and
-cannot be promoted into a gateway command. Safe decision projection belongs in
-`@auths-dev/sdk/inspection`; caller-supplied or differential engines belong in
-`@auths-dev/sdk/diagnostics` and can never mint effect-capable results.
+cannot be promoted into a gateway command. Safe decision projection also
+belongs in `@auths-dev/sdk/verify`; caller-supplied or differential engines
+belong in `@auths-dev/sdk/testkit` and can never mint effect-capable results.
 
 ### 4.3 Layer 3: full workflow
 
 ```ts
-import { loadAuths } from "@auths-dev/sdk";
-import { mcp } from "@auths-dev/sdk/profiles/mcp";
+import { development } from "@auths-dev/sdk/integrations";
+import { mcp } from "@auths-dev/sdk/profiles";
 
-await using auths = await loadAuths({
-  signer,
-  trust: trustedAuthority,
-  telemetry,
+const reports = mcp.developmentProvider({
+  tools: { publish_report: publishReport },
 });
-
-await using agent = await auths.attachAgent({
-  name: "reports-agent",
-  profile: mcp.profile({ service: "reports" }),
-  authority: rootGrant,
-  approval: approvalPolicy.grantOnly({ provider: approvals }),
+await using auths = await development.createAuths({
+  authority: mcp.allowTools(["publish_report"]),
 });
-
-const decision = await agent.authorize(
-  agent.profile.call("publish_report", { month: "august" }),
-);
-
-if (decision.kind === "authorized") {
-  await gateway.execute(decision.command, { idempotencyKey });
-}
+const result = await auths.execute({
+  action: mcp.callTool({
+    name: "publish_report",
+    arguments: { month: "august" },
+  }),
+  provider: reports,
+});
 ```
 
 The SDK must expose immutable authority summaries before a signature or effect,
 show the exact attenuation diff for delegation, and keep denial and
-indeterminate as ordinary result variants rather than exceptions.
+indeterminate as ordinary result variants rather than exceptions. The
+introductory recipe makes bounded authority visible and omits optional request
+correlation. Rust and MCP derive the committed execution and provider
+idempotency identities. No public API accepts an arbitrary provider
+idempotency key.
 
 ### 4.4 Layer 4: custom application profile
 
@@ -216,7 +216,8 @@ outcomes return three-valued decisions. Every thrown error must include:
 - operation and stage;
 - correlation ID;
 - retry class: `never`, `safe`, `conditional`, or `unknown`;
-- whether any signer, approval, state, or provider effect may have occurred;
+- effect state: `not-applied`, `possible`, or `applied`;
+- whether any signer, approval, state, credential, or provider step was entered;
 - optional structured remediation; and
 - a causal chain that never exposes credentials, signatures, private material,
   protocol bytes, or unbounded provider bodies.
@@ -240,9 +241,9 @@ outcomes return three-valued decisions. Every thrown error must include:
 | lifecycle/status | replay/budget/receipt state machines               |
 +--------------------------------|--------------------------------------+
                                  v
-+---------------------- Replaceable integrations -----------------------+
-| custody | identity methods | suites | resolvers | stores | gateways   |
-| transports | clocks | approval providers | OpenTelemetry exporters    |
++---------------- Profile verticals + mechanisms -----------------------+
+| profiles: provider request/result/reconciliation/receipts/failures     |
+| mechanisms: custody | identity | suites | stores | clocks | telemetry  |
 +------------------------------------------------------------------------+
 ```
 
@@ -250,15 +251,20 @@ outcomes return three-valued decisions. Every thrown error must include:
 
 - Rust owns every meaning that must agree across languages.
 - TypeScript owns scheduling, resource lifetime, ergonomic projections,
-  language-native errors, package layout, and integration contracts.
+  language-native errors, package layout, and proven cross-domain mechanism
+  contracts. Effect-domain contracts remain profile-owned.
 - The WASM boundary passes bounded typed values or opaque native handles; it
   is not a bag of JSON commands or caller-authored CBOR.
 - Normal APIs parse into narrower states. Public `validate(): boolean` gates
   are prohibited for security transitions.
 - Effect-capable commands are non-constructible, non-cloneable,
   non-serializable, profile-specific, one-use handles.
-- Resolver, signer, approval, clock, state, and transport I/O happens outside
-  the deterministic evaluator.
+- Resolver, signer, approval, clock, state, transport, and provider I/O happens
+  outside the deterministic evaluator, but each subsequent side effect
+  requires a Rust-accepted bounded result from an opaque profile session.
+- Each profile owns credential timing, provider requests/results,
+  reconciliation, receipt claims, and domain failures. There is no universal
+  provider or effect-state contract.
 - Review display is reusable by approval, audit, and diagnostics, but review
   generation does not imply approval.
 - Capability and approval are optional layers. Neither participates in
@@ -271,14 +277,14 @@ missing. It must not add TypeScript-only interpretations.
 
 | ID | Rust deliverable | Why the SDK needs it |
 | --- | --- | --- |
-| CORE-E01 | A binding-oriented workflow kernel with bounded inputs, opaque handles, and stable projections for attach, delegate, authorize, plan, inspect, and dispose | Prevents TypeScript and Python orchestration from acquiring semantic meaning |
+| CORE-E01 | A binding-oriented workflow kernel with bounded inputs, opaque profile sessions/steps, and stable projections for attach, delegate, execute, resume, inspect, and dispose | Prevents TypeScript and Python orchestration from acquiring semantic or transition meaning |
 | CORE-E02 | Credential-shape-agnostic identity states and versioned method/suite descriptors supporting embedded keys, resolver references, rotating sets, threshold, and hybrid credentials | Makes Ed25519, P-256, post-quantum, and future identity systems substitutable without changing the core model |
 | CORE-E03 | Versioned trust-bundle, principal-status, grant-status, rotation, compromise, and freshness operations | Enables production lifecycle behavior without online calls inside verification |
 | CORE-E04 | One review model plus exact approval-policy/session commitments, independent of whether approval is used | Keeps explainability independent from human or machine approval |
 | CORE-E05 | Bounded single and batch verification entry points with cancellation checkpoints and identical per-item semantics | Supports service throughput without a second fast-path meaning |
 | CORE-E06 | Stable cross-language error, explanation, inspection, and observability event schemas | Gives applications operationally useful output that cannot drift by language |
 | CORE-E07 | Versioned profile manifests, authority projections, command decoders, semantic mutation fixtures, and conformance metadata | Lets SDKs expose more profiles without a global action abstraction |
-| CORE-E08 | Replay, budget reservation, receipt, retry, and outcome-unknown state machines behind storage/effect ports | Closes the gap between verification and reliable enforcement |
+| CORE-E08 | Commitment-derived execution identity plus profile-owned replay, budget, receipt, retry, and outcome-unknown sessions behind lower storage/I/O mechanisms | Closes the gap between verification and reliable enforcement without a generic effect provider |
 | CORE-E09 | Scenario corpus covering positive, negative, mutation, lifecycle, provider-failure, cancellation, concurrency, and downgrade cases | Proves all languages tell the same story, not only encode the same bytes |
 | CORE-E10 | Exact runtime contracts for Rust, WASM, TypeScript, and Python artifacts | Makes mismatched artifacts fail clearly instead of drifting silently |
 
@@ -290,40 +296,50 @@ meaning under review actually changes.
 
 ## 6. Public APIs and package topology
 
-The intended public topology is:
+The elite milestone originally proved the more granular subpaths that existed
+at implementation time. The subsequent prelaunch simplification program
+supersedes that topology. Implementations must use the authoritative rename map
+in [Simplification Spec 04](simplify/04_PRELAUNCH_API_PRUNING.md) and the packed
+artifact contract in [Simplification Spec 10](simplify/10_FRICTIONLESS_PACKAGING.md).
+
+The final public topology is one installed npm package with six required entry
+points and one evidence-gated framework entry point:
 
 ```text
-@auths-dev/sdk                    integrated attach/delegate/authorize path
+@auths-dev/sdk                    create/delegate/execute/resume product facade
 @auths-dev/sdk/identity           standalone identity and authentication
-@auths-dev/sdk/trust              trust bundles and evidence inputs
-@auths-dev/sdk/authority          grants, delegation, plans, lifecycle links
-@auths-dev/sdk/approvals          policy and provider ports
-@auths-dev/sdk/custody            signer ports and descriptors
-@auths-dev/sdk/profiles/*         maintained closed profiles
-@auths-dev/sdk/profile-kit        application-owned profile construction
-@auths-dev/sdk/runtime            replay/budget/receipt/executor ports
-@auths-dev/sdk/verify             deterministic, effect-free verification
-@auths-dev/sdk/inspection         safe decision and commitment projection
-@auths-dev/sdk/diagnostics        inert caller-supplied/differential engines
-@auths-dev/sdk/testkit            deterministic fixtures and conformance
+@auths-dev/sdk/verify             proof/receipt verification and inert inspection
+@auths-dev/sdk/profiles           qualified profile-owned verticals; MCP at cutover
+@auths-dev/sdk/integrations       development composition and mechanism adapters
+@auths-dev/sdk/framework          only contracts proven by two independent verticals; otherwise absent
+@auths-dev/sdk/testkit            deterministic fixtures, mechanism suites, profile suites
 ```
 
-Every subpath must have an explicit export allowlist, independent type and
-runtime tests, a package-size budget, and documentation that states what it
-does **not** initialize. Internal WASM selection, handle registries, command
-minting, raw resources, and test credentials must remain unreachable.
+`trust`, `authority`, `approvals`, `custody`, `runtime`, `lifecycle`,
+`observability`, `profile-kit`, `inspection`, `diagnostics`, and `mcp` cease to
+be package subpaths. Product inputs move to the root, inert inspection moves to
+`verify`, maintained profiles move to `profiles`, maintained adapters move to
+`integrations`, evidence-proven extension ports move to `framework`, and
+differential engines move to `testkit`. No alias or deprecation export
+preserves the old paths.
 
-There is no `@auths-dev/sdk/advanced` catch-all. The name hides legitimate
-verification-only adoption and mixes three different trust boundaries.
-`verify`, `inspection`, and `diagnostics` remain separate so an import states
-the capability being requested. None can produce a profile command; only the
-package-owned full workflow can do that after successful verification.
+Every retained entry point has an explicit export allowlist, independent type
+and runtime tests, a package-size budget, and documentation that states what it
+does **not** initialize. The root does not re-export the other entry points.
+Internal WASM selection, handle registries, command minting, raw resources, and
+test credentials remain unreachable.
 
-The base package owns ports and conformance, not every integration. Auths may
-maintain a deliberately small set of separately versioned reference adapters
-to prove browser, server, resolver, custody, and durable-state substitution.
-No vendor adapter may become a dependency of the base package or define core
-semantics.
+The base package owns only proven cross-domain mechanism contracts and
+Auths-owned conformance cases, not every integration. Effect-provider,
+credential timing, result, reconciliation, receipt, and domain failure
+contracts remain profile-owned. MCP is the initial qualified public profile;
+generic HTTP, Git, deployment, supply-chain, and edge families are removed or
+moved to demo ownership. Concrete domains join `profiles` only after their own
+Rust sessions, TypeScript/Python bindings, and profile conformance pass.
+The exact root allowlist and framework publication gate are normative in
+[Simplification Spec 04](simplify/04_PRELAUNCH_API_PRUNING.md). An empty or
+aspirational framework is not published merely to preserve an entry-point
+count.
 
 ## 7. Delivery program
 
@@ -331,6 +347,12 @@ Checkboxes record repository-local TypeScript delivery against this branch.
 They do not manufacture independent review, publication authorization, or
 Python parity. Those gates are called out explicitly in TS-E10 and the final
 qualification table.
+
+Items below that mention the former `inspection`, `diagnostics`, or other
+granular subpaths are historical milestone evidence. Section 6 and the linked
+simplification specifications govern the next clean-break public surface.
+Their checked state does not authorize retaining generic gateway contracts,
+broad profiles, public idempotency keys, or universal adapter certification.
 
 ### TS-E0 — Freeze the elite contract and measurements
 

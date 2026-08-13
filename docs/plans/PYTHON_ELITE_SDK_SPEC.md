@@ -1,6 +1,9 @@
 # Python Elite SDK Product Specification
 
 **Status:** Python implementation complete; promotion gates remain external
+**Superseding product-surface target:** [SDK simplification program](simplify/README.md);
+its clean-break names replace the implemented baseline when that program lands
+**Stable evolution gate:** [Post-1.0 evolution and versioning](simplify/13_POST_1_0_EVOLUTION_AND_VERSIONING.md)
 **Baseline:** `61bedef` on 2026-08-11
 **Lifecycle:** Prelaunch; no external users or production state require
 backward compatibility
@@ -99,7 +102,7 @@ The complete workflow promise is:
 | Native safety | Python cannot mint, copy, pickle, subclass, reflect, mutate, deserialize, or replay an effect-capable handle. |
 | Semantic parity | Python coordinates callbacks; Rust owns all canonicalization, identifiers, commitments, attenuation, authoring, verification, lifecycle, profile, and command meaning. |
 | Surface breadth | Identity, authentication, trust, lifecycle, attach, delegation, action, plans, custom profiles, runtime state, receipts, and inspection have supported paths. |
-| Production integration | Signer, approval, resolver, clock, status, store, telemetry, gateway, and framework boundaries have executable conformance suites. |
+| Production integration | Proven cross-domain mechanisms and profile-owned provider boundaries have Auths-owned executable conformance suites. |
 | Operations | Replay, budget, revocation, rotation, retries, concurrency, cancellation, and outcome-unknown states are explicit and tested. |
 | Performance | Native work releases the GIL where safe, batch paths preserve single-item semantics, and copies across the native boundary are bounded and measured. |
 | Packaging | Exact wheels, types, API snapshot, contents, SBOM, provenance, and external-consumer behavior agree across the supported CPython/OS matrix. |
@@ -147,53 +150,45 @@ match decision:
 proof, action, and trusted-context bytes. An authorized verifier result is
 inert evidence; it cannot be converted into a gateway command.
 
-Safe decision projection belongs in `auths.inspection`. Caller-supplied or
-differential verifier engines belong in `auths.diagnostics`, and their results
-remain inert regardless of the bytes the engine returns. Verification,
-inspection, and diagnostics do not initialize workflow, approval, custody,
-profile, lifecycle, or runtime components.
+Safe decision projection also belongs in `auths.verify`. Caller-supplied or
+differential verifier engines belong in `auths.testkit`, and their results
+remain inert regardless of the bytes the engine returns. Verification and
+inspection do not initialize workflow, approval, custody, profile, lifecycle,
+or runtime components.
 
 ### 4.3 Full workflow
 
 ```python
-from auths import Approval, AuthsClient
+from auths.integrations import development
 from auths.profiles import mcp
 
-profile = mcp.profile(service="reports")
-
-async with AuthsClient(
-    signer=signer,
-    trusted_authority=trusted_authority,
-    telemetry=telemetry,
-) as client:
-    async with await client.attach_agent(
-        name="reports-agent",
-        profile=profile,
-        authority=root_grant,
-        approval=Approval.grant_only("approval.reports", approvals),
-    ) as agent:
-        decision = await agent.authorize(
-            profile.call("publish_report", {"month": "august"})
-        )
-
-        match decision:
-            case mcp.Authorized(command=command):
-                await gateway.execute(command, idempotency_key=request_id)
-            case mcp.Denied(explanation=explanation):
-                report(explanation)
-            case mcp.Indeterminate(explanation=explanation):
-                await recover_evidence(explanation)
+reports = mcp.development_provider(
+    tools={"publish_report": publish_report},
+)
+async with development.create_auths(
+    authority=mcp.allow_tools(["publish_report"]),
+) as auths:
+    result = await auths.execute(
+        action=mcp.call_tool(
+            name="publish_report",
+            arguments={"month": "august"},
+        ),
+        provider=reports,
+    )
 ```
 
-Provider orchestration remains async-native. Deterministic local parsing,
-construction, and verification may remain synchronous. The SDK will not add a
-second blocking workflow facade that hides an event loop, makes cancellation
-ambiguous, or creates different semantics.
+Provider I/O remains async-native, but an opaque Rust-owned MCP session accepts
+each bounded result and decides whether the next side effect is available.
+The introductory recipe makes bounded authority visible and omits optional
+request correlation; no caller selects a provider idempotency key.
+Deterministic local parsing, construction, and verification may remain
+synchronous. The SDK will not add a blocking workflow facade or a Python-owned
+transition state machine.
 
 ### 4.4 Custom profiles after a second maintained profile
 
 ```python
-from auths.profile_kit import Action, ApplicationProfile
+from auths.framework import Action, ApplicationProfile
 
 billing = ApplicationProfile.define(
     profile_id="com.example.billing/1",
@@ -207,10 +202,10 @@ refund = billing.action(
 decision = await agent.authorize(refund)
 ```
 
-The profile kit may ship only after MCP and one structurally different
-maintained Python profile demonstrate the correct abstraction. It owns no
-generic executor. Profile-specific commands remain native-sealed and are
-accepted only by matching gateways.
+Custom vertical construction may ship only after MCP and one structurally
+different completed vertical demonstrate the reusable boundary. It owns no
+generic executor or provider result. Profile-specific sessions remain
+native-sealed and release I/O only to matching profile drivers.
 
 ### 4.5 Framework integration
 
@@ -242,7 +237,8 @@ Every error exposes safe structured fields:
 - family and code;
 - operation, stage, and correlation ID;
 - retry class: `never`, `safe`, `conditional`, or `unknown`;
-- provider/effect progress;
+- effect state: `not-applied`, `possible`, or `applied`;
+- signer/approval/state/credential/provider progress;
 - bounded remediation; and
 - a redacted cause chain.
 
@@ -269,9 +265,9 @@ tracebacks generated by SDK wrappers, or telemetry attributes.
 | lifecycle/status | replay/budget/receipt state machines               |
 +--------------------------------|--------------------------------------+
                                  v
-+---------------------- Replaceable Python adapters --------------------+
-| custody | identity methods | suites | resolvers | stores | gateways   |
-| clocks | approval providers | transports | telemetry | frameworks     |
++---------------- Profile verticals + mechanisms -----------------------+
+| profiles: provider request/result/reconciliation/receipts/failures     |
+| mechanisms: custody | identity | suites | stores | clocks | telemetry  |
 +------------------------------------------------------------------------+
 ```
 
@@ -287,10 +283,16 @@ tracebacks generated by SDK wrappers, or telemetry attributes.
   promoted back into an effect capability.
 - Native calls release the GIL only when they do not call Python and preserve
   object lifetime and cancellation safety.
-- Provider I/O never runs in the deterministic verifier.
+- Provider I/O never runs in the deterministic verifier. Each subsequent side
+  effect requires a Rust-accepted bounded result from an opaque profile
+  session.
+- Each profile owns credential timing, provider requests/results,
+  reconciliation, receipt claims, and domain failures. Python Protocols do not
+  define a universal provider or effect-state contract.
 - Review is independent from approval; approval is independent from identity.
-- `Protocol` ports and conformance suites are preferred over base-package
-  dependencies on vendors or frameworks.
+- Proven cross-domain `Protocol` ports and Auths-owned conformance suites are
+  preferred over base-package dependencies on vendors or frameworks. Provider,
+  result, reconciliation, and receipt semantics remain profile-owned.
 
 ### 5.2 Rust work that may be required
 
@@ -299,14 +301,14 @@ owner is missing. It must not implement a Python-only version of the meaning.
 
 | ID | Rust deliverable | Why Python needs it |
 | --- | --- | --- |
-| CORE-E01 | A binding-oriented workflow kernel with bounded inputs, opaque handles, and stable projections for attach, delegate, authorize, plan, inspect, and dispose | Shrinks Python coordination and keeps semantic workflow transitions native |
+| CORE-E01 | A binding-oriented workflow kernel with bounded inputs, opaque profile sessions/steps, and stable projections for attach, delegate, execute, resume, inspect, and dispose | Shrinks Python coordination and keeps semantic workflow transitions native |
 | CORE-E02 | Credential-shape-agnostic identity states and versioned method/suite descriptors for embedded, resolved, rotating, threshold, and hybrid credentials | Lets Python support Ed25519, P-256, post-quantum, and external identity methods through one model |
 | CORE-E03 | Versioned trust bundles, principal/grant status, rotation, compromise, history, and freshness operations | Supplies production lifecycle semantics without Python-authored protocol data |
 | CORE-E04 | One review model plus exact approval-policy/session commitments independent of approval presence | Makes explain, audit, and approval agree without coupling them |
 | CORE-E05 | Bounded single and batch verification with identical result meaning and cancellation checkpoints | Enables native throughput and safe GIL release without a weaker fast path |
 | CORE-E06 | Stable cross-language error, explanation, inspection, and telemetry event schemas | Keeps operational meaning consistent with Rust and TypeScript |
 | CORE-E07 | Versioned profile manifests, authority projections, command decoders, mutation fixtures, and conformance metadata | Enables a sound Python profile kit after the second profile |
-| CORE-E08 | Replay, budget reservation, receipt, retry, and outcome-unknown state machines behind storage/effect ports | Enables reliable enforcement under concurrency and crashes |
+| CORE-E08 | Commitment-derived execution identity plus profile-owned replay, budget, receipt, retry, and outcome-unknown sessions behind lower storage/I/O mechanisms | Enables reliable enforcement without a generic effect provider |
 | CORE-E09 | Cross-language customer-journey corpus covering success, failure, mutation, lifecycle, providers, cancellation, concurrency, and downgrade | Proves workflow parity beyond the current shared happy-path projection |
 | CORE-E10 | Exact runtime contracts across Rust, WASM, TypeScript, and Python artifacts | Makes a mismatched wheel or core fail clearly at load time |
 
@@ -318,45 +320,69 @@ only when the governed meaning changes.
 
 ## 6. Public APIs and package topology
 
-The intended Python topology is:
+The elite milestone originally proved the more granular modules that existed at
+implementation time. The subsequent prelaunch simplification program supersedes
+that topology. Implementations must use the authoritative rename map in
+[Simplification Spec 04](simplify/04_PRELAUNCH_API_PRUNING.md) and the wheel
+contract in [Simplification Spec 10](simplify/10_FRICTIONLESS_PACKAGING.md).
+
+The final topology is one installed wheel with six required public module roots
+and one evidence-gated framework root:
 
 ```text
-auths                         integrated attach/delegate/authorize path
+auths                         Auths/Approval create-delegate-execute-resume facade
 auths.identity                standalone identity and authentication
-auths.integrations            bounded identity transport and framework ports
-auths.trust                   trust bundles, evidence, and freshness inputs
-auths.authority               grants, delegation, plans, lifecycle links
-auths.approvals               approval policies and provider Protocols
-auths.custody                 signer descriptors and provider Protocols
-auths.profiles.mcp            maintained MCP profile
-auths.profiles.<second>       second structurally different profile
-auths.profile_kit             application-owned profile construction
-auths.runtime                 replay/budget/receipt/executor Protocols
-auths.verify                  deterministic, effect-free verification
-auths.inspection              safe decision and commitment projection
-auths.diagnostics             inert caller-supplied/differential engines
-auths.testkit                 deterministic fixtures and conformance
+auths.verify                  proof/receipt verification and inert inspection
+auths.profiles                qualified profile-owned verticals; MCP at cutover
+auths.integrations            development composition and mechanism adapters
+auths.framework               only contracts proven by two independent verticals; otherwise absent
+auths.testkit                 deterministic fixtures, mechanism suites, profile suites
 ```
+
+`auths.trust`, `auths.authority`, `auths.approvals`, `auths.custody`,
+`auths.runtime`, `auths.lifecycle`, `auths.observability`, `auths.profile_kit`,
+`auths.receipts`, `auths.inspection`, `auths.diagnostics`, `auths.bootstrap`,
+and `auths.workflow` cease to be public modules. Product inputs move to the
+root, proof/receipt inspection moves to `auths.verify`, maintained profiles
+remain under `auths.profiles`, maintained adapters move to
+`auths.integrations`, evidence-proven extension Protocols move to
+`auths.framework`, and differential engines move to `auths.testkit`. No forwarding module,
+`sys.modules` alias, or deprecation stub preserves an old path.
 
 Imports must remain cheap and side-effect-free. Importing a submodule must not
 load unrelated profiles, start an event loop, open a network connection, read
 ambient credentials, or initialize a provider. Native initialization may be
 lazy, thread-safe, deterministic, and observable.
 
-There is no `auths.advanced` catch-all. It hides the useful verification-only
-product and mixes three different trust boundaries. `auths.verify`,
-`auths.inspection`, and `auths.diagnostics` state the exact capability being
-imported. None exposes or constructs `VerifiedAction`, a profile command, or a
-plan command; only the package-owned full workflow can mint those native
-one-use handles after successful verification.
+There is no `auths.advanced` catch-all. `auths.verify` is the complete inert
+verification surface and cannot produce an effect-capable command. Installed
+runtime diagnostics are exposed through `Auths.diagnostics()` and
+`python -m auths doctor`; caller-supplied differential engines belong to
+`auths.testkit`.
 
-The base wheel owns semantic facades, ports, and conformance—not the Python
-ecosystem. A small set of reference adapters may be maintained as separately
-versioned extras or packages to prove browser-independent local signing,
-remote custody, resolver, durable state, telemetry, and framework integration.
-They must not become base dependencies or sources of Auths meaning.
+The base wheel owns semantic facades, proven cross-domain mechanism contracts,
+and Auths-owned conformance cases—not the Python ecosystem. Effect-provider,
+credential timing, result, reconciliation, receipt, and domain failure
+contracts remain profile-owned. MCP is the initial qualified public profile;
+generic HTTP, Git, deployment, supply-chain, and edge families are removed or
+moved to demo ownership. Concrete domains join `auths.profiles` only after
+their own Rust sessions, bindings, and profile conformance pass.
+
+The exact root `__all__` and framework publication gate are normative in
+[Simplification Spec 04](simplify/04_PRELAUNCH_API_PRUNING.md). An empty or
+aspirational framework is not published merely to preserve a module count.
+
+Each published root is a real typed module or package with explicit
+`__all__`, a shipped `py.typed`, mypy/pyright installed-wheel tests, and no
+dependency on lazy attribute invention for its declared API.
 
 ## 7. Delivery program
+
+Items below that mention the former `inspection`, `diagnostics`, or other
+granular modules are historical milestone evidence. Section 6 and the linked
+simplification specifications govern the next clean-break public surface.
+Their checked state does not authorize retaining generic gateway Protocols,
+broad profiles, public idempotency keys, or universal adapter certification.
 
 ### PY-E0 — Freeze the elite contract and measurements
 

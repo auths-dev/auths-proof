@@ -1,0 +1,16 @@
+{
+  "cases": [
+    "cases/approval-substitution.json",
+    "cases/authorized.json",
+    "cases/expired.json",
+    "cases/missing-context.json",
+    "cases/payload-substitution.json",
+    "cases/provider-unknown.json",
+    "cases/replayed.json",
+    "cases/widened-delegation.json"
+  ],
+  "fixture": "bounded-operation-v1",
+  "normative_protocol_corpus": false,
+  "scenario": "scenario.json",
+  "schema": "auths-proof-interoperability-manifest/v1"
+}

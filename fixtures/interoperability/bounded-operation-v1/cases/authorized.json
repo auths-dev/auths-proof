@@ -1,0 +1,14 @@
+{
+  "attempt": 1,
+  "base": "../scenario.json",
+  "expected": {
+    "authorization": "authorized",
+    "execution": "succeeded",
+    "reason": "Exact authority, approvals, runtime state, and provider effect agree.",
+    "retry": "not-applicable",
+    "runtime": "reserved"
+  },
+  "id": "authorized",
+  "mutations": [],
+  "schema": "auths-proof-interoperability-case/v1"
+}

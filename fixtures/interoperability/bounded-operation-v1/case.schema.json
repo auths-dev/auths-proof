@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://auths.dev/schemas/interoperability/bounded-operation-v1/case.schema.json",
+  "additionalProperties": false,
+  "properties": {
+    "attempt": { "maximum": 1000000, "minimum": 1, "type": "integer" },
+    "base": { "const": "../scenario.json", "type": "string" },
+    "expected": {
+      "additionalProperties": false,
+      "properties": {
+        "authorization": { "enum": ["authorized", "denied", "indeterminate"], "type": "string" },
+        "execution": { "enum": ["not-attempted", "succeeded", "unknown"], "type": "string" },
+        "reason": { "maxLength": 500, "minLength": 1, "type": "string" },
+        "retry": { "enum": ["not-applicable", "forbidden", "reconcile-before-retry"], "type": "string" },
+        "runtime": { "enum": ["not-entered", "reserved", "rejected"], "type": "string" }
+      },
+      "required": ["authorization", "execution", "reason", "retry", "runtime"],
+      "type": "object"
+    },
+    "id": { "pattern": "^[a-z0-9-]{1,96}$", "type": "string" },
+    "mutations": {
+      "items": {
+        "additionalProperties": false,
+          "properties": {
+            "operation": { "enum": ["remove", "replace", "runtime-event"], "type": "string" },
+            "path": { "maxLength": 300, "minLength": 1, "type": "string" },
+            "target": { "enum": ["presentation", "provider", "runtime", "trusted-context"], "type": "string" },
+            "value": {}
+          },
+          "required": ["operation", "path", "target"],
+        "type": "object"
+      },
+      "maxItems": 16,
+      "type": "array"
+    },
+    "schema": { "const": "auths-proof-interoperability-case/v1", "type": "string" }
+  },
+  "required": ["attempt", "base", "expected", "id", "mutations", "schema"],
+  "title": "Auths bounded-operation interoperability case V1",
+  "type": "object"
+}
