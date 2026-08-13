@@ -105,7 +105,10 @@ test("recoverable development state survives process death after provider entry"
     });
     try {
       const action = mcp.callTool({ name: "publish_report", arguments: { name: "weekly" } });
-      const completed = await auths.recover({ action, provider, requestId: "crash-weekly-32" });
+      let completed = await auths.recover({ action, provider, requestId: "crash-weekly-32" });
+      if (completed.kind === "recoverable") {
+        completed = await auths.resume({ reference: completed.reference, provider });
+      }
       assert.equal(completed.kind, "completed");
       assert.equal(invokes, 0);
       assert.equal(reconciles, 1);
@@ -115,6 +118,22 @@ test("recoverable development state survives process death after provider entry"
     }
   } finally {
     if (worker.exitCode === null && worker.signalCode === null) worker.kill();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("recoverable development manifest publishes atomically under process startup contention", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "auths-manifest-race-"));
+  const authority = mcp.allowTools(["publish_report"]);
+  const instances = [];
+  try {
+    instances.push(...await Promise.all(Array.from(
+      { length: 100 },
+      () => development.createRecoverableAuths({ directory, authority }),
+    )));
+    assert.equal(new Set(instances.map((auths) => auths.actor.principal)).size, 1);
+  } finally {
+    await Promise.all(instances.map((auths) => auths.close()));
     await rm(directory, { recursive: true, force: true });
   }
 });

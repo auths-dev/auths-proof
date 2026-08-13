@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 import json
 import multiprocessing
 import time
@@ -164,6 +165,26 @@ def test_recoverable_development_state_survives_process_death_after_provider_ent
         if process.is_alive():
             process.terminate()
             process.join(timeout=10)
+
+
+def test_recoverable_development_manifest_publishes_atomically_under_contention(
+    tmp_path: Path,
+) -> None:
+    authority = mcp.allow_tools(["publish_report"])
+    with concurrent.futures.ThreadPoolExecutor(max_workers=32) as executor:
+        pending = tuple(
+            executor.map(
+                lambda _: development.create_recoverable_auths(
+                    directory=tmp_path,
+                    authority=authority,
+                ),
+                range(100),
+            )
+        )
+    manifest = json.loads((tmp_path / "auths-development-v2.json").read_bytes())
+    assert manifest["schema"] == "auths.recoverable-development/2"
+    assert len(bytes.fromhex(manifest["sessionKey"])) == 32
+    assert len(pending) == 100
 
 
 def test_development_reservation_admits_one_concurrent_provider_entry() -> None:

@@ -1,5 +1,5 @@
 import type { McpExecutionState, McpReceiptSink, McpRecoveryCheckpoint } from "../profiles/mcp/index.js";
-import { mkdir, open, readFile, rename, unlink } from "node:fs/promises";
+import { link, mkdir, open, readFile, rename, unlink } from "node:fs/promises";
 import { platform } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
@@ -24,21 +24,12 @@ export async function openRecoverableDevelopmentResources(directory: string): Pr
     if (isMissing(error)) {
       sessionKey = crypto.getRandomValues(new Uint8Array(32));
       authorityNotBefore = BigInt(Math.floor(Date.now() / 1000));
-      try {
-        const handle = await open(manifestPath, "wx", 0o600);
-        try {
-          await handle.writeFile(JSON.stringify({
-            schema: "auths.recoverable-development/2",
-            authorityNotBefore: Number(authorityNotBefore),
-            sessionKey: toHex(sessionKey),
-          }));
-          await handle.sync();
-        } finally {
-          await handle.close();
-        }
-        await syncDirectory(root);
-      } catch (creationError) {
-        if (!isExists(creationError)) throw creationError;
+      const created = await publishNewFile(manifestPath, JSON.stringify({
+        schema: "auths.recoverable-development/2",
+        authorityNotBefore: Number(authorityNotBefore),
+        sessionKey: toHex(sessionKey),
+      }));
+      if (!created) {
         const parsed: unknown = JSON.parse(await readFile(manifestPath, "utf8"));
         ({ sessionKey, authorityNotBefore } = parseManifest(parsed));
       }
@@ -47,6 +38,29 @@ export async function openRecoverableDevelopmentResources(directory: string): Pr
     }
   }
   return Object.freeze({ resources: new FileMcpResources(root), sessionKey, authorityNotBefore });
+}
+
+async function publishNewFile(path: string, value: string): Promise<boolean> {
+  const temporary = `${path}.${crypto.randomUUID()}.tmp`;
+  try {
+    const handle = await open(temporary, "wx", 0o600);
+    try {
+      await handle.writeFile(value);
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
+    try {
+      await link(temporary, path);
+      await syncDirectory(dirname(path));
+      return true;
+    } catch (error) {
+      if (!isExists(error)) throw error;
+      return false;
+    }
+  } finally {
+    await unlink(temporary).catch(() => undefined);
+  }
 }
 
 class FileMcpResources implements McpExecutionState, McpReceiptSink {
