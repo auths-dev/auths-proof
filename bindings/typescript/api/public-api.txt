@@ -1,5 +1,5 @@
 # Installed @auths-dev/sdk public API v1
-# declaration-sha256 75446565678a0cb9189a5bafb6731f421334f4549a8d1195fb5fec115765dff3
+# declaration-sha256 7bb6a3b647140b1f42030ab1267c191979857306d1c9262098fb7f422128957e
 .	Actor	type
 .	approval	value
 .	ApprovalPolicy	type
