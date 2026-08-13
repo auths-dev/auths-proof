@@ -1,4 +1,4 @@
-import type { McpExecutionState, McpReceiptSink } from "../profiles/mcp/index.js";
+import type { McpExecutionState, McpReceiptSink, McpRecoveryCheckpoint } from "../profiles/mcp/index.js";
 import { mkdir, open, readFile, rename, unlink } from "node:fs/promises";
 import { platform } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -52,12 +52,14 @@ class FileMcpResources implements McpExecutionState, McpReceiptSink {
     this.#root = root;
   }
 
-  async reserve(executionId: string): Promise<"acquired" | "exact-replay" | "conflict"> {
+  async reserve(executionId: string, recovery: McpRecoveryCheckpoint): Promise<"acquired" | "exact-replay" | "conflict"> {
+    assertRecovery(executionId, recovery);
+    await this.#writeRecovery(recovery);
     const path = this.#path("execution", executionId);
     try {
       const handle = await open(path, "wx", 0o600);
       try {
-        await handle.writeFile('{"schema":"auths.development-execution/1","stage":"reserved"}');
+        await handle.writeFile(executionRecord("reserved", recovery.reference));
         await handle.sync();
       } finally {
         await handle.close();
@@ -66,33 +68,67 @@ class FileMcpResources implements McpExecutionState, McpReceiptSink {
       return "acquired";
     } catch (error) {
       if (!isExists(error)) throw error;
-      const existing = await readFile(path, "utf8");
-      if (!isExecutionRecord(existing)) {
-        throw new TypeError("recoverable development execution is corrupt");
-      }
+      parseExecutionRecord(await readFile(path, "utf8"));
       return "exact-replay";
     }
   }
 
-  async markProviderEntry(executionId: string): Promise<void> {
+  async markProviderEntry(executionId: string, recovery: McpRecoveryCheckpoint): Promise<void> {
+    assertRecovery(executionId, recovery);
     const path = this.#path("execution", executionId);
-    const existing = await readFile(path, "utf8");
-    if (existing !== reservedExecutionRecord()) {
+    const existing = parseExecutionRecord(await readFile(path, "utf8"));
+    if (existing.stage !== "reserved") {
       throw new TypeError("invalid recoverable development provider-entry transition");
     }
-    await atomicWrite(path, new TextEncoder().encode('{"schema":"auths.development-execution/1","stage":"provider"}'));
+    await this.#writeRecovery(recovery);
+    await atomicWrite(path, executionRecord("provider", recovery.reference));
   }
 
-  async saveRecovery(reference: string, recordJson: Uint8Array): Promise<void> {
-    await atomicWrite(this.#path("recovery", await digest(reference)), recordJson);
+  async saveRecovery(recovery: McpRecoveryCheckpoint): Promise<void> {
+    assertRecovery(recovery.executionId, recovery);
+    const path = this.#path("execution", recovery.executionId);
+    const existing = parseExecutionRecord(await readFile(path, "utf8"));
+    if (existing.stage === "completed") throw new TypeError("invalid recoverable development recovery transition");
+    await this.#writeRecovery(recovery);
+    await atomicWrite(path, executionRecord(existing.stage, recovery.reference));
   }
 
   async loadRecovery(reference: string): Promise<Uint8Array | undefined> {
+    const executionId = executionIdForReference(reference);
     try {
+      const execution = parseExecutionRecord(await readFile(this.#path("execution", executionId), "utf8"));
+      if (execution.stage === "completed" || execution.recoveryReference !== reference) return undefined;
       return new Uint8Array(await readFile(this.#path("recovery", await digest(reference))));
     } catch (error) {
       if (isMissing(error)) return undefined;
       throw error;
+    }
+  }
+
+  async loadPending(executionId: string): Promise<McpRecoveryCheckpoint | undefined> {
+    try {
+      const execution = parseExecutionRecord(await readFile(this.#path("execution", executionId), "utf8"));
+      if (execution.stage === "completed" || execution.recoveryReference === undefined) return undefined;
+      const recordJson = new Uint8Array(await readFile(
+        this.#path("recovery", await digest(execution.recoveryReference)),
+      ));
+      return Object.freeze({ executionId, reference: execution.recoveryReference, recordJson });
+    } catch (error) {
+      if (isMissing(error)) return undefined;
+      throw error;
+    }
+  }
+
+  async clearPending(executionId: string): Promise<void> {
+    const path = this.#path("execution", executionId);
+    const execution = parseExecutionRecord(await readFile(path, "utf8"));
+    if (execution.stage === "completed") return;
+    await atomicWrite(path, executionRecord("completed"));
+    if (execution.recoveryReference !== undefined) {
+      await unlink(this.#path("recovery", await digest(execution.recoveryReference))).catch((error: unknown) => {
+        if (!isMissing(error)) throw error;
+      });
+      await syncDirectory(this.#root);
     }
   }
 
@@ -108,9 +144,19 @@ class FileMcpResources implements McpExecutionState, McpReceiptSink {
       }
       await syncDirectory(this.#root);
     } catch (error) {
-      if (isExists(error)) throw new TypeError("development receipt already exists");
+      if (isExists(error)) {
+        const existing = new Uint8Array(await readFile(path));
+        if (!equalBytes(existing, receiptJson)) {
+          throw new TypeError("development receipt conflicts with persisted bytes");
+        }
+        return;
+      }
       throw error;
     }
+  }
+
+  async #writeRecovery(recovery: McpRecoveryCheckpoint): Promise<void> {
+    await atomicWrite(this.#path("recovery", await digest(recovery.reference)), recovery.recordJson);
   }
 
   #path(kind: "execution" | "receipt" | "recovery", id: string): string {
@@ -147,13 +193,55 @@ async function syncDirectory(path: string): Promise<void> {
   }
 }
 
-function reservedExecutionRecord(): string {
-  return '{"schema":"auths.development-execution/1","stage":"reserved"}';
+type ExecutionRecord = Readonly<{
+  stage: "reserved" | "provider" | "completed";
+  recoveryReference?: string;
+}>;
+
+function executionRecord(stage: ExecutionRecord["stage"], recoveryReference?: string): Uint8Array {
+  return new TextEncoder().encode(JSON.stringify({
+    schema: "auths.development-execution/2",
+    stage,
+    ...(recoveryReference === undefined ? {} : { recoveryReference }),
+  }));
 }
 
-function isExecutionRecord(value: string): boolean {
-  return value === reservedExecutionRecord()
-    || value === '{"schema":"auths.development-execution/1","stage":"provider"}';
+function parseExecutionRecord(value: string): ExecutionRecord {
+  const parsed: unknown = JSON.parse(value);
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) throw new TypeError();
+  const record = parsed as Record<string, unknown>;
+  const keys = Object.keys(record).sort().join(",");
+  if (record.schema !== "auths.development-execution/2") throw new TypeError();
+  if (record.stage === "completed") {
+    if (keys !== "schema,stage") throw new TypeError();
+    return Object.freeze({ stage: "completed" });
+  }
+  if ((record.stage !== "reserved" && record.stage !== "provider")
+    || keys !== "recoveryReference,schema,stage"
+    || typeof record.recoveryReference !== "string") {
+    throw new TypeError();
+  }
+  executionIdForReference(record.recoveryReference);
+  return Object.freeze({ stage: record.stage, recoveryReference: record.recoveryReference });
+}
+
+function assertRecovery(executionId: string, recovery: McpRecoveryCheckpoint): void {
+  if (recovery.executionId !== executionId || executionIdForReference(recovery.reference) !== executionId) {
+    throw new TypeError("recovery checkpoint does not match execution");
+  }
+  if (!(recovery.recordJson instanceof Uint8Array) || recovery.recordJson.length === 0) {
+    throw new TypeError("recovery checkpoint is empty");
+  }
+}
+
+function executionIdForReference(reference: string): string {
+  const match = /^mcp1\.([0-9a-f]{64})\.[0-9a-f]{64}$/u.exec(reference);
+  if (match === null) throw new TypeError("invalid recoverable development reference");
+  return match[1];
+}
+
+function equalBytes(left: Uint8Array, right: Uint8Array): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
 function parseManifest(value: unknown): Uint8Array {

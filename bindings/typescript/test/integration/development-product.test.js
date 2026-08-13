@@ -1,6 +1,8 @@
-import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
+import { spawn } from "node:child_process";
+import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { once } from "node:events";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { development } from "../../dist/integrations.js";
@@ -78,6 +80,43 @@ test("recoverable development state resumes reconciliation without provider re-e
   }
 });
 
+test("recoverable development state survives process death after provider entry", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "auths-crash-recovery-"));
+  const worker = spawn(process.execPath, [
+    "test/integration/fixtures/crash-after-provider-entry.mjs",
+    directory,
+  ], { stdio: "inherit" });
+  try {
+    await waitForProviderCheckpoint(directory);
+    worker.kill(process.platform === "win32" ? undefined : "SIGKILL");
+    await once(worker, "exit");
+    const authority = mcp.allowTools(["publish_report"]);
+    const auths = await development.createRecoverableAuths({ directory, authority });
+    let invokes = 0;
+    let reconciles = 0;
+    const provider = mcp.developmentProvider({
+      tools: { async publish_report() { invokes += 1; throw new Error("must not re-enter"); } },
+      async reconcile() {
+        reconciles += 1;
+        return { effect: "applied", result: { published: "weekly" } };
+      },
+    });
+    try {
+      const action = mcp.callTool({ name: "publish_report", arguments: { name: "weekly" } });
+      const completed = await auths.recover({ action, provider, requestId: "crash-weekly-32" });
+      assert.equal(completed.kind, "completed");
+      assert.equal(invokes, 0);
+      assert.equal(reconciles, 1);
+      await assert.rejects(auths.recover({ action, provider, requestId: "crash-weekly-32" }), /no pending/);
+    } finally {
+      await auths.close();
+    }
+  } finally {
+    if (worker.exitCode === null && worker.signalCode === null) worker.kill();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test("development reservations admit one concurrent provider entry", async () => {
   let calls = 0;
   const provider = mcp.developmentProvider({
@@ -126,9 +165,9 @@ test("recoverable development state rejects corrupted recovery records", async (
     });
     assert.equal(pending.kind, "recoverable");
     await first.close();
-    const recovery = (await readdir(directory)).find((name) => name.startsWith("recovery-"));
-    assert.ok(recovery);
-    await writeFile(join(directory, recovery), "{");
+    const recoveries = (await readdir(directory)).filter((name) => name.startsWith("recovery-"));
+    assert.ok(recoveries.length > 0);
+    await Promise.all(recoveries.map((name) => writeFile(join(directory, name), "{")));
     const second = await development.createRecoverableAuths({ directory, authority });
     await assert.rejects(
       second.resume({
@@ -141,3 +180,16 @@ test("recoverable development state rejects corrupted recovery records", async (
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+async function waitForProviderCheckpoint(directory) {
+  const deadline = Date.now() + 20_000;
+  while (Date.now() < deadline) {
+    const executions = (await readdir(directory)).filter((name) => name.startsWith("execution-"));
+    for (const name of executions) {
+      const record = JSON.parse(await readFile(join(directory, name), "utf8"));
+      if (record.stage === "provider") return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error("gateway did not reach its durable provider checkpoint");
+}

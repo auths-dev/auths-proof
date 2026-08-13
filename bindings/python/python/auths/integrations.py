@@ -35,6 +35,7 @@ from ._product import (
 from ._bootstrap import prepare_raw_key_authority
 from .profiles._mcp import (
     McpExecutionStore,
+    McpRecoveryCheckpoint,
     McpReceiptSink,
     McpToolAuthority,
     resources_for_mcp_authority,
@@ -91,33 +92,70 @@ _DEVELOPMENT_DIAGNOSTICS = (
 
 class _MemoryMcpResources(McpExecutionStore, McpReceiptSink):
     def __init__(self) -> None:
-        self._executions: set[str] = set()
-        self._entered: set[str] = set()
-        self._recovery: dict[str, bytes] = {}
+        self._executions: dict[
+            str,
+            tuple[
+                Literal["reserved", "provider", "completed"],
+                Optional[McpRecoveryCheckpoint],
+            ],
+        ] = {}
         self._receipts: dict[str, bytes] = {}
 
     async def reserve(
-        self, execution_id: str
+        self, execution_id: str, recovery: McpRecoveryCheckpoint
     ) -> Literal["acquired", "exact-replay", "conflict"]:
         if execution_id in self._executions:
             return "exact-replay"
-        self._executions.add(execution_id)
+        self._executions[execution_id] = ("reserved", _copy_recovery(recovery))
         return "acquired"
 
-    async def mark_provider_entry(self, execution_id: str) -> None:
-        if execution_id not in self._executions or execution_id in self._entered:
+    async def mark_provider_entry(
+        self, execution_id: str, recovery: McpRecoveryCheckpoint
+    ) -> None:
+        existing = self._executions.get(execution_id)
+        if existing is None or existing[0] != "reserved":
             raise ValueError("invalid development provider-entry transition")
-        self._entered.add(execution_id)
+        self._executions[execution_id] = ("provider", _copy_recovery(recovery))
 
-    async def save_recovery(self, reference: str, record_json: bytes) -> None:
-        self._recovery[reference] = bytes(record_json)
+    async def save_recovery(self, recovery: McpRecoveryCheckpoint) -> None:
+        existing = self._executions.get(recovery.execution_id)
+        if existing is None or existing[0] == "completed":
+            raise ValueError("invalid development recovery transition")
+        self._executions[recovery.execution_id] = (
+            existing[0],
+            _copy_recovery(recovery),
+        )
 
     async def load_recovery(self, reference: str) -> Optional[bytes]:
-        return self._recovery.get(reference)
+        for stage, recovery in self._executions.values():
+            if (
+                stage != "completed"
+                and recovery is not None
+                and recovery.reference == reference
+            ):
+                return bytes(recovery.record_json)
+        return None
+
+    async def load_pending(self, execution_id: str) -> Optional[McpRecoveryCheckpoint]:
+        existing = self._executions.get(execution_id)
+        if existing is None or existing[0] == "completed" or existing[1] is None:
+            return None
+        return _copy_recovery(existing[1])
+
+    async def clear_pending(self, execution_id: str) -> None:
+        if execution_id not in self._executions:
+            raise ValueError("invalid development completion transition")
+        self._executions[execution_id] = ("completed", None)
 
     async def persist(self, execution_id: str, receipt_json: bytes) -> None:
-        if execution_id not in self._entered or execution_id in self._receipts:
+        existing = self._executions.get(execution_id)
+        if existing is None or existing[0] != "provider":
             raise ValueError("invalid development receipt transition")
+        persisted = self._receipts.get(execution_id)
+        if persisted is not None:
+            if persisted != bytes(receipt_json):
+                raise ValueError("development receipt conflicts with persisted bytes")
+            return
         self._receipts[execution_id] = bytes(receipt_json)
 
 
@@ -126,59 +164,129 @@ class _FileMcpResources(McpExecutionStore, McpReceiptSink):
         self._root = root
 
     async def reserve(
-        self, execution_id: str
+        self, execution_id: str, recovery: McpRecoveryCheckpoint
     ) -> Literal["acquired", "exact-replay", "conflict"]:
+        _assert_recovery(execution_id, recovery)
+        await self._write_recovery(recovery)
         path = self._path("execution", execution_id)
-        record = _RESERVED_EXECUTION_RECORD
         try:
-            await asyncio.to_thread(_exclusive_write, path, record)
+            await asyncio.to_thread(
+                _exclusive_write,
+                path,
+                _execution_record("reserved", recovery.reference),
+            )
             await asyncio.to_thread(_sync_directory, self._root)
             return "acquired"
         except FileExistsError:
-            if await asyncio.to_thread(path.read_bytes) not in (
-                _RESERVED_EXECUTION_RECORD,
-                _PROVIDER_EXECUTION_RECORD,
-            ):
-                raise ValueError("recoverable development execution is corrupt")
+            _parse_execution_record(await asyncio.to_thread(path.read_bytes))
             return "exact-replay"
 
-    async def mark_provider_entry(self, execution_id: str) -> None:
+    async def mark_provider_entry(
+        self, execution_id: str, recovery: McpRecoveryCheckpoint
+    ) -> None:
+        _assert_recovery(execution_id, recovery)
         path = self._path("execution", execution_id)
         try:
-            existing = await asyncio.to_thread(path.read_bytes)
+            stage, _ = _parse_execution_record(await asyncio.to_thread(path.read_bytes))
         except FileNotFoundError:
             raise ValueError("recoverable development execution is missing") from None
-        if existing != _RESERVED_EXECUTION_RECORD:
+        if stage != "reserved":
             raise ValueError(
                 "invalid recoverable development provider-entry transition"
             )
+        await self._write_recovery(recovery)
         await asyncio.to_thread(
             _atomic_write,
             path,
-            _PROVIDER_EXECUTION_RECORD,
+            _execution_record("provider", recovery.reference),
         )
 
-    async def save_recovery(self, reference: str, record_json: bytes) -> None:
+    async def save_recovery(self, recovery: McpRecoveryCheckpoint) -> None:
+        _assert_recovery(recovery.execution_id, recovery)
+        path = self._path("execution", recovery.execution_id)
+        stage, _ = _parse_execution_record(await asyncio.to_thread(path.read_bytes))
+        if stage == "completed":
+            raise ValueError("invalid recoverable development recovery transition")
+        await self._write_recovery(recovery)
         await asyncio.to_thread(
             _atomic_write,
-            self._path("recovery", hashlib.sha256(reference.encode()).hexdigest()),
-            bytes(record_json),
+            path,
+            _execution_record(stage, recovery.reference),
         )
 
     async def load_recovery(self, reference: str) -> Optional[bytes]:
-        path = self._path("recovery", hashlib.sha256(reference.encode()).hexdigest())
+        execution_id = _execution_id_for_reference(reference)
         try:
-            return await asyncio.to_thread(path.read_bytes)
+            stage, current_reference = _parse_execution_record(
+                await asyncio.to_thread(
+                    self._path("execution", execution_id).read_bytes
+                )
+            )
+            if stage == "completed" or current_reference != reference:
+                return None
+            return await asyncio.to_thread(
+                self._path(
+                    "recovery", hashlib.sha256(reference.encode()).hexdigest()
+                ).read_bytes
+            )
         except FileNotFoundError:
             return None
 
-    async def persist(self, execution_id: str, receipt_json: bytes) -> None:
-        await asyncio.to_thread(
-            _exclusive_write,
-            self._path("receipt", execution_id),
-            bytes(receipt_json),
+    async def load_pending(self, execution_id: str) -> Optional[McpRecoveryCheckpoint]:
+        try:
+            stage, reference = _parse_execution_record(
+                await asyncio.to_thread(
+                    self._path("execution", execution_id).read_bytes
+                )
+            )
+            if stage == "completed" or reference is None:
+                return None
+            record_json = await asyncio.to_thread(
+                self._path(
+                    "recovery", hashlib.sha256(reference.encode()).hexdigest()
+                ).read_bytes
+            )
+            return McpRecoveryCheckpoint(execution_id, reference, record_json)
+        except FileNotFoundError:
+            return None
+
+    async def clear_pending(self, execution_id: str) -> None:
+        path = self._path("execution", execution_id)
+        stage, reference = _parse_execution_record(
+            await asyncio.to_thread(path.read_bytes)
         )
-        await asyncio.to_thread(_sync_directory, self._root)
+        if stage == "completed":
+            return
+        await asyncio.to_thread(_atomic_write, path, _execution_record("completed"))
+        if reference is not None:
+            recovery_path = self._path(
+                "recovery", hashlib.sha256(reference.encode()).hexdigest()
+            )
+            try:
+                await asyncio.to_thread(recovery_path.unlink)
+            except FileNotFoundError:
+                pass
+            await asyncio.to_thread(_sync_directory, self._root)
+
+    async def persist(self, execution_id: str, receipt_json: bytes) -> None:
+        path = self._path("receipt", execution_id)
+        try:
+            await asyncio.to_thread(_exclusive_write, path, bytes(receipt_json))
+            await asyncio.to_thread(_sync_directory, self._root)
+        except FileExistsError:
+            if await asyncio.to_thread(path.read_bytes) != bytes(receipt_json):
+                raise ValueError(
+                    "development receipt conflicts with persisted bytes"
+                ) from None
+
+    async def _write_recovery(self, recovery: McpRecoveryCheckpoint) -> None:
+        await asyncio.to_thread(
+            _atomic_write,
+            self._path(
+                "recovery", hashlib.sha256(recovery.reference.encode()).hexdigest()
+            ),
+            bytes(recovery.record_json),
+        )
 
     def _path(self, kind: str, identifier: str) -> Path:
         if (
@@ -441,12 +549,77 @@ def _sync_directory(path: Path) -> None:
         os.close(directory)
 
 
-_RESERVED_EXECUTION_RECORD = (
-    b'{"schema":"auths.development-execution/1","stage":"reserved"}'
-)
-_PROVIDER_EXECUTION_RECORD = (
-    b'{"schema":"auths.development-execution/1","stage":"provider"}'
-)
+def _copy_recovery(recovery: McpRecoveryCheckpoint) -> McpRecoveryCheckpoint:
+    return McpRecoveryCheckpoint(
+        recovery.execution_id, recovery.reference, bytes(recovery.record_json)
+    )
+
+
+def _execution_record(
+    stage: Literal["reserved", "provider", "completed"],
+    recovery_reference: Optional[str] = None,
+) -> bytes:
+    return json.dumps(
+        {
+            "schema": "auths.development-execution/2",
+            "stage": stage,
+            **(
+                {}
+                if recovery_reference is None
+                else {"recoveryReference": recovery_reference}
+            ),
+        },
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode()
+
+
+def _parse_execution_record(
+    value: bytes,
+) -> tuple[Literal["reserved", "provider", "completed"], Optional[str]]:
+    try:
+        parsed: object = json.loads(value)
+        if type(parsed) is not dict:
+            raise ValueError
+        record = cast(dict[str, object], parsed)
+        if record.get("schema") != "auths.development-execution/2":
+            raise ValueError
+        stage = record.get("stage")
+        reference = record.get("recoveryReference")
+        if stage == "completed" and set(record) == {"schema", "stage"}:
+            return "completed", None
+        if (
+            stage not in ("reserved", "provider")
+            or set(record) != {"schema", "stage", "recoveryReference"}
+            or type(reference) is not str
+        ):
+            raise ValueError
+        _execution_id_for_reference(reference)
+        return cast(Literal["reserved", "provider"], stage), reference
+    except (TypeError, ValueError, json.JSONDecodeError):
+        raise ValueError("recoverable development execution is corrupt") from None
+
+
+def _assert_recovery(execution_id: str, recovery: McpRecoveryCheckpoint) -> None:
+    if (
+        recovery.execution_id != execution_id
+        or _execution_id_for_reference(recovery.reference) != execution_id
+        or not recovery.record_json
+    ):
+        raise ValueError("recovery checkpoint does not match execution")
+
+
+def _execution_id_for_reference(reference: str) -> str:
+    if (
+        type(reference) is not str
+        or len(reference) != 134
+        or not reference.startswith("mcp1.")
+        or reference[69] != "."
+        or any(value not in "0123456789abcdef" for value in reference[5:69])
+        or any(value not in "0123456789abcdef" for value in reference[70:])
+    ):
+        raise ValueError("invalid recoverable development reference")
+    return reference[5:69]
 
 
 __all__ = [

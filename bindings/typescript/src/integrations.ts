@@ -10,6 +10,7 @@ import {
 import {
   resourcesForMcpAuthority,
   type McpExecutionState,
+  type McpRecoveryCheckpoint,
   type McpReceiptSink,
   type McpToolAuthority,
 } from "./profiles/mcp/index.js";
@@ -36,38 +37,77 @@ export interface RecoverableDevelopmentAuthsOptions extends DevelopmentAuthsOpti
 }
 
 class InMemoryMcpResources implements McpExecutionState, McpReceiptSink {
-  readonly #executions = new Set<string>();
-  readonly #entered = new Set<string>();
-  readonly #recovery = new Map<string, Uint8Array>();
+  readonly #executions = new Map<string, { stage: "reserved" | "provider" | "completed"; recovery?: McpRecoveryCheckpoint }>();
   readonly #receipts = new Map<string, Uint8Array>();
 
-  async reserve(executionId: string): Promise<"acquired" | "exact-replay" | "conflict"> {
+  async reserve(executionId: string, recovery: McpRecoveryCheckpoint): Promise<"acquired" | "exact-replay" | "conflict"> {
     if (this.#executions.has(executionId)) return "exact-replay";
-    this.#executions.add(executionId);
+    this.#executions.set(executionId, { stage: "reserved", recovery: copyRecovery(recovery) });
     return "acquired";
   }
 
-  async markProviderEntry(executionId: string): Promise<void> {
-    if (!this.#executions.has(executionId) || this.#entered.has(executionId)) {
+  async markProviderEntry(executionId: string, recovery: McpRecoveryCheckpoint): Promise<void> {
+    const execution = this.#executions.get(executionId);
+    if (execution?.stage !== "reserved" || recovery.executionId !== executionId) {
       throw new TypeError("invalid development provider-entry transition");
     }
-    this.#entered.add(executionId);
+    this.#executions.set(executionId, { stage: "provider", recovery: copyRecovery(recovery) });
   }
 
-  async saveRecovery(reference: string, recordJson: Uint8Array): Promise<void> {
-    this.#recovery.set(reference, recordJson.slice());
+  async saveRecovery(recovery: McpRecoveryCheckpoint): Promise<void> {
+    const execution = this.#executions.get(recovery.executionId);
+    if (execution === undefined || execution.stage === "completed") {
+      throw new TypeError("invalid development recovery transition");
+    }
+    this.#executions.set(recovery.executionId, { stage: execution.stage, recovery: copyRecovery(recovery) });
   }
 
   async loadRecovery(reference: string): Promise<Uint8Array | undefined> {
-    return this.#recovery.get(reference)?.slice();
+    for (const execution of this.#executions.values()) {
+      if (execution.stage !== "completed" && execution.recovery?.reference === reference) {
+        return execution.recovery.recordJson.slice();
+      }
+    }
+    return undefined;
+  }
+
+  async loadPending(executionId: string): Promise<McpRecoveryCheckpoint | undefined> {
+    const execution = this.#executions.get(executionId);
+    return execution?.stage === "completed" || execution?.recovery === undefined
+      ? undefined
+      : copyRecovery(execution.recovery);
+  }
+
+  async clearPending(executionId: string): Promise<void> {
+    const execution = this.#executions.get(executionId);
+    if (execution === undefined) throw new TypeError("invalid development completion transition");
+    this.#executions.set(executionId, { stage: "completed" });
   }
 
   async persist(executionId: string, receiptJson: Uint8Array): Promise<void> {
-    if (!this.#entered.has(executionId) || this.#receipts.has(executionId)) {
+    const execution = this.#executions.get(executionId);
+    if (execution?.stage !== "provider") {
       throw new TypeError("invalid development receipt transition");
+    }
+    const existing = this.#receipts.get(executionId);
+    if (existing !== undefined) {
+      if (!equalBytes(existing, receiptJson)) throw new TypeError("development receipt conflicts with persisted bytes");
+      return;
     }
     this.#receipts.set(executionId, receiptJson.slice());
   }
+}
+
+function copyRecovery(recovery: McpRecoveryCheckpoint): McpRecoveryCheckpoint {
+  return Object.freeze({
+    executionId: recovery.executionId,
+    reference: recovery.reference,
+    recordJson: recovery.recordJson.slice(),
+  });
+}
+
+function equalBytes(left: Uint8Array, right: Uint8Array): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
 export const development = Object.freeze({

@@ -115,9 +115,11 @@
 ./profiles	McpProfileOptions	type
 ./profiles	McpReceipt	type
 ./profiles	McpReceiptSink	type
+./profiles	McpRecoveryCheckpoint	type
 ./profiles	McpToolAuthority	value+type
 ./profiles	McpToolContext	type
 ./profiles	McpToolHandler	type
+./profiles	recoverMcpClosed	value
 ./profiles	resourcesForMcpAuthority	value
 ./profiles	resumeMcpClosed	value
 ./integrations	development	value

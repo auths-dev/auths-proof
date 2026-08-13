@@ -720,6 +720,7 @@ export interface WorkflowMcpExecutionSession {
   readonly planCommitment?: Uint8Array;
   readonly memberIndex?: number;
   readonly memberCount?: number;
+  checkpoint(): WorkflowMcpSessionTerminal;
   nextStep(): WorkflowMcpSessionStep;
   acceptReservation(result: "acquired" | "exact-replay" | "conflict"): void;
   acceptProviderEntry(): void;
