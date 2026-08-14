@@ -63,7 +63,7 @@ README only after every acceptance criterion in the epic passes.
 - [x] Content Epic 13 — Complete Identity and trust documentation
 - [x] Content Epic 14 — Complete Authority documentation
 - [x] Content Epic 15 — Complete Agents and MCP documentation
-- [ ] Content Epic 16 — Complete Production operations documentation
+- [x] Content Epic 16 — Complete Production operations documentation
 - [ ] Content Epic 17 — Complete Developer, integration, and extension documentation
 - [ ] Content Epic 18 — Complete Reference and Assurance utilities
 - [ ] Content Epic 19 — Full-site content and link qualification
