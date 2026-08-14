@@ -153,7 +153,7 @@ impl ProductVerb {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum QualifiedProfile {
     OpenTofuSavedPlanApply,
     PostgreSqlBoundedUpdate,

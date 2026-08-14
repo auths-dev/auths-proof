@@ -1331,6 +1331,32 @@ independent-semantic-implementation = [
   "product/runtime/auths-production-client/src/lib.rs#mutation_and_unknown_values_fail_closed",
 ]
 
+[packages.auths-node]
+kind = "cargo"
+layer = "product"
+path = "product/runtime/auths-node"
+core_apis = []
+protocol_versions = ["auths.production-client/1"]
+wire_objects = ["ProductionRequest", "ProductionResponse", "SandboxAuthority", "SandboxReceipt"]
+fixture_suites = ["product/fixtures/v1/production-client"]
+principal_families = ["registry-provided"]
+signature_families = ["ed25519-v1", "p256-sha256-v1"]
+profiles = ["auths.github.issue-address/1", "auths.opentofu.saved-plan-apply/1", "auths.postgresql.bounded-update/1"]
+transports = ["https"]
+configuration_inputs = ["custody", "lifecycle-store", "otlp", "profile-registry", "request-limits"]
+security_state = ["opaque-recovery-reference", "receipt-disclosure", "shared-lifecycle-store"]
+
+[packages.auths-node.claims]
+runtime-enforcement-boundary = [
+  "product/runtime/auths-node/src/api.rs#route_and_envelope_must_agree",
+  "product/runtime/auths-node/src/sandbox.rs#exact_action_and_replay_budget_are_enforced",
+]
+operational-diagnostics = ["product/runtime/auths-node/src/api.rs#metrics_expose_only_the_frozen_operational_vocabulary"]
+stateful-replay-budget-component = [
+  "product/runtime/auths-node/src/sandbox.rs#exact_action_and_replay_budget_are_enforced",
+  "product/runtime/auths-node/src/sandbox.rs#recovery_is_committed_once_and_replays_the_same_receipt",
+]
+
 [packages.auths-runtime]
 kind = "cargo"
 layer = "product"

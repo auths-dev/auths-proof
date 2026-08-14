@@ -1,0 +1,5 @@
+compose/postgres/certs/*
+!compose/postgres/certs/README.md
+compose/ingress/certs/*
+!compose/ingress/certs/README.md
+tests/__pycache__/

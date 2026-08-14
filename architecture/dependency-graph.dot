@@ -50,6 +50,7 @@ digraph auths_architecture {
   "auths-mcp-demo" [group="demos"];
   "auths-model" [group="core"];
   "auths-multikey" [group="core"];
+  "auths-node" [group="product"];
   "auths-opentofu" [group="product"];
   "auths-opentofu-demo" [group="demos"];
   "auths-operations" [group="product"];
@@ -290,6 +291,9 @@ digraph auths_architecture {
   "auths-live-service" -> "auths-proof-wasm" [label="normal"];
   "auths-mcp-demo" -> "auths-apps-testkit" [label="normal"];
   "auths-mcp-demo" -> "auths-proof-exchange-model" [label="normal"];
+  "auths-node" -> "auths-operations" [label="normal"];
+  "auths-node" -> "auths-operations-otel" [label="normal"];
+  "auths-node" -> "auths-production-client" [label="normal"];
   "auths-opentofu" -> "auths-bounded-policy" [label="normal"];
   "auths-opentofu" -> "auths-lifecycle" [label="normal"];
   "auths-opentofu" -> "auths-model" [label="normal"];

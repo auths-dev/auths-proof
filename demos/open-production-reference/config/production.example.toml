@@ -1,0 +1,30 @@
+contract_version = 1
+mode = "production"
+bind = "0.0.0.0:8080"
+release = "open-production-candidate-1"
+semantic_id = "auths.open-production/1"
+request_timeout_ms = 10000
+drain_timeout_seconds = 30
+ingress_tls = true
+
+[lifecycle]
+url_env = "AUTHS_POSTGRES_URL"
+ca_pem = "/run/secrets/postgres-ca.pem"
+server_name = "auths-lifecycle.internal.example"
+maximum_records = 1000000
+
+[custody]
+kind = "aws-kms"
+key_arn_env = "AUTHS_KMS_KEY_ARN"
+region = "eu-west-2"
+account = "000000000000"
+
+[telemetry]
+otlp_endpoint = "https://otel.internal.example"
+service_name = "auths-node"
+
+[profiles]
+opentofu_saved_plan_apply = true
+postgresql_bounded_update = true
+github_issue_address = true
+sandbox_providers = false

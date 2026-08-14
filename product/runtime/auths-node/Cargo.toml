@@ -1,0 +1,36 @@
+[package]
+name = "auths-node"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Hardened open reference node for the Auths production contract"
+publish = false
+
+[dependencies]
+auths-operations.workspace = true
+auths-operations-otel.workspace = true
+auths-production-client.workspace = true
+axum.workspace = true
+base64ct.workspace = true
+ed25519-dalek.workspace = true
+getrandom.workspace = true
+hex.workspace = true
+minicbor.workspace = true
+postgres.workspace = true
+rustls.workspace = true
+rustls-pki-types.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tokio.workspace = true
+tokio-postgres-rustls.workspace = true
+toml.workspace = true
+tower-http = { workspace = true, features = ["limit", "request-id", "timeout", "trace"] }
+
+[dev-dependencies]
+tempfile.workspace = true
+tower.workspace = true
+
+[lints]
+workspace = true

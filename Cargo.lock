@@ -845,6 +845,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "auths-node"
+version = "1.0.0-rc.1"
+dependencies = [
+ "auths-operations",
+ "auths-operations-otel",
+ "auths-production-client",
+ "axum",
+ "base64ct",
+ "ed25519-dalek 2.2.0",
+ "getrandom 0.3.4",
+ "hex",
+ "minicbor",
+ "postgres",
+ "rustls",
+ "rustls-pki-types",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "tempfile",
+ "tokio",
+ "tokio-postgres-rustls",
+ "toml",
+ "tower",
+ "tower-http 0.7.0",
+]
+
+[[package]]
 name = "auths-opentofu"
 version = "1.0.0-rc.1"
 dependencies = [
@@ -6242,10 +6269,15 @@ dependencies = [
  "bitflags",
  "bytes",
  "http",
+ "http-body",
+ "http-body-util",
  "percent-encoding",
  "pin-project-lite",
+ "tokio",
  "tower-layer",
  "tower-service",
+ "tracing",
+ "uuid",
 ]
 
 [[package]]

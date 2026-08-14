@@ -4,7 +4,7 @@ use crate::*;
 
 const INVENTORY_PATH: &str = "release/semantic-freeze.json";
 const INVENTORY_SCHEMA: &str = "auths.semantic-freeze/1";
-const FREEZE_VERSION: u64 = 97;
+const FREEZE_VERSION: u64 = 100;
 const PUBLIC_RUST_ROOTS: [&str; 10] = [
     "auths",
     "auths-byte-channel",
@@ -187,7 +187,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.identity.protocol",
-            26,
+            28,
             FreezeClassification::FrozenMeaning,
             &[
                 "identity-protocol-versions",
@@ -262,7 +262,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.public-sdk-contract",
-            36,
+            38,
             FreezeClassification::FrozenMeaning,
             &[
                 "rust-sdk-contract",
@@ -499,7 +499,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.open-production-contract",
-            9,
+            10,
             FreezeClassification::FrozenMeaning,
             &[
                 "production-topology",
@@ -609,7 +609,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
 
     for (id, path) in frozen_byte_inventories()? {
         let version = match path.as_str() {
-            "architecture/dependency-graph.json" => 24,
+            "architecture/dependency-graph.json" => 25,
             "bindings/wasm/auths-proof-wasm/identity-abi-v1.json" => 3,
             "core/fixtures/v1/manifest.json" => 3,
             "product/conformance/v1/simplified-product-waist.json" => 2,
@@ -675,7 +675,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
     ]);
     entries.push(freeze_entry(
         "auths.release.public-surface",
-        97,
+        99,
         FreezeClassification::ReleaseMetadata,
         &[
             "package-names",
