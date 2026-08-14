@@ -8,6 +8,7 @@ mod bounded_domains;
 mod checks;
 mod compliance;
 mod conformance;
+mod docs_bundle;
 mod docs_contract;
 mod error_registry;
 mod evolution_policy;
@@ -37,6 +38,7 @@ pub(crate) use bounded_domains::*;
 pub(crate) use checks::*;
 pub(crate) use compliance::*;
 pub(crate) use conformance::*;
+pub(crate) use docs_bundle::*;
 pub(crate) use docs_contract::*;
 pub(crate) use error_registry::*;
 pub(crate) use evolution_policy::*;
@@ -58,7 +60,7 @@ pub(crate) use sdk_vocabulary::*;
 pub(crate) use semantic_freeze::*;
 pub(crate) use stripe::*;
 
-const USAGE: &str = "usage: cargo xtask <fmt|arch [--update]|semantic-freeze [--update]|evolution-policy [--update]|sdk-experience [--update]|sdk-vocabulary|docs-contract [--update] [--artifact-dir <path>]|public-docs [--update]|error-registry [--update]|mcp-session-contract [--update]|mechanism-conformance [--update]|product-waist-conformance [--update]|public-naming|release-contract|release-control <finalize|compare|verify-promotion> ...|binding-semantics|core-boundary|workspace-msrv|abi|core|exchange|product|bindings|demos|package|wire [--update]|spec-sync|conformance|exchange-conformance|product-conformance|stripe-profiles|bounded-domains|compliance|matrix|cross-language|product-fixtures [--update]|semantic-digest|wasm|live-demo|fuzz-inventory|fuzz-smoke|platform-artifact [output]|formal [--skip-kani] [--update]|formal qualify aeneas [--update]|adversarial-conformance [--surface <name>|--adapter <name>|--case <id>]|bench <prepare|run|report|compare|verify-artifact|bounded>|ci [authoritative|formal-translation|compliance]|release-check>";
+const USAGE: &str = "usage: cargo xtask <fmt|arch [--update]|semantic-freeze [--update]|evolution-policy [--update]|sdk-experience [--update]|sdk-vocabulary|docs-contract [--update] [--artifact-dir <path>]|docs-bundle <output-dir> [--check]|public-docs [--update]|error-registry [--update]|mcp-session-contract [--update]|mechanism-conformance [--update]|product-waist-conformance [--update]|public-naming|release-contract|release-control <finalize|compare|verify-promotion> ...|binding-semantics|core-boundary|workspace-msrv|abi|core|exchange|product|bindings|demos|package|wire [--update]|spec-sync|conformance|exchange-conformance|product-conformance|stripe-profiles|bounded-domains|compliance|matrix|cross-language|product-fixtures [--update]|semantic-digest|wasm|live-demo|fuzz-inventory|fuzz-smoke|platform-artifact [output]|formal [--skip-kani] [--update]|formal qualify aeneas [--update]|adversarial-conformance [--surface <name>|--adapter <name>|--case <id>]|bench <prepare|run|report|compare|verify-artifact|bounded>|ci [authoritative|formal-translation|compliance]|release-check>";
 
 fn main() -> ExitCode {
     match run() {
@@ -97,6 +99,7 @@ fn dispatch(arguments: impl IntoIterator<Item = String>) -> Result<(), String> {
         "sdk-experience" => sdk_experience(args.any(|arg| arg == "--update")),
         "sdk-vocabulary" => sdk_vocabulary(),
         "docs-contract" => docs_contract(args.collect()),
+        "docs-bundle" => docs_bundle(args.collect()),
         "public-docs" => public_docs(args.any(|arg| arg == "--update")),
         "error-registry" => error_registry(args.any(|arg| arg == "--update")),
         "mcp-session-contract" => mcp_session_contract(args.any(|arg| arg == "--update")),
@@ -174,7 +177,7 @@ mod tests {
     fn help_output_is_stable() {
         assert_eq!(
             USAGE,
-            "usage: cargo xtask <fmt|arch [--update]|semantic-freeze [--update]|evolution-policy [--update]|sdk-experience [--update]|sdk-vocabulary|docs-contract [--update] [--artifact-dir <path>]|public-docs [--update]|error-registry [--update]|mcp-session-contract [--update]|mechanism-conformance [--update]|product-waist-conformance [--update]|public-naming|release-contract|release-control <finalize|compare|verify-promotion> ...|binding-semantics|core-boundary|workspace-msrv|abi|core|exchange|product|bindings|demos|package|wire [--update]|spec-sync|conformance|exchange-conformance|product-conformance|stripe-profiles|bounded-domains|compliance|matrix|cross-language|product-fixtures [--update]|semantic-digest|wasm|live-demo|fuzz-inventory|fuzz-smoke|platform-artifact [output]|formal [--skip-kani] [--update]|formal qualify aeneas [--update]|adversarial-conformance [--surface <name>|--adapter <name>|--case <id>]|bench <prepare|run|report|compare|verify-artifact|bounded>|ci [authoritative|formal-translation|compliance]|release-check>"
+            "usage: cargo xtask <fmt|arch [--update]|semantic-freeze [--update]|evolution-policy [--update]|sdk-experience [--update]|sdk-vocabulary|docs-contract [--update] [--artifact-dir <path>]|docs-bundle <output-dir> [--check]|public-docs [--update]|error-registry [--update]|mcp-session-contract [--update]|mechanism-conformance [--update]|product-waist-conformance [--update]|public-naming|release-contract|release-control <finalize|compare|verify-promotion> ...|binding-semantics|core-boundary|workspace-msrv|abi|core|exchange|product|bindings|demos|package|wire [--update]|spec-sync|conformance|exchange-conformance|product-conformance|stripe-profiles|bounded-domains|compliance|matrix|cross-language|product-fixtures [--update]|semantic-digest|wasm|live-demo|fuzz-inventory|fuzz-smoke|platform-artifact [output]|formal [--skip-kani] [--update]|formal qualify aeneas [--update]|adversarial-conformance [--surface <name>|--adapter <name>|--case <id>]|bench <prepare|run|report|compare|verify-artifact|bounded>|ci [authoritative|formal-translation|compliance]|release-check>"
         );
     }
 

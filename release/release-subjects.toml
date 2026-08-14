@@ -62,6 +62,14 @@ reproducibility = "byte-identical"
 producer = "cargo xtask docs-contract"
 publication = "Contained by the source and documentation bundles; consumed by auths-dev/auths-docs by digest"
 
+[[families]]
+id = "documentation-bundle"
+coordinate = "auths-docs-bundle-v1.tar.zst"
+media_type = "application/zstd"
+reproducibility = "byte-identical for a fixed source commit"
+producer = "cargo xtask docs-bundle"
+publication = "Immutable release artifact consumed by auths-dev/auths-docs by checksum"
+
 [[excluded]]
 id = "domain-integrations"
 reason = "Domain packages, demos, benchmarks, testkits, fuzz crates, internal tools, CLIs, hosted services, and OCI images are outside the lean first-RC catalogue."
