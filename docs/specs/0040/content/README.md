@@ -38,7 +38,7 @@ README only after every acceptance criterion in the epic passes.
 - [x] Content Epic 5 — Developer resources and generated reference
 - [x] Content Epic 6 — Agents, MCP, and integrations
 - [x] Content Epic 7 — Adoption and migration
-- [ ] Content Epic 8 — Operations, testing, failure, and recovery
+- [x] Content Epic 8 — Operations, testing, failure, and recovery
 - [ ] Content Epic 9 — Assurance narrative and governance
 
 ## Zero-context agent prompt

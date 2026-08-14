@@ -100,20 +100,20 @@ Every procedure contains:
 
 ## Implementation steps
 
-- [ ] Author the operations landing and deployment-mode chooser.
-- [ ] Author procedures around tested P7/P9 commands for runtime, state,
+- [x] Author the operations landing and deployment-mode chooser.
+- [x] Author procedures around tested P7/P9 commands for runtime, state,
   custody, trust, gateway, telemetry, backup/restore, upgrade, and rollback.
-- [ ] Curate the generated testing catalog from adversarial and differential
+- [x] Curate the generated testing catalog from adversarial and differential
   fixtures.
-- [ ] Curate the generated failure hub from stable error and outcome registries.
-- [ ] Add decision trees for retry, resume, reconcile, and stop.
-- [ ] Add observable metrics, logs, traces, health checks, and SLO examples
+- [x] Curate the generated failure hub from stable error and outcome registries.
+- [x] Add decision trees for retry, resume, reconcile, and stop.
+- [x] Add observable metrics, logs, traces, health checks, and SLO examples
   without leaking authority or receipt contents.
-- [ ] Build incident runbooks for state loss, signer outage, trust-root error,
+- [x] Build incident runbooks for state loss, signer outage, trust-root error,
   provider uncertainty, receipt disclosure, and compromised credentials.
-- [ ] Require every published command to resolve to an isolated local or
+- [x] Require every published command to resolve to an isolated local or
   field-lab scenario identity.
-- [ ] Explain sanitized sample evidence produced by the owning scenario.
+- [x] Explain sanitized sample evidence produced by the owning scenario.
 
 ## Acceptance criteria
 
