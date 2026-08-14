@@ -384,118 +384,27 @@ impl ProductionCandidateInput {
     ///
     /// Returns the first closed validation failure.
     pub fn compile(self) -> Result<ProductionCandidate, ProductionConfigError> {
-        validate_identifier("release.candidate", &self.release.candidate)?;
-        validate_version("release.version", &self.release.version)?;
-        validate_identifier(
-            "release.source_commit_slot",
-            &self.release.source_commit_slot,
-        )?;
-        if self.topology.runtime_instances < 3 || self.topology.runtime_instances > 32 {
-            return Err(ProductionConfigError::invalid(
-                "topology.runtime_instances",
-                "choose between 3 and 32 runtime instances",
-            ));
-        }
-        validate_identifier("lifecycle_store.schema", &self.lifecycle_store.schema)?;
-        validate_secret_slot(
-            "lifecycle_store.secret_slot",
-            &self.lifecycle_store.secret_slot,
-        )?;
+        let release = compile_release(self.release)?;
+        let topology = compile_topology(&self.topology)?;
+        let lifecycle_store = compile_lifecycle_store(self.lifecycle_store)?;
         let custody = compile_custody(self.custody)?;
         let profiles = compile_profiles(self.profiles)?;
-        if self.client_contract.version != 1 {
-            return Err(ProductionConfigError::invalid(
-                "client_contract.version",
-                "use production client contract version 1",
-            ));
-        }
-        validate_exact(
-            "client_contract.content_type",
-            &self.client_contract.content_type,
-            "application/auths+cbor",
-        )?;
-        validate_exact(
-            "client_contract.fixture_suite",
-            &self.client_contract.fixture_suite,
-            "product/fixtures/v1/production-client",
-        )?;
+        let client_contract = compile_client_contract(self.client_contract)?;
         let sdks = compile_sdks(self.sdks.artifacts)?;
-
-        validate_objectives(&self.operations)?;
-        let evidence = unique_complete(
-            "evidence",
-            &self.evidence,
-            MAX_EVIDENCE_REQUIREMENTS,
-            &BTreeSet::from([
-                EvidenceRequirement::MultiHostStore,
-                EvidenceRequirement::RuntimeRecovery,
-                EvidenceRequirement::CustodyConformance,
-                EvidenceRequirement::OperationsPrivacy,
-                EvidenceRequirement::ExactEffectProfiles,
-                EvidenceRequirement::SdkDifferential,
-                EvidenceRequirement::ReferenceDeployment,
-                EvidenceRequirement::SustainedQualification,
-                EvidenceRequirement::IndependentReview,
-            ]),
-        )?;
-        let exclusions = unique_complete(
-            "exclusions",
-            &self.exclusions,
-            MAX_EXCLUSIONS,
-            &BTreeSet::from([
-                ProductionExclusion::HostedControlPlane,
-                ProductionExclusion::GenericExecutor,
-                ProductionExclusion::ArbitraryProviderRequest,
-                ProductionExclusion::RegulatoryCompliance,
-                ProductionExclusion::UniversalExactlyOnce,
-            ]),
-        )?;
+        let operations = compile_operations(&self.operations)?;
+        let evidence = compile_evidence(&self.evidence)?;
+        let exclusions = compile_exclusions(&self.exclusions)?;
 
         let manifest = CanonicalManifest {
             schema: "auths.open-production-candidate/1",
-            release: CanonicalRelease {
-                candidate: self.release.candidate,
-                version: self.release.version,
-                source_commit_slot: self.release.source_commit_slot,
-            },
-            topology: CanonicalTopology {
-                class: self.topology.class,
-                runtime_instances: self.topology.runtime_instances,
-            },
-            lifecycle_store: CanonicalLifecycleStore {
-                family: self.lifecycle_store.family,
-                tls: self.lifecycle_store.tls,
-                schema: self.lifecycle_store.schema,
-                secret_slot: self.lifecycle_store.secret_slot,
-            },
+            release,
+            topology,
+            lifecycle_store,
             custody,
             profiles,
-            client_contract: CanonicalClientContract {
-                version: self.client_contract.version,
-                content_type: self.client_contract.content_type,
-                fixture_suite: self.client_contract.fixture_suite,
-            },
+            client_contract,
             sdks,
-            operations: CanonicalOperations {
-                availability_basis_points: self.operations.availability_basis_points,
-                decision_p95_milliseconds: self.operations.decision_p95_milliseconds,
-                decision_p99_milliseconds: self.operations.decision_p99_milliseconds,
-                recovery_p95_seconds: self.operations.recovery_p95_seconds,
-                maximum_possible_effect_age_seconds: self
-                    .operations
-                    .maximum_possible_effect_age_seconds,
-                maximum_reconciliation_backlog: self.operations.maximum_reconciliation_backlog,
-                reconciliation_drain_p95_seconds: self.operations.reconciliation_drain_p95_seconds,
-                receipt_availability_basis_points: self
-                    .operations
-                    .receipt_availability_basis_points,
-                store_rpo_seconds: self.operations.store_rpo_seconds,
-                store_rto_seconds: self.operations.store_rto_seconds,
-                custody_availability_basis_points: self
-                    .operations
-                    .custody_availability_basis_points,
-                maximum_concurrent_workflows: self.operations.maximum_concurrent_workflows,
-            },
+            operations,
             evidence,
             exclusions,
         };
@@ -508,6 +417,131 @@ impl ProductionCandidateInput {
             commitment: Digest::new(digest.finalize().into()),
         })
     }
+}
+
+fn compile_release(
+    input: ReleaseCandidateInput,
+) -> Result<CanonicalRelease, ProductionConfigError> {
+    validate_identifier("release.candidate", &input.candidate)?;
+    validate_version("release.version", &input.version)?;
+    validate_identifier("release.source_commit_slot", &input.source_commit_slot)?;
+    Ok(CanonicalRelease {
+        candidate: input.candidate,
+        version: input.version,
+        source_commit_slot: input.source_commit_slot,
+    })
+}
+
+fn compile_topology(
+    input: &ProductionTopologyInput,
+) -> Result<CanonicalTopology, ProductionConfigError> {
+    if !(3..=32).contains(&input.runtime_instances) {
+        return Err(ProductionConfigError::invalid(
+            "topology.runtime_instances",
+            "choose between 3 and 32 runtime instances",
+        ));
+    }
+    Ok(CanonicalTopology {
+        class: input.class,
+        runtime_instances: input.runtime_instances,
+    })
+}
+
+fn compile_lifecycle_store(
+    input: LifecycleStoreInput,
+) -> Result<CanonicalLifecycleStore, ProductionConfigError> {
+    validate_identifier("lifecycle_store.schema", &input.schema)?;
+    validate_secret_slot("lifecycle_store.secret_slot", &input.secret_slot)?;
+    Ok(CanonicalLifecycleStore {
+        family: input.family,
+        tls: input.tls,
+        schema: input.schema,
+        secret_slot: input.secret_slot,
+    })
+}
+
+fn compile_client_contract(
+    input: ClientContractInput,
+) -> Result<CanonicalClientContract, ProductionConfigError> {
+    if input.version != 1 {
+        return Err(ProductionConfigError::invalid(
+            "client_contract.version",
+            "use production client contract version 1",
+        ));
+    }
+    validate_exact(
+        "client_contract.content_type",
+        &input.content_type,
+        "application/auths+cbor",
+    )?;
+    validate_exact(
+        "client_contract.fixture_suite",
+        &input.fixture_suite,
+        "product/fixtures/v1/production-client",
+    )?;
+    Ok(CanonicalClientContract {
+        version: input.version,
+        content_type: input.content_type,
+        fixture_suite: input.fixture_suite,
+    })
+}
+
+fn compile_operations(
+    input: &OperationsObjectivesInput,
+) -> Result<CanonicalOperations, ProductionConfigError> {
+    validate_objectives(input)?;
+    Ok(CanonicalOperations {
+        availability_basis_points: input.availability_basis_points,
+        decision_p95_milliseconds: input.decision_p95_milliseconds,
+        decision_p99_milliseconds: input.decision_p99_milliseconds,
+        recovery_p95_seconds: input.recovery_p95_seconds,
+        maximum_possible_effect_age_seconds: input.maximum_possible_effect_age_seconds,
+        maximum_reconciliation_backlog: input.maximum_reconciliation_backlog,
+        reconciliation_drain_p95_seconds: input.reconciliation_drain_p95_seconds,
+        receipt_availability_basis_points: input.receipt_availability_basis_points,
+        store_rpo_seconds: input.store_rpo_seconds,
+        store_rto_seconds: input.store_rto_seconds,
+        custody_availability_basis_points: input.custody_availability_basis_points,
+        maximum_concurrent_workflows: input.maximum_concurrent_workflows,
+    })
+}
+
+fn compile_evidence(
+    evidence: &[EvidenceRequirement],
+) -> Result<Vec<EvidenceRequirement>, ProductionConfigError> {
+    unique_complete(
+        "evidence",
+        evidence,
+        MAX_EVIDENCE_REQUIREMENTS,
+        &BTreeSet::from([
+            EvidenceRequirement::MultiHostStore,
+            EvidenceRequirement::RuntimeRecovery,
+            EvidenceRequirement::CustodyConformance,
+            EvidenceRequirement::OperationsPrivacy,
+            EvidenceRequirement::ExactEffectProfiles,
+            EvidenceRequirement::SdkDifferential,
+            EvidenceRequirement::ReferenceDeployment,
+            EvidenceRequirement::SustainedQualification,
+            EvidenceRequirement::IndependentReview,
+        ]),
+    )
+}
+
+fn compile_exclusions(
+    exclusions: &[ProductionExclusion],
+) -> Result<Vec<ProductionExclusion>, ProductionConfigError> {
+    unique_complete(
+        "exclusions",
+        exclusions,
+        MAX_EXCLUSIONS,
+        &BTreeSet::from([
+            ProductionExclusion::HostedControlPlane,
+            ProductionExclusion::GenericExecutor,
+            ProductionExclusion::ArbitraryProviderRequest,
+            ProductionExclusion::RegulatoryCompliance,
+            ProductionExclusion::UniversalExactlyOnce,
+        ]),
+    )
 }
 
 impl ProductionCandidate {
