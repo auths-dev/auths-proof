@@ -74,6 +74,12 @@ struct SdkEventProjection<'a> {
     event: &'a SdkEventV2,
 }
 
+/// Projects a bounded telemetry event into the stable SDK event schema.
+///
+/// # Errors
+///
+/// Returns an error when the input is oversized, malformed, or contains an
+/// unsupported field or value.
 pub fn project_sdk_event_v2(input: &str) -> Result<String, ProductionClientError> {
     if input.len() > 16_384 {
         return Err(ProductionClientError::LimitExceeded);
@@ -130,6 +136,11 @@ pub enum ProductVerb {
 }
 
 impl ProductVerb {
+    /// Parses a stable product verb.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ProductionClientError::UnknownVerb`] for any unknown value.
     pub fn parse(value: &str) -> Result<Self, ProductionClientError> {
         match value {
             "create" => Ok(Self::Create),
@@ -161,6 +172,12 @@ pub enum QualifiedProfile {
 }
 
 impl QualifiedProfile {
+    /// Parses a qualified production profile identifier.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ProductionClientError::UnknownProfile`] for any profile that
+    /// is not in the closed production set.
     pub fn parse(value: &str) -> Result<Self, ProductionClientError> {
         match value {
             "auths.opentofu.saved-plan-apply/1" => Ok(Self::OpenTofuSavedPlanApply),
@@ -193,6 +210,12 @@ impl QualifiedProfile {
 pub struct RecoveryReference(String);
 
 impl RecoveryReference {
+    /// Parses a non-zero, 32-byte recovery reference.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ProductionClientError::InvalidRecoveryReference`] when the
+    /// value is not canonical unpadded base64url or resolves to the zero value.
     pub fn parse(value: &str) -> Result<Self, ProductionClientError> {
         if value.len() != 43 {
             return Err(ProductionClientError::InvalidRecoveryReference);
@@ -223,6 +246,12 @@ pub struct ProductionRequest {
 }
 
 impl ProductionRequest {
+    /// Constructs a request after enforcing the selected verb's exact shape.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when any byte field exceeds its bound or the supplied
+    /// fields do not match the selected verb.
     pub fn new(
         verb: ProductVerb,
         profile: QualifiedProfile,
@@ -244,7 +273,7 @@ impl ProductionRequest {
             return Err(ProductionClientError::InvalidBody);
         }
         let valid_shape = match verb {
-            ProductVerb::Create => {
+            ProductVerb::Create | ProductVerb::Verify => {
                 authority.is_none() && body.is_some() && recovery_reference.is_none()
             }
             ProductVerb::Delegate | ProductVerb::Execute => {
@@ -252,9 +281,6 @@ impl ProductionRequest {
             }
             ProductVerb::Resume => {
                 authority.is_none() && body.is_none() && recovery_reference.is_some()
-            }
-            ProductVerb::Verify => {
-                authority.is_none() && body.is_some() && recovery_reference.is_none()
             }
         };
         if !valid_shape {
@@ -311,6 +337,11 @@ impl ProductionRequest {
         }
     }
 
+    /// Returns the stable JSON projection of this request.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ProductionClientError::Malformed`] if serialization fails.
     pub fn projection_json(&self) -> Result<String, ProductionClientError> {
         serde_json::to_string(&ProductionRequestProjection {
             contract_version: PRODUCTION_CLIENT_CONTRACT_VERSION,
@@ -422,6 +453,12 @@ pub struct ProductionResponse {
 }
 
 impl ProductionResponse {
+    /// Constructs a response after enforcing the selected outcome's exact shape.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when a field exceeds its bound or the supplied fields
+    /// contradict the selected outcome or retry class.
     pub fn new(
         kind: ClientOutcomeKind,
         code: Option<String>,
@@ -518,6 +555,11 @@ impl ProductionResponse {
         self.receipt.as_deref()
     }
 
+    /// Returns the stable JSON projection of this response.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ProductionClientError::Malformed`] if serialization fails.
     pub fn projection_json(&self) -> Result<String, ProductionClientError> {
         serde_json::to_string(&ProductionResponseProjection {
             contract_version: PRODUCTION_CLIENT_CONTRACT_VERSION,
@@ -550,6 +592,11 @@ struct ProductionResponseProjection<'a> {
     receipt: Option<String>,
 }
 
+/// Encodes a production request as canonical bounded CBOR.
+///
+/// # Errors
+///
+/// Returns an error if encoding fails or the result exceeds the request bound.
 pub fn encode_request(request: &ProductionRequest) -> Result<Vec<u8>, ProductionClientError> {
     let mut encoder = Encoder::new(Vec::new());
     encoder
@@ -576,13 +623,19 @@ pub fn encode_request(request: &ProductionRequest) -> Result<Vec<u8>, Production
             .as_ref()
             .map(RecoveryReference::as_str),
     )?;
-    let encoded = encoder.into_writer();
-    if encoded.len() > MAX_PRODUCTION_REQUEST_BYTES {
+    let request_bytes = encoder.into_writer();
+    if request_bytes.len() > MAX_PRODUCTION_REQUEST_BYTES {
         return Err(ProductionClientError::LimitExceeded);
     }
-    Ok(encoded)
+    Ok(request_bytes)
 }
 
+/// Decodes a canonical bounded production request.
+///
+/// # Errors
+///
+/// Returns an error for oversized, malformed, non-canonical, unsupported, or
+/// semantically invalid request bytes.
 pub fn decode_request(input: &[u8]) -> Result<ProductionRequest, ProductionClientError> {
     if input.len() > MAX_PRODUCTION_REQUEST_BYTES {
         return Err(ProductionClientError::LimitExceeded);
@@ -618,6 +671,11 @@ pub fn decode_request(input: &[u8]) -> Result<ProductionRequest, ProductionClien
     Ok(request)
 }
 
+/// Encodes a production response as canonical bounded CBOR.
+///
+/// # Errors
+///
+/// Returns an error if encoding fails or the result exceeds the response bound.
 pub fn encode_response(response: &ProductionResponse) -> Result<Vec<u8>, ProductionClientError> {
     let mut encoder = Encoder::new(Vec::new());
     encoder
@@ -642,13 +700,19 @@ pub fn encode_response(response: &ProductionResponse) -> Result<Vec<u8>, Product
     )?;
     encode_optional_bytes(&mut encoder, response.value.as_deref())?;
     encode_optional_bytes(&mut encoder, response.receipt.as_deref())?;
-    let encoded = encoder.into_writer();
-    if encoded.len() > MAX_PRODUCTION_RESPONSE_BYTES {
+    let response_bytes = encoder.into_writer();
+    if response_bytes.len() > MAX_PRODUCTION_RESPONSE_BYTES {
         return Err(ProductionClientError::LimitExceeded);
     }
-    Ok(encoded)
+    Ok(response_bytes)
 }
 
+/// Decodes a canonical bounded production response.
+///
+/// # Errors
+///
+/// Returns an error for oversized, malformed, non-canonical, unsupported, or
+/// semantically invalid response bytes.
 pub fn decode_response(input: &[u8]) -> Result<ProductionResponse, ProductionClientError> {
     if input.len() > MAX_PRODUCTION_RESPONSE_BYTES {
         return Err(ProductionClientError::LimitExceeded);
@@ -680,6 +744,12 @@ pub fn decode_response(input: &[u8]) -> Result<ProductionResponse, ProductionCli
     Ok(response)
 }
 
+/// Encodes exact subject and attenuation bytes for delegation.
+///
+/// # Errors
+///
+/// Returns an error when either field is empty, exceeds its bound, or cannot be
+/// encoded.
 pub fn encode_delegation_body(
     subject: &[u8],
     attenuation: &[u8],
@@ -700,6 +770,11 @@ pub fn encode_delegation_body(
     Ok(encoder.into_writer())
 }
 
+/// Decodes a canonical delegation body.
+///
+/// # Errors
+///
+/// Returns an error for malformed, non-canonical, empty, or oversized fields.
 pub fn decode_delegation_body(input: &[u8]) -> Result<(Vec<u8>, Vec<u8>), ProductionClientError> {
     let mut decoder = Decoder::new(input);
     exact_array(&mut decoder, 2)?;
