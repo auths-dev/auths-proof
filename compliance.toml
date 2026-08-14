@@ -1310,6 +1310,27 @@ security_state = ["resolved-trust-record"]
 [packages.auths-resolver-did-web.claims]
 principal-evidence-integration = ["product/integrations/auths-resolver-did-web/src/lib.rs#rejects_private_and_documentation_addresses"]
 
+[packages.auths-production-client]
+kind = "cargo"
+layer = "product"
+path = "product/runtime/auths-production-client"
+core_apis = []
+protocol_versions = ["auths.production-client/1"]
+wire_objects = ["ProductionRequest", "ProductionResponse"]
+fixture_suites = ["product/fixtures/v1/production-client"]
+principal_families = ["registry-provided"]
+signature_families = ["registry-provided"]
+profiles = ["auths.github.issue-address/1", "auths.opentofu.saved-plan-apply/1", "auths.postgresql.bounded-update/1"]
+transports = ["https"]
+configuration_inputs = ["endpoint", "identity", "profile", "timeout"]
+security_state = ["opaque-recovery-reference"]
+
+[packages.auths-production-client.claims]
+independent-semantic-implementation = [
+  "product/runtime/auths-production-client/src/lib.rs#every_request_shape_round_trips_canonically",
+  "product/runtime/auths-production-client/src/lib.rs#mutation_and_unknown_values_fail_closed",
+]
+
 [packages.auths-runtime]
 kind = "cargo"
 layer = "product"

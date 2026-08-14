@@ -21,6 +21,7 @@ pub struct ProductionCandidateInput {
     lifecycle_store: LifecycleStoreInput,
     custody: Vec<CustodyAdapterInput>,
     profiles: Vec<ProductionProfileInput>,
+    client_contract: ClientContractInput,
     sdks: SdkMatrixInput,
     operations: OperationsObjectivesInput,
     evidence: Vec<EvidenceRequirement>,
@@ -193,6 +194,14 @@ struct SdkMatrixInput {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
+struct ClientContractInput {
+    version: u16,
+    content_type: String,
+    fixture_suite: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+#[serde(deny_unknown_fields)]
 struct SdkArtifactInput {
     language: SdkLanguage,
     package: String,
@@ -241,6 +250,7 @@ struct CanonicalManifest {
     lifecycle_store: CanonicalLifecycleStore,
     custody: Vec<CanonicalCustody>,
     profiles: Vec<CanonicalProfile>,
+    client_contract: CanonicalClientContract,
     sdks: Vec<CanonicalSdk>,
     operations: CanonicalOperations,
     evidence: Vec<EvidenceRequirement>,
@@ -299,6 +309,14 @@ struct CanonicalSdk {
     version: String,
     abi: String,
     public_api_snapshot: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CanonicalClientContract {
+    version: u16,
+    content_type: String,
+    fixture_suite: String,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
@@ -385,6 +403,22 @@ impl ProductionCandidateInput {
         )?;
         let custody = compile_custody(self.custody)?;
         let profiles = compile_profiles(self.profiles)?;
+        if self.client_contract.version != 1 {
+            return Err(ProductionConfigError::invalid(
+                "client_contract.version",
+                "use production client contract version 1",
+            ));
+        }
+        validate_exact(
+            "client_contract.content_type",
+            &self.client_contract.content_type,
+            "application/auths+cbor",
+        )?;
+        validate_exact(
+            "client_contract.fixture_suite",
+            &self.client_contract.fixture_suite,
+            "product/fixtures/v1/production-client",
+        )?;
         let sdks = compile_sdks(self.sdks.artifacts)?;
 
         validate_objectives(&self.operations)?;
@@ -436,6 +470,11 @@ impl ProductionCandidateInput {
             },
             custody,
             profiles,
+            client_contract: CanonicalClientContract {
+                version: self.client_contract.version,
+                content_type: self.client_contract.content_type,
+                fixture_suite: self.client_contract.fixture_suite,
+            },
             sdks,
             operations: CanonicalOperations {
                 availability_basis_points: self.operations.availability_basis_points,
@@ -979,14 +1018,15 @@ fn generated_schema() -> Value {
         "title": "Auths open production candidate V1",
         "type": "object",
         "additionalProperties": false,
-        "required": ["schema", "release", "topology", "lifecycleStore", "custody", "profiles", "sdks", "operations", "evidence", "exclusions"],
+        "required": ["schema", "release", "topology", "lifecycleStore", "custody", "profiles", "clientContract", "sdks", "operations", "evidence", "exclusions"],
         "properties": {
             "schema": { "const": "auths.open-production-candidate/1" },
             "release": closed_object(["candidate", "version", "sourceCommitSlot"]),
             "topology": closed_object(["class", "runtimeInstances"]),
             "lifecycleStore": closed_object(["family", "tls", "schema", "secretSlot"]),
             "custody": { "type": "array", "minItems": 1, "maxItems": MAX_CUSTODY_ADAPTERS, "items": closed_object(["family", "suite", "keyPolicy", "fixtureSuite", "secretSlot"]) },
-            "profiles": { "type": "array", "minItems": 3, "maxItems": MAX_PRODUCTION_PROFILES, "items": closed_object(["id", "package", "providerContract", "receiptSchema", "fixtureSuite"]) },
+            "profiles": { "type": "array", "minItems": 3, "maxItems": MAX_PRODUCTION_PROFILES, "items": closed_object(["id", "package", "providerContracts", "receiptSchema", "fixtureSuite"]) },
+            "clientContract": closed_object(["version", "contentType", "fixtureSuite"]),
             "sdks": { "type": "array", "minItems": 3, "maxItems": 3, "items": closed_object(["language", "package", "version", "abi", "publicApiSnapshot"]) },
             "operations": closed_object(["availabilityBasisPoints", "decisionP95Milliseconds", "decisionP99Milliseconds", "recoveryP95Seconds", "maximumPossibleEffectAgeSeconds", "maximumReconciliationBacklog", "reconciliationDrainP95Seconds", "receiptAvailabilityBasisPoints", "storeRpoSeconds", "storeRtoSeconds", "custodyAvailabilityBasisPoints", "maximumConcurrentWorkflows"]),
             "evidence": { "type": "array", "minItems": 9, "maxItems": MAX_EVIDENCE_REQUIREMENTS, "uniqueItems": true },

@@ -33,6 +33,7 @@ auths-github = { workspace = true, features = ["fixture-support"] }
 auths-kubernetes.workspace = true
 auths-opentofu.workspace = true
 auths-postgresql.workspace = true
+auths-production-client.workspace = true
 auths-proof-exchange-testkit.workspace = true
 auths-radicle = { workspace = true, features = ["fixture-support"] }
 auths-records-api.workspace = true

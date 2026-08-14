@@ -973,6 +973,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "auths-production-client"
+version = "1.0.0-rc.1"
+dependencies = [
+ "base64ct",
+ "minicbor",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "auths-profile-api"
 version = "1.0.0-rc.1"
 dependencies = [
@@ -1216,6 +1226,7 @@ dependencies = [
  "auths-lifecycle",
  "auths-model",
  "auths-ports",
+ "auths-production-client",
  "auths-profile-api",
  "auths-profile-domains",
  "auths-profile-mcp",
@@ -1248,6 +1259,7 @@ dependencies = [
  "auths-identity-raw-key",
  "auths-model",
  "auths-ports",
+ "auths-production-client",
  "auths-profile-api",
  "auths-profile-domains",
  "auths-profile-mcp",
@@ -1453,6 +1465,7 @@ dependencies = [
  "auths-lifecycle",
  "auths-model",
  "auths-operations",
+ "auths-production-client",
  "auths-profile-api",
  "auths-profile-mcp",
  "auths-proof-exchange-model",
@@ -7067,6 +7080,7 @@ dependencies = [
  "auths-opentofu",
  "auths-ports",
  "auths-postgresql",
+ "auths-production-client",
  "auths-profile-mcp",
  "auths-proof-exchange-testkit",
  "auths-radicle",

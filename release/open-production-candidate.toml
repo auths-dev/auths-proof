@@ -73,6 +73,11 @@ fixture_suite = "product/fixtures/v1/github"
 
 [sdks]
 
+[client_contract]
+version = 1
+content_type = "application/auths+cbor"
+fixture_suite = "product/fixtures/v1/production-client"
+
 [[sdks.artifacts]]
 language = "rust"
 package = "auths-sdk"

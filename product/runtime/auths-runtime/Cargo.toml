@@ -20,6 +20,7 @@ auths-proof-exchange-model.workspace = true
 auths-proof-exchange-port.workspace = true
 auths-model.workspace = true
 auths-operations.workspace = true
+auths-production-client.workspace = true
 auths-codec.workspace = true
 auths-verifier.workspace = true
 async-trait.workspace = true

@@ -7,6 +7,7 @@ Choose the smallest outcome that matches what you need:
 3. [Execute one exact action](03_EXECUTE_ONE_ACTION.md) and verify its signed receipt.
 4. [Delegate to an agent](04_DELEGATE_TO_AN_AGENT.md) with narrower, expiring authority.
 5. [Run a cross-organization ordered plan](05_CROSS_ORGANIZATION_ORDERED_PLAN.md), restart after an ambiguous effect, and reconcile without duplicate provider entry.
+6. [Handle production failures and recovery](06_PRODUCTION_FAILURES.md) with finite outcomes and safe retry classes.
 
 The displayed TypeScript and Python programs are generated from the external-consumer sources in `bindings/recipes`. The installed-artifact runner executes every program, records wall-clock duration, checks each adversarial outcome, and verifies the recovered receipt from Recipe 5 in the other language.
 

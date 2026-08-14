@@ -9,6 +9,7 @@ mod domains;
 mod http;
 mod identity;
 mod mcp;
+mod production_client;
 mod receipts;
 mod result;
 mod runtime;
@@ -41,6 +42,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     result::register(module)?;
     receipts::register(module)?;
     runtime::register(module)?;
+    production_client::register(module)?;
     workflow::register(module)?;
     Ok(())
 }

@@ -3,6 +3,7 @@
 #![forbid(unsafe_code)]
 
 pub mod production;
+pub use auths_production_client as production_client;
 
 use async_trait::async_trait;
 use auths_codec::context_digest;

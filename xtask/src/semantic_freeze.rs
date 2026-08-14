@@ -4,7 +4,7 @@ use crate::*;
 
 const INVENTORY_PATH: &str = "release/semantic-freeze.json";
 const INVENTORY_SCHEMA: &str = "auths.semantic-freeze/1";
-const FREEZE_VERSION: u64 = 96;
+const FREEZE_VERSION: u64 = 97;
 const PUBLIC_RUST_ROOTS: [&str; 10] = [
     "auths",
     "auths-byte-channel",
@@ -17,7 +17,7 @@ const PUBLIC_RUST_ROOTS: [&str; 10] = [
     "auths-sdk",
     "auths-signature-ed25519",
 ];
-const PUBLIC_RUST_CLOSURE: [&str; 41] = [
+const PUBLIC_RUST_CLOSURE: [&str; 42] = [
     "auths",
     "auths-algebra-kernel",
     "auths-assurance",
@@ -46,6 +46,7 @@ const PUBLIC_RUST_CLOSURE: [&str; 41] = [
     "auths-profile-api",
     "auths-profile-domains",
     "auths-profile-mcp",
+    "auths-production-client",
     "auths-proof",
     "auths-proof-exchange-model",
     "auths-proof-exchange-port",
@@ -186,7 +187,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.identity.protocol",
-            25,
+            26,
             FreezeClassification::FrozenMeaning,
             &[
                 "identity-protocol-versions",
@@ -212,7 +213,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.modular-components",
-            6,
+            7,
             FreezeClassification::FrozenMeaning,
             &[
                 "published-neutral-ports",
@@ -245,7 +246,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.portable-abi-bindings",
-            46,
+            47,
             FreezeClassification::FrozenMeaning,
             &["portable-abi", "authoring-abi", "binding-contracts"],
             vec![
@@ -261,7 +262,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.public-sdk-contract",
-            35,
+            36,
             FreezeClassification::FrozenMeaning,
             &[
                 "rust-sdk-contract",
@@ -276,12 +277,13 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
                 "product/profiles/auths-profile-mcp/src".to_owned(),
                 "product/integrations/auths-custody/src".to_owned(),
                 "product/runtime/auths-runtime/src".to_owned(),
+                "product/runtime/auths-production-client/src".to_owned(),
                 "compliance.toml".to_owned(),
             ],
         )?,
         freeze_entry(
             "auths.product.mcp-closed-execution",
-            11,
+            12,
             FreezeClassification::FrozenMeaning,
             &[
                 "profile-session",
@@ -323,7 +325,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.facade",
-            7,
+            8,
             FreezeClassification::FrozenMeaning,
             &[
                 "create",
@@ -337,6 +339,10 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
                 "bindings/python/python/auths/_product.py".to_owned(),
                 "bindings/typescript/src/profiles/mcp/index.ts".to_owned(),
                 "bindings/python/python/auths/profiles/_mcp.py".to_owned(),
+                "bindings/typescript/src/production-client.ts".to_owned(),
+                "bindings/typescript/src/profiles.ts".to_owned(),
+                "bindings/python/python/auths/_production_client.py".to_owned(),
+                "bindings/python/python/auths/profiles/__init__.py".to_owned(),
             ],
         )?,
         freeze_entry(
@@ -377,7 +383,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.vocabulary",
-            6,
+            7,
             FreezeClassification::FrozenMeaning,
             &[
                 "customer-vocabulary",
@@ -493,7 +499,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.open-production-contract",
-            8,
+            9,
             FreezeClassification::FrozenMeaning,
             &[
                 "production-topology",
@@ -507,6 +513,9 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
                 "docs/specs/0038-production-runtime-custody-observability-and-assurance.md"
                     .to_owned(),
                 "docs/specs/0038/epic_1.md".to_owned(),
+                "docs/specs/0038/epic_7.md".to_owned(),
+                "product/fixtures/v1/production-client".to_owned(),
+                "product/runtime/auths-production-client/src".to_owned(),
                 "product/config/auths-config/src/production.rs".to_owned(),
                 "product/spec/v1/open-production-candidate.schema.json".to_owned(),
                 "release/open-production-candidate.json".to_owned(),
@@ -560,7 +569,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.release.evolution-contract",
-            10,
+            11,
             FreezeClassification::FrozenMeaning,
             &[
                 "version-axes",
@@ -600,7 +609,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
 
     for (id, path) in frozen_byte_inventories()? {
         let version = match path.as_str() {
-            "architecture/dependency-graph.json" => 23,
+            "architecture/dependency-graph.json" => 24,
             "bindings/wasm/auths-proof-wasm/identity-abi-v1.json" => 3,
             "core/fixtures/v1/manifest.json" => 3,
             "product/conformance/v1/simplified-product-waist.json" => 2,
@@ -666,7 +675,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
     ]);
     entries.push(freeze_entry(
         "auths.release.public-surface",
-        96,
+        97,
         FreezeClassification::ReleaseMetadata,
         &[
             "package-names",

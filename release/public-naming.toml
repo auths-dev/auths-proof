@@ -234,11 +234,11 @@ owner_pr = "AP34-PR3"
 
 [[release_order]]
 tier = 0
-packages = ["auths-algebra-kernel", "auths-byte-channel", "auths-errors", "auths-identity", "auths-model", "auths-multikey", "auths-proof-exchange-model", "auths-raw-key-core", "auths-signature-core"]
+packages = ["auths-algebra-kernel", "auths-bounded-policy", "auths-byte-channel", "auths-errors", "auths-identity", "auths-model", "auths-multikey", "auths-production-client", "auths-proof-exchange-model", "auths-raw-key-core", "auths-signature-core"]
 
 [[release_order]]
 tier = 1
-packages = ["auths-assurance", "auths-byte-channel-memory", "auths-codec", "auths-composition", "auths-identity-authority", "auths-identity-raw-key", "auths-iroh", "auths-ports", "auths-proof-exchange-port", "auths-signature-ed25519"]
+packages = ["auths-assurance", "auths-byte-channel-memory", "auths-codec", "auths-composition", "auths-identity-authority", "auths-identity-raw-key", "auths-iroh", "auths-lifecycle", "auths-ports", "auths-proof-exchange-port", "auths-signature-ed25519"]
 
 [[release_order]]
 tier = 2
@@ -250,7 +250,7 @@ packages = ["auths-author", "auths-verifier"]
 
 [[release_order]]
 tier = 4
-packages = ["auths-custody", "auths-kernel-runtime", "auths-proof", "auths-profile-api"]
+packages = ["auths-kernel-runtime", "auths-proof", "auths-profile-api"]
 
 [[release_order]]
 tier = 5
@@ -262,7 +262,7 @@ packages = ["auths-operations"]
 
 [[release_order]]
 tier = 7
-packages = ["auths-runtime"]
+packages = ["auths-custody", "auths-runtime"]
 
 [[release_order]]
 tier = 8

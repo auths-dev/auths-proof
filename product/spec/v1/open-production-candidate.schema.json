@@ -11,6 +11,7 @@
     "lifecycleStore",
     "custody",
     "profiles",
+    "clientContract",
     "sdks",
     "operations",
     "evidence",
@@ -95,17 +96,31 @@
         "required": [
           "id",
           "package",
-          "providerContract",
+          "providerContracts",
           "receiptSchema",
           "fixtureSuite"
         ],
         "properties": {
           "id": {},
           "package": {},
-          "providerContract": {},
+          "providerContracts": {},
           "receiptSchema": {},
           "fixtureSuite": {}
         }
+      }
+    },
+    "clientContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "contentType",
+        "fixtureSuite"
+      ],
+      "properties": {
+        "version": {},
+        "contentType": {},
+        "fixtureSuite": {}
       }
     },
     "sdks": {

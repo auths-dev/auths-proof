@@ -7,9 +7,9 @@
     "enforcement": "baseline",
     "baseline": {
       "typescriptEntryPoints": 7,
-      "typescriptPublicSymbols": 174,
+      "typescriptPublicSymbols": 193,
       "pythonModules": 7,
-      "pythonPublicSymbols": 135,
+      "pythonPublicSymbols": 159,
       "maintainedTypescriptRecipes": 5,
       "maintainedPythonRecipes": 5
     },
@@ -421,6 +421,54 @@
           "failed",
           "cancelled",
           "outcome-unknown"
+        ],
+        "consumerRequiresRust": false
+      }
+    },
+    {
+      "id": "production-five-verb-workflow",
+      "rust": "product/runtime/auths-production-client/src/lib.rs",
+      "typescript": "bindings/typescript/test/integration/production-client.test.js",
+      "python": "bindings/python/tests/test_production_client.py",
+      "experience": {
+        "targetJourney": "create-delegate-execute-resume-and-verify-through-a-production-runtime",
+        "imports": [
+          "root",
+          "profiles"
+        ],
+        "securityNouns": [
+          "Identity",
+          "Authority",
+          "Action",
+          "Receipt"
+        ],
+        "domainConcepts": [
+          "qualified profile"
+        ],
+        "setupDecisions": [
+          "runtime endpoint"
+        ],
+        "apiMechanics": [
+          "create",
+          "delegate",
+          "execute",
+          "resume",
+          "verify"
+        ],
+        "requiredApplicationComponents": [
+          "public identity bytes",
+          "profile request bytes",
+          "runtime endpoint"
+        ],
+        "executableStatements": 10,
+        "applicationOrchestratedSecurityTransitions": 0,
+        "terminalOutcomes": [
+          "completed",
+          "denied",
+          "indeterminate",
+          "recoverable",
+          "verified",
+          "rejected"
         ],
         "consumerRequiresRust": false
       }

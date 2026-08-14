@@ -16,27 +16,27 @@ const input = {
   attributes: { code: "authorized" },
 };
 
-test("telemetry schema rejects sensitive and unbounded fields", () => {
-  assert.equal(authsEvent(input).schemaVersion, "auths.telemetry/1");
+test("telemetry schema rejects sensitive and unbounded fields", async () => {
+  assert.equal((await authsEvent(input)).schemaVersion, "auths.telemetry/2");
   for (const key of [
     "proof", "signature.bytes", "private-key", "provider_body", "credential", "customer.id",
   ]) {
-    assert.throws(() => authsEvent({ ...input, attributes: { [key]: "value" } }), /not safe/);
+    await assert.rejects(authsEvent({ ...input, attributes: { [key]: "value" } }), /invalid-body/);
   }
-  assert.throws(() => authsEvent({ ...input, attributes: { code: "x".repeat(257) } }), /too large/);
+  await assert.rejects(authsEvent({ ...input, attributes: { code: "x".repeat(257) } }), /invalid-body/);
 });
 
 test("exporter failure is observational and support bundles are deterministic", async () => {
   await emitAuthsEvent({ emit() { throw new Error("offline"); } }, input);
-  const event = authsEvent(input);
-  const first = createSupportBundle({
+  const event = await authsEvent(input);
+  const first = await createSupportBundle({
     sdkVersion: "1",
     runtime: "node",
     wasm: { authoringAbi: 1, identityAbi: 1 },
     capabilities: ["b", "a", "a"],
     events: [event],
   });
-  const second = createSupportBundle({
+  const second = await createSupportBundle({
     sdkVersion: "1",
     runtime: "node",
     wasm: { authoringAbi: 1, identityAbi: 1 },

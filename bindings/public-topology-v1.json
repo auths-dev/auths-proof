@@ -28,5 +28,10 @@
     }
   ],
   "frameworkContracts": ["atomic-reservation-store", "signer-custody"],
-  "qualifiedProfiles": ["auths.mcp/1"]
+  "qualifiedProfiles": [
+    "auths.github.issue-address/1",
+    "auths.mcp/1",
+    "auths.opentofu.saved-plan-apply/1",
+    "auths.postgresql.bounded-update/1"
+  ]
 }

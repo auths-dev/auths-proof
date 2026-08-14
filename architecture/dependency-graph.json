@@ -287,6 +287,11 @@
       "path": "demos/postgresql-data-change"
     },
     {
+      "name": "auths-production-client",
+      "layer": "product",
+      "path": "product/runtime/auths-production-client"
+    },
+    {
       "name": "auths-profile-api",
       "layer": "product",
       "path": "product/profiles/auths-profile-api"
@@ -6210,6 +6215,66 @@
       "features": []
     },
     {
+      "source": "auths-production-client",
+      "source_layer": "product",
+      "target": "base64ct",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc"
+      ]
+    },
+    {
+      "source": "auths-production-client",
+      "source_layer": "product",
+      "target": "minicbor",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc"
+      ]
+    },
+    {
+      "source": "auths-production-client",
+      "source_layer": "product",
+      "target": "serde",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "derive",
+        "std"
+      ]
+    },
+    {
+      "source": "auths-production-client",
+      "source_layer": "product",
+      "target": "serde_json",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "preserve_order",
+        "std"
+      ]
+    },
+    {
       "source": "auths-profile-api",
       "source_layer": "product",
       "target": "auths-model",
@@ -7859,6 +7924,18 @@
     {
       "source": "auths-proof-python",
       "source_layer": "bindings",
+      "target": "auths-production-client",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-proof-python",
+      "source_layer": "bindings",
       "target": "auths-profile-api",
       "target_layer": "product",
       "scope": "internal",
@@ -8183,6 +8260,18 @@
       "target_condition": null,
       "optional": false,
       "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-proof-wasm",
+      "source_layer": "bindings",
+      "target": "auths-production-client",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
       "features": []
     },
     {
@@ -10004,6 +10093,18 @@
       "source": "auths-runtime",
       "source_layer": "product",
       "target": "auths-operations",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-runtime",
+      "source_layer": "product",
+      "target": "auths-production-client",
       "target_layer": "product",
       "scope": "internal",
       "kind": "normal",
@@ -14510,6 +14611,18 @@
       "source": "xtask",
       "source_layer": "tooling",
       "target": "auths-postgresql",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "xtask",
+      "source_layer": "tooling",
+      "target": "auths-production-client",
       "target_layer": "product",
       "scope": "internal",
       "kind": "normal",

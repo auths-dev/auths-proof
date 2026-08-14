@@ -229,6 +229,9 @@ pub(crate) fn npm_package_smoke() -> Result<(), String> {
          if (typeof verify.Verifier !== 'function') throw new Error('Verifier export missing');\n\
          if (typeof verify.loadVerifier !== 'function') throw new Error('loadVerifier export missing');\n\
          if (typeof profiles.mcp !== 'object') throw new Error('MCP profile missing');\n\
+         if (typeof profiles.opentofuSavedPlanApply !== 'object') throw new Error('OpenTofu profile missing');\n\
+         if (typeof profiles.postgresqlBoundedUpdate !== 'object') throw new Error('PostgreSQL profile missing');\n\
+         if (typeof profiles.githubIssueAddress !== 'object') throw new Error('GitHub profile missing');\n\
          if (typeof integrations.development !== 'object') throw new Error('development integration missing');\n\
          if (typeof framework !== 'object') throw new Error('framework export missing');\n\
          if (typeof testkit.createDiagnosticVerifier !== 'function') throw new Error('diagnostic testkit missing');\n\

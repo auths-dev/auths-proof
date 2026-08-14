@@ -73,6 +73,7 @@ members = [
     "product/profiles/auths-profile-domains",
     "product/runtime/auths-lifecycle",
     "product/runtime/auths-kernel-runtime",
+    "product/runtime/auths-production-client",
     "product/runtime/auths-runtime",
     "product/receipts/auths-receipts",
     "product/stores/auths-stores",
@@ -171,6 +172,7 @@ auths-profile-api = { version = "1.0.0-rc.1", path = "product/profiles/auths-pro
 auths-profile-domains = { version = "1.0.0-rc.1", path = "product/profiles/auths-profile-domains" }
 auths-lifecycle = { version = "1.0.0-rc.1", path = "product/runtime/auths-lifecycle", default-features = false }
 auths-kernel-runtime = { version = "1.0.0-rc.1", path = "product/runtime/auths-kernel-runtime" }
+auths-production-client = { version = "1.0.0-rc.1", path = "product/runtime/auths-production-client" }
 auths-runtime = { version = "1.0.0-rc.1", path = "product/runtime/auths-runtime" }
 auths-receipts = { version = "1.0.0-rc.1", path = "product/receipts/auths-receipts" }
 auths-stores = { version = "1.0.0-rc.1", path = "product/stores/auths-stores" }

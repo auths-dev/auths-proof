@@ -28,6 +28,11 @@ use auths_model::{
     VerifierContext, VerifierLimits,
 };
 use auths_ports::{PrincipalMethod, SignatureSuite};
+use auths_production_client::{
+    PRODUCTION_CLIENT_CONTRACT_VERSION, ProductVerb, ProductionRequest, QualifiedProfile,
+    RecoveryReference, decode_request, decode_response, encode_delegation_body, encode_request,
+    project_sdk_event_v2,
+};
 use auths_profile_api::ActionProfile;
 use auths_profile_domains::{
     DeploymentProfile, DomainReceiptInspector, EdgeProfile, GitProfile, HttpProfile,
@@ -58,6 +63,103 @@ use wasm_bindgen::prelude::*;
 pub const AUTHORING_ABI_V1: u16 = 1;
 /// Version of the neutral identity ABI exposed independently of authority authoring.
 pub const IDENTITY_ABI_V1: u16 = 1;
+
+/// Version of the Rust-owned production client contract.
+#[must_use]
+#[wasm_bindgen(js_name = productionClientContractVersionV1)]
+pub fn production_client_contract_version_v1() -> u16 {
+    PRODUCTION_CLIENT_CONTRACT_VERSION
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ProductionRequestInput {
+    verb: String,
+    profile: String,
+    identity: Vec<u8>,
+    authority: Option<Vec<u8>>,
+    body: Option<Vec<u8>>,
+    recovery_reference: Option<String>,
+}
+
+/// Encodes one bounded canonical production-client request.
+///
+/// # Errors
+///
+/// Returns a JavaScript error for an unsupported verb, profile, malformed
+/// recovery reference, invalid request shape, or over-limit value.
+#[wasm_bindgen(js_name = encodeProductionRequestV1)]
+pub fn encode_production_request_v1(input: JsValue) -> Result<Vec<u8>, JsValue> {
+    let input: ProductionRequestInput =
+        serde_wasm_bindgen::from_value(input).map_err(|_| js_error("client.malformed"))?;
+    let request = ProductionRequest::new(
+        ProductVerb::parse(&input.verb).map_err(js_error)?,
+        QualifiedProfile::parse(&input.profile).map_err(js_error)?,
+        input.identity,
+        input.authority,
+        input.body,
+        input
+            .recovery_reference
+            .as_deref()
+            .map(RecoveryReference::parse)
+            .transpose()
+            .map_err(js_error)?,
+    )
+    .map_err(js_error)?;
+    encode_request(&request).map_err(js_error)
+}
+
+/// Parses one canonical production response and returns its inert projection.
+///
+/// # Errors
+///
+/// Returns a JavaScript error when the response is malformed, non-canonical,
+/// unsupported, or over the contract limit.
+#[wasm_bindgen(js_name = decodeProductionResponseV1)]
+pub fn decode_production_response_v1(input: &[u8]) -> Result<String, JsValue> {
+    decode_response(input)
+        .and_then(|response| response.projection_json())
+        .map_err(js_error)
+}
+
+/// Parses one canonical production request and returns its inert projection.
+///
+/// # Errors
+///
+/// Returns a JavaScript error when the request is malformed, non-canonical,
+/// unsupported, or over the contract limit.
+#[wasm_bindgen(js_name = decodeProductionRequestV1)]
+pub fn decode_production_request_v1(input: &[u8]) -> Result<String, JsValue> {
+    decode_request(input)
+        .and_then(|request| request.projection_json())
+        .map_err(js_error)
+}
+
+/// Encodes exact delegate subject and attenuation bytes under the Rust-owned contract.
+///
+/// # Errors
+///
+/// Returns a JavaScript error for empty or over-limit values.
+#[wasm_bindgen(js_name = encodeProductionDelegationV1)]
+pub fn encode_production_delegation_v1(
+    subject: &[u8],
+    attenuation: &[u8],
+) -> Result<Vec<u8>, JsValue> {
+    encode_delegation_body(subject, attenuation).map_err(js_error)
+}
+
+/// Parses and projects one privacy-safe SDK telemetry event in Rust.
+///
+/// # Errors
+///
+/// Returns a JavaScript error for unknown fields, unsafe attributes, or an
+/// unsupported stage or outcome.
+#[wasm_bindgen(js_name = projectSdkEventV2)]
+pub fn project_sdk_event(input: JsValue) -> Result<String, JsValue> {
+    let value: Value =
+        serde_wasm_bindgen::from_value(input).map_err(|_| js_error("client.malformed"))?;
+    project_sdk_event_v2(&value.to_string()).map_err(js_error)
+}
 
 const MAX_VERIFICATION_BATCH_ITEMS: usize = 256;
 const MAX_VERIFICATION_BATCH_BYTES: usize = 16 * 1024 * 1024;
