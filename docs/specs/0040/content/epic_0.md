@@ -1,5 +1,7 @@
 # Content Epic 0 — Establish Platform and Editorial Ownership
 
+**Status:** Complete in `auths-docs` commit `4576625`.
+
 **Parent:** [AP-SPEC-040](../../0040-stripe-quality-documentation-platform.md)
 
 **Repositories:** `auths-proof` and `auths-docs`
@@ -199,4 +201,3 @@ npm run test:markdown
 npm run test:navigation
 npm run build
 ```
-
