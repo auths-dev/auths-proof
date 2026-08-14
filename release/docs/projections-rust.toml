@@ -3,35 +3,35 @@ language = "rust"
 
 [[projection]]
 operation = "auths.operation.create/1"
-package = "auths-sdk"
-entrypoint = "auths_sdk::Auths"
-symbol = "Auths::create"
+package = "auths-author"
+entrypoint = "auths_author"
+symbol = "prepare_grant"
 support = "supported"
 
 [[projection]]
 operation = "auths.operation.delegate/1"
-package = "auths-sdk"
-entrypoint = "auths_sdk::Auths"
-symbol = "Auths::delegate"
+package = "auths-author"
+entrypoint = "auths_author"
+symbol = "plan_child_grant"
 support = "supported"
 
 [[projection]]
 operation = "auths.operation.execute/1"
-package = "auths-sdk"
-entrypoint = "auths_sdk::Auths"
-symbol = "Auths::execute"
+package = "auths-runtime"
+entrypoint = "auths_runtime::McpAuthorizationService"
+symbol = "ProofExchangeService::submit_action"
 support = "supported"
 
 [[projection]]
 operation = "auths.operation.resume/1"
-package = "auths-sdk"
-entrypoint = "auths_sdk::Auths"
-symbol = "Auths::resume"
+package = "auths-profile-mcp"
+entrypoint = "auths_profile_mcp::McpSession"
+symbol = "McpSession::resume"
 support = "supported"
 
 [[projection]]
 operation = "auths.operation.verify/1"
 package = "auths-sdk"
-entrypoint = "auths_sdk::Auths"
-symbol = "Auths::verify"
+entrypoint = "auths_sdk::Verifier"
+symbol = "Verifier::verify"
 support = "supported"

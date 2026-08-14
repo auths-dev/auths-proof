@@ -1,6 +1,6 @@
 {
   "schema": "auths.semantic-freeze/1",
-  "freezeVersion": 85,
+  "freezeVersion": 86,
   "publicSurface": {
     "rustRoots": [
       "auths",
@@ -593,7 +593,7 @@
     },
     {
       "id": "auths.portable-abi-bindings",
-      "version": 43,
+      "version": 44,
       "classification": "frozen-meaning",
       "categories": [
         "portable-abi",
@@ -610,7 +610,7 @@
         "core/crates/auths-model/src/lib.rs",
         "core/spec/v1/auths-proof.cddl"
       ],
-      "sha256": "d28ad9cbc0194491c6b81f451345bbada0f9b784f8baa6ca3e86dab5a81ae7c2"
+      "sha256": "9548bfacd012fbca514a3c76889be95eb30348fa15f6a3f68705b8d861b8c430"
     },
     {
       "id": "auths.product.bounded-domains",
@@ -687,7 +687,7 @@
     },
     {
       "id": "auths.product.documentation-surface",
-      "version": 1,
+      "version": 2,
       "classification": "frozen-meaning",
       "categories": [
         "operation-identities",
@@ -701,7 +701,7 @@
         "release/docs",
         "xtask/src/docs_contract.rs"
       ],
-      "sha256": "339d5182b728f04d3a8cfe4c4263e5399438b8ad09fff0f6b6f0e8fc67317302"
+      "sha256": "5b5fb609a47be754c8410f99dc70f75db8f01879ceb8f6bf2145009c022b251e"
     },
     {
       "id": "auths.product.error-recovery-contract",
@@ -729,7 +729,7 @@
     },
     {
       "id": "auths.product.facade",
-      "version": 7,
+      "version": 8,
       "classification": "frozen-meaning",
       "categories": [
         "create",
@@ -744,7 +744,7 @@
         "bindings/typescript/src/product.ts",
         "bindings/typescript/src/profiles/mcp/index.ts"
       ],
-      "sha256": "f23d0d9476fa19bde76f073162502ef84225839567cfee3c9273b83cc14673d5"
+      "sha256": "c0f72231ea8c8c862424eca8b441f2c5af4b5bf1eafec8ef4027b5abdebf9fdc"
     },
     {
       "id": "auths.product.lifecycle",
@@ -810,7 +810,7 @@
     },
     {
       "id": "auths.product.public-sdk-contract",
-      "version": 29,
+      "version": 30,
       "classification": "frozen-meaning",
       "categories": [
         "rust-sdk-contract",
@@ -827,7 +827,7 @@
         "product/runtime/auths-runtime/src",
         "product/sdk/auths-sdk/src"
       ],
-      "sha256": "2b180adc914e597f6adad2ad440298e7d238abcaf83d05664eb2b8daef3ce2a0"
+      "sha256": "b664fc6ab73bf54c15cb7c288a6d06e1e4eeade869f35642a6d3d0c0f9b21f1c"
     },
     {
       "id": "auths.product.receipts",
@@ -929,7 +929,7 @@
     },
     {
       "id": "auths.release.public-surface",
-      "version": 85,
+      "version": 86,
       "classification": "release-metadata",
       "categories": [
         "package-names",
@@ -1016,7 +1016,7 @@
         "xtask/src/release_control.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "97e955e4920519403eee7aff60e7384c9e94942c9fb401c67d7f6b9655815d77"
+      "sha256": "f535b2e6e0c8305d2528ce9c99791e69180fa013eaa33e6f49c9718d9f19b1a8"
     }
   ]
 }

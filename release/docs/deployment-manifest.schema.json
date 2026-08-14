@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://auths.dev/spec/v1/auths-docs-deployment-manifest.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "productCommit", "docsCommit", "contractDigest", "bundleDigest", "staticOutputDigest", "target", "promotedAt", "priorDeploymentDigest"],
+  "properties": {
+    "schema": { "const": "auths.docs.deployment/1" },
+    "productCommit": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+    "docsCommit": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+    "contractDigest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "bundleDigest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "staticOutputDigest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "target": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "promotedAt": { "type": "string", "format": "date-time" },
+    "priorDeploymentDigest": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" }
+  }
+}

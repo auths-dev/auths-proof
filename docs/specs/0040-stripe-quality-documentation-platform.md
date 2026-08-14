@@ -287,8 +287,10 @@ production imports must be per icon or equivalently tree-shaken.
 
 The desktop header has two deliberate rows: the official Auths mark and
 “Auths Docs” at the upper left, search centered independently, and the GitHub
-icon plus external-link indicator at the upper right. `Start`, `SDK`,
-`Concepts`, and `Architecture` occupy the lower-left row.
+icon plus external-link indicator at the upper right. `Start`, `SDKs`,
+`Runtime API`, `Concepts`, `Architecture`, and `Operations` occupy the
+lower-left row. A bounded `More` menu contains `Integrations` and `Assurance`;
+it must not become a second, unstructured navigation tree.
 
 Contextual documentation or reference navigation begins at the left viewport
 edge below the header. It is collapsible on desktop and becomes a drawer on
@@ -304,7 +306,8 @@ The centered search control opens real local search with `Command + K` and
 `Control + K`, keyboard focus management, and an accessible dialog. It must
 not be decorative or resize the header when open. On narrow screens the brand
 and GitHub icon remain in the first row, search occupies its own row, and the
-four global links remain horizontally available.
+global links remain horizontally scrollable or enter one accessible menu
+without changing their information hierarchy.
 
 ```text
 +--------------------------------------------------------------------------------+
@@ -696,7 +699,7 @@ auths-proof release
 | authored MD/MDX                                    |
 | generated reference join                          |
 | tested example sources                            |
-| Astro build + custom Auths design system          |
+| Vinext build + custom Auths design system         |
 | static search + Markdown renderer                 |
 +-------------------------+-------------------------+
                           |
@@ -714,18 +717,17 @@ auths-proof release
 Use the following concrete stack. These choices are part of the specification,
 not suggestions to revisit during implementation:
 
-- **Runtime and package manager:** Node 22, Corepack, and `pnpm`, with an exact
-  `packageManager` value and committed lockfile. CI rejects lockfile drift.
-- **Site generator:** Astro with `@astrojs/starlight` and `@astrojs/mdx`.
-  Starlight supplies the accessible documentation shell; a custom Auths theme
-  owns navigation, reference layouts, language state, and visual identity.
+- **Runtime and package manager:** Node 22 and npm with a committed lockfile.
+  CI uses deterministic installs and rejects lockfile drift.
+- **Site generator:** Vinext on Vite with React server components and
+  `@mdx-js/rollup`. A custom Auths shell owns navigation, reference layouts,
+  language state, and visual identity.
 - **Authoring:** `.mdx` for every human-authored public page. Plain Markdown is
   valid MDX, so prose stays simple while typed components remain available.
-- **Types and parsing:** strict TypeScript, Astro content collections, and Zod
-  schemas that parse untrusted files and release artifacts into closed types.
-- **Client behavior:** Astro and small vanilla-TypeScript islands. Do not add
-  React, Vue, or another client framework unless a measured requirement cannot
-  be met with native browser APIs.
+- **Types and parsing:** strict TypeScript and closed page-model parsers that
+  convert untrusted files and release artifacts into typed values.
+- **Client behavior:** server-rendered documentation with small React client
+  components for language state, search, navigation, and copy actions.
 - **Code rendering:** Shiki with pinned grammars and themes.
 - **Icons and brand assets:** the checked official Auths SVG plus one pinned,
   open icon family. Load icons individually or through a build-proven
@@ -756,7 +758,7 @@ UX prototypes may use a different local framework to settle interaction and
 visual contracts. They are evidence for component behavior, not permission to
 replace this production stack, copy framework-specific runtime code, or add a
 mutable dependency on the prototype repository. Promote the proven contracts
-through the typed Astro components described here.
+through the typed documentation components described here.
 
 ### 13.2 Authoring format and MDX policy
 
@@ -766,7 +768,7 @@ There are three deliberately different representations:
    security, and operations guidance.
 2. **Generated page models:** signatures, parameters, returns, routes, errors,
    profiles, limits, versions, and evidence. These are typed data rendered by
-   shared Astro templates; they are not generated or hand-edited MDX files.
+   shared route templates; they are not generated or hand-edited MDX files.
 3. **Executable example files:** real `.rs`, `.ts`, and `.py` sources compiled
    or run in clean consumers. MDX embeds them by scenario identity rather than
    duplicating them in fenced code blocks.
@@ -1214,7 +1216,7 @@ auths-proof-docs product
    bundle](0040/epic_4.md): extract packaged crates, npm declarations, and
    wheel runtime/stub surfaces and join them through stable identities.
 5. [Build the static docs foundation and MDX contract](0040/epic_5.md): create
-   the constrained Astro/Starlight/MDX product and shared HTML/Markdown model.
+   the constrained Vinext/Vite/MDX product and shared HTML/Markdown model.
 6. [Ship the progressive product journey](0040/epic_6.md): deliver the five-
    verb fifteen-minute path and outcome-first information architecture.
 7. [Build executable cross-language examples](0040/epic_7.md): run and compare

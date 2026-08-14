@@ -1,0 +1,85 @@
+name: Documentation
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    name: documentation contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust-cache
+        with:
+          toolchain: 1.97.1
+          compiler-cache: "false"
+      - name: Reject a superseded source head
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+      - name: Verify source-owned documentation facts
+        run: |
+          cargo xtask docs-contract
+          cargo xtask public-docs
+      - name: Build immutable documentation bundle
+        run: cargo xtask docs-bundle target/docs-bundle
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: auths-docs-bundle-${{ github.event.pull_request.head.sha || github.sha }}
+          path: target/docs-bundle/
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+  qualify:
+    name: documentation qualification
+    needs: contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: auths-dev/auths-docs
+          path: auths-docs
+          persist-credentials: false
+      - uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4
+        with:
+          name: auths-docs-bundle-${{ github.event.pull_request.head.sha || github.sha }}
+          path: docs-bundle
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: auths-docs/.nvmrc
+          cache: npm
+          cache-dependency-path: auths-docs/package-lock.json
+      - name: Verify the exact product bundle
+        working-directory: auths-docs
+        run: node tools/fetch-release/verify-bundle.mjs ../docs-bundle/manifest.json
+      - name: Qualify the static documentation
+        working-directory: auths-docs
+        run: |
+          npm ci --ignore-scripts
+          npm run qualify
+      - name: Reject a superseded product head
+        if: github.event_name == 'pull_request'
+        env:
+          REPOSITORY: ${{ github.repository }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          current="$(curl --fail --silent --show-error --location "https://api.github.com/repos/${REPOSITORY}/pulls/${PR_NUMBER}" | jq -r .head.sha)"
+          test "$current" = "$EXPECTED_HEAD"

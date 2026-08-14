@@ -38,10 +38,10 @@ dependency.
 Use:
 
 - Node 22;
-- Corepack and `pnpm` with exact `packageManager` and committed lockfile;
-- Astro, `@astrojs/starlight`, and `@astrojs/mdx`;
+- npm with a committed lockfile and deterministic `npm ci` installs;
+- Vinext on Vite, React server components, and `@mdx-js/rollup`;
 - strict TypeScript;
-- Astro content collections and Zod;
+- strict typed page models and parse-at-the-boundary contract loaders;
 - Shiki;
 - the official checked Auths SVG and one pinned, tree-shakable icon family;
 - Pagefind;
@@ -50,9 +50,10 @@ Use:
 - Playwright, `axe-core`, and Lighthouse CI; and
 - immutable static deployment.
 
-Use small vanilla-TypeScript Astro islands for language selection, search, and
-copy actions. Do not add React, Vue, a database, runtime CMS, hosted search,
-authentication, or server rendering without a later measured requirement.
+Use small client components for language selection, search, navigation, and
+copy actions; keep documentation content server-rendered. Do not add a database,
+runtime CMS, hosted search, or authentication without a later measured
+requirement.
 
 ## Content model
 
@@ -138,12 +139,13 @@ in HTML, with CSS/default selection and an enhanced persisted choice when
 JavaScript is available. The URL may accept `?lang=python` for shareable
 selection but canonical content does not fork by query.
 
-Treat the earlier local prototype as UX evidence only. Reproduce these
-contracts in Astro/Starlight rather than adopting its framework code:
+Promote the proven local prototype into the qualified product while preserving
+these UX contracts:
 
 - a two-row global header with official Auths mark/title upper-left, functional
   search centered, GitHub icon/external indicator upper-right, and `Start`,
-  `SDK`, `Concepts`, and `Architecture` lower-left;
+  `SDKs`, `Runtime API`, `Concepts`, `Architecture`, and `Operations`
+  lower-left, plus a bounded `More` menu for `Integrations` and `Assurance`;
 - contextual navigation flush to the left viewport edge, collapsible on
   desktop and a drawer on narrow screens;
 - one CSS design token for header height, consumed by every sticky offset,

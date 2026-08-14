@@ -4,8 +4,8 @@ language = "python"
 [[projection]]
 operation = "auths.operation.create/1"
 package = "auths"
-entrypoint = "auths"
-symbol = "Auths.create"
+entrypoint = "auths.integrations"
+symbol = "development.create_auths"
 support = "supported"
 
 [[projection]]
@@ -32,6 +32,6 @@ support = "supported"
 [[projection]]
 operation = "auths.operation.verify/1"
 package = "auths"
-entrypoint = "auths"
-symbol = "Auths.verify"
+entrypoint = "auths.verify"
+symbol = "verify"
 support = "supported"

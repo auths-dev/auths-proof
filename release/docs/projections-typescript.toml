@@ -4,8 +4,8 @@ language = "typescript"
 [[projection]]
 operation = "auths.operation.create/1"
 package = "@auths-dev/sdk"
-entrypoint = "."
-symbol = "Auths.create"
+entrypoint = "./integrations"
+symbol = "development.createAuths"
 support = "supported"
 
 [[projection]]
@@ -32,6 +32,6 @@ support = "supported"
 [[projection]]
 operation = "auths.operation.verify/1"
 package = "@auths-dev/sdk"
-entrypoint = "."
-symbol = "Auths.verify"
+entrypoint = "./verify"
+symbol = "loadVerifier"
 support = "supported"

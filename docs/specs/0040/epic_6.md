@@ -131,9 +131,10 @@ details by default or imply that a receipt caused authorization.
 
 ## UX behavior
 
-- The two-row global header always offers `Start`, `SDK`, `Concepts`, and
-  `Architecture`; deeper navigation is contextual and edge-aligned rather than
-  competing in the global row.
+- The two-row global header always offers `Start`, `SDKs`, `Runtime API`,
+  `Concepts`, `Architecture`, and `Operations`. A bounded `More` menu contains
+  `Integrations` and `Assurance`; deeper navigation remains contextual and
+  edge-aligned rather than competing in the global row.
 - One selected SDK language persists across the entire journey.
 - The recommended language defaults to TypeScript for web-oriented REST
   readers but the initial selector makes Rust and Python equally visible.
@@ -201,8 +202,8 @@ Fail review or CI when:
 - a receipt summary exposes full details;
 - the language switch changes semantic steps;
 - an SDK guide or reference is labelled only “API reference”;
-- global navigation expands into the full information architecture and crowds
-  out the recommended start;
+- global navigation expands beyond the six primary destinations and bounded
+  `More` menu, or crowds out the recommended start;
 - contextual navigation collapse does not widen the reading surface;
 - an unpublished feature is presented as stable; or
 - a page links to `next` from stable without an explicit warning.
