@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import http.client
 import json
 import ssl
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from types import MappingProxyType
-from typing import Literal, Mapping, Optional, Protocol, Union, cast, runtime_checkable
+from typing import IO, Literal, Mapping, NoReturn, Optional, Protocol, Union, cast, runtime_checkable
 from urllib.parse import urlparse
 
 from ._native import (
@@ -19,7 +20,7 @@ from ._native import (
 )
 from .profiles import ProductionProfile
 
-_CONTENT_TYPE = "application/auths+cbor"
+_CONTENT_TYPE: Literal["application/auths+cbor"] = "application/auths+cbor"
 _MAX_RESPONSE_BYTES = 1_048_576
 _DEFAULT_TIMEOUT_SECONDS = 15.0
 _AUTHORITY_TOKEN = object()
@@ -61,7 +62,7 @@ class ProductionAuthority:
             raise TypeError("sealed Auths authority")
         self._bytes = bytes(value)
 
-    def __reduce__(self) -> None:
+    def __reduce__(self) -> NoReturn:
         raise TypeError("Auths authority is opaque")
 
 
@@ -74,7 +75,7 @@ class ProductionReceipt:
             raise TypeError("sealed Auths receipt")
         self._bytes = bytes(value)
 
-    def __reduce__(self) -> None:
+    def __reduce__(self) -> NoReturn:
         raise TypeError("Auths receipt bytes require an explicit disclosure operation")
 
 
@@ -87,7 +88,7 @@ class ProductionRecoveryReference:
             raise TypeError("sealed Auths recovery reference")
         self._value = value
 
-    def __reduce__(self) -> None:
+    def __reduce__(self) -> NoReturn:
         raise TypeError("Auths recovery references are opaque")
 
 
@@ -322,7 +323,15 @@ def create_auths(
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, request: object, *args: object, **kwargs: object) -> None:
+    def redirect_request(
+        self,
+        req: urllib.request.Request,
+        fp: IO[bytes],
+        code: int,
+        msg: str,
+        headers: http.client.HTTPMessage,
+        newurl: str,
+    ) -> None:
         return None
 
 
@@ -355,8 +364,11 @@ def _send_sync(request: ProductionTransportRequest) -> ProductionTransportRespon
         body = response.read(_MAX_RESPONSE_BYTES + 1)
         if len(body) > _MAX_RESPONSE_BYTES:
             raise ValueError("Auths production response is outside bounds")
+        status = response.status
+        if type(status) is not int:
+            raise TypeError("Auths production response has no HTTP status")
         return ProductionTransportResponse(
-            response.status, response.headers.get("Content-Type", ""), body
+            status, response.headers.get("Content-Type", ""), body
         )
 
 
@@ -402,11 +414,13 @@ def _endpoint_path(step: ProductStep, profile: str) -> str:
 
 
 def _projection(value: str) -> Mapping[str, object]:
-    parsed = json.loads(value)
+    parsed: object = json.loads(value)
+    if type(parsed) is not dict:
+        raise TypeError("native response projection is invalid")
+    projection = cast("dict[str, object]", parsed)
     if (
-        type(parsed) is not dict
-        or parsed.get("contractVersion") != 1
-        or parsed.get("kind")
+        projection.get("contractVersion") != 1
+        or projection.get("kind")
         not in (
             "completed",
             "denied",
@@ -415,10 +429,10 @@ def _projection(value: str) -> Mapping[str, object]:
             "verified",
             "rejected",
         )
-        or parsed.get("retry") not in ("never", "backoff", "resume", "reconcile")
+        or projection.get("retry") not in ("never", "backoff", "resume", "reconcile")
     ):
         raise TypeError("native response projection is invalid")
-    return MappingProxyType(parsed)
+    return MappingProxyType(projection)
 
 
 def _authority_failure(

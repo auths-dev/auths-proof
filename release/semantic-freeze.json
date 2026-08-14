@@ -1,6 +1,6 @@
 {
   "schema": "auths.semantic-freeze/1",
-  "freezeVersion": 101,
+  "freezeVersion": 102,
   "publicSurface": {
     "rustRoots": [
       "auths",
@@ -620,7 +620,7 @@
     },
     {
       "id": "auths.portable-abi-bindings",
-      "version": 47,
+      "version": 48,
       "classification": "frozen-meaning",
       "categories": [
         "portable-abi",
@@ -637,7 +637,7 @@
         "core/crates/auths-model/src/lib.rs",
         "core/spec/v1/auths-proof.cddl"
       ],
-      "sha256": "d68f2bd427d4051826e16bbe688e3f811c7f5cd71932bc3966d9d113cad22c65"
+      "sha256": "502f6ca3c3c8d74399cdd62559cf6a38ce13a28dd9cd5f7c3f8c2721b385ebb7"
     },
     {
       "id": "auths.product.bounded-domains",
@@ -762,7 +762,7 @@
     },
     {
       "id": "auths.product.facade",
-      "version": 8,
+      "version": 9,
       "classification": "frozen-meaning",
       "categories": [
         "create",
@@ -781,7 +781,7 @@
         "bindings/typescript/src/profiles.ts",
         "bindings/typescript/src/profiles/mcp/index.ts"
       ],
-      "sha256": "49af5d35d327092ca75e8751480d9ef279f8c3617dd33d8c2fcc49e5af3f5334"
+      "sha256": "ad0fe95af1ea607d042af0d088f6a7dede8b592baf9579981ea89bb0f9d3c50c"
     },
     {
       "id": "auths.product.lifecycle",
@@ -933,7 +933,7 @@
     },
     {
       "id": "auths.product.release-assurance",
-      "version": 2,
+      "version": 3,
       "classification": "frozen-meaning",
       "categories": [
         "immutable-candidate-binding",
@@ -950,7 +950,7 @@
         "release/assurance",
         "xtask/src/assurance.rs"
       ],
-      "sha256": "e3d14385c5d6d62beb5c1e81fdeb38b08a7816b5dbaac60c211bcf0e72cf8843"
+      "sha256": "5a4429999660360901c49ed00fafb3def6058af4453101496e8f3662942ce71e"
     },
     {
       "id": "auths.product.simplified-waist",
@@ -1038,7 +1038,7 @@
     },
     {
       "id": "auths.release.public-surface",
-      "version": 100,
+      "version": 101,
       "classification": "release-metadata",
       "categories": [
         "package-names",
@@ -1132,7 +1132,7 @@
         "xtask/src/release_control.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "1f11aff1df4e2538e4e7af852f1136bd35c34094a94f4209e1dd1bfcc57b3885"
+      "sha256": "c84736252339a2e2301756d0442e176d1c102cf2dd4fa7689fbbaf64d20084f1"
     }
   ]
 }
