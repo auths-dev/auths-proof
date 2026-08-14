@@ -17,8 +17,13 @@ auths-runtime.workspace = true
 hex.workspace = true
 minicbor.workspace = true
 postgres.workspace = true
+r2d2.workspace = true
+r2d2_postgres.workspace = true
+rustls.workspace = true
+rustls-pki-types = { workspace = true, features = ["std"] }
 sha2.workspace = true
 tempfile.workspace = true
+tokio-postgres-rustls.workspace = true
 
 [lints]
 workspace = true

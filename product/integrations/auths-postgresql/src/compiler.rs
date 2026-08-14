@@ -26,6 +26,7 @@ pub struct ParameterBindingV1 {
 
 /// SQL known to originate only from validated identifiers and a fixed grammar.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CompiledBoundedUpdate {
     pub isolation: IsolationLevelV1,
     pub statement_timeout_ms: u32,

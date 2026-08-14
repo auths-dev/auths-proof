@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://auths.dev/spec/v1/assurance-record.schema.json",
+  "title": "Auths Assurance Record V1",
+  "oneOf": [
+    {
+      "$ref": "assurance-manifest.schema.json#/$defs/evidence"
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "candidateDigest", "qualification"],
+      "properties": {
+        "schema": {"const": "auths.assurance-qualification/1"},
+        "candidateDigest": {
+          "$ref": "assurance-manifest.schema.json#/$defs/sha256"
+        },
+        "qualification": {
+          "allOf": [
+            {"$ref": "assurance-manifest.schema.json#/$defs/qualification"},
+            {
+              "type": "object",
+              "required": ["status"],
+              "properties": {"status": {"const": "complete"}}
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "candidateDigest", "independentReview"],
+      "properties": {
+        "schema": {"const": "auths.assurance-review/1"},
+        "candidateDigest": {
+          "$ref": "assurance-manifest.schema.json#/$defs/sha256"
+        },
+        "independentReview": {
+          "allOf": [
+            {"$ref": "assurance-manifest.schema.json#/$defs/reviewStatus"},
+            {
+              "type": "object",
+              "required": ["status"],
+              "properties": {"status": {"const": "complete"}}
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "attempt": 1,
+  "base": "../scenario.json",
+  "expected": {
+    "authorization": "denied",
+    "execution": "not-attempted",
+    "reason": "A child delegation cannot increase the maximum use count.",
+    "retry": "forbidden",
+    "runtime": "not-entered"
+  },
+  "id": "widened-delegation",
+  "mutations": [
+    { "operation": "replace", "path": "/authority/max_uses", "target": "presentation", "value": 2 }
+  ],
+  "schema": "auths-proof-interoperability-case/v1"
+}

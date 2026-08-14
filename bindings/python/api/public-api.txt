@@ -11,9 +11,28 @@ DoctorReport
 ExecutionReference
 ExecutionResult
 Indeterminate
+ProductStep
+ProductionAuthority
+ProductionAuthorityResult
+ProductionAuths
+ProductionCompleted
+ProductionDenied
+ProductionExecutionResult
+ProductionIndeterminate
+ProductionReceipt
+ProductionRecoverable
+ProductionRecoveryReference
+ProductionRejected
+ProductionTransport
+ProductionTransportRequest
+ProductionTransportResponse
+ProductionVerificationResult
+ProductionVerified
 Receipt
 RecommendedAction
 RecoveryResult
+RetryClass
+create_auths
 doctor
 
 [auths.identity]
@@ -90,7 +109,12 @@ McpPlanRecoveryResult
 McpRecoverable
 McpToolAuthority
 McpToolContext
+ProductionProfile
+ProductionProfileId
+github_issue_address
 mcp
+opentofu_saved_plan_apply
+postgresql_bounded_update
 
 [auths.integrations]
 FrameworkAdapter

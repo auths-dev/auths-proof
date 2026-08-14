@@ -20,6 +20,8 @@ digraph auths_architecture {
   "auths-config" [group="product"];
   "auths-cross-company-incident-edgeshield-demo" [group="demos"];
   "auths-custody" [group="product"];
+  "auths-custody-aws-kms" [group="product"];
+  "auths-custody-pkcs11" [group="product"];
   "auths-deployment" [group="product"];
   "auths-did-keri" [group="core"];
   "auths-did-key" [group="core"];
@@ -48,12 +50,15 @@ digraph auths_architecture {
   "auths-mcp-demo" [group="demos"];
   "auths-model" [group="core"];
   "auths-multikey" [group="core"];
+  "auths-node" [group="product"];
   "auths-opentofu" [group="product"];
   "auths-opentofu-demo" [group="demos"];
   "auths-operations" [group="product"];
+  "auths-operations-otel" [group="product"];
   "auths-ports" [group="core"];
   "auths-postgresql" [group="product"];
   "auths-postgresql-demo" [group="demos"];
+  "auths-production-client" [group="product"];
   "auths-profile-api" [group="product"];
   "auths-profile-domains" [group="product"];
   "auths-profile-kit" [group="product"];
@@ -166,6 +171,11 @@ digraph auths_architecture {
   "auths-cross-company-incident-edgeshield-demo" -> "auths-raw-key" [label="normal"];
   "auths-custody" -> "auths-author" [label="normal"];
   "auths-custody" -> "auths-model" [label="normal"];
+  "auths-custody" -> "auths-operations" [label="normal"];
+  "auths-custody-aws-kms" -> "auths-custody" [label="normal"];
+  "auths-custody-aws-kms" -> "auths-model" [label="normal"];
+  "auths-custody-pkcs11" -> "auths-custody" [label="normal"];
+  "auths-custody-pkcs11" -> "auths-model" [label="normal"];
   "auths-deployment" -> "auths-enforcement" [label="normal"];
   "auths-deployment" -> "auths-sdk" [label="normal"];
   "auths-did-keri" -> "auths-codec" [label="dev"];
@@ -281,6 +291,9 @@ digraph auths_architecture {
   "auths-live-service" -> "auths-proof-wasm" [label="normal"];
   "auths-mcp-demo" -> "auths-apps-testkit" [label="normal"];
   "auths-mcp-demo" -> "auths-proof-exchange-model" [label="normal"];
+  "auths-node" -> "auths-operations" [label="normal"];
+  "auths-node" -> "auths-operations-otel" [label="normal"];
+  "auths-node" -> "auths-production-client" [label="normal"];
   "auths-opentofu" -> "auths-bounded-policy" [label="normal"];
   "auths-opentofu" -> "auths-lifecycle" [label="normal"];
   "auths-opentofu" -> "auths-model" [label="normal"];
@@ -297,9 +310,11 @@ digraph auths_architecture {
   "auths-operations" -> "auths-codec" [label="dev"];
   "auths-operations" -> "auths-codec" [label="normal"];
   "auths-operations" -> "auths-config" [label="normal"];
+  "auths-operations" -> "auths-errors" [label="normal"];
   "auths-operations" -> "auths-model" [label="normal"];
   "auths-operations" -> "auths-registries" [label="normal"];
   "auths-operations" -> "auths-verifier" [label="normal"];
+  "auths-operations-otel" -> "auths-operations" [label="normal"];
   "auths-ports" -> "auths-model" [label="normal"];
   "auths-postgresql" -> "auths-bounded-policy" [label="normal"];
   "auths-postgresql" -> "auths-lifecycle" [label="normal"];
@@ -405,6 +420,7 @@ digraph auths_architecture {
   "auths-proof-python" -> "auths-lifecycle" [label="normal"];
   "auths-proof-python" -> "auths-model" [label="normal"];
   "auths-proof-python" -> "auths-ports" [label="normal"];
+  "auths-proof-python" -> "auths-production-client" [label="normal"];
   "auths-proof-python" -> "auths-profile-api" [label="normal"];
   "auths-proof-python" -> "auths-profile-domains" [label="normal"];
   "auths-proof-python" -> "auths-profile-mcp" [label="normal"];
@@ -423,6 +439,7 @@ digraph auths_architecture {
   "auths-proof-wasm" -> "auths-identity-raw-key" [label="normal"];
   "auths-proof-wasm" -> "auths-model" [label="normal"];
   "auths-proof-wasm" -> "auths-ports" [label="normal"];
+  "auths-proof-wasm" -> "auths-production-client" [label="normal"];
   "auths-proof-wasm" -> "auths-profile-api" [label="normal"];
   "auths-proof-wasm" -> "auths-profile-domains" [label="normal"];
   "auths-proof-wasm" -> "auths-profile-mcp" [label="normal"];
@@ -494,10 +511,14 @@ digraph auths_architecture {
   "auths-resolver-did-web" -> "auths-codec" [label="normal"];
   "auths-resolver-did-web" -> "auths-did-web" [label="normal"];
   "auths-resolver-did-web" -> "auths-model" [label="normal"];
+  "auths-runtime" -> "auths-bounded-policy" [label="normal"];
   "auths-runtime" -> "auths-codec" [label="normal"];
+  "auths-runtime" -> "auths-errors" [label="normal"];
   "auths-runtime" -> "auths-kernel-runtime" [label="normal"];
+  "auths-runtime" -> "auths-lifecycle" [label="normal"];
   "auths-runtime" -> "auths-model" [label="normal"];
   "auths-runtime" -> "auths-operations" [label="normal"];
+  "auths-runtime" -> "auths-production-client" [label="normal"];
   "auths-runtime" -> "auths-profile-api" [label="normal"];
   "auths-runtime" -> "auths-profile-mcp" [label="normal"];
   "auths-runtime" -> "auths-proof-exchange-model" [label="normal"];
@@ -644,6 +665,7 @@ digraph auths_architecture {
   "xtask" -> "auths-bench-model" [label="normal"];
   "xtask" -> "auths-ci-plan" [label="normal"];
   "xtask" -> "auths-codec" [label="normal"];
+  "xtask" -> "auths-config" [label="normal"];
   "xtask" -> "auths-did-keri" [label="normal"];
   "xtask" -> "auths-did-key" [label="normal"];
   "xtask" -> "auths-did-web" [label="normal"];
@@ -656,6 +678,7 @@ digraph auths_architecture {
   "xtask" -> "auths-opentofu" [label="normal"];
   "xtask" -> "auths-ports" [label="normal"];
   "xtask" -> "auths-postgresql" [label="normal"];
+  "xtask" -> "auths-production-client" [label="normal"];
   "xtask" -> "auths-profile-mcp" [label="normal"];
   "xtask" -> "auths-proof-exchange-testkit" [label="normal"];
   "xtask" -> "auths-radicle" [label="normal"];

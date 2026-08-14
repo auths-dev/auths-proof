@@ -1,0 +1,18 @@
+[package]
+name = "auths-production-client"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Canonical bounded client contract for the Auths production runtime"
+
+[dependencies]
+base64ct.workspace = true
+minicbor.workspace = true
+serde = { workspace = true, features = ["std"] }
+serde_json = { workspace = true, features = ["std"] }
+
+[lints]
+workspace = true

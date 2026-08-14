@@ -37,6 +37,25 @@ async with development.create_auths(
     print(result)
 ```
 
+## Use a production runtime
+
+```python
+from auths import create_auths
+from auths.profiles import github_issue_address
+
+auths = create_auths(
+    endpoint="https://auths.example.com",
+    identity=public_identity_bytes,
+    profile=github_issue_address(),
+)
+authority = await auths.create(authority_request_bytes)
+if authority.kind != "authority":
+    raise RuntimeError(authority.code)
+result = await auths.execute(authority, action_bytes)
+if result.kind == "recoverable":
+    await auths.resume(result.reference)
+```
+
 ## Public modules
 
 One wheel provides the same progressive topology as TypeScript:
@@ -46,7 +65,7 @@ One wheel provides the same progressive topology as TypeScript:
 | `auths` | create, delegate, execute, resume, product results and errors |
 | `auths.identity` | standalone identity decoding and authentication |
 | `auths.verify` | effect-free proof, decision and receipt verification |
-| `auths.profiles` | qualified effect domains; initially MCP |
+| `auths.profiles` | qualified MCP, OpenTofu, PostgreSQL and GitHub effect domains |
 | `auths.integrations` | maintained compositions and mechanism adapters |
 | `auths.framework` | proven signer and atomic-reservation contracts |
 | `auths.testkit` | deterministic fixtures and conformance suites |
@@ -75,11 +94,11 @@ idempotent and close owned signers and native sessions.
 
 ## Production boundary
 
-The development composition uses ephemeral keys and in-memory state. It is not
-production durable. Production applications provide qualified profile
-integrations plus the narrowly proven framework mechanisms they need. Provider
-credentials remain behind the profile gateway and are acquired only after
-Auths has authorized and durably reserved the exact action.
+The development composition uses ephemeral keys and in-memory state. The root
+production client talks to an HTTPS operator runtime through a bounded,
+Rust-owned binary contract. Provider credentials remain behind the profile
+gateway and are acquired only after Auths has authorized and durably reserved
+the exact action.
 
 Supported Python, platform, ABI and semantic-subject claims are recorded in
 `sdk-runtime-contract.json`. Public API and wheel-content snapshots reject

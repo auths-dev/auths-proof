@@ -49,13 +49,6 @@ export {
 } from "./conformance.js";
 export type { AtomicReservationRecord } from "../internal/mechanisms.js";
 export {
-  InMemoryBudgetPort,
-  InMemoryChallengePort,
-  InMemoryExecutionStatePort,
-  InMemoryReceiptPort,
-  InMemoryReplayPort,
-} from "./runtime.js";
-export {
   DiagnosticVerifier,
   createDiagnosticVerifier,
   type DiagnosticResult,

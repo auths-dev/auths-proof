@@ -778,6 +778,8 @@ pub struct DecisionInputV1 {
     pub lifecycle_id: LifecycleId,
     /// One logical execution identity.
     pub execution_id: ExecutionId,
+    /// Opaque recovery-reference commitment created before durable decision state.
+    pub recovery_reference_digest: crate::RecoveryReferenceDigest,
     /// Domain identity.
     pub domain_id: DomainId,
     /// Exact executor audience.
@@ -857,6 +859,12 @@ impl LifecycleRecordV1 {
     #[must_use]
     pub const fn decision_input(&self) -> &DecisionInputV1 {
         &self.input
+    }
+
+    /// Returns the explicit trusted time of the latest durable transition.
+    #[must_use]
+    pub const fn updated_at(&self) -> VerifierTime {
+        self.updated_at
     }
 
     /// Returns reservations.

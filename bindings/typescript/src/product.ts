@@ -22,6 +22,11 @@ import {
   encodeLinkedReceipt,
   verifyLinkedReceipt,
 } from "./internal/receipt-attestation.js";
+import {
+  createProductionAuths,
+  type ProductionAuths,
+  type ProductionAuthsOptions,
+} from "./production-client.js";
 
 const configurationResources = new WeakMap<AuthsConfiguration, InternalConfiguration>();
 const referenceResources = new WeakMap<ExecutionReference, string>();
@@ -345,10 +350,15 @@ export function createAuthsConfiguration(
   return configuration;
 }
 
-export async function createAuths(configuration: AuthsConfiguration): Promise<Auths> {
+export function createAuths(configuration: AuthsConfiguration): Promise<Auths>;
+export function createAuths(configuration: ProductionAuthsOptions): ProductionAuths;
+export function createAuths(
+  configuration: AuthsConfiguration | ProductionAuthsOptions,
+): Promise<Auths> | ProductionAuths {
+  if ("endpoint" in configuration) return createProductionAuths(configuration);
   const resources = configurationResources.get(configuration);
   if (resources === undefined) throw new TypeError("Auths configuration was not created by an integration");
-  return new AuthsFacade(await resources.open(), resources.diagnostics);
+  return resources.open().then((opened) => new AuthsFacade(opened, resources.diagnostics));
 }
 
 export async function verifyReceipt(receipt: Receipt): Promise<void> {

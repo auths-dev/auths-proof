@@ -1,0 +1,28 @@
+contract_version = 1
+mode = "local"
+bind = "0.0.0.0:8080"
+release = "open-production-candidate-1"
+semantic_id = "auths.open-production/1"
+request_timeout_ms = 10000
+drain_timeout_seconds = 15
+ingress_tls = false
+
+[lifecycle]
+url_env = "AUTHS_POSTGRES_URL"
+ca_pem = "/run/secrets/postgres-ca.pem"
+server_name = "postgres"
+maximum_records = 100000
+
+[custody]
+kind = "software-fixture"
+seed_env = "AUTHS_LOCAL_SEED"
+
+[telemetry]
+otlp_endpoint = "http://otel-collector:4317"
+service_name = "auths-node"
+
+[profiles]
+opentofu_saved_plan_apply = true
+postgresql_bounded_update = true
+github_issue_address = true
+sandbox_providers = true

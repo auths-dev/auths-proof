@@ -28,6 +28,7 @@ auths-profile-mcp.workspace = true
 auths-raw-key = { workspace = true, features = ["std"] }
 auths-registries = { workspace = true, features = ["std"] }
 auths-receipts.workspace = true
+auths-production-client.workspace = true
 auths-signature = { workspace = true, features = ["std"] }
 auths-signature-ed25519.workspace = true
 auths-sdk.workspace = true

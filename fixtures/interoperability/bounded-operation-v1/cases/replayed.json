@@ -1,0 +1,16 @@
+{
+  "attempt": 2,
+  "base": "../scenario.json",
+  "expected": {
+    "authorization": "authorized",
+    "execution": "not-attempted",
+    "reason": "The pure proof remains valid, but the one-use runtime reservation already exists.",
+    "retry": "forbidden",
+    "runtime": "rejected"
+  },
+  "id": "replayed",
+  "mutations": [
+    { "operation": "runtime-event", "path": "/prior_reservation", "target": "runtime", "value": "committed" }
+  ],
+  "schema": "auths-proof-interoperability-case/v1"
+}

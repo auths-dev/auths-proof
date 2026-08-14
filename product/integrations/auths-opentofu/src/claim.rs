@@ -141,6 +141,7 @@ mod tests {
                 core_authorization_digest: &crate::canonical::sha256(b"core"),
                 decision_receipt_digest: &decision.digest().unwrap(),
                 implementation_build_digest: &crate::canonical::sha256(b"build"),
+                recovery_reference_digest: auths_lifecycle::RecoveryReferenceDigest::new([5; 32]),
                 expires_at: fixture.action.expires_at(),
             })
             .unwrap();

@@ -2,6 +2,14 @@
 
 #![forbid(unsafe_code)]
 
+mod production;
+
+pub use production::{
+    CustodyAdapterFamily, EvidenceRequirement, ProductionCandidate, ProductionCandidateInput,
+    ProductionCandidateSummary, ProductionConfigError, ProductionConfigErrorCode,
+    ProductionExclusion, ProductionProfileId, ProductionTopologyClass, SdkLanguage,
+};
+
 use auths_codec::context_digest;
 use auths_model::{
     ChannelBindingId, ContextDigest, Digest, LimitKind, PROTOCOL_V1, ProfileId, ProfileRef,

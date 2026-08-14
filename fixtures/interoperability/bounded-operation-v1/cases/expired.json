@@ -1,0 +1,16 @@
+{
+  "attempt": 1,
+  "base": "../scenario.json",
+  "expected": {
+    "authorization": "denied",
+    "execution": "not-attempted",
+    "reason": "Verifier evaluation time is after the delegated validity interval.",
+    "retry": "forbidden",
+    "runtime": "not-entered"
+  },
+  "id": "expired",
+  "mutations": [
+    { "operation": "replace", "path": "/evaluation_time", "target": "trusted-context", "value": 1800000601 }
+  ],
+  "schema": "auths-proof-interoperability-case/v1"
+}

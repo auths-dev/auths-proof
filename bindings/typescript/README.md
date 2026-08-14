@@ -45,6 +45,23 @@ try {
 On runtimes that support explicit resource management, `await using` may be
 used instead of the `try`/`finally` form.
 
+## Use a production runtime
+
+```ts
+import { createAuths } from "@auths-dev/sdk";
+import { githubIssueAddress } from "@auths-dev/sdk/profiles";
+
+const auths = createAuths({
+  endpoint: "https://auths.example.com",
+  identity: publicIdentityBytes,
+  profile: githubIssueAddress(),
+});
+const authority = await auths.create(authorityRequestBytes);
+if (authority.kind !== "authority") throw new Error(authority.code);
+const result = await auths.execute(authority, actionBytes);
+if (result.kind === "recoverable") await auths.resume(result.reference);
+```
+
 ## Public entry points
 
 One npm package provides a progressively disclosed API:
@@ -54,7 +71,7 @@ One npm package provides a progressively disclosed API:
 | `@auths-dev/sdk` | create, delegate, execute, resume, product results and errors |
 | `@auths-dev/sdk/identity` | standalone identity decoding and authentication |
 | `@auths-dev/sdk/verify` | effect-free proof, decision and receipt verification |
-| `@auths-dev/sdk/profiles` | qualified effect domains; initially MCP |
+| `@auths-dev/sdk/profiles` | qualified MCP, OpenTofu, PostgreSQL and GitHub effect domains |
 | `@auths-dev/sdk/integrations` | maintained compositions and mechanism adapters |
 | `@auths-dev/sdk/framework` | proven signer and atomic-reservation contracts |
 | `@auths-dev/sdk/testkit` | deterministic fixtures and conformance suites |
@@ -76,11 +93,11 @@ belong to `@auths-dev/sdk/testkit`.
 
 ## Production boundary
 
-The development composition uses ephemeral keys and in-memory state. It is not
-production durable. Production applications provide qualified profile
-integrations plus the narrowly proven framework mechanisms they need. Provider
-credentials remain behind the profile gateway and are acquired only after
-Auths has authorized and durably reserved the exact action.
+The development composition uses ephemeral keys and in-memory state. The root
+production client talks to an HTTPS operator runtime through a bounded,
+Rust-owned binary contract. Provider credentials remain behind the profile
+gateway and are acquired only after Auths has authorized and durably reserved
+the exact action.
 
 ## Support
 

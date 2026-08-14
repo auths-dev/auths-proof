@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://auths.dev/schemas/interoperability/bounded-operation-v1/scenario.schema.json",
+  "additionalProperties": false,
+  "properties": {
+    "actors": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "id": { "pattern": "^[a-z0-9-]{1,64}$", "type": "string" },
+          "principal": { "maxLength": 200, "minLength": 1, "type": "string" },
+          "role": {
+            "enum": ["authority-owner", "delegate", "approver", "verifier", "executor", "provider"],
+            "type": "string"
+          }
+        },
+        "required": ["id", "principal", "role"],
+        "type": "object"
+      },
+      "maxItems": 16,
+      "minItems": 1,
+      "type": "array"
+    },
+    "approval": {
+      "additionalProperties": false,
+      "properties": {
+        "approvers": {
+          "items": { "pattern": "^[a-z0-9-]{1,64}$", "type": "string" },
+          "maxItems": 8,
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "threshold": { "maximum": 8, "minimum": 1, "type": "integer" }
+      },
+      "required": ["approvers", "threshold"],
+      "type": "object"
+    },
+    "authority": {
+      "additionalProperties": false,
+      "properties": {
+        "budget": {
+          "additionalProperties": false,
+          "properties": {
+            "maximum": { "maximum": 1000000, "minimum": 1, "type": "integer" },
+            "unit": { "pattern": "^[a-z0-9-]{1,64}$", "type": "string" }
+          },
+          "required": ["maximum", "unit"],
+          "type": "object"
+        },
+        "expires_at": { "maximum": 9007199254740991, "minimum": 0, "type": "integer" },
+        "max_delegation_depth": { "maximum": 32, "minimum": 0, "type": "integer" },
+        "max_uses": { "maximum": 1000000, "minimum": 1, "type": "integer" },
+        "not_before": { "maximum": 9007199254740991, "minimum": 0, "type": "integer" }
+      },
+      "required": ["budget", "expires_at", "max_delegation_depth", "max_uses", "not_before"],
+      "type": "object"
+    },
+    "id": { "const": "bounded-operation-v1", "type": "string" },
+    "operation": {
+      "additionalProperties": false,
+      "properties": {
+        "capability": { "const": "firewall/rules/update", "type": "string" },
+        "idempotency_key": { "maxLength": 128, "minLength": 1, "type": "string" },
+        "payload_canonical_utf8": { "maxLength": 4096, "minLength": 1, "type": "string" },
+        "payload_sha256": { "pattern": "^[0-9a-f]{64}$", "type": "string" },
+        "profile": { "const": "interop.bounded-operation", "type": "string" },
+        "profile_version": { "const": 1, "type": "integer" },
+        "resource": { "maxLength": 512, "minLength": 1, "type": "string" }
+      },
+      "required": ["capability", "idempotency_key", "payload_canonical_utf8", "payload_sha256", "profile", "profile_version", "resource"],
+      "type": "object"
+    },
+    "schema": { "const": "auths-proof-interoperability-scenario/v1", "type": "string" }
+  },
+  "required": ["actors", "approval", "authority", "id", "operation", "schema"],
+  "title": "Auths bounded-operation interoperability scenario V1",
+  "type": "object"
+}

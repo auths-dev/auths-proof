@@ -129,6 +129,7 @@ pub fn decision(workflow: &str, amount: Option<u64>) -> DecisionInputV1 {
         workflow_id,
         lifecycle_id: LifecycleId::parse(workflow).unwrap(),
         execution_id: ExecutionId::parse(workflow).unwrap(),
+        recovery_reference_digest: crate::RecoveryReferenceDigest::new([13; 32]),
         domain_id,
         executor_audience: audience,
         reservation_algebra_id: algebra,

@@ -10,6 +10,9 @@ description = "Authorization-before-execution service for Auths-protected MCP to
 
 [dependencies]
 auths-kernel-runtime.workspace = true
+auths-lifecycle.workspace = true
+auths-bounded-policy.workspace = true
+auths-errors.workspace = true
 auths-profile-mcp.workspace = true
 auths-profile-api.workspace = true
 auths-receipts.workspace = true
@@ -17,9 +20,11 @@ auths-proof-exchange-model.workspace = true
 auths-proof-exchange-port.workspace = true
 auths-model.workspace = true
 auths-operations.workspace = true
+auths-production-client.workspace = true
 auths-codec.workspace = true
 auths-verifier.workspace = true
 async-trait.workspace = true
+base64ct.workspace = true
 getrandom.workspace = true
 sha2.workspace = true
 subtle.workspace = true

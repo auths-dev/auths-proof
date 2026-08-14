@@ -1,24 +1,40 @@
-use auths_bounded_policy::{CommitmentDigest, UnitId};
+use auths_bounded_policy::{CommitmentDigest, ProfileId, UnitId, VerifierTime};
 use auths_lifecycle::{
     CapacityEntryV1, CapacitySnapshotV1, LifecycleRecordV1, LifecycleState, LifecycleStore,
-    ReservationMode, StoreError, StoreTransactionV1, StoredTransitionV1, TransitionDisposition,
-    WorkflowId, apply_transition, decode_record, encode_record,
+    RecoveryReferenceDigest, ReservationMode, StoreError, StoreTransactionV1, StoredTransitionV1,
+    TransitionDisposition, WorkflowId, apply_transition, decode_record, encode_record,
 };
-use postgres::{Client, IsolationLevel, NoTls, Transaction};
+use auths_runtime::production::{
+    LifecycleReader, RecoverableWorkStore, RecoveryBatchSize, RecoveryConfigurationError,
+    RecoveryCursor, RecoveryLease, RecoveryLeaseRequest, RecoveryPage, RecoveryReferenceStore,
+    RecoveryTarget,
+};
+use postgres::{
+    Client, Config, IsolationLevel, Transaction,
+    config::{Host, SslMode},
+};
+use r2d2::{CustomizeConnection, Pool};
+use r2d2_postgres::PostgresConnectionManager;
+use rustls::{ClientConfig, RootCertStore};
+use rustls_pki_types::{CertificateDer, ServerName, pem::PemObject as _};
 use sha2::{Digest as _, Sha256};
 use std::{
     collections::{BTreeMap, BTreeSet},
+    env,
     fs::{self, File},
     io::Write as _,
     path::{Path, PathBuf},
+    str::FromStr as _,
     sync::Mutex,
+    time::Duration,
 };
 use tempfile::NamedTempFile;
+use tokio_postgres_rustls::MakeRustlsConnect;
 
 const DATABASE_MAGIC: &[u8; 8] = b"AUTHSLF1";
 const MAX_DATABASE_BYTES: usize = 256 * 1024 * 1024;
-const MAX_RECORD_BYTES: usize = 16 * 1024 * 1024;
-const POSTGRES_SCHEMA: &str = include_str!("../migrations/postgres_lifecycle_v1.sql");
+const MAX_RECORD_BYTES: usize = auths_lifecycle::MAX_LIFECYCLE_RECORD_BYTES;
+const POSTGRES_SCHEMA: &str = include_str!("../migrations/postgres_lifecycle_v3.sql");
 
 /// One closed capacity rule configured by a domain registration.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -62,6 +78,14 @@ pub enum LifecycleStoreConfigurationError {
     DatabaseUnavailable,
     /// Existing transactional schema does not implement the V1 contract.
     DatabaseSchemaMismatch,
+    /// Connection material is missing or malformed.
+    InvalidConnectionString,
+    /// TLS roots, mode, or server identity are invalid.
+    InvalidTlsConfiguration,
+    /// Pool sizes or deadlines are invalid.
+    InvalidPoolConfiguration,
+    /// A required reference-deployment environment slot is absent.
+    MissingEnvironment,
 }
 
 #[derive(Clone)]
@@ -126,6 +150,15 @@ impl LifecycleStore for InMemoryLifecycleStore {
             transaction,
             |_| Ok(()),
         )
+    }
+}
+
+impl LifecycleReader for InMemoryLifecycleStore {
+    fn load_lifecycle(
+        &self,
+        workflow: &WorkflowId,
+    ) -> Result<Option<LifecycleRecordV1>, StoreError> {
+        self.load(workflow)
     }
 }
 
@@ -210,6 +243,15 @@ impl LifecycleStore for PersistentLifecycleStore {
     }
 }
 
+impl LifecycleReader for PersistentLifecycleStore {
+    fn load_lifecycle(
+        &self,
+        workflow: &WorkflowId,
+    ) -> Result<Option<LifecycleRecordV1>, StoreError> {
+        self.load(workflow)
+    }
+}
+
 /// Transactional multi-process `PostgreSQL` lifecycle store.
 ///
 /// The adapter serializes mutations through a singleton contract-row lock
@@ -223,54 +265,398 @@ impl LifecycleStore for PersistentLifecycleStore {
 pub struct PostgresLifecycleStore {
     rules: Vec<LifecycleCapacityRuleV1>,
     maximum_records: usize,
-    client: Mutex<Client>,
+    pool: Pool<PostgresConnectionManager<MakeRustlsConnect>>,
+}
+
+/// Connection material that is erased when its owner is dropped.
+pub struct SecretConnectionString(Box<[u8]>);
+
+impl SecretConnectionString {
+    /// Parses bounded UTF-8 connection material without making it printable.
+    ///
+    /// # Errors
+    ///
+    /// Returns an invalid-connection error for empty, oversized, or
+    /// NUL-containing input.
+    pub fn new(value: String) -> Result<Self, LifecycleStoreConfigurationError> {
+        if value.is_empty() || value.len() > 64 * 1024 || value.as_bytes().contains(&0) {
+            return Err(LifecycleStoreConfigurationError::InvalidConnectionString);
+        }
+        Ok(Self(value.into_bytes().into_boxed_slice()))
+    }
+
+    fn expose(&self) -> Result<&str, LifecycleStoreConfigurationError> {
+        std::str::from_utf8(&self.0)
+            .map_err(|_| LifecycleStoreConfigurationError::InvalidConnectionString)
+    }
+}
+
+impl Drop for SecretConnectionString {
+    fn drop(&mut self) {
+        self.0.fill(0);
+    }
+}
+
+/// Validated TLS server identity.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PostgresServerName(String);
+
+impl PostgresServerName {
+    /// Parses one DNS server identity.
+    ///
+    /// # Errors
+    ///
+    /// Returns an invalid TLS configuration error for non-DNS or oversized
+    /// input.
+    pub fn parse(value: String) -> Result<Self, LifecycleStoreConfigurationError> {
+        if value.len() > 253 || ServerName::try_from(value.clone()).is_err() {
+            return Err(LifecycleStoreConfigurationError::InvalidTlsConfiguration);
+        }
+        Ok(Self(value))
+    }
+
+    /// Returns the non-secret expected DNS identity.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+/// TLS roots and expected database server identity.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PostgresTlsConfig {
+    root_certificate: PathBuf,
+    expected_server_name: PostgresServerName,
+}
+
+impl PostgresTlsConfig {
+    /// Constructs a TLS-only server-verification policy.
+    #[must_use]
+    pub const fn new(root_certificate: PathBuf, expected_server_name: PostgresServerName) -> Self {
+        Self {
+            root_certificate,
+            expected_server_name,
+        }
+    }
+
+    /// Returns the configured certificate bundle path.
+    #[must_use]
+    pub fn root_certificate(&self) -> &Path {
+        &self.root_certificate
+    }
+
+    /// Returns the exact expected TLS server identity.
+    #[must_use]
+    pub const fn expected_server_name(&self) -> &PostgresServerName {
+        &self.expected_server_name
+    }
+}
+
+/// Bounded `PostgreSQL` pool and session deadlines.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct PostgresPoolConfig {
+    minimum_connections: u16,
+    maximum_connections: u16,
+    checkout_timeout: Duration,
+    statement_timeout: Duration,
+    lock_timeout: Duration,
+    idle_timeout: Duration,
+}
+
+impl PostgresPoolConfig {
+    /// Constructs bounded pool settings.
+    ///
+    /// # Errors
+    ///
+    /// Returns an invalid-pool error for zero, inverted, or unreasonable
+    /// limits.
+    pub fn new(
+        minimum_connections: u16,
+        maximum_connections: u16,
+        checkout_timeout: Duration,
+        statement_timeout: Duration,
+        lock_timeout: Duration,
+        idle_timeout: Duration,
+    ) -> Result<Self, LifecycleStoreConfigurationError> {
+        let value = Self {
+            minimum_connections,
+            maximum_connections,
+            checkout_timeout,
+            statement_timeout,
+            lock_timeout,
+            idle_timeout,
+        };
+        value.validate()?;
+        Ok(value)
+    }
+
+    fn validate(&self) -> Result<(), LifecycleStoreConfigurationError> {
+        if self.minimum_connections == 0
+            || self.maximum_connections == 0
+            || self.minimum_connections > self.maximum_connections
+            || self.maximum_connections > 256
+            || [
+                self.checkout_timeout,
+                self.statement_timeout,
+                self.lock_timeout,
+                self.idle_timeout,
+            ]
+            .iter()
+            .any(|duration| duration.is_zero() || *duration > Duration::from_hours(24))
+        {
+            return Err(LifecycleStoreConfigurationError::InvalidPoolConfiguration);
+        }
+        Ok(())
+    }
+
+    /// Returns the minimum maintained connection count.
+    #[must_use]
+    pub const fn minimum_connections(&self) -> u16 {
+        self.minimum_connections
+    }
+
+    /// Returns the maximum connection count.
+    #[must_use]
+    pub const fn maximum_connections(&self) -> u16 {
+        self.maximum_connections
+    }
+}
+
+impl Default for PostgresPoolConfig {
+    fn default() -> Self {
+        Self {
+            minimum_connections: 1,
+            maximum_connections: 16,
+            checkout_timeout: Duration::from_secs(2),
+            statement_timeout: Duration::from_secs(10),
+            lock_timeout: Duration::from_secs(2),
+            idle_timeout: Duration::from_mins(5),
+        }
+    }
+}
+
+/// Complete TLS-only `PostgreSQL` lifecycle-store configuration.
+pub struct PostgresStoreConfig {
+    connection: SecretConnectionString,
+    tls: PostgresTlsConfig,
+    pool: PostgresPoolConfig,
+    maximum_records: usize,
+    rules: Vec<LifecycleCapacityRuleV1>,
+}
+
+impl PostgresStoreConfig {
+    /// Constructs a validated store configuration.
+    ///
+    /// # Errors
+    ///
+    /// Returns a closed configuration failure for invalid capacity or pool
+    /// limits.
+    pub fn new(
+        connection: SecretConnectionString,
+        tls: PostgresTlsConfig,
+        pool: PostgresPoolConfig,
+        maximum_records: usize,
+        rules: Vec<LifecycleCapacityRuleV1>,
+    ) -> Result<Self, LifecycleStoreConfigurationError> {
+        validate_configuration(&rules, maximum_records)?;
+        pool.validate()?;
+        Ok(Self {
+            connection,
+            tls,
+            pool,
+            maximum_records,
+            rules,
+        })
+    }
+
+    /// Reads the three secret-slot values used by the reference deployment.
+    ///
+    /// # Errors
+    ///
+    /// Returns a closed error when a required value is absent or invalid.
+    pub fn from_env(
+        rules: Vec<LifecycleCapacityRuleV1>,
+        maximum_records: usize,
+    ) -> Result<Self, LifecycleStoreConfigurationError> {
+        let connection = env::var("AUTHS_POSTGRES_URL")
+            .map_err(|_| LifecycleStoreConfigurationError::MissingEnvironment)?;
+        let root_certificate = env::var("AUTHS_POSTGRES_CA_PEM")
+            .map_err(|_| LifecycleStoreConfigurationError::MissingEnvironment)?;
+        let server_name = env::var("AUTHS_POSTGRES_SERVER_NAME")
+            .map_err(|_| LifecycleStoreConfigurationError::MissingEnvironment)?;
+        Self::new(
+            SecretConnectionString::new(connection)?,
+            PostgresTlsConfig::new(
+                PathBuf::from(root_certificate),
+                PostgresServerName::parse(server_name)?,
+            ),
+            PostgresPoolConfig::default(),
+            maximum_records,
+            rules,
+        )
+    }
+
+    /// Returns a safe non-secret configuration summary.
+    #[must_use]
+    pub fn summary(&self) -> PostgresStoreSummary {
+        PostgresStoreSummary {
+            minimum_connections: self.pool.minimum_connections,
+            maximum_connections: self.pool.maximum_connections,
+            maximum_records: self.maximum_records,
+        }
+    }
+}
+
+/// Safe `PostgreSQL` lifecycle-store configuration projection.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct PostgresStoreSummary {
+    minimum_connections: u16,
+    maximum_connections: u16,
+    maximum_records: usize,
+}
+
+impl PostgresStoreSummary {
+    /// Returns the stable adapter family.
+    #[must_use]
+    pub const fn family(self) -> &'static str {
+        "postgresql-v1"
+    }
+
+    /// Returns whether transport security is mandatory.
+    #[must_use]
+    pub const fn tls_required(self) -> bool {
+        true
+    }
+
+    /// Returns the physical schema identity.
+    #[must_use]
+    pub const fn schema_id(self) -> &'static str {
+        "auths.lifecycle.postgresql/3"
+    }
+
+    /// Returns the transactional store contract identity.
+    #[must_use]
+    pub const fn contract_id(self) -> &'static str {
+        "auths.lifecycle.transactional-store/3"
+    }
+
+    /// Returns the minimum maintained connection count.
+    #[must_use]
+    pub const fn minimum_connections(self) -> u16 {
+        self.minimum_connections
+    }
+
+    /// Returns the maximum connection count.
+    #[must_use]
+    pub const fn maximum_connections(self) -> u16 {
+        self.maximum_connections
+    }
+
+    /// Returns the maximum canonical record count.
+    #[must_use]
+    pub const fn maximum_records(self) -> usize {
+        self.maximum_records
+    }
+}
+
+/// Privacy-safe readiness projection for the lifecycle store.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct PostgresStoreHealth {
+    schema_version: u16,
+    pool_connections: u32,
+    pool_idle_connections: u32,
+}
+
+impl PostgresStoreHealth {
+    /// Returns the verified schema version.
+    #[must_use]
+    pub const fn schema_version(self) -> u16 {
+        self.schema_version
+    }
+
+    /// Returns total connections currently managed by the pool.
+    #[must_use]
+    pub const fn pool_connections(self) -> u32 {
+        self.pool_connections
+    }
+
+    /// Returns currently idle pool connections.
+    #[must_use]
+    pub const fn pool_idle_connections(self) -> u32 {
+        self.pool_idle_connections
+    }
+}
+
+#[derive(Debug)]
+struct SessionCustomizer {
+    statement: u128,
+    lock: u128,
+    idle: u128,
+}
+
+impl CustomizeConnection<Client, postgres::Error> for SessionCustomizer {
+    fn on_acquire(&self, client: &mut Client) -> Result<(), postgres::Error> {
+        client.batch_execute(&format!(
+            "SET statement_timeout = '{}ms';
+             SET lock_timeout = '{}ms';
+             SET idle_in_transaction_session_timeout = '{}ms';",
+            self.statement, self.lock, self.idle
+        ))
+    }
 }
 
 impl PostgresLifecycleStore {
-    /// Opens a PostgreSQL-backed store and installs the fixed V1 schema.
-    ///
-    /// The connection string is deployment configuration and is not part of
-    /// the canonical lifecycle contract. Callers should provision a dedicated
-    /// database or schema whose privileges prevent unrelated writers.
+    /// Opens a pooled TLS-only store and installs the fixed V3 schema only in
+    /// an otherwise empty database.
     ///
     /// # Errors
     ///
     /// Returns a typed configuration error when limits or rules are invalid,
     /// the database is unavailable, or an existing metadata row conflicts
-    /// with the V1 store contract.
+    /// with the V3 store contract.
     pub fn connect(
-        connection_string: &str,
-        rules: Vec<LifecycleCapacityRuleV1>,
-        maximum_records: usize,
+        configuration: PostgresStoreConfig,
     ) -> Result<Self, LifecycleStoreConfigurationError> {
-        validate_configuration(&rules, maximum_records)?;
-        let mut client = Client::connect(connection_string, NoTls)
+        let PostgresStoreConfig {
+            connection,
+            tls,
+            pool,
+            maximum_records,
+            rules,
+        } = configuration;
+        let mut database = Config::from_str(connection.expose()?)
+            .map_err(|_| LifecycleStoreConfigurationError::InvalidConnectionString)?;
+        if database.get_ssl_mode() != SslMode::Require {
+            return Err(LifecycleStoreConfigurationError::InvalidTlsConfiguration);
+        }
+        validate_server_identity(&database, &tls.expected_server_name)?;
+        database.application_name("auths-lifecycle-v3");
+        let tls_connector = make_tls_connector(&tls)?;
+        let manager = PostgresConnectionManager::new(database, tls_connector);
+        let connections = Pool::builder()
+            .min_idle(Some(u32::from(pool.minimum_connections)))
+            .max_size(u32::from(pool.maximum_connections))
+            .connection_timeout(pool.checkout_timeout)
+            .idle_timeout(Some(pool.idle_timeout))
+            .test_on_check_out(true)
+            .error_handler(Box::new(r2d2::NopErrorHandler))
+            .connection_customizer(Box::new(SessionCustomizer {
+                statement: pool.statement_timeout.as_millis(),
+                lock: pool.lock_timeout.as_millis(),
+                idle: pool.idle_timeout.as_millis(),
+            }))
+            .build(manager)
             .map_err(|_| LifecycleStoreConfigurationError::DatabaseUnavailable)?;
-        client
-            .batch_execute(POSTGRES_SCHEMA)
-            .map_err(|_| LifecycleStoreConfigurationError::DatabaseUnavailable)?;
-        let metadata = client
-            .query_opt(
-                "SELECT schema_version, contract_id
-                 FROM auths_lifecycle_store_meta
-                 WHERE singleton = TRUE",
-                &[],
-            )
-            .map_err(|_| LifecycleStoreConfigurationError::DatabaseUnavailable)?
-            .ok_or(LifecycleStoreConfigurationError::DatabaseSchemaMismatch)?;
-        let schema_version: i32 = metadata
-            .try_get(0)
-            .map_err(|_| LifecycleStoreConfigurationError::DatabaseSchemaMismatch)?;
-        let contract_id: String = metadata
-            .try_get(1)
-            .map_err(|_| LifecycleStoreConfigurationError::DatabaseSchemaMismatch)?;
-        if schema_version != 1 || contract_id != "auths.lifecycle.transactional-store/1" {
-            return Err(LifecycleStoreConfigurationError::DatabaseSchemaMismatch);
+        {
+            let mut client = connections
+                .get_timeout(pool.checkout_timeout)
+                .map_err(|_| LifecycleStoreConfigurationError::DatabaseUnavailable)?;
+            initialize_or_verify_schema(&mut client, maximum_records)?;
         }
         Ok(Self {
             rules,
             maximum_records,
-            client: Mutex::new(client),
+            pool: connections,
         })
     }
 
@@ -281,7 +667,7 @@ impl PostgresLifecycleStore {
     /// Returns [`StoreError`] when the database is unavailable or the row,
     /// its indexes, or its digest are inconsistent.
     pub fn load(&self, workflow: &WorkflowId) -> Result<Option<LifecycleRecordV1>, StoreError> {
-        let mut client = self.client.lock().map_err(|_| StoreError::Unavailable)?;
+        let mut client = self.pool.get().map_err(|_| StoreError::PoolExhausted)?;
         let row = client
             .query_opt(
                 "SELECT workflow_id, revision, lifecycle_state, record_bytes, record_sha256
@@ -292,24 +678,64 @@ impl PostgresLifecycleStore {
             .map_err(|error| map_postgres_error(&error))?;
         row.map(|row| decode_postgres_row(&row)).transpose()
     }
+
+    /// Checks pool availability, immutable metadata, and a bounded integrity
+    /// sample without claiming provider or authorization health.
+    ///
+    /// # Errors
+    ///
+    /// Returns a closed store error for pool, database, schema, or canonical
+    /// integrity failure.
+    pub fn probe(&self) -> Result<PostgresStoreHealth, StoreError> {
+        let mut client = self.pool.get().map_err(|_| StoreError::PoolExhausted)?;
+        verify_store_contract(&mut client).map_err(configuration_store_error)?;
+        let rows = client
+            .query(
+                "SELECT workflow_id, revision, lifecycle_state, record_bytes, record_sha256
+                 FROM auths_lifecycle_records
+                 ORDER BY workflow_id
+                 LIMIT 32",
+                &[],
+            )
+            .map_err(|error| map_postgres_error(&error))?;
+        for row in rows {
+            decode_postgres_row(&row)?;
+        }
+        let state = self.pool.state();
+        Ok(PostgresStoreHealth {
+            schema_version: 3,
+            pool_connections: state.connections,
+            pool_idle_connections: state.idle_connections,
+        })
+    }
 }
 
 impl LifecycleStore for PostgresLifecycleStore {
     fn transact(&self, transaction: &StoreTransactionV1) -> Result<StoredTransitionV1, StoreError> {
-        let mut client = self.client.lock().map_err(|_| StoreError::Unavailable)?;
+        let mut client = self.pool.get().map_err(|_| StoreError::PoolExhausted)?;
         let mut sql = client
             .build_transaction()
             .isolation_level(IsolationLevel::ReadCommitted)
             .start()
             .map_err(|error| map_postgres_error(&error))?;
-        sql.query_one(
-            "SELECT schema_version
+        let metadata = sql
+            .query_one(
+                "SELECT schema_version, contract_id
              FROM auths_lifecycle_store_meta
              WHERE singleton = TRUE
              FOR UPDATE",
-            &[],
-        )
-        .map_err(|error| map_postgres_error(&error))?;
+                &[],
+            )
+            .map_err(|error| map_postgres_error(&error))?;
+        let schema_version: i32 = metadata
+            .try_get(0)
+            .map_err(|_| StoreError::SchemaMismatch)?;
+        let contract_id: String = metadata
+            .try_get(1)
+            .map_err(|_| StoreError::SchemaMismatch)?;
+        if schema_version != 3 || contract_id != "auths.lifecycle.transactional-store/3" {
+            return Err(StoreError::SchemaMismatch);
+        }
         let mut database = load_postgres_database(&mut sql, self.maximum_records)?;
         let stored = transact_database(
             &mut database,
@@ -323,10 +749,398 @@ impl LifecycleStore for PostgresLifecycleStore {
     }
 }
 
+impl LifecycleReader for PostgresLifecycleStore {
+    fn load_lifecycle(
+        &self,
+        workflow: &WorkflowId,
+    ) -> Result<Option<LifecycleRecordV1>, StoreError> {
+        self.load(workflow)
+    }
+}
+
+impl RecoveryReferenceStore for PostgresLifecycleStore {
+    fn bind_recovery_reference(
+        &self,
+        digest: RecoveryReferenceDigest,
+        target: &RecoveryTarget,
+    ) -> Result<(), StoreError> {
+        let mut client = self.pool.get().map_err(|_| StoreError::PoolExhausted)?;
+        client
+            .execute(
+                "INSERT INTO auths_recovery_references
+                 (recovery_reference_digest, workflow_id, profile_id)
+                 VALUES ($1, $2, $3)
+                 ON CONFLICT DO NOTHING",
+                &[
+                    &&digest.bytes()[..],
+                    &target.workflow().as_str(),
+                    &target.profile().as_str(),
+                ],
+            )
+            .map_err(|error| map_postgres_error(&error))?;
+        let rows = client
+            .query(
+                "SELECT recovery_reference_digest, workflow_id, profile_id
+                 FROM auths_recovery_references
+                 WHERE recovery_reference_digest = $1 OR workflow_id = $2",
+                &[&&digest.bytes()[..], &target.workflow().as_str()],
+            )
+            .map_err(|error| map_postgres_error(&error))?;
+        if rows.len() != 1 {
+            return Err(StoreError::Conflict);
+        }
+        let stored_digest: Vec<u8> = rows[0].try_get(0).map_err(|_| StoreError::Corrupt)?;
+        let workflow: String = rows[0].try_get(1).map_err(|_| StoreError::Corrupt)?;
+        let profile: String = rows[0].try_get(2).map_err(|_| StoreError::Corrupt)?;
+        if stored_digest.as_slice() != digest.bytes()
+            || workflow != target.workflow().as_str()
+            || profile != target.profile().as_str()
+        {
+            return Err(StoreError::Conflict);
+        }
+        Ok(())
+    }
+
+    fn resolve_recovery_reference(
+        &self,
+        digest: RecoveryReferenceDigest,
+    ) -> Result<Option<RecoveryTarget>, StoreError> {
+        let mut client = self.pool.get().map_err(|_| StoreError::PoolExhausted)?;
+        let row = client
+            .query_opt(
+                "SELECT workflow_id, profile_id
+                 FROM auths_recovery_references
+                 WHERE recovery_reference_digest = $1",
+                &[&&digest.bytes()[..]],
+            )
+            .map_err(|error| map_postgres_error(&error))?;
+        row.map(|row| {
+            let workflow: String = row.try_get(0).map_err(|_| StoreError::Corrupt)?;
+            let profile: String = row.try_get(1).map_err(|_| StoreError::Corrupt)?;
+            Ok(RecoveryTarget::new(
+                WorkflowId::parse(&workflow).map_err(|_| StoreError::Corrupt)?,
+                ProfileId::parse(&profile).map_err(|_| StoreError::Corrupt)?,
+            ))
+        })
+        .transpose()
+    }
+}
+
+impl RecoverableWorkStore for PostgresLifecycleStore {
+    fn list_recoverable(
+        &self,
+        profile: &ProfileId,
+        cursor: &RecoveryCursor,
+        limit: RecoveryBatchSize,
+    ) -> Result<RecoveryPage, StoreError> {
+        let mut client = self.pool.get().map_err(|_| StoreError::PoolExhausted)?;
+        let after = cursor.workflow().map_or("", WorkflowId::as_str);
+        let row_limit = i64::from(limit.get()) + 1;
+        let rows = client
+            .query(
+                "SELECT r.workflow_id, r.profile_id,
+                        l.revision, l.lifecycle_state, l.record_bytes, l.record_sha256
+                 FROM auths_recovery_references r
+                 JOIN auths_lifecycle_records l ON l.workflow_id = r.workflow_id
+                 WHERE r.profile_id = $1
+                   AND r.workflow_id > $2
+                   AND l.lifecycle_state IN (1, 2, 3, 6)
+                 ORDER BY r.workflow_id
+                 LIMIT $3",
+                &[&profile.as_str(), &after, &row_limit],
+            )
+            .map_err(|error| map_postgres_error(&error))?;
+        let mut targets = Vec::with_capacity(rows.len());
+        for row in rows {
+            let workflow: String = row.try_get(0).map_err(|_| StoreError::Corrupt)?;
+            let stored_profile: String = row.try_get(1).map_err(|_| StoreError::Corrupt)?;
+            let record = decode_postgres_recovery_row(&row)?;
+            if record.workflow_id().as_str() != workflow
+                || record.decision_input().commitments.profile_id().as_str() != stored_profile
+                || stored_profile != profile.as_str()
+            {
+                return Err(StoreError::Corrupt);
+            }
+            targets.push(RecoveryTarget::new(
+                record.workflow_id().clone(),
+                profile.clone(),
+            ));
+        }
+        let has_more = targets.len() > usize::from(limit.get());
+        targets.truncate(usize::from(limit.get()));
+        let next = has_more
+            .then(|| {
+                targets
+                    .last()
+                    .map(|target| RecoveryCursor::after(target.workflow().clone()))
+            })
+            .flatten();
+        RecoveryPage::new(targets, next).map_err(recovery_configuration_store_error)
+    }
+
+    fn claim_reconciliation(
+        &self,
+        request: RecoveryLeaseRequest,
+    ) -> Result<RecoveryLease, StoreError> {
+        let mut client = self.pool.get().map_err(|_| StoreError::PoolExhausted)?;
+        let mut sql = client
+            .build_transaction()
+            .isolation_level(IsolationLevel::ReadCommitted)
+            .start()
+            .map_err(|error| map_postgres_error(&error))?;
+        let row = sql
+            .query_opt(
+                "SELECT l.workflow_id, l.revision, l.lifecycle_state,
+                        l.record_bytes, l.record_sha256, r.profile_id
+                 FROM auths_lifecycle_records l
+                 JOIN auths_recovery_references r ON r.workflow_id = l.workflow_id
+                 WHERE l.workflow_id = $1
+                 FOR UPDATE OF l",
+                &[&request.target().workflow().as_str()],
+            )
+            .map_err(|error| map_postgres_error(&error))?
+            .ok_or(StoreError::Conflict)?;
+        let record = decode_postgres_lease_row(&row)?;
+        let stored_profile: String = row.try_get(5).map_err(|_| StoreError::Corrupt)?;
+        if record.revision() != request.expected_revision()
+            || !matches!(
+                record.state(),
+                LifecycleState::Reserved
+                    | LifecycleState::ExecutionIntentRecorded
+                    | LifecycleState::Executing
+                    | LifecycleState::OutcomeUnknown
+            )
+            || stored_profile != request.target().profile().as_str()
+            || record.decision_input().commitments.profile_id().as_str() != stored_profile
+        {
+            return Err(StoreError::Conflict);
+        }
+        let expires_at = request
+            .now()
+            .unix_seconds()
+            .checked_add(request.lease_seconds())
+            .ok_or(StoreError::LimitExceeded)?;
+        let expires_at_sql = i64::try_from(expires_at).map_err(|_| StoreError::LimitExceeded)?;
+        let now_sql =
+            i64::try_from(request.now().unix_seconds()).map_err(|_| StoreError::LimitExceeded)?;
+        let revision =
+            i64::try_from(request.expected_revision()).map_err(|_| StoreError::LimitExceeded)?;
+        let lease_digest = request.lease_digest();
+        let affected = sql
+            .execute(
+                "INSERT INTO auths_recovery_leases
+                 (workflow_id, profile_id, expected_revision, expires_at, lease_digest)
+                 VALUES ($1, $2, $3, $4, $5)
+                 ON CONFLICT (workflow_id) DO UPDATE SET
+                   profile_id = EXCLUDED.profile_id,
+                   expected_revision = EXCLUDED.expected_revision,
+                   expires_at = EXCLUDED.expires_at,
+                   lease_digest = EXCLUDED.lease_digest
+                 WHERE auths_recovery_leases.expires_at <= $6",
+                &[
+                    &request.target().workflow().as_str(),
+                    &request.target().profile().as_str(),
+                    &revision,
+                    &expires_at_sql,
+                    &&lease_digest.bytes()[..],
+                    &now_sql,
+                ],
+            )
+            .map_err(|error| map_postgres_error(&error))?;
+        if affected != 1 {
+            return Err(StoreError::Conflict);
+        }
+        sql.commit().map_err(|error| map_postgres_error(&error))?;
+        Ok(RecoveryLease::acknowledged(
+            request.target().clone(),
+            request.expected_revision(),
+            VerifierTime::from_unix_seconds(expires_at),
+            lease_digest,
+        ))
+    }
+}
+
+fn make_tls_connector(
+    configuration: &PostgresTlsConfig,
+) -> Result<MakeRustlsConnect, LifecycleStoreConfigurationError> {
+    let certificates = CertificateDer::pem_file_iter(&configuration.root_certificate)
+        .map_err(|_| LifecycleStoreConfigurationError::InvalidTlsConfiguration)?;
+    let mut roots = RootCertStore::empty();
+    let mut count = 0_usize;
+    for certificate in certificates {
+        roots
+            .add(
+                certificate
+                    .map_err(|_| LifecycleStoreConfigurationError::InvalidTlsConfiguration)?,
+            )
+            .map_err(|_| LifecycleStoreConfigurationError::InvalidTlsConfiguration)?;
+        count = count.saturating_add(1);
+    }
+    if count == 0 {
+        return Err(LifecycleStoreConfigurationError::InvalidTlsConfiguration);
+    }
+    Ok(MakeRustlsConnect::new(
+        ClientConfig::builder()
+            .with_root_certificates(roots)
+            .with_no_client_auth(),
+    ))
+}
+
+fn validate_server_identity(
+    configuration: &Config,
+    expected: &PostgresServerName,
+) -> Result<(), LifecycleStoreConfigurationError> {
+    if configuration.get_hosts().len() != 1
+        || !matches!(
+            &configuration.get_hosts()[0],
+            Host::Tcp(host) if host == expected.as_str()
+        )
+    {
+        return Err(LifecycleStoreConfigurationError::InvalidTlsConfiguration);
+    }
+    Ok(())
+}
+
+fn initialize_or_verify_schema(
+    client: &mut Client,
+    maximum_records: usize,
+) -> Result<(), LifecycleStoreConfigurationError> {
+    let version: String = client
+        .query_one("SHOW server_version_num", &[])
+        .and_then(|row| row.try_get(0))
+        .map_err(|_| LifecycleStoreConfigurationError::DatabaseUnavailable)?;
+    let version = version
+        .parse::<u32>()
+        .map_err(|_| LifecycleStoreConfigurationError::DatabaseUnavailable)?;
+    let in_recovery: bool = client
+        .query_one("SELECT pg_is_in_recovery()", &[])
+        .and_then(|row| row.try_get(0))
+        .map_err(|_| LifecycleStoreConfigurationError::DatabaseUnavailable)?;
+    if version < 14_00_00 || in_recovery {
+        return Err(LifecycleStoreConfigurationError::DatabaseUnavailable);
+    }
+
+    let tables = client
+        .query_one(
+            "SELECT to_regclass('auths_lifecycle_store_meta') IS NOT NULL,
+                    to_regclass('auths_lifecycle_records') IS NOT NULL,
+                    to_regclass('auths_recovery_references') IS NOT NULL,
+                    to_regclass('auths_recovery_leases') IS NOT NULL",
+            &[],
+        )
+        .map_err(|_| LifecycleStoreConfigurationError::DatabaseUnavailable)?;
+    let metadata_exists: bool = tables
+        .try_get(0)
+        .map_err(|_| LifecycleStoreConfigurationError::DatabaseSchemaMismatch)?;
+    let records_exist: bool = tables
+        .try_get(1)
+        .map_err(|_| LifecycleStoreConfigurationError::DatabaseSchemaMismatch)?;
+    let references_exist: bool = tables
+        .try_get(2)
+        .map_err(|_| LifecycleStoreConfigurationError::DatabaseSchemaMismatch)?;
+    let leases_exist: bool = tables
+        .try_get(3)
+        .map_err(|_| LifecycleStoreConfigurationError::DatabaseSchemaMismatch)?;
+    match (
+        metadata_exists,
+        records_exist,
+        references_exist,
+        leases_exist,
+    ) {
+        (false, false, false, false) => {
+            let existing: i64 = client
+                .query_one(
+                    "SELECT count(*)
+                     FROM pg_catalog.pg_tables
+                     WHERE schemaname = current_schema()",
+                    &[],
+                )
+                .and_then(|row| row.try_get(0))
+                .map_err(|_| LifecycleStoreConfigurationError::DatabaseUnavailable)?;
+            if existing != 0 {
+                return Err(LifecycleStoreConfigurationError::DatabaseSchemaMismatch);
+            }
+            client
+                .batch_execute(POSTGRES_SCHEMA)
+                .map_err(|_| LifecycleStoreConfigurationError::DatabaseUnavailable)?;
+        }
+        (true, true, true, true) => {}
+        _ => return Err(LifecycleStoreConfigurationError::DatabaseSchemaMismatch),
+    }
+    verify_store_contract(client)?;
+    let count: i64 = client
+        .query_one("SELECT count(*) FROM auths_lifecycle_records", &[])
+        .and_then(|row| row.try_get(0))
+        .map_err(|_| LifecycleStoreConfigurationError::DatabaseUnavailable)?;
+    if count < 0 || usize::try_from(count).map_or(true, |count| count > maximum_records) {
+        return Err(LifecycleStoreConfigurationError::DatabaseSchemaMismatch);
+    }
+    let rows = client
+        .query(
+            "SELECT workflow_id, revision, lifecycle_state, record_bytes, record_sha256
+             FROM auths_lifecycle_records
+             ORDER BY workflow_id
+             LIMIT 32",
+            &[],
+        )
+        .map_err(|_| LifecycleStoreConfigurationError::DatabaseUnavailable)?;
+    if rows.iter().any(|row| decode_postgres_row(row).is_err()) {
+        return Err(LifecycleStoreConfigurationError::DatabaseSchemaMismatch);
+    }
+    Ok(())
+}
+
+fn verify_store_contract(client: &mut Client) -> Result<(), LifecycleStoreConfigurationError> {
+    let rows = client
+        .query(
+            "SELECT schema_version, contract_id
+             FROM auths_lifecycle_store_meta
+             WHERE singleton = TRUE",
+            &[],
+        )
+        .map_err(|_| LifecycleStoreConfigurationError::DatabaseUnavailable)?;
+    if rows.len() != 1 {
+        return Err(LifecycleStoreConfigurationError::DatabaseSchemaMismatch);
+    }
+    let schema_version: i32 = rows[0]
+        .try_get(0)
+        .map_err(|_| LifecycleStoreConfigurationError::DatabaseSchemaMismatch)?;
+    let contract_id: String = rows[0]
+        .try_get(1)
+        .map_err(|_| LifecycleStoreConfigurationError::DatabaseSchemaMismatch)?;
+    if schema_version != 3 || contract_id != "auths.lifecycle.transactional-store/3" {
+        return Err(LifecycleStoreConfigurationError::DatabaseSchemaMismatch);
+    }
+    Ok(())
+}
+
+const fn configuration_store_error(error: LifecycleStoreConfigurationError) -> StoreError {
+    match error {
+        LifecycleStoreConfigurationError::DatabaseSchemaMismatch => StoreError::SchemaMismatch,
+        LifecycleStoreConfigurationError::InvalidRecordLimit
+        | LifecycleStoreConfigurationError::ZeroCeiling
+        | LifecycleStoreConfigurationError::DuplicateRule
+        | LifecycleStoreConfigurationError::InvalidPersistentState => StoreError::Corrupt,
+        LifecycleStoreConfigurationError::Io
+        | LifecycleStoreConfigurationError::DatabaseUnavailable
+        | LifecycleStoreConfigurationError::InvalidConnectionString
+        | LifecycleStoreConfigurationError::InvalidTlsConfiguration
+        | LifecycleStoreConfigurationError::InvalidPoolConfiguration
+        | LifecycleStoreConfigurationError::MissingEnvironment => StoreError::Unavailable,
+    }
+}
+
 fn load_postgres_database(
     sql: &mut Transaction<'_>,
     maximum_records: usize,
 ) -> Result<LifecycleDatabase, StoreError> {
+    let count: i64 = sql
+        .query_one("SELECT count(*) FROM auths_lifecycle_records", &[])
+        .and_then(|row| row.try_get(0))
+        .map_err(|error| map_postgres_error(&error))?;
+    if count < 0 || usize::try_from(count).map_or(true, |count| count > maximum_records) {
+        return Err(StoreError::LimitExceeded);
+    }
     let rows = sql
         .query(
             "SELECT workflow_id, revision, lifecycle_state, record_bytes, record_sha256
@@ -374,6 +1188,67 @@ fn decode_postgres_row(row: &postgres::Row) -> Result<LifecycleRecordV1, StoreEr
         return Err(StoreError::Corrupt);
     }
     Ok(record)
+}
+
+fn decode_postgres_recovery_row(row: &postgres::Row) -> Result<LifecycleRecordV1, StoreError> {
+    let workflow: String = row.try_get(0).map_err(|_| StoreError::Corrupt)?;
+    let record: Vec<u8> = row.try_get(4).map_err(|_| StoreError::Corrupt)?;
+    let digest: Vec<u8> = row.try_get(5).map_err(|_| StoreError::Corrupt)?;
+    decode_postgres_values(
+        &workflow,
+        row.try_get(2).map_err(|_| StoreError::Corrupt)?,
+        row.try_get(3).map_err(|_| StoreError::Corrupt)?,
+        &record,
+        &digest,
+    )
+}
+
+fn decode_postgres_lease_row(row: &postgres::Row) -> Result<LifecycleRecordV1, StoreError> {
+    let workflow: String = row.try_get(0).map_err(|_| StoreError::Corrupt)?;
+    let record: Vec<u8> = row.try_get(3).map_err(|_| StoreError::Corrupt)?;
+    let digest: Vec<u8> = row.try_get(4).map_err(|_| StoreError::Corrupt)?;
+    decode_postgres_values(
+        &workflow,
+        row.try_get(1).map_err(|_| StoreError::Corrupt)?,
+        row.try_get(2).map_err(|_| StoreError::Corrupt)?,
+        &record,
+        &digest,
+    )
+}
+
+fn decode_postgres_values(
+    workflow_text: &str,
+    revision: i64,
+    state: i16,
+    record_bytes: &[u8],
+    stored_digest: &[u8],
+) -> Result<LifecycleRecordV1, StoreError> {
+    if record_bytes.is_empty()
+        || record_bytes.len() > MAX_RECORD_BYTES
+        || stored_digest.len() != 32
+        || Sha256::digest(record_bytes).as_slice() != stored_digest
+    {
+        return Err(StoreError::Corrupt);
+    }
+    let workflow = WorkflowId::parse(workflow_text).map_err(|_| StoreError::Corrupt)?;
+    let record = decode_record(record_bytes).map_err(|_| StoreError::Corrupt)?;
+    let indexed_revision = u64::try_from(revision).map_err(|_| StoreError::Corrupt)?;
+    if record.workflow_id() != &workflow
+        || record.revision() != indexed_revision
+        || lifecycle_state_code(record.state()) != state
+    {
+        return Err(StoreError::Corrupt);
+    }
+    Ok(record)
+}
+
+const fn recovery_configuration_store_error(error: RecoveryConfigurationError) -> StoreError {
+    match error {
+        RecoveryConfigurationError::InvalidCapacity
+        | RecoveryConfigurationError::InvalidBatchSize
+        | RecoveryConfigurationError::InvalidLease => StoreError::LimitExceeded,
+        RecoveryConfigurationError::RandomnessUnavailable => StoreError::Unavailable,
+    }
 }
 
 fn persist_postgres_record(
@@ -450,16 +1325,11 @@ fn map_postgres_error(error: &postgres::Error) -> StoreError {
     let Some(database_error) = error.as_db_error() else {
         return StoreError::Unavailable;
     };
-    let code = database_error.code();
-    if code == &postgres::error::SqlState::T_R_SERIALIZATION_FAILURE
-        || code == &postgres::error::SqlState::T_R_DEADLOCK_DETECTED
-        || code == &postgres::error::SqlState::UNIQUE_VIOLATION
-    {
-        StoreError::Conflict
-    } else if code == &postgres::error::SqlState::CHECK_VIOLATION {
-        StoreError::Corrupt
-    } else {
-        StoreError::Unavailable
+    match database_error.code().code() {
+        "40001" | "40P01" | "23505" => StoreError::Conflict,
+        "57014" | "55P03" => StoreError::Timeout,
+        "23514" => StoreError::Corrupt,
+        _ => StoreError::Unavailable,
     }
 }
 
@@ -899,5 +1769,44 @@ mod tests {
                 expected_state
             );
         }
+    }
+
+    #[test]
+    fn production_pool_and_server_identity_are_bounded() {
+        assert_eq!(
+            PostgresPoolConfig::new(
+                2,
+                1,
+                Duration::from_secs(1),
+                Duration::from_secs(1),
+                Duration::from_secs(1),
+                Duration::from_secs(1),
+            ),
+            Err(LifecycleStoreConfigurationError::InvalidPoolConfiguration)
+        );
+        assert_eq!(
+            PostgresServerName::parse("not a host name".to_owned()),
+            Err(LifecycleStoreConfigurationError::InvalidTlsConfiguration)
+        );
+    }
+
+    #[test]
+    fn configuration_summary_contains_no_connection_material() {
+        let connection = "host=database.example user=auths password=private sslmode=require";
+        let configuration = PostgresStoreConfig::new(
+            SecretConnectionString::new(connection.to_owned()).unwrap(),
+            PostgresTlsConfig::new(
+                PathBuf::from("/run/secrets/postgres-ca.pem"),
+                PostgresServerName::parse("database.example".to_owned()).unwrap(),
+            ),
+            PostgresPoolConfig::default(),
+            32,
+            rules(),
+        )
+        .unwrap();
+        let summary = format!("{:?}", configuration.summary());
+        assert!(!summary.contains("database.example"));
+        assert!(!summary.contains("private"));
+        assert_eq!(configuration.summary().maximum_connections(), 16);
     }
 }

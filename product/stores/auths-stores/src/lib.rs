@@ -6,7 +6,9 @@ mod lifecycle;
 
 pub use lifecycle::{
     InMemoryLifecycleStore, LifecycleCapacityRuleV1, LifecycleStoreConfigurationError,
-    PersistentLifecycleStore, PostgresLifecycleStore,
+    PersistentLifecycleStore, PostgresLifecycleStore, PostgresPoolConfig, PostgresServerName,
+    PostgresStoreConfig, PostgresStoreHealth, PostgresStoreSummary, PostgresTlsConfig,
+    SecretConnectionString,
 };
 
 use auths_model::{ActionId, BudgetCeiling, ReceiptId};

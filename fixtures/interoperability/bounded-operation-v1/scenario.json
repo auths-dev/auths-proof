@@ -1,0 +1,33 @@
+{
+  "actors": [
+    { "id": "northstar-root", "principal": "key:synthetic:northstar-root", "role": "authority-owner" },
+    { "id": "edgeshield-agent", "principal": "key:synthetic:edgeshield-agent", "role": "delegate" },
+    { "id": "northstar-approver", "principal": "key:synthetic:northstar-approver", "role": "approver" },
+    { "id": "edgeshield-approver", "principal": "key:synthetic:edgeshield-approver", "role": "approver" },
+    { "id": "northstar-verifier", "principal": "service:synthetic:northstar-verifier", "role": "verifier" },
+    { "id": "northstar-gateway", "principal": "service:synthetic:northstar-gateway", "role": "executor" },
+    { "id": "synthetic-cloud", "principal": "provider:synthetic:cloud", "role": "provider" }
+  ],
+  "approval": {
+    "approvers": ["northstar-approver", "edgeshield-approver"],
+    "threshold": 2
+  },
+  "authority": {
+    "budget": { "maximum": 1, "unit": "provider-write" },
+    "expires_at": 1800000600,
+    "max_delegation_depth": 1,
+    "max_uses": 1,
+    "not_before": 1800000000
+  },
+  "id": "bounded-operation-v1",
+  "operation": {
+    "capability": "firewall/rules/update",
+    "idempotency_key": "INC-INTEROP-0001:firewall:v1",
+    "payload_canonical_utf8": "{\"action\":\"upsert-deny-rule\",\"cidr\":\"203.0.113.0/24\",\"incident\":\"INC-INTEROP-0001\",\"region\":\"eu-west-2\",\"rule\":\"deny-abusive-network\"}",
+    "payload_sha256": "317651b7aec014923d6c7fe42cdfb2253be870a16da1e0edfc235da7a88e6e6f",
+    "profile": "interop.bounded-operation",
+    "profile_version": 1,
+    "resource": "cloud://northstar-production/eu-west-2/firewalls/edge-primary/rules/deny-abusive-network"
+  },
+  "schema": "auths-proof-interoperability-scenario/v1"
+}

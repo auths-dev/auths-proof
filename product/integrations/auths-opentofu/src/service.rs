@@ -8,8 +8,8 @@ use auths_lifecycle::{
     ExecutionIntentV1, LifecycleFailure, LifecycleRecordV1, LifecycleState, LifecycleStore,
     ObservationDigest, ProviderConditionDigest, ProviderContractId, ProviderRequestDigest,
     ProviderResultDigest, ProviderRetryClass, ReconciliationId, ReconciliationObservationV1,
-    StoreError, StoreTransactionV1, TransitionCommandV1, TransitionContextV1,
-    TransitionDisposition, WorkflowId, execute_store_transaction,
+    RecoveryReferenceDigest, StoreError, StoreTransactionV1, TransitionCommandV1,
+    TransitionContextV1, TransitionDisposition, WorkflowId, execute_store_transaction,
 };
 use auths_profile_api::ActionProfile as _;
 use auths_sdk::{Authorized, RequestContext};
@@ -36,6 +36,7 @@ use crate::{
         ProofDecision, ProofVerifier, ReceiptSink,
     },
     profile::{OpenTofuApplyCommand, OpenTofuSavedPlanProfile},
+    provider_request::FixedApplyRequestV1,
     receipts::{
         ApplyReceipt, DecisionReceipt, ObservationReceipt, OpenTofuReceipt, apply_receipt,
         decision_receipt, observation_receipt,
@@ -53,6 +54,7 @@ pub struct ExecuteSavedPlanRequest {
     pub required_configuration: OpenTofuVerifierConfigurationV1,
     pub proof: Vec<u8>,
     pub auths_request: RequestContext,
+    pub recovery_reference_digest: RecoveryReferenceDigest,
 }
 
 /// Lifecycle store plus the read required for exact replay and recovery.
@@ -214,6 +216,7 @@ where
                 core_authorization_digest: &core_authorization_digest(&authorized),
                 decision_receipt_digest: &decision_digest,
                 implementation_build_digest: &implementation_build_digest(),
+                recovery_reference_digest: request.recovery_reference_digest,
                 expires_at: request.action.expires_at(),
             })
             .map_err(|_| ServiceError::Projection)?;
@@ -289,10 +292,7 @@ where
         };
         self.append_claim(reserved.record(), ClaimStage::ArtifactVerified)?;
 
-        let provider_request = canonical_digest(&(
-            request.action.opaque_plan_digest(),
-            request.action.plan_projection_digest(),
-        ))?;
+        let provider_request = FixedApplyRequestV1::derive(&request.action)?.digest()?;
         let evidence_digest = request.evidence.digest()?;
         let execution_intent = ExecutionIntentV1::new(
             commitment(&action_digest)?,

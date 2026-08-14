@@ -1,0 +1,16 @@
+{
+  "attempt": 1,
+  "base": "../scenario.json",
+  "expected": {
+    "authorization": "authorized",
+    "execution": "unknown",
+    "reason": "The provider may have committed the reserved command, so blind retry is unsafe.",
+    "retry": "reconcile-before-retry",
+    "runtime": "reserved"
+  },
+  "id": "provider-unknown",
+  "mutations": [
+    { "operation": "runtime-event", "path": "/response", "target": "provider", "value": "connection-lost-after-send" }
+  ],
+  "schema": "auths-proof-interoperability-case/v1"
+}

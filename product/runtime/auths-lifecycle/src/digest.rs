@@ -58,4 +58,5 @@ typed_digest!(ObservationDigest);
 typed_digest!(ProviderConditionDigest);
 typed_digest!(ProviderRequestDigest);
 typed_digest!(ProviderResultDigest);
+typed_digest!(RecoveryReferenceDigest);
 typed_digest!(ReservationSetDigest);

@@ -719,6 +719,7 @@ async fn execute(
         required_configuration: variant.required_configuration,
         proof,
         auths_request,
+        recovery_reference_digest: auths_lifecycle::RecoveryReferenceDigest::new([61; 32]),
     });
     let credential_called = backend.credential_calls() > before_credentials;
     let opentofu_called = backend.apply_calls() > before_applies;
@@ -1361,6 +1362,9 @@ mod tests {
             required_configuration: demo.product.configuration,
             proof: demo.auths.proof,
             auths_request: demo.auths.request,
+            recovery_reference_digest: auths_lifecycle::RecoveryReferenceDigest::new(
+                [nonce_byte; 32],
+            ),
         })
     }
 

@@ -16,8 +16,8 @@ use auths_bounded_policy::{
 use auths_lifecycle::{
     CancellationDisposition, CapacityEntryV1, CapacitySnapshotV1, DecisionInputV1,
     DecisionReceiptDigest, DomainId, DomainReceiptDigest, ExecutionId, ExecutorAudienceId,
-    LifecycleId, ReservationAlgebraId, ReservationSetV1, RevocationSnapshotV1, TransitionContextV1,
-    WorkflowId,
+    LifecycleId, RecoveryReferenceDigest, ReservationAlgebraId, ReservationSetV1,
+    RevocationSnapshotV1, TransitionContextV1, WorkflowId,
 };
 use serde::Serialize;
 use sha2::{Digest as _, Sha256};
@@ -73,6 +73,7 @@ pub struct OpenTofuLifecycleDecisionBindings<'a> {
     pub core_authorization_digest: &'a DigestHex,
     pub decision_receipt_digest: &'a DigestHex,
     pub implementation_build_digest: &'a DigestHex,
+    pub recovery_reference_digest: RecoveryReferenceDigest,
     pub expires_at: u64,
 }
 
@@ -203,6 +204,7 @@ impl OpenTofuLifecycleProjectionV1 {
             workflow_id: self.workflow_id,
             lifecycle_id: LifecycleId::parse(&lifecycle_id).map_err(invalid)?,
             execution_id: ExecutionId::parse(&execution_id).map_err(invalid)?,
+            recovery_reference_digest: bindings.recovery_reference_digest,
             domain_id: self.domain_id,
             executor_audience: self.executor_audience,
             reservation_algebra_id: self.reservation_algebra_id,

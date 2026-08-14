@@ -102,6 +102,16 @@
       "path": "product/integrations/auths-custody"
     },
     {
+      "name": "auths-custody-aws-kms",
+      "layer": "product",
+      "path": "product/integrations/auths-custody-aws-kms"
+    },
+    {
+      "name": "auths-custody-pkcs11",
+      "layer": "product",
+      "path": "product/integrations/auths-custody-pkcs11"
+    },
+    {
       "name": "auths-deployment",
       "layer": "product",
       "path": "product/integrations/auths-deployment"
@@ -242,6 +252,11 @@
       "path": "core/crates/auths-multikey"
     },
     {
+      "name": "auths-node",
+      "layer": "product",
+      "path": "product/runtime/auths-node"
+    },
+    {
       "name": "auths-opentofu",
       "layer": "product",
       "path": "product/integrations/auths-opentofu"
@@ -257,6 +272,11 @@
       "path": "product/operations/auths-operations"
     },
     {
+      "name": "auths-operations-otel",
+      "layer": "product",
+      "path": "product/operations/auths-operations-otel"
+    },
+    {
       "name": "auths-ports",
       "layer": "core",
       "path": "core/crates/auths-ports"
@@ -270,6 +290,11 @@
       "name": "auths-postgresql-demo",
       "layer": "demos",
       "path": "demos/postgresql-data-change"
+    },
+    {
+      "name": "auths-production-client",
+      "layer": "product",
+      "path": "product/runtime/auths-production-client"
     },
     {
       "name": "auths-profile-api",
@@ -1635,6 +1660,21 @@
     {
       "source": "auths-config",
       "source_layer": "product",
+      "target": "serde_json",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "preserve_order"
+      ]
+    },
+    {
+      "source": "auths-config",
+      "source_layer": "product",
       "target": "sha2",
       "target_layer": null,
       "scope": "external",
@@ -1862,10 +1902,74 @@
     {
       "source": "auths-custody",
       "source_layer": "product",
-      "target": "ed25519-dalek",
+      "target": "auths-operations",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-custody",
+      "source_layer": "product",
+      "target": "p256",
       "target_layer": null,
       "scope": "external",
-      "kind": "dev",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "ecdsa",
+        "pkcs8"
+      ]
+    },
+    {
+      "source": "auths-custody",
+      "source_layer": "product",
+      "target": "subtle",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-custody-aws-kms",
+      "source_layer": "product",
+      "target": "auths-custody",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-custody-aws-kms",
+      "source_layer": "product",
+      "target": "auths-model",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-custody-aws-kms",
+      "source_layer": "product",
+      "target": "base64ct",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
       "target_condition": null,
       "optional": false,
       "default_features": false,
@@ -1874,9 +1978,147 @@
       ]
     },
     {
-      "source": "auths-custody",
+      "source": "auths-custody-aws-kms",
       "source_layer": "product",
-      "target": "subtle",
+      "target": "hex",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-custody-aws-kms",
+      "source_layer": "product",
+      "target": "p256",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "ecdsa",
+        "pkcs8"
+      ]
+    },
+    {
+      "source": "auths-custody-aws-kms",
+      "source_layer": "product",
+      "target": "p256",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "ecdsa",
+        "pkcs8"
+      ]
+    },
+    {
+      "source": "auths-custody-aws-kms",
+      "source_layer": "product",
+      "target": "sha2",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-custody-pkcs11",
+      "source_layer": "product",
+      "target": "auths-custody",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-custody-pkcs11",
+      "source_layer": "product",
+      "target": "auths-model",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-custody-pkcs11",
+      "source_layer": "product",
+      "target": "base64ct",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc"
+      ]
+    },
+    {
+      "source": "auths-custody-pkcs11",
+      "source_layer": "product",
+      "target": "hex",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-custody-pkcs11",
+      "source_layer": "product",
+      "target": "p256",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "ecdsa",
+        "pkcs8"
+      ]
+    },
+    {
+      "source": "auths-custody-pkcs11",
+      "source_layer": "product",
+      "target": "p256",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "ecdsa",
+        "pkcs8"
+      ]
+    },
+    {
+      "source": "auths-custody-pkcs11",
+      "source_layer": "product",
+      "target": "sha2",
       "target_layer": null,
       "scope": "external",
       "kind": "normal",
@@ -3195,7 +3437,9 @@
       "optional": false,
       "default_features": false,
       "features": [
-        "ecdsa"
+        "alloc",
+        "ecdsa",
+        "pkcs8"
       ]
     },
     {
@@ -4845,7 +5089,298 @@
       "optional": false,
       "default_features": false,
       "features": [
-        "ecdsa"
+        "alloc",
+        "ecdsa",
+        "pkcs8"
+      ]
+    },
+    {
+      "source": "auths-node",
+      "source_layer": "product",
+      "target": "auths-operations",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-node",
+      "source_layer": "product",
+      "target": "auths-operations-otel",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-node",
+      "source_layer": "product",
+      "target": "auths-production-client",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-node",
+      "source_layer": "product",
+      "target": "axum",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-node",
+      "source_layer": "product",
+      "target": "base64ct",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc"
+      ]
+    },
+    {
+      "source": "auths-node",
+      "source_layer": "product",
+      "target": "ed25519-dalek",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc"
+      ]
+    },
+    {
+      "source": "auths-node",
+      "source_layer": "product",
+      "target": "getrandom",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-node",
+      "source_layer": "product",
+      "target": "hex",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-node",
+      "source_layer": "product",
+      "target": "minicbor",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc"
+      ]
+    },
+    {
+      "source": "auths-node",
+      "source_layer": "product",
+      "target": "postgres",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-node",
+      "source_layer": "product",
+      "target": "rustls",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "ring",
+        "std",
+        "tls12"
+      ]
+    },
+    {
+      "source": "auths-node",
+      "source_layer": "product",
+      "target": "rustls-pki-types",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc"
+      ]
+    },
+    {
+      "source": "auths-node",
+      "source_layer": "product",
+      "target": "serde",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "derive"
+      ]
+    },
+    {
+      "source": "auths-node",
+      "source_layer": "product",
+      "target": "serde_json",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "preserve_order"
+      ]
+    },
+    {
+      "source": "auths-node",
+      "source_layer": "product",
+      "target": "sha2",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-node",
+      "source_layer": "product",
+      "target": "tempfile",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-node",
+      "source_layer": "product",
+      "target": "tokio",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": [
+        "fs",
+        "io-util",
+        "macros",
+        "net",
+        "rt-multi-thread",
+        "signal",
+        "sync",
+        "time"
+      ]
+    },
+    {
+      "source": "auths-node",
+      "source_layer": "product",
+      "target": "tokio-postgres-rustls",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "ring"
+      ]
+    },
+    {
+      "source": "auths-node",
+      "source_layer": "product",
+      "target": "toml",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-node",
+      "source_layer": "product",
+      "target": "tower",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": [
+        "util"
+      ]
+    },
+    {
+      "source": "auths-node",
+      "source_layer": "product",
+      "target": "tower-http",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": [
+        "cors",
+        "limit",
+        "request-id",
+        "timeout",
+        "trace"
       ]
     },
     {
@@ -5298,6 +5833,18 @@
     {
       "source": "auths-operations",
       "source_layer": "product",
+      "target": "auths-errors",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-operations",
+      "source_layer": "product",
       "target": "auths-model",
       "target_layer": "core",
       "scope": "internal",
@@ -5382,6 +5929,18 @@
       "features": [
         "std"
       ]
+    },
+    {
+      "source": "auths-operations-otel",
+      "source_layer": "product",
+      "target": "auths-operations",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
     },
     {
       "source": "auths-ports",
@@ -5948,6 +6507,66 @@
       "optional": false,
       "default_features": true,
       "features": []
+    },
+    {
+      "source": "auths-production-client",
+      "source_layer": "product",
+      "target": "base64ct",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc"
+      ]
+    },
+    {
+      "source": "auths-production-client",
+      "source_layer": "product",
+      "target": "minicbor",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc"
+      ]
+    },
+    {
+      "source": "auths-production-client",
+      "source_layer": "product",
+      "target": "serde",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "derive",
+        "std"
+      ]
+    },
+    {
+      "source": "auths-production-client",
+      "source_layer": "product",
+      "target": "serde_json",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "preserve_order",
+        "std"
+      ]
     },
     {
       "source": "auths-profile-api",
@@ -7599,6 +8218,18 @@
     {
       "source": "auths-proof-python",
       "source_layer": "bindings",
+      "target": "auths-production-client",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-proof-python",
+      "source_layer": "bindings",
       "target": "auths-profile-api",
       "target_layer": "product",
       "scope": "internal",
@@ -7923,6 +8554,18 @@
       "target_condition": null,
       "optional": false,
       "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-proof-wasm",
+      "source_layer": "bindings",
+      "target": "auths-production-client",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
       "features": []
     },
     {
@@ -9671,8 +10314,32 @@
     {
       "source": "auths-runtime",
       "source_layer": "product",
+      "target": "auths-bounded-policy",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-runtime",
+      "source_layer": "product",
       "target": "auths-codec",
       "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-runtime",
+      "source_layer": "product",
+      "target": "auths-errors",
+      "target_layer": "product",
       "scope": "internal",
       "kind": "normal",
       "target_condition": null,
@@ -9695,6 +10362,18 @@
     {
       "source": "auths-runtime",
       "source_layer": "product",
+      "target": "auths-lifecycle",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-runtime",
+      "source_layer": "product",
       "target": "auths-model",
       "target_layer": "core",
       "scope": "internal",
@@ -9708,6 +10387,18 @@
       "source": "auths-runtime",
       "source_layer": "product",
       "target": "auths-operations",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-runtime",
+      "source_layer": "product",
+      "target": "auths-production-client",
       "target_layer": "product",
       "scope": "internal",
       "kind": "normal",
@@ -9787,6 +10478,20 @@
       "optional": false,
       "default_features": false,
       "features": []
+    },
+    {
+      "source": "auths-runtime",
+      "source_layer": "product",
+      "target": "base64ct",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc"
+      ]
     },
     {
       "source": "auths-runtime",
@@ -10156,7 +10861,9 @@
       "optional": false,
       "default_features": false,
       "features": [
-        "ecdsa"
+        "alloc",
+        "ecdsa",
+        "pkcs8"
       ]
     },
     {
@@ -10246,7 +10953,9 @@
       "optional": false,
       "default_features": false,
       "features": [
-        "ecdsa"
+        "alloc",
+        "ecdsa",
+        "pkcs8"
       ]
     },
     {
@@ -10455,6 +11164,61 @@
     {
       "source": "auths-stores",
       "source_layer": "product",
+      "target": "r2d2",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-stores",
+      "source_layer": "product",
+      "target": "r2d2_postgres",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-stores",
+      "source_layer": "product",
+      "target": "rustls",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "ring",
+        "std",
+        "tls12"
+      ]
+    },
+    {
+      "source": "auths-stores",
+      "source_layer": "product",
+      "target": "rustls-pki-types",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "std"
+      ]
+    },
+    {
+      "source": "auths-stores",
+      "source_layer": "product",
       "target": "sha2",
       "target_layer": null,
       "scope": "external",
@@ -10475,6 +11239,20 @@
       "optional": false,
       "default_features": true,
       "features": []
+    },
+    {
+      "source": "auths-stores",
+      "source_layer": "product",
+      "target": "tokio-postgres-rustls",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "ring"
+      ]
     },
     {
       "source": "auths-stripe",
@@ -13533,7 +14311,9 @@
       "optional": false,
       "default_features": false,
       "features": [
+        "alloc",
         "ecdsa",
+        "pkcs8",
         "std"
       ]
     },
@@ -13881,7 +14661,9 @@
       "optional": false,
       "default_features": false,
       "features": [
-        "ecdsa"
+        "alloc",
+        "ecdsa",
+        "pkcs8"
       ]
     },
     {
@@ -13960,6 +14742,18 @@
       "features": [
         "std"
       ]
+    },
+    {
+      "source": "xtask",
+      "source_layer": "tooling",
+      "target": "auths-config",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
     },
     {
       "source": "xtask",
@@ -14111,6 +14905,18 @@
       "source": "xtask",
       "source_layer": "tooling",
       "target": "auths-postgresql",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "xtask",
+      "source_layer": "tooling",
+      "target": "auths-production-client",
       "target_layer": "product",
       "scope": "internal",
       "kind": "normal",
@@ -14369,6 +15175,18 @@
       "target_condition": null,
       "optional": false,
       "default_features": false,
+      "features": []
+    },
+    {
+      "source": "xtask",
+      "source_layer": "tooling",
+      "target": "tempfile",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
       "features": []
     },
     {

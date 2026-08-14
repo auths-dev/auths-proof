@@ -15,7 +15,10 @@ Start with:
 - [`RELEASE_CANDIDATE_NOTES.md`](RELEASE_CANDIDATE_NOTES.md) for the text that
   will become the GitHub prerelease description; and
 - [`SLSA_BUILD_LEVEL_3_ASSESSMENT.md`](SLSA_BUILD_LEVEL_3_ASSESSMENT.md) for
-  the assessed build-platform boundary; and
+  the assessed build-platform boundary;
+- [`assurance/open-production-candidate-1/summary.md`](assurance/open-production-candidate-1/summary.md)
+  for the immutable candidate's sustained-qualification and independent-review
+  state; and
 - [`../docs/product/COMPATIBILITY_AND_SUPPORT.md`](../docs/product/COMPATIBILITY_AND_SUPPORT.md)
   for the generated cross-language evolution, support, and retirement contract.
 

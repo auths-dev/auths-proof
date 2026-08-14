@@ -113,7 +113,13 @@
     "commit_canonical_v1",
     "diagnostic_input_limits_v1",
     "commitments_equal_v1",
-    "prepare_receipt_disclosure_v1"
+    "prepare_receipt_disclosure_v1",
+    "production_client_contract_version_v1",
+    "encode_production_request_v1",
+    "decode_production_request_v1",
+    "decode_production_response_v1",
+    "encode_production_delegation_v1",
+    "project_sdk_event_json_v2"
   ],
   "inspection": [
     "inspect_verified_action",

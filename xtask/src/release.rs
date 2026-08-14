@@ -21,6 +21,14 @@ struct ReleaseSubjectCatalogue {
     repository: String,
     first_rc_tag: String,
     policy: String,
+    production_candidate_manifest: String,
+    production_candidate_schema: String,
+    assurance_manifest: String,
+    assurance_candidate_schema: String,
+    assurance_manifest_schema: String,
+    assurance_record_schema: String,
+    assurance_signers: String,
+    assurance_signers_schema: String,
     families: Vec<ReleaseSubjectFamily>,
     excluded: Vec<ReleaseSubjectExclusion>,
 }
@@ -67,6 +75,7 @@ fn validate_release_workflow_contract() -> Result<(), String> {
         "overwrite: false",
         "environment: release-promotion",
         "cargo xtask release-control verify-promotion",
+        "cargo xtask assurance verify",
         "owner_authorization_base64:",
         "target/owner-authorization.json",
         "--notes-file",
@@ -411,6 +420,7 @@ pub(crate) fn release_evidence() -> Result<(), String> {
 }
 
 fn validate_release_contract_sources() -> Result<(), String> {
+    validate_checked_in_assurance_candidate()?;
     let schema: Value = serde_json::from_slice(
         &fs::read(root().join("release/release-manifest.schema.json"))
             .map_err(|error| format!("could not read release-manifest schema: {error}"))?,
@@ -451,6 +461,16 @@ fn validate_release_subject_catalogue(catalogue: &ReleaseSubjectCatalogue) -> Re
         || catalogue.repository != RELEASE_REPOSITORY
         || catalogue.first_rc_tag != "auths-v1.0.0-rc.1"
         || catalogue.policy.trim().is_empty()
+        || catalogue.production_candidate_manifest != "release/open-production-candidate.json"
+        || catalogue.production_candidate_schema
+            != "product/spec/v1/open-production-candidate.schema.json"
+        || catalogue.assurance_manifest
+            != "release/assurance/open-production-candidate-1/manifest.json"
+        || catalogue.assurance_candidate_schema != "product/spec/v1/assurance-candidate.schema.json"
+        || catalogue.assurance_manifest_schema != "product/spec/v1/assurance-manifest.schema.json"
+        || catalogue.assurance_record_schema != "product/spec/v1/assurance-record.schema.json"
+        || catalogue.assurance_signers != "release/assurance/trusted-signers.json"
+        || catalogue.assurance_signers_schema != "product/spec/v1/assurance-signers.schema.json"
     {
         return Err("release subject catalogue authority drifted".to_owned());
     }
@@ -709,6 +729,7 @@ fn assurance_source_path(path: &str) -> bool {
         "core/formal-vectors/v1/",
         "product/fixtures/v1/",
         "product/integrations/auths-stripe/fixtures/",
+        "product/spec/v1/assurance-",
         "release/",
     ]
     .iter()

@@ -1,0 +1,16 @@
+{
+  "attempt": 1,
+  "base": "../scenario.json",
+  "expected": {
+    "authorization": "indeterminate",
+    "execution": "not-attempted",
+    "reason": "Verifier-required freshness or status context is unavailable.",
+    "retry": "not-applicable",
+    "runtime": "not-entered"
+  },
+  "id": "missing-context",
+  "mutations": [
+    { "operation": "remove", "path": "/status_snapshot", "target": "trusted-context" }
+  ],
+  "schema": "auths-proof-interoperability-case/v1"
+}

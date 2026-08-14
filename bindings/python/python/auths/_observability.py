@@ -6,6 +6,8 @@ import json
 from dataclasses import dataclass
 from typing import Mapping, Protocol, Sequence, Tuple, Union, runtime_checkable
 
+from ._native import project_sdk_event_json_v2
+
 AttributeValue = Union[str, int, bool]
 MAX_EVENTS = 256
 MAX_ATTRIBUTES = 32
@@ -34,11 +36,26 @@ class AuthsEvent:
     attributes: Tuple[Tuple[str, AttributeValue], ...] = ()
 
     def __post_init__(self) -> None:
-        fields = (self.name, self.operation, self.stage, self.outcome)
-        if any(not value or len(value.encode()) > MAX_TEXT_BYTES for value in fields):
-            raise ValueError("telemetry event contains an invalid field")
         attributes = tuple(self.attributes)
-        _validate_attributes(attributes)
+        projected = json.loads(
+            project_sdk_event_json_v2(
+                json.dumps(
+                    {
+                        "name": self.name,
+                        "timestamp": self.observed_at,
+                        "correlationId": "python-sdk",
+                        "operation": self.operation,
+                        "stage": self.stage,
+                        "outcome": self.outcome,
+                        "attributes": dict(attributes),
+                    },
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
+            )
+        )
+        if projected.get("schemaVersion") != "auths.telemetry/2":
+            raise ValueError("native telemetry projection is invalid")
         object.__setattr__(self, "attributes", attributes)
 
 

@@ -1,0 +1,15 @@
+groups:
+  - name: auths-open-production
+    rules:
+      - alert: AuthsRuntimeUnavailable
+        expr: up{job="auths-otel"} == 0 or up{job="auths-node"} == 0
+        for: 2m
+        labels: {severity: page}
+        annotations:
+          summary: An Auths runtime replica is unavailable
+      - alert: AuthsProviderOutcomeUnknown
+        expr: sum(increase(auths_operations_total{outcome="outcome-unknown"}[5m])) > 0
+        for: 1m
+        labels: {severity: warning}
+        annotations:
+          summary: An Auths operation requires explicit recovery

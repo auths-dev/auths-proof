@@ -14,3 +14,7 @@ target
 formal/.lake
 docs
 site
+demos/open-production-reference/compose/ingress/certs/*
+demos/open-production-reference/compose/postgres/certs/*
+!demos/open-production-reference/compose/ingress/certs/README.md
+!demos/open-production-reference/compose/postgres/certs/README.md

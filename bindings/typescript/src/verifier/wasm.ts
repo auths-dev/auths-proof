@@ -36,6 +36,12 @@ async function loadPackagedWorkflowEngineOnce(): Promise<PackagedWorkflowEngine>
   const untyped = loaded as unknown as Record<string, unknown>;
   if (
     typeof loaded.authoringAbiVersionV1 !== "function" ||
+    typeof untyped.productionClientContractVersionV1 !== "function" ||
+    typeof untyped.encodeProductionRequestV1 !== "function" ||
+    typeof untyped.decodeProductionResponseV1 !== "function" ||
+    typeof untyped.decodeProductionRequestV1 !== "function" ||
+    typeof untyped.encodeProductionDelegationV1 !== "function" ||
+    typeof untyped.projectSdkEventV2 !== "function" ||
     typeof untyped.identityAbiVersionV1 !== "function" ||
     typeof untyped.encodeIdentityDescriptorV1 !== "function" ||
     typeof untyped.decodeIdentityDescriptorV1 !== "function" ||

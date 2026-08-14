@@ -982,6 +982,7 @@ pub(crate) fn repository_files(directory: &Path) -> Result<Vec<PathBuf>, String>
                         ".git"
                             | ".lake"
                             | ".pytest_cache"
+                            | ".venv"
                             | "__pycache__"
                             | "node_modules"
                             | "target"

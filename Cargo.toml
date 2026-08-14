@@ -58,6 +58,8 @@ members = [
     "product/integrations/auths-deployment",
     "product/integrations/auths-evidence-assemblers",
     "product/integrations/auths-custody",
+    "product/integrations/auths-custody-aws-kms",
+    "product/integrations/auths-custody-pkcs11",
     "product/integrations/auths-resolver-did-web",
     "product/integrations/auths-radicle",
     "product/integrations/auths-github",
@@ -71,12 +73,15 @@ members = [
     "product/profiles/auths-profile-domains",
     "product/runtime/auths-lifecycle",
     "product/runtime/auths-kernel-runtime",
+    "product/runtime/auths-production-client",
+    "product/runtime/auths-node",
     "product/runtime/auths-runtime",
     "product/receipts/auths-receipts",
     "product/stores/auths-stores",
     "product/config/auths-config",
     "product/cache/auths-cache",
     "product/operations/auths-operations",
+    "product/operations/auths-operations-otel",
     "product/tools/auths-explain",
     "demos/testkit/auths-apps-testkit",
     "demos/live-lab",
@@ -168,12 +173,15 @@ auths-profile-api = { version = "1.0.0-rc.1", path = "product/profiles/auths-pro
 auths-profile-domains = { version = "1.0.0-rc.1", path = "product/profiles/auths-profile-domains" }
 auths-lifecycle = { version = "1.0.0-rc.1", path = "product/runtime/auths-lifecycle", default-features = false }
 auths-kernel-runtime = { version = "1.0.0-rc.1", path = "product/runtime/auths-kernel-runtime" }
+auths-production-client = { version = "1.0.0-rc.1", path = "product/runtime/auths-production-client" }
+auths-node = { version = "1.0.0-rc.1", path = "product/runtime/auths-node" }
 auths-runtime = { version = "1.0.0-rc.1", path = "product/runtime/auths-runtime" }
 auths-receipts = { version = "1.0.0-rc.1", path = "product/receipts/auths-receipts" }
 auths-stores = { version = "1.0.0-rc.1", path = "product/stores/auths-stores" }
 auths-config = { version = "1.0.0-rc.1", path = "product/config/auths-config" }
 auths-cache = { version = "1.0.0-rc.1", path = "product/cache/auths-cache" }
 auths-operations = { version = "1.0.0-rc.1", path = "product/operations/auths-operations" }
+auths-operations-otel = { version = "1.0.0-rc.1", path = "product/operations/auths-operations-otel" }
 auths-sdk = { version = "1.0.0-rc.1", path = "product/sdk/auths-sdk" }
 auths-profile-kit = { version = "1.0.0-rc.1", path = "product/sdk/auths-profile-kit" }
 auths-errors = { version = "1.0.0-rc.1", path = "product/errors/auths-errors", default-features = false }
@@ -183,6 +191,8 @@ auths-deployment = { version = "1.0.0-rc.1", path = "product/integrations/auths-
 auths-resolver-did-web = { version = "1.0.0-rc.1", path = "product/integrations/auths-resolver-did-web" }
 auths-evidence-assemblers = { version = "1.0.0-rc.1", path = "product/integrations/auths-evidence-assemblers" }
 auths-custody = { version = "1.0.0-rc.1", path = "product/integrations/auths-custody" }
+auths-custody-aws-kms = { version = "1.0.0-rc.1", path = "product/integrations/auths-custody-aws-kms" }
+auths-custody-pkcs11 = { version = "1.0.0-rc.1", path = "product/integrations/auths-custody-pkcs11" }
 auths-radicle = { version = "1.0.0-rc.1", path = "product/integrations/auths-radicle" }
 auths-github = { version = "1.0.0-rc.1", path = "product/integrations/auths-github" }
 auths-stripe = { version = "1.0.0-rc.1", path = "product/integrations/auths-stripe" }
@@ -217,6 +227,8 @@ hmac = "0.12.1"
 iroh = { version = "1.0.3", default-features = false, features = ["tls-ring"] }
 reqwest = { version = "0.13.4", default-features = false, features = ["blocking", "rustls"] }
 postgres = { version = "0.19.12", default-features = false }
+r2d2 = "0.8.10"
+r2d2_postgres = "0.18.2"
 rustls = { version = "0.23.42", default-features = false, features = ["ring", "std", "tls12"] }
 rmcp = { version = "1.8.0", default-features = false, features = ["server"] }
 serde_json_canonicalizer = "0.3.2"
@@ -237,7 +249,7 @@ bs58 = { version = "0.5.1", default-features = false, features = ["alloc"] }
 clap = { version = "4.5.60", features = ["derive"] }
 ed25519-dalek = { version = "2.2.0", default-features = false, features = ["alloc"] }
 hex = "0.4.3"
-p256 = { version = "0.13.2", default-features = false, features = ["ecdsa"] }
+p256 = { version = "0.13.2", default-features = false, features = ["alloc", "ecdsa", "pkcs8"] }
 pyo3 = { version = "0.29.0", features = ["abi3-py39"] }
 proptest = "1.9.0"
 serde = { version = "1.0.228", default-features = false, features = ["alloc", "derive"] }

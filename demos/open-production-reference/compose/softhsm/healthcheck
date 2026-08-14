@@ -1,0 +1,2 @@
+#!/bin/sh
+test -f /var/lib/softhsm/ready

@@ -11,6 +11,7 @@ description = "Readiness, stable metrics, and privacy-preserving diagnostics for
 [dependencies]
 auths-codec = { workspace = true, features = ["std"] }
 auths-config.workspace = true
+auths-errors.workspace = true
 auths-model = { workspace = true, features = ["std"] }
 auths-registries = { workspace = true, features = ["std"] }
 auths-verifier = { workspace = true, features = ["std"] }

@@ -1,5 +1,5 @@
 # Installed @auths-dev/sdk public API v1
-# declaration-sha256 820de660fa7927cf8ed139d295636a7b6ad917fedc57df34cf3cb901e4218287
+# declaration-sha256 2f183f958f4a172c63ddb247dc35e4796301bbf72bc7004b0d39490acb21631f
 .	Actor	type
 .	approval	value
 .	ApprovalPolicy	type
@@ -19,9 +19,28 @@
 .	ExecutionReference	value+type
 .	ExecutionResult	type
 .	Indeterminate	type
+.	ProductionAuthority	type
+.	ProductionAuthorityResult	type
+.	ProductionAuths	type
+.	ProductionAuthsOptions	type
+.	ProductionCompleted	type
+.	ProductionDenied	type
+.	ProductionExecutionResult	type
+.	ProductionIndeterminate	type
+.	ProductionReceipt	type
+.	ProductionRecoverable	type
+.	ProductionRecoveryReference	type
+.	ProductionRejected	type
+.	ProductionTransport	type
+.	ProductionTransportRequest	type
+.	ProductionTransportResponse	type
+.	ProductionVerificationResult	type
+.	ProductionVerified	type
+.	ProductStep	type
 .	Receipt	type
 .	RecommendedAction	type
 .	RecoveryResult	type
+.	RetryClass	type
 ./identity	AuthenticatedDescriptorMessage	type
 ./identity	AuthenticatedIdentityMessage	type
 ./identity	DecodedIdentity	type
@@ -95,6 +114,7 @@
 ./verify	verifyReceipt	value
 ./profiles	executeMcpClosed	value
 ./profiles	executeMcpPlanClosed	value
+./profiles	githubIssueAddress	value
 ./profiles	mcp	value
 ./profiles	McpAction	value+type
 ./profiles	McpAttestedReceipt	type
@@ -122,6 +142,10 @@
 ./profiles	McpToolAuthority	value+type
 ./profiles	McpToolContext	type
 ./profiles	McpToolHandler	type
+./profiles	opentofuSavedPlanApply	value
+./profiles	postgresqlBoundedUpdate	value
+./profiles	ProductionProfile	type
+./profiles	ProductionProfileId	type
 ./profiles	recoverMcpClosed	value
 ./profiles	resourcesForMcpAuthority	value
 ./profiles	resumeMcpClosed	value
@@ -164,11 +188,6 @@
 ./testkit	DiagnosticResult	type
 ./testkit	DiagnosticVerifier	value+type
 ./testkit	InMemoryApplicationExecutionStore	value+type
-./testkit	InMemoryBudgetPort	value+type
-./testkit	InMemoryChallengePort	value+type
-./testkit	InMemoryExecutionStatePort	value+type
-./testkit	InMemoryReceiptPort	value+type
-./testkit	InMemoryReplayPort	value+type
 ./testkit	McpProviderFactory	type
 ./testkit	productWaistConformance	value
 ./testkit	ProductWaistConformanceCase	type

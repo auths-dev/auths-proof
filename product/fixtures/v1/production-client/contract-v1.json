@@ -1,0 +1,233 @@
+{
+  "schema": "auths.production-client-fixtures/1",
+  "contractVersion": 1,
+  "contentType": "application/auths+cbor",
+  "requests": [
+    {
+      "id": "create",
+      "verb": "create",
+      "profile": "auths.github.issue-address/1",
+      "path": "/v1/authority/create",
+      "bytesHex": "870166637265617465781c61757468732e6769746875622e69737375652d616464726573732f3158200101010101010101010101010101010101010101010101010101010101010101f6584003030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303f6",
+      "projection": {
+        "contractVersion": 1,
+        "verb": "create",
+        "profile": "auths.github.issue-address/1",
+        "endpointPath": "/v1/authority/create",
+        "identity": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE",
+        "authority": null,
+        "body": "AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAw",
+        "recoveryReference": null
+      }
+    },
+    {
+      "id": "delegate",
+      "verb": "delegate",
+      "profile": "auths.github.issue-address/1",
+      "path": "/v1/authority/delegate",
+      "bytesHex": "87016864656c6567617465781c61757468732e6769746875622e69737375652d616464726573732f31582001010101010101010101010101010101010101010101010101010101010101015830020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202584004040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404f6",
+      "projection": {
+        "contractVersion": 1,
+        "verb": "delegate",
+        "profile": "auths.github.issue-address/1",
+        "endpointPath": "/v1/authority/delegate",
+        "identity": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE",
+        "authority": "AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIC",
+        "body": "BAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBA",
+        "recoveryReference": null
+      }
+    },
+    {
+      "id": "execute-opentofu",
+      "verb": "execute",
+      "profile": "auths.opentofu.saved-plan-apply/1",
+      "path": "/v1/profiles/opentofu/saved-plan-apply/execute",
+      "bytesHex": "87016765786563757465782161757468732e6f70656e746f66752e73617665642d706c616e2d6170706c792f31582001010101010101010101010101010101010101010101010101010101010101015830020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202584005050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505f6",
+      "projection": {
+        "contractVersion": 1,
+        "verb": "execute",
+        "profile": "auths.opentofu.saved-plan-apply/1",
+        "endpointPath": "/v1/profiles/opentofu/saved-plan-apply/execute",
+        "identity": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE",
+        "authority": "AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIC",
+        "body": "BQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQ",
+        "recoveryReference": null
+      }
+    },
+    {
+      "id": "execute-postgresql",
+      "verb": "execute",
+      "profile": "auths.postgresql.bounded-update/1",
+      "path": "/v1/profiles/postgresql/bounded-update/execute",
+      "bytesHex": "87016765786563757465782161757468732e706f737467726573716c2e626f756e6465642d7570646174652f31582001010101010101010101010101010101010101010101010101010101010101015830020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202584006060606060606060606060606060606060606060606060606060606060606060606060606060606060606060606060606060606060606060606060606060606f6",
+      "projection": {
+        "contractVersion": 1,
+        "verb": "execute",
+        "profile": "auths.postgresql.bounded-update/1",
+        "endpointPath": "/v1/profiles/postgresql/bounded-update/execute",
+        "identity": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE",
+        "authority": "AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIC",
+        "body": "BgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBg",
+        "recoveryReference": null
+      }
+    },
+    {
+      "id": "resume",
+      "verb": "resume",
+      "profile": "auths.github.issue-address/1",
+      "path": "/v1/workflows/resume",
+      "bytesHex": "870166726573756d65781c61757468732e6769746875622e69737375652d616464726573732f3158200101010101010101010101010101010101010101010101010101010101010101f6f6782b42776348427763484277634842776348427763484277634842776348427763484277634842776348427763",
+      "projection": {
+        "contractVersion": 1,
+        "verb": "resume",
+        "profile": "auths.github.issue-address/1",
+        "endpointPath": "/v1/workflows/resume",
+        "identity": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE",
+        "authority": null,
+        "body": null,
+        "recoveryReference": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc"
+      }
+    },
+    {
+      "id": "verify",
+      "verb": "verify",
+      "profile": "auths.github.issue-address/1",
+      "path": "/v1/authority/verify",
+      "bytesHex": "870166766572696679781c61757468732e6769746875622e69737375652d616464726573732f3158200101010101010101010101010101010101010101010101010101010101010101f6584007070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707f6",
+      "projection": {
+        "contractVersion": 1,
+        "verb": "verify",
+        "profile": "auths.github.issue-address/1",
+        "endpointPath": "/v1/authority/verify",
+        "identity": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE",
+        "authority": null,
+        "body": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBw",
+        "recoveryReference": null
+      }
+    }
+  ],
+  "responses": [
+    {
+      "id": "completed",
+      "bytesHex": "870169636f6d706c65746564f6656e65766572f6582008080808080808080808080808080808080808080808080808080808080808085860090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909",
+      "projection": {
+        "contractVersion": 1,
+        "kind": "completed",
+        "code": null,
+        "retry": "never",
+        "recoveryReference": null,
+        "value": "CAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAg",
+        "receipt": "CQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJ"
+      }
+    },
+    {
+      "id": "denied",
+      "bytesHex": "87016664656e69656470617574686f726974792e64656e696564656e65766572f6f6f6",
+      "projection": {
+        "contractVersion": 1,
+        "kind": "denied",
+        "code": "authority.denied",
+        "retry": "never",
+        "recoveryReference": null,
+        "value": null,
+        "receipt": null
+      }
+    },
+    {
+      "id": "indeterminate",
+      "bytesHex": "87016d696e64657465726d696e617465781870726f76696465722e6f7574636f6d652d756e6b6e6f776e697265636f6e63696c65f6f6f6",
+      "projection": {
+        "contractVersion": 1,
+        "kind": "indeterminate",
+        "code": "provider.outcome-unknown",
+        "retry": "reconcile",
+        "recoveryReference": null,
+        "value": null,
+        "receipt": null
+      }
+    },
+    {
+      "id": "recoverable",
+      "bytesHex": "87016b7265636f76657261626c6574776f726b666c6f772e7265636f76657261626c6566726573756d65782b42776348427763484277634842776348427763484277634842776348427763484277634842776348427763f6f6",
+      "projection": {
+        "contractVersion": 1,
+        "kind": "recoverable",
+        "code": "workflow.recoverable",
+        "retry": "resume",
+        "recoveryReference": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc",
+        "value": null,
+        "receipt": null
+      }
+    },
+    {
+      "id": "verified",
+      "bytesHex": "8701687665726966696564f6656e65766572f658200a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0af6",
+      "projection": {
+        "contractVersion": 1,
+        "kind": "verified",
+        "code": null,
+        "retry": "never",
+        "recoveryReference": null,
+        "value": "CgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgo",
+        "receipt": null
+      }
+    },
+    {
+      "id": "rejected",
+      "bytesHex": "87016872656a656374656475766572696669636174696f6e2e72656a6563746564656e65766572f6f6f6",
+      "projection": {
+        "contractVersion": 1,
+        "kind": "rejected",
+        "code": "verification.rejected",
+        "retry": "never",
+        "recoveryReference": null,
+        "value": null,
+        "receipt": null
+      }
+    }
+  ],
+  "adversarial": [
+    {
+      "id": "request-version",
+      "target": "request",
+      "bytesHex": "870266637265617465781c61757468732e6769746875622e69737375652d616464726573732f3158200101010101010101010101010101010101010101010101010101010101010101f6584003030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303f6",
+      "expectedCode": "client.unsupported-version"
+    },
+    {
+      "id": "request-trailing",
+      "target": "request",
+      "bytesHex": "870166637265617465781c61757468732e6769746875622e69737375652d616464726573732f3158200101010101010101010101010101010101010101010101010101010101010101f6584003030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303f600",
+      "expectedCode": "client.malformed"
+    },
+    {
+      "id": "request-verb",
+      "target": "request",
+      "bytesHex": "870166787265617465781c61757468732e6769746875622e69737375652d616464726573732f3158200101010101010101010101010101010101010101010101010101010101010101f6584003030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303f6",
+      "expectedCode": "client.unknown-verb"
+    },
+    {
+      "id": "request-profile",
+      "target": "request",
+      "bytesHex": "870166637265617465781c78757468732e6769746875622e69737375652d616464726573732f3158200101010101010101010101010101010101010101010101010101010101010101f6584003030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303f6",
+      "expectedCode": "client.unknown-profile"
+    },
+    {
+      "id": "response-version",
+      "target": "response",
+      "bytesHex": "870269636f6d706c65746564f6656e65766572f6582008080808080808080808080808080808080808080808080808080808080808085860090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909",
+      "expectedCode": "client.unsupported-version"
+    },
+    {
+      "id": "response-trailing",
+      "target": "response",
+      "bytesHex": "870169636f6d706c65746564f6656e65766572f658200808080808080808080808080808080808080808080808080808080808080808586009090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090900",
+      "expectedCode": "client.malformed"
+    },
+    {
+      "id": "response-outcome",
+      "target": "response",
+      "bytesHex": "870169786f6d706c65746564f6656e65766572f6582008080808080808080808080808080808080808080808080808080808080808085860090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909",
+      "expectedCode": "client.unknown-outcome"
+    }
+  ]
+}

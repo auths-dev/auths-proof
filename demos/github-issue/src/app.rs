@@ -759,6 +759,10 @@ async fn execute_session(
             workflow_grant: snapshot.grant,
             required_configuration: snapshot.required_configuration,
             candidate,
+            recovery_references: auths_github::GitHubRecoveryReferencesV1 {
+                branch: auths_lifecycle::RecoveryReferenceDigest::new([71; 32]),
+                pull_request: auths_lifecycle::RecoveryReferenceDigest::new([72; 32]),
+            },
         })
         .map_err(|error| {
             eprintln!("auths-github-demo: execution failed: {error}");
@@ -834,6 +838,10 @@ async fn reconcile(
             workflow_grant: snapshot.grant,
             required_configuration: snapshot.required_configuration,
             candidate,
+            recovery_references: auths_github::GitHubRecoveryReferencesV1 {
+                branch: auths_lifecycle::RecoveryReferenceDigest::new([71; 32]),
+                pull_request: auths_lifecycle::RecoveryReferenceDigest::new([72; 32]),
+            },
         })
         .map_err(|error| {
             eprintln!("auths-github-demo: reconciliation failed: {error}");

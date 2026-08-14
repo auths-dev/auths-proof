@@ -1,0 +1,19 @@
+{
+  "annotations": {"list": []},
+  "editable": false,
+  "panels": [
+    {"id": 1, "title": "Finite outcomes", "type": "timeseries", "targets": [{"expr": "sum by (outcome) (rate(auths_operations_total[5m]))"}]},
+    {"id": 2, "title": "Runtime stages", "type": "timeseries", "targets": [{"expr": "sum by (stage) (rate(auths_operations_total[5m]))"}]},
+    {"id": 3, "title": "Latency buckets", "type": "timeseries", "targets": [{"expr": "sum by (latency) (rate(auths_operations_total[5m]))"}]},
+    {"id": 4, "title": "Denied operations", "type": "stat", "targets": [{"expr": "sum(increase(auths_operations_total{outcome=\"denied\"}[1h]))"}]},
+    {"id": 5, "title": "Recovery required", "type": "stat", "targets": [{"expr": "sum(increase(auths_operations_total{outcome=\"outcome-unknown\"}[1h]))"}]},
+    {"id": 6, "title": "Replica health", "type": "stat", "targets": [{"expr": "sum(up{job=\"auths-node\"})"}]}
+  ],
+  "schemaVersion": 42,
+  "tags": ["auths", "open-production"],
+  "templating": {"list": []},
+  "time": {"from": "now-6h", "to": "now"},
+  "title": "Auths open production",
+  "uid": "auths-open-production",
+  "version": 1
+}

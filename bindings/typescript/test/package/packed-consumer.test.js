@@ -44,22 +44,24 @@ test("packed package exposes only the reviewed public topology", async () => {
       }
     `);
     await writeFile(join(directory, "consumer.ts"), `
-      import { approval, doctor, type Auths, type AuthsErrorCode, type DoctorReport } from "@auths-dev/sdk";
+      import { approval, createAuths, doctor, type Auths, type AuthsErrorCode, type DoctorReport, type ProductionAuths } from "@auths-dev/sdk";
       import { loadIdentity } from "@auths-dev/sdk/identity";
       import { inspectDecision, verifyReceipt } from "@auths-dev/sdk/verify";
-      import { mcp, type McpAction } from "@auths-dev/sdk/profiles";
+      import { githubIssueAddress, mcp, opentofuSavedPlanApply, postgresqlBoundedUpdate, type McpAction } from "@auths-dev/sdk/profiles";
       import { development } from "@auths-dev/sdk/integrations";
       import type { AtomicReservationStore, Signer } from "@auths-dev/sdk/framework";
       import { certifyAtomicStore } from "@auths-dev/sdk/testkit";
-      void approval; void doctor; void loadIdentity; void inspectDecision; void verifyReceipt;
-      void mcp; void development; void certifyAtomicStore;
+      void approval; void createAuths; void doctor; void loadIdentity; void inspectDecision; void verifyReceipt;
+      void githubIssueAddress; void mcp; void opentofuSavedPlanApply; void postgresqlBoundedUpdate;
+      void development; void certifyAtomicStore;
       declare const auths: Auths;
+      declare const production: ProductionAuths;
       declare const code: AuthsErrorCode;
       declare const action: McpAction;
       declare const store: AtomicReservationStore;
       declare const signer: Signer;
       declare const report: DoctorReport;
-      void auths; void code; void action; void store; void signer; void report;
+      void auths; void production; void code; void action; void store; void signer; void report;
     `);
     await writeFile(join(directory, "tsconfig.json"), JSON.stringify({
       compilerOptions: {

@@ -13,6 +13,12 @@ use crate::{
 pub enum StoreError {
     /// Store could not establish availability or durability.
     Unavailable,
+    /// No pooled connection became available before the bounded deadline.
+    PoolExhausted,
+    /// A statement or lock exceeded its bounded execution deadline.
+    Timeout,
+    /// The installed database schema or store contract is incompatible.
+    SchemaMismatch,
     /// Compare-and-swap revision failed.
     Conflict,
     /// Pure lifecycle semantics rejected the command without mutation.

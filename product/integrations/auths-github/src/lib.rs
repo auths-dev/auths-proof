@@ -16,6 +16,7 @@ pub mod lifecycle;
 pub mod policy;
 pub mod ports;
 pub mod profile;
+pub mod provider_request;
 pub mod receipts;
 pub mod service;
 #[cfg(any(test, feature = "fixture-support"))]
@@ -36,14 +37,15 @@ pub use executor::{
     VerifiedPublishBranchCommand,
 };
 pub use profile::{GitHubCommand, GitHubIssueProfile};
+pub use provider_request::{BranchPublishRequestV1, DraftPullRequestV1};
 pub use receipts::{
     GitHubDecisionReceipt, GitHubExecutionReceipt, GitHubReceipt, OpenedPullRequest,
     PublishedBranch, SignedGitHubReceipt,
 };
 pub use service::{
-    ExecuteWorkflowRequest, GitHubIssueWorkflowService, ServiceDependencies, ServiceError,
-    WorkflowOutcome, derive_open_pull_request_action, derive_publish_branch_action,
-    deterministic_pull_request_body,
+    ExecuteWorkflowRequest, GitHubIssueWorkflowService, GitHubRecoveryReferencesV1,
+    ServiceDependencies, ServiceError, WorkflowOutcome, derive_open_pull_request_action,
+    derive_publish_branch_action, deterministic_pull_request_body,
 };
 pub use types::{
     CandidatePolicy, DigestHex, ExactGitHubAction, ExecutorAudience, GitHubOperation, GitOid,

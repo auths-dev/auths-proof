@@ -72,6 +72,15 @@ prerelease description comes from the digest-bound staged copy of
 [`RELEASE_CANDIDATE_NOTES.md`](RELEASE_CANDIDATE_NOTES.md), not mutable or
 hardcoded workflow prose.
 
+Before the protected promotion boundary opens, the entry gate also runs the
+Rust-owned assurance verifier over the named open-production candidate. The
+manifest is useful only for the exact artifact, configuration, schema, semantic
+freeze, runtime matrix, and profiles it binds. Evidence and review reports are
+content-addressed below the candidate directory. The manifest's Ed25519
+statement must resolve to a key in the checked-in
+[`assurance/trusted-signers.json`](assurance/trusted-signers.json) trust root;
+an arbitrary self-signed manifest cannot authorize promotion.
+
 The SLSA 1.2 Build Level 3 assessment is recorded in
 [`SLSA_BUILD_LEVEL_3_ASSESSMENT.md`](SLSA_BUILD_LEVEL_3_ASSESSMENT.md) and its
 machine-readable companion. It is bound to an observed successful preparation
