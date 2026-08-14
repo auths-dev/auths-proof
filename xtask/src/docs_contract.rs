@@ -144,6 +144,7 @@ struct ContractPayload {
     pages: Vec<Page>,
     scenarios: Vec<Scenario>,
     projections: Vec<Projection>,
+    runtime_facts: Value,
 }
 
 #[derive(Debug, Serialize)]
@@ -230,15 +231,15 @@ fn build_contract() -> Result<Vec<u8>, String> {
     validate_unique("page", pages.page.iter().map(|item| &item.id))?;
     validate_unique("scenario", scenarios.scenario.iter().map(|item| &item.id))?;
 
-    let operation_ids: BTreeSet<_> = operations
+    let operation_ids: BTreeSet<String> = operations
         .operation
         .iter()
-        .map(|item| item.id.as_str())
+        .map(|item| item.id.clone())
         .collect();
-    let scenario_ids: BTreeSet<_> = scenarios
+    let scenario_ids: BTreeSet<String> = scenarios
         .scenario
         .iter()
-        .map(|item| item.id.as_str())
+        .map(|item| item.id.clone())
         .collect();
     for id in operation_ids.iter().chain(scenario_ids.iter()) {
         validate_identity(id)?;
@@ -378,6 +379,7 @@ fn build_contract() -> Result<Vec<u8>, String> {
         pages: pages.page,
         scenarios: scenarios.scenario,
         projections,
+        runtime_facts: runtime_facts(&operation_ids, &scenario_ids)?,
     };
     let payload_bytes = serde_json::to_vec(&payload)
         .map_err(|error| format!("could not encode documentation contract: {error}"))?;
@@ -392,6 +394,61 @@ fn build_contract() -> Result<Vec<u8>, String> {
         .map_err(|error| format!("could not encode documentation contract: {error}"))?;
     bytes.push(b'\n');
     Ok(bytes)
+}
+
+fn runtime_facts(
+    operation_ids: &BTreeSet<String>,
+    scenario_ids: &BTreeSet<String>,
+) -> Result<Value, String> {
+    let facts: Value = read_json("release/docs/runtime-facts-v1.json")?;
+    if facts["schema"] != "auths.runtime-docs-facts/1" {
+        return Err("unsupported runtime documentation facts".to_owned());
+    }
+    let endpoints = facts["endpoints"]
+        .as_array()
+        .ok_or("runtime documentation facts have no endpoints")?;
+    let mut identities = BTreeSet::new();
+    let mut routes = BTreeSet::new();
+    for endpoint in endpoints {
+        let id = endpoint["id"]
+            .as_str()
+            .ok_or("runtime endpoint has no identity")?;
+        validate_identity(id)?;
+        if !identities.insert(id) {
+            return Err(format!("duplicate runtime endpoint identity {id}"));
+        }
+        let method = endpoint["method"]
+            .as_str()
+            .ok_or("runtime endpoint has no method")?;
+        let path = endpoint["path"]
+            .as_str()
+            .ok_or("runtime endpoint has no path")?;
+        if !routes.insert((method, path)) {
+            return Err(format!("duplicate runtime endpoint route {method} {path}"));
+        }
+        if let Some(operation) = endpoint["operation"].as_str() {
+            if !operation_ids.contains(operation) {
+                return Err(format!(
+                    "runtime endpoint {id} has unknown operation {operation}"
+                ));
+            }
+        }
+        if let Some(scenario) = endpoint["scenario"].as_str() {
+            if !scenario_ids.contains(scenario) {
+                return Err(format!(
+                    "runtime endpoint {id} has unknown scenario {scenario}"
+                ));
+            }
+        }
+        if matches!(
+            endpoint["class"].as_str(),
+            Some("profile-execution" | "workflow-recovery")
+        ) && endpoint["scenario"].is_null()
+        {
+            return Err(format!("effectful runtime endpoint {id} has no scenario"));
+        }
+    }
+    Ok(facts)
 }
 
 fn validate_projection(

@@ -1,0 +1,17 @@
+{
+  "schema": "auths.runtime-docs-facts/1",
+  "provenance": {
+    "kind": "compiled-registry",
+    "subject": "auths.product.runtime-endpoints/1",
+    "owner": "product/runtime/auths-runtime/src/docs.rs"
+  },
+  "endpoints": [
+    {"id":"auths.endpoint.health/1","operation":null,"page":"auths.page.reference.runtime-api/1","class":"health","method":"GET","path":"/v1/health","maxBodyBytes":0,"outcomes":["completed"],"scenario":null,"trust":{"productionTlsRequired":true,"nativeParseRequired":false,"transportIsNotAuthority":true,"disclosureRequired":false}},
+    {"id":"auths.endpoint.version/1","operation":null,"page":"auths.page.reference.runtime-api/1","class":"version","method":"GET","path":"/v1/version","maxBodyBytes":0,"outcomes":["completed"],"scenario":null,"trust":{"productionTlsRequired":true,"nativeParseRequired":false,"transportIsNotAuthority":true,"disclosureRequired":false}},
+    {"id":"auths.endpoint.authorities/1","operation":"auths.operation.create/1","page":"auths.page.reference.runtime-api/1","class":"authority","method":"POST","path":"/v1/authorities","maxBodyBytes":65536,"outcomes":["completed","denied","indeterminate"],"scenario":"auths.scenario.rest-effect/1","trust":{"productionTlsRequired":true,"nativeParseRequired":true,"transportIsNotAuthority":true,"disclosureRequired":false}},
+    {"id":"auths.endpoint.executions/1","operation":"auths.operation.execute/1","page":"auths.page.reference.runtime-api/1","class":"profile-execution","method":"POST","path":"/v1/executions","maxBodyBytes":262144,"outcomes":["completed","denied","indeterminate","recoverable"],"scenario":"auths.scenario.rest-effect/1","trust":{"productionTlsRequired":true,"nativeParseRequired":true,"transportIsNotAuthority":true,"disclosureRequired":false}},
+    {"id":"auths.endpoint.execution-resume/1","operation":"auths.operation.resume/1","page":"auths.page.reference.runtime-api/1","class":"workflow-recovery","method":"POST","path":"/v1/executions/{execution_id}/resume","maxBodyBytes":65536,"outcomes":["completed","denied","indeterminate","recoverable","not-found"],"scenario":"auths.scenario.rest-effect/1","trust":{"productionTlsRequired":true,"nativeParseRequired":true,"transportIsNotAuthority":true,"disclosureRequired":false}},
+    {"id":"auths.endpoint.receipt-summary/1","operation":"auths.operation.verify/1","page":"auths.page.reference.runtime-api/1","class":"receipt-summary","method":"GET","path":"/v1/receipts/{receipt_id}","maxBodyBytes":0,"outcomes":["completed","not-found"],"scenario":"auths.scenario.receipt-verification/1","trust":{"productionTlsRequired":true,"nativeParseRequired":false,"transportIsNotAuthority":true,"disclosureRequired":false}},
+    {"id":"auths.endpoint.receipt-disclosure/1","operation":"auths.operation.verify/1","page":"auths.page.reference.runtime-api/1","class":"receipt-disclosure","method":"POST","path":"/v1/receipts/{receipt_id}/disclosures","maxBodyBytes":65536,"outcomes":["completed","denied","not-found"],"scenario":"auths.scenario.receipt-verification/1","trust":{"productionTlsRequired":true,"nativeParseRequired":true,"transportIsNotAuthority":true,"disclosureRequired":true}}
+  ]
+}
