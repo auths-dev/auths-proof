@@ -31,7 +31,7 @@ README only after every acceptance criterion in the epic passes.
 ## Progress
 
 - [x] Content Epic 0 — Platform and editorial ownership
-- [ ] Content Epic 1 — Global information architecture and topic landings
+- [x] Content Epic 1 — Global information architecture and topic landings
 - [ ] Content Epic 2 — Getting started and integration chooser
 - [ ] Content Epic 3 — Semantic tours and lifecycle concepts
 - [ ] Content Epic 4 — Outcome quickstarts and tested projects

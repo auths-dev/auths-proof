@@ -1,5 +1,7 @@
 # Content Epic 1 — Global Information Architecture and Topic Landings
 
+**Status:** Complete in `auths-docs` commit `fff25d1`.
+
 **Depends on:** [Content Epic 0](./epic_0.md) and Platform Epics P5–P6.
 
 **Ownership:** This epic owns public taxonomy, route selection, landing-card
