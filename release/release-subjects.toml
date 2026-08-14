@@ -6,6 +6,12 @@ first_rc_tag = "auths-v1.0.0-rc.1"
 policy = "Every first-RC subject requires SLSA 1.2 Build Level 3 provenance. Preparation is not publication authorization."
 production_candidate_manifest = "release/open-production-candidate.json"
 production_candidate_schema = "product/spec/v1/open-production-candidate.schema.json"
+assurance_manifest = "release/assurance/open-production-candidate-1/manifest.json"
+assurance_candidate_schema = "product/spec/v1/assurance-candidate.schema.json"
+assurance_manifest_schema = "product/spec/v1/assurance-manifest.schema.json"
+assurance_record_schema = "product/spec/v1/assurance-record.schema.json"
+assurance_signers = "release/assurance/trusted-signers.json"
+assurance_signers_schema = "product/spec/v1/assurance-signers.schema.json"
 
 [[families]]
 id = "source-archive"

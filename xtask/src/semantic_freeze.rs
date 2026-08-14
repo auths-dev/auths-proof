@@ -4,7 +4,7 @@ use crate::*;
 
 const INVENTORY_PATH: &str = "release/semantic-freeze.json";
 const INVENTORY_SCHEMA: &str = "auths.semantic-freeze/1";
-const FREEZE_VERSION: u64 = 100;
+const FREEZE_VERSION: u64 = 101;
 const PUBLIC_RUST_ROOTS: [&str; 10] = [
     "auths",
     "auths-byte-channel",
@@ -427,7 +427,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.bounded-policy",
-            2,
+            1,
             FreezeClassification::FrozenMeaning,
             &[
                 "policy-semantic-ids",
@@ -524,6 +524,26 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
             ],
         )?,
         freeze_entry(
+            "auths.product.release-assurance",
+            2,
+            FreezeClassification::FrozenMeaning,
+            &[
+                "immutable-candidate-binding",
+                "sustained-qualification",
+                "independent-review",
+                "offline-assurance-verification",
+            ],
+            vec![
+                "docs/specs/0038/epic_9.md".to_owned(),
+                "product/spec/v1/assurance-candidate.schema.json".to_owned(),
+                "product/spec/v1/assurance-manifest.schema.json".to_owned(),
+                "product/spec/v1/assurance-record.schema.json".to_owned(),
+                "product/spec/v1/assurance-signers.schema.json".to_owned(),
+                "release/assurance".to_owned(),
+                "xtask/src/assurance.rs".to_owned(),
+            ],
+        )?,
+        freeze_entry(
             "auths.product.external-custody",
             2,
             FreezeClassification::FrozenMeaning,
@@ -609,7 +629,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
 
     for (id, path) in frozen_byte_inventories()? {
         let version = match path.as_str() {
-            "architecture/dependency-graph.json" => 25,
+            "architecture/dependency-graph.json" => 26,
             "bindings/wasm/auths-proof-wasm/identity-abi-v1.json" => 3,
             "core/fixtures/v1/manifest.json" => 3,
             "product/conformance/v1/simplified-product-waist.json" => 2,
@@ -675,7 +695,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
     ]);
     entries.push(freeze_entry(
         "auths.release.public-surface",
-        99,
+        100,
         FreezeClassification::ReleaseMetadata,
         &[
             "package-names",

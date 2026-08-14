@@ -1,0 +1,43 @@
+{
+  "schema": "auths.assurance-manifest/1",
+  "candidate": {
+    "status": "pending",
+    "reason": "Bind the immutable image, packages, provenance, configuration, schema, and semantic freeze after the release builder completes."
+  },
+  "supportedRuntimeMatrix": [
+    "browser-chromium-current",
+    "cpython-3.9-through-3.14",
+    "node-20.19.6-and-22.23.1"
+  ],
+  "qualifiedProfiles": [
+    "auths.github.issue-address/1",
+    "auths.opentofu.saved-plan-apply/1",
+    "auths.postgresql.bounded-update/1"
+  ],
+  "qualification": {
+    "status": "in-progress",
+    "requiredSeconds": 2592000,
+    "observedSeconds": 0,
+    "note": "No sustained qualification duration has been claimed."
+  },
+  "independentReview": {
+    "status": "pending",
+    "scope": [
+      "authority-and-attenuation",
+      "custody-and-key-lifecycle",
+      "deployment-and-postgresql",
+      "lifecycle-replay-and-recovery",
+      "receipt-disclosure-and-telemetry",
+      "rust-wasm-pyo3-and-client-boundaries",
+      "three-exact-effect-profile-gateways"
+    ],
+    "note": "No independent review has been claimed."
+  },
+  "testEvidence": [],
+  "knownLimitations": [
+    "Assurance applies only to the exact candidate, configuration, profiles, and runtime matrix named here.",
+    "Assurance does not replace deployment-specific security engineering or operational ownership.",
+    "Enterprise control-plane, compliance automation, and fleet-governance claims are excluded."
+  ],
+  "statement": null
+}

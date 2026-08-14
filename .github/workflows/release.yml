@@ -220,6 +220,10 @@ jobs:
           [[ "$DISPATCH_ACTOR_ID" == 3743841 ]]
           [[ "$(git rev-parse HEAD)" == "$CANDIDATE_COMMIT" ]]
           [[ "$CANDIDATE_TAG" == "auths-v$(sed -n 's/^version = "\([^"]*\)"/\1/p' Cargo.toml | head -1)" ]]
+      - name: Require complete independently reviewed assurance
+        run: >-
+          cargo xtask assurance verify
+          release/assurance/open-production-candidate-1/manifest.json
       - name: Refuse absent or unprotected promotion environment
         env:
           GH_TOKEN: ${{ github.token }}

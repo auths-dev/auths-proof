@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://auths.dev/spec/v1/assurance-signers.schema.json",
+  "title": "Auths Assurance Trusted Signers V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "signers"],
+  "properties": {
+    "schema": {"const": "auths.assurance-signers/1"},
+    "signers": {
+      "type": "array",
+      "maxItems": 16,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "publicKey", "purpose"],
+        "properties": {
+          "id": {"type": "string", "minLength": 1, "maxLength": 128},
+          "publicKey": {
+            "$ref": "assurance-manifest.schema.json#/$defs/sha256"
+          },
+          "purpose": {"type": "string", "minLength": 1, "maxLength": 256}
+        }
+      }
+    }
+  }
+}

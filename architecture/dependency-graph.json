@@ -15180,6 +15180,18 @@
     {
       "source": "xtask",
       "source_layer": "tooling",
+      "target": "tempfile",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "xtask",
+      "source_layer": "tooling",
       "target": "tokio",
       "target_layer": null,
       "scope": "external",
