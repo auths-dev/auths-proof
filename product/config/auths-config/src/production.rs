@@ -203,7 +203,15 @@ struct SdkArtifactInput {
 struct OperationsObjectivesInput {
     availability_basis_points: u16,
     decision_p95_milliseconds: u32,
+    decision_p99_milliseconds: u32,
     recovery_p95_seconds: u32,
+    maximum_possible_effect_age_seconds: u32,
+    maximum_reconciliation_backlog: u32,
+    reconciliation_drain_p95_seconds: u32,
+    receipt_availability_basis_points: u16,
+    store_rpo_seconds: u32,
+    store_rto_seconds: u32,
+    custody_availability_basis_points: u16,
     maximum_concurrent_workflows: u32,
 }
 
@@ -295,7 +303,15 @@ struct CanonicalSdk {
 struct CanonicalOperations {
     availability_basis_points: u16,
     decision_p95_milliseconds: u32,
+    decision_p99_milliseconds: u32,
     recovery_p95_seconds: u32,
+    maximum_possible_effect_age_seconds: u32,
+    maximum_reconciliation_backlog: u32,
+    reconciliation_drain_p95_seconds: u32,
+    receipt_availability_basis_points: u16,
+    store_rpo_seconds: u32,
+    store_rto_seconds: u32,
+    custody_availability_basis_points: u16,
     maximum_concurrent_workflows: u32,
 }
 
@@ -421,7 +437,21 @@ impl ProductionCandidateInput {
             operations: CanonicalOperations {
                 availability_basis_points: self.operations.availability_basis_points,
                 decision_p95_milliseconds: self.operations.decision_p95_milliseconds,
+                decision_p99_milliseconds: self.operations.decision_p99_milliseconds,
                 recovery_p95_seconds: self.operations.recovery_p95_seconds,
+                maximum_possible_effect_age_seconds: self
+                    .operations
+                    .maximum_possible_effect_age_seconds,
+                maximum_reconciliation_backlog: self.operations.maximum_reconciliation_backlog,
+                reconciliation_drain_p95_seconds: self.operations.reconciliation_drain_p95_seconds,
+                receipt_availability_basis_points: self
+                    .operations
+                    .receipt_availability_basis_points,
+                store_rpo_seconds: self.operations.store_rpo_seconds,
+                store_rto_seconds: self.operations.store_rto_seconds,
+                custody_availability_basis_points: self
+                    .operations
+                    .custody_availability_basis_points,
                 maximum_concurrent_workflows: self.operations.maximum_concurrent_workflows,
             },
             evidence,
@@ -727,8 +757,21 @@ fn validate_objectives(
     }
     if objectives.decision_p95_milliseconds == 0
         || objectives.decision_p95_milliseconds > 60_000
+        || objectives.decision_p99_milliseconds < objectives.decision_p95_milliseconds
+        || objectives.decision_p99_milliseconds > 60_000
         || objectives.recovery_p95_seconds == 0
         || objectives.recovery_p95_seconds > 86_400
+        || objectives.maximum_possible_effect_age_seconds == 0
+        || objectives.maximum_possible_effect_age_seconds > 604_800
+        || objectives.maximum_reconciliation_backlog == 0
+        || objectives.maximum_reconciliation_backlog > 1_000_000
+        || objectives.reconciliation_drain_p95_seconds == 0
+        || objectives.reconciliation_drain_p95_seconds > 86_400
+        || !(9_000..=10_000).contains(&objectives.receipt_availability_basis_points)
+        || objectives.store_rpo_seconds > 86_400
+        || objectives.store_rto_seconds == 0
+        || objectives.store_rto_seconds > 86_400
+        || !(9_000..=10_000).contains(&objectives.custody_availability_basis_points)
         || objectives.maximum_concurrent_workflows == 0
         || objectives.maximum_concurrent_workflows > 1_000_000
     {
@@ -934,7 +977,7 @@ fn generated_schema() -> Value {
             "custody": { "type": "array", "minItems": 1, "maxItems": MAX_CUSTODY_ADAPTERS, "items": closed_object(["family", "suite", "keyPolicy", "fixtureSuite", "secretSlot"]) },
             "profiles": { "type": "array", "minItems": 3, "maxItems": MAX_PRODUCTION_PROFILES, "items": closed_object(["id", "package", "providerContract", "receiptSchema", "fixtureSuite"]) },
             "sdks": { "type": "array", "minItems": 3, "maxItems": 3, "items": closed_object(["language", "package", "version", "abi", "publicApiSnapshot"]) },
-            "operations": closed_object(["availabilityBasisPoints", "decisionP95Milliseconds", "recoveryP95Seconds", "maximumConcurrentWorkflows"]),
+            "operations": closed_object(["availabilityBasisPoints", "decisionP95Milliseconds", "decisionP99Milliseconds", "recoveryP95Seconds", "maximumPossibleEffectAgeSeconds", "maximumReconciliationBacklog", "reconciliationDrainP95Seconds", "receiptAvailabilityBasisPoints", "storeRpoSeconds", "storeRtoSeconds", "custodyAvailabilityBasisPoints", "maximumConcurrentWorkflows"]),
             "evidence": { "type": "array", "minItems": 9, "maxItems": MAX_EVIDENCE_REQUIREMENTS, "uniqueItems": true },
             "exclusions": { "type": "array", "minItems": 5, "maxItems": MAX_EXCLUSIONS, "uniqueItems": true }
         }

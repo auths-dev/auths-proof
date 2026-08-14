@@ -1,0 +1,99 @@
+{
+  "schema": "auths.operations-field-registry/2",
+  "semanticId": "auths.operations/2",
+  "eventFields": [
+    "build",
+    "profile",
+    "stage",
+    "outcome",
+    "reason",
+    "elapsed",
+    "subsystem",
+    "saturation",
+    "deployment"
+  ],
+  "stages": [
+    "acquisition",
+    "verification",
+    "policy",
+    "decision-persistence",
+    "reservation",
+    "execution-intent",
+    "credential",
+    "provider-entry",
+    "provider-result",
+    "observation",
+    "reconciliation",
+    "receipt",
+    "recovery"
+  ],
+  "outcomes": [
+    "succeeded",
+    "denied",
+    "indeterminate",
+    "conflict",
+    "saturated",
+    "unavailable",
+    "failed",
+    "outcome-unknown"
+  ],
+  "reasons": [
+    "none",
+    "authorized",
+    "denied",
+    "evidence-unavailable",
+    "configuration-mismatch",
+    "store-conflict",
+    "store-unavailable",
+    "custody-denied",
+    "custody-unavailable",
+    "provider-failed",
+    "provider-unknown",
+    "receipt-unavailable",
+    "recovery-pending",
+    "recovered"
+  ],
+  "latencyBuckets": [
+    "lt-1ms",
+    "lt-10ms",
+    "lt-100ms",
+    "lt-1s",
+    "lt-10s",
+    "gte-10s"
+  ],
+  "subsystems": [
+    "runtime",
+    "store",
+    "custody",
+    "provider",
+    "observer",
+    "receipt"
+  ],
+  "saturationBuckets": [
+    "lt-50pct",
+    "50-75pct",
+    "75-90pct",
+    "gt-90pct",
+    "full"
+  ],
+  "deploymentClasses": [
+    "development",
+    "customer-operated"
+  ],
+  "prohibited": [
+    "authorization-bytes",
+    "arguments",
+    "credentials",
+    "evidence-bytes",
+    "identifiers",
+    "keys",
+    "principals",
+    "provider-payloads",
+    "raw-errors",
+    "receipt-bytes",
+    "resources",
+    "signatures",
+    "tokens",
+    "urls"
+  ]
+}

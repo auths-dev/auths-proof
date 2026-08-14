@@ -409,17 +409,35 @@ layer = "product"
 path = "product/operations/auths-operations"
 core_apis = ["auths-codec", "auths-model", "auths-registries", "auths-verifier"]
 protocol_versions = ["auths-proof/v1"]
-wire_objects = []
-fixture_suites = ["core/fixtures/v1"]
+wire_objects = ["OperationalEventV2", "WorkflowStatusProjection"]
+fixture_suites = ["core/fixtures/v1", "product/operations/v2"]
 principal_families = []
 signature_families = []
 profiles = []
 transports = []
-configuration_inputs = ["configuration-digest", "context-digest", "executed-verifier-configuration", "required-verifier-configuration"]
-security_state = ["low-cardinality-metrics"]
+configuration_inputs = ["configuration-digest", "context-digest", "executed-verifier-configuration", "required-readiness-probes", "required-verifier-configuration"]
+security_state = ["low-cardinality-metrics", "opaque-workflow-reference", "privacy-field-registry"]
 
 [packages.auths-operations.claims]
-operational-diagnostics = ["product/operations/auths-operations/src/lib.rs#readiness_exposes_required_and_executed_configuration_ids"]
+operational-diagnostics = ["product/operations/auths-operations/src/lib.rs#privacy_registry_matches_the_closed_event_shape", "product/operations/auths-operations/src/lib.rs#readiness_exposes_required_and_executed_configuration_ids", "product/operations/auths-operations/src/lib.rs#workflow_references_are_opaque_and_bounded"]
+
+[packages.auths-operations-otel]
+kind = "cargo"
+layer = "product"
+path = "product/operations/auths-operations-otel"
+core_apis = []
+protocol_versions = ["auths.operations/2"]
+wire_objects = ["OperationalEventV2"]
+fixture_suites = ["product/operations/v2"]
+principal_families = []
+signature_families = []
+profiles = []
+transports = ["otlp-tls", "prometheus"]
+configuration_inputs = ["backpressure-policy", "buffer-capacity", "otlp-transport"]
+security_state = ["bounded-export-buffer", "drop-counter", "fixed-attribute-registry"]
+
+[packages.auths-operations-otel.claims]
+operational-diagnostics = ["product/operations/auths-operations-otel/src/lib.rs#exporter_failure_is_inert_and_buffer_is_bounded", "product/operations/auths-operations-otel/src/lib.rs#prometheus_projection_has_only_frozen_dimensions"]
 
 [packages.auths-github]
 kind = "cargo"

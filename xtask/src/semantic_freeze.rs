@@ -4,7 +4,7 @@ use crate::*;
 
 const INVENTORY_PATH: &str = "release/semantic-freeze.json";
 const INVENTORY_SCHEMA: &str = "auths.semantic-freeze/1";
-const FREEZE_VERSION: u64 = 94;
+const FREEZE_VERSION: u64 = 95;
 const PUBLIC_RUST_ROOTS: [&str; 10] = [
     "auths",
     "auths-byte-channel",
@@ -186,7 +186,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.identity.protocol",
-            23,
+            24,
             FreezeClassification::FrozenMeaning,
             &[
                 "identity-protocol-versions",
@@ -261,7 +261,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.public-sdk-contract",
-            33,
+            34,
             FreezeClassification::FrozenMeaning,
             &[
                 "rust-sdk-contract",
@@ -493,7 +493,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.open-production-contract",
-            6,
+            7,
             FreezeClassification::FrozenMeaning,
             &[
                 "production-topology",
@@ -516,7 +516,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.external-custody",
-            1,
+            2,
             FreezeClassification::FrozenMeaning,
             &[
                 "transaction-bound-signing",
@@ -535,6 +535,27 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
                 "product/integrations/auths-custody-aws-kms/src".to_owned(),
                 "product/integrations/auths-custody-pkcs11/Cargo.toml".to_owned(),
                 "product/integrations/auths-custody-pkcs11/src".to_owned(),
+            ],
+        )?,
+        freeze_entry(
+            "auths.product.operations",
+            1,
+            FreezeClassification::FrozenMeaning,
+            &[
+                "privacy-safe-events",
+                "workflow-status-projection",
+                "readiness-contract",
+                "otel-export",
+                "prometheus-projection",
+                "operator-recovery-advice",
+            ],
+            vec![
+                "docs/operations/OPEN_PRODUCTION_INCIDENT_RUNBOOKS.md".to_owned(),
+                "docs/specs/0038/epic_5.md".to_owned(),
+                "product/operations/auths-operations/src".to_owned(),
+                "product/operations/auths-operations-otel/src".to_owned(),
+                "product/operations/v2".to_owned(),
+                "product/runtime/auths-runtime/src/production.rs".to_owned(),
             ],
         )?,
         freeze_entry(
@@ -579,7 +600,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
 
     for (id, path) in frozen_byte_inventories()? {
         let version = match path.as_str() {
-            "architecture/dependency-graph.json" => 22,
+            "architecture/dependency-graph.json" => 23,
             "bindings/wasm/auths-proof-wasm/identity-abi-v1.json" => 3,
             "core/fixtures/v1/manifest.json" => 3,
             "product/conformance/v1/simplified-product-waist.json" => 2,
@@ -643,7 +664,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
     ]);
     entries.push(freeze_entry(
         "auths.release.public-surface",
-        94,
+        95,
         FreezeClassification::ReleaseMetadata,
         &[
             "package-names",

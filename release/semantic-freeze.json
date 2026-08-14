@@ -1,6 +1,6 @@
 {
   "schema": "auths.semantic-freeze/1",
-  "freezeVersion": 94,
+  "freezeVersion": 95,
   "publicSurface": {
     "rustRoots": [
       "auths",
@@ -90,7 +90,7 @@
     },
     {
       "id": "auths.frozen-bytes/architecture/dependency-graph.json",
-      "version": 22,
+      "version": 23,
       "classification": "frozen-bytes",
       "categories": [
         "canonical-generated-evidence"
@@ -98,7 +98,7 @@
       "owners": [
         "architecture/dependency-graph.json"
       ],
-      "sha256": "b42f6996c606759b7868d38c2be43aacb7937638794e5f36eae4ab46b9b5963d"
+      "sha256": "153ac27dfec56d95d2849204822b187095aa305fc59e85d293d95c94a7fc9838"
     },
     {
       "id": "auths.frozen-bytes/bindings/wasm/auths-proof-wasm/identity-abi-v1.json",
@@ -546,7 +546,7 @@
     },
     {
       "id": "auths.identity.protocol",
-      "version": 23,
+      "version": 24,
       "classification": "frozen-meaning",
       "categories": [
         "identity-protocol-versions",
@@ -569,7 +569,7 @@
         "core/fixtures/identity/v1/vectors.json",
         "core/spec/identity/v1"
       ],
-      "sha256": "9211c323b2a87d335f1463db05b1ee88f2fbc7f016d541d786e09cd365e8bf56"
+      "sha256": "8a508d94bd97a36fa401a649d60417349dc0cc4c4a533f961c10af20c4ec1879"
     },
     {
       "id": "auths.modular-components",
@@ -725,7 +725,7 @@
     },
     {
       "id": "auths.product.external-custody",
-      "version": 1,
+      "version": 2,
       "classification": "frozen-meaning",
       "categories": [
         "transaction-bound-signing",
@@ -745,7 +745,7 @@
         "product/integrations/auths-custody-pkcs11/src",
         "product/integrations/auths-custody/src"
       ],
-      "sha256": "2e88dd5e5f0f60c90ff5a3c797f0f87ed4e77e9807e0814c273696eb4a85beb3"
+      "sha256": "b2b2c36135392c2a6f1d468855bdc0af2108466fabf0e092ec21f86b9ad5c055"
     },
     {
       "id": "auths.product.facade",
@@ -832,7 +832,7 @@
     },
     {
       "id": "auths.product.open-production-contract",
-      "version": 6,
+      "version": 7,
       "classification": "frozen-meaning",
       "categories": [
         "production-topology",
@@ -851,11 +851,33 @@
         "release/open-production-candidate.toml",
         "xtask/src/production_contract.rs"
       ],
-      "sha256": "c47b8ecac4cf0788fc5080579a7ccbd1801cdb611bc58e7669163b7930cce88f"
+      "sha256": "5d79182c75122af291e680ef2aaa5122306cb451098a9655bca1a7e6dcaf974d"
+    },
+    {
+      "id": "auths.product.operations",
+      "version": 1,
+      "classification": "frozen-meaning",
+      "categories": [
+        "privacy-safe-events",
+        "workflow-status-projection",
+        "readiness-contract",
+        "otel-export",
+        "prometheus-projection",
+        "operator-recovery-advice"
+      ],
+      "owners": [
+        "docs/operations/OPEN_PRODUCTION_INCIDENT_RUNBOOKS.md",
+        "docs/specs/0038/epic_5.md",
+        "product/operations/auths-operations-otel/src",
+        "product/operations/auths-operations/src",
+        "product/operations/v2",
+        "product/runtime/auths-runtime/src/production.rs"
+      ],
+      "sha256": "8e8e59ed55f4c6f16f5d5d35c16e4fb0cd974f18cae1df78d36f3e79378a795f"
     },
     {
       "id": "auths.product.public-sdk-contract",
-      "version": 33,
+      "version": 34,
       "classification": "frozen-meaning",
       "categories": [
         "rust-sdk-contract",
@@ -872,7 +894,7 @@
         "product/runtime/auths-runtime/src",
         "product/sdk/auths-sdk/src"
       ],
-      "sha256": "233649cb7f18981d0d1e5705d7808352c683972df2da3ea433ce0f6e0023a7e2"
+      "sha256": "bf5f9b85edaad19c62bc8542b91fb781597f51de5580e5f371dfa8105384451a"
     },
     {
       "id": "auths.product.receipts",
@@ -974,7 +996,7 @@
     },
     {
       "id": "auths.release.public-surface",
-      "version": 94,
+      "version": 95,
       "classification": "release-metadata",
       "categories": [
         "package-names",
@@ -1067,7 +1089,7 @@
         "xtask/src/release_control.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "9ab6ae303b80a3ac22016000fbde946ba0a4a27f2fea0cb7c4c90edf4d7d7fac"
+      "sha256": "6105dde6370e942533700caf3aa5ba981e381f27e54ea9a1ae60b5911b5c1d73"
     }
   ]
 }

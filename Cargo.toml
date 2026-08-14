@@ -79,6 +79,7 @@ members = [
     "product/config/auths-config",
     "product/cache/auths-cache",
     "product/operations/auths-operations",
+    "product/operations/auths-operations-otel",
     "product/tools/auths-explain",
     "demos/testkit/auths-apps-testkit",
     "demos/live-lab",
@@ -176,6 +177,7 @@ auths-stores = { version = "1.0.0-rc.1", path = "product/stores/auths-stores" }
 auths-config = { version = "1.0.0-rc.1", path = "product/config/auths-config" }
 auths-cache = { version = "1.0.0-rc.1", path = "product/cache/auths-cache" }
 auths-operations = { version = "1.0.0-rc.1", path = "product/operations/auths-operations" }
+auths-operations-otel = { version = "1.0.0-rc.1", path = "product/operations/auths-operations-otel" }
 auths-sdk = { version = "1.0.0-rc.1", path = "product/sdk/auths-sdk" }
 auths-profile-kit = { version = "1.0.0-rc.1", path = "product/sdk/auths-profile-kit" }
 auths-errors = { version = "1.0.0-rc.1", path = "product/errors/auths-errors", default-features = false }

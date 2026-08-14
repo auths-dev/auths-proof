@@ -12,7 +12,8 @@ use auths_model::{
     VerifierContext,
 };
 use auths_operations::{
-    EventSink, NoopEventSink, OperationalEvent, OperationalOutcome, OperationalStage,
+    EventSink, NoopEventSink, OperationalEventV2, OperationalOutcome, OperationalReasonCode,
+    OperationalStage,
 };
 use auths_profile_api::ActionProfile;
 use auths_profile_mcp::{
@@ -615,12 +616,16 @@ impl McpAuthorizationService {
         &self,
         stage: OperationalStage,
         outcome: OperationalOutcome,
-        reason: &str,
+        reason: OperationalReasonCode,
         elapsed_micros: u64,
     ) {
-        if let Ok(event) = OperationalEvent::new(stage, outcome, reason, elapsed_micros) {
-            self.events.record(&event);
-        }
+        self.events.record(&OperationalEventV2::runtime(
+            None,
+            stage,
+            outcome,
+            reason,
+            elapsed_micros,
+        ));
     }
 
     fn refusal(
@@ -741,19 +746,19 @@ impl ProofExchangeService for McpAuthorizationService {
             VerificationOutcome::Authorized(_) => self.observe(
                 OperationalStage::Verification,
                 OperationalOutcome::Succeeded,
-                "authorized",
+                OperationalReasonCode::Authorized,
                 verification_micros,
             ),
-            VerificationOutcome::Denied(reason) => self.observe(
+            VerificationOutcome::Denied(_) => self.observe(
                 OperationalStage::Verification,
-                OperationalOutcome::Refused,
-                reason.code(),
+                OperationalOutcome::Denied,
+                OperationalReasonCode::Denied,
                 verification_micros,
             ),
-            VerificationOutcome::Indeterminate(requirement) => self.observe(
+            VerificationOutcome::Indeterminate(_) => self.observe(
                 OperationalStage::Verification,
-                OperationalOutcome::Unavailable,
-                requirement.code(),
+                OperationalOutcome::Indeterminate,
+                OperationalReasonCode::EvidenceUnavailable,
                 verification_micros,
             ),
         }
@@ -893,9 +898,9 @@ impl ProofExchangeService for McpAuthorizationService {
             Ok(result) => result,
             Err(message) => {
                 self.observe(
-                    OperationalStage::Execution,
+                    OperationalStage::ProviderResult,
                     OperationalOutcome::Failed,
-                    "execution-failed",
+                    OperationalReasonCode::ProviderFailed,
                     micros(execution_started.elapsed()),
                 );
                 let _ = self.record_execution(
@@ -916,9 +921,9 @@ impl ProofExchangeService for McpAuthorizationService {
             }
         };
         self.observe(
-            OperationalStage::Execution,
+            OperationalStage::ProviderResult,
             OperationalOutcome::Succeeded,
-            "executed",
+            OperationalReasonCode::None,
             micros(execution_started.elapsed()),
         );
         if !self.record_execution(

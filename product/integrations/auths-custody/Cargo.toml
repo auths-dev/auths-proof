@@ -11,6 +11,7 @@ description = "External WebAuthn, workload, KMS, HSM, and PKCS#11 signing bounda
 [dependencies]
 auths-author.workspace = true
 auths-model.workspace = true
+auths-operations.workspace = true
 p256.workspace = true
 subtle.workspace = true
 

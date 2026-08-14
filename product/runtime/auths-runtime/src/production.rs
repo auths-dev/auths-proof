@@ -7,12 +7,16 @@ use auths_lifecycle::{
     RecoveryReferenceDigest, StoreError, StoreTransactionV1, TransitionCommandV1,
     TransitionContextV1, WorkflowId, execute_store_transaction,
 };
+use auths_operations::{
+    EventSink, NoopEventSink, OperationalEventV2, OperationalOutcome, OperationalReasonCode,
+    OperationalStage,
+};
 use auths_receipts::ReceiptDisclosureLocator;
 use base64ct::{Base64UrlUnpadded, Encoding as _};
 use sha2::{Digest as _, Sha256};
 use std::{
     collections::BTreeMap,
-    sync::Mutex,
+    sync::{Arc, Mutex},
     time::{SystemTime, UNIX_EPOCH},
 };
 use subtle::ConstantTimeEq as _;
@@ -484,29 +488,38 @@ pub struct LifecycleCoordinator<
     recovery: R,
     clock: C,
     references: N,
+    events: Arc<dyn EventSink>,
 }
 
 impl<S, R> LifecycleCoordinator<S, R> {
     #[must_use]
-    pub const fn new(store: S, recovery: R) -> Self {
+    pub fn new(store: S, recovery: R) -> Self {
         Self {
             store,
             recovery,
             clock: SystemTrustedClock,
             references: OperatingSystemRecoveryReferenceSource,
+            events: Arc::new(NoopEventSink),
         }
     }
 }
 
 impl<S, R, C, N> LifecycleCoordinator<S, R, C, N> {
     #[must_use]
-    pub const fn with_dependencies(store: S, recovery: R, clock: C, references: N) -> Self {
+    pub fn with_dependencies(store: S, recovery: R, clock: C, references: N) -> Self {
         Self {
             store,
             recovery,
             clock,
             references,
+            events: Arc::new(NoopEventSink),
         }
+    }
+
+    #[must_use]
+    pub fn with_event_sink(mut self, events: Arc<dyn EventSink>) -> Self {
+        self.events = events;
+        self
     }
 }
 
@@ -538,7 +551,13 @@ where
                 command: TransitionCommandV1::RecordDecision(Box::new(input)),
                 context,
             },
-        )?;
+        );
+        self.observe_result(
+            OperationalStage::DecisionPersistence,
+            OperationalReasonCode::None,
+            &durable,
+        );
+        let durable = durable?;
         Ok((reference, RecordedDecision(durable)))
     }
 
@@ -687,7 +706,7 @@ where
         {
             return Err(CoordinatorError::StaleLease);
         }
-        execute_store_transaction(
+        let result = execute_store_transaction(
             &self.store,
             &StoreTransactionV1 {
                 workflow_id: current.workflow_id().clone(),
@@ -698,8 +717,13 @@ where
                 },
                 context,
             },
-        )
-        .map_err(Into::into)
+        );
+        self.observe_result(
+            OperationalStage::Reconciliation,
+            OperationalReasonCode::Recovered,
+            &result,
+        );
+        result.map_err(Into::into)
     }
 
     pub fn status(
@@ -728,7 +752,8 @@ where
         command: TransitionCommandV1,
         context: TransitionContextV1,
     ) -> Result<DurableTransitionV1, CoordinatorError> {
-        execute_store_transaction(
+        let stage = transition_stage(&command);
+        let result = execute_store_transaction(
             &self.store,
             &StoreTransactionV1 {
                 workflow_id: current.record().workflow_id().clone(),
@@ -736,8 +761,9 @@ where
                 command,
                 context,
             },
-        )
-        .map_err(Into::into)
+        );
+        self.observe_result(stage, OperationalReasonCode::None, &result);
+        result.map_err(Into::into)
     }
 
     fn release(
@@ -762,6 +788,28 @@ where
     #[must_use]
     pub fn now(&self) -> VerifierTime {
         self.clock.now()
+    }
+
+    fn observe_result(
+        &self,
+        stage: OperationalStage,
+        success_reason: OperationalReasonCode,
+        result: &Result<DurableTransitionV1, StoreError>,
+    ) {
+        let (outcome, reason) = match result {
+            Ok(_) => (OperationalOutcome::Succeeded, success_reason),
+            Err(StoreError::Conflict) => (
+                OperationalOutcome::Conflict,
+                OperationalReasonCode::StoreConflict,
+            ),
+            Err(_) => (
+                OperationalOutcome::Unavailable,
+                OperationalReasonCode::StoreUnavailable,
+            ),
+        };
+        self.events.record(&OperationalEventV2::runtime(
+            None, stage, outcome, reason, 0,
+        ));
     }
 }
 
@@ -927,6 +975,22 @@ fn recovery_digest(bytes: &[u8; 32]) -> RecoveryReferenceDigest {
     hasher.update(RECOVERY_REFERENCE_DOMAIN);
     hasher.update(bytes);
     RecoveryReferenceDigest::new(hasher.finalize().into())
+}
+
+const fn transition_stage(command: &TransitionCommandV1) -> OperationalStage {
+    match command {
+        TransitionCommandV1::RecordDecision(_) => OperationalStage::DecisionPersistence,
+        TransitionCommandV1::Reserve => OperationalStage::Reservation,
+        TransitionCommandV1::RecordExecutionIntent(_) => OperationalStage::ExecutionIntent,
+        TransitionCommandV1::AuthorizeCredential => OperationalStage::Credential,
+        TransitionCommandV1::StartAttempt | TransitionCommandV1::MarkProviderCallEntered => {
+            OperationalStage::ProviderEntry
+        }
+        TransitionCommandV1::MarkOutcomeUnknown { .. }
+        | TransitionCommandV1::Commit { .. }
+        | TransitionCommandV1::Release { .. } => OperationalStage::ProviderResult,
+        TransitionCommandV1::Reconcile { .. } => OperationalStage::Reconciliation,
+    }
 }
 
 const fn status_classification(state: LifecycleState) -> (EffectState, RecommendedAction) {

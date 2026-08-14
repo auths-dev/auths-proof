@@ -53,6 +53,7 @@ digraph auths_architecture {
   "auths-opentofu" [group="product"];
   "auths-opentofu-demo" [group="demos"];
   "auths-operations" [group="product"];
+  "auths-operations-otel" [group="product"];
   "auths-ports" [group="core"];
   "auths-postgresql" [group="product"];
   "auths-postgresql-demo" [group="demos"];
@@ -168,6 +169,7 @@ digraph auths_architecture {
   "auths-cross-company-incident-edgeshield-demo" -> "auths-raw-key" [label="normal"];
   "auths-custody" -> "auths-author" [label="normal"];
   "auths-custody" -> "auths-model" [label="normal"];
+  "auths-custody" -> "auths-operations" [label="normal"];
   "auths-custody-aws-kms" -> "auths-custody" [label="normal"];
   "auths-custody-aws-kms" -> "auths-model" [label="normal"];
   "auths-custody-pkcs11" -> "auths-custody" [label="normal"];
@@ -303,9 +305,11 @@ digraph auths_architecture {
   "auths-operations" -> "auths-codec" [label="dev"];
   "auths-operations" -> "auths-codec" [label="normal"];
   "auths-operations" -> "auths-config" [label="normal"];
+  "auths-operations" -> "auths-errors" [label="normal"];
   "auths-operations" -> "auths-model" [label="normal"];
   "auths-operations" -> "auths-registries" [label="normal"];
   "auths-operations" -> "auths-verifier" [label="normal"];
+  "auths-operations-otel" -> "auths-operations" [label="normal"];
   "auths-ports" -> "auths-model" [label="normal"];
   "auths-postgresql" -> "auths-bounded-policy" [label="normal"];
   "auths-postgresql" -> "auths-lifecycle" [label="normal"];

@@ -1,0 +1,14 @@
+[package]
+name = "auths-operations-otel"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish = false
+description = "Bounded OpenTelemetry and Prometheus adapter for Auths operations"
+
+[dependencies]
+auths-operations.workspace = true
+
+[lints]
+workspace = true

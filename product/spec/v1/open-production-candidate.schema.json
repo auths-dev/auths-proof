@@ -137,13 +137,29 @@
       "required": [
         "availabilityBasisPoints",
         "decisionP95Milliseconds",
+        "decisionP99Milliseconds",
         "recoveryP95Seconds",
+        "maximumPossibleEffectAgeSeconds",
+        "maximumReconciliationBacklog",
+        "reconciliationDrainP95Seconds",
+        "receiptAvailabilityBasisPoints",
+        "storeRpoSeconds",
+        "storeRtoSeconds",
+        "custodyAvailabilityBasisPoints",
         "maximumConcurrentWorkflows"
       ],
       "properties": {
         "availabilityBasisPoints": {},
         "decisionP95Milliseconds": {},
+        "decisionP99Milliseconds": {},
         "recoveryP95Seconds": {},
+        "maximumPossibleEffectAgeSeconds": {},
+        "maximumReconciliationBacklog": {},
+        "reconciliationDrainP95Seconds": {},
+        "receiptAvailabilityBasisPoints": {},
+        "storeRpoSeconds": {},
+        "storeRtoSeconds": {},
+        "custodyAvailabilityBasisPoints": {},
         "maximumConcurrentWorkflows": {}
       }
     },

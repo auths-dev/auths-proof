@@ -10,6 +10,8 @@ pub mod explanation;
 pub mod render;
 
 use auths_config::BoundConfiguration;
+use auths_errors::{EffectState, RecommendedAction};
+use auths_model::ProfileRef;
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt,
@@ -18,6 +20,27 @@ use std::{
 
 const MAX_PROBES: usize = 128;
 const MAX_LABEL_BYTES: usize = 128;
+
+pub const PRODUCTION_READINESS_PROBES: &[&str] = &[
+    "configuration",
+    "custody",
+    "lifecycle-store",
+    "profiles",
+    "receipt-store",
+    "recovery-store",
+    "registries",
+    "verifier-self-test",
+];
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum LivenessStatus {
+    Alive,
+}
+
+#[must_use]
+pub const fn liveness() -> LivenessStatus {
+    LivenessStatus::Alive
+}
 
 /// Required startup subsystem.
 pub trait ReadinessProbe: Send + Sync {
@@ -154,112 +177,244 @@ pub fn readiness(
     })
 }
 
-/// Stable, low-cardinality runtime stage.
+pub const OPERATIONS_SEMANTIC_ID: &str = "auths.operations/2";
+
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub struct BuildSemanticId(String);
+
+impl BuildSemanticId {
+    pub fn parse(value: &str) -> Result<Self, OperationalError> {
+        validate_label(value)?;
+        Ok(Self(value.to_owned()))
+    }
+
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum OperationalStage {
-    /// Exchange message parsing and binding.
-    Exchange,
-    /// Pure Auths verification.
+    Acquisition,
     Verification,
-    /// Replay challenge claim.
-    Replay,
-    /// Stateful budget reservation.
-    Budget,
-    /// Profile decoding and local policy.
     Policy,
-    /// Verified command execution.
-    Execution,
-    /// Receipt or audit persistence.
+    DecisionPersistence,
+    Reservation,
+    ExecutionIntent,
+    Credential,
+    ProviderEntry,
+    ProviderResult,
+    Observation,
+    Reconciliation,
+    Receipt,
+    Recovery,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum OperationalOutcome {
+    Succeeded,
+    Denied,
+    Indeterminate,
+    Conflict,
+    Saturated,
+    Unavailable,
+    Failed,
+    OutcomeUnknown,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum OperationalReasonCode {
+    None,
+    Authorized,
+    Denied,
+    EvidenceUnavailable,
+    ConfigurationMismatch,
+    StoreConflict,
+    StoreUnavailable,
+    CustodyDenied,
+    CustodyUnavailable,
+    ProviderFailed,
+    ProviderUnknown,
+    ReceiptUnavailable,
+    RecoveryPending,
+    Recovered,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum LatencyBucket {
+    UnderOneMillisecond,
+    UnderTenMilliseconds,
+    UnderOneHundredMilliseconds,
+    UnderOneSecond,
+    UnderTenSeconds,
+    TenSecondsOrMore,
+}
+
+impl LatencyBucket {
+    #[must_use]
+    pub const fn from_micros(value: u64) -> Self {
+        match value {
+            0..=999 => Self::UnderOneMillisecond,
+            1_000..=9_999 => Self::UnderTenMilliseconds,
+            10_000..=99_999 => Self::UnderOneHundredMilliseconds,
+            100_000..=999_999 => Self::UnderOneSecond,
+            1_000_000..=9_999_999 => Self::UnderTenSeconds,
+            _ => Self::TenSecondsOrMore,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum OperationalSubsystem {
+    Runtime,
+    Store,
+    Custody,
+    Provider,
+    Observer,
     Receipt,
 }
 
-/// Stable event outcome.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
-pub enum OperationalOutcome {
-    /// Stage completed successfully.
-    Succeeded,
-    /// Stage rejected established input.
-    Refused,
-    /// Required operational state was unavailable.
-    Unavailable,
-    /// Authorized execution failed.
-    Failed,
+pub enum SaturationBucket {
+    UnderHalf,
+    HalfToThreeQuarters,
+    ThreeQuartersToNineTenths,
+    OverNineTenths,
+    Full,
 }
 
-/// Privacy-preserving event with no subject or request payload.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum DeploymentClass {
+    Development,
+    CustomerOperated,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct OperationalEvent {
+pub struct OperationalEventV2 {
+    build: BuildSemanticId,
+    profile: Option<ProfileRef>,
     stage: OperationalStage,
     outcome: OperationalOutcome,
-    reason: String,
-    elapsed_micros: u64,
+    reason: OperationalReasonCode,
+    elapsed: LatencyBucket,
+    subsystem: OperationalSubsystem,
+    saturation: Option<SaturationBucket>,
+    deployment: DeploymentClass,
 }
 
-impl OperationalEvent {
-    /// Constructs a bounded low-cardinality event.
-    ///
-    /// # Errors
-    ///
-    /// Returns a typed failure for malformed or excessive reason labels.
+impl OperationalEventV2 {
     pub fn new(
+        build: BuildSemanticId,
+        profile: Option<ProfileRef>,
         stage: OperationalStage,
         outcome: OperationalOutcome,
-        reason: impl Into<String>,
-        elapsed_micros: u64,
-    ) -> Result<Self, OperationalError> {
-        let reason = reason.into();
-        validate_label(&reason)?;
-        Ok(Self {
+        reason: OperationalReasonCode,
+        elapsed: LatencyBucket,
+        subsystem: OperationalSubsystem,
+        saturation: Option<SaturationBucket>,
+        deployment: DeploymentClass,
+    ) -> Self {
+        Self {
+            build,
+            profile,
             stage,
             outcome,
             reason,
-            elapsed_micros,
-        })
+            elapsed,
+            subsystem,
+            saturation,
+            deployment,
+        }
     }
 
-    /// Returns the runtime stage.
+    #[must_use]
+    pub fn runtime(
+        profile: Option<ProfileRef>,
+        stage: OperationalStage,
+        outcome: OperationalOutcome,
+        reason: OperationalReasonCode,
+        elapsed_micros: u64,
+    ) -> Self {
+        Self::new(
+            BuildSemanticId("auths-runtime-1".to_owned()),
+            profile,
+            stage,
+            outcome,
+            reason,
+            LatencyBucket::from_micros(elapsed_micros),
+            OperationalSubsystem::Runtime,
+            None,
+            DeploymentClass::CustomerOperated,
+        )
+    }
+
+    #[must_use]
+    pub const fn build(&self) -> &BuildSemanticId {
+        &self.build
+    }
+
+    #[must_use]
+    pub const fn profile(&self) -> Option<&ProfileRef> {
+        self.profile.as_ref()
+    }
+
     #[must_use]
     pub const fn stage(&self) -> OperationalStage {
         self.stage
     }
 
-    /// Returns the stage outcome.
     #[must_use]
     pub const fn outcome(&self) -> OperationalOutcome {
         self.outcome
     }
 
-    /// Returns the stable reason dimension.
     #[must_use]
-    pub fn reason(&self) -> &str {
-        &self.reason
+    pub const fn reason(&self) -> OperationalReasonCode {
+        self.reason
     }
 
-    /// Returns bounded elapsed microseconds.
     #[must_use]
-    pub const fn elapsed_micros(&self) -> u64 {
-        self.elapsed_micros
+    pub const fn elapsed(&self) -> LatencyBucket {
+        self.elapsed
+    }
+
+    #[must_use]
+    pub const fn subsystem(&self) -> OperationalSubsystem {
+        self.subsystem
+    }
+
+    #[must_use]
+    pub const fn saturation(&self) -> Option<SaturationBucket> {
+        self.saturation
+    }
+
+    #[must_use]
+    pub const fn deployment(&self) -> DeploymentClass {
+        self.deployment
     }
 }
 
-/// Sink for metrics, traces, or structured privacy-preserving logs.
 pub trait EventSink: Send + Sync {
-    /// Records one already-sanitized event.
-    fn record(&self, event: &OperationalEvent);
+    fn record(&self, event: &OperationalEventV2);
 }
 
 /// Event sink for deployments that intentionally disable telemetry.
 pub struct NoopEventSink;
 
 impl EventSink for NoopEventSink {
-    fn record(&self, _event: &OperationalEvent) {}
+    fn record(&self, _event: &OperationalEventV2) {}
 }
 
-/// Low-cardinality stage, outcome, and stable reason dimensions.
-pub type MetricKey = (OperationalStage, OperationalOutcome, String);
-/// Invocation count and cumulative elapsed microseconds for one metric key.
-pub type MetricAggregate = (u64, u64);
-/// Canonically ordered snapshot entry.
+pub type MetricKey = (
+    OperationalStage,
+    OperationalOutcome,
+    OperationalReasonCode,
+    OperationalSubsystem,
+    LatencyBucket,
+    DeploymentClass,
+);
+pub type MetricAggregate = u64;
 pub type MetricSnapshotEntry = (MetricKey, MetricAggregate);
 
 /// Deterministic in-memory low-cardinality metric collector.
@@ -285,15 +440,181 @@ impl InMemoryMetrics {
 }
 
 impl EventSink for InMemoryMetrics {
-    fn record(&self, event: &OperationalEvent) {
+    fn record(&self, event: &OperationalEventV2) {
         let Ok(mut state) = self.state.lock() else {
             return;
         };
         let aggregate = state
-            .entry((event.stage, event.outcome, event.reason.clone()))
+            .entry((
+                event.stage,
+                event.outcome,
+                event.reason,
+                event.subsystem,
+                event.elapsed,
+                event.deployment,
+            ))
             .or_default();
-        aggregate.0 = aggregate.0.saturating_add(1);
-        aggregate.1 = aggregate.1.saturating_add(event.elapsed_micros);
+        *aggregate = aggregate.saturating_add(1);
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PublicWorkflowReference(String);
+
+impl PublicWorkflowReference {
+    pub fn parse(value: &str) -> Result<Self, OperationalError> {
+        if !(16..=128).contains(&value.len())
+            || !value
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+        {
+            return Err(OperationalError::InvalidReference);
+        }
+        Ok(Self(value.to_owned()))
+    }
+
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PublicWorkflowStage {
+    Received,
+    Authorized,
+    Reserved,
+    ProviderPossible,
+    Observing,
+    Reconciling,
+    Committed,
+    Released,
+    Failed,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum AuthorizationProjection {
+    Pending,
+    Authorized,
+    Denied,
+    Indeterminate,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum AgeBucket {
+    UnderOneMinute,
+    UnderFiveMinutes,
+    UnderOneHour,
+    UnderOneDay,
+    OneDayOrMore,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum DependencyHealth {
+    Healthy,
+    Degraded,
+    Unavailable,
+    Unknown,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReceiptDisclosureLocator(String);
+
+impl ReceiptDisclosureLocator {
+    pub fn parse(value: &str) -> Result<Self, OperationalError> {
+        PublicWorkflowReference::parse(value)?;
+        Ok(Self(value.to_owned()))
+    }
+
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct WorkflowStatusProjection {
+    reference: PublicWorkflowReference,
+    profile: ProfileRef,
+    stage: PublicWorkflowStage,
+    authorization: AuthorizationProjection,
+    effect: EffectState,
+    recommended_action: RecommendedAction,
+    age: AgeBucket,
+    observer: DependencyHealth,
+    receipt: Option<ReceiptDisclosureLocator>,
+}
+
+impl WorkflowStatusProjection {
+    #[allow(clippy::too_many_arguments)]
+    #[must_use]
+    pub fn new(
+        reference: PublicWorkflowReference,
+        profile: ProfileRef,
+        stage: PublicWorkflowStage,
+        authorization: AuthorizationProjection,
+        effect: EffectState,
+        recommended_action: RecommendedAction,
+        age: AgeBucket,
+        observer: DependencyHealth,
+        receipt: Option<ReceiptDisclosureLocator>,
+    ) -> Self {
+        Self {
+            reference,
+            profile,
+            stage,
+            authorization,
+            effect,
+            recommended_action,
+            age,
+            observer,
+            receipt,
+        }
+    }
+
+    #[must_use]
+    pub const fn reference(&self) -> &PublicWorkflowReference {
+        &self.reference
+    }
+
+    #[must_use]
+    pub const fn profile(&self) -> &ProfileRef {
+        &self.profile
+    }
+
+    #[must_use]
+    pub const fn stage(&self) -> PublicWorkflowStage {
+        self.stage
+    }
+
+    #[must_use]
+    pub const fn authorization(&self) -> AuthorizationProjection {
+        self.authorization
+    }
+
+    #[must_use]
+    pub const fn effect(&self) -> EffectState {
+        self.effect
+    }
+
+    #[must_use]
+    pub const fn recommended_action(&self) -> RecommendedAction {
+        self.recommended_action
+    }
+
+    #[must_use]
+    pub const fn age(&self) -> AgeBucket {
+        self.age
+    }
+
+    #[must_use]
+    pub const fn observer(&self) -> DependencyHealth {
+        self.observer
+    }
+
+    #[must_use]
+    pub const fn receipt(&self) -> Option<&ReceiptDisclosureLocator> {
+        self.receipt.as_ref()
     }
 }
 
@@ -328,6 +649,7 @@ pub enum OperationalError {
     InvalidConfiguration,
     /// A stable diagnostic label is malformed.
     InvalidLabel,
+    InvalidReference,
     /// A required subsystem has no probe implementation.
     MissingProbe,
     /// Registry or trust-anchor initialization failed.
@@ -338,6 +660,11 @@ pub enum OperationalError {
     BudgetStoreUnavailable,
     /// Receipt storage is unavailable.
     ReceiptStoreUnavailable,
+    LifecycleStoreUnavailable,
+    RecoveryStoreUnavailable,
+    CustodyUnavailable,
+    ProfileUnavailable,
+    ExporterBackpressure,
     /// Cryptographic self-test failed.
     CryptographicSelfTestFailed,
 }
@@ -347,11 +674,17 @@ impl fmt::Display for OperationalError {
         formatter.write_str(match self {
             Self::InvalidConfiguration => "invalid readiness configuration",
             Self::InvalidLabel => "invalid operational diagnostic label",
+            Self::InvalidReference => "invalid opaque workflow reference",
             Self::MissingProbe => "required readiness probe is missing",
             Self::RegistryUnavailable => "registry or trust-anchor initialization failed",
             Self::ReplayStoreUnavailable => "replay store unavailable",
             Self::BudgetStoreUnavailable => "budget store unavailable",
             Self::ReceiptStoreUnavailable => "receipt store unavailable",
+            Self::LifecycleStoreUnavailable => "lifecycle store unavailable",
+            Self::RecoveryStoreUnavailable => "recovery store unavailable",
+            Self::CustodyUnavailable => "custody unavailable",
+            Self::ProfileUnavailable => "profile registration unavailable",
+            Self::ExporterBackpressure => "required audit exporter is saturated",
             Self::CryptographicSelfTestFailed => "cryptographic self-test failed",
         })
     }
@@ -378,16 +711,20 @@ mod tests {
     #[test]
     fn metrics_expose_only_stable_dimensions() {
         let metrics = InMemoryMetrics::default();
-        let event = OperationalEvent::new(
+        let event = OperationalEventV2::new(
+            BuildSemanticId::parse("build-1").unwrap(),
+            None,
             OperationalStage::Verification,
-            OperationalOutcome::Refused,
-            "audience-mismatch",
-            17,
-        )
-        .unwrap();
+            OperationalOutcome::Denied,
+            OperationalReasonCode::Denied,
+            LatencyBucket::UnderOneMillisecond,
+            OperationalSubsystem::Runtime,
+            None,
+            DeploymentClass::CustomerOperated,
+        );
         metrics.record(&event);
         metrics.record(&event);
-        assert_eq!(metrics.snapshot()[0].1, (2, 34));
+        assert_eq!(metrics.snapshot()[0].1, 2);
     }
 
     #[test]
@@ -422,5 +759,28 @@ receipt_policy = "fail-closed"
         assert!(report.is_ready());
         assert_eq!(report.required_configuration_hex(), expected);
         assert_eq!(report.executed_configuration_hex(), expected);
+    }
+
+    #[test]
+    fn privacy_registry_matches_the_closed_event_shape() {
+        let registry: serde_json::Value = serde_json::from_str(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../v2/field-registry.json"
+        )))
+        .unwrap();
+        assert_eq!(registry["semanticId"], OPERATIONS_SEMANTIC_ID);
+        assert_eq!(registry["eventFields"].as_array().unwrap().len(), 9);
+        let encoded = serde_json::to_string(&registry).unwrap();
+        for value in ["private-key", "raw-proof", "customer-id", "workflow-id"] {
+            assert!(!encoded.contains(value));
+        }
+    }
+
+    #[test]
+    fn workflow_references_are_opaque_and_bounded() {
+        assert!(PublicWorkflowReference::parse("A9_xxxxxxxxxxxxxx").is_ok());
+        for invalid in ["short", "workflow:123456789", "../../database-row"] {
+            assert!(PublicWorkflowReference::parse(invalid).is_err());
+        }
     }
 }

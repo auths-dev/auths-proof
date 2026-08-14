@@ -449,8 +449,11 @@ macro_rules! signing_operation {
             request: ExternalSigningRequest<$input>,
             signer: &dyn ExternalSigner,
             verifier: &dyn CustodySignatureVerifier,
+            events: &dyn auths_operations::EventSink,
         ) -> Result<SignedArtifact<$output>, CustodyError> {
-            let output = sign_request(&request, signer, verifier)?;
+            let output = sign_request(&request, signer, verifier);
+            observe_custody_result(events, &output);
+            let output = output?;
             Ok(SignedArtifact {
                 signed: request.complete(output.signature),
                 evidence: output.evidence,
@@ -467,6 +470,38 @@ signing_operation!(
     SignedPrincipalStatus
 );
 signing_operation!(sign_grant_status, GrantStatusStatement, SignedGrantStatus);
+
+fn observe_custody_result(
+    events: &dyn auths_operations::EventSink,
+    result: &Result<CustodySignature, CustodyError>,
+) {
+    use auths_operations::{
+        OperationalEventV2, OperationalOutcome, OperationalReasonCode, OperationalStage,
+    };
+    let (outcome, reason) = match result {
+        Ok(_) => (OperationalOutcome::Succeeded, OperationalReasonCode::None),
+        Err(CustodyError::Provider(CustodyProviderError::Denied)) => (
+            OperationalOutcome::Denied,
+            OperationalReasonCode::CustodyDenied,
+        ),
+        Err(CustodyError::Provider(CustodyProviderError::ProviderUnknown)) => (
+            OperationalOutcome::OutcomeUnknown,
+            OperationalReasonCode::ProviderUnknown,
+        ),
+        Err(CustodyError::Provider(_)) => (
+            OperationalOutcome::Unavailable,
+            OperationalReasonCode::CustodyUnavailable,
+        ),
+        Err(_) => (OperationalOutcome::Failed, OperationalReasonCode::Denied),
+    };
+    events.record(&OperationalEventV2::runtime(
+        None,
+        OperationalStage::Credential,
+        outcome,
+        reason,
+        0,
+    ));
+}
 
 fn sign_request<T>(
     request: &ExternalSigningRequest<T>,
@@ -706,7 +741,12 @@ mod tests {
     #[test]
     fn central_boundary_binds_and_verifies_provider_signature() {
         let (request, signer, verifier) = fixture();
-        let result = sign_action(request, &signer, &verifier);
+        let result = sign_action(
+            request,
+            &signer,
+            &verifier,
+            &auths_operations::NoopEventSink,
+        );
         assert!(result.is_ok(), "{:?}", result.err());
     }
 
@@ -714,7 +754,12 @@ mod tests {
     fn mismatched_provider_transaction_cannot_complete_object() {
         let (request, mut signer, verifier) = fixture();
         signer.transaction_mismatch = true;
-        let result = sign_action(request, &signer, &verifier);
+        let result = sign_action(
+            request,
+            &signer,
+            &verifier,
+            &auths_operations::NoopEventSink,
+        );
         assert!(
             matches!(result, Err(CustodyError::TransactionMismatch)),
             "{:?}",
@@ -727,7 +772,12 @@ mod tests {
         let (request, mut signer, verifier) = fixture();
         signer.descriptor.lifecycle = KeyLifecycleState::Disabled;
         assert!(matches!(
-            sign_action(request, &signer, &verifier),
+            sign_action(
+                request,
+                &signer,
+                &verifier,
+                &auths_operations::NoopEventSink,
+            ),
             Err(CustodyError::LifecycleNotPermitted)
         ));
     }

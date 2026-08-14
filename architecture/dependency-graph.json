@@ -267,6 +267,11 @@
       "path": "product/operations/auths-operations"
     },
     {
+      "name": "auths-operations-otel",
+      "layer": "product",
+      "path": "product/operations/auths-operations-otel"
+    },
+    {
       "name": "auths-ports",
       "layer": "core",
       "path": "core/crates/auths-ports"
@@ -1882,6 +1887,18 @@
       "target_condition": null,
       "optional": false,
       "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-custody",
+      "source_layer": "product",
+      "target": "auths-operations",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
       "features": []
     },
     {
@@ -5517,6 +5534,18 @@
     {
       "source": "auths-operations",
       "source_layer": "product",
+      "target": "auths-errors",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-operations",
+      "source_layer": "product",
       "target": "auths-model",
       "target_layer": "core",
       "scope": "internal",
@@ -5601,6 +5630,18 @@
       "features": [
         "std"
       ]
+    },
+    {
+      "source": "auths-operations-otel",
+      "source_layer": "product",
+      "target": "auths-operations",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
     },
     {
       "source": "auths-ports",

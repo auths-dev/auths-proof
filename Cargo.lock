@@ -422,6 +422,7 @@ version = "1.0.0-rc.1"
 dependencies = [
  "auths-author",
  "auths-model",
+ "auths-operations",
  "p256",
  "subtle",
 ]
@@ -893,12 +894,20 @@ version = "1.0.0-rc.1"
 dependencies = [
  "auths-codec",
  "auths-config",
+ "auths-errors",
  "auths-model",
  "auths-registries",
  "auths-verifier",
  "serde",
  "serde_json",
  "sha2 0.10.9",
+]
+
+[[package]]
+name = "auths-operations-otel"
+version = "1.0.0-rc.1"
+dependencies = [
+ "auths-operations",
 ]
 
 [[package]]
