@@ -76,16 +76,16 @@ verification`, and `failure ownership`.
 
 ## Implementation steps
 
-- [ ] Declare page identities against P9's integration ownership schema.
-- [ ] Author the agent landing and architecture page before individual guides.
-- [ ] Build the seven agent/MCP guides over Content Epic 4 scenarios.
-- [ ] Build the integration chooser and six composition guides.
-- [ ] Curate generated adapter/profile inventories from release topology.
-- [ ] Add “Auths with” links to interoperability fixtures rather than unsupported
+- [x] Declare page identities against P9's integration ownership schema.
+- [x] Author the agent landing and architecture page before individual guides.
+- [x] Build the seven agent/MCP guides over Content Epic 4 scenarios.
+- [x] Build the integration chooser and six composition guides.
+- [x] Curate generated adapter/profile inventories from release topology.
+- [x] Add “Auths with” links to interoperability fixtures rather than unsupported
   competitive claims.
-- [ ] Author install explanations and safety boundaries around P4's versioned
+- [x] Author install explanations and safety boundaries around P4's versioned
   skill/plugin manifests.
-- [ ] Add adversarial content examples for widening, prompt substitution,
+- [x] Add adversarial content examples for widening, prompt substitution,
   approval substitution, transport success, ambient credential access, and
   unknown provider outcomes.
 
