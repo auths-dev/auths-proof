@@ -1,6 +1,6 @@
 {
   "schema": "auths.semantic-freeze/1",
-  "freezeVersion": 106,
+  "freezeVersion": 108,
   "publicSurface": {
     "rustRoots": [
       "auths",
@@ -875,7 +875,7 @@
     },
     {
       "id": "auths.product.operations",
-      "version": 1,
+      "version": 3,
       "classification": "frozen-meaning",
       "categories": [
         "privacy-safe-events",
@@ -893,7 +893,7 @@
         "product/operations/v2",
         "product/runtime/auths-runtime/src/production.rs"
       ],
-      "sha256": "8e8e59ed55f4c6f16f5d5d35c16e4fb0cd974f18cae1df78d36f3e79378a795f"
+      "sha256": "e1efbf8054f4b82568a26d9f5527efea1fde5af308209391c96eafe408aeb46b"
     },
     {
       "id": "auths.product.public-sdk-contract",
@@ -1038,7 +1038,7 @@
     },
     {
       "id": "auths.release.public-surface",
-      "version": 105,
+      "version": 107,
       "classification": "release-metadata",
       "categories": [
         "package-names",
@@ -1132,7 +1132,7 @@
         "xtask/src/release_control.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "25049683474ca2f24875fa24302c81b48135f84b7d15c57554aa71ef3a2c3d06"
+      "sha256": "407080e7e76db638a9666b5384417869531e01564fd0df971d2988947bc119e4"
     }
   ]
 }

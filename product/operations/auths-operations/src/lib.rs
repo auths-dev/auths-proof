@@ -183,6 +183,12 @@ pub const OPERATIONS_SEMANTIC_ID: &str = "auths.operations/2";
 pub struct BuildSemanticId(String);
 
 impl BuildSemanticId {
+    /// Parses one bounded build identity.
+    ///
+    /// # Errors
+    ///
+    /// Returns an invalid-label error when the identity is empty, oversized,
+    /// or contains characters outside the operational label alphabet.
     pub fn parse(value: &str) -> Result<Self, OperationalError> {
         validate_label(value)?;
         Ok(Self(value.to_owned()))
@@ -290,6 +296,38 @@ pub enum DeploymentClass {
     CustomerOperated,
 }
 
+/// Stable low-cardinality dimensions for one operational event.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct OperationalDimensions {
+    stage: OperationalStage,
+    outcome: OperationalOutcome,
+    reason: OperationalReasonCode,
+    elapsed: LatencyBucket,
+    subsystem: OperationalSubsystem,
+    deployment: DeploymentClass,
+}
+
+impl OperationalDimensions {
+    #[must_use]
+    pub const fn new(
+        stage: OperationalStage,
+        outcome: OperationalOutcome,
+        reason: OperationalReasonCode,
+        elapsed: LatencyBucket,
+        subsystem: OperationalSubsystem,
+        deployment: DeploymentClass,
+    ) -> Self {
+        Self {
+            stage,
+            outcome,
+            reason,
+            elapsed,
+            subsystem,
+            deployment,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct OperationalEventV2 {
     build: BuildSemanticId,
@@ -304,27 +342,23 @@ pub struct OperationalEventV2 {
 }
 
 impl OperationalEventV2 {
+    #[must_use]
     pub fn new(
         build: BuildSemanticId,
         profile: Option<ProfileRef>,
-        stage: OperationalStage,
-        outcome: OperationalOutcome,
-        reason: OperationalReasonCode,
-        elapsed: LatencyBucket,
-        subsystem: OperationalSubsystem,
+        dimensions: OperationalDimensions,
         saturation: Option<SaturationBucket>,
-        deployment: DeploymentClass,
     ) -> Self {
         Self {
             build,
             profile,
-            stage,
-            outcome,
-            reason,
-            elapsed,
-            subsystem,
+            stage: dimensions.stage,
+            outcome: dimensions.outcome,
+            reason: dimensions.reason,
+            elapsed: dimensions.elapsed,
+            subsystem: dimensions.subsystem,
             saturation,
-            deployment,
+            deployment: dimensions.deployment,
         }
     }
 
@@ -339,13 +373,15 @@ impl OperationalEventV2 {
         Self::new(
             BuildSemanticId("auths-runtime-1".to_owned()),
             profile,
-            stage,
-            outcome,
-            reason,
-            LatencyBucket::from_micros(elapsed_micros),
-            OperationalSubsystem::Runtime,
+            OperationalDimensions::new(
+                stage,
+                outcome,
+                reason,
+                LatencyBucket::from_micros(elapsed_micros),
+                OperationalSubsystem::Runtime,
+                DeploymentClass::CustomerOperated,
+            ),
             None,
-            DeploymentClass::CustomerOperated,
         )
     }
 
@@ -429,12 +465,7 @@ impl InMemoryMetrics {
     pub fn snapshot(&self) -> Vec<MetricSnapshotEntry> {
         self.state.lock().map_or_else(
             |_| Vec::new(),
-            |state| {
-                state
-                    .iter()
-                    .map(|(key, value)| (key.clone(), *value))
-                    .collect()
-            },
+            |state| state.iter().map(|(key, value)| (*key, *value)).collect(),
         )
     }
 }
@@ -462,6 +493,12 @@ impl EventSink for InMemoryMetrics {
 pub struct PublicWorkflowReference(String);
 
 impl PublicWorkflowReference {
+    /// Parses a bounded opaque workflow reference.
+    ///
+    /// # Errors
+    ///
+    /// Returns an invalid-reference error when the value is outside the
+    /// closed length or character bounds.
     pub fn parse(value: &str) -> Result<Self, OperationalError> {
         if !(16..=128).contains(&value.len())
             || !value
@@ -521,6 +558,12 @@ pub enum DependencyHealth {
 pub struct ReceiptDisclosureLocator(String);
 
 impl ReceiptDisclosureLocator {
+    /// Parses a bounded receipt-disclosure locator.
+    ///
+    /// # Errors
+    ///
+    /// Returns an invalid-reference error when the locator is not a valid
+    /// public workflow reference.
     pub fn parse(value: &str) -> Result<Self, OperationalError> {
         PublicWorkflowReference::parse(value)?;
         Ok(Self(value.to_owned()))
@@ -714,13 +757,15 @@ mod tests {
         let event = OperationalEventV2::new(
             BuildSemanticId::parse("build-1").unwrap(),
             None,
-            OperationalStage::Verification,
-            OperationalOutcome::Denied,
-            OperationalReasonCode::Denied,
-            LatencyBucket::UnderOneMillisecond,
-            OperationalSubsystem::Runtime,
+            OperationalDimensions::new(
+                OperationalStage::Verification,
+                OperationalOutcome::Denied,
+                OperationalReasonCode::Denied,
+                LatencyBucket::UnderOneMillisecond,
+                OperationalSubsystem::Runtime,
+                DeploymentClass::CustomerOperated,
+            ),
             None,
-            DeploymentClass::CustomerOperated,
         );
         metrics.record(&event);
         metrics.record(&event);

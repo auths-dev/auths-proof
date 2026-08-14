@@ -27,6 +27,11 @@ pub enum ExportError {
 }
 
 pub trait OtlpTransport: Send + Sync {
+    /// Exports one bounded event batch.
+    ///
+    /// # Errors
+    ///
+    /// Returns unavailable when the destination does not accept the batch.
     fn export(&self, events: &[OperationalEventV2]) -> Result<(), ExportError>;
 }
 
@@ -52,6 +57,12 @@ pub struct BoundedOtlpExporter<T> {
 }
 
 impl<T: OtlpTransport> BoundedOtlpExporter<T> {
+    /// Creates an exporter with a bounded in-memory queue.
+    ///
+    /// # Errors
+    ///
+    /// Returns invalid-configuration when capacity is zero or exceeds the
+    /// hard queue bound.
     pub fn new(
         transport: T,
         capacity: usize,
@@ -72,6 +83,11 @@ impl<T: OtlpTransport> BoundedOtlpExporter<T> {
         })
     }
 
+    /// Exports every currently buffered event as one batch.
+    ///
+    /// # Errors
+    ///
+    /// Returns unavailable when the buffer lock or destination is unavailable.
     pub fn flush(&self) -> Result<(), ExportError> {
         let batch = {
             let Ok(state) = self.state.lock() else {
@@ -293,7 +309,7 @@ const fn deployment_label(value: DeploymentClass) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use auths_operations::BuildSemanticId;
+    use auths_operations::{BuildSemanticId, OperationalDimensions};
 
     struct Unavailable;
 
@@ -307,13 +323,15 @@ mod tests {
         OperationalEventV2::new(
             BuildSemanticId::parse("build-1").unwrap(),
             None,
-            OperationalStage::ProviderResult,
-            OperationalOutcome::OutcomeUnknown,
-            OperationalReasonCode::ProviderUnknown,
-            LatencyBucket::UnderOneSecond,
-            OperationalSubsystem::Provider,
+            OperationalDimensions::new(
+                OperationalStage::ProviderResult,
+                OperationalOutcome::OutcomeUnknown,
+                OperationalReasonCode::ProviderUnknown,
+                LatencyBucket::UnderOneSecond,
+                OperationalSubsystem::Provider,
+                DeploymentClass::CustomerOperated,
+            ),
             None,
-            DeploymentClass::CustomerOperated,
         )
     }
 
