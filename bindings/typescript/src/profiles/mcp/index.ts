@@ -227,6 +227,23 @@ export interface McpReceiptSink {
   persist(executionId: string, receiptJson: Uint8Array): Promise<void>;
 }
 
+export type McpExecutionCheckpointStage =
+  | "before-verification"
+  | "after-verification"
+  | "after-reservation"
+  | "before-provider-transmission"
+  | "after-provider-transmission"
+  | "before-receipt-persistence";
+
+export interface McpExecutionCheckpointEvent {
+  readonly stage: McpExecutionCheckpointStage;
+  readonly executionId?: string;
+}
+
+export interface McpExecutionObserver {
+  checkpoint(event: McpExecutionCheckpointEvent): Promise<void>;
+}
+
 export interface McpExecutionResources {
   readonly provider: McpClosedProvider;
   readonly state: McpExecutionState;
@@ -235,6 +252,7 @@ export interface McpExecutionResources {
   readonly sessionKey: Uint8Array;
   readonly signal?: AbortSignal;
   readonly requestId?: string;
+  readonly observer?: McpExecutionObserver;
 }
 
 export interface McpAttestedReceipt {
@@ -645,6 +663,7 @@ export async function executeMcpClosed(
   action: McpAction,
   resources: McpExecutionResources,
 ): Promise<Exclude<AuthorizationResult<McpCommand>, { readonly kind: "authorized" }> | McpClosedResult> {
+  await observeCheckpoint(resources, "before-verification");
   const sessionKey = boundedSessionKey(resources.sessionKey);
   let artifacts: VerifiedArtifactView | undefined;
   const authorization = await authorizeMcp(agent, actionResources.get(action)?.profile ?? invalidProfile(), action, undefined, (value) => {
@@ -658,6 +677,7 @@ export async function executeMcpClosed(
   if (artifacts === undefined) {
     throw new AuthsWorkflowError("gateway-failed", "native MCP authorization omitted execution artifacts");
   }
+  await observeCheckpoint(resources, "after-verification");
   const engine = engineForClient(resourcesForAttachedAgent(agent).client);
   const decisionReceipt = await attestAuthorizedDecision(engine, artifacts, resources.attestor);
   const session = engine.beginMcpExecutionV1(
@@ -819,9 +839,14 @@ async function driveMcpSession(
       if (terminal !== null) return projectTerminal(terminal, resources.state, receipt);
       const step = session.nextStep();
       switch (step.kind) {
-        case "reserve":
-          session.acceptReservation(await resources.state.reserve(step.executionId, recoveryCheckpoint(session)));
+        case "reserve": {
+          const reservation = await resources.state.reserve(step.executionId, recoveryCheckpoint(session));
+          if (reservation === "acquired") {
+            await observeCheckpoint(resources, "after-reservation", step.executionId);
+          }
+          session.acceptReservation(reservation);
           break;
+        }
         case "mark-provider-entry":
           if (signal.aborted) {
             session.cancelBeforeProvider();
@@ -831,7 +856,7 @@ async function driveMcpSession(
           session.acceptProviderEntry();
           break;
         case "invoke":
-          await invokeMcpHandler(session, step, resources.provider, signal);
+          await invokeMcpHandler(session, step, resources, signal);
           break;
         case "persist-receipt":
           try {
@@ -853,6 +878,7 @@ async function driveMcpSession(
               decision: attestedReceipt(decisionReceipt),
               execution: attestedReceipt(execution),
             });
+            await observeCheckpoint(resources, "before-receipt-persistence", step.executionId);
             await resources.receipts.persist(step.executionId, execution.bytes);
             session.acceptReceipt(true);
           } catch {
@@ -874,7 +900,7 @@ async function driveMcpSession(
 async function invokeMcpHandler(
   session: WorkflowMcpExecutionSession,
   step: Readonly<{ readonly executionId: string; readonly service?: string; readonly tool?: string; readonly bytes?: Uint8Array }>,
-  provider: McpClosedProvider,
+  resources: Omit<McpExecutionResources, "requestId">,
   signal: AbortSignal,
 ): Promise<void> {
   const service = requiredString(step.service);
@@ -888,18 +914,30 @@ async function invokeMcpHandler(
     session.acceptHandler("possible", undefined, "invalid-output");
     return;
   }
+  await observeCheckpoint(resources, "before-provider-transmission", step.executionId);
+  let observed: unknown;
   try {
-    const observed = await provider.invoke(
+    observed = await resources.provider.invoke(
       service,
       tool,
       argumentsValue,
       Object.freeze({ executionId: step.executionId, service, tool }),
       signal,
     );
-    acceptMcpObservation(session, observed);
   } catch (error) {
     session.acceptHandler("possible", undefined, profileCause(error));
+    return;
   }
+  await observeCheckpoint(resources, "after-provider-transmission", step.executionId);
+  acceptMcpObservation(session, observed);
+}
+
+async function observeCheckpoint(
+  resources: Pick<McpExecutionResources, "observer">,
+  stage: McpExecutionCheckpointStage,
+  executionId?: string,
+): Promise<void> {
+  await resources.observer?.checkpoint(Object.freeze({ stage, ...(executionId === undefined ? {} : { executionId }) }));
 }
 
 async function reconcileMcpHandler(

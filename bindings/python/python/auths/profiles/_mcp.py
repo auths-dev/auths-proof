@@ -585,6 +585,26 @@ class McpReceiptSink(Protocol):
     async def persist(self, execution_id: str, receipt_json: bytes) -> None: ...
 
 
+McpExecutionCheckpointStage = Literal[
+    "before-verification",
+    "after-verification",
+    "after-reservation",
+    "before-provider-transmission",
+    "after-provider-transmission",
+    "before-receipt-persistence",
+]
+
+
+@dataclass(frozen=True)
+class McpExecutionCheckpointEvent:
+    stage: McpExecutionCheckpointStage
+    execution_id: Optional[str] = None
+
+
+class McpExecutionObserver(Protocol):
+    async def checkpoint(self, event: McpExecutionCheckpointEvent) -> None: ...
+
+
 @dataclass(frozen=True)
 class McpExecutionResources:
     provider: McpClosedProvider
@@ -593,6 +613,7 @@ class McpExecutionResources:
     attestor: ReceiptAttestor
     session_key: bytes
     request_id: Optional[str] = None
+    observer: Optional[McpExecutionObserver] = None
 
     def __post_init__(self) -> None:
         key = bytes(self.session_key)
@@ -1025,9 +1046,11 @@ async def execute_mcp_closed(
     resources: McpExecutionResources,
     request: Optional[AuthorizationRequest] = None,
 ) -> Union[McpDenied, McpIndeterminate, McpClosedResult]:
+    await _observe_checkpoint(resources, "before-verification")
     authorization = await _authorize_mcp(agent, action, request)
     if not isinstance(authorization, McpAuthorized):
         return authorization
+    await _observe_checkpoint(resources, "after-verification")
     signer = resources.attestor.signer
     decision_preparation = native.prepare_mcp_command_decision_receipt_v1(
         authorization.command,
@@ -1180,11 +1203,14 @@ async def _drive_mcp_session(
             return await _project_terminal(terminal, resources.state, receipt)
         step = session.next_step()
         if step.kind == "reserve":
-            session.accept_reservation(
-                await resources.state.reserve(
-                    step.execution_id, _recovery_checkpoint(session)
-                )
+            reservation = await resources.state.reserve(
+                step.execution_id, _recovery_checkpoint(session)
             )
+            if reservation == "acquired":
+                await _observe_checkpoint(
+                    resources, "after-reservation", step.execution_id
+                )
+            session.accept_reservation(reservation)
         elif step.kind == "mark-provider-entry":
             try:
                 await resources.state.mark_provider_entry(
@@ -1195,7 +1221,7 @@ async def _drive_mcp_session(
             else:
                 session.accept_provider_entry()
         elif step.kind == "invoke":
-            await _invoke_mcp_handler(session, step, resources.provider)
+            await _invoke_mcp_handler(session, step, resources)
         elif step.kind == "persist-receipt":
             try:
                 signer = resources.attestor.signer
@@ -1217,6 +1243,9 @@ async def _drive_mcp_session(
                     preparation, resources.attestor
                 )
                 receipt = McpAttestedReceipt(decision_receipt, execution_receipt)
+                await _observe_checkpoint(
+                    resources, "before-receipt-persistence", step.execution_id
+                )
                 await resources.receipts.persist(
                     step.execution_id, execution_receipt.bytes
                 )
@@ -1241,7 +1270,7 @@ async def _drive_mcp_session(
 async def _invoke_mcp_handler(
     session: native.McpExecutionSession,
     step: native.McpSessionStep,
-    provider: McpClosedProvider,
+    resources: McpExecutionResources,
 ) -> None:
     service = _required_string(step.service)
     tool = _required_string(step.tool)
@@ -1253,18 +1282,37 @@ async def _invoke_mcp_handler(
     except (TypeError, ValueError, json.JSONDecodeError):
         session.accept_handler("possible", None, "invalid-output")
         return
+    await _observe_checkpoint(
+        resources, "before-provider-transmission", step.execution_id
+    )
     try:
-        observed = await provider.invoke(
+        observed = await resources.provider.invoke(
             service,
             tool,
             arguments,
             McpToolContext(step.execution_id, service, tool),
         )
-        _accept_mcp_observation(session, observed)
     except asyncio.CancelledError:
         session.accept_handler("possible", None, "cancelled")
+        return
     except Exception as error:
         session.accept_handler("possible", None, _profile_cause(error))
+        return
+    await _observe_checkpoint(
+        resources, "after-provider-transmission", step.execution_id
+    )
+    _accept_mcp_observation(session, observed)
+
+
+async def _observe_checkpoint(
+    resources: McpExecutionResources,
+    stage: McpExecutionCheckpointStage,
+    execution_id: Optional[str] = None,
+) -> None:
+    if resources.observer is not None:
+        await resources.observer.checkpoint(
+            McpExecutionCheckpointEvent(stage, execution_id)
+        )
 
 
 async def _reconcile_mcp_handler(
@@ -1588,6 +1636,9 @@ __all__ = [
     "McpClosedResult",
     "McpCompleted",
     "McpExecutionResources",
+    "McpExecutionCheckpointEvent",
+    "McpExecutionCheckpointStage",
+    "McpExecutionObserver",
     "McpExecutionStore",
     "McpHandlerOutcome",
     "McpIndeterminate",

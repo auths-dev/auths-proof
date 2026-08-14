@@ -42,6 +42,49 @@ test("development composition executes exact authority and rejects broader tools
   }
 });
 
+test("development observer exposes bounded execution checkpoints in order", async () => {
+  const checkpoints = [];
+  const auths = await development.createAuths({
+    authority: mcp.allowTools(["publish_report"]),
+    observer: { async checkpoint(event) { checkpoints.push(event); } },
+  });
+  const provider = mcp.developmentProvider({
+    tools: { async publish_report() { return { published: true }; } },
+  });
+  try {
+    const result = await auths.execute({
+      action: mcp.callTool({ name: "publish_report", arguments: { name: "weekly" } }),
+      provider,
+      requestId: "observed-weekly-32",
+    });
+    assert.equal(result.kind, "completed");
+    assert.deepEqual(checkpoints.map((event) => event.stage), [
+      "before-verification",
+      "after-verification",
+      "after-reservation",
+      "before-provider-transmission",
+      "after-provider-transmission",
+      "before-receipt-persistence",
+    ]);
+    assert.equal(checkpoints[0].executionId, undefined);
+    assert.equal(checkpoints[1].executionId, undefined);
+    assert.ok(checkpoints.slice(2).every((event) => event.executionId === result.executionId));
+  } finally {
+    await auths.close();
+    await provider.close();
+  }
+});
+
+test("development composition rejects an invalid execution observer before opening resources", async () => {
+  await assert.rejects(
+    development.createAuths({
+      authority: mcp.allowTools(["publish_report"]),
+      observer: {},
+    }),
+    /invalid MCP execution observer/,
+  );
+});
+
 test("recoverable development state resumes reconciliation without provider re-entry", async () => {
   const directory = await mkdtemp(join(tmpdir(), "auths-recovery-"));
   const authority = mcp.allowTools(["publish_report"]);
@@ -205,7 +248,9 @@ test("recoverable development state rejects corrupted recovery records", async (
 async function waitForProviderCheckpoint(directory) {
   const deadline = Date.now() + 20_000;
   while (Date.now() < deadline) {
-    const executions = (await readdir(directory)).filter((name) => name.startsWith("execution-"));
+    const executions = (await readdir(directory)).filter(
+      (name) => name.startsWith("execution-") && name.endsWith(".json"),
+    );
     for (const name of executions) {
       const record = JSON.parse(await readFile(join(directory, name), "utf8"));
       if (record.stage === "provider") return;

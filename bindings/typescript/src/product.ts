@@ -9,6 +9,7 @@ import {
   type McpAction,
   type McpClosedProvider,
   type McpExecutionState,
+  type McpExecutionObserver,
   type McpReceiptSink,
   type McpAttestedReceipt,
   type McpToolAuthority,
@@ -168,6 +169,7 @@ export interface AuthsResources {
   readonly receiptAttestor: ApplicationReceiptAttestor;
   readonly sessionKey: Uint8Array;
   readonly childSigner: () => Promise<Signer>;
+  readonly observer?: McpExecutionObserver;
   readonly dispose: () => Promise<void>;
 }
 
@@ -210,6 +212,7 @@ class AuthsFacade implements Auths {
       receipts: this.#resources.receipts,
       attestor: this.#resources.receiptAttestor,
       sessionKey: this.#resources.sessionKey,
+      ...(this.#resources.observer === undefined ? {} : { observer: this.#resources.observer }),
       ...(input.requestId === undefined ? {} : { requestId: input.requestId }),
     };
     if (input.action !== undefined && input.plan === undefined) {
@@ -238,6 +241,7 @@ class AuthsFacade implements Auths {
         receipts: this.#resources.receipts,
         attestor: this.#resources.receiptAttestor,
         sessionKey: this.#resources.sessionKey,
+        ...(this.#resources.observer === undefined ? {} : { observer: this.#resources.observer }),
       },
     ));
   }
@@ -258,6 +262,7 @@ class AuthsFacade implements Auths {
         receipts: this.#resources.receipts,
         attestor: this.#resources.receiptAttestor,
         sessionKey: this.#resources.sessionKey,
+        ...(this.#resources.observer === undefined ? {} : { observer: this.#resources.observer }),
         ...(input.requestId === undefined ? {} : { requestId: input.requestId }),
       },
     ));

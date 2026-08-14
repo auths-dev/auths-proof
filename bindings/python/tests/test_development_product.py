@@ -6,9 +6,16 @@ import json
 import multiprocessing
 import time
 from pathlib import Path
+from typing import cast
 
+from auths import Completed
 from auths.integrations import development
-from auths.profiles import McpHandlerOutcome, mcp
+from auths.profiles import (
+    McpExecutionCheckpointEvent,
+    McpExecutionObserver,
+    McpHandlerOutcome,
+    mcp,
+)
 
 
 def test_development_composition_executes_and_denies_before_io() -> None:
@@ -31,7 +38,7 @@ def test_development_composition_executes_and_denies_before_io() -> None:
                 provider=provider,
                 request_id="weekly-32",
             )
-            assert result.kind == "completed"
+            assert isinstance(result, Completed)
             denied = await auths.execute(
                 action=mcp.call_tool(
                     name="delete_report", arguments={"name": "weekly"}
@@ -43,6 +50,58 @@ def test_development_composition_executes_and_denies_before_io() -> None:
 
     asyncio.run(scenario())
     assert calls == 1
+
+
+def test_development_observer_exposes_bounded_execution_checkpoints_in_order() -> None:
+    checkpoints: list[McpExecutionCheckpointEvent] = []
+
+    class Observer:
+        async def checkpoint(self, event: McpExecutionCheckpointEvent) -> None:
+            checkpoints.append(event)
+
+    async def publish(arguments, context):
+        return {"published": True}
+
+    async def scenario() -> None:
+        async with development.create_auths(
+            authority=mcp.allow_tools(["publish_report"]),
+            observer=Observer(),
+        ) as auths:
+            result = await auths.execute(
+                action=mcp.call_tool(
+                    name="publish_report", arguments={"name": "weekly"}
+                ),
+                provider=mcp.development_provider(tools={"publish_report": publish}),
+                request_id="observed-weekly-32",
+            )
+            assert isinstance(result, Completed)
+            assert [item.stage for item in checkpoints] == [
+                "before-verification",
+                "after-verification",
+                "after-reservation",
+                "before-provider-transmission",
+                "after-provider-transmission",
+                "before-receipt-persistence",
+            ]
+            assert checkpoints[0].execution_id is None
+            assert checkpoints[1].execution_id is None
+            assert all(
+                item.execution_id == result.execution_id for item in checkpoints[2:]
+            )
+
+    asyncio.run(scenario())
+
+
+def test_development_composition_rejects_invalid_execution_observer() -> None:
+    try:
+        development.create_auths(
+            authority=mcp.allow_tools(["publish_report"]),
+            observer=cast(McpExecutionObserver, object()),
+        )
+    except TypeError as error:
+        assert "invalid MCP execution observer" in str(error)
+    else:
+        raise AssertionError("invalid observer was accepted")
 
 
 def test_recoverable_development_state_reconciles_without_reentry(

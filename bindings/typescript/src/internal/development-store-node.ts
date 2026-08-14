@@ -40,7 +40,7 @@ export async function openRecoverableDevelopmentResources(directory: string): Pr
   return Object.freeze({ resources: new FileMcpResources(root), sessionKey, authorityNotBefore });
 }
 
-async function publishNewFile(path: string, value: string): Promise<boolean> {
+async function publishNewFile(path: string, value: string | Uint8Array): Promise<boolean> {
   const temporary = `${path}.${crypto.randomUUID()}.tmp`;
   try {
     const handle = await open(temporary, "wx", 0o600);
@@ -74,21 +74,10 @@ class FileMcpResources implements McpExecutionState, McpReceiptSink {
     assertRecovery(executionId, recovery);
     await this.#writeRecovery(recovery);
     const path = this.#path("execution", executionId);
-    try {
-      const handle = await open(path, "wx", 0o600);
-      try {
-        await handle.writeFile(executionRecord("reserved", recovery.reference));
-        await handle.sync();
-      } finally {
-        await handle.close();
-      }
-      await syncDirectory(this.#root);
-      return "acquired";
-    } catch (error) {
-      if (!isExists(error)) throw error;
-      parseExecutionRecord(await readFile(path, "utf8"));
-      return "exact-replay";
-    }
+    const acquired = await publishNewFile(path, executionRecord("reserved", recovery.reference));
+    if (acquired) return "acquired";
+    parseExecutionRecord(await readFile(path, "utf8"));
+    return "exact-replay";
   }
 
   async markProviderEntry(executionId: string, recovery: McpRecoveryCheckpoint): Promise<void> {

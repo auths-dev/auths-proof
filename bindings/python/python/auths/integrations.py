@@ -35,6 +35,7 @@ from ._product import (
 from ._bootstrap import prepare_raw_key_authority
 from .profiles._mcp import (
     McpExecutionStore,
+    McpExecutionObserver,
     McpRecoveryCheckpoint,
     McpReceiptSink,
     McpToolAuthority,
@@ -330,6 +331,7 @@ class _Development:
         *,
         authority: McpToolAuthority,
         approval: Optional[ApprovalConfiguration] = None,
+        observer: Optional[McpExecutionObserver] = None,
     ) -> _PendingAuths:
         resources = _MemoryMcpResources()
         return _PendingAuths(
@@ -340,6 +342,7 @@ class _Development:
                 secrets.token_bytes(32),
                 _DEVELOPMENT_DIAGNOSTICS,
                 approval,
+                observer,
             )
         )
 
@@ -349,6 +352,7 @@ class _Development:
         directory: Path,
         authority: McpToolAuthority,
         approval: Optional[ApprovalConfiguration] = None,
+        observer: Optional[McpExecutionObserver] = None,
     ) -> _PendingAuths:
         root = Path(directory)
         if not root.is_absolute():
@@ -372,6 +376,7 @@ class _Development:
                 key,
                 diagnostics,
                 approval,
+                observer,
                 authority_not_before,
             )
         )
@@ -395,9 +400,11 @@ def _development_configuration(
     session_key: bytes,
     diagnostics: tuple[str, ...],
     configured_approval: Optional[ApprovalConfiguration],
+    observer: Optional[McpExecutionObserver],
     authority_not_before: Optional[int] = None,
 ) -> AuthsConfiguration:
     profile, permissions, namespaces, audiences = resources_for_mcp_authority(authority)
+    observer = _development_observer(observer)
     opened = False
     child_index = 0
 
@@ -470,6 +477,7 @@ def _development_configuration(
                 bytes(session_key),
                 child_signer,
                 dispose,
+                observer,
             )
         except BaseException:
             await root_signer.aclose()
@@ -481,6 +489,16 @@ def _development_configuration(
             raise
 
     return _create_auths_configuration("development", diagnostics, open_resources)
+
+
+def _development_observer(
+    value: Optional[McpExecutionObserver],
+) -> Optional[McpExecutionObserver]:
+    if value is None:
+        return None
+    if not callable(getattr(value, "checkpoint", None)):
+        raise TypeError("invalid MCP execution observer")
+    return value
 
 
 def _development_seed(session_key: bytes, role: str) -> bytes:
