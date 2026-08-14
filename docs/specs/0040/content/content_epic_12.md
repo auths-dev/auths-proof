@@ -9,21 +9,21 @@ success and one fail-closed outcome, and knows where to continue.
 
 ## Implementation
 
-- [ ] Build the Get started tree exactly as declared in
+- [x] Build the Get started tree exactly as declared in
   `PROPOSED_SITE_HIERARCHY.md`.
-- [ ] Move all seven quickstarts beneath `/get-started/quickstarts` and render
+- [x] Move all seven quickstarts beneath `/get-started/quickstarts` and render
   them inside the Get started topic shell.
-- [ ] Replace `/guides/protect-rest-effect`, `/start/delegate-agent`, and
+- [x] Replace `/guides/protect-rest-effect`, `/start/delegate-agent`, and
   `/start/verify-receipt` with canonical quickstarts or path pages.
-- [ ] Add a quickstart index comparing time, runtime, effect boundary, required
+- [x] Add a quickstart index comparing time, runtime, effect boundary, required
   state, custody, success, and failure.
-- [ ] Make every path page select a concrete quickstart rather than restating
+- [x] Make every path page select a concrete quickstart rather than restating
   concepts without code.
-- [ ] Rebuild cross-company as an end-to-end journey with identity, authority,
+- [x] Rebuild cross-company as an end-to-end journey with identity, authority,
   approval, runtime, outcome, and receipt boundaries.
-- [ ] Move all adoption pages under `/get-started/adoption`, add phase
+- [x] Move all adoption pages under `/get-started/adoption`, add phase
   navigation, and link tested interop/field-lab evidence.
-- [ ] Preserve global Rust/TypeScript/Python selection across every executable
+- [x] Preserve global Rust/TypeScript/Python selection across every executable
   step.
 
 ## Acceptance
@@ -32,4 +32,3 @@ success and one fail-closed outcome, and knows where to continue.
 - Every promised quickstart opens an actual runnable project.
 - Every executable journey shows success and its required stable failure.
 - A first-time reader can complete one path without leaving Get started.
-
