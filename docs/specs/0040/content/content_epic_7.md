@@ -92,20 +92,20 @@ time. Every expansion requires new fixtures and operational evidence.
 
 ## Implementation steps
 
-- [ ] Author a privacy-safe adoption inventory form against P9's registered
+- [x] Author a privacy-safe adoption inventory form against P9's registered
   schema.
-- [ ] Author the adoption chooser and phased planning guide.
-- [ ] Build the nine source-system composition guides with ownership matrices.
-- [ ] Select shadow comparison fixtures from the interoperability repository and
+- [x] Author the adoption chooser and phased planning guide.
+- [x] Build the nine source-system composition guides with ownership matrices.
+- [x] Select shadow comparison fixtures from the interoperability repository and
   record missing fixtures as platform dependencies.
-- [ ] Explain generated bounded comparison and migration receipts without
+- [x] Explain generated bounded comparison and migration receipts without
   copying secrets or raw business payloads.
-- [ ] Link one qualified end-to-end cutover/rollback field lab; do not reproduce
+- [x] Link one qualified end-to-end cutover/rollback field lab; do not reproduce
   its commands or results in MDX.
-- [ ] Document key rotation and trust-root changes without requiring identity
+- [x] Document key rotation and trust-root changes without requiring identity
   migration.
-- [ ] Add mapping-output review and reconciliation procedures.
-- [ ] Link every competitive claim to the evidence-based research repository.
+- [x] Add mapping-output review and reconciliation procedures.
+- [x] Link every competitive claim to the evidence-based research repository.
 
 ## Acceptance criteria
 
