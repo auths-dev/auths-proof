@@ -30,7 +30,7 @@ runtime_instances = 3
 [lifecycle_store]
 family = "postgresql-v1"
 tls = "required"
-schema = "auths.lifecycle.postgresql/1"
+schema = "auths.lifecycle.postgresql/2"
 secret_slot = "AUTHS_POSTGRES_URL"
 
 [[custody]]

@@ -1635,6 +1635,21 @@
     {
       "source": "auths-config",
       "source_layer": "product",
+      "target": "serde_json",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "preserve_order"
+      ]
+    },
+    {
+      "source": "auths-config",
+      "source_layer": "product",
       "target": "sha2",
       "target_layer": null,
       "scope": "external",
@@ -10455,6 +10470,61 @@
     {
       "source": "auths-stores",
       "source_layer": "product",
+      "target": "r2d2",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-stores",
+      "source_layer": "product",
+      "target": "r2d2_postgres",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-stores",
+      "source_layer": "product",
+      "target": "rustls",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "ring",
+        "std",
+        "tls12"
+      ]
+    },
+    {
+      "source": "auths-stores",
+      "source_layer": "product",
+      "target": "rustls-pki-types",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "std"
+      ]
+    },
+    {
+      "source": "auths-stores",
+      "source_layer": "product",
       "target": "sha2",
       "target_layer": null,
       "scope": "external",
@@ -10475,6 +10545,20 @@
       "optional": false,
       "default_features": true,
       "features": []
+    },
+    {
+      "source": "auths-stores",
+      "source_layer": "product",
+      "target": "tokio-postgres-rustls",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "ring"
+      ]
     },
     {
       "source": "auths-stripe",
@@ -13960,6 +14044,18 @@
       "features": [
         "std"
       ]
+    },
+    {
+      "source": "xtask",
+      "source_layer": "tooling",
+      "target": "auths-config",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
     },
     {
       "source": "xtask",

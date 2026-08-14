@@ -217,6 +217,8 @@ hmac = "0.12.1"
 iroh = { version = "1.0.3", default-features = false, features = ["tls-ring"] }
 reqwest = { version = "0.13.4", default-features = false, features = ["blocking", "rustls"] }
 postgres = { version = "0.19.12", default-features = false }
+r2d2 = "0.8.10"
+r2d2_postgres = "0.18.2"
 rustls = { version = "0.23.42", default-features = false, features = ["ring", "std", "tls12"] }
 rmcp = { version = "1.8.0", default-features = false, features = ["server"] }
 serde_json_canonicalizer = "0.3.2"

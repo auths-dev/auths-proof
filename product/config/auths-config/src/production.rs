@@ -337,116 +337,16 @@ impl ProductionCandidateInput {
             "lifecycle_store.secret_slot",
             &self.lifecycle_store.secret_slot,
         )?;
-        validate_count("custody", self.custody.len(), 1, MAX_CUSTODY_ADAPTERS)?;
-        let mut custody_families = BTreeSet::new();
-        let mut custody = self
-            .custody
-            .into_iter()
-            .map(|adapter| {
-                if !custody_families.insert(adapter.family) {
-                    return Err(ProductionConfigError::duplicate("custody.family"));
-                }
-                validate_secret_slot("custody.secret_slot", &adapter.secret_slot)?;
-                Ok(CanonicalCustody {
-                    family: adapter.family,
-                    secret_slot: adapter.secret_slot,
-                })
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        custody.sort_by_key(|adapter| adapter.family);
-
-        validate_count("profiles", self.profiles.len(), 3, MAX_PRODUCTION_PROFILES)?;
-        let mut profile_ids = BTreeSet::new();
-        let mut profiles = self
-            .profiles
-            .into_iter()
-            .map(|profile| {
-                if !profile_ids.insert(profile.id) {
-                    return Err(ProductionConfigError::duplicate("profiles.id"));
-                }
-                let expected = profile.id.expected();
-                validate_exact("profiles.package", &profile.package, expected.package)?;
-                validate_exact(
-                    "profiles.provider_contract",
-                    &profile.provider_contract,
-                    expected.provider_contract,
-                )?;
-                validate_exact(
-                    "profiles.receipt_schema",
-                    &profile.receipt_schema,
-                    expected.receipt_schema,
-                )?;
-                validate_exact(
-                    "profiles.fixture_suite",
-                    &profile.fixture_suite,
-                    expected.fixture_suite,
-                )?;
-                Ok(CanonicalProfile {
-                    id: profile.id,
-                    package: profile.package,
-                    provider_contract: profile.provider_contract,
-                    receipt_schema: profile.receipt_schema,
-                    fixture_suite: profile.fixture_suite,
-                })
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        profiles.sort_by_key(|profile| profile.id);
-        let required_profiles = BTreeSet::from([
-            ProductionProfileId::OpentofuSavedPlanApplyV1,
-            ProductionProfileId::PostgresqlBoundedUpdateV1,
-            ProductionProfileId::GithubIssueAddressV1,
-        ]);
-        if profile_ids != required_profiles {
-            return Err(ProductionConfigError::invalid(
-                "profiles",
-                "configure exactly the three qualified open production profiles",
-            ));
-        }
-
-        validate_count("sdks.artifacts", self.sdks.artifacts.len(), 3, 3)?;
-        let mut languages = BTreeSet::new();
-        let mut sdks = self
-            .sdks
-            .artifacts
-            .into_iter()
-            .map(|sdk| {
-                if !languages.insert(sdk.language) {
-                    return Err(ProductionConfigError::duplicate("sdks.language"));
-                }
-                validate_identifier("sdks.package", &sdk.package)?;
-                validate_version("sdks.version", &sdk.version)?;
-                validate_path("sdks.abi", &sdk.abi)?;
-                validate_path("sdks.public_api_snapshot", &sdk.public_api_snapshot)?;
-                Ok(CanonicalSdk {
-                    language: sdk.language,
-                    package: sdk.package,
-                    version: sdk.version,
-                    abi: sdk.abi,
-                    public_api_snapshot: sdk.public_api_snapshot,
-                })
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        if languages
-            != BTreeSet::from([
-                SdkLanguage::Rust,
-                SdkLanguage::Typescript,
-                SdkLanguage::Python,
-            ])
-        {
-            return Err(ProductionConfigError::new(
-                ProductionConfigErrorCode::MissingParity,
-                "sdks.artifacts",
-                "include Rust, TypeScript, and Python artifacts",
-            ));
-        }
-        sdks.sort_by_key(|sdk| sdk.language);
+        let custody = compile_custody(self.custody)?;
+        let profiles = compile_profiles(self.profiles)?;
+        let sdks = compile_sdks(self.sdks.artifacts)?;
 
         validate_objectives(&self.operations)?;
         let evidence = unique_complete(
             "evidence",
-            self.evidence,
+            &self.evidence,
             MAX_EVIDENCE_REQUIREMENTS,
-            BTreeSet::from([
+            &BTreeSet::from([
                 EvidenceRequirement::MultiHostStore,
                 EvidenceRequirement::RuntimeRecovery,
                 EvidenceRequirement::CustodyConformance,
@@ -460,9 +360,9 @@ impl ProductionCandidateInput {
         )?;
         let exclusions = unique_complete(
             "exclusions",
-            self.exclusions,
+            &self.exclusions,
             MAX_EXCLUSIONS,
-            BTreeSet::from([
+            &BTreeSet::from([
                 ProductionExclusion::HostedControlPlane,
                 ProductionExclusion::GenericExecutor,
                 ProductionExclusion::ArbitraryProviderRequest,
@@ -813,18 +713,132 @@ fn validate_objectives(
     Ok(())
 }
 
+fn compile_custody(
+    adapters: Vec<CustodyAdapterInput>,
+) -> Result<Vec<CanonicalCustody>, ProductionConfigError> {
+    validate_count("custody", adapters.len(), 1, MAX_CUSTODY_ADAPTERS)?;
+    let mut families = BTreeSet::new();
+    let mut custody = adapters
+        .into_iter()
+        .map(|adapter| {
+            if !families.insert(adapter.family) {
+                return Err(ProductionConfigError::duplicate("custody.family"));
+            }
+            validate_secret_slot("custody.secret_slot", &adapter.secret_slot)?;
+            Ok(CanonicalCustody {
+                family: adapter.family,
+                secret_slot: adapter.secret_slot,
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    custody.sort_by_key(|adapter| adapter.family);
+    Ok(custody)
+}
+
+fn compile_profiles(
+    values: Vec<ProductionProfileInput>,
+) -> Result<Vec<CanonicalProfile>, ProductionConfigError> {
+    validate_count("profiles", values.len(), 3, MAX_PRODUCTION_PROFILES)?;
+    let mut ids = BTreeSet::new();
+    let mut profiles = values
+        .into_iter()
+        .map(|profile| {
+            if !ids.insert(profile.id) {
+                return Err(ProductionConfigError::duplicate("profiles.id"));
+            }
+            let expected = profile.id.expected();
+            validate_exact("profiles.package", &profile.package, expected.package)?;
+            validate_exact(
+                "profiles.provider_contract",
+                &profile.provider_contract,
+                expected.provider_contract,
+            )?;
+            validate_exact(
+                "profiles.receipt_schema",
+                &profile.receipt_schema,
+                expected.receipt_schema,
+            )?;
+            validate_exact(
+                "profiles.fixture_suite",
+                &profile.fixture_suite,
+                expected.fixture_suite,
+            )?;
+            Ok(CanonicalProfile {
+                id: profile.id,
+                package: profile.package,
+                provider_contract: profile.provider_contract,
+                receipt_schema: profile.receipt_schema,
+                fixture_suite: profile.fixture_suite,
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    if ids
+        != BTreeSet::from([
+            ProductionProfileId::OpentofuSavedPlanApplyV1,
+            ProductionProfileId::PostgresqlBoundedUpdateV1,
+            ProductionProfileId::GithubIssueAddressV1,
+        ])
+    {
+        return Err(ProductionConfigError::invalid(
+            "profiles",
+            "configure exactly the three qualified open production profiles",
+        ));
+    }
+    profiles.sort_by_key(|profile| profile.id);
+    Ok(profiles)
+}
+
+fn compile_sdks(values: Vec<SdkArtifactInput>) -> Result<Vec<CanonicalSdk>, ProductionConfigError> {
+    validate_count("sdks.artifacts", values.len(), 3, 3)?;
+    let mut languages = BTreeSet::new();
+    let mut sdks = values
+        .into_iter()
+        .map(|sdk| {
+            if !languages.insert(sdk.language) {
+                return Err(ProductionConfigError::duplicate("sdks.language"));
+            }
+            validate_identifier("sdks.package", &sdk.package)?;
+            validate_version("sdks.version", &sdk.version)?;
+            validate_path("sdks.abi", &sdk.abi)?;
+            validate_path("sdks.public_api_snapshot", &sdk.public_api_snapshot)?;
+            Ok(CanonicalSdk {
+                language: sdk.language,
+                package: sdk.package,
+                version: sdk.version,
+                abi: sdk.abi,
+                public_api_snapshot: sdk.public_api_snapshot,
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    if languages
+        != BTreeSet::from([
+            SdkLanguage::Rust,
+            SdkLanguage::Typescript,
+            SdkLanguage::Python,
+        ])
+    {
+        return Err(ProductionConfigError::new(
+            ProductionConfigErrorCode::MissingParity,
+            "sdks.artifacts",
+            "include Rust, TypeScript, and Python artifacts",
+        ));
+    }
+    sdks.sort_by_key(|sdk| sdk.language);
+    Ok(sdks)
+}
+
 fn unique_complete<T: Copy + Ord>(
     field: &'static str,
-    values: Vec<T>,
+    values: &[T],
     maximum: usize,
-    required: BTreeSet<T>,
+    required: &BTreeSet<T>,
 ) -> Result<Vec<T>, ProductionConfigError> {
     validate_count(field, values.len(), required.len(), maximum)?;
     let actual = values.iter().copied().collect::<BTreeSet<_>>();
     if actual.len() != values.len() {
         return Err(ProductionConfigError::duplicate(field));
     }
-    if actual != required {
+    if &actual != required {
         return Err(ProductionConfigError::invalid(
             field,
             "include exactly the required closed values",

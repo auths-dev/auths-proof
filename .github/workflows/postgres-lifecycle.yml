@@ -1,0 +1,35 @@
+name: PostgreSQL lifecycle qualification
+
+on:
+  pull_request:
+    paths:
+      - "product/runtime/auths-lifecycle/**"
+      - "product/stores/auths-stores/**"
+      - ".github/workflows/postgres-lifecycle.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tls-multi-host:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust-cache
+        with:
+          toolchain: 1.97.1
+      - name: Start TLS PostgreSQL
+        run: docker compose -f product/stores/auths-stores/tests/postgres_tls/compose.yaml up -d --wait
+      - name: Run multi-host lifecycle evidence
+        env:
+          AUTHS_POSTGRES_URL: host=localhost port=55438 dbname=auths_lifecycle user=auths password=local-fixture-password sslmode=require
+          AUTHS_POSTGRES_CA_PEM: ${{ github.workspace }}/product/stores/auths-stores/tests/postgres_tls/generated/ca.crt
+          AUTHS_POSTGRES_SERVER_NAME: localhost
+        run: cargo test -p auths-stores --test postgres_lifecycle -- --ignored
+      - name: Stop fixture
+        if: always()
+        run: docker compose -f product/stores/auths-stores/tests/postgres_tls/compose.yaml down -v

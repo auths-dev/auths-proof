@@ -1,6 +1,6 @@
 {
   "schema": "auths.semantic-freeze/1",
-  "freezeVersion": 85,
+  "freezeVersion": 88,
   "publicSurface": {
     "rustRoots": [
       "auths",
@@ -88,7 +88,7 @@
     },
     {
       "id": "auths.frozen-bytes/architecture/dependency-graph.json",
-      "version": 19,
+      "version": 20,
       "classification": "frozen-bytes",
       "categories": [
         "canonical-generated-evidence"
@@ -96,7 +96,7 @@
       "owners": [
         "architecture/dependency-graph.json"
       ],
-      "sha256": "e87dc3be9f05a8257f3af251bed1cea886b9e5abf9e7cf33ee62cab13857f352"
+      "sha256": "d8257f98c53affd2cdc2b735cb058279a7f6094ec0afa3982f854eeec30eb501"
     },
     {
       "id": "auths.frozen-bytes/bindings/wasm/auths-proof-wasm/identity-abi-v1.json",
@@ -730,7 +730,7 @@
     },
     {
       "id": "auths.product.lifecycle",
-      "version": 3,
+      "version": 5,
       "classification": "frozen-meaning",
       "categories": [
         "reservation-state",
@@ -742,10 +742,12 @@
       "owners": [
         "product/fixtures/v1/lifecycle/registry.toml",
         "product/runtime/auths-lifecycle/src",
-        "product/stores/auths-stores/migrations/postgres_lifecycle_v1.sql",
-        "product/stores/auths-stores/src/lifecycle.rs"
+        "product/stores/auths-stores/migrations/postgres_lifecycle_v2.sql",
+        "product/stores/auths-stores/src/lifecycle.rs",
+        "product/stores/auths-stores/tests/postgres_lifecycle.rs",
+        "product/stores/auths-stores/tests/postgres_tls"
       ],
-      "sha256": "c3eab8ae6b9e9ce3ff8974e8b17e2b8db7c49f1627a2ef886748727cba8aa6a4"
+      "sha256": "e3413e1526dbaeca26c09a0748d49e098febbe199f2155139307af0553667392"
     },
     {
       "id": "auths.product.mcp-closed-execution",
@@ -792,7 +794,7 @@
     },
     {
       "id": "auths.product.open-production-contract",
-      "version": 1,
+      "version": 3,
       "classification": "frozen-meaning",
       "categories": [
         "production-topology",
@@ -811,7 +813,7 @@
         "release/open-production-candidate.toml",
         "xtask/src/production_contract.rs"
       ],
-      "sha256": "8f37857208fe6ae22cef27949a3e53ad7dd2f2c6ddbfe7701f3a2f201f6ceeb8"
+      "sha256": "c82fcb78fbb786c914f282c9a553afa2f6d7cd11a7daa8435ac6a8d12be7e850"
     },
     {
       "id": "auths.product.public-sdk-contract",
@@ -934,7 +936,7 @@
     },
     {
       "id": "auths.release.public-surface",
-      "version": 85,
+      "version": 88,
       "classification": "release-metadata",
       "categories": [
         "package-names",
@@ -1025,7 +1027,7 @@
         "xtask/src/release_control.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "c0f172785f1f5da5ee2ebe6209719e7a8a6f224e72f85a2d205ff24a8e4de656"
+      "sha256": "64c023f91dcbd62bbb9f1fe527cbedf839f167132ea2b818115aa7cdc9f5aa00"
     }
   ]
 }

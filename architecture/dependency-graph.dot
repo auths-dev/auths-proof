@@ -644,6 +644,7 @@ digraph auths_architecture {
   "xtask" -> "auths-bench-model" [label="normal"];
   "xtask" -> "auths-ci-plan" [label="normal"];
   "xtask" -> "auths-codec" [label="normal"];
+  "xtask" -> "auths-config" [label="normal"];
   "xtask" -> "auths-did-keri" [label="normal"];
   "xtask" -> "auths-did-key" [label="normal"];
   "xtask" -> "auths-did-web" [label="normal"];

@@ -7,15 +7,80 @@ use auths_lifecycle::{
     TransitionCommandV1, TransitionDisposition, WorkflowId, execute_store_transaction,
     test_support::{CAPACITY_SCOPE, decision, decision_transaction, transaction},
 };
-use auths_stores::{LifecycleCapacityRuleV1, PostgresLifecycleStore};
-use postgres::{Client, NoTls};
-use std::sync::{Arc, Barrier};
+use auths_stores::{
+    LifecycleCapacityRuleV1, PostgresLifecycleStore, PostgresPoolConfig, PostgresServerName,
+    PostgresStoreConfig, PostgresTlsConfig, SecretConnectionString,
+};
+use postgres::{Client, Config, config::SslMode};
+use rustls::{ClientConfig, RootCertStore};
+use rustls_pki_types::{CertificateDer, pem::PemObject as _};
+use std::{
+    path::PathBuf,
+    str::FromStr as _,
+    sync::{Arc, Barrier},
+    time::Duration,
+};
+use tokio_postgres_rustls::MakeRustlsConnect;
 
-const CONNECTION_ENV: &str = "AUTHS_LIFECYCLE_POSTGRES_URL";
 const SECOND_CAPACITY_SCOPE: CommitmentDigest = CommitmentDigest::new([32; 32]);
 
-fn connection_string() -> Option<String> {
-    std::env::var(CONNECTION_ENV).ok()
+fn configured() -> bool {
+    [
+        "AUTHS_POSTGRES_URL",
+        "AUTHS_POSTGRES_CA_PEM",
+        "AUTHS_POSTGRES_SERVER_NAME",
+    ]
+    .iter()
+    .all(|name| std::env::var_os(name).is_some())
+}
+
+fn configuration() -> PostgresStoreConfig {
+    configuration_with_pool(PostgresPoolConfig::default())
+}
+
+fn configuration_with_pool(pool: PostgresPoolConfig) -> PostgresStoreConfig {
+    PostgresStoreConfig::new(
+        SecretConnectionString::new(std::env::var("AUTHS_POSTGRES_URL").unwrap()).unwrap(),
+        PostgresTlsConfig::new(
+            PathBuf::from(std::env::var("AUTHS_POSTGRES_CA_PEM").unwrap()),
+            PostgresServerName::parse(std::env::var("AUTHS_POSTGRES_SERVER_NAME").unwrap())
+                .unwrap(),
+        ),
+        pool,
+        2_048,
+        rules(),
+    )
+    .unwrap()
+}
+
+fn short_pool() -> PostgresPoolConfig {
+    PostgresPoolConfig::new(
+        1,
+        1,
+        Duration::from_millis(50),
+        Duration::from_secs(2),
+        Duration::from_millis(50),
+        Duration::from_secs(2),
+    )
+    .unwrap()
+}
+
+fn admin_client() -> Client {
+    let config = Config::from_str(&std::env::var("AUTHS_POSTGRES_URL").unwrap()).unwrap();
+    assert_eq!(config.get_ssl_mode(), SslMode::Require);
+    let mut roots = RootCertStore::empty();
+    for certificate in
+        CertificateDer::pem_file_iter(std::env::var("AUTHS_POSTGRES_CA_PEM").unwrap()).unwrap()
+    {
+        roots.add(certificate.unwrap()).unwrap();
+    }
+    config
+        .connect(MakeRustlsConnect::new(
+            ClientConfig::builder()
+                .with_root_certificates(roots)
+                .with_no_client_auth(),
+        ))
+        .unwrap()
 }
 
 fn rules() -> Vec<LifecycleCapacityRuleV1> {
@@ -35,8 +100,8 @@ fn rules() -> Vec<LifecycleCapacityRuleV1> {
     ]
 }
 
-fn clean(connection: &str) {
-    let mut client = Client::connect(connection, NoTls).unwrap();
+fn clean() {
+    let mut client = admin_client();
     client
         .batch_execute(
             "DROP TABLE IF EXISTS auths_lifecycle_records;
@@ -45,9 +110,9 @@ fn clean(connection: &str) {
         .unwrap();
 }
 
-fn assert_final_capacity(connection: &str) {
-    let first = Arc::new(PostgresLifecycleStore::connect(connection, rules(), 16).unwrap());
-    let second = Arc::new(PostgresLifecycleStore::connect(connection, rules(), 16).unwrap());
+fn assert_final_capacity() {
+    let first = Arc::new(PostgresLifecycleStore::connect(configuration()).unwrap());
+    let second = Arc::new(PostgresLifecycleStore::connect(configuration()).unwrap());
     for (store, workflow) in [(&first, "workflow-1"), (&second, "workflow-2")] {
         execute_store_transaction(store.as_ref(), &decision_transaction(workflow, Some(6)))
             .unwrap();
@@ -80,8 +145,8 @@ fn assert_final_capacity(connection: &str) {
     );
 }
 
-fn assert_restart_replay_and_conflict(connection: &str) {
-    let reopened = PostgresLifecycleStore::connect(connection, rules(), 16).unwrap();
+fn assert_restart_replay_and_conflict() {
+    let reopened = PostgresLifecycleStore::connect(configuration()).unwrap();
     let first_record = reopened
         .load(&WorkflowId::parse("workflow-1").unwrap())
         .unwrap()
@@ -111,9 +176,9 @@ fn assert_restart_replay_and_conflict(connection: &str) {
     ));
 }
 
-fn assert_transaction_abort(connection: &str) {
-    let reopened = PostgresLifecycleStore::connect(connection, rules(), 16).unwrap();
-    let mut admin = Client::connect(connection, NoTls).unwrap();
+fn assert_transaction_abort() {
+    let reopened = PostgresLifecycleStore::connect(configuration()).unwrap();
+    let mut admin = admin_client();
     admin
         .batch_execute(
             "CREATE OR REPLACE FUNCTION auths_test_abort_lifecycle_write()
@@ -204,9 +269,9 @@ fn two_intent_decision_transaction(workflow: &str) -> StoreTransactionV1 {
     }
 }
 
-fn assert_multi_intent_reservation_is_atomic(connection: &str) {
-    clean(connection);
-    let store = PostgresLifecycleStore::connect(connection, rules(), 16).unwrap();
+fn assert_multi_intent_reservation_is_atomic() {
+    clean();
+    let store = PostgresLifecycleStore::connect(configuration()).unwrap();
     execute_store_transaction(&store, &two_intent_decision_transaction("workflow-multi")).unwrap();
     assert!(matches!(
         execute_store_transaction(
@@ -240,17 +305,128 @@ fn assert_multi_intent_reservation_is_atomic(connection: &str) {
     .unwrap();
 }
 
-#[test]
-#[ignore = "requires AUTHS_LIFECYCLE_POSTGRES_URL and a dedicated PostgreSQL database"]
-fn multi_process_capacity_restart_replay_and_abort_are_atomic() {
-    let Some(connection) = connection_string() else {
-        panic!("{CONNECTION_ENV} must identify a dedicated PostgreSQL test database");
-    };
-    clean(&connection);
+fn assert_thousand_deliveries_across_three_hosts() {
+    clean();
+    let stores = Arc::new([
+        PostgresLifecycleStore::connect(configuration()).unwrap(),
+        PostgresLifecycleStore::connect(configuration()).unwrap(),
+        PostgresLifecycleStore::connect(configuration()).unwrap(),
+    ]);
+    for index in 0..100 {
+        let workflow = format!("delivery-{index:03}");
+        execute_store_transaction(
+            &stores[index % stores.len()],
+            &decision_transaction(&workflow, Some(1)),
+        )
+        .unwrap();
+    }
+    let handles = (0..stores.len())
+        .map(|host| {
+            let stores = Arc::clone(&stores);
+            std::thread::spawn(move || {
+                for delivery in (host..1_000).step_by(stores.len()) {
+                    let workflow = format!("delivery-{:03}", delivery % 100);
+                    execute_store_transaction(
+                        &stores[host],
+                        &transaction(
+                            &workflow,
+                            Some(1),
+                            TransitionCommandV1::RecordDecision(Box::new(decision(
+                                &workflow,
+                                Some(1),
+                            ))),
+                            10,
+                        ),
+                    )
+                    .unwrap();
+                }
+            })
+        })
+        .collect::<Vec<_>>();
+    for handle in handles {
+        handle.join().unwrap();
+    }
+    for index in [0, 49, 99] {
+        let workflow = WorkflowId::parse(&format!("delivery-{index:03}")).unwrap();
+        assert!(
+            stores[index % stores.len()]
+                .load(&workflow)
+                .unwrap()
+                .is_some()
+        );
+    }
+}
 
-    assert_final_capacity(&connection);
-    assert_restart_replay_and_conflict(&connection);
-    assert_transaction_abort(&connection);
-    assert_multi_intent_reservation_is_atomic(&connection);
-    clean(&connection);
+fn assert_corruption_and_schema_drift_fail_closed() {
+    clean();
+    let store = PostgresLifecycleStore::connect(configuration()).unwrap();
+    execute_store_transaction(&store, &decision_transaction("workflow-corrupt", Some(1))).unwrap();
+    let mut admin = admin_client();
+    admin
+        .execute(
+            "UPDATE auths_lifecycle_records
+             SET record_sha256 = decode(repeat('00', 32), 'hex')
+             WHERE workflow_id = 'workflow-corrupt'",
+            &[],
+        )
+        .unwrap();
+    assert!(matches!(
+        store.load(&WorkflowId::parse("workflow-corrupt").unwrap()),
+        Err(StoreError::Corrupt)
+    ));
+
+    clean();
+    let store = PostgresLifecycleStore::connect(configuration()).unwrap();
+    admin
+        .batch_execute(
+            "ALTER TABLE auths_lifecycle_store_meta
+               DROP CONSTRAINT auths_lifecycle_store_meta_contract_id_check;
+             UPDATE auths_lifecycle_store_meta
+               SET contract_id = 'auths.lifecycle.transactional-store/invalid';",
+        )
+        .unwrap();
+    assert!(matches!(store.probe(), Err(StoreError::SchemaMismatch)));
+}
+
+fn assert_pool_and_lock_deadlines_fail_closed() {
+    clean();
+    let store = PostgresLifecycleStore::connect(configuration_with_pool(short_pool())).unwrap();
+    let mut admin = admin_client();
+    let mut blocker = admin.transaction().unwrap();
+    blocker
+        .query_one(
+            "SELECT contract_id
+             FROM auths_lifecycle_store_meta
+             WHERE singleton = TRUE
+             FOR UPDATE",
+            &[],
+        )
+        .unwrap();
+    assert!(matches!(
+        execute_store_transaction(
+            &store,
+            &decision_transaction("workflow-lock-timeout", Some(1))
+        ),
+        Err(StoreError::Timeout)
+    ));
+    blocker.rollback().unwrap();
+}
+
+#[test]
+#[ignore = "requires TLS PostgreSQL environment slots and a dedicated empty database"]
+fn multi_process_capacity_restart_replay_and_abort_are_atomic() {
+    assert!(
+        configured(),
+        "TLS PostgreSQL environment slots are required"
+    );
+    clean();
+
+    assert_final_capacity();
+    assert_restart_replay_and_conflict();
+    assert_transaction_abort();
+    assert_multi_intent_reservation_is_atomic();
+    assert_thousand_deliveries_across_three_hosts();
+    assert_corruption_and_schema_drift_fail_closed();
+    assert_pool_and_lock_deadlines_fail_closed();
+    clean();
 }
