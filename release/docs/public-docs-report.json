@@ -1,0 +1,41 @@
+{
+  "schema": "auths.public-docs-report/1",
+  "policy": "auths.public-docs-policy/1",
+  "tiers": [
+    {
+      "name": "P0",
+      "operationCount": 5,
+      "requiredSections": [
+        "summary",
+        "outcomes",
+        "security",
+        "scenario"
+      ]
+    },
+    {
+      "name": "P1",
+      "operationCount": 0,
+      "requiredSections": [
+        "summary"
+      ]
+    },
+    {
+      "name": "P2",
+      "operationCount": 0,
+      "requiredSections": [
+        "summary",
+        "invariants"
+      ]
+    }
+  ],
+  "languages": [
+    "rust",
+    "typescript",
+    "python"
+  ],
+  "p0": {
+    "required": 5,
+    "documented": 5,
+    "missing": []
+  }
+}

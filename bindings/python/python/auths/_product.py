@@ -189,6 +189,13 @@ class AuthsConfiguration:
 
 
 class Auths:
+    """Owns one bounded actor, its authority, and effect-capable resources.
+
+    Security:
+        Instances are constructed from sealed configuration and release custody and
+        runtime resources when closed.
+    """
+
     def __init__(
         self,
         resources: _AuthsResources,
@@ -209,6 +216,17 @@ class Auths:
         provider: McpClosedProvider,
         request_id: Optional[str] = None,
     ) -> ExecutionResult:
+        """Authorize and perform exactly one action or one ordered plan.
+
+        Returns:
+            A closed completed, denied, indeterminate, or recoverable outcome.
+
+        Security:
+            The provider is reached only after native authorization seals the command.
+
+        Examples:
+            Scenario ``auths.scenario.rest-effect/1``.
+        """
         self._assert_active()
         self._assert_provider(provider)
         execution = McpExecutionResources(
@@ -236,6 +254,14 @@ class Auths:
         reference: ExecutionReference,
         provider: McpClosedProvider,
     ) -> ExecutionResult:
+        """Continue a recoverable execution from its opaque reference.
+
+        Returns:
+            A closed execution outcome. Unknown provider state never becomes success.
+
+        Security:
+            Only an SDK-minted reference bound to this runtime is accepted.
+        """
         self._assert_active()
         self._assert_provider(provider)
         if type(reference) is not ExecutionReference:
@@ -261,6 +287,14 @@ class Auths:
         provider: McpClosedProvider,
         request_id: Optional[str] = None,
     ) -> ExecutionResult:
+        """Recover a prior request without authorizing a different action.
+
+        Returns:
+            A closed execution or recovery outcome for the exact request.
+
+        Security:
+            Recovery preserves replay and provider-unknown state.
+        """
         self._assert_active()
         self._assert_provider(provider)
         result = await recover_mcp_closed(
@@ -285,6 +319,17 @@ class Auths:
         name: str = "delegated-agent",
         expires_in_seconds: int = 300,
     ) -> Auths:
+        """Create a child session whose authority is no broader than this session.
+
+        Returns:
+            A separately disposable child Auths session.
+
+        Security:
+            Service changes, expiry violations, and authority widening are rejected.
+
+        Examples:
+            Scenario ``auths.scenario.delegation/1``.
+        """
         self._assert_active()
         profile, permissions, _, audiences = resources_for_mcp_authority(authority)
         parent_profile, _, _, _ = resources_for_mcp_authority(self.authority)

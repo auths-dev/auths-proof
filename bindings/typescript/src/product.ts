@@ -129,6 +129,13 @@ export interface Auths {
   readonly actor: Actor;
   readonly authority: Authority;
   readonly diagnostics: readonly string[];
+  /**
+   * Authorizes and performs exactly one action or one ordered plan.
+   *
+   * @returns A closed completed, denied, indeterminate, or recoverable outcome.
+   * @security The provider is reached only after native authorization seals the command.
+   * @scenario auths.scenario.rest-effect/1
+   */
   execute(input: Readonly<{
     action: McpAction;
     provider: McpClosedProvider;
@@ -139,6 +146,12 @@ export interface Auths {
     provider: McpClosedProvider;
     requestId?: string;
   }>): Promise<PlanExecutionResult>;
+  /**
+   * Continues a recoverable execution from its opaque reference.
+   *
+   * @returns A closed execution outcome; an unknown provider result never becomes success.
+   * @security References are SDK-minted and bound to the original execution state.
+   */
   resume(input: Readonly<{
     reference: ExecutionReference;
     provider: McpClosedProvider;
@@ -148,6 +161,13 @@ export interface Auths {
     provider: McpClosedProvider;
     requestId?: string;
   }>): Promise<SingleExecutionResult>;
+  /**
+   * Creates a child SDK session with authority no broader than this session.
+   *
+   * @returns A separately disposable child session.
+   * @security Delegation rejects service changes, expiry violations, and authority widening.
+   * @scenario auths.scenario.delegation/1
+   */
   delegate(input: Readonly<{
     authority: McpToolAuthority;
     name?: string;
@@ -345,6 +365,13 @@ export function createAuthsConfiguration(
   return configuration;
 }
 
+/**
+ * Opens the five-verb Auths product surface from a parsed configuration.
+ *
+ * @returns An SDK session whose authority and resources are owned until disposal.
+ * @security Configuration selects an explicit development or production trust boundary.
+ * @scenario auths.scenario.rest-effect/1
+ */
 export async function createAuths(configuration: AuthsConfiguration): Promise<Auths> {
   const resources = configurationResources.get(configuration);
   if (resources === undefined) throw new TypeError("Auths configuration was not created by an integration");

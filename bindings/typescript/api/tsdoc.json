@@ -1,0 +1,11 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/tsdoc/v0/tsdoc.schema.json",
+  "tagDefinitions": [
+    { "tagName": "@security", "syntaxKind": "block" },
+    { "tagName": "@scenario", "syntaxKind": "block" }
+  ],
+  "supportForTags": {
+    "@security": true,
+    "@scenario": true
+  }
+}

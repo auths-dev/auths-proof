@@ -17,6 +17,7 @@ pub(crate) fn ci_authoritative() -> Result<(), String> {
     sdk_experience(false)?;
     sdk_vocabulary()?;
     docs_contract(Vec::new())?;
+    public_docs(false)?;
     error_registry(false)?;
     mcp_session_contract(false)?;
     mechanism_conformance(false)?;

@@ -1,0 +1,29 @@
+schema = "auths.public-docs-policy/1"
+maintained_languages = ["rust", "typescript", "python"]
+
+[[tier]]
+name = "P0"
+operations = ["auths.operation.create/1", "auths.operation.delegate/1", "auths.operation.execute/1", "auths.operation.resume/1", "auths.operation.verify/1"]
+required_sections = ["summary", "outcomes", "security", "scenario"]
+
+[[tier]]
+name = "P1"
+surface = "maintained-public-topology"
+required_sections = ["summary"]
+
+[[tier]]
+name = "P2"
+surface = "extension-ports"
+required_sections = ["summary", "invariants"]
+
+[[owner]]
+surface = "rust"
+path = "core,exchange,product"
+
+[[owner]]
+surface = "typescript"
+path = "bindings/typescript"
+
+[[owner]]
+surface = "python"
+path = "bindings/python"
