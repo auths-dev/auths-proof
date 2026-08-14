@@ -10,19 +10,19 @@ the Developers hierarchy prematurely.
 
 ## Implementation
 
-- [ ] Build the complete Developers hierarchy in the proposed tree.
-- [ ] Replace the Quickstarts card with a real `/developers/quickstarts` index
+- [x] Build the complete Developers hierarchy in the proposed tree.
+- [x] Replace the Quickstarts card with a real `/developers/quickstarts` index
   that clearly hands off to Get started projects.
-- [ ] Build Rust, TypeScript, Python, and parity orientation pages with
+- [x] Build Rust, TypeScript, Python, and parity orientation pages with
   synchronized code and exact reference handoffs.
-- [ ] Add substantive Runtime API and CLI orientation pages with installation,
+- [x] Add substantive Runtime API and CLI orientation pages with installation,
   first call, outcomes, error handling, and source-at-release.
-- [ ] Build testing and error hubs around generated outcomes and fixtures.
-- [ ] Move integration composition under `/developers/integrations` and give
+- [x] Build testing and error hubs around generated outcomes and fixtures.
+- [x] Move integration composition under `/developers/integrations` and give
   every integration an ownership matrix, code, failure modes, and limits.
-- [ ] Add extension-kit, example catalog, versioning, changelog, and support
+- [x] Add extension-kit, example catalog, versioning, changelog, and support
   matrix pages.
-- [ ] Link exact Reference symbols or endpoints; never use a generic reference
+- [x] Link exact Reference symbols or endpoints; never use a generic reference
   landing as a substitute.
 
 ## Acceptance
@@ -31,4 +31,3 @@ the Developers hierarchy prematurely.
 - SDK and Runtime reference remain generated and visually consistent.
 - Integration pages contain real composition guidance and executable code.
 - `/reference/cli.md` and every other page/section Markdown target exist.
-
