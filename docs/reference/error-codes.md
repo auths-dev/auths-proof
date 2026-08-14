@@ -10,6 +10,13 @@ Every row is generated from the Rust-owned registry. `possible` effects are neve
 | `core.malformed-input` | `verify` | notapplied / never | `CorrectInput` | The supplied bounded value could not be parsed. |
 | `core.native-runtime-unavailable` | `create` | notapplied / safe | `RetryExecution` | The packaged Auths runtime could not be initialized. |
 | `core.forged-execution-reference` | `resume` | notapplied / never | `CorrectInput` | The execution reference is malformed, unauthenticated, or bound to different state. |
+| `core.runtime-conflict` | `execute` | notapplied / conditional | `SatisfyCondition` | A concurrent operation changed the exact workflow state. |
+| `core.runtime-unavailable` | `execute` | notapplied / safe | `RetryExecution` | The durable runtime could not complete an operation before provider entry. |
+| `core.runtime-cancelled` | `execute` | notapplied / safe | `RetryExecution` | The workflow was cancelled with definite non-effect evidence. |
+| `core.outcome-unknown` | `execute` | possible / unknown | `ResumeAndReconcile` | The exact effect may have occurred and must be observed before retry. |
+| `core.observation-pending` | `resume` | possible / unknown | `ResumeAndReconcile` | The provider has not exposed conclusive evidence for the exact effect. |
+| `core.observation-inconclusive` | `resume` | possible / unknown | `ResumeAndReconcile` | Available evidence cannot prove effect or non-effect for the exact request. |
+| `core.workflow-terminal` | `resume` | notapplied / never | `InspectReceipt` | The workflow has already reached an immutable terminal state. |
 | `core.internal-invariant` | `execute` | notapplied / never | `ContactSupport` | Auths rejected an impossible internal state before an effect. |
 | `mcp.invalid-handler-output` | `execute` | possible / unknown | `ResumeAndReconcile` | The invoked handler returned an invalid or oversized bounded result. |
 | `mcp.handler-failed` | `execute` | possible / unknown | `ResumeAndReconcile` | The invoked handler failed without conclusive no-effect evidence. |

@@ -21,7 +21,7 @@
     "identity": "auths-identity/v1",
     "authority": "auths-proof-protocol/v1",
     "mcpProfile": "auths.mcp/1",
-    "lifecycle": "auths.product.reservation-execution-contract/1"
+    "lifecycle": "auths.product.reservation-execution-contract/2"
   },
   "capabilities": [
     "authority.delegate",

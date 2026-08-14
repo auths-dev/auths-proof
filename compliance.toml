@@ -1079,16 +1079,16 @@ layer = "product"
 path = "product/runtime/auths-lifecycle"
 core_apis = []
 protocol_versions = [
-  "auths.product.reservation-execution-contract/1",
+  "auths.product.reservation-execution-contract/2",
   "auths.product.reservation-key/1",
-  "auths.product.lifecycle-record/1",
+  "auths.product.lifecycle-record/2",
   "auths.product.execution-intent/1",
   "auths.product.execution-authorization/1",
   "auths.product.provider-attempt/1",
   "auths.product.reconciliation-observation/1",
-  "auths.product.lifecycle-receipt-envelope/1",
-  "auths.product.lifecycle-store-contract/1",
-  "auths.product.lifecycle-transition/1",
+  "auths.product.lifecycle-receipt-envelope/2",
+  "auths.product.lifecycle-store-contract/2",
+  "auths.product.lifecycle-transition/2",
 ]
 wire_objects = [
   "ExecutionIntentV1",

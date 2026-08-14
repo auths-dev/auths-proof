@@ -1,8 +1,13 @@
-use auths_bounded_policy::{CommitmentDigest, UnitId};
+use auths_bounded_policy::{CommitmentDigest, ProfileId, UnitId, VerifierTime};
 use auths_lifecycle::{
     CapacityEntryV1, CapacitySnapshotV1, LifecycleRecordV1, LifecycleState, LifecycleStore,
-    ReservationMode, StoreError, StoreTransactionV1, StoredTransitionV1, TransitionDisposition,
-    WorkflowId, apply_transition, decode_record, encode_record,
+    RecoveryReferenceDigest, ReservationMode, StoreError, StoreTransactionV1, StoredTransitionV1,
+    TransitionDisposition, WorkflowId, apply_transition, decode_record, encode_record,
+};
+use auths_runtime::production::{
+    LifecycleReader, RecoverableWorkStore, RecoveryBatchSize, RecoveryConfigurationError,
+    RecoveryCursor, RecoveryLease, RecoveryLeaseRequest, RecoveryPage, RecoveryReferenceStore,
+    RecoveryTarget,
 };
 use postgres::{
     Client, Config, IsolationLevel, Transaction,
@@ -29,7 +34,7 @@ use tokio_postgres_rustls::MakeRustlsConnect;
 const DATABASE_MAGIC: &[u8; 8] = b"AUTHSLF1";
 const MAX_DATABASE_BYTES: usize = 256 * 1024 * 1024;
 const MAX_RECORD_BYTES: usize = auths_lifecycle::MAX_LIFECYCLE_RECORD_BYTES;
-const POSTGRES_SCHEMA: &str = include_str!("../migrations/postgres_lifecycle_v2.sql");
+const POSTGRES_SCHEMA: &str = include_str!("../migrations/postgres_lifecycle_v3.sql");
 
 /// One closed capacity rule configured by a domain registration.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -148,6 +153,15 @@ impl LifecycleStore for InMemoryLifecycleStore {
     }
 }
 
+impl LifecycleReader for InMemoryLifecycleStore {
+    fn load_lifecycle(
+        &self,
+        workflow: &WorkflowId,
+    ) -> Result<Option<LifecycleRecordV1>, StoreError> {
+        self.load(workflow)
+    }
+}
+
 /// Single-process crash-persistent lifecycle store.
 ///
 /// Each mutation writes and syncs a complete canonical database to a temporary
@@ -226,6 +240,15 @@ impl LifecycleStore for PersistentLifecycleStore {
             transaction,
             |next| persist_database(&path, next, fault),
         )
+    }
+}
+
+impl LifecycleReader for PersistentLifecycleStore {
+    fn load_lifecycle(
+        &self,
+        workflow: &WorkflowId,
+    ) -> Result<Option<LifecycleRecordV1>, StoreError> {
+        self.load(workflow)
     }
 }
 
@@ -508,13 +531,13 @@ impl PostgresStoreSummary {
     /// Returns the physical schema identity.
     #[must_use]
     pub const fn schema_id(self) -> &'static str {
-        "auths.lifecycle.postgresql/2"
+        "auths.lifecycle.postgresql/3"
     }
 
     /// Returns the transactional store contract identity.
     #[must_use]
     pub const fn contract_id(self) -> &'static str {
-        "auths.lifecycle.transactional-store/2"
+        "auths.lifecycle.transactional-store/3"
     }
 
     /// Returns the minimum maintained connection count.
@@ -583,14 +606,14 @@ impl CustomizeConnection<Client, postgres::Error> for SessionCustomizer {
 }
 
 impl PostgresLifecycleStore {
-    /// Opens a pooled TLS-only store and installs the fixed V2 schema only in
+    /// Opens a pooled TLS-only store and installs the fixed V3 schema only in
     /// an otherwise empty database.
     ///
     /// # Errors
     ///
     /// Returns a typed configuration error when limits or rules are invalid,
     /// the database is unavailable, or an existing metadata row conflicts
-    /// with the V2 store contract.
+    /// with the V3 store contract.
     pub fn connect(
         configuration: PostgresStoreConfig,
     ) -> Result<Self, LifecycleStoreConfigurationError> {
@@ -607,7 +630,7 @@ impl PostgresLifecycleStore {
             return Err(LifecycleStoreConfigurationError::InvalidTlsConfiguration);
         }
         validate_server_identity(&database, &tls.expected_server_name)?;
-        database.application_name("auths-lifecycle-v1");
+        database.application_name("auths-lifecycle-v3");
         let tls_connector = make_tls_connector(&tls)?;
         let manager = PostgresConnectionManager::new(database, tls_connector);
         let connections = Pool::builder()
@@ -680,7 +703,7 @@ impl PostgresLifecycleStore {
         }
         let state = self.pool.state();
         Ok(PostgresStoreHealth {
-            schema_version: 2,
+            schema_version: 3,
             pool_connections: state.connections,
             pool_idle_connections: state.idle_connections,
         })
@@ -710,7 +733,7 @@ impl LifecycleStore for PostgresLifecycleStore {
         let contract_id: String = metadata
             .try_get(1)
             .map_err(|_| StoreError::SchemaMismatch)?;
-        if schema_version != 2 || contract_id != "auths.lifecycle.transactional-store/2" {
+        if schema_version != 3 || contract_id != "auths.lifecycle.transactional-store/3" {
             return Err(StoreError::SchemaMismatch);
         }
         let mut database = load_postgres_database(&mut sql, self.maximum_records)?;
@@ -723,6 +746,217 @@ impl LifecycleStore for PostgresLifecycleStore {
         )?;
         sql.commit().map_err(|error| map_postgres_error(&error))?;
         Ok(stored)
+    }
+}
+
+impl LifecycleReader for PostgresLifecycleStore {
+    fn load_lifecycle(
+        &self,
+        workflow: &WorkflowId,
+    ) -> Result<Option<LifecycleRecordV1>, StoreError> {
+        self.load(workflow)
+    }
+}
+
+impl RecoveryReferenceStore for PostgresLifecycleStore {
+    fn bind_recovery_reference(
+        &self,
+        digest: RecoveryReferenceDigest,
+        target: &RecoveryTarget,
+    ) -> Result<(), StoreError> {
+        let mut client = self.pool.get().map_err(|_| StoreError::PoolExhausted)?;
+        client
+            .execute(
+                "INSERT INTO auths_recovery_references
+                 (recovery_reference_digest, workflow_id, profile_id)
+                 VALUES ($1, $2, $3)
+                 ON CONFLICT DO NOTHING",
+                &[
+                    &&digest.bytes()[..],
+                    &target.workflow().as_str(),
+                    &target.profile().as_str(),
+                ],
+            )
+            .map_err(|error| map_postgres_error(&error))?;
+        let rows = client
+            .query(
+                "SELECT recovery_reference_digest, workflow_id, profile_id
+                 FROM auths_recovery_references
+                 WHERE recovery_reference_digest = $1 OR workflow_id = $2",
+                &[&&digest.bytes()[..], &target.workflow().as_str()],
+            )
+            .map_err(|error| map_postgres_error(&error))?;
+        if rows.len() != 1 {
+            return Err(StoreError::Conflict);
+        }
+        let stored_digest: Vec<u8> = rows[0].try_get(0).map_err(|_| StoreError::Corrupt)?;
+        let workflow: String = rows[0].try_get(1).map_err(|_| StoreError::Corrupt)?;
+        let profile: String = rows[0].try_get(2).map_err(|_| StoreError::Corrupt)?;
+        if stored_digest.as_slice() != digest.bytes()
+            || workflow != target.workflow().as_str()
+            || profile != target.profile().as_str()
+        {
+            return Err(StoreError::Conflict);
+        }
+        Ok(())
+    }
+
+    fn resolve_recovery_reference(
+        &self,
+        digest: RecoveryReferenceDigest,
+    ) -> Result<Option<RecoveryTarget>, StoreError> {
+        let mut client = self.pool.get().map_err(|_| StoreError::PoolExhausted)?;
+        let row = client
+            .query_opt(
+                "SELECT workflow_id, profile_id
+                 FROM auths_recovery_references
+                 WHERE recovery_reference_digest = $1",
+                &[&&digest.bytes()[..]],
+            )
+            .map_err(|error| map_postgres_error(&error))?;
+        row.map(|row| {
+            let workflow: String = row.try_get(0).map_err(|_| StoreError::Corrupt)?;
+            let profile: String = row.try_get(1).map_err(|_| StoreError::Corrupt)?;
+            Ok(RecoveryTarget::new(
+                WorkflowId::parse(&workflow).map_err(|_| StoreError::Corrupt)?,
+                ProfileId::parse(&profile).map_err(|_| StoreError::Corrupt)?,
+            ))
+        })
+        .transpose()
+    }
+}
+
+impl RecoverableWorkStore for PostgresLifecycleStore {
+    fn list_recoverable(
+        &self,
+        profile: &ProfileId,
+        cursor: &RecoveryCursor,
+        limit: RecoveryBatchSize,
+    ) -> Result<RecoveryPage, StoreError> {
+        let mut client = self.pool.get().map_err(|_| StoreError::PoolExhausted)?;
+        let after = cursor.workflow().map_or("", WorkflowId::as_str);
+        let row_limit = i64::from(limit.get()) + 1;
+        let rows = client
+            .query(
+                "SELECT r.workflow_id, r.profile_id,
+                        l.revision, l.lifecycle_state, l.record_bytes, l.record_sha256
+                 FROM auths_recovery_references r
+                 JOIN auths_lifecycle_records l ON l.workflow_id = r.workflow_id
+                 WHERE r.profile_id = $1
+                   AND r.workflow_id > $2
+                   AND l.lifecycle_state IN (1, 2, 3, 6)
+                 ORDER BY r.workflow_id
+                 LIMIT $3",
+                &[&profile.as_str(), &after, &row_limit],
+            )
+            .map_err(|error| map_postgres_error(&error))?;
+        let mut targets = Vec::with_capacity(rows.len());
+        for row in rows {
+            let workflow: String = row.try_get(0).map_err(|_| StoreError::Corrupt)?;
+            let stored_profile: String = row.try_get(1).map_err(|_| StoreError::Corrupt)?;
+            let record = decode_postgres_recovery_row(&row)?;
+            if record.workflow_id().as_str() != workflow
+                || record.decision_input().commitments.profile_id().as_str() != stored_profile
+                || stored_profile != profile.as_str()
+            {
+                return Err(StoreError::Corrupt);
+            }
+            targets.push(RecoveryTarget::new(
+                record.workflow_id().clone(),
+                profile.clone(),
+            ));
+        }
+        let has_more = targets.len() > usize::from(limit.get());
+        targets.truncate(usize::from(limit.get()));
+        let next = has_more
+            .then(|| {
+                targets
+                    .last()
+                    .map(|target| RecoveryCursor::after(target.workflow().clone()))
+            })
+            .flatten();
+        RecoveryPage::new(targets, next).map_err(recovery_configuration_store_error)
+    }
+
+    fn claim_reconciliation(
+        &self,
+        request: RecoveryLeaseRequest,
+    ) -> Result<RecoveryLease, StoreError> {
+        let mut client = self.pool.get().map_err(|_| StoreError::PoolExhausted)?;
+        let mut sql = client
+            .build_transaction()
+            .isolation_level(IsolationLevel::ReadCommitted)
+            .start()
+            .map_err(|error| map_postgres_error(&error))?;
+        let row = sql
+            .query_opt(
+                "SELECT l.workflow_id, l.revision, l.lifecycle_state,
+                        l.record_bytes, l.record_sha256, r.profile_id
+                 FROM auths_lifecycle_records l
+                 JOIN auths_recovery_references r ON r.workflow_id = l.workflow_id
+                 WHERE l.workflow_id = $1
+                 FOR UPDATE OF l",
+                &[&request.target().workflow().as_str()],
+            )
+            .map_err(|error| map_postgres_error(&error))?
+            .ok_or(StoreError::Conflict)?;
+        let record = decode_postgres_lease_row(&row)?;
+        let stored_profile: String = row.try_get(5).map_err(|_| StoreError::Corrupt)?;
+        if record.revision() != request.expected_revision()
+            || !matches!(
+                record.state(),
+                LifecycleState::Reserved
+                    | LifecycleState::ExecutionIntentRecorded
+                    | LifecycleState::Executing
+                    | LifecycleState::OutcomeUnknown
+            )
+            || stored_profile != request.target().profile().as_str()
+            || record.decision_input().commitments.profile_id().as_str() != stored_profile
+        {
+            return Err(StoreError::Conflict);
+        }
+        let expires_at = request
+            .now()
+            .unix_seconds()
+            .checked_add(request.lease_seconds())
+            .ok_or(StoreError::LimitExceeded)?;
+        let expires_at_sql = i64::try_from(expires_at).map_err(|_| StoreError::LimitExceeded)?;
+        let now_sql =
+            i64::try_from(request.now().unix_seconds()).map_err(|_| StoreError::LimitExceeded)?;
+        let revision =
+            i64::try_from(request.expected_revision()).map_err(|_| StoreError::LimitExceeded)?;
+        let lease_digest = request.lease_digest();
+        let affected = sql
+            .execute(
+                "INSERT INTO auths_recovery_leases
+                 (workflow_id, profile_id, expected_revision, expires_at, lease_digest)
+                 VALUES ($1, $2, $3, $4, $5)
+                 ON CONFLICT (workflow_id) DO UPDATE SET
+                   profile_id = EXCLUDED.profile_id,
+                   expected_revision = EXCLUDED.expected_revision,
+                   expires_at = EXCLUDED.expires_at,
+                   lease_digest = EXCLUDED.lease_digest
+                 WHERE auths_recovery_leases.expires_at <= $6",
+                &[
+                    &request.target().workflow().as_str(),
+                    &request.target().profile().as_str(),
+                    &revision,
+                    &expires_at_sql,
+                    &&lease_digest.bytes()[..],
+                    &now_sql,
+                ],
+            )
+            .map_err(|error| map_postgres_error(&error))?;
+        if affected != 1 {
+            return Err(StoreError::Conflict);
+        }
+        sql.commit().map_err(|error| map_postgres_error(&error))?;
+        Ok(RecoveryLease::acknowledged(
+            request.target().clone(),
+            request.expected_revision(),
+            VerifierTime::from_unix_seconds(expires_at),
+            lease_digest,
+        ))
     }
 }
 
@@ -789,7 +1023,9 @@ fn initialize_or_verify_schema(
     let tables = client
         .query_one(
             "SELECT to_regclass('auths_lifecycle_store_meta') IS NOT NULL,
-                    to_regclass('auths_lifecycle_records') IS NOT NULL",
+                    to_regclass('auths_lifecycle_records') IS NOT NULL,
+                    to_regclass('auths_recovery_references') IS NOT NULL,
+                    to_regclass('auths_recovery_leases') IS NOT NULL",
             &[],
         )
         .map_err(|_| LifecycleStoreConfigurationError::DatabaseUnavailable)?;
@@ -799,8 +1035,19 @@ fn initialize_or_verify_schema(
     let records_exist: bool = tables
         .try_get(1)
         .map_err(|_| LifecycleStoreConfigurationError::DatabaseSchemaMismatch)?;
-    match (metadata_exists, records_exist) {
-        (false, false) => {
+    let references_exist: bool = tables
+        .try_get(2)
+        .map_err(|_| LifecycleStoreConfigurationError::DatabaseSchemaMismatch)?;
+    let leases_exist: bool = tables
+        .try_get(3)
+        .map_err(|_| LifecycleStoreConfigurationError::DatabaseSchemaMismatch)?;
+    match (
+        metadata_exists,
+        records_exist,
+        references_exist,
+        leases_exist,
+    ) {
+        (false, false, false, false) => {
             let existing: i64 = client
                 .query_one(
                     "SELECT count(*)
@@ -817,7 +1064,7 @@ fn initialize_or_verify_schema(
                 .batch_execute(POSTGRES_SCHEMA)
                 .map_err(|_| LifecycleStoreConfigurationError::DatabaseUnavailable)?;
         }
-        (true, true) => {}
+        (true, true, true, true) => {}
         _ => return Err(LifecycleStoreConfigurationError::DatabaseSchemaMismatch),
     }
     verify_store_contract(client)?;
@@ -861,7 +1108,7 @@ fn verify_store_contract(client: &mut Client) -> Result<(), LifecycleStoreConfig
     let contract_id: String = rows[0]
         .try_get(1)
         .map_err(|_| LifecycleStoreConfigurationError::DatabaseSchemaMismatch)?;
-    if schema_version != 2 || contract_id != "auths.lifecycle.transactional-store/2" {
+    if schema_version != 3 || contract_id != "auths.lifecycle.transactional-store/3" {
         return Err(LifecycleStoreConfigurationError::DatabaseSchemaMismatch);
     }
     Ok(())
@@ -941,6 +1188,61 @@ fn decode_postgres_row(row: &postgres::Row) -> Result<LifecycleRecordV1, StoreEr
         return Err(StoreError::Corrupt);
     }
     Ok(record)
+}
+
+fn decode_postgres_recovery_row(row: &postgres::Row) -> Result<LifecycleRecordV1, StoreError> {
+    decode_postgres_values(
+        row.try_get(0).map_err(|_| StoreError::Corrupt)?,
+        row.try_get(2).map_err(|_| StoreError::Corrupt)?,
+        row.try_get(3).map_err(|_| StoreError::Corrupt)?,
+        row.try_get(4).map_err(|_| StoreError::Corrupt)?,
+        row.try_get(5).map_err(|_| StoreError::Corrupt)?,
+    )
+}
+
+fn decode_postgres_lease_row(row: &postgres::Row) -> Result<LifecycleRecordV1, StoreError> {
+    decode_postgres_values(
+        row.try_get(0).map_err(|_| StoreError::Corrupt)?,
+        row.try_get(1).map_err(|_| StoreError::Corrupt)?,
+        row.try_get(2).map_err(|_| StoreError::Corrupt)?,
+        row.try_get(3).map_err(|_| StoreError::Corrupt)?,
+        row.try_get(4).map_err(|_| StoreError::Corrupt)?,
+    )
+}
+
+fn decode_postgres_values(
+    workflow_text: String,
+    revision: i64,
+    state: i16,
+    record_bytes: Vec<u8>,
+    stored_digest: Vec<u8>,
+) -> Result<LifecycleRecordV1, StoreError> {
+    if record_bytes.is_empty()
+        || record_bytes.len() > MAX_RECORD_BYTES
+        || stored_digest.len() != 32
+        || Sha256::digest(&record_bytes).as_slice() != stored_digest
+    {
+        return Err(StoreError::Corrupt);
+    }
+    let workflow = WorkflowId::parse(&workflow_text).map_err(|_| StoreError::Corrupt)?;
+    let record = decode_record(&record_bytes).map_err(|_| StoreError::Corrupt)?;
+    let indexed_revision = u64::try_from(revision).map_err(|_| StoreError::Corrupt)?;
+    if record.workflow_id() != &workflow
+        || record.revision() != indexed_revision
+        || lifecycle_state_code(record.state()) != state
+    {
+        return Err(StoreError::Corrupt);
+    }
+    Ok(record)
+}
+
+const fn recovery_configuration_store_error(error: RecoveryConfigurationError) -> StoreError {
+    match error {
+        RecoveryConfigurationError::InvalidCapacity
+        | RecoveryConfigurationError::InvalidBatchSize
+        | RecoveryConfigurationError::InvalidLease => StoreError::LimitExceeded,
+        RecoveryConfigurationError::RandomnessUnavailable => StoreError::Unavailable,
+    }
 }
 
 fn persist_postgres_record(

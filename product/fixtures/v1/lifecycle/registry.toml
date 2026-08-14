@@ -1,5 +1,5 @@
 schema = "auths.product.lifecycle-registry/1"
-contract = "auths.product.reservation-execution-contract/1"
+contract = "auths.product.reservation-execution-contract/2"
 migration_status = "reference-only"
 domains = ["github", "kubernetes", "opentofu", "postgresql", "radicle", "records-api", "stripe"]
 
@@ -9,12 +9,12 @@ rust_symbol = "auths_lifecycle::ReservationRequestV1"
 lean_artifact = "Auths.Product.Reservation"
 
 [[semantic_surfaces]]
-id = "auths.product.lifecycle-transition/1"
+id = "auths.product.lifecycle-transition/2"
 rust_symbol = "auths_lifecycle::kernel::transition_code"
 lean_artifact = "Auths.Product.Lifecycle"
 
 [[semantic_surfaces]]
-id = "auths.product.lifecycle-record/1"
+id = "auths.product.lifecycle-record/2"
 rust_symbol = "auths_lifecycle::encode_record"
 lean_artifact = "Auths.Product.LifecycleRecord"
 
@@ -29,7 +29,7 @@ rust_symbol = "auths_lifecycle::ReconciliationObservationV1"
 lean_artifact = "Auths.Product.Reconciliation"
 
 [[semantic_surfaces]]
-id = "auths.product.lifecycle-store-contract/1"
+id = "auths.product.lifecycle-store-contract/2"
 rust_symbol = "auths_lifecycle::LifecycleStore"
 lean_artifact = "Auths.Product.StoreAssumptions"
 

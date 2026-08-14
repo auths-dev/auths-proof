@@ -494,8 +494,11 @@ digraph auths_architecture {
   "auths-resolver-did-web" -> "auths-codec" [label="normal"];
   "auths-resolver-did-web" -> "auths-did-web" [label="normal"];
   "auths-resolver-did-web" -> "auths-model" [label="normal"];
+  "auths-runtime" -> "auths-bounded-policy" [label="normal"];
   "auths-runtime" -> "auths-codec" [label="normal"];
+  "auths-runtime" -> "auths-errors" [label="normal"];
   "auths-runtime" -> "auths-kernel-runtime" [label="normal"];
+  "auths-runtime" -> "auths-lifecycle" [label="normal"];
   "auths-runtime" -> "auths-model" [label="normal"];
   "auths-runtime" -> "auths-operations" [label="normal"];
   "auths-runtime" -> "auths-profile-api" [label="normal"];

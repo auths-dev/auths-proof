@@ -203,6 +203,9 @@ impl OpenTofuLifecycleProjectionV1 {
             workflow_id: self.workflow_id,
             lifecycle_id: LifecycleId::parse(&lifecycle_id).map_err(invalid)?,
             execution_id: ExecutionId::parse(&execution_id).map_err(invalid)?,
+            recovery_reference_digest: auths_lifecycle::RecoveryReferenceDigest::new(digest_bytes(
+                bindings.decision_receipt_digest,
+            )?),
             domain_id: self.domain_id,
             executor_audience: self.executor_audience,
             reservation_algebra_id: self.reservation_algebra_id,

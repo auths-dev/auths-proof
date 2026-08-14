@@ -1413,8 +1413,11 @@ name = "auths-runtime"
 version = "1.0.0-rc.1"
 dependencies = [
  "async-trait",
+ "auths-bounded-policy",
  "auths-codec",
+ "auths-errors",
  "auths-kernel-runtime",
+ "auths-lifecycle",
  "auths-model",
  "auths-operations",
  "auths-profile-api",
@@ -1423,6 +1426,7 @@ dependencies = [
  "auths-proof-exchange-port",
  "auths-receipts",
  "auths-verifier",
+ "base64ct",
  "getrandom 0.3.4",
  "sha2 0.10.9",
  "subtle",

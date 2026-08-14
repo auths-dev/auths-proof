@@ -24,7 +24,7 @@ pub use codec::{CodecError, decode_record, encode_record};
 pub use digest::{
     DecisionReceiptDigest, DomainReceiptDigest, ExecutionIntentDigest, LifecycleReceiptDigest,
     ObservationDigest, ProviderConditionDigest, ProviderRequestDigest, ProviderResultDigest,
-    ReservationSetDigest, TypedDigest,
+    RecoveryReferenceDigest, ReservationSetDigest, TypedDigest,
 };
 pub use identifier::{
     DomainId, ExecutionId, ExecutorAudienceId, IdentifierError, LifecycleId, ProviderContractId,
@@ -50,11 +50,11 @@ pub use transition::{
 };
 
 /// Immutable lifecycle contract identity.
-pub const CONTRACT_ID: &str = "auths.product.reservation-execution-contract/1";
+pub const CONTRACT_ID: &str = "auths.product.reservation-execution-contract/2";
 /// Immutable reservation key identity.
 pub const RESERVATION_KEY_ID: &str = "auths.product.reservation-key/1";
 /// Immutable lifecycle-record identity.
-pub const LIFECYCLE_RECORD_ID: &str = "auths.product.lifecycle-record/1";
+pub const LIFECYCLE_RECORD_ID: &str = "auths.product.lifecycle-record/2";
 /// Immutable execution-intent identity.
 pub const EXECUTION_INTENT_ID: &str = "auths.product.execution-intent/1";
 /// Immutable sealed execution-authorization identity.
@@ -64,11 +64,11 @@ pub const PROVIDER_ATTEMPT_ID: &str = "auths.product.provider-attempt/1";
 /// Immutable reconciliation-observation identity.
 pub const RECONCILIATION_OBSERVATION_ID: &str = "auths.product.reconciliation-observation/1";
 /// Immutable lifecycle-receipt envelope identity.
-pub const LIFECYCLE_RECEIPT_ID: &str = "auths.product.lifecycle-receipt-envelope/1";
+pub const LIFECYCLE_RECEIPT_ID: &str = "auths.product.lifecycle-receipt-envelope/2";
 /// Immutable store-contract identity.
-pub const STORE_CONTRACT_ID: &str = "auths.product.lifecycle-store-contract/1";
+pub const STORE_CONTRACT_ID: &str = "auths.product.lifecycle-store-contract/2";
 /// Immutable transition-semantics identity.
-pub const TRANSITION_ID: &str = "auths.product.lifecycle-transition/1";
+pub const TRANSITION_ID: &str = "auths.product.lifecycle-transition/2";
 
 /// Maximum UTF-8 bytes in a workflow identity.
 pub const MAX_WORKFLOW_ID_BYTES: usize = 256;

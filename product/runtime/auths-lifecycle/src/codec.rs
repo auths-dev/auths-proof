@@ -23,11 +23,11 @@ use crate::{
     LifecycleReceiptEnvelopeV1, LifecycleRecordV1, LifecycleState, MAX_LIFECYCLE_RECORD_BYTES,
     ObservationDigest, ProviderAttemptV1, ProviderConditionDigest, ProviderContractId,
     ProviderRequestDigest, ProviderResultDigest, ProviderRetryClass, ReconciliationId,
-    ReconciliationObservationV1, ReservationAlgebraId, ReservationEntryV1, ReservationSetV1,
-    WorkflowId, transition::validate_record_integrity,
+    ReconciliationObservationV1, RecoveryReferenceDigest, ReservationAlgebraId, ReservationEntryV1,
+    ReservationSetV1, WorkflowId, transition::validate_record_integrity,
 };
 
-const WIRE_VERSION: u8 = 1;
+const WIRE_VERSION: u8 = 2;
 
 /// Canonical lifecycle-record codec failure.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -132,6 +132,7 @@ struct WireDecision {
     workflow_id: String,
     lifecycle_id: String,
     execution_id: String,
+    recovery_reference_digest: [u8; 32],
     domain_id: String,
     executor_audience: String,
     reservation_algebra_id: String,
@@ -303,6 +304,7 @@ impl From<&DecisionInputV1> for WireDecision {
             workflow_id: input.workflow_id.as_str().into(),
             lifecycle_id: input.lifecycle_id.as_str().into(),
             execution_id: input.execution_id.as_str().into(),
+            recovery_reference_digest: *input.recovery_reference_digest.bytes(),
             domain_id: input.domain_id.as_str().into(),
             executor_audience: input.executor_audience.as_str().into(),
             reservation_algebra_id: input.reservation_algebra_id.as_str().into(),
@@ -588,6 +590,7 @@ impl TryFrom<WireDecision> for DecisionInputV1 {
             workflow_id,
             lifecycle_id,
             execution_id,
+            recovery_reference_digest: RecoveryReferenceDigest::new(wire.recovery_reference_digest),
             domain_id,
             executor_audience,
             reservation_algebra_id,

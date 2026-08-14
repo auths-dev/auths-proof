@@ -23,7 +23,7 @@ Read:
 - `product/runtime/auths-lifecycle/src/sealed.rs`;
 - `product/runtime/auths-lifecycle/src/codec.rs`;
 - `product/stores/auths-stores/src/lifecycle.rs`;
-- `product/stores/auths-stores/migrations/postgres_lifecycle_v2.sql`;
+- `product/stores/auths-stores/migrations/postgres_lifecycle_v3.sql`;
 - `product/stores/auths-stores/tests/postgres_lifecycle.rs`;
 - `product/fixtures/v1/lifecycle/`; and
 - `docs/specs/0026-reservation-and-execution-state-semantics.md`.

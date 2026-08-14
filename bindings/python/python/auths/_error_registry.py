@@ -145,6 +145,167 @@ ERROR_REGISTRY: Final[dict[str, Any]] = json.loads(r'''{
       "fixtureId": "core-forged-execution-reference"
     },
     {
+      "code": "core.runtime-conflict",
+      "family": "state",
+      "owner": "core",
+      "ownerVersion": 1,
+      "operation": "execute",
+      "stages": [
+        "lifecycle-store"
+      ],
+      "outcomes": [
+        {
+          "retry": "conditional",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "satisfy-condition",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "Runtime state conflict",
+      "explanation": "A concurrent operation changed the exact workflow state.",
+      "fixtureId": "core-runtime-conflict"
+    },
+    {
+      "code": "core.runtime-unavailable",
+      "family": "runtime",
+      "owner": "core",
+      "ownerVersion": 1,
+      "operation": "execute",
+      "stages": [
+        "lifecycle-store"
+      ],
+      "outcomes": [
+        {
+          "retry": "safe",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "retry-execution",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "Runtime unavailable",
+      "explanation": "The durable runtime could not complete an operation before provider entry.",
+      "fixtureId": "core-runtime-unavailable"
+    },
+    {
+      "code": "core.runtime-cancelled",
+      "family": "state",
+      "owner": "core",
+      "ownerVersion": 1,
+      "operation": "execute",
+      "stages": [
+        "cancellation"
+      ],
+      "outcomes": [
+        {
+          "retry": "safe",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "retry-execution",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "Workflow cancelled",
+      "explanation": "The workflow was cancelled with definite non-effect evidence.",
+      "fixtureId": "core-runtime-cancelled"
+    },
+    {
+      "code": "core.outcome-unknown",
+      "family": "provider",
+      "owner": "core",
+      "ownerVersion": 1,
+      "operation": "execute",
+      "stages": [
+        "provider-result"
+      ],
+      "outcomes": [
+        {
+          "retry": "unknown",
+          "effect": "possible"
+        }
+      ],
+      "recommendedAction": "resume-and-reconcile",
+      "allowsExecutionReference": true,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "Provider outcome unknown",
+      "explanation": "The exact effect may have occurred and must be observed before retry.",
+      "fixtureId": "core-outcome-unknown"
+    },
+    {
+      "code": "core.observation-pending",
+      "family": "provider",
+      "owner": "core",
+      "ownerVersion": 1,
+      "operation": "resume",
+      "stages": [
+        "reconciliation"
+      ],
+      "outcomes": [
+        {
+          "retry": "unknown",
+          "effect": "possible"
+        }
+      ],
+      "recommendedAction": "resume-and-reconcile",
+      "allowsExecutionReference": true,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "Observation pending",
+      "explanation": "The provider has not exposed conclusive evidence for the exact effect.",
+      "fixtureId": "core-observation-pending"
+    },
+    {
+      "code": "core.observation-inconclusive",
+      "family": "provider",
+      "owner": "core",
+      "ownerVersion": 1,
+      "operation": "resume",
+      "stages": [
+        "reconciliation"
+      ],
+      "outcomes": [
+        {
+          "retry": "unknown",
+          "effect": "possible"
+        }
+      ],
+      "recommendedAction": "resume-and-reconcile",
+      "allowsExecutionReference": true,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "Observation inconclusive",
+      "explanation": "Available evidence cannot prove effect or non-effect for the exact request.",
+      "fixtureId": "core-observation-inconclusive"
+    },
+    {
+      "code": "core.workflow-terminal",
+      "family": "state",
+      "owner": "core",
+      "ownerVersion": 1,
+      "operation": "resume",
+      "stages": [
+        "lifecycle"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "inspect-receipt",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "Workflow already terminal",
+      "explanation": "The workflow has already reached an immutable terminal state.",
+      "fixtureId": "core-workflow-terminal"
+    },
+    {
       "code": "core.internal-invariant",
       "family": "internal",
       "owner": "core",

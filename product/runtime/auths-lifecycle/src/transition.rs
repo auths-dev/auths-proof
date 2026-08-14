@@ -252,7 +252,8 @@ fn bounded_count(value: usize) -> u8 {
 fn decision_bindings_complete(input: &DecisionInputV1) -> bool {
     let outputs = input.outputs.reservation_intents();
     let requests = input.reservations.entries();
-    outputs.len() == requests.len()
+    input.recovery_reference_digest.bytes() != &[0; 32]
+        && outputs.len() == requests.len()
         && requests.iter().all(|request| {
             outputs.iter().any(|intent| {
                 intent.intent_id() == request.intent_id()
@@ -560,9 +561,10 @@ fn compute_receipt_digest(
     executed: &auths_bounded_policy::ConfigurationCommitmentV1,
 ) -> LifecycleReceiptDigest {
     let mut hasher = Sha256::new();
-    hasher.update(b"AUTHS-LIFECYCLE-RECEIPT\x00\x01");
+    hasher.update(b"AUTHS-LIFECYCLE-RECEIPT\x00\x02");
     hasher.update(record.input.lifecycle_id.as_str().as_bytes());
     hasher.update(record.input.execution_id.as_str().as_bytes());
+    hasher.update(record.input.recovery_reference_digest.bytes());
     hasher.update(revision.to_be_bytes());
     hasher.update([from.map_or(u8::MAX, state_code), state_code(to)]);
     hasher.update(trigger.as_bytes());

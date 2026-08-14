@@ -114,6 +114,7 @@ fn decision() -> DecisionInputV1 {
         workflow_id: WorkflowId::parse("workflow-1").unwrap(),
         lifecycle_id: LifecycleId::parse("lifecycle-1").unwrap(),
         execution_id: ExecutionId::parse("execution-1").unwrap(),
+        recovery_reference_digest: auths_lifecycle::RecoveryReferenceDigest::new([13; 32]),
         domain_id: DomainId::parse("test").unwrap(),
         executor_audience: ExecutorAudienceId::parse("test://executor").unwrap(),
         reservation_algebra_id: ReservationAlgebraId::parse("auths.test.none/1").unwrap(),
@@ -226,7 +227,7 @@ fn credentials_and_provider_calls_require_durable_ordered_stages() {
     assert!(decode_record(&changed_receipt).is_err());
     assert!(decode_record(&canonical[..canonical.len() - 1]).is_err());
     let mut unsupported = canonical.clone();
-    unsupported[0] = 2;
+    unsupported[0] = 3;
     assert!(matches!(
         decode_record(&unsupported),
         Err(auths_lifecycle::CodecError::UnsupportedVersion)

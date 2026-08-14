@@ -153,6 +153,181 @@
     },
     {
       "schema": "auths.error/1",
+      "family": "state",
+      "code": "core.runtime-conflict",
+      "operation": "execute",
+      "stage": "lifecycle-store",
+      "summary": "Runtime state conflict",
+      "correlationId": "fixture:core-runtime-conflict",
+      "retry": "conditional",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "satisfy-condition",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "runtime",
+      "code": "core.runtime-unavailable",
+      "operation": "execute",
+      "stage": "lifecycle-store",
+      "summary": "Runtime unavailable",
+      "correlationId": "fixture:core-runtime-unavailable",
+      "retry": "safe",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "retry-execution",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "state",
+      "code": "core.runtime-cancelled",
+      "operation": "execute",
+      "stage": "cancellation",
+      "summary": "Workflow cancelled",
+      "correlationId": "fixture:core-runtime-cancelled",
+      "retry": "safe",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "retry-execution",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "provider",
+      "code": "core.outcome-unknown",
+      "operation": "execute",
+      "stage": "provider-result",
+      "summary": "Provider outcome unknown",
+      "correlationId": "fixture:core-outcome-unknown",
+      "retry": "unknown",
+      "effect": "possible",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": true
+      },
+      "recommendedAction": "resume-and-reconcile",
+      "executionReference": "execution:core-outcome-unknown",
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "provider",
+      "code": "core.observation-pending",
+      "operation": "resume",
+      "stage": "reconciliation",
+      "summary": "Observation pending",
+      "correlationId": "fixture:core-observation-pending",
+      "retry": "unknown",
+      "effect": "possible",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": true
+      },
+      "recommendedAction": "resume-and-reconcile",
+      "executionReference": "execution:core-observation-pending",
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "provider",
+      "code": "core.observation-inconclusive",
+      "operation": "resume",
+      "stage": "reconciliation",
+      "summary": "Observation inconclusive",
+      "correlationId": "fixture:core-observation-inconclusive",
+      "retry": "unknown",
+      "effect": "possible",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": true
+      },
+      "recommendedAction": "resume-and-reconcile",
+      "executionReference": "execution:core-observation-inconclusive",
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "state",
+      "code": "core.workflow-terminal",
+      "operation": "resume",
+      "stage": "lifecycle",
+      "summary": "Workflow already terminal",
+      "correlationId": "fixture:core-workflow-terminal",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "inspect-receipt",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
       "family": "internal",
       "code": "core.internal-invariant",
       "operation": "execute",
