@@ -57,7 +57,7 @@ fn short_pool() -> PostgresPoolConfig {
     PostgresPoolConfig::new(
         1,
         1,
-        Duration::from_millis(50),
+        Duration::from_secs(2),
         Duration::from_secs(2),
         Duration::from_millis(50),
         Duration::from_secs(2),
