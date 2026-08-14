@@ -1,5 +1,7 @@
 # Content Epic 3 — Semantic Tours and Lifecycle Concepts
 
+**Status:** Complete in `auths-docs` commit `c2fe2ec`.
+
 **Depends on:** [Content Epic 0](./epic_0.md), Content Epic 1, and Platform
 Epic P6.
 
