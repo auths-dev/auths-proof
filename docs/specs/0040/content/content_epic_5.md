@@ -93,20 +93,20 @@ default, or inventory as source truth.
 
 ## Implementation steps
 
-- [ ] Audit P4/P8 bundle coverage for every fact-owner row and report extractor
+- [x] Audit P4/P8 bundle coverage for every fact-owner row and report extractor
   gaps to the platform lane.
-- [ ] Remove hard-coded SDK operations and Runtime endpoints from authored
+- [x] Remove hard-coded SDK operations and Runtime endpoints from authored
   content.
-- [ ] Author the developer landing and curate its generated reference catalogs.
-- [ ] Author the cross-language SDK orientation and link each operation by
+- [x] Author the developer landing and curate its generated reference catalogs.
+- [x] Author the cross-language SDK orientation and link each operation by
   stable identity.
-- [ ] Curate explanatory introductions and related journeys for Runtime API,
+- [x] Curate explanatory introductions and related journeys for Runtime API,
   CLI, errors, profiles, schemas, and evidence.
-- [ ] Author compatibility, preview-channel, and prelaunch policy explanation
+- [x] Author compatibility, preview-channel, and prelaunch policy explanation
   around generated support facts.
-- [ ] Review P8's three-column SDK and Runtime API renderings for reader
+- [x] Review P8's three-column SDK and Runtime API renderings for reader
   comprehension without editing generated pages.
-- [ ] Resolve every authored dependency reported by P8's contract diff; never
+- [x] Resolve every authored dependency reported by P8's contract diff; never
   suppress stale or missing projections with copied prose.
 
 ## Acceptance criteria

@@ -35,7 +35,7 @@ README only after every acceptance criterion in the epic passes.
 - [x] Content Epic 2 — Getting started and integration chooser
 - [x] Content Epic 3 — Semantic tours and lifecycle concepts
 - [x] Content Epic 4 — Outcome quickstarts and tested projects
-- [ ] Content Epic 5 — Developer resources and generated reference
+- [x] Content Epic 5 — Developer resources and generated reference
 - [ ] Content Epic 6 — Agents, MCP, and integrations
 - [ ] Content Epic 7 — Adoption and migration
 - [ ] Content Epic 8 — Operations, testing, failure, and recovery
