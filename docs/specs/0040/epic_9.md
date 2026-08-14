@@ -1,22 +1,30 @@
-# Epic 9 — Publish Architecture, Operations, Integrations, and Assurance
+# Epic 9 — Build Deep-Content Composition Contracts
 
 **Parent:** [AP-SPEC-040](../0040-stripe-quality-documentation-platform.md)
 
 **Repository:** `auths-proof-docs`
 
-**Depends on:** Epics 3, 5, 6, and 8
+**Depends on:** Epics 3, 5, 6, and 8 and Content Epic 0
 
 **Blocks:** Epics 10–11
 
 ## Outcome
 
-Publish the deeper material required for an architect to evaluate Auths, an
-operator to run the open reference safely, an integrator to compose existing
-identity/policy/cloud systems, and an auditor to trace claims to evidence.
+Build the fact-backed page models, components, validators, and dependency
+contracts required for architecture, operations, integrations, and assurance.
+Content Epics 6, 8, and 9 own the routes, prose, recommendations, and conceptual
+diagrams published through those contracts.
 
-This epic completes progressive disclosure without turning the public site
-into a source-tree tour or moving required open-core operations behind an
-enterprise boundary.
+This epic makes deep editorial content safe to author without copying product
+facts, runbook commands, configuration, integration inventories, or assurance
+status into a second source of truth.
+
+## Ownership boundary
+
+Follow [Content Epic 0](./content/epic_0.md). This epic owns composition
+machinery and generated projections. It does not own public narrative, page
+selection, route taxonomy, integration recommendations, or assurance claim
+interpretation.
 
 ## Zero-context starting point
 
@@ -24,6 +32,7 @@ Read:
 
 - parent sections 5–10 and 16;
 - Epics 3, 5, 6, and 8;
+- `docs/specs/0040/README.md` and `content/epic_0.md`;
 - `AGENTS.md` and the profile/domain abstraction boundary plan;
 - `docs/product/AUTHS_AUTHORITY_LAYER.md`;
 - `docs/target-state/`;
@@ -40,9 +49,10 @@ Read:
 Repository plans and demo claims are leads, not public facts. Reconcile every
 claim with the selected release artifact.
 
-## Public sections
+## Supported editorial shapes
 
-Implement:
+Support the following page families without hard-coding their final route
+inventory:
 
 ```text
 /architecture/
@@ -85,9 +95,11 @@ Implement:
 └── independent-review
 ```
 
-Enterprise fleet coordination, centralized multi-tenant operations, paid
-governance, and hosted control-plane features are labelled future/enterprise
-and do not contaminate the open self-hosted runbook.
+The tree is an initial fixture for validating the models. Content Epics 6, 8,
+and 9 own the final public inventory and ordering. Enterprise fleet
+coordination, centralized multi-tenant operations, paid governance, and hosted
+control-plane features remain separately classified and cannot become an
+open-core prerequisite.
 
 ## Architecture teaching contract
 
@@ -188,21 +200,23 @@ Use:
 Authored MDX declares semantic dependencies. Generated configuration, limits,
 profiles, errors, and assurance facts are embedded by identity.
 
-## Implementation steps
+## Platform implementation steps
 
-- [ ] Build architecture and operations landing pages by reader job.
-- [ ] Write the system map and trust-boundary sequence first.
-- [ ] Write each open reference operations procedure and test its commands.
-- [ ] Write integration guides with composition tables and exact ownership.
-- [ ] Build assurance pages from the generated evidence graph.
-- [ ] Add accessible horizontal diagrams and textual equivalents.
-- [ ] Add failure paths for replay, expiry, denial, indeterminate, unavailable,
-  provider-unknown, disclosure denial, and recovery.
-- [ ] Add stable links from authored pages to generated profiles, errors,
-  endpoints, configuration, limits, and evidence.
-- [ ] Security-review custody, secret, receipt, and incident guidance.
-- [ ] Separate future enterprise pages explicitly and link to AP-SPEC-039 only
-  as roadmap status, never as an open-core prerequisite.
+- [ ] Implement typed architecture, operations, integration, and assurance page
+  models.
+- [ ] Implement `TrustBoundary`, `Lifecycle`, `OutcomeMatrix`, `ReceiptView`,
+  `ProfileContract`, `OperationalCallout`, and generated evidence components.
+- [ ] Resolve configuration, commands, profiles, errors, limits, evidence, and
+  scenario output exclusively from immutable bundle identities.
+- [ ] Validate accessible diagram text and trust-boundary semantics without
+  owning the editorial diagram itself.
+- [ ] Validate integration ownership matrices and primary-source citations.
+- [ ] Validate runbook preconditions, stop conditions, recovery, and tested
+  command identities.
+- [ ] Validate assurance claims against current evidence and limitations.
+- [ ] Provide Content Epics 6, 8, and 9 with preview fixtures and provenance
+  diagnostics.
+- [ ] Reject open-core pages that depend on enterprise-only components.
 
 ## Adversarial review
 
@@ -224,14 +238,14 @@ Reject:
 ## Validation commands
 
 ```text
-pnpm lint:content
-pnpm test:dependencies
-pnpm test:runbooks
-pnpm test:links
-pnpm test:diagrams
-pnpm test:markdown
-pnpm build
-pnpm test:a11y
+npm run lint:content
+npm run test:dependencies
+npm run test:runbooks
+npm run test:links
+npm run test:diagrams
+npm run test:markdown
+npm run build
+npm run test:a11y
 ```
 
 External links are checked nightly to avoid flaky pull-request failures, while
@@ -239,8 +253,7 @@ primary-specification URL syntax and internal links remain PR gates.
 
 ## Exit gate
 
-This epic is complete when an architect can draw the trust and effect
-boundaries accurately, an operator can deploy and recover the open reference
-without source archaeology, an integrator can explain composition ownership,
-and an auditor can trace every published assurance claim to exact release
-evidence and limitations.
+This epic is complete when Content Epics 6, 8, and 9 can author their material
+using typed, fact-backed components; runbook commands and assurance facts cannot
+drift from the selected release; and every deep page compiles into the same
+verified page graph used by the rest of the site.

@@ -17,6 +17,10 @@ same Rust-owned fixtures and normalized outcomes.
 Language switching becomes a semantic view over one scenario, not three
 unrelated snippets that happen to look similar.
 
+Content Epic 4 owns quickstart sequencing and explanation. This epic owns the
+scenario artifacts, execution, comparison, provenance, and safe display
+projection consumed by those pages.
+
 ## Zero-context starting point
 
 Read:
@@ -228,11 +232,11 @@ Catch:
 Define:
 
 ```text
-pnpm examples:prepare --bundle <path-or-digest>
-pnpm examples:run
-pnpm examples:compare
-pnpm examples:render-check
-pnpm test:examples
+npm run examples:prepare -- --bundle <path-or-digest>
+npm run examples:run
+npm run examples:compare
+npm run examples:render-check
+npm run test:examples
 ```
 
 The final job starts from empty Cargo/npm/Python consumer directories and

@@ -1,22 +1,35 @@
-# Epic 6 — Ship the Progressive Product Journey
+# Epic 6 — Build Journey Composition Contracts
 
 **Parent:** [AP-SPEC-040](../0040-stripe-quality-documentation-platform.md)
 
 **Repository:** `auths-proof-docs`
 
-**Depends on:** Epic 5
+**Depends on:** Epic 5 and Content Epic 0
 
 **Blocks:** Epics 9–11
 
 ## Outcome
 
-Deliver the outcome-first information architecture and a fifteen-minute path
-from “what is Auths?” to one protected REST effect, followed by agent
-delegation and receipt verification. Preserve the same five nouns and five
-verbs as readers descend into deeper material.
+Build the typed page models, journey composition primitives, dependency
+resolution, and usability instrumentation required to deliver progressive
+product teaching without embedding public copy or choosing the final
+information architecture in platform code.
 
-This epic owns authored product teaching. Executable source and generated
-reference facts are supplied by Epics 7 and 8 rather than copied into prose.
+Content Epics 1–4 own the routes, recommendations, explanations, and reader
+journeys. Executable source and generated reference facts are supplied by
+Epics 7 and 8. This epic owns only the composition machinery joining those
+inputs into the verified page graph.
+
+## Ownership boundary
+
+Follow [Content Epic 0](./content/epic_0.md). This epic may define closed page
+shapes, registered components, validation, and instrumentation. It must not:
+
+- author or approve public narrative;
+- freeze global navigation labels or landing-card order;
+- copy signatures, endpoints, errors, limits, evidence, or executable code;
+- create a second route or navigation corpus; or
+- render HTML, Markdown, search, or agent output from separate content trees.
 
 ## Zero-context starting point
 
@@ -24,6 +37,7 @@ Read:
 
 - the parent specification, especially sections 3–11;
 - Epics 1–5 in this folder;
+- `docs/specs/0040/README.md` and `content/epic_0.md`;
 - `docs/plans/simplify/README.md` and its final five-verb target;
 - `docs/target-state/` product-surface decisions;
 - `docs/product/AUTHS_AUTHORITY_LAYER.md`;
@@ -54,39 +68,21 @@ commitments, disclosure, and provider reconciliation are progressive depth.
 They appear when the reader's task requires them, not as prerequisites for
 understanding the first example.
 
-## Information architecture
+## Journey composition contract
 
-Implement the parent navigation tree with these launch-critical paths:
+Provide closed models for:
 
-```text
-/
-├── start/what-is-auths
-├── start/rest-api
-├── start/delegate-to-an-agent
-├── start/verify-a-receipt
-├── development/
-│   ├── sdks
-│   ├── runtime-api
-│   ├── cli
-│   ├── agents-and-mcp
-│   ├── testing
-│   └── versioning
-├── guides/
-│   ├── authority
-│   ├── delegation
-│   ├── approvals
-│   ├── recovery
-│   └── receipts-and-disclosure
-└── concepts/
-    ├── outcomes
-    ├── exact-effects
-    ├── identity-vs-authority
-    └── transport-vs-authorization
-```
+- topic landings with editorially ordered card references;
+- deterministic integration-chooser inputs and recommendations;
+- outcome guides with prerequisites, steps, explanation, failure paths, and
+  deeper links;
+- semantic tours with accessible diagrams and progressive depth;
+- contextual navigation derived from page identities; and
+- stable page and section actions over the verified graph.
 
-Reference, architecture, integrations, and operations landing pages may exist
-as honest placeholders until their owning epics complete. They must not claim
-coverage that is absent.
+Content Epics 1–3 supply instances of these models. The model validates route,
+page, operation, scenario, claim, and related-page identities but does not
+choose the public taxonomy.
 
 ## Page contract
 
@@ -102,39 +98,27 @@ Every guide follows:
 Each page declares semantic dependencies and contains no hand-authored
 signature, parameter, endpoint, package-version, or support table.
 
-## REST quickstart
+## Quickstart composition
 
-The launch path must let a developer:
+Provide a guide-step model that can bind prose to qualified scenario steps
+without copying their code or results. It must support install, setup, action,
+execution, inspection, replay, mutation, and cleanup step kinds while allowing
+Content Epics 2 and 4 to select the actual journey.
 
-1. install one maintained SDK;
-2. start or connect to the local open reference;
-3. create exact authority for one route-shaped application action;
-4. execute once through a closed local gateway;
-5. inspect a bounded successful outcome and receipt summary;
-6. replay the same request and see it fail closed; and
-7. mutate the action bytes and see verification reject them.
+The component rejects raw commands or code as step data. Displayed source and
+expected results resolve from Epic 7 scenario identities.
 
-The primary path uses safe development defaults and no cloud account,
-database, identity provider, approval provider, or manually assembled port.
-The page states clearly that development custody and state are not a production
-deployment.
+## Follow-up composition
 
-## Agent and receipt follow-ups
-
-The agent guide attenuates the quickstart authority rather than inventing a
-new example domain. It demonstrates narrower action, expiry, use count, and
-delegation depth and shows a widening attempt fail.
-
-The receipt guide begins with a bounded human summary, then explains opaque,
-summary, and authorized full disclosure. It must not render sensitive receipt
-details by default or imply that a receipt caused authorization.
+Provide continuation links that can carry a scenario family and semantic
+operation from one guide to another. Content may reuse actors and actions
+without duplicating scenario data. Receipt components enforce opaque, summary,
+and authorized-full disclosure modes supplied by generated facts.
 
 ## UX behavior
 
-- The two-row global header always offers `Start`, `SDKs`, `Runtime API`,
-  `Concepts`, `Architecture`, and `Operations`. A bounded `More` menu contains
-  `Integrations` and `Assurance`; deeper navigation remains contextual and
-  edge-aligned rather than competing in the global row.
+- Global and contextual navigation consume Content Epic 1's verified editorial
+  configuration; component code does not hard-code its labels or order.
 - One selected SDK language persists across the entire journey.
 - The recommended language defaults to TypeScript for web-oriented REST
   readers but the initial selector makes Rust and Python equally visible.
@@ -148,31 +132,28 @@ details by default or imply that a receipt caused authorization.
   semantic section. Section actions appear only where a long page benefits
   from an independently useful bounded projection.
 
-## Content implementation steps
+## Platform implementation steps
 
-- [ ] Write the home page around a concrete exact-authority story and outcome
-  routes, not package names.
-- [ ] Write `what-is-auths` using five nouns, five verbs, and identity versus
-  authority.
-- [ ] Build the REST quickstart around the Epic 7 scenario identity.
-- [ ] Build delegation and receipt follow-ups over the same actors and action.
-- [ ] Add concise denial, expiry, replay, mutation, indeterminate, and
-  provider-unknown paths.
-- [ ] Build development, SDK, runtime API, CLI, agents/MCP, testing, and
-  versioning landing pages.
-- [ ] Name and route the SDK and runtime API destinations distinctly in global,
-  contextual, breadcrumb, search, and related-content navigation.
-- [ ] Build authority, delegation, approval, recovery, receipt, outcome,
-  exact-effect, identity, and transport concept pages.
-- [ ] Add stable reference links rather than URLs.
+- [ ] Implement typed landing, chooser, guide, tour, step, continuation, and
+  contextual-navigation models.
+- [ ] Implement registered MDX components over those models.
+- [ ] Resolve all product facts and executable displays through stable bundle
+  identities.
 - [ ] Generate the affected-page dependency graph from frontmatter.
-- [ ] Review every security statement against contract evidence.
+- [ ] Reject duplicate routes, dangling identities, raw executable examples,
+  and manually authored generated-fact slots.
+- [ ] Add preview provenance labels for generated facts, tested scenarios, and
+  editorial narrative.
+- [ ] Add reusable usability instrumentation without collecting participant
+  personal data.
+- [ ] Qualify the models against bounded fixture pages supplied by Content
+  Epic 0; do not treat fixture prose as public content.
 
-## Usability protocol
+## Usability instrumentation
 
-Recruit at least five developers who have never worked in Auths. Give them only
-the docs home URL and the goal “protect one REST effect and explain what a
-replay does.” Do not provide verbal help.
+Provide privacy-safe tooling that lets the content lane run unfamiliar-reader
+tests. Content Epic 2 owns recruiting and conducting the study; this epic owns
+only the event schema and aggregate report format.
 
 Record:
 
@@ -185,8 +166,8 @@ Record:
   receipts; and
 - whether the developer can explain the exact authority afterward.
 
-At least four of five must finish in under fifteen minutes. Treat confusion as
-a product defect even if the code works.
+Do not record page bodies, code values, credentials, receipt contents, or
+participant identity. Content Epic 2 defines the success threshold.
 
 ## Adversarial content tests
 
@@ -202,8 +183,8 @@ Fail review or CI when:
 - a receipt summary exposes full details;
 - the language switch changes semantic steps;
 - an SDK guide or reference is labelled only “API reference”;
-- global navigation expands beyond the six primary destinations and bounded
-  `More` menu, or crowds out the recommended start;
+- platform code hard-codes the public navigation taxonomy instead of consuming
+  verified editorial configuration;
 - contextual navigation collapse does not widen the reading surface;
 - an unpublished feature is presented as stable; or
 - a page links to `next` from stable without an explicit warning.
@@ -211,12 +192,12 @@ Fail review or CI when:
 ## Validation commands
 
 ```text
-pnpm lint:content
-pnpm test:dependencies
-pnpm test:examples
-pnpm build
-pnpm test:browser
-pnpm test:a11y
+npm run lint:content
+npm run test:dependencies
+npm run test:examples
+npm run build
+npm run test:browser
+npm run test:a11y
 ```
 
 Archive the anonymized usability script, aggregate timings, observed problems,
@@ -224,8 +205,7 @@ and resulting issue links without participant personal data.
 
 ## Exit gate
 
-This epic is complete when the progressive information architecture is live in
-preview, the REST/delegation/receipt journey uses one vocabulary and tested
-scenario identities, failure paths remain honest, four of five unfamiliar
-developers succeed without help in under fifteen minutes, and the resulting
-reader can explain exactly what was authorized and what was not.
+This epic is complete when Content Epics 1–4 can express their landings, tours,
+choosers, guides, continuations, and contextual navigation without duplicating
+product facts or executable source; every input compiles into one verified page
+graph; and preview diagnostics expose provenance and affected-page ownership.

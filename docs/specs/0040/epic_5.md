@@ -18,6 +18,10 @@ search foundation, and deterministic HTML/Markdown rendering architecture.
 This epic produces representative pages and components. It does not yet write
 the complete quickstarts or generate the deep reference.
 
+It owns schemas and composition primitives, not public narrative. Content Epic
+0 freezes the provenance and ownership rules; Content Epics 1–9 supply authored
+page models through those rules.
+
 ## Zero-context starting point
 
 Before editing `auths-proof-docs`, read from `auths-proof`:
@@ -252,14 +256,14 @@ Test:
 Define stable scripts equivalent to:
 
 ```text
-pnpm install --frozen-lockfile
-pnpm typecheck
-pnpm lint:content
-pnpm test:contract
-pnpm build
-pnpm test:browser
-pnpm test:a11y
-pnpm test:performance
+npm ci
+npm run typecheck
+npm run lint:content
+npm run test:contract
+npm run build
+npm run test:browser
+npm run test:a11y
+npm run test:performance
 ```
 
 ## Exit gate

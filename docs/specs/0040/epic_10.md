@@ -17,6 +17,12 @@ without scraping site chrome or granting product authority.
 Machine surfaces are alternate renderings and indexes over the verified page
 graph. They are not independently authored corpora.
 
+Content Epic 9 may define which editorial sections are useful to agents and
+what context a reader needs, but this epic exclusively owns the rendering,
+discovery formats, bounded output, and semantic parity mechanisms. Follow
+[Content Epic 0](./content/epic_0.md); never accept a second Markdown or agent
+content source.
+
 ## Zero-context starting point
 
 Read:
@@ -215,13 +221,13 @@ Catch:
 ## Validation commands
 
 ```text
-pnpm docs:render-markdown
-pnpm docs:build-indexes
-pnpm test:markdown
-pnpm test:parity
-pnpm test:search
-pnpm test:machine-surfaces
-pnpm build
+npm run docs:render-markdown
+npm run docs:build-indexes
+npm run test:markdown
+npm run test:parity
+npm run test:search
+npm run test:machine-surfaces
+npm run build
 ```
 
 If phase-two MCP exists, add its contract, fuzz, bounded-input, and no-capability

@@ -17,6 +17,10 @@ operations](0039-enterprise-coordination-and-operations-plane.md). Enterprise
 documentation may be added later, but it must not obscure or gate the complete
 open, self-hosted path.
 
+**Execution map:** [Platform and content epic coordination](0040/README.md),
+including the binding [platform/editorial ownership
+contract](0040/content/epic_0.md).
+
 ## 1. Product decision
 
 Auths will have one beautiful, fast, public documentation experience that
@@ -41,6 +45,22 @@ The north star is Stripe-quality comprehension, not a visual clone of Stripe.
 Auths should adopt the structural lessons that make Stripe's documentation
 effective while developing its own authority-specific visual and conceptual
 grammar.
+
+### 1.1 Two-lane ownership
+
+AP-SPEC-040 has a platform lane and an editorial lane. They meet only through
+typed inputs to one verified page graph:
+
+- the platform lane owns generated product facts, qualified scenarios,
+  composition models, rendering, and release machinery;
+- the editorial lane owns reader journeys, recommendations, explanations, and
+  conceptual diagrams; and
+- no public block may have more than one provenance owner.
+
+If a software change could make a statement false, the value is supplied by an
+immutable product fact or tested scenario rather than copied into MDX. HTML,
+Markdown, navigation, search, and agent-readable output are projections of the
+same verified page graph, never independently authored corpora.
 
 ## 2. Evidence from Stripe's documentation
 
@@ -163,78 +183,24 @@ Every guide follows this order:
 ## 6. Information architecture
 
 The public navigation is organized around user intent rather than repository
-layers or crate names.
+layers or crate names. Content Epic 1 owns the final route selection, labels,
+card ordering, and contextual trees. Platform Epic 6 supplies the typed models
+and validation but does not hard-code this taxonomy.
 
 ```text
-/
-├── start/
-│   ├── what-is-auths
-│   ├── rest-api
-│   ├── delegate-to-an-agent
-│   └── verify-a-receipt
-├── development/
-│   ├── sdks
-│   ├── runtime-api
-│   ├── cli
-│   ├── agents-and-mcp
-│   ├── testing
-│   └── versioning
-├── guides/
-│   ├── identity-and-trust
-│   ├── approvals
-│   ├── delegation
-│   ├── recoverable-execution
-│   ├── receipts-and-disclosure
-│   └── cross-company-authority
-├── profiles/
-│   ├── application
-│   ├── mcp
-│   ├── opentofu
-│   ├── postgresql
-│   └── github
-├── architecture/
-│   ├── system-map
-│   ├── identity-versus-authority
-│   ├── trust-boundaries
-│   ├── lifecycle-and-recovery
-│   ├── custody
-│   ├── transport-and-exchange
-│   └── threat-model
-├── operations/
-│   ├── deploy
-│   ├── postgresql
-│   ├── kms-and-pkcs11
-│   ├── observability
-│   ├── backup-and-restore
-│   └── incident-runbooks
-├── integrations/
-│   ├── oauth-oidc
-│   ├── spiffe
-│   ├── cedar-opa-rebac
-│   ├── cloud-iam
-│   └── ucan-biscuit-http-signatures
-├── reference/
-│   ├── sdk/{rust,typescript,python}/...
-│   ├── runtime-api/...
-│   ├── profiles/...
-│   ├── errors/...
-│   ├── configuration
-│   ├── limits
-│   └── protocol/...
-├── assurance/
-│   ├── claims
-│   ├── fixtures
-│   ├── differential-evidence
-│   ├── formal-evidence
-│   └── release-evidence
-└── releases/
-    ├── changelog
-    ├── support-matrix
-    └── upgrade-guides
+Primary topics                 Utility destinations
+├── Get started                ├── APIs & SDKs
+├── Identity & trust           ├── Search
+├── Authority                  └── GitHub
+├── Agents
+├── Operations                 Cross-linked domain
+└── Developers                 └── Assurance
 ```
 
 Crate and package names remain searchable and appear on reference pages, but
-they do not determine the top-level navigation.
+they do not determine the top-level navigation. Each primary topic opens a
+curated landing page before its exhaustive contextual tree. Landing pages
+recommend; contextual navigation enumerates.
 
 The default home-page journey is:
 
@@ -797,7 +763,7 @@ page model as HTML. It is an output, never a second authored source.
 auths-proof-docs/
 ├── README.md
 ├── package.json
-├── pnpm-lock.yaml
+├── package-lock.json
 ├── astro.config.ts
 ├── tsconfig.json
 ├── docs/

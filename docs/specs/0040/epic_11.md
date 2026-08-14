@@ -18,6 +18,12 @@ from an immutable artifact and fail before merge when coverage drifts.
 Then qualify and deploy one exact pair of product and docs revisions with an
 immutable rollback bundle.
 
+This epic owns CI orchestration, exact-head classification, release evidence,
+deployment, and rollback. Content Epic 9 supplies editorial acceptance
+requirements and claim-governance policy; it does not implement parallel CI,
+deployment, Markdown, search, or release pipelines. Follow
+[Content Epic 0](./content/epic_0.md).
+
 ## Zero-context starting point
 
 Read:
@@ -248,11 +254,11 @@ cargo xtask ci
 In `auths-proof-docs`:
 
 ```text
-pnpm install --frozen-lockfile
-pnpm qualify --bundle <immutable-bundle>
-pnpm build
-pnpm deploy:smoke
-pnpm deploy:rollback-test
+npm ci
+npm run qualify -- --bundle <immutable-bundle>
+npm run build
+npm run deploy:smoke
+npm run deploy:rollback-test
 ```
 
 Exercise the cross-repository workflow from a real pull request before making

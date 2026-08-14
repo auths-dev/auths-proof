@@ -18,6 +18,10 @@ No generated reference page is hand-edited or committed. A changed function
 argument or new endpoint updates the proper page through stable identities and
 fails the originating change if required coverage is missing.
 
+Content Epic 5 owns developer landing curation and explanatory introductions.
+This epic exclusively owns generated reference facts, templates, and contract
+diffs.
+
 ## Zero-context starting point
 
 Read:
@@ -243,13 +247,13 @@ and one versioned removal.
 ## Validation commands
 
 ```text
-pnpm reference:build --bundle <verified-bundle>
-pnpm reference:check
-pnpm test:contract
-pnpm test:reference
-pnpm test:search
-pnpm test:markdown
-pnpm build
+npm run reference:build -- --bundle <verified-bundle>
+npm run reference:check
+npm run test:contract
+npm run test:reference
+npm run test:search
+npm run test:markdown
+npm run build
 git diff --exit-code
 ```
 
