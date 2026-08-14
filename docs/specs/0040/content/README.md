@@ -58,7 +58,7 @@ README only after every acceptance criterion in the epic passes.
 - [ ] Content Epic 8 — Operations, testing, failure, and recovery
 - [ ] Content Epic 9 — Assurance narrative and governance
 - [x] Content Epic 10 — Canonical information architecture and route ownership
-- [ ] Content Epic 11 — Topic shell, left navigation, and page-type contracts
+- [x] Content Epic 11 — Topic shell, left navigation, and page-type contracts
 - [ ] Content Epic 12 — Rebuild Get started as an executable journey
 - [ ] Content Epic 13 — Complete Identity and trust documentation
 - [ ] Content Epic 14 — Complete Authority documentation
