@@ -10,19 +10,19 @@ journey.
 
 ## Implementation
 
-- [ ] Replace every current Agents landing destination with a real `/agents/*`
+- [x] Replace every current Agents landing destination with a real `/agents/*`
   page.
-- [ ] Build the complete Agents tree in the proposed hierarchy.
-- [ ] Turn “Delegate one tool” into an executable synchronized quickstart.
-- [ ] Show the exact delegated scope and one prohibited action on every agent
+- [x] Build the complete Agents tree in the proposed hierarchy.
+- [x] Turn “Delegate one tool” into an executable synchronized quickstart.
+- [x] Show the exact delegated scope and one prohibited action on every agent
   workflow page.
-- [ ] Separate MCP client use from protected MCP server construction.
-- [ ] Add MCP tool-profile and transport-boundary pages; explicitly state that
+- [x] Separate MCP client use from protected MCP server construction.
+- [x] Add MCP tool-profile and transport-boundary pages; explicitly state that
   MCP delivery is not authority.
-- [ ] Add executable approved-plan and multi-agent examples.
-- [ ] Document identity composition, skills/plugins, production ownership, and
+- [x] Add executable approved-plan and multi-agent examples.
+- [x] Document identity composition, skills/plugins, production ownership, and
   adversarial testing without bundling them as mandatory components.
-- [ ] Add failures for widening, prompt substitution, plan substitution,
+- [x] Add failures for widening, prompt substitution, plan substitution,
   ambient credentials, transport success, replay, and provider uncertainty.
 
 ## Acceptance
@@ -32,4 +32,3 @@ journey.
   reader job is implementation.
 - A reader can protect an MCP server without first learning unrelated
   integration categories.
-
