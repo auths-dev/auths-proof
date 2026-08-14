@@ -46,7 +46,7 @@ services:
     read_only: true
     tmpfs: [/var/cache/nginx, /var/run]
     cap_drop: [ALL]
-    cap_add: [DAC_OVERRIDE, SETGID, SETUID]
+    cap_add: [CHOWN, DAC_OVERRIDE, SETGID, SETUID]
     security_opt: [no-new-privileges:true]
 
   postgres:

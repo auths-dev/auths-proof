@@ -12,6 +12,7 @@ receivers:
             - targets: [auths-1:8080, auths-2:8080, auths-3:8080]
 processors:
   memory_limiter:
+    check_interval: 1s
     limit_mib: 128
   batch: {}
 exporters:
