@@ -112,12 +112,19 @@ jobs:
           .reference-venv/bin/maturin build --release --locked --manifest-path bindings/python/Cargo.toml --out target/open-reference-artifacts
           cargo build --locked -p auths-node
       - name: Run packed TypeScript client across replicas
+        working-directory: target/open-reference-consumer
+        env:
+          AUTHS_REFERENCE_ENDPOINT: https://localhost:8443
+          NODE_EXTRA_CA_CERTS: ${{ github.workspace }}/demos/open-production-reference/compose/postgres/certs/ca.crt
         run: |
-          cp demos/open-production-reference/tests/installed-sdk-e2e.mjs target/open-reference-consumer/reference.mjs
-          npm init --yes --prefix target/open-reference-consumer
-          npm install --prefix target/open-reference-consumer target/open-reference-artifacts/auths-dev-sdk-*.tgz
-          PATH="$PWD/target/debug:$PATH" node target/open-reference-consumer/reference.mjs
+          cp ../../demos/open-production-reference/tests/installed-sdk-e2e.mjs reference.mjs
+          npm init --yes
+          npm install ../open-reference-artifacts/auths-dev-sdk-*.tgz
+          PATH="${{ github.workspace }}/target/debug:$PATH" node reference.mjs
       - name: Run built Python wheel across replicas
+        env:
+          AUTHS_REFERENCE_ENDPOINT: https://localhost:8443
+          SSL_CERT_FILE: ${{ github.workspace }}/demos/open-production-reference/compose/postgres/certs/ca.crt
         run: |
           .reference-venv/bin/python -m pip install target/open-reference-artifacts/auths-*.whl
           PATH="$PWD/target/debug:$PATH" .reference-venv/bin/pytest -q demos/open-production-reference/tests/test_installed_sdk.py
