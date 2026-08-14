@@ -1,0 +1,73 @@
+schema = "auths.docs.claims/1"
+
+[[claim]]
+id = "auths.claim.native-semantic-owner/1"
+statement = "Rust owns protocol meaning used by Rust, TypeScript, and Python projections."
+status = "passing"
+evidence = "release/semantic-freeze.json"
+scope = "The declared protocol and product semantic identities consumed by maintained Rust, TypeScript, and Python surfaces."
+limitation = "The semantic freeze detects declared semantic drift; it is not a proof that every implementation is defect-free."
+reproduction = ["cargo xtask semantic-freeze"]
+
+[[claim]]
+id = "auths.claim.attenuation/1"
+statement = "Delegated authority cannot become broader than its parent under the maintained model and adversarial fixtures."
+status = "passing"
+evidence = "formal/qualification.lean"
+scope = "Attenuation relations represented by the maintained formal model and protocol profile."
+limitation = "The claim covers the modelled fields and maintained protocol profile, not arbitrary application-defined semantics."
+reproduction = ["cargo xtask formal"]
+
+[[claim]]
+id = "auths.claim.lifecycle-state/1"
+statement = "Maintained runtime paths preserve replay, use, budget, and recovery distinctions."
+status = "passing"
+evidence = "bindings/recipes/experience-evidence.json"
+scope = "Maintained runtime and installed-SDK workflows for replay, use, budget, reservation, and recovery outcomes."
+limitation = "Production guarantees also depend on the selected durable store and its deployment."
+reproduction = ["cargo xtask sdk-experience"]
+
+[[claim]]
+id = "auths.claim.approval-binding/1"
+statement = "Approval is bound to exact plan context and cannot authorize substituted plan bytes."
+status = "passing"
+evidence = "bindings/recipes/experience-evidence.json"
+scope = "Maintained approval-plan signing requests, responses, and substitution fixtures."
+limitation = "The application remains responsible for approver identity, user experience, and organizational policy."
+reproduction = ["cargo xtask sdk-experience"]
+
+[[claim]]
+id = "auths.claim.closed-gateway/1"
+statement = "Maintained product workflows reach provider adapters only through opaque native-authorized commands."
+status = "passing"
+evidence = "release/semantic-freeze.json"
+scope = "Maintained execution workflows and their opaque native command and gateway boundary."
+limitation = "Application-owned adapters can still be implemented unsafely outside the maintained boundary."
+reproduction = ["cargo xtask product-waist-conformance"]
+
+[[claim]]
+id = "auths.claim.bounded-disclosure/1"
+statement = "Receipt inspection defaults to opaque or bounded views and requires authority for full disclosure."
+status = "passing"
+evidence = "release/docs/runtime-facts-v1.json"
+scope = "Maintained receipt summary and disclosure operations and their public runtime contract."
+limitation = "Deployment retention, access control, and downstream handling remain application responsibilities."
+reproduction = ["cargo xtask product-conformance"]
+
+[[claim]]
+id = "auths.claim.cross-language-parity/1"
+statement = "Maintained Rust, TypeScript, and Python scenarios target identical stable semantic outcomes."
+status = "passing"
+evidence = "release/docs/scenarios.toml"
+scope = "The maintained installed-artifact scenarios declared for Rust, TypeScript, and Python."
+limitation = "Scenario parity covers maintained workflows and versions, not every possible application composition."
+reproduction = ["cargo xtask cross-language"]
+
+[[claim]]
+id = "auths.claim.supply-chain/1"
+statement = "The assessed release builder satisfies the recorded SLSA Build Level 3 requirements."
+status = "passing"
+evidence = "release/slsa-build-level-3-assessment.json"
+scope = "The assessed GitHub release builder and recorded SLSA 1.2 Build Level 3 controls."
+limitation = "This is a repository-owner delegated build assessment, not an independent security audit or source-correctness proof."
+reproduction = ["cargo test -p xtask release_control::tests::checked_in_slsa_assessment_matches_builder_bytes"]

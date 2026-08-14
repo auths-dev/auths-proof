@@ -77,6 +77,47 @@ struct ScenariosFile {
     scenario: Vec<Scenario>,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ClaimsFile {
+    schema: String,
+    claim: Vec<ClaimInput>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ClaimInput {
+    id: String,
+    statement: String,
+    status: ClaimStatus,
+    evidence: String,
+    scope: String,
+    limitation: String,
+    reproduction: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct Claim {
+    id: String,
+    statement: String,
+    status: ClaimStatus,
+    evidence: String,
+    evidence_sha256: String,
+    scope: String,
+    limitation: String,
+    reproduction: Vec<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+enum ClaimStatus {
+    Passing,
+    Degraded,
+    Superseded,
+    Withdrawn,
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct Scenario {
@@ -143,6 +184,7 @@ struct ContractPayload {
     operations: Vec<Operation>,
     pages: Vec<Page>,
     scenarios: Vec<Scenario>,
+    claims: Vec<Claim>,
     projections: Vec<Projection>,
     runtime_facts: Value,
 }
@@ -213,9 +255,11 @@ fn build_contract() -> Result<Vec<u8>, String> {
     let mut operations: OperationsFile = read_toml("release/docs/operations.toml")?;
     let mut pages: PagesFile = read_toml("release/docs/pages.toml")?;
     let mut scenarios: ScenariosFile = read_toml("release/docs/scenarios.toml")?;
+    let mut claims: ClaimsFile = read_toml("release/docs/claims.toml")?;
     require_schema(&operations.schema, "auths.docs.operations/1")?;
     require_schema(&pages.schema, "auths.docs.pages/1")?;
     require_schema(&scenarios.schema, "auths.docs.scenarios/1")?;
+    require_schema(&claims.schema, "auths.docs.claims/1")?;
 
     operations
         .operation
@@ -224,12 +268,14 @@ fn build_contract() -> Result<Vec<u8>, String> {
     scenarios
         .scenario
         .sort_by(|left, right| left.id.cmp(&right.id));
+    claims.claim.sort_by(|left, right| left.id.cmp(&right.id));
     validate_unique(
         "operation",
         operations.operation.iter().map(|item| &item.id),
     )?;
     validate_unique("page", pages.page.iter().map(|item| &item.id))?;
     validate_unique("scenario", scenarios.scenario.iter().map(|item| &item.id))?;
+    validate_unique("claim", claims.claim.iter().map(|item| &item.id))?;
 
     let operation_ids: BTreeSet<String> = operations
         .operation
@@ -244,6 +290,39 @@ fn build_contract() -> Result<Vec<u8>, String> {
     for id in operation_ids.iter().chain(scenario_ids.iter()) {
         validate_identity(id)?;
     }
+    let claims = claims
+        .claim
+        .into_iter()
+        .map(|claim| {
+            validate_identity(&claim.id)?;
+            if claim.statement.is_empty()
+                || claim.scope.is_empty()
+                || claim.limitation.is_empty()
+                || claim.reproduction.is_empty()
+                || claim.reproduction.iter().any(String::is_empty)
+            {
+                return Err(format!("claim {} has empty public text", claim.id));
+            }
+            let evidence = root().join(&claim.evidence);
+            if !evidence.is_file() {
+                return Err(format!("claim {} evidence does not exist", claim.id));
+            }
+            let evidence_sha256 =
+                hex::encode(Sha256::digest(fs::read(&evidence).map_err(|error| {
+                    format!("could not read {}: {error}", evidence.display())
+                })?));
+            Ok(Claim {
+                id: claim.id,
+                statement: claim.statement,
+                status: claim.status,
+                evidence: claim.evidence,
+                evidence_sha256,
+                scope: claim.scope,
+                limitation: claim.limitation,
+                reproduction: claim.reproduction,
+            })
+        })
+        .collect::<Result<Vec<_>, String>>()?;
     for page in &mut pages.page {
         validate_identity(&page.id)?;
         if !page.path.starts_with('/') || page.path.contains("//") {
@@ -378,6 +457,7 @@ fn build_contract() -> Result<Vec<u8>, String> {
         operations: operations.operation,
         pages: pages.page,
         scenarios: scenarios.scenario,
+        claims,
         projections,
         runtime_facts: runtime_facts(&operation_ids, &scenario_ids)?,
     };

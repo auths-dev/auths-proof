@@ -197,6 +197,104 @@
       ]
     }
   ],
+  "claims": [
+    {
+      "id": "auths.claim.approval-binding/1",
+      "statement": "Approval is bound to exact plan context and cannot authorize substituted plan bytes.",
+      "status": "passing",
+      "evidence": "bindings/recipes/experience-evidence.json",
+      "evidenceSha256": "a8ba8a06a3979d62bab446f1bc2469e328e98e485a344a8a36d07ee0f2013331",
+      "scope": "Maintained approval-plan signing requests, responses, and substitution fixtures.",
+      "limitation": "The application remains responsible for approver identity, user experience, and organizational policy.",
+      "reproduction": [
+        "cargo xtask sdk-experience"
+      ]
+    },
+    {
+      "id": "auths.claim.attenuation/1",
+      "statement": "Delegated authority cannot become broader than its parent under the maintained model and adversarial fixtures.",
+      "status": "passing",
+      "evidence": "formal/qualification.lean",
+      "evidenceSha256": "fb1fd17d377194e96f98313412052f82fbb43cb594b12eb6a9fa0e0dce3ce70c",
+      "scope": "Attenuation relations represented by the maintained formal model and protocol profile.",
+      "limitation": "The claim covers the modelled fields and maintained protocol profile, not arbitrary application-defined semantics.",
+      "reproduction": [
+        "cargo xtask formal"
+      ]
+    },
+    {
+      "id": "auths.claim.bounded-disclosure/1",
+      "statement": "Receipt inspection defaults to opaque or bounded views and requires authority for full disclosure.",
+      "status": "passing",
+      "evidence": "release/docs/runtime-facts-v1.json",
+      "evidenceSha256": "3229ccc5a4adbcdfd4b55bdca58ab9e7e5c333719aeff3a0dba54976e6fef1f1",
+      "scope": "Maintained receipt summary and disclosure operations and their public runtime contract.",
+      "limitation": "Deployment retention, access control, and downstream handling remain application responsibilities.",
+      "reproduction": [
+        "cargo xtask product-conformance"
+      ]
+    },
+    {
+      "id": "auths.claim.closed-gateway/1",
+      "statement": "Maintained product workflows reach provider adapters only through opaque native-authorized commands.",
+      "status": "passing",
+      "evidence": "release/semantic-freeze.json",
+      "evidenceSha256": "75e787e3f1412e63301761ae3503339b493e1f5fdb2441fede9599a6a9da89a3",
+      "scope": "Maintained execution workflows and their opaque native command and gateway boundary.",
+      "limitation": "Application-owned adapters can still be implemented unsafely outside the maintained boundary.",
+      "reproduction": [
+        "cargo xtask product-waist-conformance"
+      ]
+    },
+    {
+      "id": "auths.claim.cross-language-parity/1",
+      "statement": "Maintained Rust, TypeScript, and Python scenarios target identical stable semantic outcomes.",
+      "status": "passing",
+      "evidence": "release/docs/scenarios.toml",
+      "evidenceSha256": "f056e57acb5dbad67ef5ed5076bdee388a82e73b7e6a6af53b82c226ccd552da",
+      "scope": "The maintained installed-artifact scenarios declared for Rust, TypeScript, and Python.",
+      "limitation": "Scenario parity covers maintained workflows and versions, not every possible application composition.",
+      "reproduction": [
+        "cargo xtask cross-language"
+      ]
+    },
+    {
+      "id": "auths.claim.lifecycle-state/1",
+      "statement": "Maintained runtime paths preserve replay, use, budget, and recovery distinctions.",
+      "status": "passing",
+      "evidence": "bindings/recipes/experience-evidence.json",
+      "evidenceSha256": "a8ba8a06a3979d62bab446f1bc2469e328e98e485a344a8a36d07ee0f2013331",
+      "scope": "Maintained runtime and installed-SDK workflows for replay, use, budget, reservation, and recovery outcomes.",
+      "limitation": "Production guarantees also depend on the selected durable store and its deployment.",
+      "reproduction": [
+        "cargo xtask sdk-experience"
+      ]
+    },
+    {
+      "id": "auths.claim.native-semantic-owner/1",
+      "statement": "Rust owns protocol meaning used by Rust, TypeScript, and Python projections.",
+      "status": "passing",
+      "evidence": "release/semantic-freeze.json",
+      "evidenceSha256": "75e787e3f1412e63301761ae3503339b493e1f5fdb2441fede9599a6a9da89a3",
+      "scope": "The declared protocol and product semantic identities consumed by maintained Rust, TypeScript, and Python surfaces.",
+      "limitation": "The semantic freeze detects declared semantic drift; it is not a proof that every implementation is defect-free.",
+      "reproduction": [
+        "cargo xtask semantic-freeze"
+      ]
+    },
+    {
+      "id": "auths.claim.supply-chain/1",
+      "statement": "The assessed release builder satisfies the recorded SLSA Build Level 3 requirements.",
+      "status": "passing",
+      "evidence": "release/slsa-build-level-3-assessment.json",
+      "evidenceSha256": "49d5a096915d49058c8c66f29c5c7f59181caa0783d4724322068de6c5c3f6bf",
+      "scope": "The assessed GitHub release builder and recorded SLSA 1.2 Build Level 3 controls.",
+      "limitation": "This is a repository-owner delegated build assessment, not an independent security audit or source-correctness proof.",
+      "reproduction": [
+        "cargo test -p xtask release_control::tests::checked_in_slsa_assessment_matches_builder_bytes"
+      ]
+    }
+  ],
   "projections": [
     {
       "operation": "auths.operation.create/1",
@@ -474,5 +572,5 @@
       }
     ]
   },
-  "digest": "14b2d4439129915287da91cf3d57783fef00766c00606e63f95e270ca8a342e3"
+  "digest": "8817d78d2db3c8640f227ca1237b0b53fd8d991515d5c9b2def14319a85b5b90"
 }

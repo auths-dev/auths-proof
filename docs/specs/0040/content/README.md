@@ -65,7 +65,7 @@ README only after every acceptance criterion in the epic passes.
 - [x] Content Epic 15 — Complete Agents and MCP documentation
 - [x] Content Epic 16 — Complete Production operations documentation
 - [x] Content Epic 17 — Complete Developer, integration, and extension documentation
-- [ ] Content Epic 18 — Complete Reference and Assurance utilities
+- [x] Content Epic 18 — Complete Reference and Assurance utilities
 - [ ] Content Epic 19 — Full-site content and link qualification
 
 ## Zero-context agent prompt
