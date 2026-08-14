@@ -49,6 +49,11 @@ pub struct SandboxRuntime {
 }
 
 impl SandboxRuntime {
+    /// Creates an isolated deterministic runtime with in-memory state.
+    ///
+    /// # Errors
+    ///
+    /// Returns malformed for a zero seed or an empty profile set.
     pub fn new(
         seed: [u8; 32],
         profiles: BTreeSet<QualifiedProfile>,
@@ -74,6 +79,11 @@ impl SandboxRuntime {
         })
     }
 
+    /// Creates an isolated deterministic runtime with `PostgreSQL` state.
+    ///
+    /// # Errors
+    ///
+    /// Returns malformed for a zero seed or an empty profile set.
     pub fn with_postgres(
         seed: [u8; 32],
         profiles: BTreeSet<QualifiedProfile>,
@@ -359,6 +369,11 @@ impl NodeRuntime for SandboxRuntime {
     }
 }
 
+/// Encodes one bounded sandbox authority request.
+///
+/// # Errors
+///
+/// Returns malformed for empty, duplicate, excessive, or zero-use actions.
 pub fn encode_sandbox_authority_request(
     expires_at: u64,
     remaining_depth: u16,

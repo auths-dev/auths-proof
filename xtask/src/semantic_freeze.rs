@@ -4,7 +4,7 @@ use crate::*;
 
 const INVENTORY_PATH: &str = "release/semantic-freeze.json";
 const INVENTORY_SCHEMA: &str = "auths.semantic-freeze/1";
-const FREEZE_VERSION: u64 = 108;
+const FREEZE_VERSION: u64 = 109;
 const PUBLIC_RUST_ROOTS: [&str; 10] = [
     "auths",
     "auths-byte-channel",
@@ -246,7 +246,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.portable-abi-bindings",
-            48,
+            49,
             FreezeClassification::FrozenMeaning,
             &["portable-abi", "authoring-abi", "binding-contracts"],
             vec![
@@ -262,7 +262,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.public-sdk-contract",
-            39,
+            40,
             FreezeClassification::FrozenMeaning,
             &[
                 "rust-sdk-contract",
@@ -441,7 +441,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.bounded-domains",
-            5,
+            6,
             FreezeClassification::FrozenMeaning,
             &[
                 "bounded-domain-inventory",
@@ -456,7 +456,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.lifecycle",
-            7,
+            8,
             FreezeClassification::FrozenMeaning,
             &[
                 "reservation-state",
@@ -525,7 +525,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.release-assurance",
-            3,
+            4,
             FreezeClassification::FrozenMeaning,
             &[
                 "immutable-candidate-binding",
@@ -545,7 +545,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.external-custody",
-            2,
+            3,
             FreezeClassification::FrozenMeaning,
             &[
                 "transaction-bound-signing",
@@ -568,7 +568,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.operations",
-            3,
+            4,
             FreezeClassification::FrozenMeaning,
             &[
                 "privacy-safe-events",
@@ -695,7 +695,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
     ]);
     entries.push(freeze_entry(
         "auths.release.public-surface",
-        107,
+        108,
         FreezeClassification::ReleaseMetadata,
         &[
             "package-names",

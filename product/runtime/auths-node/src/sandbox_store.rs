@@ -151,6 +151,12 @@ pub struct PostgresSandboxStore {
 }
 
 impl PostgresSandboxStore {
+    /// Connects to the bounded sandbox schema over server-authenticated TLS.
+    ///
+    /// # Errors
+    ///
+    /// Returns a bounded runtime failure for invalid connection policy,
+    /// certificate material, schema identity, or capacity.
     pub fn connect(
         connection: &str,
         root_certificate: &Path,
@@ -476,6 +482,7 @@ fn enforce_capacity(
     Ok(())
 }
 
+#[allow(clippy::needless_pass_by_value)]
 fn decode_pending(row: postgres::Row) -> Result<PendingEffect, RuntimeFailure> {
     let profile: String = row.try_get(0).map_err(|_| RuntimeFailure::Unavailable)?;
     let authority: Vec<u8> = row.try_get(1).map_err(|_| RuntimeFailure::Unavailable)?;
@@ -491,6 +498,7 @@ fn decode_pending(row: postgres::Row) -> Result<PendingEffect, RuntimeFailure> {
     })
 }
 
+#[allow(clippy::needless_pass_by_value)]
 fn decode_receipt(row: postgres::Row) -> Result<StoredReceipt, RuntimeFailure> {
     let profile: String = row.try_get(0).map_err(|_| RuntimeFailure::Unavailable)?;
     let completed_at: i64 = row.try_get(1).map_err(|_| RuntimeFailure::Unavailable)?;

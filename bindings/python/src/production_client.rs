@@ -66,6 +66,7 @@ fn project_sdk_event_json_v2(input: &str) -> PyResult<String> {
     project_sdk_event_v2(input).map_err(value_error)
 }
 
+#[allow(clippy::needless_pass_by_value)]
 fn value_error(error: impl ToString) -> PyErr {
     PyValueError::new_err(error.to_string())
 }

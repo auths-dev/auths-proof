@@ -1191,41 +1191,47 @@ fn decode_postgres_row(row: &postgres::Row) -> Result<LifecycleRecordV1, StoreEr
 }
 
 fn decode_postgres_recovery_row(row: &postgres::Row) -> Result<LifecycleRecordV1, StoreError> {
+    let workflow: String = row.try_get(0).map_err(|_| StoreError::Corrupt)?;
+    let record: Vec<u8> = row.try_get(4).map_err(|_| StoreError::Corrupt)?;
+    let digest: Vec<u8> = row.try_get(5).map_err(|_| StoreError::Corrupt)?;
     decode_postgres_values(
-        row.try_get(0).map_err(|_| StoreError::Corrupt)?,
+        &workflow,
         row.try_get(2).map_err(|_| StoreError::Corrupt)?,
         row.try_get(3).map_err(|_| StoreError::Corrupt)?,
-        row.try_get(4).map_err(|_| StoreError::Corrupt)?,
-        row.try_get(5).map_err(|_| StoreError::Corrupt)?,
+        &record,
+        &digest,
     )
 }
 
 fn decode_postgres_lease_row(row: &postgres::Row) -> Result<LifecycleRecordV1, StoreError> {
+    let workflow: String = row.try_get(0).map_err(|_| StoreError::Corrupt)?;
+    let record: Vec<u8> = row.try_get(3).map_err(|_| StoreError::Corrupt)?;
+    let digest: Vec<u8> = row.try_get(4).map_err(|_| StoreError::Corrupt)?;
     decode_postgres_values(
-        row.try_get(0).map_err(|_| StoreError::Corrupt)?,
+        &workflow,
         row.try_get(1).map_err(|_| StoreError::Corrupt)?,
         row.try_get(2).map_err(|_| StoreError::Corrupt)?,
-        row.try_get(3).map_err(|_| StoreError::Corrupt)?,
-        row.try_get(4).map_err(|_| StoreError::Corrupt)?,
+        &record,
+        &digest,
     )
 }
 
 fn decode_postgres_values(
-    workflow_text: String,
+    workflow_text: &str,
     revision: i64,
     state: i16,
-    record_bytes: Vec<u8>,
-    stored_digest: Vec<u8>,
+    record_bytes: &[u8],
+    stored_digest: &[u8],
 ) -> Result<LifecycleRecordV1, StoreError> {
     if record_bytes.is_empty()
         || record_bytes.len() > MAX_RECORD_BYTES
         || stored_digest.len() != 32
-        || Sha256::digest(&record_bytes).as_slice() != stored_digest
+        || Sha256::digest(record_bytes).as_slice() != stored_digest
     {
         return Err(StoreError::Corrupt);
     }
-    let workflow = WorkflowId::parse(&workflow_text).map_err(|_| StoreError::Corrupt)?;
-    let record = decode_record(&record_bytes).map_err(|_| StoreError::Corrupt)?;
+    let workflow = WorkflowId::parse(workflow_text).map_err(|_| StoreError::Corrupt)?;
+    let record = decode_record(record_bytes).map_err(|_| StoreError::Corrupt)?;
     let indexed_revision = u64::try_from(revision).map_err(|_| StoreError::Corrupt)?;
     if record.workflow_id() != &workflow
         || record.revision() != indexed_revision

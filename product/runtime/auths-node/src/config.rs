@@ -65,6 +65,7 @@ struct TelemetryConfig {
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[allow(clippy::struct_excessive_bools)]
 struct ProfilesConfig {
     opentofu_saved_plan_apply: bool,
     postgresql_bounded_update: bool,
@@ -120,6 +121,12 @@ pub enum StartupError {
 }
 
 impl NodeConfig {
+    /// Loads a bounded node configuration from a regular file.
+    ///
+    /// # Errors
+    ///
+    /// Returns a startup error when the file is unavailable, oversized,
+    /// malformed, or fails production safety checks.
     pub fn from_path(path: &Path) -> Result<Self, StartupError> {
         let metadata = fs::symlink_metadata(path).map_err(|_| StartupError::ConfigUnavailable)?;
         if !metadata.file_type().is_file() || metadata.len() > MAX_CONFIG_BYTES {
@@ -134,6 +141,11 @@ impl NodeConfig {
         Self::parse(source)
     }
 
+    /// Parses and validates a bounded node configuration.
+    ///
+    /// # Errors
+    ///
+    /// Returns a startup error for malformed, unsupported, or unsafe values.
     pub fn parse(source: &str) -> Result<Self, StartupError> {
         if source.is_empty()
             || source.len() > usize::try_from(MAX_CONFIG_BYTES).unwrap_or(usize::MAX)

@@ -18,6 +18,12 @@ pub struct BranchPublishRequestV1 {
 }
 
 impl BranchPublishRequestV1 {
+    /// Derives the only provider request allowed for this branch action.
+    ///
+    /// # Errors
+    ///
+    /// Returns invalid-action when the input or derived request is outside the
+    /// closed provider contract.
     pub fn derive(action: &PublishBranchAction) -> Result<Self, ValidationError> {
         ExactGitHubAction::PublishBranch(action.clone()).validate()?;
         let request = Self {
@@ -37,11 +43,17 @@ impl BranchPublishRequestV1 {
         Ok(request)
     }
 
+    /// Validates the exact branch-publish provider contract.
+    ///
+    /// # Errors
+    ///
+    /// Returns invalid-action when any request field differs from the closed
+    /// contract or exceeds its bounds.
     pub fn validate(&self) -> Result<(), ValidationError> {
         if self.contract != BRANCH_PROVIDER_CONTRACT_ID
             || self.argv != ["push", "--porcelain", "--no-verify"]
             || !self.repository_path.starts_with('/')
-            || !self.repository_path.ends_with(".git")
+            || !self.repository_path.as_bytes().ends_with(b".git")
             || self.repository_path.len() > 256
             || self.refspec.is_empty()
             || self.refspec.len() > 512
@@ -80,6 +92,12 @@ pub struct DraftPullRequestV1 {
 }
 
 impl DraftPullRequestV1 {
+    /// Derives the only provider request allowed for this pull-request action.
+    ///
+    /// # Errors
+    ///
+    /// Returns invalid-action when input bytes or the derived request are
+    /// outside the closed provider contract.
     pub fn derive(
         action: &OpenDraftPullRequestAction,
         exact_body: &str,
@@ -105,6 +123,12 @@ impl DraftPullRequestV1 {
         Ok(request)
     }
 
+    /// Validates the exact draft pull-request provider contract.
+    ///
+    /// # Errors
+    ///
+    /// Returns invalid-action when any request field differs from the closed
+    /// contract or exceeds its bounds.
     pub fn validate(&self) -> Result<(), ValidationError> {
         if self.contract != PULL_REQUEST_PROVIDER_CONTRACT_ID
             || !self.path.starts_with("/repos/")

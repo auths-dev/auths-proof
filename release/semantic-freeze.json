@@ -1,6 +1,6 @@
 {
   "schema": "auths.semantic-freeze/1",
-  "freezeVersion": 108,
+  "freezeVersion": 109,
   "publicSurface": {
     "rustRoots": [
       "auths",
@@ -620,7 +620,7 @@
     },
     {
       "id": "auths.portable-abi-bindings",
-      "version": 48,
+      "version": 49,
       "classification": "frozen-meaning",
       "categories": [
         "portable-abi",
@@ -637,11 +637,11 @@
         "core/crates/auths-model/src/lib.rs",
         "core/spec/v1/auths-proof.cddl"
       ],
-      "sha256": "502f6ca3c3c8d74399cdd62559cf6a38ce13a28dd9cd5f7c3f8c2721b385ebb7"
+      "sha256": "24f3e71ec5b838b9ae20cc7306ab6eead60f465a6f2e854175ccfc4a57e9b8d1"
     },
     {
       "id": "auths.product.bounded-domains",
-      "version": 5,
+      "version": 6,
       "classification": "frozen-meaning",
       "categories": [
         "bounded-domain-inventory",
@@ -662,7 +662,7 @@
         "product/integrations/auths-records-api/src",
         "product/integrations/auths-stripe/src"
       ],
-      "sha256": "3a0ccfb7ecc4eb8ccdb6ec88102b45298d7f1dedfe72e8d3f1c84fc13f573574"
+      "sha256": "fad328d01a4d04e42b01274525c8a1f70f9a52381b54741cf4a490da0d24e7a2"
     },
     {
       "id": "auths.product.bounded-policy",
@@ -738,7 +738,7 @@
     },
     {
       "id": "auths.product.external-custody",
-      "version": 2,
+      "version": 3,
       "classification": "frozen-meaning",
       "categories": [
         "transaction-bound-signing",
@@ -758,7 +758,7 @@
         "product/integrations/auths-custody-pkcs11/src",
         "product/integrations/auths-custody/src"
       ],
-      "sha256": "b2b2c36135392c2a6f1d468855bdc0af2108466fabf0e092ec21f86b9ad5c055"
+      "sha256": "f41fdb5b47ea718ecdb99536878d67de99bcc661d532976fd3fe2d5dd1fe1f04"
     },
     {
       "id": "auths.product.facade",
@@ -785,7 +785,7 @@
     },
     {
       "id": "auths.product.lifecycle",
-      "version": 7,
+      "version": 8,
       "classification": "frozen-meaning",
       "categories": [
         "reservation-state",
@@ -802,7 +802,7 @@
         "product/stores/auths-stores/tests/postgres_lifecycle.rs",
         "product/stores/auths-stores/tests/postgres_tls"
       ],
-      "sha256": "14806db828a9851dfc114808faf3eaf9661b7ff035be8bc619fecc63359b3b4e"
+      "sha256": "77882aa1b6160930d64ac094a14e9c2c0021cf488de3dfa5beaa1e91f4a5a1b5"
     },
     {
       "id": "auths.product.mcp-closed-execution",
@@ -875,7 +875,7 @@
     },
     {
       "id": "auths.product.operations",
-      "version": 3,
+      "version": 4,
       "classification": "frozen-meaning",
       "categories": [
         "privacy-safe-events",
@@ -893,11 +893,11 @@
         "product/operations/v2",
         "product/runtime/auths-runtime/src/production.rs"
       ],
-      "sha256": "e1efbf8054f4b82568a26d9f5527efea1fde5af308209391c96eafe408aeb46b"
+      "sha256": "298cbee39ac801e1bd110541c409c11d31fe41f3b5f3e60265af26e15a94bd00"
     },
     {
       "id": "auths.product.public-sdk-contract",
-      "version": 39,
+      "version": 40,
       "classification": "frozen-meaning",
       "categories": [
         "rust-sdk-contract",
@@ -915,7 +915,7 @@
         "product/runtime/auths-runtime/src",
         "product/sdk/auths-sdk/src"
       ],
-      "sha256": "6826d56faa2f02251a3b69567b9fa757073236711fb06309e3d88ececec8f19d"
+      "sha256": "35b68bb4c8a545214990c916bb553bb45dae96fd61c69707e3e8ef37c9990f8f"
     },
     {
       "id": "auths.product.receipts",
@@ -933,7 +933,7 @@
     },
     {
       "id": "auths.product.release-assurance",
-      "version": 3,
+      "version": 4,
       "classification": "frozen-meaning",
       "categories": [
         "immutable-candidate-binding",
@@ -950,7 +950,7 @@
         "release/assurance",
         "xtask/src/assurance.rs"
       ],
-      "sha256": "5a4429999660360901c49ed00fafb3def6058af4453101496e8f3662942ce71e"
+      "sha256": "bb9a66f25629cb7bd847228791fb0f2d5815b695a21913a88e9d6f82b4c8169e"
     },
     {
       "id": "auths.product.simplified-waist",
@@ -1038,7 +1038,7 @@
     },
     {
       "id": "auths.release.public-surface",
-      "version": 107,
+      "version": 108,
       "classification": "release-metadata",
       "categories": [
         "package-names",
@@ -1132,7 +1132,7 @@
         "xtask/src/release_control.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "407080e7e76db638a9666b5384417869531e01564fd0df971d2988947bc119e4"
+      "sha256": "e9126c644c5cf603d7bd3e54829105ac2de0cc313a082ed082988e556b16e72d"
     }
   ]
 }

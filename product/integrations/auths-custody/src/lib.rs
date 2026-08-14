@@ -28,6 +28,12 @@ pub enum CustodyKind {
 pub struct CustodyAdapterId(String);
 
 impl CustodyAdapterId {
+    /// Parses a bounded adapter identity.
+    ///
+    /// # Errors
+    ///
+    /// Returns an invalid-identifier error for an empty, oversized, or
+    /// non-canonical value.
     pub fn parse(value: &str) -> Result<Self, CustodyError> {
         parse_identifier(value)?;
         Ok(Self(value.to_owned()))
@@ -43,6 +49,12 @@ impl CustodyAdapterId {
 pub struct KeyVersionId(String);
 
 impl KeyVersionId {
+    /// Parses a bounded provider key version.
+    ///
+    /// # Errors
+    ///
+    /// Returns an invalid-identifier error for an empty, oversized, or
+    /// non-canonical value.
     pub fn parse(value: &str) -> Result<Self, CustodyError> {
         parse_identifier(value)?;
         Ok(Self(value.to_owned()))
@@ -154,6 +166,11 @@ pub const CUSTODY_CONFORMANCE_CASES: &[CustodyConformanceCase] = &[
 ];
 
 impl CustodyDescriptor {
+    /// Creates a descriptor for one externally held key version.
+    ///
+    /// # Errors
+    ///
+    /// Returns a descriptor mismatch when no verification method is present.
     pub fn new(
         kind: CustodyKind,
         adapter_id: CustodyAdapterId,
@@ -273,6 +290,12 @@ pub struct RawSigningResponse {
 pub struct UntrustedSigningResponse(RawSigningResponse);
 
 impl UntrustedSigningResponse {
+    /// Parses provider output into a bounded untrusted response.
+    ///
+    /// # Errors
+    ///
+    /// Returns invalid-provider-response when identifiers, signatures, or
+    /// evidence exceed the closed response shape.
     pub fn parse(value: RawSigningResponse) -> Result<Self, CustodyProviderError> {
         parse_identifier(&value.request_id)
             .map_err(|_| CustodyProviderError::InvalidProviderResponse)?;
@@ -317,6 +340,12 @@ impl CustodyProviderError {
 pub trait ExternalSigner: Send + Sync {
     fn descriptor(&self) -> &CustodyDescriptor;
 
+    /// Requests a signature for one transaction-bound intent.
+    ///
+    /// # Errors
+    ///
+    /// Returns the provider's bounded failure without completing the Auths
+    /// signing object.
     fn sign(
         &self,
         request: &SigningIntent<'_>,
@@ -324,6 +353,12 @@ pub trait ExternalSigner: Send + Sync {
 }
 
 pub trait CustodySignatureVerifier: Send + Sync {
+    /// Verifies provider output against the configured custody descriptor.
+    ///
+    /// # Errors
+    ///
+    /// Returns a custody error when the descriptor, signature, or evidence
+    /// does not establish the expected key operation.
     fn verify(
         &self,
         descriptor: &CustodyDescriptor,
@@ -338,6 +373,11 @@ pub struct P256SignatureVerifier {
 }
 
 impl P256SignatureVerifier {
+    /// Parses a SEC1-encoded P-256 verification key.
+    ///
+    /// # Errors
+    ///
+    /// Returns an evidence mismatch when the key encoding is invalid.
     pub fn from_sec1_bytes(bytes: &[u8]) -> Result<Self, CustodyError> {
         let verification_key =
             VerifyingKey::from_sec1_bytes(bytes).map_err(|_| CustodyError::EvidenceMismatch)?;
@@ -376,6 +416,12 @@ impl CustodySignature {
     }
 }
 
+/// Binds and verifies an untrusted provider response to its exact request.
+///
+/// # Errors
+///
+/// Returns a custody error for any request, principal, descriptor, key,
+/// transaction, signature, or evidence mismatch.
 pub fn validate_provider_response<T>(
     request: &ExternalSigningRequest<T>,
     descriptor: &CustodyDescriptor,
@@ -445,6 +491,12 @@ impl<T> SignedArtifact<T> {
 
 macro_rules! signing_operation {
     ($name:ident, $input:ty, $output:ty) => {
+        /// Completes one transaction-bound Auths signing operation.
+        ///
+        /// # Errors
+        ///
+        /// Returns a custody error when the key is unavailable or provider
+        /// output does not bind to the exact signing request.
         pub fn $name(
             request: ExternalSigningRequest<$input>,
             signer: &dyn ExternalSigner,
@@ -613,6 +665,12 @@ impl LanguageSigningResponse {
     }
 }
 
+/// Binds a language-adapter signature to its exact native signing request.
+///
+/// # Errors
+///
+/// Returns a custody error when request, principal, descriptor, or transaction
+/// identity differs from the expected native values.
 pub fn bind_language_signing_response<T>(
     request: &ExternalSigningRequest<T>,
     expected_principal: &PrincipalId,

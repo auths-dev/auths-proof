@@ -30,9 +30,36 @@ use std::{
 use tower_http::{limit::RequestBodyLimitLayer, timeout::TimeoutLayer};
 
 pub trait NodeRuntime: Send + Sync {
+    /// Handles one parsed production request.
+    ///
+    /// # Errors
+    ///
+    /// Returns a bounded runtime failure when the requested operation cannot
+    /// complete safely.
     fn handle(&self, request: ProductionRequest) -> Result<ProductionResponse, RuntimeFailure>;
+
+    /// Reads the public projection for one recovery reference.
+    ///
+    /// # Errors
+    ///
+    /// Returns a bounded runtime failure when the workflow is unknown or its
+    /// durable status is unavailable.
     fn status(&self, reference: &RecoveryReference) -> Result<WorkflowProjection, RuntimeFailure>;
+
+    /// Reads the bounded summary for one receipt.
+    ///
+    /// # Errors
+    ///
+    /// Returns a bounded runtime failure when the receipt is unknown or
+    /// unavailable.
     fn receipt_summary(&self, receipt_id: &str) -> Result<ReceiptSummary, RuntimeFailure>;
+
+    /// Produces an authorized bounded receipt disclosure.
+    ///
+    /// # Errors
+    ///
+    /// Returns a bounded runtime failure when the receipt is unknown,
+    /// unavailable, or disclosure authorization is denied.
     fn disclose_receipt(
         &self,
         receipt_id: &str,
@@ -59,7 +86,8 @@ struct Health<'a> {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct Version {
-    contract_version: u16,
+    #[serde(rename = "contractVersion")]
+    contract: u16,
     release: String,
     semantic_id: String,
 }
@@ -71,7 +99,6 @@ struct ApiError<'a> {
     retry: &'a str,
 }
 
-#[must_use]
 pub fn app(
     config: &NodeConfig,
     runtime: Arc<dyn NodeRuntime>,
@@ -139,7 +166,7 @@ async fn ready(State(state): State<AppState>) -> Response {
 
 async fn version(State(state): State<AppState>) -> impl IntoResponse {
     axum::Json(Version {
-        contract_version: 1,
+        contract: 1,
         release: state.release.to_string(),
         semantic_id: state.semantic_id.to_string(),
     })
@@ -155,15 +182,15 @@ async fn metrics(State(state): State<AppState>) -> Response {
 }
 
 async fn create(State(state): State<AppState>, headers: HeaderMap, body: Bytes) -> Response {
-    production_call(state, headers, body, ProductVerb::Create, None)
+    production_call(&state, &headers, &body, ProductVerb::Create, None)
 }
 
 async fn delegate(State(state): State<AppState>, headers: HeaderMap, body: Bytes) -> Response {
-    production_call(state, headers, body, ProductVerb::Delegate, None)
+    production_call(&state, &headers, &body, ProductVerb::Delegate, None)
 }
 
 async fn verify(State(state): State<AppState>, headers: HeaderMap, body: Bytes) -> Response {
-    production_call(state, headers, body, ProductVerb::Verify, None)
+    production_call(&state, &headers, &body, ProductVerb::Verify, None)
 }
 
 async fn execute_opentofu(
@@ -172,9 +199,9 @@ async fn execute_opentofu(
     body: Bytes,
 ) -> Response {
     production_call(
-        state,
-        headers,
-        body,
+        &state,
+        &headers,
+        &body,
         ProductVerb::Execute,
         Some(QualifiedProfile::OpenTofuSavedPlanApply),
     )
@@ -186,9 +213,9 @@ async fn execute_postgresql(
     body: Bytes,
 ) -> Response {
     production_call(
-        state,
-        headers,
-        body,
+        &state,
+        &headers,
+        &body,
         ProductVerb::Execute,
         Some(QualifiedProfile::PostgreSqlBoundedUpdate),
     )
@@ -200,37 +227,37 @@ async fn execute_github(
     body: Bytes,
 ) -> Response {
     production_call(
-        state,
-        headers,
-        body,
+        &state,
+        &headers,
+        &body,
         ProductVerb::Execute,
         Some(QualifiedProfile::GitHubIssueAddress),
     )
 }
 
 async fn resume(State(state): State<AppState>, headers: HeaderMap, body: Bytes) -> Response {
-    production_call(state, headers, body, ProductVerb::Resume, None)
+    production_call(&state, &headers, &body, ProductVerb::Resume, None)
 }
 
 fn production_call(
-    state: AppState,
-    headers: HeaderMap,
-    body: Bytes,
+    state: &AppState,
+    headers: &HeaderMap,
+    body: &[u8],
     expected_verb: ProductVerb,
     expected_profile: Option<QualifiedProfile>,
 ) -> Response {
     let started = Instant::now();
     if !state.accepting.load(Ordering::Acquire) {
         let response = failure_response(RuntimeFailure::Unavailable);
-        record_operation(&state, expected_verb, &response, started);
-        return encoded_response(response);
+        record_operation(state, expected_verb, &response, started);
+        return encoded_response(&response);
     }
-    if !content_type_is_exact(&headers, PRODUCTION_CLIENT_CONTENT_TYPE) {
+    if !content_type_is_exact(headers, PRODUCTION_CLIENT_CONTENT_TYPE) {
         let response = failure_response(RuntimeFailure::Malformed);
-        record_operation(&state, expected_verb, &response, started);
-        return encoded_response(response);
+        record_operation(state, expected_verb, &response, started);
+        return encoded_response(&response);
     }
-    let request = match decode_request(&body) {
+    let request = match decode_request(body) {
         Ok(request)
             if request.verb() == expected_verb
                 && expected_profile.is_none_or(|profile| request.profile() == profile) =>
@@ -239,16 +266,16 @@ fn production_call(
         }
         _ => {
             let response = failure_response(RuntimeFailure::Malformed);
-            record_operation(&state, expected_verb, &response, started);
-            return encoded_response(response);
+            record_operation(state, expected_verb, &response, started);
+            return encoded_response(&response);
         }
     };
     let response = state
         .runtime
         .handle(request)
         .unwrap_or_else(failure_response);
-    record_operation(&state, expected_verb, &response, started);
-    encoded_response(response)
+    record_operation(state, expected_verb, &response, started);
+    encoded_response(&response)
 }
 
 fn record_operation(
@@ -274,22 +301,25 @@ fn record_operation(
             OperationalReasonCode::RecoveryPending,
         ),
     };
-    let stage = match verb {
+    let operation_stage = match verb {
         ProductVerb::Create | ProductVerb::Delegate => OperationalStage::Policy,
         ProductVerb::Verify => OperationalStage::Verification,
         ProductVerb::Execute => OperationalStage::ProviderResult,
         ProductVerb::Resume => OperationalStage::Recovery,
     };
-    let elapsed = started.elapsed().as_micros().min(u128::from(u64::MAX)) as u64;
+    let elapsed = u64::try_from(started.elapsed().as_micros()).unwrap_or(u64::MAX);
     state.metrics.record(&OperationalEventV2::runtime(
-        None, stage, outcome, reason, elapsed,
+        None,
+        operation_stage,
+        outcome,
+        reason,
+        elapsed,
     ));
 }
 
 async fn workflow_status(State(state): State<AppState>, Path(reference): Path<String>) -> Response {
-    let reference = match RecoveryReference::parse(&reference) {
-        Ok(value) => value,
-        Err(_) => return json_error(StatusCode::BAD_REQUEST, RuntimeFailure::Malformed),
+    let Ok(reference) = RecoveryReference::parse(&reference) else {
+        return json_error(StatusCode::BAD_REQUEST, RuntimeFailure::Malformed);
     };
     match state.runtime.status(&reference) {
         Ok(value) => (StatusCode::OK, axum::Json(value)).into_response(),
@@ -328,8 +358,8 @@ async fn receipt_disclose(
     }
 }
 
-fn encoded_response(response: ProductionResponse) -> Response {
-    match encode_response(&response) {
+fn encoded_response(response: &ProductionResponse) -> Response {
+    match encode_response(response) {
         Ok(body) => binary_response(body),
         Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
     }

@@ -102,25 +102,27 @@ enum CandidateBinding {
     #[serde(rename = "pending")]
     Pending { reason: String },
     #[serde(rename = "bound")]
-    Bound {
-        candidate_digest: Sha256Digest,
-        source_commit: String,
-        build_provenance_digest: Sha256Digest,
-        image_digest: Sha256Digest,
-        package_digests: BTreeMap<String, Sha256Digest>,
-        configuration_commitment: Sha256Digest,
-        schema_version: String,
-        semantic_freeze_digest: Sha256Digest,
-    },
+    Bound(Box<BoundCandidateBinding>),
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct BoundCandidateBinding {
+    candidate_digest: Sha256Digest,
+    source_commit: String,
+    build_provenance_digest: Sha256Digest,
+    image_digest: Sha256Digest,
+    package_digests: BTreeMap<String, Sha256Digest>,
+    configuration_commitment: Sha256Digest,
+    schema_version: String,
+    semantic_freeze_digest: Sha256Digest,
 }
 
 impl CandidateBinding {
     fn digest(&self) -> Option<&Sha256Digest> {
         match self {
             Self::Pending { .. } => None,
-            Self::Bound {
-                candidate_digest, ..
-            } => Some(candidate_digest),
+            Self::Bound(binding) => Some(&binding.candidate_digest),
         }
     }
 }
@@ -664,17 +666,17 @@ fn validate_manifest(
 fn validate_candidate(candidate: &CandidateBinding) -> Result<(), String> {
     match candidate {
         CandidateBinding::Pending { reason } => validate_text(reason, 512, "pending reason"),
-        CandidateBinding::Bound {
-            candidate_digest,
-            source_commit,
-            build_provenance_digest,
-            image_digest,
-            package_digests,
-            configuration_commitment,
-            schema_version,
-            semantic_freeze_digest,
-            ..
-        } => {
+        CandidateBinding::Bound(binding) => {
+            let BoundCandidateBinding {
+                candidate_digest,
+                source_commit,
+                build_provenance_digest,
+                image_digest,
+                package_digests,
+                configuration_commitment,
+                schema_version,
+                semantic_freeze_digest,
+            } = binding.as_ref();
             if source_commit.len() != 40
                 || !source_commit
                     .bytes()
@@ -716,7 +718,7 @@ fn candidate_from_input(input: CandidateInputV1) -> Result<CandidateBinding, Str
         return Err("unknown assurance candidate input schema".to_owned());
     }
     let candidate_digest = candidate_input_digest(&input)?;
-    Ok(CandidateBinding::Bound {
+    Ok(CandidateBinding::Bound(Box::new(BoundCandidateBinding {
         candidate_digest,
         source_commit: input.source_commit,
         build_provenance_digest: input.build_provenance_digest,
@@ -725,7 +727,7 @@ fn candidate_from_input(input: CandidateInputV1) -> Result<CandidateBinding, Str
         configuration_commitment: input.configuration_commitment,
         schema_version: input.schema_version,
         semantic_freeze_digest: input.semantic_freeze_digest,
-    })
+    })))
 }
 
 fn candidate_input_digest(input: &CandidateInputV1) -> Result<Sha256Digest, String> {
@@ -995,9 +997,9 @@ fn summarize(path: &Path) -> Result<(), String> {
     let manifest = verify_manifest_file(path, false)?;
     let (candidate, binding) = match &manifest.candidate {
         CandidateBinding::Pending { .. } => ("pending".to_owned(), "incomplete"),
-        CandidateBinding::Bound {
-            candidate_digest, ..
-        } => (hex::encode(candidate_digest.as_bytes()), "bound"),
+        CandidateBinding::Bound(binding) => {
+            (hex::encode(binding.candidate_digest.as_bytes()), "bound")
+        }
     };
     let (observed, qualification) = match manifest.qualification {
         QualificationStatus::InProgress {
@@ -1102,7 +1104,9 @@ fn utc_seconds(value: &str) -> Option<u64> {
     if year < 2020 || !(1..=12).contains(&month) || hour > 23 || minute > 59 || second > 59 {
         return None;
     }
-    let leap = |year: u64| year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
+    let leap = |year: u64| {
+        year.is_multiple_of(4) && (!year.is_multiple_of(100) || year.is_multiple_of(400))
+    };
     let month_days = [
         31_u64,
         if leap(year) { 29 } else { 28 },

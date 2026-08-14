@@ -29,6 +29,11 @@ const MAX_LEASE_SECONDS: u64 = 300;
 pub struct OpaqueRecoveryReference([u8; 32]);
 
 impl OpaqueRecoveryReference {
+    /// Parses a fixed-size URL-safe recovery token.
+    ///
+    /// # Errors
+    ///
+    /// Returns malformed when the token is not the canonical 32-byte form.
     pub fn parse_url_token(value: &str) -> Result<Self, RecoveryReferenceError> {
         if value.len() != 43 {
             return Err(RecoveryReferenceError::Malformed);
@@ -72,6 +77,11 @@ pub enum RecoveryReferenceError {
 }
 
 pub trait RecoveryReferenceSource: Send + Sync {
+    /// Fills one recovery-reference nonce.
+    ///
+    /// # Errors
+    ///
+    /// Returns unavailable when secure randomness cannot be produced.
     fn fill(&self, output: &mut [u8; 32]) -> Result<(), RecoveryReferenceError>;
 }
 
@@ -122,6 +132,11 @@ impl RecoveryTarget {
 }
 
 pub trait LifecycleReader: Send + Sync {
+    /// Loads the durable lifecycle record for a workflow.
+    ///
+    /// # Errors
+    ///
+    /// Returns a store error when durable state cannot be read safely.
     fn load_lifecycle(
         &self,
         workflow: &WorkflowId,
@@ -129,12 +144,22 @@ pub trait LifecycleReader: Send + Sync {
 }
 
 pub trait RecoveryReferenceStore: Send + Sync {
+    /// Binds one opaque reference digest to its recovery target.
+    ///
+    /// # Errors
+    ///
+    /// Returns a store error for conflicts or unavailable durable state.
     fn bind_recovery_reference(
         &self,
         digest: RecoveryReferenceDigest,
         target: &RecoveryTarget,
     ) -> Result<(), StoreError>;
 
+    /// Resolves one opaque reference digest without exposing its token.
+    ///
+    /// # Errors
+    ///
+    /// Returns a store error when durable state cannot be read safely.
     fn resolve_recovery_reference(
         &self,
         digest: RecoveryReferenceDigest,
@@ -150,6 +175,7 @@ impl RecoveryCursor {
         Self(None)
     }
 
+    #[must_use]
     pub fn after(workflow: WorkflowId) -> Self {
         Self(Some(workflow))
     }
@@ -164,6 +190,11 @@ impl RecoveryCursor {
 pub struct RecoveryBatchSize(u16);
 
 impl RecoveryBatchSize {
+    /// Creates a bounded recovery batch size.
+    ///
+    /// # Errors
+    ///
+    /// Returns invalid-batch-size for zero or a value above the hard limit.
     pub const fn new(value: u16) -> Result<Self, RecoveryConfigurationError> {
         if value == 0 || value > MAX_RECOVERY_BATCH {
             return Err(RecoveryConfigurationError::InvalidBatchSize);
@@ -184,6 +215,11 @@ pub struct RecoveryPage {
 }
 
 impl RecoveryPage {
+    /// Creates one bounded page of recovery targets.
+    ///
+    /// # Errors
+    ///
+    /// Returns invalid-batch-size when the page exceeds the hard limit.
     pub fn new(
         targets: Vec<RecoveryTarget>,
         next: Option<RecoveryCursor>,
@@ -214,6 +250,12 @@ pub struct RecoveryLeaseRequest {
 }
 
 impl RecoveryLeaseRequest {
+    /// Creates a time-bounded lease request with a fresh nonce.
+    ///
+    /// # Errors
+    ///
+    /// Returns a configuration error for invalid revision, duration, or
+    /// unavailable secure randomness.
     pub fn new(
         target: RecoveryTarget,
         expected_revision: u64,
@@ -319,6 +361,11 @@ impl RecoveryLease {
 }
 
 pub trait RecoverableWorkStore: Send + Sync {
+    /// Lists bounded recoverable work for one profile.
+    ///
+    /// # Errors
+    ///
+    /// Returns a store error when durable work cannot be enumerated safely.
     fn list_recoverable(
         &self,
         profile: &ProfileId,
@@ -326,6 +373,11 @@ pub trait RecoverableWorkStore: Send + Sync {
         limit: RecoveryBatchSize,
     ) -> Result<RecoveryPage, StoreError>;
 
+    /// Atomically claims one reconciliation lease.
+    ///
+    /// # Errors
+    ///
+    /// Returns a store error when the lease conflicts or cannot be persisted.
     fn claim_reconciliation(
         &self,
         request: RecoveryLeaseRequest,
@@ -358,6 +410,11 @@ pub struct InMemoryRecoveryStore {
 }
 
 impl InMemoryRecoveryStore {
+    /// Creates a bounded in-memory recovery index.
+    ///
+    /// # Errors
+    ///
+    /// Returns invalid-capacity for zero or a value above the hard limit.
     pub fn new(maximum_references: usize) -> Result<Self, RecoveryConfigurationError> {
         if maximum_references == 0 || maximum_references > MAX_RECOVERY_REFERENCES {
             return Err(RecoveryConfigurationError::InvalidCapacity);
@@ -530,6 +587,12 @@ where
     C: TrustedClock,
     N: RecoveryReferenceSource,
 {
+    /// Begins a workflow and binds a fresh opaque recovery reference.
+    ///
+    /// # Errors
+    ///
+    /// Returns a coordinator error when randomness, reference binding, or
+    /// durable decision persistence fails.
     pub fn begin(
         &self,
         mut input: DecisionInputV1,
@@ -561,6 +624,12 @@ where
         Ok((reference, RecordedDecision(durable)))
     }
 
+    /// Atomically reserves the authority required by a recorded decision.
+    ///
+    /// # Errors
+    ///
+    /// Returns a coordinator error when the transition is stale, invalid, or
+    /// cannot be persisted.
     pub fn reserve(
         &self,
         stage: RecordedDecision,
@@ -570,6 +639,12 @@ where
             .map(Reserved)
     }
 
+    /// Persists the exact execution intent before credential access.
+    ///
+    /// # Errors
+    ///
+    /// Returns a coordinator error when the transition is stale, invalid, or
+    /// cannot be persisted.
     pub fn record_intent(
         &self,
         stage: Reserved,
@@ -584,6 +659,12 @@ where
         .map(IntentRecorded)
     }
 
+    /// Authorizes credential acquisition from a durably recorded intent.
+    ///
+    /// # Errors
+    ///
+    /// Returns a coordinator error when the transition or resulting stage is
+    /// invalid or cannot be persisted.
     pub fn authorize_credential(
         &self,
         stage: IntentRecorded,
@@ -599,6 +680,12 @@ where
         })
     }
 
+    /// Records the start of one provider attempt.
+    ///
+    /// # Errors
+    ///
+    /// Returns a coordinator error when the transition is stale, invalid, or
+    /// cannot be persisted.
     pub fn start_attempt(
         &self,
         stage: CredentialAuthorized,
@@ -608,6 +695,12 @@ where
             .map(AttemptStarted)
     }
 
+    /// Records provider entry and produces the bound provider authorization.
+    ///
+    /// # Errors
+    ///
+    /// Returns a coordinator error when the transition or resulting stage is
+    /// invalid or cannot be persisted.
     pub fn enter_provider(
         &self,
         stage: AttemptStarted,
@@ -626,6 +719,12 @@ where
         })
     }
 
+    /// Marks a provider-entered attempt as effect-unknown.
+    ///
+    /// # Errors
+    ///
+    /// Returns a coordinator error when the transition is stale, invalid, or
+    /// cannot be persisted.
     pub fn mark_unknown(
         &self,
         stage: ProviderEntered,
@@ -642,6 +741,12 @@ where
         .map(Recoverable)
     }
 
+    /// Commits a conclusive provider success.
+    ///
+    /// # Errors
+    ///
+    /// Returns a coordinator error when the transition is stale, invalid, or
+    /// cannot be persisted.
     pub fn commit(
         &self,
         stage: ProviderEntered,
@@ -660,6 +765,12 @@ where
         .map(Terminal)
     }
 
+    /// Releases a reservation after a proven non-effect.
+    ///
+    /// # Errors
+    ///
+    /// Returns a coordinator error when release is invalid or cannot be
+    /// persisted.
     pub fn cancel_reserved(
         &self,
         stage: Reserved,
@@ -670,6 +781,12 @@ where
         self.release(stage.0, result_digest, domain_receipt_digest, context)
     }
 
+    /// Releases an intent after a proven non-effect.
+    ///
+    /// # Errors
+    ///
+    /// Returns a coordinator error when release is invalid or cannot be
+    /// persisted.
     pub fn cancel_intent(
         &self,
         stage: IntentRecorded,
@@ -680,6 +797,12 @@ where
         self.release(stage.0, result_digest, domain_receipt_digest, context)
     }
 
+    /// Releases a provider-entered attempt after a proven non-effect.
+    ///
+    /// # Errors
+    ///
+    /// Returns a coordinator error when release is invalid or cannot be
+    /// persisted.
     pub fn release_provider(
         &self,
         stage: ProviderEntered,
@@ -690,6 +813,12 @@ where
         self.release(stage.durable, result_digest, domain_receipt_digest, context)
     }
 
+    /// Reconciles one leased effect-unknown workflow from provider evidence.
+    ///
+    /// # Errors
+    ///
+    /// Returns a coordinator error for an unknown or stale lease, profile
+    /// mismatch, invalid observation, or failed durable transition.
     pub fn reconcile(
         &self,
         lease: &RecoveryLease,
@@ -726,6 +855,12 @@ where
         result.map_err(Into::into)
     }
 
+    /// Resolves the public status for one opaque recovery reference.
+    ///
+    /// # Errors
+    ///
+    /// Returns a coordinator error when the reference is unknown, mismatched,
+    /// or durable state is unavailable.
     pub fn status(
         &self,
         reference: &OpaqueRecoveryReference,
@@ -746,6 +881,7 @@ where
         Ok(WorkflowStatus::from_record(&record))
     }
 
+    #[allow(clippy::needless_pass_by_value)]
     fn transition(
         &self,
         current: DurableTransitionV1,

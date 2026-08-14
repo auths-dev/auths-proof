@@ -73,22 +73,71 @@ pub struct ReceiptSummary {
 }
 
 pub trait AuthorityPort: Send + Sync {
+    /// Creates authority from one exact production request.
+    ///
+    /// # Errors
+    ///
+    /// Returns a bounded runtime failure when authority cannot be issued.
     fn create(&self, request: &ProductionRequest) -> Result<Vec<u8>, RuntimeFailure>;
+
+    /// Delegates authority from one exact production request.
+    ///
+    /// # Errors
+    ///
+    /// Returns a bounded runtime failure when attenuation or issuance fails.
     fn delegate(&self, request: &ProductionRequest) -> Result<Vec<u8>, RuntimeFailure>;
+
+    /// Verifies authority from one exact production request.
+    ///
+    /// # Errors
+    ///
+    /// Returns a bounded runtime failure when verification is denied or
+    /// indeterminate.
     fn verify(&self, request: &ProductionRequest) -> Result<Option<Vec<u8>>, RuntimeFailure>;
 }
 
 pub trait ExactProfilePort: Send + Sync {
+    /// Executes one request through its exact-effect profile.
+    ///
+    /// # Errors
+    ///
+    /// Returns a bounded runtime failure when authorization or execution
+    /// cannot complete safely.
     fn execute(&self, request: &ProductionRequest) -> Result<ProductionResponse, RuntimeFailure>;
 }
 
 pub trait WorkflowPort: Send + Sync {
+    /// Resumes one recoverable workflow.
+    ///
+    /// # Errors
+    ///
+    /// Returns a bounded runtime failure when recovery cannot advance safely.
     fn resume(&self, request: &ProductionRequest) -> Result<ProductionResponse, RuntimeFailure>;
+
+    /// Reads one workflow's public projection.
+    ///
+    /// # Errors
+    ///
+    /// Returns a bounded runtime failure when the workflow is unknown or
+    /// unavailable.
     fn status(&self, reference: &RecoveryReference) -> Result<WorkflowProjection, RuntimeFailure>;
 }
 
 pub trait ReceiptPort: Send + Sync {
+    /// Reads one bounded receipt summary.
+    ///
+    /// # Errors
+    ///
+    /// Returns a bounded runtime failure when the receipt is unknown or
+    /// unavailable.
     fn summary(&self, receipt_id: &str) -> Result<ReceiptSummary, RuntimeFailure>;
+
+    /// Produces one authorized receipt disclosure.
+    ///
+    /// # Errors
+    ///
+    /// Returns a bounded runtime failure when disclosure is denied or the
+    /// receipt is unknown or unavailable.
     fn disclose(&self, receipt_id: &str, authorization: &[u8]) -> Result<Vec<u8>, RuntimeFailure>;
 }
 
@@ -217,6 +266,13 @@ fn completed_authority(value: Vec<u8>) -> Result<ProductionResponse, RuntimeFail
     .map_err(|_| RuntimeFailure::Malformed)
 }
 
+/// Projects a bounded runtime failure into the production response contract.
+///
+/// # Panics
+///
+/// Panics only if the closed failure projection no longer satisfies the
+/// production response invariant.
+#[must_use]
 pub fn failure_response(error: RuntimeFailure) -> ProductionResponse {
     let kind = match error {
         RuntimeFailure::Denied

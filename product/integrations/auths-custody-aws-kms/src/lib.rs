@@ -20,6 +20,12 @@ const SUITE_ID: &str = "p256-sha256-v1";
 pub struct SecretKeyArn(Box<[u8]>);
 
 impl SecretKeyArn {
+    /// Parses one bounded AWS KMS key ARN.
+    ///
+    /// # Errors
+    ///
+    /// Returns invalid-key-ARN when the partition, service, region, account,
+    /// or key resource shape is invalid.
     pub fn parse(value: String) -> Result<Self, AwsKmsConfigurationError> {
         let parts = value.split(':').collect::<Vec<_>>();
         if value.len() > 2_048
@@ -52,6 +58,11 @@ impl Drop for SecretKeyArn {
 pub struct AwsRegion(String);
 
 impl AwsRegion {
+    /// Parses one bounded AWS region identifier.
+    ///
+    /// # Errors
+    ///
+    /// Returns invalid-region for a non-canonical identifier.
     pub fn parse(value: &str) -> Result<Self, AwsKmsConfigurationError> {
         if value.is_empty()
             || value.len() > 64
@@ -69,6 +80,11 @@ impl AwsRegion {
 pub struct AwsAccountId(String);
 
 impl AwsAccountId {
+    /// Parses one twelve-digit AWS account identity.
+    ///
+    /// # Errors
+    ///
+    /// Returns invalid-account unless the value is exactly twelve digits.
     pub fn parse(value: &str) -> Result<Self, AwsKmsConfigurationError> {
         if value.len() != 12 || !value.bytes().all(|byte| byte.is_ascii_digit()) {
             return Err(AwsKmsConfigurationError::InvalidAccount);
@@ -146,8 +162,25 @@ pub enum AwsKmsFailure {
 }
 
 pub trait AwsKmsApi: Send + Sync {
+    /// Reads the configured key's policy-relevant attributes.
+    ///
+    /// # Errors
+    ///
+    /// Returns the provider's bounded description failure.
     fn describe_key(&self, key_arn: &str) -> Result<AwsKmsKeyDescription, AwsKmsFailure>;
+
+    /// Reads the configured key's public verification material.
+    ///
+    /// # Errors
+    ///
+    /// Returns the provider's bounded public-key failure.
     fn get_public_key(&self, key_arn: &str) -> Result<Vec<u8>, AwsKmsFailure>;
+
+    /// Signs one exact message with the configured KMS key.
+    ///
+    /// # Errors
+    ///
+    /// Returns the provider's bounded signing failure.
     fn sign(
         &self,
         key_arn: &str,
@@ -165,6 +198,12 @@ pub struct AwsKmsP256Adapter<C> {
 }
 
 impl<C: AwsKmsApi> AwsKmsP256Adapter<C> {
+    /// Connects to and validates the configured AWS KMS P-256 key.
+    ///
+    /// # Errors
+    ///
+    /// Returns a configuration error when description, public-key parsing, or
+    /// key policy validation fails.
     pub fn connect(
         client: C,
         configuration: AwsKmsConfiguration,

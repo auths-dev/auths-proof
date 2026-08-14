@@ -20,6 +20,11 @@ const SUITE_ID: &str = "p256-sha256-v1";
 pub struct SecretPin(Box<[u8]>);
 
 impl SecretPin {
+    /// Parses a bounded PKCS#11 PIN secret.
+    ///
+    /// # Errors
+    ///
+    /// Returns invalid-secret for an empty or oversized value.
     pub fn parse(value: Vec<u8>) -> Result<Self, Pkcs11ConfigurationError> {
         if value.is_empty() || value.len() > 1_024 {
             return Err(Pkcs11ConfigurationError::InvalidSecret);
@@ -40,6 +45,11 @@ impl Drop for SecretPin {
 }
 
 pub trait Pkcs11SecretProvider: Send + Sync {
+    /// Acquires the PIN for one bounded provider operation.
+    ///
+    /// # Errors
+    ///
+    /// Returns the provider's bounded acquisition failure.
     fn acquire(&self) -> Result<SecretPin, Pkcs11Failure>;
 }
 
@@ -47,6 +57,11 @@ pub trait Pkcs11SecretProvider: Send + Sync {
 pub struct Pkcs11TokenId(String);
 
 impl Pkcs11TokenId {
+    /// Parses a bounded token identity.
+    ///
+    /// # Errors
+    ///
+    /// Returns invalid-token for a non-canonical identifier.
     pub fn parse(value: &str) -> Result<Self, Pkcs11ConfigurationError> {
         if !valid_identifier(value) {
             return Err(Pkcs11ConfigurationError::InvalidToken);
@@ -59,6 +74,11 @@ impl Pkcs11TokenId {
 pub struct Pkcs11ObjectId(Vec<u8>);
 
 impl Pkcs11ObjectId {
+    /// Parses a bounded object identity.
+    ///
+    /// # Errors
+    ///
+    /// Returns invalid-object for an empty or oversized value.
     pub fn parse(value: Vec<u8>) -> Result<Self, Pkcs11ConfigurationError> {
         if value.is_empty() || value.len() > 128 {
             return Err(Pkcs11ConfigurationError::InvalidObject);
@@ -76,6 +96,12 @@ pub struct Pkcs11Configuration {
 }
 
 impl Pkcs11Configuration {
+    /// Creates one bounded PKCS#11 adapter configuration.
+    ///
+    /// # Errors
+    ///
+    /// Returns invalid-bounds for a relative module path or unsupported
+    /// session and timeout limits.
     pub fn new(
         module: PathBuf,
         token: Pkcs11TokenId,
@@ -137,12 +163,22 @@ pub enum Pkcs11Failure {
 }
 
 pub trait Pkcs11Api: Send + Sync {
+    /// Reads the selected public-key attributes.
+    ///
+    /// # Errors
+    ///
+    /// Returns the provider's bounded inspection failure.
     fn inspect(
         &self,
         selector: &Pkcs11Selector<'_>,
         pin: &SecretPin,
     ) -> Result<Pkcs11KeyDescription, Pkcs11Failure>;
 
+    /// Signs one exact message with the selected P-256 object.
+    ///
+    /// # Errors
+    ///
+    /// Returns the provider's bounded signing failure.
     fn sign_sha256(
         &self,
         selector: &Pkcs11Selector<'_>,
@@ -160,6 +196,12 @@ pub struct Pkcs11P256Adapter<C, S> {
 }
 
 impl<C: Pkcs11Api, S: Pkcs11SecretProvider> Pkcs11P256Adapter<C, S> {
+    /// Connects to and validates the configured P-256 signing object.
+    ///
+    /// # Errors
+    ///
+    /// Returns a configuration error when secret acquisition, inspection,
+    /// public-key parsing, or key policy validation fails.
     pub fn connect(
         client: C,
         secrets: S,
