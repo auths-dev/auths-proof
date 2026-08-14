@@ -32,7 +32,7 @@ README only after every acceptance criterion in the epic passes.
 
 - [x] Content Epic 0 — Platform and editorial ownership
 - [x] Content Epic 1 — Global information architecture and topic landings
-- [ ] Content Epic 2 — Getting started and integration chooser
+- [x] Content Epic 2 — Getting started and integration chooser
 - [ ] Content Epic 3 — Semantic tours and lifecycle concepts
 - [ ] Content Epic 4 — Outcome quickstarts and tested projects
 - [ ] Content Epic 5 — Developer resources and generated reference

@@ -1,5 +1,7 @@
 # Content Epic 2 — Getting Started and the Integration Chooser
 
+**Status:** Complete in `auths-docs` commit `21dec44`.
+
 **Depends on:** [Content Epic 0](./epic_0.md), Content Epic 1, and Platform
 Epic P6.
 
