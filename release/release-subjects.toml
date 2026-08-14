@@ -54,6 +54,14 @@ reproducibility = "byte-identical"
 producer = "AP32-PR4 before detached signed provenance; provenance is stored beside the archive to avoid a self-referential digest"
 publication = "GitHub prerelease only after exact-manifest authorization"
 
+[[families]]
+id = "documentation-contract"
+coordinate = "auths-docs-contract-v1.json"
+media_type = "application/vnd.auths.docs-contract+json"
+reproducibility = "byte-identical"
+producer = "cargo xtask docs-contract"
+publication = "Contained by the source and documentation bundles; consumed by auths-dev/auths-docs by digest"
+
 [[excluded]]
 id = "domain-integrations"
 reason = "Domain packages, demos, benchmarks, testkits, fuzz crates, internal tools, CLIs, hosted services, and OCI images are outside the lean first-RC catalogue."

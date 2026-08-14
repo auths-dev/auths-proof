@@ -1,0 +1,31 @@
+schema = "auths.docs.operations/1"
+
+[[operation]]
+id = "auths.operation.create/1"
+verb = "create"
+summary = "Create bounded authority for an exact outcome."
+status = "stable"
+
+[[operation]]
+id = "auths.operation.delegate/1"
+verb = "delegate"
+summary = "Pass on authority without making it broader."
+status = "stable"
+
+[[operation]]
+id = "auths.operation.execute/1"
+verb = "execute"
+summary = "Authorize and perform a sealed effect."
+status = "stable"
+
+[[operation]]
+id = "auths.operation.resume/1"
+verb = "resume"
+summary = "Continue an interrupted effect without losing its safety boundary."
+status = "stable"
+
+[[operation]]
+id = "auths.operation.verify/1"
+verb = "verify"
+summary = "Verify authority or a receipt without performing an effect."
+status = "stable"

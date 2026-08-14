@@ -1,0 +1,16 @@
+schema = "auths.docs.scenarios/1"
+
+[[scenario]]
+id = "auths.scenario.rest-effect/1"
+summary = "Authorize one bounded REST effect and return a receipt."
+languages = ["rust", "typescript", "python"]
+
+[[scenario]]
+id = "auths.scenario.delegation/1"
+summary = "Delegate narrower authority and reject widening."
+languages = ["rust", "typescript", "python"]
+
+[[scenario]]
+id = "auths.scenario.receipt-verification/1"
+summary = "Verify an execution receipt without performing an effect."
+languages = ["rust", "typescript", "python"]

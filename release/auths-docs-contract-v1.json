@@ -1,0 +1,260 @@
+{
+  "schema": "auths.docs.contract/1",
+  "version": 1,
+  "sourceCommit": null,
+  "semanticFreezeSha256": "273abbee39b5aea1685f30ceaf89a0ee66f41c1710ba482b7922f90aa3d422dc",
+  "operations": [
+    {
+      "id": "auths.operation.create/1",
+      "verb": "create",
+      "summary": "Create bounded authority for an exact outcome.",
+      "status": "stable"
+    },
+    {
+      "id": "auths.operation.delegate/1",
+      "verb": "delegate",
+      "summary": "Pass on authority without making it broader.",
+      "status": "stable"
+    },
+    {
+      "id": "auths.operation.execute/1",
+      "verb": "execute",
+      "summary": "Authorize and perform a sealed effect.",
+      "status": "stable"
+    },
+    {
+      "id": "auths.operation.resume/1",
+      "verb": "resume",
+      "summary": "Continue an interrupted effect without losing its safety boundary.",
+      "status": "stable"
+    },
+    {
+      "id": "auths.operation.verify/1",
+      "verb": "verify",
+      "summary": "Verify authority or a receipt without performing an effect.",
+      "status": "stable"
+    }
+  ],
+  "pages": [
+    {
+      "id": "auths.page.architecture.system-map/1",
+      "path": "/architecture/system-map/",
+      "kind": "architecture",
+      "title": "System map"
+    },
+    {
+      "id": "auths.page.home/1",
+      "path": "/",
+      "kind": "landing",
+      "title": "Auths documentation"
+    },
+    {
+      "id": "auths.page.reference.runtime-api/1",
+      "path": "/reference/runtime-api/",
+      "kind": "runtime-api-reference",
+      "title": "Runtime API reference"
+    },
+    {
+      "id": "auths.page.reference.sdk/1",
+      "path": "/reference/sdk/",
+      "kind": "sdk-reference",
+      "title": "SDK reference",
+      "operations": [
+        "auths.operation.create/1",
+        "auths.operation.delegate/1",
+        "auths.operation.execute/1",
+        "auths.operation.resume/1",
+        "auths.operation.verify/1"
+      ]
+    },
+    {
+      "id": "auths.page.start.delegate-agent/1",
+      "path": "/start/delegate-to-an-agent/",
+      "kind": "guide",
+      "title": "Delegate to an agent",
+      "operations": [
+        "auths.operation.delegate/1"
+      ],
+      "scenarios": [
+        "auths.scenario.delegation/1"
+      ]
+    },
+    {
+      "id": "auths.page.start.rest-effect/1",
+      "path": "/start/protect-a-rest-effect/",
+      "kind": "guide",
+      "title": "Protect a REST effect",
+      "operations": [
+        "auths.operation.create/1",
+        "auths.operation.execute/1"
+      ],
+      "scenarios": [
+        "auths.scenario.rest-effect/1"
+      ]
+    },
+    {
+      "id": "auths.page.start.verify-receipt/1",
+      "path": "/start/verify-a-receipt/",
+      "kind": "guide",
+      "title": "Verify a receipt",
+      "operations": [
+        "auths.operation.verify/1"
+      ],
+      "scenarios": [
+        "auths.scenario.receipt-verification/1"
+      ]
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "auths.scenario.delegation/1",
+      "summary": "Delegate narrower authority and reject widening.",
+      "languages": [
+        "rust",
+        "typescript",
+        "python"
+      ]
+    },
+    {
+      "id": "auths.scenario.receipt-verification/1",
+      "summary": "Verify an execution receipt without performing an effect.",
+      "languages": [
+        "rust",
+        "typescript",
+        "python"
+      ]
+    },
+    {
+      "id": "auths.scenario.rest-effect/1",
+      "summary": "Authorize one bounded REST effect and return a receipt.",
+      "languages": [
+        "rust",
+        "typescript",
+        "python"
+      ]
+    }
+  ],
+  "projections": [
+    {
+      "operation": "auths.operation.create/1",
+      "language": "rust",
+      "package": "auths-sdk",
+      "entrypoint": "auths_sdk::Auths",
+      "symbol": "Auths::create",
+      "support": "supported"
+    },
+    {
+      "operation": "auths.operation.create/1",
+      "language": "typescript",
+      "package": "@auths-dev/sdk",
+      "entrypoint": ".",
+      "symbol": "Auths.create",
+      "support": "supported"
+    },
+    {
+      "operation": "auths.operation.create/1",
+      "language": "python",
+      "package": "auths",
+      "entrypoint": "auths",
+      "symbol": "Auths.create",
+      "support": "supported"
+    },
+    {
+      "operation": "auths.operation.delegate/1",
+      "language": "rust",
+      "package": "auths-sdk",
+      "entrypoint": "auths_sdk::Auths",
+      "symbol": "Auths::delegate",
+      "support": "supported"
+    },
+    {
+      "operation": "auths.operation.delegate/1",
+      "language": "typescript",
+      "package": "@auths-dev/sdk",
+      "entrypoint": ".",
+      "symbol": "Auths.delegate",
+      "support": "supported"
+    },
+    {
+      "operation": "auths.operation.delegate/1",
+      "language": "python",
+      "package": "auths",
+      "entrypoint": "auths",
+      "symbol": "Auths.delegate",
+      "support": "supported"
+    },
+    {
+      "operation": "auths.operation.execute/1",
+      "language": "rust",
+      "package": "auths-sdk",
+      "entrypoint": "auths_sdk::Auths",
+      "symbol": "Auths::execute",
+      "support": "supported"
+    },
+    {
+      "operation": "auths.operation.execute/1",
+      "language": "typescript",
+      "package": "@auths-dev/sdk",
+      "entrypoint": ".",
+      "symbol": "Auths.execute",
+      "support": "supported"
+    },
+    {
+      "operation": "auths.operation.execute/1",
+      "language": "python",
+      "package": "auths",
+      "entrypoint": "auths",
+      "symbol": "Auths.execute",
+      "support": "supported"
+    },
+    {
+      "operation": "auths.operation.resume/1",
+      "language": "rust",
+      "package": "auths-sdk",
+      "entrypoint": "auths_sdk::Auths",
+      "symbol": "Auths::resume",
+      "support": "supported"
+    },
+    {
+      "operation": "auths.operation.resume/1",
+      "language": "typescript",
+      "package": "@auths-dev/sdk",
+      "entrypoint": ".",
+      "symbol": "Auths.resume",
+      "support": "supported"
+    },
+    {
+      "operation": "auths.operation.resume/1",
+      "language": "python",
+      "package": "auths",
+      "entrypoint": "auths",
+      "symbol": "Auths.resume",
+      "support": "supported"
+    },
+    {
+      "operation": "auths.operation.verify/1",
+      "language": "rust",
+      "package": "auths-sdk",
+      "entrypoint": "auths_sdk::Auths",
+      "symbol": "Auths::verify",
+      "support": "supported"
+    },
+    {
+      "operation": "auths.operation.verify/1",
+      "language": "typescript",
+      "package": "@auths-dev/sdk",
+      "entrypoint": ".",
+      "symbol": "Auths.verify",
+      "support": "supported"
+    },
+    {
+      "operation": "auths.operation.verify/1",
+      "language": "python",
+      "package": "auths",
+      "entrypoint": "auths",
+      "symbol": "Auths.verify",
+      "support": "supported"
+    }
+  ],
+  "digest": "499920e5dbcf487f78a366b99eb4425afd2890c51f5eb40d4fc45a02ba99b831"
+}

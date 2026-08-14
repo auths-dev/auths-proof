@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://auths.dev/spec/v1/auths-docs-contract.schema.json",
+  "title": "Auths documentation surface contract V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "version", "sourceCommit", "semanticFreezeSha256", "operations", "pages", "scenarios", "projections", "digest"],
+  "properties": {
+    "schema": { "const": "auths.docs.contract/1" },
+    "version": { "const": 1 },
+    "sourceCommit": { "type": ["string", "null"] },
+    "semanticFreezeSha256": { "$ref": "#/$defs/digest" },
+    "digest": { "$ref": "#/$defs/digest" },
+    "operations": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/operation" }
+    },
+    "pages": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/page" }
+    },
+    "scenarios": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/scenario" }
+    },
+    "projections": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/projection" }
+    }
+  },
+  "$defs": {
+    "identity": {
+      "type": "string",
+      "maxLength": 128,
+      "pattern": "^[a-z0-9.-]+/[1-9][0-9]*$"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "operation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "verb", "summary", "status"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identity" },
+        "verb": { "enum": ["create", "delegate", "execute", "resume", "verify"] },
+        "summary": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "status": { "enum": ["experimental", "stable", "qualified"] }
+      }
+    },
+    "page": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "path", "kind", "title"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identity" },
+        "path": { "type": "string", "pattern": "^/" },
+        "kind": { "enum": ["landing", "guide", "sdk-reference", "runtime-api-reference", "architecture", "operations", "integration", "assurance"] },
+        "title": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "operations": { "type": "array", "items": { "$ref": "#/$defs/identity" }, "uniqueItems": true },
+        "scenarios": { "type": "array", "items": { "$ref": "#/$defs/identity" }, "uniqueItems": true }
+      }
+    },
+    "scenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "summary", "languages"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identity" },
+        "summary": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "languages": { "type": "array", "items": { "enum": ["rust", "typescript", "python"] }, "minItems": 1, "uniqueItems": true }
+      }
+    },
+    "projection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "language", "package", "entrypoint", "support"],
+      "properties": {
+        "operation": { "$ref": "#/$defs/identity" },
+        "language": { "enum": ["rust", "typescript", "python"] },
+        "package": { "type": "string", "minLength": 1 },
+        "entrypoint": { "type": "string", "minLength": 1 },
+        "symbol": { "type": "string", "minLength": 1 },
+        "support": { "enum": ["supported", "not-supported"] },
+        "reason": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

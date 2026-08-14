@@ -1,0 +1,50 @@
+schema = "auths.docs.pages/1"
+
+[[page]]
+id = "auths.page.home/1"
+path = "/"
+kind = "landing"
+title = "Auths documentation"
+
+[[page]]
+id = "auths.page.start.rest-effect/1"
+path = "/start/protect-a-rest-effect/"
+kind = "guide"
+title = "Protect a REST effect"
+operations = ["auths.operation.create/1", "auths.operation.execute/1"]
+scenarios = ["auths.scenario.rest-effect/1"]
+
+[[page]]
+id = "auths.page.start.delegate-agent/1"
+path = "/start/delegate-to-an-agent/"
+kind = "guide"
+title = "Delegate to an agent"
+operations = ["auths.operation.delegate/1"]
+scenarios = ["auths.scenario.delegation/1"]
+
+[[page]]
+id = "auths.page.start.verify-receipt/1"
+path = "/start/verify-a-receipt/"
+kind = "guide"
+title = "Verify a receipt"
+operations = ["auths.operation.verify/1"]
+scenarios = ["auths.scenario.receipt-verification/1"]
+
+[[page]]
+id = "auths.page.reference.sdk/1"
+path = "/reference/sdk/"
+kind = "sdk-reference"
+title = "SDK reference"
+operations = ["auths.operation.create/1", "auths.operation.delegate/1", "auths.operation.execute/1", "auths.operation.resume/1", "auths.operation.verify/1"]
+
+[[page]]
+id = "auths.page.reference.runtime-api/1"
+path = "/reference/runtime-api/"
+kind = "runtime-api-reference"
+title = "Runtime API reference"
+
+[[page]]
+id = "auths.page.architecture.system-map/1"
+path = "/architecture/system-map/"
+kind = "architecture"
+title = "System map"

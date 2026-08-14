@@ -1,0 +1,37 @@
+schema = "auths.docs.projections/1"
+language = "python"
+
+[[projection]]
+operation = "auths.operation.create/1"
+package = "auths"
+entrypoint = "auths"
+symbol = "Auths.create"
+support = "supported"
+
+[[projection]]
+operation = "auths.operation.delegate/1"
+package = "auths"
+entrypoint = "auths"
+symbol = "Auths.delegate"
+support = "supported"
+
+[[projection]]
+operation = "auths.operation.execute/1"
+package = "auths"
+entrypoint = "auths"
+symbol = "Auths.execute"
+support = "supported"
+
+[[projection]]
+operation = "auths.operation.resume/1"
+package = "auths"
+entrypoint = "auths"
+symbol = "Auths.resume"
+support = "supported"
+
+[[projection]]
+operation = "auths.operation.verify/1"
+package = "auths"
+entrypoint = "auths"
+symbol = "Auths.verify"
+support = "supported"
