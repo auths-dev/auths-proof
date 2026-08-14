@@ -60,7 +60,7 @@ README only after every acceptance criterion in the epic passes.
 - [x] Content Epic 10 — Canonical information architecture and route ownership
 - [x] Content Epic 11 — Topic shell, left navigation, and page-type contracts
 - [x] Content Epic 12 — Rebuild Get started as an executable journey
-- [ ] Content Epic 13 — Complete Identity and trust documentation
+- [x] Content Epic 13 — Complete Identity and trust documentation
 - [ ] Content Epic 14 — Complete Authority documentation
 - [ ] Content Epic 15 — Complete Agents and MCP documentation
 - [ ] Content Epic 16 — Complete Production operations documentation
