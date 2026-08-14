@@ -86,19 +86,19 @@ Required controls:
 
 ## Implementation steps
 
-- [ ] Select the seven required scenario identities from P7 and report missing
+- [x] Select the seven required scenario identities from P7 and report missing
   scenarios as platform dependencies.
-- [ ] Author each quickstart's outcome, prerequisites, transitions, explanation,
+- [x] Author each quickstart's outcome, prerequisites, transitions, explanation,
   failure path, and next steps.
-- [ ] Assemble displayed steps exclusively with P7 scenario components.
-- [ ] Keep Rust, TypeScript, and Python at the same semantic step while allowing
+- [x] Assemble displayed steps exclusively with P7 scenario components.
+- [x] Keep Rust, TypeScript, and Python at the same semantic step while allowing
   idiomatic explanation around each projection.
-- [ ] Link deterministic archives and source-at-release provenance produced by
+- [x] Link deterministic archives and source-at-release provenance produced by
   P7.
-- [ ] Review normalized results for plain-language comprehensibility without
+- [x] Review normalized results for plain-language comprehensibility without
   copying result payloads into MDX.
-- [ ] Prohibit executable MDX fences and copied examples.
-- [ ] Record missing failure coverage against the owning P7 scenario rather
+- [x] Prohibit executable MDX fences and copied examples.
+- [x] Record missing failure coverage against the owning P7 scenario rather
   than patching code in the content lane.
 
 ## Acceptance criteria

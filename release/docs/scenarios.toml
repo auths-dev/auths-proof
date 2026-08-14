@@ -14,3 +14,38 @@ languages = ["rust", "typescript", "python"]
 id = "auths.scenario.receipt-verification/1"
 summary = "Verify an execution receipt without performing an effect."
 languages = ["rust", "typescript", "python"]
+
+[[scenario]]
+id = "auths.scenario.local-rest-effect/1"
+summary = "Complete one exact local REST-shaped effect and reject mutated bytes."
+languages = ["rust", "typescript", "python"]
+
+[[scenario]]
+id = "auths.scenario.runtime-effect/1"
+summary = "Complete one runtime effect and deny exact replay."
+languages = ["rust", "typescript", "python"]
+
+[[scenario]]
+id = "auths.scenario.agent-delegation/1"
+summary = "Delegate one agent action and reject authority widening."
+languages = ["rust", "typescript", "python"]
+
+[[scenario]]
+id = "auths.scenario.approved-plan/1"
+summary = "Execute one exact approved plan and reject member substitution."
+languages = ["rust", "typescript", "python"]
+
+[[scenario]]
+id = "auths.scenario.offline-verification/1"
+summary = "Verify authority and a receipt offline and reject the wrong context."
+languages = ["rust", "typescript", "python"]
+
+[[scenario]]
+id = "auths.scenario.recovery/1"
+summary = "Resume one recoverable execution and prohibit a fresh retry."
+languages = ["rust", "typescript", "python"]
+
+[[scenario]]
+id = "auths.scenario.identity-swap/1"
+summary = "Run one workflow across two signature suites and reject a mislabelled suite."
+languages = ["rust", "typescript", "python"]

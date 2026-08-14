@@ -34,7 +34,7 @@ README only after every acceptance criterion in the epic passes.
 - [x] Content Epic 1 — Global information architecture and topic landings
 - [x] Content Epic 2 — Getting started and integration chooser
 - [x] Content Epic 3 — Semantic tours and lifecycle concepts
-- [ ] Content Epic 4 — Outcome quickstarts and tested projects
+- [x] Content Epic 4 — Outcome quickstarts and tested projects
 - [ ] Content Epic 5 — Developer resources and generated reference
 - [ ] Content Epic 6 — Agents, MCP, and integrations
 - [ ] Content Epic 7 — Adoption and migration

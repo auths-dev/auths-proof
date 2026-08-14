@@ -107,8 +107,53 @@
   ],
   "scenarios": [
     {
+      "id": "auths.scenario.agent-delegation/1",
+      "summary": "Delegate one agent action and reject authority widening.",
+      "languages": [
+        "rust",
+        "typescript",
+        "python"
+      ]
+    },
+    {
+      "id": "auths.scenario.approved-plan/1",
+      "summary": "Execute one exact approved plan and reject member substitution.",
+      "languages": [
+        "rust",
+        "typescript",
+        "python"
+      ]
+    },
+    {
       "id": "auths.scenario.delegation/1",
       "summary": "Delegate narrower authority and reject widening.",
+      "languages": [
+        "rust",
+        "typescript",
+        "python"
+      ]
+    },
+    {
+      "id": "auths.scenario.identity-swap/1",
+      "summary": "Run one workflow across two signature suites and reject a mislabelled suite.",
+      "languages": [
+        "rust",
+        "typescript",
+        "python"
+      ]
+    },
+    {
+      "id": "auths.scenario.local-rest-effect/1",
+      "summary": "Complete one exact local REST-shaped effect and reject mutated bytes.",
+      "languages": [
+        "rust",
+        "typescript",
+        "python"
+      ]
+    },
+    {
+      "id": "auths.scenario.offline-verification/1",
+      "summary": "Verify authority and a receipt offline and reject the wrong context.",
       "languages": [
         "rust",
         "typescript",
@@ -125,8 +170,26 @@
       ]
     },
     {
+      "id": "auths.scenario.recovery/1",
+      "summary": "Resume one recoverable execution and prohibit a fresh retry.",
+      "languages": [
+        "rust",
+        "typescript",
+        "python"
+      ]
+    },
+    {
       "id": "auths.scenario.rest-effect/1",
       "summary": "Authorize one bounded REST effect and return a receipt.",
+      "languages": [
+        "rust",
+        "typescript",
+        "python"
+      ]
+    },
+    {
+      "id": "auths.scenario.runtime-effect/1",
+      "summary": "Complete one runtime effect and deny exact replay.",
       "languages": [
         "rust",
         "typescript",
@@ -411,5 +474,5 @@
       }
     ]
   },
-  "digest": "748877813ac4250d18cb846bb1c751182796c10967cc92b73c5f56f0295169a4"
+  "digest": "14b2d4439129915287da91cf3d57783fef00766c00606e63f95e270ca8a342e3"
 }
