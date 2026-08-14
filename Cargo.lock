@@ -392,6 +392,7 @@ dependencies = [
  "auths-model",
  "auths-proof-exchange-model",
  "serde",
+ "serde_json",
  "sha2 0.10.9",
  "toml",
 ]
@@ -6981,6 +6982,7 @@ dependencies = [
  "auths-bench-model",
  "auths-ci-plan",
  "auths-codec",
+ "auths-config",
  "auths-did-keri",
  "auths-did-key",
  "auths-did-web",

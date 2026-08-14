@@ -4,6 +4,8 @@ product = "Auths"
 repository = "auths-dev/auths-proof"
 first_rc_tag = "auths-v1.0.0-rc.1"
 policy = "Every first-RC subject requires SLSA 1.2 Build Level 3 provenance. Preparation is not publication authorization."
+production_candidate_manifest = "release/open-production-candidate.json"
+production_candidate_schema = "product/spec/v1/open-production-candidate.schema.json"
 
 [[families]]
 id = "source-archive"

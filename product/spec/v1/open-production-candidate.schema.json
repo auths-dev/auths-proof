@@ -1,0 +1,157 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://auths.dev/spec/open-production-candidate-v1.schema.json",
+  "title": "Auths open production candidate V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "release",
+    "topology",
+    "lifecycleStore",
+    "custody",
+    "profiles",
+    "sdks",
+    "operations",
+    "evidence",
+    "exclusions"
+  ],
+  "properties": {
+    "schema": {
+      "const": "auths.open-production-candidate/1"
+    },
+    "release": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidate",
+        "version",
+        "sourceCommitSlot"
+      ],
+      "properties": {
+        "candidate": {},
+        "version": {},
+        "sourceCommitSlot": {}
+      }
+    },
+    "topology": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "class",
+        "runtimeInstances"
+      ],
+      "properties": {
+        "class": {},
+        "runtimeInstances": {}
+      }
+    },
+    "lifecycleStore": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "family",
+        "tls",
+        "schema",
+        "secretSlot"
+      ],
+      "properties": {
+        "family": {},
+        "tls": {},
+        "schema": {},
+        "secretSlot": {}
+      }
+    },
+    "custody": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "family",
+          "secretSlot"
+        ],
+        "properties": {
+          "family": {},
+          "secretSlot": {}
+        }
+      }
+    },
+    "profiles": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 16,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "package",
+          "providerContract",
+          "receiptSchema",
+          "fixtureSuite"
+        ],
+        "properties": {
+          "id": {},
+          "package": {},
+          "providerContract": {},
+          "receiptSchema": {},
+          "fixtureSuite": {}
+        }
+      }
+    },
+    "sdks": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "language",
+          "package",
+          "version",
+          "abi",
+          "publicApiSnapshot"
+        ],
+        "properties": {
+          "language": {},
+          "package": {},
+          "version": {},
+          "abi": {},
+          "publicApiSnapshot": {}
+        }
+      }
+    },
+    "operations": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "availabilityBasisPoints",
+        "decisionP95Milliseconds",
+        "recoveryP95Seconds",
+        "maximumConcurrentWorkflows"
+      ],
+      "properties": {
+        "availabilityBasisPoints": {},
+        "decisionP95Milliseconds": {},
+        "recoveryP95Seconds": {},
+        "maximumConcurrentWorkflows": {}
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "minItems": 9,
+      "maxItems": 16,
+      "uniqueItems": true
+    },
+    "exclusions": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 16,
+      "uniqueItems": true
+    }
+  }
+}

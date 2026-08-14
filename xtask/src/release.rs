@@ -21,6 +21,8 @@ struct ReleaseSubjectCatalogue {
     repository: String,
     first_rc_tag: String,
     policy: String,
+    production_candidate_manifest: String,
+    production_candidate_schema: String,
     families: Vec<ReleaseSubjectFamily>,
     excluded: Vec<ReleaseSubjectExclusion>,
 }
@@ -451,6 +453,9 @@ fn validate_release_subject_catalogue(catalogue: &ReleaseSubjectCatalogue) -> Re
         || catalogue.repository != RELEASE_REPOSITORY
         || catalogue.first_rc_tag != "auths-v1.0.0-rc.1"
         || catalogue.policy.trim().is_empty()
+        || catalogue.production_candidate_manifest != "release/open-production-candidate.json"
+        || catalogue.production_candidate_schema
+            != "product/spec/v1/open-production-candidate.schema.json"
     {
         return Err("release subject catalogue authority drifted".to_owned());
     }

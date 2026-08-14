@@ -1,6 +1,6 @@
 {
   "schema": "auths.semantic-freeze/1",
-  "freezeVersion": 84,
+  "freezeVersion": 85,
   "publicSurface": {
     "rustRoots": [
       "auths",
@@ -791,6 +791,29 @@
       "sha256": "c439415a2e2acc030644a626d1eb8c0ccb1353164d426166baeacd6dfc445159"
     },
     {
+      "id": "auths.product.open-production-contract",
+      "version": 1,
+      "classification": "frozen-meaning",
+      "categories": [
+        "production-topology",
+        "qualified-profiles",
+        "sdk-parity",
+        "operations-objectives",
+        "evidence-requirements",
+        "production-exclusions"
+      ],
+      "owners": [
+        "docs/specs/0038-production-runtime-custody-observability-and-assurance.md",
+        "docs/specs/0038/epic_1.md",
+        "product/config/auths-config/src/production.rs",
+        "product/spec/v1/open-production-candidate.schema.json",
+        "release/open-production-candidate.json",
+        "release/open-production-candidate.toml",
+        "xtask/src/production_contract.rs"
+      ],
+      "sha256": "8f37857208fe6ae22cef27949a3e53ad7dd2f2c6ddbfe7701f3a2f201f6ceeb8"
+    },
+    {
       "id": "auths.product.public-sdk-contract",
       "version": 29,
       "classification": "frozen-meaning",
@@ -911,7 +934,7 @@
     },
     {
       "id": "auths.release.public-surface",
-      "version": 84,
+      "version": 85,
       "classification": "release-metadata",
       "categories": [
         "package-names",
@@ -972,6 +995,7 @@
         "product/runtime/auths-kernel-runtime/Cargo.toml",
         "product/runtime/auths-runtime/Cargo.toml",
         "product/sdk/auths-sdk/Cargo.toml",
+        "product/spec/v1/open-production-candidate.schema.json",
         "release/CANDIDATE_CLOSURE.md",
         "release/README.md",
         "release/RELEASE_CANDIDATE_NOTES.md",
@@ -981,6 +1005,8 @@
         "release/evolution-lifecycle-v1.json",
         "release/evolution-policy-v1.json",
         "release/fixtures/evolution",
+        "release/open-production-candidate.json",
+        "release/open-production-candidate.toml",
         "release/owner-authorization.schema.json",
         "release/public-naming.toml",
         "release/release-manifest.contract-fixture.json",
@@ -993,12 +1019,13 @@
         "xtask/src/evolution_policy.rs",
         "xtask/src/fixtures.rs",
         "xtask/src/main.rs",
+        "xtask/src/production_contract.rs",
         "xtask/src/public_naming.rs",
         "xtask/src/release.rs",
         "xtask/src/release_control.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "9ca7ba01a718a48ad3eda33fbd19592f4348ee939fdc4c376c52339173dda4a1"
+      "sha256": "c0f172785f1f5da5ee2ebe6209719e7a8a6f224e72f85a2d205ff24a8e4de656"
     }
   ]
 }
