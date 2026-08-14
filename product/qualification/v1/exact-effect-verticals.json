@@ -1,0 +1,82 @@
+{
+  "schema": "auths.exact-effect-qualification/1",
+  "commonAdversarialScenarios": [
+    "exact-valid",
+    "field-mutation",
+    "unknown-field",
+    "non-canonical",
+    "oversized",
+    "boundary-plus-one",
+    "expired-or-revoked",
+    "stale-evidence",
+    "configuration-mismatch",
+    "capacity-exhausted",
+    "concurrent-final-capacity",
+    "request-substitution",
+    "credential-before-intent",
+    "provider-before-entry",
+    "definite-non-effect",
+    "possible-effect",
+    "restart-every-checkpoint",
+    "cross-host-replay",
+    "observation-mismatch",
+    "observation-unavailable",
+    "receipt-mutation"
+  ],
+  "profiles": [
+    {
+      "id": "opentofu-saved-plan-apply-v1",
+      "providerContracts": [
+        "auths.opentofu.fixed-argv-saved-plan-apply/1"
+      ],
+      "requestFixtures": [
+        "product/fixtures/v1/opentofu/provider-request.json"
+      ],
+      "liveContracts": [
+        "demos/opentofu-plan/tests/live-contract.mjs",
+        "demos/opentofu-plan/tests/live-e2e.mjs"
+      ],
+      "recoveryEvidence": [
+        "demos/opentofu-plan/tests/live-recovery.mjs"
+      ],
+      "runbook": "docs/operations/EXACT_EFFECT_VERTICALS_RUNBOOK.md"
+    },
+    {
+      "id": "postgresql-bounded-update-v1",
+      "providerContracts": [
+        "auths.postgresql.serializable-ledger-update/1"
+      ],
+      "requestFixtures": [
+        "product/fixtures/v1/postgresql/compiled-statement.json"
+      ],
+      "liveContracts": [
+        "demos/postgresql-data-change/tests/live-contract.mjs",
+        "demos/postgresql-data-change/tests/live-database.mjs",
+        "demos/postgresql-data-change/tests/live-e2e.mjs"
+      ],
+      "recoveryEvidence": [
+        "demos/postgresql-data-change/tests/live-recovery.mjs"
+      ],
+      "runbook": "docs/operations/EXACT_EFFECT_VERTICALS_RUNBOOK.md"
+    },
+    {
+      "id": "github-issue-address-v1",
+      "providerContracts": [
+        "auths.github.fixed-refspec-branch-publish/1",
+        "auths.github.rest-draft-pull-request-create/1"
+      ],
+      "requestFixtures": [
+        "product/fixtures/v1/github/branch-provider-request.json",
+        "product/fixtures/v1/github/pull-request-provider-request.json"
+      ],
+      "liveContracts": [
+        "demos/github-issue/src/tests.rs"
+      ],
+      "recoveryEvidence": [
+        "demos/github-issue/src/tests.rs"
+      ],
+      "runbook": "docs/operations/EXACT_EFFECT_VERTICALS_RUNBOOK.md"
+    }
+  ],
+  "externalDesignPartnerPilot": "required-before-production-claim"
+}

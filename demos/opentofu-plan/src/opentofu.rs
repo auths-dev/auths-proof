@@ -15,10 +15,10 @@ use std::{
 };
 
 use auths_opentofu::{
-    CredentialProvider, DigestHex, OpenTofuApplyResult, OpenTofuCredential, OpenTofuGateway,
-    OpenTofuReconciliationAuthorizationV1, OpenTofuSavedPlanApplyV1, OpenTofuStateEvidenceV1,
-    PortError, SavedPlanArtifact, VerifiedOpenTofuReconciliationCommand, VerifiedSavedPlanCommand,
-    VerifiedSavedPlanPreparationCommand,
+    CredentialProvider, DigestHex, FixedApplyRequestV1, OpenTofuApplyResult, OpenTofuCredential,
+    OpenTofuGateway, OpenTofuReconciliationAuthorizationV1, OpenTofuSavedPlanApplyV1,
+    OpenTofuStateEvidenceV1, PortError, SavedPlanArtifact, VerifiedOpenTofuReconciliationCommand,
+    VerifiedSavedPlanCommand, VerifiedSavedPlanPreparationCommand,
     canonical::{canonical_digest, canonical_json, sha256},
 };
 use tempfile::NamedTempFile;
@@ -297,6 +297,13 @@ impl OpenTofuBackend {
         {
             return Err(PortError::ArtifactMismatch);
         }
+        let request = FixedApplyRequestV1::derive(command.action())
+            .map_err(|_| PortError::ArtifactMismatch)?;
+        if request.plan_digest() != command.action().opaque_plan_digest()
+            || request.workspace() != planning.workspace
+        {
+            return Err(PortError::ArtifactMismatch);
+        }
         let environment = validate_environment(credential.expose())?;
         activate_workspace(
             program,
@@ -315,10 +322,11 @@ impl OpenTofuBackend {
             .path()
             .to_str()
             .ok_or(PortError::InvalidConfiguration)?;
+        let argv = request.argv();
         let output = run(
             program,
             working_directory,
-            &["apply", "-input=false", "-auto-approve", plan_path],
+            &[argv[0], argv[1], argv[2], plan_path],
             &environment,
             *timeout,
         )?;

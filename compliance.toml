@@ -456,7 +456,7 @@ security_state = ["branch-exclusive-lifecycle", "domain-recovery-record", "githu
 
 [packages.auths-github.claims]
 core-api-consumer = ["product/integrations/auths-github/src/profile.rs#profile_derives_exact_resource_and_one_effect_budget"]
-profile-contract = ["product/integrations/auths-github/src/profile.rs#every_security_relevant_branch_field_changes_the_action_digest"]
+profile-contract = ["product/integrations/auths-github/src/profile.rs#every_security_relevant_branch_field_changes_the_action_digest", "product/integrations/auths-github/src/provider_request.rs#provider_requests_are_exact_and_operation_specific"]
 stateful-replay-budget-component = ["demos/github-issue/src/tests.rs#concurrent_workflows_for_one_branch_scope_have_one_provider_winner"]
 
 [packages.auths-github-demo]
@@ -864,7 +864,7 @@ security_state = ["opentofu-mutation-credential", "saved-plan-artifact", "shared
 
 [packages.auths-opentofu.claims]
 core-api-consumer = ["product/integrations/auths-opentofu/src/profile.rs#profile_binds_exact_plan_and_one_effect_budget"]
-profile-contract = ["product/integrations/auths-opentofu/src/decision.rs#exact_saved_plan_is_authorized", "product/integrations/auths-opentofu/src/lifecycle.rs#authorized_projection_binds_backend_workspace_and_prior_state", "product/integrations/auths-opentofu/src/lifecycle.rs#reference_denial_cannot_project_to_shared_authority"]
+profile-contract = ["product/integrations/auths-opentofu/src/decision.rs#exact_saved_plan_is_authorized", "product/integrations/auths-opentofu/src/lifecycle.rs#authorized_projection_binds_backend_workspace_and_prior_state", "product/integrations/auths-opentofu/src/lifecycle.rs#reference_denial_cannot_project_to_shared_authority", "product/integrations/auths-opentofu/src/provider_request.rs#request_has_one_frozen_argument_shape"]
 runtime-enforcement-boundary = ["demos/opentofu-plan/src/app.rs#exact_denial_replay_and_receipts_cross_the_http_boundary", "product/integrations/auths-opentofu/src/lifecycle.rs#authorized_projection_binds_backend_workspace_and_prior_state"]
 stateful-replay-budget-component = ["demos/opentofu-plan/src/app.rs#competing_same_scope_actions_execute_one_provider_effect", "demos/opentofu-plan/src/app.rs#restart_reconciles_unknown_apply_without_resubmission", "demos/opentofu-plan/src/app.rs#obsolete_claim_database_is_rejected_at_startup"]
 
@@ -917,7 +917,7 @@ security_state = ["postgresql-execution-ledger", "postgresql-mutation-credential
 
 [packages.auths-postgresql.claims]
 core-api-consumer = ["product/integrations/auths-postgresql/src/profile.rs#profile_binds_transition_and_one_effect"]
-profile-contract = ["product/integrations/auths-postgresql/src/decision.rs#exact_fixture_authorizes", "product/integrations/auths-postgresql/src/lifecycle.rs#authorized_projection_binds_the_exact_row_set_scope", "product/integrations/auths-postgresql/src/lifecycle.rs#reference_denial_cannot_project_to_shared_authority"]
+profile-contract = ["product/integrations/auths-postgresql/src/compiler.rs#generated_sql_is_fully_qualified_and_parameterized", "product/integrations/auths-postgresql/src/decision.rs#exact_fixture_authorizes", "product/integrations/auths-postgresql/src/lifecycle.rs#authorized_projection_binds_the_exact_row_set_scope", "product/integrations/auths-postgresql/src/lifecycle.rs#reference_denial_cannot_project_to_shared_authority"]
 runtime-enforcement-boundary = ["demos/postgresql-data-change/src/postgres.rs#configuration_mismatch_precedes_claim_credential_and_transaction"]
 stateful-replay-budget-component = ["demos/postgresql-data-change/src/app.rs#obsolete_prelaunch_claim_state_is_rejected", "demos/postgresql-data-change/src/postgres.rs#concurrent_final_row_set_capacity_has_one_database_effect", "demos/postgresql-data-change/src/postgres.rs#exact_transition_commits_once_and_replay_never_reissues", "demos/postgresql-data-change/src/postgres.rs#unknown_commit_reconciles_after_restart_without_resubmission"]
 

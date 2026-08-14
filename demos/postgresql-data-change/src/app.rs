@@ -498,6 +498,7 @@ async fn execute(
             required_configuration: variant.required_configuration,
             proof,
             auths_request,
+            recovery_reference_digest: auths_lifecycle::RecoveryReferenceDigest::new([62; 32]),
         })
         .await;
     let rows_after = backend.demo_rows().await.unwrap_or_default();

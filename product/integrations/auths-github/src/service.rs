@@ -5,14 +5,14 @@ use auths_lifecycle::{
     DomainReceiptDigest, DurableTransitionV1, EffectConclusion, ExecutionAuthorizationV1,
     ExecutionIntentV1, LifecycleFailure, LifecycleRecordV1, LifecycleState, ObservationDigest,
     ProviderConditionDigest, ProviderContractId, ProviderRequestDigest, ProviderResultDigest,
-    ProviderRetryClass, ReconciliationId, ReconciliationObservationV1, StoreError,
-    StoreTransactionV1, TransitionCommandV1, TransitionContextV1, TransitionDisposition,
-    WorkflowId as SharedWorkflowId, execute_store_transaction,
+    ProviderRetryClass, ReconciliationId, ReconciliationObservationV1, RecoveryReferenceDigest,
+    StoreError, StoreTransactionV1, TransitionCommandV1, TransitionContextV1,
+    TransitionDisposition, WorkflowId as SharedWorkflowId, execute_store_transaction,
 };
 
 use crate::{
     candidate::{CandidateError, CandidateSubmission, QuarantinedCandidate},
-    canonical::sha256,
+    canonical::{canonical_digest, sha256},
     containment::{Decision, DecisionClass, DecisionCode, EvaluationContext, evaluate},
     evidence::GitHubEvidence,
     executor::{VerifiedOpenDraftPullRequest, VerifiedPublishBranch},
@@ -25,6 +25,7 @@ use crate::{
         CandidateInspector, Clock, CredentialProvider, ExactActionAuthorizer, GitHubReadError,
         GitHubReadPort, GitHubWriteError, GitHubWritePort, ReceiptSink,
     },
+    provider_request::{BranchPublishRequestV1, DraftPullRequestV1},
     receipts::{
         ExecutionResult, GitHubDecisionReceipt, GitHubExecutionReceipt, GitHubReceipt,
         ObservedGitHubState, OpenedPullRequest, PublishedBranch, ReconciliationEntry,
@@ -44,6 +45,13 @@ pub struct ExecuteWorkflowRequest {
     pub required_configuration: VerifierConfiguration,
     /// Hostile candidate bundle.
     pub candidate: CandidateSubmission,
+    pub recovery_references: GitHubRecoveryReferencesV1,
+}
+
+#[derive(Clone, Copy)]
+pub struct GitHubRecoveryReferencesV1 {
+    pub branch: RecoveryReferenceDigest,
+    pub pull_request: RecoveryReferenceDigest,
 }
 
 /// Explicit trusted dependencies.
@@ -234,6 +242,8 @@ where
                 &branch_decision,
                 &branch_proof,
                 &branch_decision_digest,
+                request.recovery_references.branch,
+                None,
                 now,
             )?;
             match branch_lifecycle_start {
@@ -504,6 +514,8 @@ where
             &pull_request_decision,
             &pull_request_proof,
             &pull_request_decision_digest,
+            request.recovery_references.pull_request,
+            Some(&exact_body),
             pr_now,
         )? {
             LifecycleStartResult::Started(start) => *start,
@@ -1396,6 +1408,8 @@ fn begin_lifecycle(
     decision: &GitHubDecisionReceipt,
     proof: &crate::ports::ProofAuthorization,
     decision_digest: &crate::types::DigestHex,
+    recovery_reference_digest: RecoveryReferenceDigest,
+    exact_provider_body: Option<&str>,
     now: u64,
 ) -> Result<LifecycleStartResult, ServiceError> {
     let projection = GitHubLifecycleProjectionInput {
@@ -1446,6 +1460,7 @@ fn begin_lifecycle(
             core_authorization_digest: &core_authorization_digest(proof),
             decision_receipt_digest: decision_digest,
             implementation_build_digest: &implementation_build_digest(),
+            recovery_reference_digest,
             expires_at: match action {
                 ExactGitHubAction::PublishBranch(action) => action.expires_at,
                 ExactGitHubAction::OpenDraftPullRequest(action) => action.expires_at,
@@ -1491,12 +1506,25 @@ fn begin_lifecycle(
         GitHubOperation::PublishBranch => BRANCH_PROVIDER_CONTRACT_ID,
         GitHubOperation::OpenDraftPullRequest => PULL_REQUEST_PROVIDER_CONTRACT_ID,
     };
+    let provider_request_digest = match action {
+        ExactGitHubAction::PublishBranch(action) => canonical_digest(
+            &BranchPublishRequestV1::derive(action).map_err(|_| ServiceError::Projection)?,
+        ),
+        ExactGitHubAction::OpenDraftPullRequest(action) => canonical_digest(
+            &DraftPullRequestV1::derive(
+                action,
+                exact_provider_body.ok_or(ServiceError::Projection)?,
+            )
+            .map_err(|_| ServiceError::Projection)?,
+        ),
+    }
+    .map_err(|_| ServiceError::Canonicalization)?;
     let evidence_digest = evidence
         .digest()
         .map_err(|_| ServiceError::Canonicalization)?;
     let execution_intent = ExecutionIntentV1::new(
         commitment(&action_digest)?,
-        ProviderRequestDigest::new(digest_bytes(&action_digest)?),
+        ProviderRequestDigest::new(digest_bytes(&provider_request_digest)?),
         ProviderConditionDigest::new(digest_bytes(&evidence_digest)?),
         ProviderContractId::parse(provider_contract).map_err(|_| ServiceError::Projection)?,
         ProviderRetryClass::ObserveBeforeRetry,

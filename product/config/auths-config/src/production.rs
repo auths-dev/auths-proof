@@ -71,19 +71,22 @@ impl ProductionProfileId {
         match self {
             Self::OpentofuSavedPlanApplyV1 => ProfileContract {
                 package: "product/integrations/auths-opentofu",
-                provider_contract: "auths.opentofu.closed-provider/1",
+                provider_contracts: &["auths.opentofu.fixed-argv-saved-plan-apply/1"],
                 receipt_schema: "auths.opentofu.decision-receipt/1",
                 fixture_suite: "product/fixtures/v1/opentofu",
             },
             Self::PostgresqlBoundedUpdateV1 => ProfileContract {
                 package: "product/integrations/auths-postgresql",
-                provider_contract: "auths.postgresql.closed-provider/1",
+                provider_contracts: &["auths.postgresql.serializable-ledger-update/1"],
                 receipt_schema: "auths.postgresql.decision-receipt/1",
                 fixture_suite: "product/fixtures/v1/postgresql",
             },
             Self::GithubIssueAddressV1 => ProfileContract {
                 package: "product/integrations/auths-github",
-                provider_contract: "auths.github.closed-provider/1",
+                provider_contracts: &[
+                    "auths.github.fixed-refspec-branch-publish/1",
+                    "auths.github.rest-draft-pull-request-create/1",
+                ],
                 receipt_schema: "auths.github.decision-receipt/1",
                 fixture_suite: "product/fixtures/v1/github",
             },
@@ -177,7 +180,7 @@ struct CustodyAdapterInput {
 struct ProductionProfileInput {
     id: ProductionProfileId,
     package: String,
-    provider_contract: String,
+    provider_contracts: Vec<String>,
     receipt_schema: String,
     fixture_suite: String,
 }
@@ -218,7 +221,7 @@ struct OperationsObjectivesInput {
 #[derive(Clone, Copy)]
 struct ProfileContract {
     package: &'static str,
-    provider_contract: &'static str,
+    provider_contracts: &'static [&'static str],
     receipt_schema: &'static str,
     fixture_suite: &'static str,
 }
@@ -283,7 +286,7 @@ struct CanonicalCustody {
 struct CanonicalProfile {
     id: ProductionProfileId,
     package: String,
-    provider_contract: String,
+    provider_contracts: Vec<String>,
     receipt_schema: String,
     fixture_suite: String,
 }
@@ -833,11 +836,19 @@ fn compile_profiles(
             }
             let expected = profile.id.expected();
             validate_exact("profiles.package", &profile.package, expected.package)?;
-            validate_exact(
-                "profiles.provider_contract",
-                &profile.provider_contract,
-                expected.provider_contract,
+            validate_count(
+                "profiles.provider_contracts",
+                profile.provider_contracts.len(),
+                expected.provider_contracts.len(),
+                expected.provider_contracts.len(),
             )?;
+            for (actual, expected) in profile
+                .provider_contracts
+                .iter()
+                .zip(expected.provider_contracts)
+            {
+                validate_exact("profiles.provider_contracts", actual, expected)?;
+            }
             validate_exact(
                 "profiles.receipt_schema",
                 &profile.receipt_schema,
@@ -851,7 +862,7 @@ fn compile_profiles(
             Ok(CanonicalProfile {
                 id: profile.id,
                 package: profile.package,
-                provider_contract: profile.provider_contract,
+                provider_contracts: profile.provider_contracts,
                 receipt_schema: profile.receipt_schema,
                 fixture_suite: profile.fixture_suite,
             })

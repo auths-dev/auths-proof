@@ -1326,6 +1326,7 @@ mod tests {
             required_configuration: demo.product.configuration.clone(),
             proof: demo.auths.proof.clone(),
             auths_request: demo.auths.request.clone(),
+            recovery_reference_digest: auths_lifecycle::RecoveryReferenceDigest::new([63; 32]),
         };
         assert!(matches!(
             service.execute(request()).await.unwrap(),
@@ -1370,6 +1371,7 @@ mod tests {
             required_configuration: demo.product.configuration.clone(),
             proof: demo.auths.proof.clone(),
             auths_request: demo.auths.request.clone(),
+            recovery_reference_digest: auths_lifecycle::RecoveryReferenceDigest::new([64; 32]),
         };
 
         let (left, right) = tokio::join!(service.execute(request()), service.execute(request()));
@@ -1407,6 +1409,7 @@ mod tests {
             required_configuration: demo.product.configuration.clone(),
             proof: demo.auths.proof.clone(),
             auths_request: demo.auths.request.clone(),
+            recovery_reference_digest: auths_lifecycle::RecoveryReferenceDigest::new([65; 32]),
         };
 
         assert!(matches!(
@@ -1455,6 +1458,7 @@ mod tests {
                 required_configuration: variant.required_configuration,
                 proof: demo.auths.proof,
                 auths_request: demo.auths.request,
+                recovery_reference_digest: auths_lifecycle::RecoveryReferenceDigest::new([66; 32]),
             })
             .await
             .unwrap();

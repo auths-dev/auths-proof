@@ -29,6 +29,7 @@ use crate::{
         GitHubReadError, GitHubReadPort, GitHubWriteError, GitHubWritePort, ReceiptError,
         ReceiptSink, ScopedCredential,
     },
+    provider_request::{BranchPublishRequestV1, DraftPullRequestV1},
     receipts::{GitHubReceipt, OpenedPullRequest, PublishedBranch, SignedGitHubReceipt},
     types::{
         GitHubOperation, GitOid, IssueResource, NodeId, RefName, RepositoryResource, WorkflowId,
@@ -577,6 +578,8 @@ impl GitHubWritePort for GitHubRestClient {
         {
             return Err(GitHubWriteError::PostconditionMismatch);
         }
+        let request = BranchPublishRequestV1::derive(command.action())
+            .map_err(|_| GitHubWriteError::PostconditionMismatch)?;
         let temporary = tempfile::tempdir().map_err(|_| GitHubWriteError::Adapter)?;
         let askpass = temporary.path().join("askpass");
         fs::write(
@@ -585,17 +588,8 @@ impl GitHubWritePort for GitHubRestClient {
         )
         .map_err(|_| GitHubWriteError::Adapter)?;
         set_executable(&askpass)?;
-        let remote = format!(
-            "{}/{}/{}.git",
-            self.web_base,
-            self.repository.owner(),
-            self.repository.name()
-        );
-        let refspec = format!(
-            "{}:refs/heads/{}",
-            command.candidate_revision(),
-            command.target_ref()
-        );
+        let remote = format!("{}{}", self.web_base, request.repository_path());
+        let argv = request.argv();
         let output = Command::new(&self.git_executable)
             .current_dir(candidate.repository_path())
             .env_clear()
@@ -609,11 +603,11 @@ impl GitHubWritePort for GitHubRestClient {
                 credential.expose().map_err(|_| GitHubWriteError::Adapter)?,
             )
             .args([
-                "push",
-                "--porcelain",
-                "--no-verify",
+                argv[0],
+                argv[1],
+                argv[2],
                 remote.as_str(),
-                refspec.as_str(),
+                request.refspec(),
             ])
             .output()
             .map_err(|_| GitHubWriteError::Ambiguous)?;
@@ -657,23 +651,20 @@ impl GitHubWritePort for GitHubRestClient {
             return Err(GitHubWriteError::PostconditionMismatch);
         }
         let action = command.action();
+        let request = DraftPullRequestV1::derive(action, command.exact_body())
+            .map_err(|_| GitHubWriteError::PostconditionMismatch)?;
         let response = self
             .client
-            .post(format!(
-                "{}{}{}",
-                self.api_base,
-                self.repository_path(),
-                "/pulls"
-            ))
+            .post(format!("{}{}", self.api_base, request.path()))
             .bearer_auth(credential.expose().map_err(|_| GitHubWriteError::Adapter)?)
             .header("Accept", "application/vnd.github+json")
             .header("X-GitHub-Api-Version", "2022-11-28")
             .json(&json!({
-                "title": action.exact_title,
-                "body": command.exact_body(),
-                "head": action.head_ref,
-                "base": action.base_ref,
-                "draft": true,
+                "title": request.title(),
+                "body": request.body(),
+                "head": request.head(),
+                "base": request.base(),
+                "draft": request.draft(),
             }))
             .send()
             .map_err(|_| GitHubWriteError::Ambiguous)?;

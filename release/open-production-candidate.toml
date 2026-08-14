@@ -50,21 +50,24 @@ secret_slot = "AUTHS_PKCS11_KEY_LABEL"
 [[profiles]]
 id = "opentofu-saved-plan-apply-v1"
 package = "product/integrations/auths-opentofu"
-provider_contract = "auths.opentofu.closed-provider/1"
+provider_contracts = ["auths.opentofu.fixed-argv-saved-plan-apply/1"]
 receipt_schema = "auths.opentofu.decision-receipt/1"
 fixture_suite = "product/fixtures/v1/opentofu"
 
 [[profiles]]
 id = "postgresql-bounded-update-v1"
 package = "product/integrations/auths-postgresql"
-provider_contract = "auths.postgresql.closed-provider/1"
+provider_contracts = ["auths.postgresql.serializable-ledger-update/1"]
 receipt_schema = "auths.postgresql.decision-receipt/1"
 fixture_suite = "product/fixtures/v1/postgresql"
 
 [[profiles]]
 id = "github-issue-address-v1"
 package = "product/integrations/auths-github"
-provider_contract = "auths.github.closed-provider/1"
+provider_contracts = [
+  "auths.github.fixed-refspec-branch-publish/1",
+  "auths.github.rest-draft-pull-request-create/1",
+]
 receipt_schema = "auths.github.decision-receipt/1"
 fixture_suite = "product/fixtures/v1/github"
 

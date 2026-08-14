@@ -61,6 +61,7 @@ fn exact_flow_uses_real_auths_kernel_and_replay_mutates_nothing() {
         workflow_grant: request.workflow_grant.clone(),
         required_configuration: request.required_configuration.clone(),
         candidate: request.candidate.clone(),
+        recovery_references: request.recovery_references,
     };
     let outcome = service.execute(request).unwrap();
     match outcome {
@@ -411,6 +412,10 @@ impl Fixture {
                 DemoVariant::Exact,
             )
             .unwrap(),
+            recovery_references: auths_github::GitHubRecoveryReferencesV1 {
+                branch: auths_lifecycle::RecoveryReferenceDigest::new([73; 32]),
+                pull_request: auths_lifecycle::RecoveryReferenceDigest::new([74; 32]),
+            },
         }
     }
 
@@ -439,6 +444,10 @@ impl Fixture {
                     variant,
                 )
                 .unwrap()
+            },
+            recovery_references: auths_github::GitHubRecoveryReferencesV1 {
+                branch: auths_lifecycle::RecoveryReferenceDigest::new([75; 32]),
+                pull_request: auths_lifecycle::RecoveryReferenceDigest::new([76; 32]),
             },
         }
     }

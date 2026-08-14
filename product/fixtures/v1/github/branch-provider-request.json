@@ -1,0 +1,1 @@
+{"argv":["push","--porcelain","--no-verify"],"contract":"auths.github.fixed-refspec-branch-publish/1","refspec":"2222222222222222222222222222222222222222:refs/heads/auths/issue-42-workflow-aut","repository_path":"/auths-dev/auths-github-demo.git"}

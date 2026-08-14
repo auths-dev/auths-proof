@@ -606,10 +606,11 @@ migration_status = "reference-only"
 
 pub(crate) fn github_product_fixtures() -> Result<BTreeMap<PathBuf, Vec<u8>>, String> {
     use auths_github::{
-        ExactGitHubAction,
+        BranchPublishRequestV1, DraftPullRequestV1, ExactGitHubAction,
         canonical::canonical_json,
         containment::{EvaluationContext, evaluate},
-        derive_publish_branch_action,
+        derive_open_pull_request_action, derive_publish_branch_action,
+        deterministic_pull_request_body,
         test_support::{NOW, fixture},
     };
 
@@ -618,6 +619,30 @@ pub(crate) fn github_product_fixtures() -> Result<BTreeMap<PathBuf, Vec<u8>>, St
         derive_publish_branch_action(&fixture.grant, &fixture.configuration, &fixture.evidence)
             .map_err(|error| format!("could not derive GitHub fixture action: {error}"))?,
     );
+    let branch_action = match &action {
+        ExactGitHubAction::PublishBranch(action) => action,
+        ExactGitHubAction::OpenDraftPullRequest(_) => unreachable!(),
+    };
+    let branch_request = BranchPublishRequestV1::derive(branch_action)
+        .map_err(|error| format!("could not derive GitHub branch request: {error}"))?;
+    let branch_receipt_digest = auths_github::DigestHex::parse("44".repeat(32))
+        .map_err(|error| format!("could not build GitHub receipt digest: {error}"))?;
+    let pull_request_body = deterministic_pull_request_body(
+        &fixture.grant,
+        &branch_action.candidate_revision,
+        &branch_receipt_digest,
+        "https://receipts.auths.example",
+    );
+    let pull_request_action = derive_open_pull_request_action(
+        &fixture.grant,
+        &fixture.configuration,
+        &fixture.evidence,
+        &branch_receipt_digest,
+        &pull_request_body,
+    )
+    .map_err(|error| format!("could not derive GitHub pull request action: {error}"))?;
+    let pull_request = DraftPullRequestV1::derive(&pull_request_action, &pull_request_body)
+        .map_err(|error| format!("could not derive GitHub pull request: {error}"))?;
     let authorized = evaluate(&EvaluationContext {
         grant: &fixture.grant,
         action: &action,
@@ -685,6 +710,16 @@ pub(crate) fn github_product_fixtures() -> Result<BTreeMap<PathBuf, Vec<u8>>, St
             PathBuf::from("github/configuration-mismatch-decision.json"),
             canonical_json(&mismatch)
                 .map_err(|error| format!("could not serialize GitHub denial: {error}"))?,
+        ),
+        (
+            PathBuf::from("github/branch-provider-request.json"),
+            canonical_json(&branch_request)
+                .map_err(|error| format!("could not serialize GitHub branch request: {error}"))?,
+        ),
+        (
+            PathBuf::from("github/pull-request-provider-request.json"),
+            canonical_json(&pull_request)
+                .map_err(|error| format!("could not serialize GitHub pull request: {error}"))?,
         ),
     ]);
     insert_bounded_fixture_manifest(
@@ -1147,7 +1182,7 @@ pub(crate) fn records_api_product_fixtures() -> Result<BTreeMap<PathBuf, Vec<u8>
 
 pub(crate) fn opentofu_product_fixtures() -> Result<BTreeMap<PathBuf, Vec<u8>>, String> {
     use auths_opentofu::{
-        OpenTofuReceipt,
+        FixedApplyRequestV1, OpenTofuReceipt,
         canonical::canonical_json,
         decision_receipt,
         test_support::{NOW, PLAN_BYTES, configuration_with_maximum_resource_changes, fixture},
@@ -1175,6 +1210,8 @@ pub(crate) fn opentofu_product_fixtures() -> Result<BTreeMap<PathBuf, Vec<u8>>, 
         NOW,
     )
     .map_err(|error| format!("could not build OpenTofu denied fixture: {error}"))?;
+    let provider_request = FixedApplyRequestV1::derive(&fixture.action)
+        .map_err(|error| format!("could not derive OpenTofu provider request: {error}"))?;
 
     let mut files = BTreeMap::from([
         (
@@ -1212,6 +1249,12 @@ pub(crate) fn opentofu_product_fixtures() -> Result<BTreeMap<PathBuf, Vec<u8>>, 
         (
             PathBuf::from("opentofu/saved-plan.bin"),
             PLAN_BYTES.to_vec(),
+        ),
+        (
+            PathBuf::from("opentofu/provider-request.json"),
+            provider_request.canonical_bytes().map_err(|error| {
+                format!("could not serialize OpenTofu provider request: {error}")
+            })?,
         ),
     ]);
     insert_bounded_fixture_manifest(
