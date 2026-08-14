@@ -102,6 +102,16 @@
       "path": "product/integrations/auths-custody"
     },
     {
+      "name": "auths-custody-aws-kms",
+      "layer": "product",
+      "path": "product/integrations/auths-custody-aws-kms"
+    },
+    {
+      "name": "auths-custody-pkcs11",
+      "layer": "product",
+      "path": "product/integrations/auths-custody-pkcs11"
+    },
+    {
       "name": "auths-deployment",
       "layer": "product",
       "path": "product/integrations/auths-deployment"
@@ -1877,10 +1887,62 @@
     {
       "source": "auths-custody",
       "source_layer": "product",
-      "target": "ed25519-dalek",
+      "target": "p256",
       "target_layer": null,
       "scope": "external",
-      "kind": "dev",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "ecdsa",
+        "pkcs8"
+      ]
+    },
+    {
+      "source": "auths-custody",
+      "source_layer": "product",
+      "target": "subtle",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-custody-aws-kms",
+      "source_layer": "product",
+      "target": "auths-custody",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-custody-aws-kms",
+      "source_layer": "product",
+      "target": "auths-model",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-custody-aws-kms",
+      "source_layer": "product",
+      "target": "base64ct",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
       "target_condition": null,
       "optional": false,
       "default_features": false,
@@ -1889,9 +1951,147 @@
       ]
     },
     {
-      "source": "auths-custody",
+      "source": "auths-custody-aws-kms",
       "source_layer": "product",
-      "target": "subtle",
+      "target": "hex",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-custody-aws-kms",
+      "source_layer": "product",
+      "target": "p256",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "ecdsa",
+        "pkcs8"
+      ]
+    },
+    {
+      "source": "auths-custody-aws-kms",
+      "source_layer": "product",
+      "target": "p256",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "ecdsa",
+        "pkcs8"
+      ]
+    },
+    {
+      "source": "auths-custody-aws-kms",
+      "source_layer": "product",
+      "target": "sha2",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-custody-pkcs11",
+      "source_layer": "product",
+      "target": "auths-custody",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-custody-pkcs11",
+      "source_layer": "product",
+      "target": "auths-model",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-custody-pkcs11",
+      "source_layer": "product",
+      "target": "base64ct",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc"
+      ]
+    },
+    {
+      "source": "auths-custody-pkcs11",
+      "source_layer": "product",
+      "target": "hex",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-custody-pkcs11",
+      "source_layer": "product",
+      "target": "p256",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "ecdsa",
+        "pkcs8"
+      ]
+    },
+    {
+      "source": "auths-custody-pkcs11",
+      "source_layer": "product",
+      "target": "p256",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "ecdsa",
+        "pkcs8"
+      ]
+    },
+    {
+      "source": "auths-custody-pkcs11",
+      "source_layer": "product",
+      "target": "sha2",
       "target_layer": null,
       "scope": "external",
       "kind": "normal",
@@ -3210,7 +3410,9 @@
       "optional": false,
       "default_features": false,
       "features": [
-        "ecdsa"
+        "alloc",
+        "ecdsa",
+        "pkcs8"
       ]
     },
     {
@@ -4860,7 +5062,9 @@
       "optional": false,
       "default_features": false,
       "features": [
-        "ecdsa"
+        "alloc",
+        "ecdsa",
+        "pkcs8"
       ]
     },
     {
@@ -10221,7 +10425,9 @@
       "optional": false,
       "default_features": false,
       "features": [
-        "ecdsa"
+        "alloc",
+        "ecdsa",
+        "pkcs8"
       ]
     },
     {
@@ -10311,7 +10517,9 @@
       "optional": false,
       "default_features": false,
       "features": [
-        "ecdsa"
+        "alloc",
+        "ecdsa",
+        "pkcs8"
       ]
     },
     {
@@ -13667,7 +13875,9 @@
       "optional": false,
       "default_features": false,
       "features": [
+        "alloc",
         "ecdsa",
+        "pkcs8",
         "std"
       ]
     },
@@ -14015,7 +14225,9 @@
       "optional": false,
       "default_features": false,
       "features": [
-        "ecdsa"
+        "alloc",
+        "ecdsa",
+        "pkcs8"
       ]
     },
     {

@@ -1,9 +1,4 @@
-//! External custody boundary for exact Auths signing requests.
-//!
-//! This crate owns no private keys and imports no provider SDK. Concrete
-//! `WebAuthn`, workload, KMS, HSM, and PKCS#11 clients implement
-//! [`ExternalSigner`] and return a transaction-bound signature plus any
-//! evidence acquired during the operation.
+//! Transaction-bound external custody for Auths signing requests.
 
 #![forbid(unsafe_code)]
 
@@ -13,131 +8,564 @@ use auths_model::{
     PrincipalStatusStatement, SignatureBytes, SignatureDescriptor, SignedAction, SignedGrant,
     SignedGrantStatus, SignedPrincipalStatus,
 };
+use p256::ecdsa::{Signature as P256Signature, VerifyingKey, signature::Verifier as _};
 use std::fmt;
 use subtle::ConstantTimeEq as _;
 
-/// Registered outer custody integration family.
+const MAX_IDENTIFIER_BYTES: usize = 160;
+const MAX_EVIDENCE_OBJECTS: usize = 16;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CustodyKind {
-    /// Browser authenticator ceremony.
     WebAuthn,
-    /// SPIFFE workload or workload API signer.
     Workload,
-    /// Cloud key-management service.
     Kms,
-    /// Hardware security module.
     Hsm,
-    /// PKCS#11 token or module.
     Pkcs11,
 }
 
-/// Immutable provider request bound to exact Auths signing bytes.
-pub struct SigningIntent<'a> {
-    kind: CustodyKind,
-    request_id: String,
-    object_id: SigningObjectId,
-    descriptor: &'a SignatureDescriptor,
-    signing_preimage: &'a [u8],
-    transaction_digest: [u8; 32],
-}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CustodyAdapterId(String);
 
-impl<'a> SigningIntent<'a> {
-    fn from_request<T>(kind: CustodyKind, request: &'a ExternalSigningRequest<T>) -> Self {
-        Self {
-            kind,
-            request_id: request.request_id(),
-            object_id: request.object_id(),
-            descriptor: request.descriptor(),
-            signing_preimage: request.signing_preimage(),
-            transaction_digest: *request.transaction_digest().as_bytes(),
-        }
+impl CustodyAdapterId {
+    pub fn parse(value: &str) -> Result<Self, CustodyError> {
+        parse_identifier(value)?;
+        Ok(Self(value.to_owned()))
     }
 
-    /// Returns the selected custody family.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct KeyVersionId(String);
+
+impl KeyVersionId {
+    pub fn parse(value: &str) -> Result<Self, CustodyError> {
+        parse_identifier(value)?;
+        Ok(Self(value.to_owned()))
+    }
+
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum KeyLifecycleState {
+    Enrolled,
+    Ready,
+    RotationPending,
+    ActiveCurrent,
+    RetiringPrevious,
+    Revoked,
+    Disabled,
+    Unavailable,
+    Indeterminate,
+}
+
+impl KeyLifecycleState {
+    #[must_use]
+    pub const fn permits_signing(self) -> bool {
+        matches!(self, Self::Ready | Self::ActiveCurrent)
+    }
+}
+
+#[derive(Clone, Eq, PartialEq)]
+pub struct CustodyDescriptor {
+    kind: CustodyKind,
+    adapter_id: CustodyAdapterId,
+    principal: PrincipalId,
+    signature: SignatureDescriptor,
+    key_version: KeyVersionId,
+    lifecycle: KeyLifecycleState,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CustodyConformanceCase {
+    Valid,
+    ChangedRequest,
+    ChangedObject,
+    ChangedPrincipal,
+    ChangedDescriptor,
+    ChangedSuite,
+    ChangedKeyVersion,
+    ChangedTransaction,
+    ChangedPreimage,
+    ChangedSignature,
+    ChangedEvidence,
+    HighS,
+    MalformedDer,
+    ReplayedResponse,
+    ConcurrentReordering,
+    TimeoutBeforeSend,
+    DisconnectAfterSend,
+    Throttled,
+    Denied,
+    Cancelled,
+    DisabledKey,
+    RevokedKey,
+    ProviderOutage,
+    RotationInFlight,
+    PolicyWidening,
+    KeyReplacement,
+    TokenRemoval,
+    SessionLoss,
+    WrongObject,
+    WrongPin,
+    Redaction,
+}
+
+pub const CUSTODY_CONFORMANCE_CASES: &[CustodyConformanceCase] = &[
+    CustodyConformanceCase::Valid,
+    CustodyConformanceCase::ChangedRequest,
+    CustodyConformanceCase::ChangedObject,
+    CustodyConformanceCase::ChangedPrincipal,
+    CustodyConformanceCase::ChangedDescriptor,
+    CustodyConformanceCase::ChangedSuite,
+    CustodyConformanceCase::ChangedKeyVersion,
+    CustodyConformanceCase::ChangedTransaction,
+    CustodyConformanceCase::ChangedPreimage,
+    CustodyConformanceCase::ChangedSignature,
+    CustodyConformanceCase::ChangedEvidence,
+    CustodyConformanceCase::HighS,
+    CustodyConformanceCase::MalformedDer,
+    CustodyConformanceCase::ReplayedResponse,
+    CustodyConformanceCase::ConcurrentReordering,
+    CustodyConformanceCase::TimeoutBeforeSend,
+    CustodyConformanceCase::DisconnectAfterSend,
+    CustodyConformanceCase::Throttled,
+    CustodyConformanceCase::Denied,
+    CustodyConformanceCase::Cancelled,
+    CustodyConformanceCase::DisabledKey,
+    CustodyConformanceCase::RevokedKey,
+    CustodyConformanceCase::ProviderOutage,
+    CustodyConformanceCase::RotationInFlight,
+    CustodyConformanceCase::PolicyWidening,
+    CustodyConformanceCase::KeyReplacement,
+    CustodyConformanceCase::TokenRemoval,
+    CustodyConformanceCase::SessionLoss,
+    CustodyConformanceCase::WrongObject,
+    CustodyConformanceCase::WrongPin,
+    CustodyConformanceCase::Redaction,
+];
+
+impl CustodyDescriptor {
+    pub fn new(
+        kind: CustodyKind,
+        adapter_id: CustodyAdapterId,
+        principal: PrincipalId,
+        signature: SignatureDescriptor,
+        key_version: KeyVersionId,
+        lifecycle: KeyLifecycleState,
+    ) -> Result<Self, CustodyError> {
+        if signature.verification_method().as_str().is_empty() {
+            return Err(CustodyError::DescriptorMismatch);
+        }
+        Ok(Self {
+            kind,
+            adapter_id,
+            principal,
+            signature,
+            key_version,
+            lifecycle,
+        })
+    }
+
     #[must_use]
     pub const fn kind(&self) -> CustodyKind {
         self.kind
     }
 
-    /// Returns the exact identifier a provider echoes back.
+    #[must_use]
+    pub const fn adapter_id(&self) -> &CustodyAdapterId {
+        &self.adapter_id
+    }
+
+    #[must_use]
+    pub const fn principal(&self) -> &PrincipalId {
+        &self.principal
+    }
+
+    #[must_use]
+    pub const fn signature(&self) -> &SignatureDescriptor {
+        &self.signature
+    }
+
+    #[must_use]
+    pub const fn key_version(&self) -> &KeyVersionId {
+        &self.key_version
+    }
+
+    #[must_use]
+    pub const fn lifecycle(&self) -> KeyLifecycleState {
+        self.lifecycle
+    }
+}
+
+pub struct SigningIntent<'a> {
+    request_id: String,
+    object_id: SigningObjectId,
+    descriptor: &'a CustodyDescriptor,
+    signing_preimage: &'a [u8],
+    transaction_digest: [u8; 32],
+}
+
+impl<'a> SigningIntent<'a> {
+    fn from_request<T>(
+        request: &'a ExternalSigningRequest<T>,
+        descriptor: &'a CustodyDescriptor,
+    ) -> Result<Self, CustodyError> {
+        if request.descriptor() != descriptor.signature() {
+            return Err(CustodyError::DescriptorMismatch);
+        }
+        if !descriptor.lifecycle().permits_signing() {
+            return Err(CustodyError::LifecycleNotPermitted);
+        }
+        Ok(Self {
+            request_id: request.request_id(),
+            object_id: request.object_id(),
+            descriptor,
+            signing_preimage: request.signing_preimage(),
+            transaction_digest: *request.transaction_digest().as_bytes(),
+        })
+    }
+
     #[must_use]
     pub fn request_id(&self) -> &str {
         &self.request_id
     }
 
-    /// Returns the exact object identifier being signed.
     #[must_use]
     pub const fn object_id(&self) -> SigningObjectId {
         self.object_id
     }
 
-    /// Returns the descriptor committed by the Auths signing request.
     #[must_use]
-    pub const fn descriptor(&self) -> &SignatureDescriptor {
+    pub const fn descriptor(&self) -> &CustodyDescriptor {
         self.descriptor
     }
 
-    /// Returns the exact domain-separated Auths signing preimage.
     #[must_use]
     pub const fn signing_preimage(&self) -> &[u8] {
         self.signing_preimage
     }
 
-    /// Returns the SHA-256 transaction binding expected in provider output.
     #[must_use]
     pub const fn transaction_digest(&self) -> &[u8; 32] {
         &self.transaction_digest
     }
 }
 
-/// Complete output of one external signing transaction.
+pub struct RawSigningResponse {
+    pub request_id: String,
+    pub principal: PrincipalId,
+    pub descriptor: SignatureDescriptor,
+    pub signature: Vec<u8>,
+    pub provider_key_version: KeyVersionId,
+    pub evidence: Vec<EvidenceObject>,
+    pub transaction_digest: [u8; 32],
+}
+
+pub struct UntrustedSigningResponse(RawSigningResponse);
+
+impl UntrustedSigningResponse {
+    pub fn parse(value: RawSigningResponse) -> Result<Self, CustodyProviderError> {
+        parse_identifier(&value.request_id)
+            .map_err(|_| CustodyProviderError::InvalidProviderResponse)?;
+        if value.signature.is_empty()
+            || value.signature.len() > auths_model::HARD_MAX_SIGNATURE_BYTES
+            || value.evidence.len() > MAX_EVIDENCE_OBJECTS
+        {
+            return Err(CustodyProviderError::InvalidProviderResponse);
+        }
+        Ok(Self(value))
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CustodyProviderError {
+    Denied,
+    Cancelled,
+    Throttled,
+    Unavailable,
+    RevokedKey,
+    DisabledKey,
+    ProviderUnknown,
+    InvalidProviderResponse,
+}
+
+impl CustodyProviderError {
+    #[must_use]
+    pub const fn stable_code(self) -> &'static str {
+        match self {
+            Self::Denied => "custody.denied",
+            Self::Cancelled => "custody.cancelled",
+            Self::Throttled => "custody.throttled",
+            Self::Unavailable => "custody.unavailable",
+            Self::RevokedKey => "custody.revoked-key",
+            Self::DisabledKey => "custody.disabled-key",
+            Self::ProviderUnknown => "custody.provider-unknown",
+            Self::InvalidProviderResponse => "custody.invalid-provider-response",
+        }
+    }
+}
+
+pub trait ExternalSigner: Send + Sync {
+    fn descriptor(&self) -> &CustodyDescriptor;
+
+    fn sign(
+        &self,
+        request: &SigningIntent<'_>,
+    ) -> Result<UntrustedSigningResponse, CustodyProviderError>;
+}
+
+pub trait CustodySignatureVerifier: Send + Sync {
+    fn verify(
+        &self,
+        descriptor: &CustodyDescriptor,
+        preimage: &[u8],
+        signature: &SignatureBytes,
+        evidence: &[EvidenceObject],
+    ) -> Result<(), CustodyError>;
+}
+
+pub struct P256SignatureVerifier {
+    verification_key: VerifyingKey,
+}
+
+impl P256SignatureVerifier {
+    pub fn from_sec1_bytes(bytes: &[u8]) -> Result<Self, CustodyError> {
+        let verification_key =
+            VerifyingKey::from_sec1_bytes(bytes).map_err(|_| CustodyError::EvidenceMismatch)?;
+        Ok(Self { verification_key })
+    }
+}
+
+impl CustodySignatureVerifier for P256SignatureVerifier {
+    fn verify(
+        &self,
+        descriptor: &CustodyDescriptor,
+        preimage: &[u8],
+        signature: &SignatureBytes,
+        _evidence: &[EvidenceObject],
+    ) -> Result<(), CustodyError> {
+        if descriptor.signature().suite().as_str() != "p256-sha256-v1" {
+            return Err(CustodyError::DescriptorMismatch);
+        }
+        let signature = P256Signature::from_slice(signature.as_slice())
+            .map_err(|_| CustodyError::MalformedSignature)?;
+        self.verification_key
+            .verify(preimage, &signature)
+            .map_err(|_| CustodyError::SignatureVerificationFailed)
+    }
+}
+
 pub struct CustodySignature {
     signature: SignatureBytes,
     evidence: Vec<EvidenceObject>,
-    transaction_digest: [u8; 32],
 }
 
 impl CustodySignature {
-    /// Constructs provider output without interpreting its evidence.
-    #[must_use]
-    pub fn new(
-        signature: SignatureBytes,
-        evidence: Vec<EvidenceObject>,
-        transaction_digest: [u8; 32],
-    ) -> Self {
-        Self {
-            signature,
-            evidence,
-            transaction_digest,
-        }
-    }
-
-    /// Consumes validated provider output into its signature and evidence.
     #[must_use]
     pub fn into_parts(self) -> (SignatureBytes, Vec<EvidenceObject>) {
         (self.signature, self.evidence)
     }
 }
 
-/// Language-neutral provider response before exact transaction binding.
-pub struct ProviderSigningResponse {
+pub fn validate_provider_response<T>(
+    request: &ExternalSigningRequest<T>,
+    descriptor: &CustodyDescriptor,
+    response: UntrustedSigningResponse,
+    verifier: &dyn CustodySignatureVerifier,
+) -> Result<CustodySignature, CustodyError> {
+    let RawSigningResponse {
+        request_id,
+        principal,
+        descriptor: response_descriptor,
+        signature,
+        provider_key_version,
+        evidence,
+        transaction_digest,
+    } = response.0;
+    if request_id != request.request_id() {
+        return Err(CustodyError::RequestMismatch);
+    }
+    if principal != *descriptor.principal() {
+        return Err(CustodyError::PrincipalMismatch);
+    }
+    if response_descriptor != *descriptor.signature()
+        || response_descriptor != *request.descriptor()
+    {
+        return Err(CustodyError::DescriptorMismatch);
+    }
+    if provider_key_version != *descriptor.key_version() {
+        return Err(CustodyError::KeyVersionMismatch);
+    }
+    if !bool::from(transaction_digest.ct_eq(request.transaction_digest().as_bytes())) {
+        return Err(CustodyError::TransactionMismatch);
+    }
+    let signature = canonical_signature(descriptor.signature(), signature)?;
+    verifier.verify(
+        descriptor,
+        request.signing_preimage(),
+        &signature,
+        &evidence,
+    )?;
+    Ok(CustodySignature {
+        signature,
+        evidence,
+    })
+}
+
+pub struct SignedArtifact<T> {
+    signed: T,
+    evidence: Vec<EvidenceObject>,
+}
+
+impl<T> SignedArtifact<T> {
+    #[must_use]
+    pub const fn signed(&self) -> &T {
+        &self.signed
+    }
+
+    #[must_use]
+    pub fn evidence(&self) -> &[EvidenceObject] {
+        &self.evidence
+    }
+
+    #[must_use]
+    pub fn into_parts(self) -> (T, Vec<EvidenceObject>) {
+        (self.signed, self.evidence)
+    }
+}
+
+macro_rules! signing_operation {
+    ($name:ident, $input:ty, $output:ty) => {
+        pub fn $name(
+            request: ExternalSigningRequest<$input>,
+            signer: &dyn ExternalSigner,
+            verifier: &dyn CustodySignatureVerifier,
+        ) -> Result<SignedArtifact<$output>, CustodyError> {
+            let output = sign_request(&request, signer, verifier)?;
+            Ok(SignedArtifact {
+                signed: request.complete(output.signature),
+                evidence: output.evidence,
+            })
+        }
+    };
+}
+
+signing_operation!(sign_grant, GrantStatement, SignedGrant);
+signing_operation!(sign_action, ActionEnvelope, SignedAction);
+signing_operation!(
+    sign_principal_status,
+    PrincipalStatusStatement,
+    SignedPrincipalStatus
+);
+signing_operation!(sign_grant_status, GrantStatusStatement, SignedGrantStatus);
+
+fn sign_request<T>(
+    request: &ExternalSigningRequest<T>,
+    signer: &dyn ExternalSigner,
+    verifier: &dyn CustodySignatureVerifier,
+) -> Result<CustodySignature, CustodyError> {
+    let intent = SigningIntent::from_request(request, signer.descriptor())?;
+    let response = signer.sign(&intent).map_err(CustodyError::Provider)?;
+    validate_provider_response(request, signer.descriptor(), response, verifier)
+}
+
+fn canonical_signature(
+    descriptor: &SignatureDescriptor,
+    bytes: Vec<u8>,
+) -> Result<SignatureBytes, CustodyError> {
+    if descriptor.suite().as_str() != "p256-sha256-v1" {
+        return SignatureBytes::new(bytes).map_err(|_| CustodyError::MalformedSignature);
+    }
+    let signature = if bytes.len() == 64 {
+        P256Signature::from_slice(&bytes)
+    } else {
+        P256Signature::from_der(&bytes)
+    }
+    .map_err(|_| CustodyError::MalformedSignature)?;
+    if signature.normalize_s().is_some() {
+        return Err(CustodyError::NonCanonicalSignature);
+    }
+    SignatureBytes::new(signature.to_bytes().to_vec()).map_err(|_| CustodyError::MalformedSignature)
+}
+
+fn parse_identifier(value: &str) -> Result<(), CustodyError> {
+    if value.is_empty()
+        || value.len() > MAX_IDENTIFIER_BYTES
+        || !value.bytes().all(|byte| byte.is_ascii_graphic())
+    {
+        return Err(CustodyError::InvalidProviderResponse);
+    }
+    Ok(())
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CustodyError {
+    Provider(CustodyProviderError),
+    RequestMismatch,
+    PrincipalMismatch,
+    DescriptorMismatch,
+    KeyVersionMismatch,
+    TransactionMismatch,
+    MalformedSignature,
+    NonCanonicalSignature,
+    SignatureVerificationFailed,
+    EvidenceMismatch,
+    LifecycleNotPermitted,
+    InvalidProviderResponse,
+}
+
+impl CustodyError {
+    #[must_use]
+    pub const fn stable_code(self) -> &'static str {
+        match self {
+            Self::Provider(error) => error.stable_code(),
+            Self::RequestMismatch => "custody.request-mismatch",
+            Self::PrincipalMismatch => "custody.principal-mismatch",
+            Self::DescriptorMismatch => "custody.descriptor-mismatch",
+            Self::KeyVersionMismatch => "custody.key-version-mismatch",
+            Self::TransactionMismatch => "custody.transaction-mismatch",
+            Self::MalformedSignature => "custody.malformed-signature",
+            Self::NonCanonicalSignature => "custody.non-canonical-signature",
+            Self::SignatureVerificationFailed => "custody.signature-verification-failed",
+            Self::EvidenceMismatch => "custody.evidence-mismatch",
+            Self::LifecycleNotPermitted => "custody.lifecycle-not-permitted",
+            Self::InvalidProviderResponse => "custody.invalid-provider-response",
+        }
+    }
+}
+
+impl fmt::Display for CustodyError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.stable_code())
+    }
+}
+
+impl std::error::Error for CustodyError {}
+
+pub struct LanguageSigningResponse {
     request_id: String,
     principal: PrincipalId,
     descriptor: SignatureDescriptor,
     signature: SignatureBytes,
-    evidence: Vec<EvidenceObject>,
     transaction_digest: [u8; 32],
 }
 
-impl ProviderSigningResponse {
-    /// Constructs one untrusted response returned by an external provider.
+impl LanguageSigningResponse {
     #[must_use]
     pub fn new(
         request_id: String,
         principal: PrincipalId,
         descriptor: SignatureDescriptor,
         signature: SignatureBytes,
-        evidence: Vec<EvidenceObject>,
         transaction_digest: [u8; 32],
     ) -> Self {
         Self {
@@ -145,30 +573,23 @@ impl ProviderSigningResponse {
             principal,
             descriptor,
             signature,
-            evidence,
             transaction_digest,
         }
     }
 }
 
-/// Binds an untrusted provider response to one exact Auths signing request.
-///
-/// # Errors
-///
-/// Returns a closed mismatch before the response signature can complete an
-/// Auths object.
-pub fn validate_provider_response<T>(
+pub fn bind_language_signing_response<T>(
     request: &ExternalSigningRequest<T>,
     expected_principal: &PrincipalId,
-    response: ProviderSigningResponse,
-) -> Result<CustodySignature, CustodyError> {
+    response: LanguageSigningResponse,
+) -> Result<SignatureBytes, CustodyError> {
     if response.request_id != request.request_id() {
         return Err(CustodyError::RequestMismatch);
     }
-    if &response.principal != expected_principal {
+    if response.principal != *expected_principal {
         return Err(CustodyError::PrincipalMismatch);
     }
-    if &response.descriptor != request.descriptor() {
+    if response.descriptor != *request.descriptor() {
         return Err(CustodyError::DescriptorMismatch);
     }
     if !bool::from(
@@ -178,210 +599,75 @@ pub fn validate_provider_response<T>(
     ) {
         return Err(CustodyError::TransactionMismatch);
     }
-    Ok(CustodySignature::new(
-        response.signature,
-        response.evidence,
-        response.transaction_digest,
-    ))
+    Ok(response.signature)
 }
-
-/// Effect port implemented by one configured external custody client.
-pub trait ExternalSigner: Send + Sync {
-    /// Returns the exact custody family used for policy and diagnostics.
-    fn kind(&self) -> CustodyKind;
-
-    /// Signs one transaction-bound request.
-    ///
-    /// Implementations may run a browser ceremony or call a workload, KMS,
-    /// HSM, or PKCS#11 API. They must not silently substitute a descriptor.
-    ///
-    /// # Errors
-    ///
-    /// Returns a provider-specific failure without a partial signed object.
-    fn sign(&self, request: &SigningIntent<'_>) -> Result<CustodySignature, CustodyError>;
-}
-
-/// Signed object and exact evidence acquired by its custody transaction.
-pub struct SignedArtifact<T> {
-    signed: T,
-    evidence: Vec<EvidenceObject>,
-}
-
-impl<T> SignedArtifact<T> {
-    /// Returns the complete signed target object.
-    #[must_use]
-    pub const fn signed(&self) -> &T {
-        &self.signed
-    }
-
-    /// Returns evidence acquired by the same signing operation.
-    #[must_use]
-    pub fn evidence(&self) -> &[EvidenceObject] {
-        &self.evidence
-    }
-
-    /// Consumes the result into its signed object and evidence.
-    #[must_use]
-    pub fn into_parts(self) -> (T, Vec<EvidenceObject>) {
-        (self.signed, self.evidence)
-    }
-}
-
-/// Completes an externally signed grant as one atomic result.
-///
-/// # Errors
-///
-/// Returns a custody failure when the provider fails or returns output bound
-/// to a different Auths transaction.
-pub fn sign_grant(
-    request: ExternalSigningRequest<GrantStatement>,
-    signer: &dyn ExternalSigner,
-) -> Result<SignedArtifact<SignedGrant>, CustodyError> {
-    let output = sign_request(&request, signer)?;
-    Ok(SignedArtifact {
-        signed: request.complete(output.signature),
-        evidence: output.evidence,
-    })
-}
-
-/// Completes an externally signed action as one atomic result.
-///
-/// # Errors
-///
-/// Returns a custody failure when the provider fails or returns output bound
-/// to a different Auths transaction.
-pub fn sign_action(
-    request: ExternalSigningRequest<ActionEnvelope>,
-    signer: &dyn ExternalSigner,
-) -> Result<SignedArtifact<SignedAction>, CustodyError> {
-    let output = sign_request(&request, signer)?;
-    Ok(SignedArtifact {
-        signed: request.complete(output.signature),
-        evidence: output.evidence,
-    })
-}
-
-/// Completes an externally signed principal-status statement atomically.
-///
-/// # Errors
-///
-/// Returns a custody failure when the provider fails or returns output bound
-/// to a different Auths transaction.
-pub fn sign_principal_status(
-    request: ExternalSigningRequest<PrincipalStatusStatement>,
-    signer: &dyn ExternalSigner,
-) -> Result<SignedArtifact<SignedPrincipalStatus>, CustodyError> {
-    let output = sign_request(&request, signer)?;
-    Ok(SignedArtifact {
-        signed: request.complete(output.signature),
-        evidence: output.evidence,
-    })
-}
-
-/// Completes an externally signed grant-status statement atomically.
-///
-/// # Errors
-///
-/// Returns a custody failure when the provider fails or returns output bound
-/// to a different Auths transaction.
-pub fn sign_grant_status(
-    request: ExternalSigningRequest<GrantStatusStatement>,
-    signer: &dyn ExternalSigner,
-) -> Result<SignedArtifact<SignedGrantStatus>, CustodyError> {
-    let output = sign_request(&request, signer)?;
-    Ok(SignedArtifact {
-        signed: request.complete(output.signature),
-        evidence: output.evidence,
-    })
-}
-
-fn sign_request<T>(
-    request: &ExternalSigningRequest<T>,
-    signer: &dyn ExternalSigner,
-) -> Result<CustodySignature, CustodyError> {
-    let intent = SigningIntent::from_request(signer.kind(), request);
-    let output = signer.sign(&intent)?;
-    if !bool::from(output.transaction_digest.ct_eq(intent.transaction_digest())) {
-        return Err(CustodyError::TransactionMismatch);
-    }
-    Ok(output)
-}
-
-/// Closed custody-boundary failure.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum CustodyError {
-    /// Provider, browser, token, or workload signer was unavailable.
-    Unavailable,
-    /// Provider rejected the operation or local policy.
-    Rejected,
-    /// Provider signature encoding was invalid.
-    InvalidSignature,
-    /// Returned output names a different Auths request.
-    RequestMismatch,
-    /// Returned output names a different principal.
-    PrincipalMismatch,
-    /// Returned output substitutes the signature descriptor.
-    DescriptorMismatch,
-    /// Returned output was bound to different Auths signing bytes.
-    TransactionMismatch,
-}
-
-impl fmt::Display for CustodyError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(match self {
-            Self::Unavailable => "external custody provider unavailable",
-            Self::Rejected => "external custody provider rejected the request",
-            Self::InvalidSignature => "external custody provider returned an invalid signature",
-            Self::RequestMismatch => "custody output names a different signing request",
-            Self::PrincipalMismatch => "custody output names a different principal",
-            Self::DescriptorMismatch => "custody output substitutes the signature descriptor",
-            Self::TransactionMismatch => "custody output is bound to a different Auths transaction",
-        })
-    }
-}
-
-impl std::error::Error for CustodyError {}
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use auths_author::prepare_action;
     use auths_model::{
-        ActionEnvelope, Audience, Challenge, ChannelBindingId, CriticalExtensions, Digest,
-        MediaType, Permission, ProfileId, ProfileRef, ProofRef, ResourceId, SignatureSuiteId,
+        Audience, Challenge, ChannelBindingId, CriticalExtensions, Digest, MediaType, Permission,
+        PrincipalMethodId, ProfileId, ProfileRef, ProofRef, ResourceId, SignatureSuiteId,
         ValidityWindow, VerificationMethod,
     };
-    use ed25519_dalek::{Signer as _, SigningKey};
+    use p256::ecdsa::{SigningKey, signature::Signer as _};
 
     struct FakeSigner {
+        descriptor: CustodyDescriptor,
         key: SigningKey,
-        mismatch: bool,
+        transaction_mismatch: bool,
     }
 
     impl ExternalSigner for FakeSigner {
-        fn kind(&self) -> CustodyKind {
-            CustodyKind::Hsm
+        fn descriptor(&self) -> &CustodyDescriptor {
+            &self.descriptor
         }
 
-        fn sign(&self, request: &SigningIntent<'_>) -> Result<CustodySignature, CustodyError> {
-            let signature = self
-                .key
-                .sign(request.signing_preimage())
-                .to_bytes()
-                .to_vec();
-            let mut transaction = *request.transaction_digest();
-            if self.mismatch {
-                transaction[0] ^= 1;
+        fn sign(
+            &self,
+            request: &SigningIntent<'_>,
+        ) -> Result<UntrustedSigningResponse, CustodyProviderError> {
+            let signature: P256Signature = self.key.sign(request.signing_preimage());
+            let signature = signature.normalize_s().unwrap_or(signature);
+            let mut transaction_digest = *request.transaction_digest();
+            if self.transaction_mismatch {
+                transaction_digest[0] ^= 1;
             }
-            Ok(CustodySignature::new(
-                SignatureBytes::new(signature).map_err(|_| CustodyError::InvalidSignature)?,
-                Vec::new(),
-                transaction,
-            ))
+            UntrustedSigningResponse::parse(RawSigningResponse {
+                request_id: request.request_id().to_owned(),
+                principal: self.descriptor.principal().clone(),
+                descriptor: self.descriptor.signature().clone(),
+                signature: signature.to_der().as_bytes().to_vec(),
+                provider_key_version: self.descriptor.key_version().clone(),
+                evidence: Vec::new(),
+                transaction_digest,
+            })
         }
     }
 
-    fn request() -> ExternalSigningRequest<ActionEnvelope> {
+    fn fixture() -> (
+        ExternalSigningRequest<ActionEnvelope>,
+        FakeSigner,
+        P256SignatureVerifier,
+    ) {
+        let key = SigningKey::from_slice(&[7; 32]).unwrap();
+        let verification = key.verifying_key().to_encoded_point(true);
+        let principal = PrincipalId::parse("raw:p256-test").unwrap();
+        let signature = SignatureDescriptor::new(
+            PrincipalMethodId::parse("raw-key-v1").unwrap(),
+            VerificationMethod::parse("raw:p256-test").unwrap(),
+            SignatureSuiteId::parse("p256-sha256-v1").unwrap(),
+        );
+        let descriptor = CustodyDescriptor::new(
+            CustodyKind::Kms,
+            CustodyAdapterId::parse("test-kms-p256-v1").unwrap(),
+            principal.clone(),
+            signature.clone(),
+            KeyVersionId::parse("sha256:test-key-version").unwrap(),
+            KeyLifecycleState::ActiveCurrent,
+        )
+        .unwrap();
         let envelope = ActionEnvelope::new(
             ProfileRef::new(ProfileId::parse("auths.mcp").unwrap(), 1).unwrap(),
             MediaType::parse("application/vnd.auths.mcp-call.v1+json").unwrap(),
@@ -398,7 +684,7 @@ mod tests {
                 auths_model::Timestamp::new(2),
             )
             .unwrap(),
-            auths_model::PrincipalId::parse("raw:test").unwrap(),
+            principal,
             None,
             auths_model::PlanId::new([3; 32]),
             ChannelBindingId::parse("none-v1").unwrap(),
@@ -406,85 +692,43 @@ mod tests {
             Vec::new(),
             CriticalExtensions::empty(),
         );
-        prepare_action(
-            envelope,
-            SignatureDescriptor::new(
-                auths_model::PrincipalMethodId::parse("raw-key-v1").unwrap(),
-                VerificationMethod::parse("raw:test").unwrap(),
-                SignatureSuiteId::parse("ed25519-v1").unwrap(),
-            ),
+        (
+            prepare_action(envelope, signature).unwrap(),
+            FakeSigner {
+                descriptor,
+                key,
+                transaction_mismatch: false,
+            },
+            P256SignatureVerifier::from_sec1_bytes(verification.as_bytes()).unwrap(),
         )
-        .unwrap()
     }
 
     #[test]
-    fn mismatched_provider_transaction_cannot_produce_a_signed_object() {
-        let signer = FakeSigner {
-            key: SigningKey::from_bytes(&[7; 32]),
-            mismatch: true,
-        };
-        assert!(matches!(
-            sign_action(request(), &signer),
-            Err(CustodyError::TransactionMismatch)
-        ));
+    fn central_boundary_binds_and_verifies_provider_signature() {
+        let (request, signer, verifier) = fixture();
+        let result = sign_action(request, &signer, &verifier);
+        assert!(result.is_ok(), "{:?}", result.err());
     }
 
     #[test]
-    fn provider_response_binds_request_principal_descriptor_and_transaction() {
-        let request = request();
-        let principal = auths_model::PrincipalId::parse("raw:test").unwrap();
-        let response = ProviderSigningResponse::new(
-            request.request_id(),
-            principal.clone(),
-            request.descriptor().clone(),
-            SignatureBytes::new(vec![7; 64]).unwrap(),
-            Vec::new(),
-            *request.transaction_digest().as_bytes(),
+    fn mismatched_provider_transaction_cannot_complete_object() {
+        let (request, mut signer, verifier) = fixture();
+        signer.transaction_mismatch = true;
+        let result = sign_action(request, &signer, &verifier);
+        assert!(
+            matches!(result, Err(CustodyError::TransactionMismatch)),
+            "{:?}",
+            result.err()
         );
-        assert!(validate_provider_response(&request, &principal, response).is_ok());
+    }
 
-        let mismatch = ProviderSigningResponse::new(
-            "action:substituted".to_owned(),
-            principal.clone(),
-            request.descriptor().clone(),
-            SignatureBytes::new(vec![7; 64]).unwrap(),
-            Vec::new(),
-            *request.transaction_digest().as_bytes(),
-        );
+    #[test]
+    fn disabled_key_cannot_reach_provider() {
+        let (request, mut signer, verifier) = fixture();
+        signer.descriptor.lifecycle = KeyLifecycleState::Disabled;
         assert!(matches!(
-            validate_provider_response(&request, &principal, mismatch),
-            Err(CustodyError::RequestMismatch)
-        ));
-
-        let other_principal = auths_model::PrincipalId::parse("raw:other").unwrap();
-        let mismatch = ProviderSigningResponse::new(
-            request.request_id(),
-            other_principal,
-            request.descriptor().clone(),
-            SignatureBytes::new(vec![7; 64]).unwrap(),
-            Vec::new(),
-            *request.transaction_digest().as_bytes(),
-        );
-        assert!(matches!(
-            validate_provider_response(&request, &principal, mismatch),
-            Err(CustodyError::PrincipalMismatch)
-        ));
-
-        let mismatch = ProviderSigningResponse::new(
-            request.request_id(),
-            principal.clone(),
-            SignatureDescriptor::new(
-                auths_model::PrincipalMethodId::parse("raw-key-v1").unwrap(),
-                VerificationMethod::parse("raw:test").unwrap(),
-                SignatureSuiteId::parse("p256-sha256-v1").unwrap(),
-            ),
-            SignatureBytes::new(vec![7; 64]).unwrap(),
-            Vec::new(),
-            *request.transaction_digest().as_bytes(),
-        );
-        assert!(matches!(
-            validate_provider_response(&request, &principal, mismatch),
-            Err(CustodyError::DescriptorMismatch)
+            sign_action(request, &signer, &verifier),
+            Err(CustodyError::LifecycleNotPermitted)
         ));
     }
 }

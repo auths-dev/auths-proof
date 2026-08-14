@@ -31,3 +31,21 @@ Every row is generated from the Rust-owned registry. `possible` effects are neve
 | `plan.resume-reference-invalid` | `resume` | notapplied / never | `CorrectInput` | The supplied reference is not bound to this ordered plan execution. |
 | `plan.reconciliation-pending` | `resume` | possible / unknown | `ResumeAndReconcile` | The current member remains outcome-unknown and later members remain blocked. |
 | `plan.action-substituted` | `execute` | notapplied / never | `CorrectInput` | The current ordered member does not match the approved plan commitment. |
+| `custody.denied` | `sign` | notapplied / never | `SatisfyCondition` | The configured custody provider denied the exact signing request. |
+| `custody.cancelled` | `sign` | notapplied / never | `SatisfyCondition` | The exact signing request was cancelled before Auths accepted a signature. |
+| `custody.throttled` | `sign` | notapplied / conditional | `SatisfyCondition` | The custody provider refused the request under its current rate policy. |
+| `custody.unavailable` | `sign` | notapplied / conditional | `SatisfyCondition` | The custody provider could not conclusively service the exact signing request. |
+| `custody.revoked-key` | `sign` | notapplied / never | `CorrectConfiguration` | The configured key version is permanently barred from new signing. |
+| `custody.disabled-key` | `sign` | notapplied / never | `SatisfyCondition` | The configured key version is not permitted to create new signatures. |
+| `custody.provider-unknown` | `sign` | notapplied / conditional | `ContactSupport` | The provider did not prove whether it produced a signature for the exact request. |
+| `custody.invalid-provider-response` | `sign` | notapplied / never | `ContactSupport` | The provider response could not be parsed as a bounded signing response. |
+| `custody.request-mismatch` | `sign` | notapplied / never | `ContactSupport` | The provider response names a different signing request. |
+| `custody.principal-mismatch` | `sign` | notapplied / never | `ContactSupport` | The provider response names a different signing principal. |
+| `custody.descriptor-mismatch` | `sign` | notapplied / never | `ContactSupport` | The response signature method or suite differs from the frozen descriptor. |
+| `custody.key-version-mismatch` | `sign` | notapplied / never | `ContactSupport` | The provider response names a different key version. |
+| `custody.transaction-mismatch` | `sign` | notapplied / never | `ContactSupport` | The provider response is bound to a different Auths transaction. |
+| `custody.malformed-signature` | `sign` | notapplied / never | `ContactSupport` | The returned signature is not a bounded encoding accepted by its suite. |
+| `custody.non-canonical-signature` | `sign` | notapplied / never | `ContactSupport` | The returned signature has a different canonical representation. |
+| `custody.signature-verification-failed` | `sign` | notapplied / never | `ContactSupport` | The returned signature does not verify over the exact Auths preimage. |
+| `custody.evidence-mismatch` | `sign` | notapplied / never | `ContactSupport` | The returned evidence does not match the frozen custody descriptor. |
+| `custody.lifecycle-not-permitted` | `sign` | notapplied / never | `SatisfyCondition` | The exact key lifecycle state does not permit new signatures. |

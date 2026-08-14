@@ -42,6 +42,21 @@ pub enum CustodyAdapterFamily {
     Pkcs11P256V1,
 }
 
+impl CustodyAdapterFamily {
+    fn expected(self) -> CustodyContract {
+        match self {
+            Self::AwsKmsP256V1 => CustodyContract {
+                suite: "p256-sha256-v1",
+                key_policy: "aws-kms-account-region-version-v1",
+            },
+            Self::Pkcs11P256V1 => CustodyContract {
+                suite: "p256-sha256-v1",
+                key_policy: "pkcs11-module-token-object-v1",
+            },
+        }
+    }
+}
+
 /// Exact product profiles qualified by the first candidate.
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, Eq, Ord, PartialEq, PartialOrd)]
 #[serde(rename_all = "kebab-case")]
@@ -151,6 +166,9 @@ struct LifecycleStoreInput {
 #[serde(deny_unknown_fields)]
 struct CustodyAdapterInput {
     family: CustodyAdapterFamily,
+    suite: String,
+    key_policy: String,
+    fixture_suite: String,
     secret_slot: String,
 }
 
@@ -197,6 +215,12 @@ struct ProfileContract {
     fixture_suite: &'static str,
 }
 
+#[derive(Clone, Copy)]
+struct CustodyContract {
+    suite: &'static str,
+    key_policy: &'static str,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct CanonicalManifest {
@@ -240,6 +264,9 @@ struct CanonicalLifecycleStore {
 #[serde(rename_all = "camelCase")]
 struct CanonicalCustody {
     family: CustodyAdapterFamily,
+    suite: String,
+    key_policy: String,
+    fixture_suite: String,
     secret_slot: String,
 }
 
@@ -724,9 +751,24 @@ fn compile_custody(
             if !families.insert(adapter.family) {
                 return Err(ProductionConfigError::duplicate("custody.family"));
             }
+            let expected = adapter.family.expected();
+            validate_exact("custody.suite", &adapter.suite, expected.suite)?;
+            validate_exact(
+                "custody.key_policy",
+                &adapter.key_policy,
+                expected.key_policy,
+            )?;
+            validate_exact(
+                "custody.fixture_suite",
+                &adapter.fixture_suite,
+                "product/fixtures/v1/custody",
+            )?;
             validate_secret_slot("custody.secret_slot", &adapter.secret_slot)?;
             Ok(CanonicalCustody {
                 family: adapter.family,
+                suite: adapter.suite,
+                key_policy: adapter.key_policy,
+                fixture_suite: adapter.fixture_suite,
                 secret_slot: adapter.secret_slot,
             })
         })
@@ -889,7 +931,7 @@ fn generated_schema() -> Value {
             "release": closed_object(["candidate", "version", "sourceCommitSlot"]),
             "topology": closed_object(["class", "runtimeInstances"]),
             "lifecycleStore": closed_object(["family", "tls", "schema", "secretSlot"]),
-            "custody": { "type": "array", "minItems": 1, "maxItems": MAX_CUSTODY_ADAPTERS, "items": closed_object(["family", "secretSlot"]) },
+            "custody": { "type": "array", "minItems": 1, "maxItems": MAX_CUSTODY_ADAPTERS, "items": closed_object(["family", "suite", "keyPolicy", "fixtureSuite", "secretSlot"]) },
             "profiles": { "type": "array", "minItems": 3, "maxItems": MAX_PRODUCTION_PROFILES, "items": closed_object(["id", "package", "providerContract", "receiptSchema", "fixtureSuite"]) },
             "sdks": { "type": "array", "minItems": 3, "maxItems": 3, "items": closed_object(["language", "package", "version", "abi", "publicApiSnapshot"]) },
             "operations": closed_object(["availabilityBasisPoints", "decisionP95Milliseconds", "recoveryP95Seconds", "maximumConcurrentWorkflows"]),

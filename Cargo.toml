@@ -58,6 +58,8 @@ members = [
     "product/integrations/auths-deployment",
     "product/integrations/auths-evidence-assemblers",
     "product/integrations/auths-custody",
+    "product/integrations/auths-custody-aws-kms",
+    "product/integrations/auths-custody-pkcs11",
     "product/integrations/auths-resolver-did-web",
     "product/integrations/auths-radicle",
     "product/integrations/auths-github",
@@ -183,6 +185,8 @@ auths-deployment = { version = "1.0.0-rc.1", path = "product/integrations/auths-
 auths-resolver-did-web = { version = "1.0.0-rc.1", path = "product/integrations/auths-resolver-did-web" }
 auths-evidence-assemblers = { version = "1.0.0-rc.1", path = "product/integrations/auths-evidence-assemblers" }
 auths-custody = { version = "1.0.0-rc.1", path = "product/integrations/auths-custody" }
+auths-custody-aws-kms = { version = "1.0.0-rc.1", path = "product/integrations/auths-custody-aws-kms" }
+auths-custody-pkcs11 = { version = "1.0.0-rc.1", path = "product/integrations/auths-custody-pkcs11" }
 auths-radicle = { version = "1.0.0-rc.1", path = "product/integrations/auths-radicle" }
 auths-github = { version = "1.0.0-rc.1", path = "product/integrations/auths-github" }
 auths-stripe = { version = "1.0.0-rc.1", path = "product/integrations/auths-stripe" }
@@ -239,7 +243,7 @@ bs58 = { version = "0.5.1", default-features = false, features = ["alloc"] }
 clap = { version = "4.5.60", features = ["derive"] }
 ed25519-dalek = { version = "2.2.0", default-features = false, features = ["alloc"] }
 hex = "0.4.3"
-p256 = { version = "0.13.2", default-features = false, features = ["ecdsa"] }
+p256 = { version = "0.13.2", default-features = false, features = ["alloc", "ecdsa", "pkcs8"] }
 pyo3 = { version = "0.29.0", features = ["abi3-py39"] }
 proptest = "1.9.0"
 serde = { version = "1.0.228", default-features = false, features = ["alloc", "derive"] }

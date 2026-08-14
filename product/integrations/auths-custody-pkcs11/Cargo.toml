@@ -1,0 +1,22 @@
+[package]
+name = "auths-custody-pkcs11"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish = false
+description = "Closed PKCS#11 P-256 custody adapter for Auths"
+
+[dependencies]
+auths-custody.workspace = true
+auths-model.workspace = true
+base64ct.workspace = true
+hex.workspace = true
+p256.workspace = true
+sha2.workspace = true
+
+[dev-dependencies]
+p256.workspace = true
+
+[lints]
+workspace = true

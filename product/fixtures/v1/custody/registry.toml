@@ -1,0 +1,47 @@
+schema = "auths.custody-conformance/1"
+suite = "custody-v1"
+
+cases = [
+  "valid",
+  "changed-request",
+  "changed-object",
+  "changed-principal",
+  "changed-descriptor",
+  "changed-suite",
+  "changed-key-version",
+  "changed-transaction",
+  "changed-preimage",
+  "changed-signature",
+  "changed-evidence",
+  "high-s",
+  "malformed-der",
+  "replayed-response",
+  "concurrent-reordering",
+  "timeout-before-send",
+  "disconnect-after-send",
+  "throttled",
+  "denied",
+  "cancelled",
+  "disabled-key",
+  "revoked-key",
+  "provider-outage",
+  "rotation-in-flight",
+  "policy-widening",
+  "key-replacement",
+  "token-removal",
+  "session-loss",
+  "wrong-object",
+  "wrong-pin",
+  "redaction",
+]
+
+[mechanism]
+suite = "p256-sha256-v1"
+signature_encoding = "p1363-low-s"
+preimage_mode = "raw-provider-sha256"
+central_verification = true
+
+[bounds]
+max_identifier_bytes = 160
+max_signature_bytes = 65536
+max_evidence_objects = 16

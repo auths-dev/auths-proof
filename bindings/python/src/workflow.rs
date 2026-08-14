@@ -13,7 +13,7 @@ use auths_author::{
     PlanningError, plan_child_grant, prepare_action, prepare_grant, prepare_grant_status,
     prepare_principal_status,
 };
-use auths_custody::{ProviderSigningResponse, validate_provider_response};
+use auths_custody::{LanguageSigningResponse, bind_language_signing_response};
 use auths_model::{
     ActionConstraint, ActionEnvelope, AssurancePolicyId, Audience, AudienceSet, BodyDigestSet,
     BudgetAlgebraId, BudgetCeiling, Digest, FreshnessLimit, GrantStatement, GrantStatusStatement,
@@ -588,35 +588,31 @@ impl WorkflowSigningRequest {
     fn complete_response(
         self,
         expected_principal: &PrincipalId,
-        response: ProviderSigningResponse,
+        response: LanguageSigningResponse,
     ) -> PyResult<SignedObject> {
         match self {
             Self::Grant(value) => {
-                let (signature, _) =
-                    validate_provider_response(&value, expected_principal, response)
-                        .map_err(value_error)?
-                        .into_parts();
+                let signature =
+                    bind_language_signing_response(&value, expected_principal, response)
+                        .map_err(value_error)?;
                 Ok(SignedObject::Grant(value.complete(signature)))
             }
             Self::Action(value) => {
-                let (signature, _) =
-                    validate_provider_response(&value, expected_principal, response)
-                        .map_err(value_error)?
-                        .into_parts();
+                let signature =
+                    bind_language_signing_response(&value, expected_principal, response)
+                        .map_err(value_error)?;
                 Ok(SignedObject::Action(value.complete(signature)))
             }
             Self::PrincipalStatus(value) => {
-                let (signature, _) =
-                    validate_provider_response(&value, expected_principal, response)
-                        .map_err(value_error)?
-                        .into_parts();
+                let signature =
+                    bind_language_signing_response(&value, expected_principal, response)
+                        .map_err(value_error)?;
                 Ok(SignedObject::PrincipalStatus(value.complete(signature)))
             }
             Self::GrantStatus(value) => {
-                let (signature, _) =
-                    validate_provider_response(&value, expected_principal, response)
-                        .map_err(value_error)?
-                        .into_parts();
+                let signature =
+                    bind_language_signing_response(&value, expected_principal, response)
+                        .map_err(value_error)?;
                 Ok(SignedObject::GrantStatus(value.complete(signature)))
             }
         }
@@ -753,12 +749,11 @@ impl PySigningTransaction {
             return Err(PyRuntimeError::new_err("signing transaction expired"));
         }
         let signature = SignatureBytes::new(signature.to_vec()).map_err(value_error)?;
-        let response = ProviderSigningResponse::new(
+        let response = LanguageSigningResponse::new(
             request_id.to_owned(),
             principal.principal.clone(),
             principal.descriptor.clone(),
             signature,
-            Vec::new(),
             array32(transaction_digest, "signer transaction digest")?,
         );
         Ok(PySignedObject {

@@ -422,8 +422,32 @@ version = "1.0.0-rc.1"
 dependencies = [
  "auths-author",
  "auths-model",
- "ed25519-dalek 2.2.0",
+ "p256",
  "subtle",
+]
+
+[[package]]
+name = "auths-custody-aws-kms"
+version = "1.0.0-rc.1"
+dependencies = [
+ "auths-custody",
+ "auths-model",
+ "base64ct",
+ "hex",
+ "p256",
+ "sha2 0.10.9",
+]
+
+[[package]]
+name = "auths-custody-pkcs11"
+version = "1.0.0-rc.1"
+dependencies = [
+ "auths-custody",
+ "auths-model",
+ "base64ct",
+ "hex",
+ "p256",
+ "sha2 0.10.9",
 ]
 
 [[package]]

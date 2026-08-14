@@ -71,10 +71,16 @@
         "additionalProperties": false,
         "required": [
           "family",
+          "suite",
+          "keyPolicy",
+          "fixtureSuite",
           "secretSlot"
         ],
         "properties": {
           "family": {},
+          "suite": {},
+          "keyPolicy": {},
+          "fixtureSuite": {},
           "secretSlot": {}
         }
       }

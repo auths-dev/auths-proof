@@ -168,8 +168,8 @@ layer = "product"
 path = "product/integrations/auths-custody"
 core_apis = ["auths-author", "auths-model"]
 protocol_versions = ["auths-proof/v1"]
-wire_objects = ["ProviderSigningResponse", "SigningIntent"]
-fixture_suites = []
+wire_objects = ["RawSigningResponse", "SigningIntent"]
+fixture_suites = ["product/fixtures/v1/custody"]
 principal_families = ["external-custody"]
 signature_families = ["provider-selected"]
 profiles = []
@@ -178,7 +178,43 @@ configuration_inputs = ["key-descriptor", "principal", "request-id", "signature-
 security_state = ["external-key-handle", "provider-response-binding", "signing-preimage"]
 
 [packages.auths-custody.claims]
-proof-author-or-assembler = ["product/integrations/auths-custody/src/lib.rs#mismatched_provider_transaction_cannot_produce_a_signed_object", "product/integrations/auths-custody/src/lib.rs#provider_response_binds_request_principal_descriptor_and_transaction"]
+proof-author-or-assembler = ["product/integrations/auths-custody/src/lib.rs#central_boundary_binds_and_verifies_provider_signature", "product/integrations/auths-custody/src/lib.rs#mismatched_provider_transaction_cannot_complete_object"]
+
+[packages.auths-custody-aws-kms]
+kind = "cargo"
+layer = "product"
+path = "product/integrations/auths-custody-aws-kms"
+core_apis = ["auths-model"]
+protocol_versions = ["auths-proof/v1"]
+wire_objects = ["RawSigningResponse", "SigningIntent"]
+fixture_suites = ["product/fixtures/v1/custody"]
+principal_families = ["raw-key-v1"]
+signature_families = ["p256-sha256-v1"]
+profiles = []
+transports = ["aws-kms-api"]
+configuration_inputs = ["account-commitment", "full-key-arn", "region-commitment"]
+security_state = ["external-key-handle", "public-key", "workload-credentials"]
+
+[packages.auths-custody-aws-kms.claims]
+proof-author-or-assembler = ["product/integrations/auths-custody-aws-kms/src/lib.rs#readiness_contains_no_arn_account_or_region", "product/integrations/auths-custody-aws-kms/src/lib.rs#startup_rejects_account_or_region_substitution"]
+
+[packages.auths-custody-pkcs11]
+kind = "cargo"
+layer = "product"
+path = "product/integrations/auths-custody-pkcs11"
+core_apis = ["auths-model"]
+protocol_versions = ["auths-proof/v1"]
+wire_objects = ["RawSigningResponse", "SigningIntent"]
+fixture_suites = ["product/fixtures/v1/custody"]
+principal_families = ["raw-key-v1"]
+signature_families = ["p256-sha256-v1"]
+profiles = []
+transports = ["pkcs11-api"]
+configuration_inputs = ["module-path", "object-id", "secret-provider", "session-limit", "token-id"]
+security_state = ["external-key-handle", "pin", "public-key", "session"]
+
+[packages.auths-custody-pkcs11.claims]
+proof-author-or-assembler = ["product/integrations/auths-custody-pkcs11/src/lib.rs#configuration_rejects_unbounded_sessions", "product/integrations/auths-custody-pkcs11/src/lib.rs#startup_freezes_public_descriptor_and_safe_readiness"]
 
 [packages.auths-deployment]
 kind = "cargo"

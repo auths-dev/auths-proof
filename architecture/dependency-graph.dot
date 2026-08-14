@@ -20,6 +20,8 @@ digraph auths_architecture {
   "auths-config" [group="product"];
   "auths-cross-company-incident-edgeshield-demo" [group="demos"];
   "auths-custody" [group="product"];
+  "auths-custody-aws-kms" [group="product"];
+  "auths-custody-pkcs11" [group="product"];
   "auths-deployment" [group="product"];
   "auths-did-keri" [group="core"];
   "auths-did-key" [group="core"];
@@ -166,6 +168,10 @@ digraph auths_architecture {
   "auths-cross-company-incident-edgeshield-demo" -> "auths-raw-key" [label="normal"];
   "auths-custody" -> "auths-author" [label="normal"];
   "auths-custody" -> "auths-model" [label="normal"];
+  "auths-custody-aws-kms" -> "auths-custody" [label="normal"];
+  "auths-custody-aws-kms" -> "auths-model" [label="normal"];
+  "auths-custody-pkcs11" -> "auths-custody" [label="normal"];
+  "auths-custody-pkcs11" -> "auths-model" [label="normal"];
   "auths-deployment" -> "auths-enforcement" [label="normal"];
   "auths-deployment" -> "auths-sdk" [label="normal"];
   "auths-did-keri" -> "auths-codec" [label="dev"];

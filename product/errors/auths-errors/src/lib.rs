@@ -220,7 +220,11 @@ impl ErrorEnvelope {
 }
 
 pub fn registry() -> impl Iterator<Item = &'static ErrorDefinition> {
-    CORE_ERRORS.iter().chain(MCP_ERRORS).chain(PLAN_ERRORS)
+    CORE_ERRORS
+        .iter()
+        .chain(MCP_ERRORS)
+        .chain(PLAN_ERRORS)
+        .chain(CUSTODY_ERRORS)
 }
 
 /// Validates namespaces, identities, bounds, and recovery combinations.
@@ -708,6 +712,201 @@ const PLAN_ERRORS: &[ErrorDefinition] = &[
         "plan-action-substituted",
     ),
 ];
+
+const CUSTODY_ERRORS: &[ErrorDefinition] = &[
+    definition(
+        "custody.denied",
+        ErrorFamily::Provider,
+        "custody",
+        "sign",
+        &["provider"],
+        NOT_APPLIED_NEVER,
+        RecommendedAction::SatisfyCondition,
+        false,
+        "Custody request denied",
+        "The configured custody provider denied the exact signing request.",
+        "custody-denied",
+    ),
+    definition(
+        "custody.cancelled",
+        ErrorFamily::Provider,
+        "custody",
+        "sign",
+        &["provider"],
+        NOT_APPLIED_NEVER,
+        RecommendedAction::SatisfyCondition,
+        false,
+        "Custody request cancelled",
+        "The exact signing request was cancelled before Auths accepted a signature.",
+        "custody-cancelled",
+    ),
+    definition(
+        "custody.throttled",
+        ErrorFamily::Provider,
+        "custody",
+        "sign",
+        &["provider"],
+        NOT_APPLIED_CONDITIONAL,
+        RecommendedAction::SatisfyCondition,
+        false,
+        "Custody provider throttled",
+        "The custody provider refused the request under its current rate policy.",
+        "custody-throttled",
+    ),
+    definition(
+        "custody.unavailable",
+        ErrorFamily::Provider,
+        "custody",
+        "sign",
+        &["provider"],
+        NOT_APPLIED_CONDITIONAL,
+        RecommendedAction::SatisfyCondition,
+        false,
+        "Custody provider unavailable",
+        "The custody provider could not conclusively service the exact signing request.",
+        "custody-unavailable",
+    ),
+    definition(
+        "custody.revoked-key",
+        ErrorFamily::Provider,
+        "custody",
+        "sign",
+        &["key-lifecycle"],
+        NOT_APPLIED_NEVER,
+        RecommendedAction::CorrectConfiguration,
+        false,
+        "Custody key revoked",
+        "The configured key version is permanently barred from new signing.",
+        "custody-revoked-key",
+    ),
+    definition(
+        "custody.disabled-key",
+        ErrorFamily::Provider,
+        "custody",
+        "sign",
+        &["key-lifecycle"],
+        NOT_APPLIED_NEVER,
+        RecommendedAction::SatisfyCondition,
+        false,
+        "Custody key disabled",
+        "The configured key version is not permitted to create new signatures.",
+        "custody-disabled-key",
+    ),
+    definition(
+        "custody.provider-unknown",
+        ErrorFamily::Provider,
+        "custody",
+        "sign",
+        &["provider"],
+        NOT_APPLIED_CONDITIONAL,
+        RecommendedAction::ContactSupport,
+        false,
+        "Custody outcome unknown",
+        "The provider did not prove whether it produced a signature for the exact request.",
+        "custody-provider-unknown",
+    ),
+    definition(
+        "custody.invalid-provider-response",
+        ErrorFamily::Provider,
+        "custody",
+        "sign",
+        &["provider-response"],
+        NOT_APPLIED_NEVER,
+        RecommendedAction::ContactSupport,
+        false,
+        "Invalid custody response",
+        "The provider response could not be parsed as a bounded signing response.",
+        "custody-invalid-provider-response",
+    ),
+    custody_validation(
+        "custody.request-mismatch",
+        "Signing request mismatch",
+        "The provider response names a different signing request.",
+        "custody-request-mismatch",
+    ),
+    custody_validation(
+        "custody.principal-mismatch",
+        "Signing principal mismatch",
+        "The provider response names a different signing principal.",
+        "custody-principal-mismatch",
+    ),
+    custody_validation(
+        "custody.descriptor-mismatch",
+        "Signing descriptor mismatch",
+        "The response signature method or suite differs from the frozen descriptor.",
+        "custody-descriptor-mismatch",
+    ),
+    custody_validation(
+        "custody.key-version-mismatch",
+        "Signing key version mismatch",
+        "The provider response names a different key version.",
+        "custody-key-version-mismatch",
+    ),
+    custody_validation(
+        "custody.transaction-mismatch",
+        "Signing transaction mismatch",
+        "The provider response is bound to a different Auths transaction.",
+        "custody-transaction-mismatch",
+    ),
+    custody_validation(
+        "custody.malformed-signature",
+        "Malformed provider signature",
+        "The returned signature is not a bounded encoding accepted by its suite.",
+        "custody-malformed-signature",
+    ),
+    custody_validation(
+        "custody.non-canonical-signature",
+        "Non-canonical provider signature",
+        "The returned signature has a different canonical representation.",
+        "custody-non-canonical-signature",
+    ),
+    custody_validation(
+        "custody.signature-verification-failed",
+        "Provider signature invalid",
+        "The returned signature does not verify over the exact Auths preimage.",
+        "custody-signature-verification-failed",
+    ),
+    custody_validation(
+        "custody.evidence-mismatch",
+        "Custody evidence mismatch",
+        "The returned evidence does not match the frozen custody descriptor.",
+        "custody-evidence-mismatch",
+    ),
+    definition(
+        "custody.lifecycle-not-permitted",
+        ErrorFamily::State,
+        "custody",
+        "sign",
+        &["key-lifecycle"],
+        NOT_APPLIED_NEVER,
+        RecommendedAction::SatisfyCondition,
+        false,
+        "Custody lifecycle blocks signing",
+        "The exact key lifecycle state does not permit new signatures.",
+        "custody-lifecycle-not-permitted",
+    ),
+];
+
+const fn custody_validation(
+    code: &'static str,
+    title: &'static str,
+    explanation: &'static str,
+    fixture_id: &'static str,
+) -> ErrorDefinition {
+    definition(
+        code,
+        ErrorFamily::Input,
+        "custody",
+        "sign",
+        &["central-validation"],
+        NOT_APPLIED_NEVER,
+        RecommendedAction::ContactSupport,
+        false,
+        title,
+        explanation,
+        fixture_id,
+    )
+}
 
 #[allow(clippy::too_many_arguments)]
 const fn definition(

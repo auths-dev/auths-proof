@@ -675,6 +675,456 @@
       "causes": [
         "unknown"
       ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "provider",
+      "code": "custody.denied",
+      "operation": "sign",
+      "stage": "provider",
+      "summary": "Custody request denied",
+      "correlationId": "fixture:custody-denied",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "satisfy-condition",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "provider",
+      "code": "custody.cancelled",
+      "operation": "sign",
+      "stage": "provider",
+      "summary": "Custody request cancelled",
+      "correlationId": "fixture:custody-cancelled",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "satisfy-condition",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "provider",
+      "code": "custody.throttled",
+      "operation": "sign",
+      "stage": "provider",
+      "summary": "Custody provider throttled",
+      "correlationId": "fixture:custody-throttled",
+      "retry": "conditional",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "satisfy-condition",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "provider",
+      "code": "custody.unavailable",
+      "operation": "sign",
+      "stage": "provider",
+      "summary": "Custody provider unavailable",
+      "correlationId": "fixture:custody-unavailable",
+      "retry": "conditional",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "satisfy-condition",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "provider",
+      "code": "custody.revoked-key",
+      "operation": "sign",
+      "stage": "key-lifecycle",
+      "summary": "Custody key revoked",
+      "correlationId": "fixture:custody-revoked-key",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "correct-configuration",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "provider",
+      "code": "custody.disabled-key",
+      "operation": "sign",
+      "stage": "key-lifecycle",
+      "summary": "Custody key disabled",
+      "correlationId": "fixture:custody-disabled-key",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "satisfy-condition",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "provider",
+      "code": "custody.provider-unknown",
+      "operation": "sign",
+      "stage": "provider",
+      "summary": "Custody outcome unknown",
+      "correlationId": "fixture:custody-provider-unknown",
+      "retry": "conditional",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "contact-support",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "provider",
+      "code": "custody.invalid-provider-response",
+      "operation": "sign",
+      "stage": "provider-response",
+      "summary": "Invalid custody response",
+      "correlationId": "fixture:custody-invalid-provider-response",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "contact-support",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "input",
+      "code": "custody.request-mismatch",
+      "operation": "sign",
+      "stage": "central-validation",
+      "summary": "Signing request mismatch",
+      "correlationId": "fixture:custody-request-mismatch",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "contact-support",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "input",
+      "code": "custody.principal-mismatch",
+      "operation": "sign",
+      "stage": "central-validation",
+      "summary": "Signing principal mismatch",
+      "correlationId": "fixture:custody-principal-mismatch",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "contact-support",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "input",
+      "code": "custody.descriptor-mismatch",
+      "operation": "sign",
+      "stage": "central-validation",
+      "summary": "Signing descriptor mismatch",
+      "correlationId": "fixture:custody-descriptor-mismatch",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "contact-support",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "input",
+      "code": "custody.key-version-mismatch",
+      "operation": "sign",
+      "stage": "central-validation",
+      "summary": "Signing key version mismatch",
+      "correlationId": "fixture:custody-key-version-mismatch",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "contact-support",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "input",
+      "code": "custody.transaction-mismatch",
+      "operation": "sign",
+      "stage": "central-validation",
+      "summary": "Signing transaction mismatch",
+      "correlationId": "fixture:custody-transaction-mismatch",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "contact-support",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "input",
+      "code": "custody.malformed-signature",
+      "operation": "sign",
+      "stage": "central-validation",
+      "summary": "Malformed provider signature",
+      "correlationId": "fixture:custody-malformed-signature",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "contact-support",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "input",
+      "code": "custody.non-canonical-signature",
+      "operation": "sign",
+      "stage": "central-validation",
+      "summary": "Non-canonical provider signature",
+      "correlationId": "fixture:custody-non-canonical-signature",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "contact-support",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "input",
+      "code": "custody.signature-verification-failed",
+      "operation": "sign",
+      "stage": "central-validation",
+      "summary": "Provider signature invalid",
+      "correlationId": "fixture:custody-signature-verification-failed",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "contact-support",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "input",
+      "code": "custody.evidence-mismatch",
+      "operation": "sign",
+      "stage": "central-validation",
+      "summary": "Custody evidence mismatch",
+      "correlationId": "fixture:custody-evidence-mismatch",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "contact-support",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "state",
+      "code": "custody.lifecycle-not-permitted",
+      "operation": "sign",
+      "stage": "key-lifecycle",
+      "summary": "Custody lifecycle blocks signing",
+      "correlationId": "fixture:custody-lifecycle-not-permitted",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "satisfy-condition",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
     }
   ]
 }

@@ -35,10 +35,16 @@ secret_slot = "AUTHS_POSTGRES_URL"
 
 [[custody]]
 family = "aws-kms-p256-v1"
+suite = "p256-sha256-v1"
+key_policy = "aws-kms-account-region-version-v1"
+fixture_suite = "product/fixtures/v1/custody"
 secret_slot = "AUTHS_KMS_KEY_ARN"
 
 [[custody]]
 family = "pkcs11-p256-v1"
+suite = "p256-sha256-v1"
+key_policy = "pkcs11-module-token-object-v1"
+fixture_suite = "product/fixtures/v1/custody"
 secret_slot = "AUTHS_PKCS11_KEY_LABEL"
 
 [[profiles]]

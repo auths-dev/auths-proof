@@ -1,0 +1,10 @@
+{
+  "schema": "auths.custody-conformance-manifest/1",
+  "suite": "custody-v1",
+  "adapters": [
+    "aws-kms-p256-v1",
+    "pkcs11-p256-v1"
+  ],
+  "caseCount": 31,
+  "registry": "registry.toml"
+}
