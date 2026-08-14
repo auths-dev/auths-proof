@@ -1,5 +1,8 @@
 # Content Epic 2 — Getting Started and the Integration Chooser
 
+> **Status revoked by rendered-site audit.** Requalify through Content Epics
+> 10–19; existing checked tasks record prior implementation, not completion.
+
 **Status:** Complete in `auths-docs` commit `21dec44`.
 
 **Depends on:** [Content Epic 0](./epic_0.md), Content Epic 1, and Platform

@@ -1,5 +1,8 @@
 # Content Epic 1 — Global Information Architecture and Topic Landings
 
+> **Status revoked by rendered-site audit.** Requalify through Content Epics
+> 10–19; existing checked tasks record prior implementation, not completion.
+
 **Status:** Complete in `auths-docs` commit `fff25d1`.
 
 **Depends on:** [Content Epic 0](./epic_0.md) and Platform Epics P5–P6.

@@ -1,5 +1,8 @@
 # Content Epic 7 — Adoption and Migration
 
+> **Status revoked by rendered-site audit.** Requalify through Content Epics
+> 10–19; existing checked tasks record prior implementation, not completion.
+
 **Depends on:** [Content Epic 0](./epic_0.md), Content Epics 2–6, and Platform
 Epic P9.
 

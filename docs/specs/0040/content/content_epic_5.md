@@ -1,5 +1,8 @@
 # Content Epic 5 — Developer Resources and Generated Reference
 
+> **Status revoked by rendered-site audit.** Requalify through Content Epics
+> 10–19; existing checked tasks record prior implementation, not completion.
+
 **Depends on:** [Content Epic 0](./epic_0.md) and Platform Epics P4 and P8.
 
 **Ownership:** This epic owns developer landing curation and explanatory
