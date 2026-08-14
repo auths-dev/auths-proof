@@ -1,5 +1,7 @@
 # Content Epic 10 — Canonical Information Architecture and Route Ownership
 
+**Status:** Complete in `auths-docs` commit `d3dc5db`.
+
 **Depends on:** Content Epic 0 and
 [`SITE_CONTENT_AND_LINK_AUDIT.md`](./SITE_CONTENT_AND_LINK_AUDIT.md).
 
@@ -16,21 +18,21 @@ ownership ambiguous. Sixty pages are navigational orphans.
 
 ## Implementation
 
-- [ ] Encode the complete tree in
+- [x] Encode the complete tree in
   [`PROPOSED_SITE_HIERARCHY.md`](./PROPOSED_SITE_HIERARCHY.md) as a strict,
   parseable navigation contract.
-- [ ] Give every page `section`, `parent`, `navGroup`, `order`, and canonical
+- [x] Give every page `section`, `parent`, `navGroup`, `order`, and canonical
   `path` fields.
-- [ ] Reject missing parents, cycles, duplicate order, cross-section parents,
+- [x] Reject missing parents, cycles, duplicate order, cross-section parents,
   and pages absent from the tree.
-- [ ] Move adoption and quickstarts under `/get-started`.
-- [ ] Move integrations under `/developers/integrations`.
-- [ ] Replace legacy `/start/*` and `/guides/*` routes with canonical section
+- [x] Move adoption and quickstarts under `/get-started`.
+- [x] Move integrations under `/developers/integrations`.
+- [x] Replace legacy `/start/*` and `/guides/*` routes with canonical section
   pages; prelaunch means no compatibility aliases are required.
-- [ ] Keep `/reference` and `/assurance` as explicit cross-cutting utilities.
-- [ ] Produce a migration manifest mapping every old page identity and path to
+- [x] Keep `/reference` and `/assurance` as explicit cross-cutting utilities.
+- [x] Produce a migration manifest mapping every old page identity and path to
   its retained, replaced, merged, or deleted destination.
-- [ ] Delete generic pages that cannot name a distinct reader job.
+- [x] Delete generic pages that cannot name a distinct reader job.
 
 ## Acceptance
 
@@ -40,4 +42,3 @@ ownership ambiguous. Sixty pages are navigational orphans.
 - The route graph has no orphan, cycle, missing parent, or ambiguous owner.
 - Old paths are absent from source, rendered links, search, sitemap, and
   Markdown surfaces.
-
