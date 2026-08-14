@@ -149,7 +149,12 @@ async fn live() -> impl IntoResponse {
 }
 
 async fn ready(State(state): State<AppState>) -> Response {
-    let ready = state.accepting.load(Ordering::Acquire) && state.runtime.ready();
+    let accepting = state.accepting.load(Ordering::Acquire);
+    let runtime = Arc::clone(&state.runtime);
+    let ready = accepting
+        && call_runtime(move || Ok(runtime.ready()))
+            .await
+            .unwrap_or(false);
     let status = if ready {
         StatusCode::OK
     } else {
@@ -182,15 +187,15 @@ async fn metrics(State(state): State<AppState>) -> Response {
 }
 
 async fn create(State(state): State<AppState>, headers: HeaderMap, body: Bytes) -> Response {
-    production_call(&state, &headers, &body, ProductVerb::Create, None)
+    production_call(&state, &headers, &body, ProductVerb::Create, None).await
 }
 
 async fn delegate(State(state): State<AppState>, headers: HeaderMap, body: Bytes) -> Response {
-    production_call(&state, &headers, &body, ProductVerb::Delegate, None)
+    production_call(&state, &headers, &body, ProductVerb::Delegate, None).await
 }
 
 async fn verify(State(state): State<AppState>, headers: HeaderMap, body: Bytes) -> Response {
-    production_call(&state, &headers, &body, ProductVerb::Verify, None)
+    production_call(&state, &headers, &body, ProductVerb::Verify, None).await
 }
 
 async fn execute_opentofu(
@@ -205,6 +210,7 @@ async fn execute_opentofu(
         ProductVerb::Execute,
         Some(QualifiedProfile::OpenTofuSavedPlanApply),
     )
+    .await
 }
 
 async fn execute_postgresql(
@@ -219,6 +225,7 @@ async fn execute_postgresql(
         ProductVerb::Execute,
         Some(QualifiedProfile::PostgreSqlBoundedUpdate),
     )
+    .await
 }
 
 async fn execute_github(
@@ -233,13 +240,14 @@ async fn execute_github(
         ProductVerb::Execute,
         Some(QualifiedProfile::GitHubIssueAddress),
     )
+    .await
 }
 
 async fn resume(State(state): State<AppState>, headers: HeaderMap, body: Bytes) -> Response {
-    production_call(&state, &headers, &body, ProductVerb::Resume, None)
+    production_call(&state, &headers, &body, ProductVerb::Resume, None).await
 }
 
-fn production_call(
+async fn production_call(
     state: &AppState,
     headers: &HeaderMap,
     body: &[u8],
@@ -270,9 +278,9 @@ fn production_call(
             return encoded_response(&response);
         }
     };
-    let response = state
-        .runtime
-        .handle(request)
+    let runtime = Arc::clone(&state.runtime);
+    let response = call_runtime(move || runtime.handle(request))
+        .await
         .unwrap_or_else(failure_response);
     record_operation(state, expected_verb, &response, started);
     encoded_response(&response)
@@ -321,7 +329,9 @@ async fn workflow_status(State(state): State<AppState>, Path(reference): Path<St
     let Ok(reference) = RecoveryReference::parse(&reference) else {
         return json_error(StatusCode::BAD_REQUEST, RuntimeFailure::Malformed);
     };
-    match state.runtime.status(&reference) {
+    let runtime = Arc::clone(&state.runtime);
+    let result = call_runtime(move || runtime.status(&reference)).await;
+    match result {
         Ok(value) => (StatusCode::OK, axum::Json(value)).into_response(),
         Err(error) => json_error(status_for(error), error),
     }
@@ -334,7 +344,9 @@ async fn receipt_summary(
     if !valid_receipt_id(&receipt_id) {
         return json_error(StatusCode::BAD_REQUEST, RuntimeFailure::Malformed);
     }
-    match state.runtime.receipt_summary(&receipt_id) {
+    let runtime = Arc::clone(&state.runtime);
+    let result = call_runtime(move || runtime.receipt_summary(&receipt_id)).await;
+    match result {
         Ok(value) => (StatusCode::OK, axum::Json(value)).into_response(),
         Err(error) => json_error(status_for(error), error),
     }
@@ -352,10 +364,24 @@ async fn receipt_disclose(
     {
         return json_error(StatusCode::BAD_REQUEST, RuntimeFailure::Malformed);
     }
-    match state.runtime.disclose_receipt(&receipt_id, &body) {
+    let runtime = Arc::clone(&state.runtime);
+    let authorization = body.to_vec();
+    let result = call_runtime(move || runtime.disclose_receipt(&receipt_id, &authorization)).await;
+    match result {
         Ok(value) => binary_response(value),
         Err(error) => json_error(status_for(error), error),
     }
+}
+
+async fn call_runtime<T>(
+    call: impl FnOnce() -> Result<T, RuntimeFailure> + Send + 'static,
+) -> Result<T, RuntimeFailure>
+where
+    T: Send + 'static,
+{
+    tokio::task::spawn_blocking(call)
+        .await
+        .unwrap_or(Err(RuntimeFailure::Unavailable))
 }
 
 fn encoded_response(response: &ProductionResponse) -> Response {

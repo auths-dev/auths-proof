@@ -45,12 +45,18 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         .map_err(|_| "local fixture custody seed is malformed")?;
     let connection = env::var(config.lifecycle_url_env())
         .map_err(|_| "PostgreSQL lifecycle connection is unavailable")?;
-    let store = PostgresSandboxStore::connect(
-        &connection,
-        config.lifecycle_ca_pem(),
-        config.lifecycle_server_name(),
-        config.maximum_lifecycle_records(),
-    )?;
+    let lifecycle_ca_pem = config.lifecycle_ca_pem().to_owned();
+    let lifecycle_server_name = config.lifecycle_server_name().to_owned();
+    let maximum_lifecycle_records = config.maximum_lifecycle_records();
+    let store = tokio::task::spawn_blocking(move || {
+        PostgresSandboxStore::connect(
+            &connection,
+            &lifecycle_ca_pem,
+            &lifecycle_server_name,
+            maximum_lifecycle_records,
+        )
+    })
+    .await??;
     let runtime = Arc::new(SandboxRuntime::with_postgres(
         seed_bytes,
         config.enabled_profiles(),
