@@ -56,7 +56,7 @@ def theoremInventory : List Lean.Name :=
     `Auths.Rich.finite_delegation_chain,
     `Auths.Rich.chain_transitive_attenuation,
     `Auths.Rich.authorized_action_covered,
-    `Auths.Rich.rich_projection_accepts_iff_scope_depth_checks,
+    `Auths.Rich.rich_projection_accepts_iff_root_and_scope_depth_checks,
     `Auths.Rich.apply_grant_success_iff_linked_and_projection,
     `Auths.Rich.apply_grant_success_iff_delegates,
     `Auths.Rich.apply_grant_success_unique,
