@@ -541,6 +541,15 @@ pub enum RefusalKind {
     ConsumedChallenge,
 }
 
+/// What the responder is able to assert about the requested effect.
+///
+/// The three members are mutually exclusive and exhaustive over the effect
+/// axis. `Completed` asserts the effect applied; `Refused` asserts it did
+/// **not**; `Indeterminate` asserts the responder cannot prove either.
+///
+/// The distinction matters at the wire, not just in prose: every caller reads a
+/// refusal as "nothing happened" and retries. A responder that projected a
+/// possibly-applied effect as `Refused` was inviting a duplicate side effect.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ExchangeOutcome {
     Completed {
@@ -548,6 +557,13 @@ pub enum ExchangeOutcome {
     },
     Refused {
         kind: RefusalKind,
+        verdict: Option<VerdictSummary>,
+        message: String,
+    },
+    /// The exact requested effect may or may not have been applied. The caller
+    /// must reconcile with the provider before retrying; it must not treat this
+    /// as a refusal.
+    Indeterminate {
         verdict: Option<VerdictSummary>,
         message: String,
     },
@@ -589,6 +605,29 @@ impl ExchangeOutcome {
             verdict,
             message,
         })
+    }
+
+    /// Constructs an unknown-effect result with a bounded, display-safe message.
+    ///
+    /// Use this — never [`Self::refused`] — when the responder cannot prove the
+    /// exact effect did not apply.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ModelError::InvalidMessage`] when the message is empty,
+    /// oversized, or contains control characters.
+    pub fn indeterminate(
+        verdict: Option<VerdictSummary>,
+        message: impl Into<String>,
+    ) -> Result<Self, ModelError> {
+        let message = message.into();
+        if message.is_empty()
+            || message.len() > MAX_MESSAGE_BYTES
+            || message.bytes().any(|byte| byte.is_ascii_control())
+        {
+            return Err(ModelError::InvalidMessage);
+        }
+        Ok(Self::Indeterminate { verdict, message })
     }
 }
 

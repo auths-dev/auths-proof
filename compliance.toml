@@ -1271,7 +1271,11 @@ configuration_inputs = ["decision-digest", "executed-verifier-configuration", "r
 security_state = ["receipt-attestation-key"]
 
 [packages.auths-receipts.claims]
-receipt-producer-consumer = ["product/receipts/auths-receipts/src/lib.rs#audit_bundle_verifies_links_and_redaction_offline"]
+receipt-producer-consumer = [
+  "product/receipts/auths-receipts/src/lib.rs#audit_bundle_verifies_links_and_redaction_offline",
+  "product/receipts/auths-receipts/src/lib.rs#execution_outcome_wire_tags_are_exactly_zero_one_two",
+  "product/receipts/auths-receipts/src/lib.rs#the_indeterminate_outcome_is_a_distinct_canonical_signed_value",
+]
 
 [packages.auths-resolver-did-web]
 kind = "cargo"
@@ -1354,9 +1358,20 @@ configuration_inputs = ["channel-policy", "executed-verifier-configuration", "re
 security_state = ["budget-ledger", "challenge-ledger", "receipt-sink"]
 
 [packages.auths-runtime.claims]
-receipt-producer-consumer = ["demos/testkit/auths-apps-testkit/src/lib.rs#target_flow_is_transport_independent_and_replay_safe"]
-runtime-enforcement-boundary = ["demos/testkit/auths-apps-testkit/src/lib.rs#authenticated_transport_does_not_upgrade_bad_proof"]
-stateful-replay-budget-component = ["demos/testkit/auths-apps-testkit/src/lib.rs#concurrent_duplicate_executes_exactly_once"]
+receipt-producer-consumer = [
+  "demos/testkit/auths-apps-testkit/src/lib.rs#a_provider_timeout_signs_a_receipt_that_does_not_claim_the_effect_failed",
+  "demos/testkit/auths-apps-testkit/src/lib.rs#a_proven_pre_entry_failure_still_signs_a_non_effect_receipt",
+  "demos/testkit/auths-apps-testkit/src/lib.rs#target_flow_is_transport_independent_and_replay_safe",
+]
+runtime-enforcement-boundary = [
+  "demos/testkit/auths-apps-testkit/src/lib.rs#a_budget_refused_request_writes_no_authorization_receipt",
+  "demos/testkit/auths-apps-testkit/src/lib.rs#a_denied_verification_still_records_a_denied_receipt",
+  "demos/testkit/auths-apps-testkit/src/lib.rs#authenticated_transport_does_not_upgrade_bad_proof",
+]
+stateful-replay-budget-component = [
+  "demos/testkit/auths-apps-testkit/src/lib.rs#a_replayed_request_writes_no_authorization_receipt",
+  "demos/testkit/auths-apps-testkit/src/lib.rs#concurrent_duplicate_executes_exactly_once",
+]
 
 [packages.auths-sdk]
 kind = "cargo"

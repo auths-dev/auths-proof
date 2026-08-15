@@ -35,7 +35,7 @@ use auths_proof_exchange_port::{ClientProofChannel, ProofExchangeService, serve_
 use auths_raw_key::{RAW_KEY_MEDIA_TYPE, RAW_KEY_V1, RawKeyDescriptor, RawKeyMethod, RawKeyType};
 use auths_receipts::{ReceiptSigner, decode_attested_decision, decode_attested_execution};
 use auths_runtime::{
-    AuthsKernel, ChallengeSource, ChallengeSourceError, Clock, ExecutableAction,
+    AuthsKernel, BudgetLedger, ChallengeSource, ChallengeSourceError, Clock, ExecutableAction,
     InMemoryChallengeLedger, McpAuthorizationService, McpExecutionDependencies,
     McpRequestStateDependencies, McpRuntimeDependencies, McpServiceConfig, McpToolExecutor,
     NoBudgetLedger, ReceiptAttestationError, ReceiptAttestor, ReceiptSink, ReceiptStoreError,
@@ -144,10 +144,67 @@ impl McpToolExecutor for StaticReportExecutor {
     }
 }
 
+/// Executor that always fails at a caller-chosen provider boundary.
+///
+/// Exists so a test can drive the two halves of
+/// [`auths_runtime::ProviderBoundary`] through the real service and observe
+/// which signed execution receipt, if any, the runtime mints.
+#[cfg(test)]
+struct BoundaryFailureExecutor {
+    boundary: auths_runtime::ProviderBoundary,
+}
+
+#[cfg(test)]
+impl BoundaryFailureExecutor {
+    const fn new(boundary: auths_runtime::ProviderBoundary) -> Self {
+        Self { boundary }
+    }
+}
+
+#[cfg(test)]
+#[async_trait]
+impl McpToolExecutor for BoundaryFailureExecutor {
+    async fn execute(
+        &self,
+        _action: ExecutableAction<auths_profile_mcp::McpCommand>,
+    ) -> Result<Vec<u8>, auths_runtime::ToolExecutionFailure> {
+        Err(match self.boundary {
+            auths_runtime::ProviderBoundary::BeforeEntry => {
+                auths_runtime::ToolExecutionFailure::before_provider_entry(
+                    "connection refused before any request byte was written",
+                )
+            }
+            auths_runtime::ProviderBoundary::AfterEntry => {
+                auths_runtime::ToolExecutionFailure::after_provider_entry("provider call timed out")
+            }
+        })
+    }
+}
+
+/// Budget ledger that refuses every claim.
+///
+/// Drives the runtime's budget gate — the refusing check furthest from the
+/// verification verdict — without needing a budget-bearing canonical action.
+#[cfg(test)]
+struct ExhaustedBudgetLedger;
+
+#[cfg(test)]
+impl BudgetLedger for ExhaustedBudgetLedger {
+    fn claim(
+        &self,
+        _action: auths_model::ActionId,
+        _requested: Option<&auths_model::BudgetCeiling>,
+    ) -> auths_runtime::BudgetClaim {
+        auths_runtime::BudgetClaim::Exhausted
+    }
+}
+
 #[derive(Default)]
 struct MemoryReceiptSink {
     decisions: Mutex<std::collections::BTreeMap<auths_model::ReceiptId, Vec<u8>>>,
     executions: Mutex<std::collections::BTreeMap<auths_model::ReceiptId, Vec<u8>>>,
+    decision_writes: AtomicUsize,
+    execution_writes: AtomicUsize,
 }
 
 impl MemoryReceiptSink {
@@ -156,6 +213,50 @@ impl MemoryReceiptSink {
             self.decisions.lock().expect("decision lock").len(),
             self.executions.lock().expect("execution lock").len(),
         )
+    }
+
+    /// Total `store_decision` / `store_execution` calls, including calls that
+    /// re-store an identical receipt identifier.
+    ///
+    /// [`Self::counts`] deduplicates by receipt identifier, which is exactly
+    /// what hid the pre-replay-check decision-receipt write: a replayed request
+    /// re-derives the same identifier, so the map size never grew.
+    fn write_calls(&self) -> (usize, usize) {
+        (
+            self.decision_writes.load(Ordering::SeqCst),
+            self.execution_writes.load(Ordering::SeqCst),
+        )
+    }
+
+    /// Every stored decision receipt's decision class, in identifier order.
+    fn stored_decision_classes(&self) -> Vec<auths_receipts::DecisionClass> {
+        self.decisions
+            .lock()
+            .expect("decision lock")
+            .values()
+            .map(|bytes| {
+                decode_attested_decision(bytes)
+                    .expect("canonical attested decision receipt")
+                    .receipt()
+                    .decision()
+            })
+            .collect()
+    }
+
+    /// Every stored execution receipt's outcome, in identifier order.
+    #[cfg(test)]
+    fn stored_execution_outcomes(&self) -> Vec<auths_receipts::ExecutionOutcome> {
+        self.executions
+            .lock()
+            .expect("execution lock")
+            .values()
+            .map(|bytes| {
+                decode_attested_execution(bytes)
+                    .expect("canonical attested execution receipt")
+                    .receipt()
+                    .outcome()
+            })
+            .collect()
     }
 
     fn assert_canonical(&self) {
@@ -174,6 +275,7 @@ impl ReceiptSink for MemoryReceiptSink {
         id: auths_model::ReceiptId,
         bytes: Vec<u8>,
     ) -> Result<(), ReceiptStoreError> {
+        self.decision_writes.fetch_add(1, Ordering::SeqCst);
         self.decisions
             .lock()
             .map_err(|_| ReceiptStoreError)?
@@ -186,6 +288,7 @@ impl ReceiptSink for MemoryReceiptSink {
         id: auths_model::ReceiptId,
         bytes: Vec<u8>,
     ) -> Result<(), ReceiptStoreError> {
+        self.execution_writes.fetch_add(1, Ordering::SeqCst);
         self.executions
             .lock()
             .map_err(|_| ReceiptStoreError)?
@@ -431,6 +534,19 @@ impl DemoRuntimeSession {
         }
     }
 
+    /// Total `store_decision` / `store_execution` calls made in this session,
+    /// counting repeated writes of the same receipt identifier.
+    #[must_use]
+    pub fn receipt_write_calls(&self) -> (usize, usize) {
+        self.receipts.write_calls()
+    }
+
+    /// Decision class of every decision receipt persisted in this session.
+    #[must_use]
+    pub fn stored_decision_classes(&self) -> Vec<auths_receipts::DecisionClass> {
+        self.receipts.stored_decision_classes()
+    }
+
     /// Submits the exact same proof-carrying action to this session.
     ///
     /// The first call executes once. Every later call is rejected by the
@@ -668,9 +784,34 @@ fn demo_service_with_challenge(
     Arc<StaticReportExecutor>,
     Arc<MemoryReceiptSink>,
 ) {
+    let executor = Arc::new(StaticReportExecutor::new(challenge));
+    let (service, receipts) = demo_service_with_executor(
+        context,
+        channel_policy,
+        local_endpoint,
+        challenge,
+        executor.clone(),
+        Arc::new(NoBudgetLedger),
+    );
+    (service, executor, receipts)
+}
+
+/// Builds the real authorization service around a caller-supplied executor and
+/// budget ledger.
+///
+/// Every other demo constructor funnels through this so a test that needs a
+/// pathological provider or an exhausted budget observes the identical runtime
+/// wiring.
+fn demo_service_with_executor(
+    context: TrustedContext,
+    channel_policy: ChannelBindingPolicy,
+    local_endpoint: Option<[u8; 32]>,
+    challenge: ChallengeNonce,
+    executor: Arc<dyn McpToolExecutor>,
+    budgets: Arc<dyn BudgetLedger>,
+) -> (Arc<McpAuthorizationService>, Arc<MemoryReceiptSink>) {
     let kernel =
         AuthsKernel::new(context, demo_principal_methods(), demo_signature_suites()).unwrap();
-    let executor = Arc::new(StaticReportExecutor::new(challenge));
     let receipts = Arc::new(MemoryReceiptSink::default());
     let service = McpAuthorizationService::new(
         McpServiceConfig::new(
@@ -687,18 +828,18 @@ fn demo_service_with_challenge(
                 Arc::new(FixedClock(DEMO_NOW)),
                 Arc::new(FixedChallengeSource(challenge)),
                 Arc::new(InMemoryChallengeLedger::new(64).unwrap()),
-                Arc::new(NoBudgetLedger),
+                budgets,
             ),
             McpExecutionDependencies::new(
                 receipts.clone(),
                 Arc::new(DemoReceiptAttestor::new()),
                 Arc::new(kernel),
-                executor.clone(),
+                executor,
             ),
         ),
     )
     .unwrap();
-    (Arc::new(service), executor, receipts)
+    (Arc::new(service), receipts)
 }
 
 fn demo_principal_methods() -> Vec<Box<dyn auths_ports::PrincipalMethod + Send + Sync>> {
@@ -1109,5 +1250,222 @@ mod tests {
     #[ignore = "requires local UDP sockets"]
     async fn iroh_matches_the_reference_transport() {
         assert_iroh_target_conformance().await;
+    }
+}
+
+/// End-to-end evidence for contract §5A.3 and §5A.4.
+///
+/// These drive the real [`McpAuthorizationService`] — the same kernel, replay
+/// ledger, receipt attestor, and receipt sink as the shipped demos — because
+/// both defects are properties of the *orchestration order* and of the
+/// *signed artifact*, neither of which a unit test on a helper can observe.
+#[cfg(test)]
+mod signed_evidence_tests {
+    use super::{
+        BoundaryFailureExecutor, ChannelBindingPolicy, DEMO_CHALLENGE, ExhaustedBudgetLedger,
+        McpToolExecutor, MemoryReceiptSink, PeerObservation, Permission, ProofExchangeService,
+        build_fixture, demo_service_with_executor,
+    };
+    use auths_proof_exchange_model::{
+        ActionResponse, ActionSubmission, ExchangeOutcome, RefusalKind,
+    };
+    use auths_receipts::{DecisionClass, ExecutionOutcome};
+    use auths_runtime::{NoBudgetLedger, ProviderBoundary};
+    use std::sync::Arc;
+
+    async fn submit_once(
+        executor: Arc<dyn McpToolExecutor>,
+    ) -> (ActionResponse, Arc<MemoryReceiptSink>) {
+        let fixture = build_fixture(DEMO_CHALLENGE, None);
+        let (service, receipts) = demo_service_with_executor(
+            fixture.context,
+            ChannelBindingPolicy::None,
+            None,
+            DEMO_CHALLENGE,
+            executor,
+            Arc::new(NoBudgetLedger),
+        );
+        let challenge = service
+            .issue_challenge(&PeerObservation::Unauthenticated)
+            .await
+            .expect("challenge");
+        let request =
+            ActionSubmission::new(fixture.body, fixture.proof, &challenge).expect("submission");
+        let response = service
+            .handle_action(&PeerObservation::Unauthenticated, &challenge, request)
+            .await;
+        receipts.assert_canonical();
+        (response, receipts)
+    }
+
+    /// §5A.3. A provider timeout is the canonical unknown-effect failure: the
+    /// exact command may already have applied. The runtime must still leave
+    /// durable signed evidence, and that evidence must not assert non-effect.
+    ///
+    /// Before the third `ExecutionOutcome` variant existed the runtime had only
+    /// two ways to answer and chose the least-bad one — mint nothing — so the
+    /// timeout produced no execution receipt at all and the assertion below on
+    /// receipt presence failed.
+    #[tokio::test]
+    async fn a_provider_timeout_signs_a_receipt_that_does_not_claim_the_effect_failed() {
+        let (response, receipts) = submit_once(Arc::new(BoundaryFailureExecutor::new(
+            ProviderBoundary::AfterEntry,
+        )))
+        .await;
+
+        let outcomes = receipts.stored_execution_outcomes();
+        assert_eq!(
+            outcomes.len(),
+            1,
+            "a possibly-applied effect must leave durable signed evidence, not silence"
+        );
+        assert_ne!(
+            outcomes[0],
+            ExecutionOutcome::Failed,
+            "the signed receipt asserts the effect did not happen when it may have"
+        );
+        assert_eq!(outcomes[0], ExecutionOutcome::Indeterminate);
+
+        assert!(
+            matches!(response.outcome(), ExchangeOutcome::Indeterminate { .. }),
+            "a refusal is read by every caller as 'not applied'; got {:?}",
+            response.outcome()
+        );
+    }
+
+    /// The other half of §5A.3: a failure the adapter *proved* happened before
+    /// provider entry is still entitled to the non-effect assertion. The third
+    /// variant must not swallow the definite answer.
+    #[tokio::test]
+    async fn a_proven_pre_entry_failure_still_signs_a_non_effect_receipt() {
+        let (response, receipts) = submit_once(Arc::new(BoundaryFailureExecutor::new(
+            ProviderBoundary::BeforeEntry,
+        )))
+        .await;
+
+        assert_eq!(
+            receipts.stored_execution_outcomes(),
+            vec![ExecutionOutcome::Failed]
+        );
+        assert!(matches!(
+            response.outcome(),
+            ExchangeOutcome::Refused { .. }
+        ));
+    }
+
+    /// §5A.4. A replayed request is refused by the consumed-challenge gate.
+    /// No receipt asserting `Authorized` may be written for it, and the write
+    /// must not even be attempted — the sink counts calls, not distinct
+    /// identifiers, because a replay re-derives the same identifier and the
+    /// deduplicating map is exactly what hid this.
+    #[tokio::test]
+    async fn a_replayed_request_writes_no_authorization_receipt() {
+        let session = super::DemoRuntimeSession::new(*DEMO_CHALLENGE.as_bytes()).await;
+        let first = session.execute().await;
+        assert!(matches!(
+            first.response.outcome(),
+            ExchangeOutcome::Completed { .. }
+        ));
+        let writes_after_first = session.receipt_write_calls();
+
+        let replay = session.execute().await;
+        assert!(matches!(
+            replay.response.outcome(),
+            ExchangeOutcome::Refused {
+                kind: RefusalKind::ConsumedChallenge,
+                ..
+            }
+        ));
+
+        assert_eq!(
+            session.receipt_write_calls(),
+            writes_after_first,
+            "the refused replay still wrote into the receipt sink"
+        );
+        assert_eq!(
+            session.stored_decision_classes(),
+            vec![DecisionClass::Authorized],
+            "exactly one authorization was granted, so exactly one may be attested"
+        );
+    }
+
+    /// §5A.4 generalized — "audit the whole function, not just the replay
+    /// check". The budget gate is the *other* refusing check that ran after the
+    /// decision-receipt write. A budget-exhausted request must leave no
+    /// authorization receipt either.
+    #[tokio::test]
+    async fn a_budget_refused_request_writes_no_authorization_receipt() {
+        let fixture = build_fixture(DEMO_CHALLENGE, None);
+        let (service, receipts) = demo_service_with_executor(
+            fixture.context,
+            ChannelBindingPolicy::None,
+            None,
+            DEMO_CHALLENGE,
+            Arc::new(BoundaryFailureExecutor::new(ProviderBoundary::AfterEntry)),
+            Arc::new(ExhaustedBudgetLedger),
+        );
+        let challenge = service
+            .issue_challenge(&PeerObservation::Unauthenticated)
+            .await
+            .expect("challenge");
+        let request =
+            ActionSubmission::new(fixture.body, fixture.proof, &challenge).expect("submission");
+        let response = service
+            .handle_action(&PeerObservation::Unauthenticated, &challenge, request)
+            .await;
+
+        assert!(matches!(
+            response.outcome(),
+            ExchangeOutcome::Refused { .. }
+        ));
+        receipts.assert_canonical();
+        assert_eq!(
+            receipts.write_calls(),
+            (0, 0),
+            "a request the runtime refused still wrote signed receipts"
+        );
+        assert!(receipts.stored_decision_classes().is_empty());
+    }
+
+    /// A denied verification still records its honest `Denied` receipt. The
+    /// reordering must not silence the audit trail it was meant to make
+    /// truthful.
+    #[tokio::test]
+    async fn a_denied_verification_still_records_a_denied_receipt() {
+        let wrong = Permission::new(
+            auths_model::CapabilityId::parse("tools/call").expect("capability"),
+            auths_model::ResourceId::parse("mcp://reports/tools/delete_report").expect("resource"),
+        );
+        let fixture = build_fixture(DEMO_CHALLENGE, Some(wrong));
+        let (service, receipts) = demo_service_with_executor(
+            fixture.context,
+            ChannelBindingPolicy::None,
+            None,
+            DEMO_CHALLENGE,
+            Arc::new(BoundaryFailureExecutor::new(ProviderBoundary::AfterEntry)),
+            Arc::new(NoBudgetLedger),
+        );
+        let challenge = service
+            .issue_challenge(&PeerObservation::Unauthenticated)
+            .await
+            .expect("challenge");
+        let request =
+            ActionSubmission::new(fixture.body, fixture.proof, &challenge).expect("submission");
+        let response = service
+            .handle_action(&PeerObservation::Unauthenticated, &challenge, request)
+            .await;
+
+        assert!(matches!(
+            response.outcome(),
+            ExchangeOutcome::Refused {
+                kind: RefusalKind::AuthsVerdict,
+                ..
+            }
+        ));
+        receipts.assert_canonical();
+        assert_eq!(
+            receipts.stored_decision_classes(),
+            vec![DecisionClass::Denied]
+        );
     }
 }

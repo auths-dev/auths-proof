@@ -3863,6 +3863,7 @@ pub fn prepare_application_execution_receipt_v1(
         match outcome {
             "succeeded" => ExecutionOutcome::Succeeded,
             "failed" => ExecutionOutcome::Failed,
+            "indeterminate" => ExecutionOutcome::Indeterminate,
             _ => {
                 return Err(js_error(EngineError::Abi(
                     "execution outcome cannot be attested",
@@ -4176,7 +4177,7 @@ fn inspection_metadata_json(metadata: &VerifiedReceiptMetadata) -> Value {
         "profile": { "id": metadata.profile().id().as_str(), "version": metadata.profile().version() },
         "decision": match metadata.decision() { DecisionClass::Authorized => "authorized", DecisionClass::Denied => "denied", DecisionClass::Indeterminate => "indeterminate" },
         "reasons": metadata.reasons(),
-        "outcome": match metadata.outcome() { ExecutionOutcome::Succeeded => "succeeded", ExecutionOutcome::Failed => "failed" },
+        "outcome": match metadata.outcome() { ExecutionOutcome::Succeeded => "succeeded", ExecutionOutcome::Failed => "failed", ExecutionOutcome::Indeterminate => "indeterminate" },
         "decidedAt": metadata.decided_at().get().to_string(),
         "completedAt": metadata.completed_at().get().to_string(),
         "decisionSigner": inspection_signer_json(metadata.decision_signer()),

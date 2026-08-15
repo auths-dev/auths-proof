@@ -712,6 +712,11 @@ async fn send_via_iroh(
         ExchangeOutcome::Refused { message, .. } => {
             Err(ApiError::owned_bad_request(message.clone()))
         }
+        // The effect may already have been applied. A 4xx would tell the
+        // caller nothing happened and invite a duplicate write.
+        ExchangeOutcome::Indeterminate { message, .. } => {
+            Err(ApiError::owned_effect_unknown(message.clone()))
+        }
     }
 }
 
@@ -874,7 +879,8 @@ pub async fn send_envelope_file(
         ExchangeOutcome::Completed { result } => {
             serde_json::from_slice(result).map_err(|_| "invalid records response".into())
         }
-        ExchangeOutcome::Refused { message, .. } => Err(message.clone()),
+        ExchangeOutcome::Refused { message, .. }
+        | ExchangeOutcome::Indeterminate { message, .. } => Err(message.clone()),
     }
 }
 
@@ -1191,6 +1197,19 @@ impl ApiError {
         Self {
             status: StatusCode::BAD_REQUEST,
             code: "bad-request",
+            detail,
+        }
+    }
+
+    /// The upstream effect may or may not have been applied.
+    ///
+    /// Deliberately not a 4xx: every client reads a 4xx as "the request was
+    /// rejected and nothing happened", which is exactly the claim this runtime
+    /// cannot make. 502 with an explicit code tells the caller to reconcile.
+    fn owned_effect_unknown(detail: String) -> Self {
+        Self {
+            status: StatusCode::BAD_GATEWAY,
+            code: "effect-unknown",
             detail,
         }
     }

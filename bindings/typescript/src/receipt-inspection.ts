@@ -31,7 +31,7 @@ export interface ReceiptInspectionMetadata {
   readonly profile: ReceiptInspectionProfile;
   readonly decision: "authorized" | "denied" | "indeterminate";
   readonly reasons: readonly string[];
-  readonly outcome: "succeeded" | "failed";
+  readonly outcome: "succeeded" | "failed" | "indeterminate";
   readonly decidedAt: bigint;
   readonly completedAt: bigint;
   readonly decisionSigner: ReceiptInspectionSigner;

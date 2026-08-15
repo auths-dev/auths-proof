@@ -97,7 +97,7 @@ class ReceiptInspectionMetadata:
     profile: ReceiptInspectionProfile
     decision: Literal["authorized", "denied", "indeterminate"]
     reasons: Tuple[str, ...]
-    outcome: Literal["succeeded", "failed"]
+    outcome: Literal["succeeded", "failed", "indeterminate"]
     decided_at: int
     completed_at: int
     decision_signer: ReceiptInspectionSigner
@@ -353,7 +353,7 @@ def _parse_inspection_metadata(
         ),
         cast(Literal["authorized", "denied", "indeterminate"], value["decision"]),
         tuple(str(reason) for reason in cast(list[object], value["reasons"])),
-        cast(Literal["succeeded", "failed"], value["outcome"]),
+        cast(Literal["succeeded", "failed", "indeterminate"], value["outcome"]),
         int(cast(int, value["decidedAt"])),
         int(cast(int, value["completedAt"])),
         _parse_inspection_signer(cast(Mapping[str, object], value["decisionSigner"])),

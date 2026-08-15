@@ -248,9 +248,13 @@ indeterminate member. So for a provider timeout, the reference runtime signs a d
 asserting **Failed** for an effect that may have applied — and §5's error-model fixes cannot repair
 it, because the evidence artifact itself has no way to say "possible".
 
-**Disposition:** adding a third variant changes signed bytes and is therefore a **protocol change**,
-out of scope under §10 without separate review. Flagged, scoped, not auto-fixed. This is the highest
-priority item for the review that follows this wave.
+**Disposition:** **DONE.** Superseded by §10A decision 11.8, which authorizes the protocol change.
+`ExecutionOutcome` gained `Indeterminate` (wire tag `2`) and `ExchangeOutcome` gained
+`Indeterminate { verdict, message }` (outcome code `2`). Any provider failure the adapter cannot
+place before provider entry now mints a signed `Indeterminate` execution receipt instead of minting
+nothing, and the exchange response is no longer projected as a refusal. Both tags are **additive**:
+`cargo xtask wire` reports 516 byte-stable golden vectors and `cargo xtask product-fixtures` reports
+stable, so **no canonical fixture required regeneration** and none was performed.
 
 ### 5A.4 A signed "Authorized" receipt is written before the replay check runs
 
@@ -258,7 +262,10 @@ priority item for the review that follows this wave.
 replay check. Consequences: audit records assert authorization for requests that are then refused,
 and an attacker gets unbounded write amplification into the receipt sink.
 
-**Disposition:** in scope. Reorder so the receipt is written only after every check that can refuse.
+**Disposition:** **DONE.** The `Authorized` decision receipt is now written after the last refusing
+gate — replay claim *and* budget claim, both of which ran after the write. The pure
+action-identifier check was hoisted above the replay claim so a verified action the runtime cannot
+lease no longer consumes the caller's challenge.
 
 ## 6. Public surface
 
@@ -521,7 +528,7 @@ These change the contract's content and cannot be defaulted by an implementer.
    (b) remove it from `demos/open-production-reference` and label it a non-production sandbox;
    (c) keep it, and publicly scope the security claims to exclude the reference deployment.
    Option (c) is not recommended — the deployment README is what operators will follow.
-8. **`ExecutionOutcome` third variant (§5A.3).** Adding `Indeterminate` changes signed receipt bytes.
-   That is a protocol change requiring review, but without it no honest receipt can be written for a
-   provider timeout. Recommended: accept the protocol change before 1.0, since after 1.0 it becomes
-   permanently harder.
+8. ~~**`ExecutionOutcome` third variant (§5A.3).**~~ **CLOSED** by §10A decision 11.8 and implemented.
+   `Indeterminate` is wire tag `2` on the execution receipt and outcome code `2` on the exchange
+   response. Both assignments are additive, so no existing signed bytes changed and no canonical
+   fixture was regenerated.

@@ -201,10 +201,21 @@ pub struct ActionResponse {
 - application refusal after an Auths verdict;
 - malformed or oversized exchange input;
 - expired, unknown, or consumed challenge;
-- transport-policy rejection.
+- transport-policy rejection;
+- an **indeterminate** result, where the responder cannot prove whether the
+  exact requested effect was applied.
 
-It must not manufacture `Authorized`, `Denied`, or `Indeterminate` when the
-Auths verifier did not run. When a verifier did run, the application may
+The three members partition the effect axis and are wire-tagged `0`
+(`Completed`), `1` (`Refused`), and `2` (`Indeterminate`). `Completed` asserts
+the effect applied; `Refused` asserts it did not; `Indeterminate` asserts the
+responder can prove neither. A responder must not project a possibly-applied
+effect as `Refused`: every caller reads a refusal as "nothing happened" and
+retries, so doing so invites a duplicate side effect. `Indeterminate` carries
+no refusal kind — it is not a refusal — and no result, because none was
+observed. A caller receiving it must reconcile with the provider before retry.
+
+`ExchangeOutcome` must not manufacture `Authorized`, `Denied`, or
+`Indeterminate` verdicts when the Auths verifier did not run. When a verifier did run, the application may
 return a safe projection of its stable decision and reason codes.
 
 The submission repeats the exact challenge, Auths protocol major, profile ID,
