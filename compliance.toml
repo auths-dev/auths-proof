@@ -1320,26 +1320,32 @@ independent-semantic-implementation = [
 kind = "cargo"
 layer = "product"
 path = "product/runtime/auths-node"
-core_apis = []
-protocol_versions = ["auths.production-client/1"]
-wire_objects = ["ProductionRequest", "ProductionResponse", "SandboxAuthority", "SandboxReceipt"]
-fixture_suites = ["product/fixtures/v1/production-client"]
-principal_families = ["registry-provided"]
+core_apis = ["auths-codec", "auths-did-keri", "auths-did-key", "auths-did-web", "auths-hsm-attested", "auths-model", "auths-ports", "auths-raw-key", "auths-registries", "auths-signature", "auths-spiffe-x509", "auths-testkit", "auths-verifier", "auths-webauthn"]
+protocol_versions = ["auths-proof/v1", "auths.production-client/1"]
+wire_objects = ["CanonicalAction", "ProductionRequest", "ProductionResponse", "VerifierContext"]
+fixture_suites = ["core/fixtures/v1", "product/fixtures/v1/production-client"]
+principal_families = ["did-keri-v1", "did-key-v1", "raw-key-v1"]
 signature_families = ["ed25519-v1", "p256-sha256-v1"]
 profiles = ["auths.github.issue-address/1", "auths.opentofu.saved-plan-apply/1", "auths.postgresql.bounded-update/1"]
 transports = ["https"]
-configuration_inputs = ["custody", "lifecycle-store", "otlp", "profile-registry", "request-limits"]
+configuration_inputs = ["custody", "lifecycle-store", "otlp", "profile-registry", "request-limits", "trusted-context"]
 security_state = ["opaque-recovery-reference", "receipt-disclosure", "shared-lifecycle-store"]
 
 [packages.auths-node.claims]
+core-api-consumer = [
+  "product/runtime/auths-node/tests/kernel_differential.rs#node_and_kernel_agree_on_every_canonical_corpus_input",
+  "product/runtime/auths-node/src/kernel.rs#the_node_refuses_to_mint_authority_from_a_self_asserted_identity",
+]
 runtime-enforcement-boundary = [
   "product/runtime/auths-node/src/api.rs#route_and_envelope_must_agree",
-  "product/runtime/auths-node/src/sandbox.rs#exact_action_and_replay_budget_are_enforced",
+  "product/runtime/auths-node/src/kernel.rs#exact_action_and_replay_budget_are_enforced",
+  "product/runtime/auths-node/tests/kernel_differential.rs#node_and_kernel_agree_on_every_canonical_corpus_input",
 ]
 operational-diagnostics = ["product/runtime/auths-node/src/api.rs#metrics_expose_only_the_frozen_operational_vocabulary"]
 stateful-replay-budget-component = [
-  "product/runtime/auths-node/src/sandbox.rs#exact_action_and_replay_budget_are_enforced",
-  "product/runtime/auths-node/src/sandbox.rs#recovery_is_committed_once_and_replays_the_same_receipt",
+  "product/runtime/auths-node/src/kernel.rs#exact_action_and_replay_budget_are_enforced",
+  "product/runtime/auths-node/src/kernel.rs#a_denied_request_consumes_no_budget_and_leaves_no_receipt",
+  "product/runtime/auths-node/src/kernel.rs#recovery_is_committed_once_and_replays_the_same_receipt",
 ]
 
 [packages.auths-runtime]

@@ -62,7 +62,7 @@ impl SandboxStore for MemorySandboxStore {
         let mut state = self.state.lock().map_err(|_| RuntimeFailure::Unavailable)?;
         let uses = state.uses.entry(authority).or_default();
         if *uses >= maximum {
-            return Err(RuntimeFailure::Denied);
+            return Err(RuntimeFailure::ReplayBudgetExhausted);
         }
         *uses += 1;
         Ok(())
@@ -132,7 +132,7 @@ impl SandboxStore for MemorySandboxStore {
             return Ok(existing.clone());
         }
         if state.pending.get(reference) != Some(expected) {
-            return Err(RuntimeFailure::UnknownWorkflow);
+            return Err(RuntimeFailure::UnknownReference);
         }
         state.pending.remove(reference);
         state.receipts.insert(receipt_id.into(), receipt.clone());
@@ -218,7 +218,7 @@ impl SandboxStore for PostgresSandboxStore {
                 &[&&authority[..], &maximum],
             )
             .map_err(|_| RuntimeFailure::Unavailable)?;
-        affected.map_or(Err(RuntimeFailure::Denied), |_| Ok(()))
+        affected.map_or(Err(RuntimeFailure::ReplayBudgetExhausted), |_| Ok(()))
     }
 
     fn put_pending(&self, reference: &str, pending: &PendingEffect) -> Result<(), RuntimeFailure> {
@@ -367,14 +367,14 @@ impl SandboxStore for PostgresSandboxStore {
                 .map_err(|_| RuntimeFailure::Unavailable)?
                 .map(decode_receipt)
                 .transpose()?
-                .ok_or(RuntimeFailure::UnknownWorkflow)?;
+                .ok_or(RuntimeFailure::UnknownReference)?;
             transaction
                 .commit()
                 .map_err(|_| RuntimeFailure::Unavailable)?;
             return Ok(existing);
         };
         if &pending != expected {
-            return Err(RuntimeFailure::Denied);
+            return Err(RuntimeFailure::StateConflict);
         }
         enforce_capacity(&mut transaction, self.maximum_records)?;
         transaction

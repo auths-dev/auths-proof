@@ -25,7 +25,21 @@ pub struct NodeConfig {
     lifecycle: LifecycleConfig,
     custody: CustodyConfig,
     telemetry: TelemetryConfig,
+    verification: VerificationConfig,
     profiles: ProfilesConfig,
+}
+
+/// The deployment's trust decision, stated as bytes rather than as code.
+///
+/// `trusted_context_path` names a file holding one canonical
+/// `TrustedContext` (`auths_codec::encode_verifier_context`). It carries the
+/// trust anchors, accepted registries, status snapshots, assurance policy, and
+/// verifier limits every authorization decision is made against. A node without
+/// one cannot decide anything, which is why this section is mandatory.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct VerificationConfig {
+    trusted_context_path: String,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -178,6 +192,9 @@ impl NodeConfig {
         {
             return Err(StartupError::InvalidPath);
         }
+        if !Path::new(&self.verification.trusted_context_path).is_absolute() {
+            return Err(StartupError::InvalidPath);
+        }
         if !self.telemetry.otlp_endpoint.starts_with("http://")
             && !self.telemetry.otlp_endpoint.starts_with("https://")
         {
@@ -298,6 +315,11 @@ impl NodeConfig {
             CustodyConfig::SoftwareFixture { seed_env } => Some(seed_env),
             CustodyConfig::Pkcs11 { .. } | CustodyConfig::AwsKms { .. } => None,
         }
+    }
+
+    #[must_use]
+    pub fn trusted_context_path(&self) -> &Path {
+        Path::new(&self.verification.trusted_context_path)
     }
 
     #[must_use]
@@ -449,6 +471,9 @@ maximum_records = 4096
 otlp_endpoint = "http://otel:4317"
 service_name = "auths-node"
 
+[verification]
+trusted_context_path = "/run/config/trusted-context.cbor"
+
 [profiles]
 opentofu_saved_plan_apply = true
 postgresql_bounded_update = true
@@ -456,6 +481,35 @@ github_issue_address = true
 sandbox_providers = {sandbox}
 "#
         )
+    }
+
+    /// A node cannot decide anything without the deployment's trusted context,
+    /// so a configuration that does not name one must not start.
+    #[test]
+    fn a_node_without_a_trusted_context_refuses_to_start() {
+        let complete = source(
+            "local",
+            "[custody]\nkind = \"software-fixture\"\nseed_env = \"AUTHS_LOCAL_SEED\"",
+            true,
+            false,
+        );
+        let without = complete.replace(
+            "[verification]\ntrusted_context_path = \"/run/config/trusted-context.cbor\"\n\n",
+            "",
+        );
+        assert_ne!(without, complete, "the fixture must contain the section");
+        assert_eq!(
+            NodeConfig::parse(&without).unwrap_err(),
+            StartupError::MalformedConfig
+        );
+        let relative = complete.replace(
+            "\"/run/config/trusted-context.cbor\"",
+            "\"trusted-context.cbor\"",
+        );
+        assert_eq!(
+            NodeConfig::parse(&relative).unwrap_err(),
+            StartupError::InvalidPath
+        );
     }
 
     #[test]

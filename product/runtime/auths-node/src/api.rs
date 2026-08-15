@@ -417,10 +417,14 @@ fn valid_receipt_id(value: &str) -> bool {
 
 fn status_for(error: RuntimeFailure) -> StatusCode {
     match error {
-        RuntimeFailure::Denied | RuntimeFailure::DisclosureDenied => StatusCode::FORBIDDEN,
-        RuntimeFailure::UnknownWorkflow | RuntimeFailure::UnknownReceipt => StatusCode::NOT_FOUND,
+        RuntimeFailure::AuthorizationDenied(_)
+        | RuntimeFailure::DisclosureDenied
+        | RuntimeFailure::ReplayBudgetExhausted
+        | RuntimeFailure::UnauthenticatedPrincipal => StatusCode::FORBIDDEN,
+        RuntimeFailure::UnknownReference => StatusCode::NOT_FOUND,
         RuntimeFailure::Malformed | RuntimeFailure::ProfileDisabled => StatusCode::BAD_REQUEST,
-        RuntimeFailure::Indeterminate | RuntimeFailure::Unavailable => {
+        RuntimeFailure::StateConflict => StatusCode::CONFLICT,
+        RuntimeFailure::AuthorizationIndeterminate(_) | RuntimeFailure::Unavailable => {
             StatusCode::SERVICE_UNAVAILABLE
         }
         // Deliberately not 503: proxies and clients treat 503 as a safe
@@ -485,7 +489,7 @@ mod tests {
             Ok(ReceiptSummary {
                 receipt_id: receipt_id.into(),
                 profile: QualifiedProfile::GitHubIssueAddress.as_str().into(),
-                outcome: "succeeded".into(),
+                effect: auths_operations::EffectState::Applied,
                 completed_at: 1,
                 disclosure: "summary",
             })
@@ -532,6 +536,9 @@ seed_env = "AUTHS_LOCAL_SEED"
 [telemetry]
 otlp_endpoint = "http://otel:4317"
 service_name = "auths-node"
+
+[verification]
+trusted_context_path = "/run/config/trusted-context.cbor"
 
 [profiles]
 opentofu_saved_plan_apply = true

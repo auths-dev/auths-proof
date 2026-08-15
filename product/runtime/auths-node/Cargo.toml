@@ -8,9 +8,19 @@ description = "Hardened open reference node for the Auths production contract"
 publish = false
 
 [dependencies]
+auths-codec.workspace = true
+auths-did-key.workspace = true
+auths-did-keri.workspace = true
+auths-errors.workspace = true
+auths-model.workspace = true
 auths-operations.workspace = true
 auths-operations-otel.workspace = true
+auths-ports.workspace = true
 auths-production-client.workspace = true
+auths-raw-key.workspace = true
+auths-registries.workspace = true
+auths-signature.workspace = true
+auths-verifier.workspace = true
 axum.workspace = true
 base64ct.workspace = true
 ed25519-dalek.workspace = true
@@ -29,6 +39,11 @@ toml.workspace = true
 tower-http = { workspace = true, features = ["limit", "request-id", "timeout", "trace"] }
 
 [dev-dependencies]
+auths-did-web.workspace = true
+auths-hsm-attested.workspace = true
+auths-spiffe-x509.workspace = true
+auths-testkit.workspace = true
+auths-webauthn.workspace = true
 tempfile.workspace = true
 tower.workspace = true
 

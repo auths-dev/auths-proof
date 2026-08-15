@@ -1,3 +1,4 @@
+use auths_model::{DenialReason, Requirement};
 use auths_operations::EffectState;
 use auths_production_client::{
     ClientOutcomeKind, NextCall, ProductVerb, ProductionRequest, ProductionResponse,
@@ -20,10 +21,29 @@ pub enum ProviderBoundary {
     AfterEntry,
 }
 
+/// Every failure this node can put on the wire.
+///
+/// Each variant projects to one code that exists in
+/// `product/errors/v1/registry.json`; `every_wire_code_is_registered` holds
+/// that. The two authorization variants carry the kernel's exact reason so the
+/// node's decision can be compared to the kernel's without translation, while
+/// the wire stays at the coarse registered code.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RuntimeFailure {
-    Denied,
-    Indeterminate,
+    /// Available facts prove the proof does not authorize the exact action.
+    AuthorizationDenied(DenialReason),
+    /// A required authorization fact was unavailable, before any effect.
+    AuthorizationIndeterminate(Requirement),
+    /// The request asserts a principal the node cannot authenticate.
+    UnauthenticatedPrincipal,
+    /// The exact authorized pair has already produced every effect it may.
+    ///
+    /// The kernel proves the budget ceiling never widens. Consuming it is
+    /// stateful and therefore the node's obligation, not the verifier's, so
+    /// this denial is the node's own and never carries a kernel reason.
+    ReplayBudgetExhausted,
+    /// A concurrent operation changed the exact workflow state.
+    StateConflict,
     /// A bounded operation failed **before provider entry**.
     ///
     /// This is the only runtime failure that may claim a safe blind retry. A
@@ -33,8 +53,8 @@ pub enum RuntimeFailure {
     ProviderOutcomeUnknown,
     Malformed,
     ProfileDisabled,
-    UnknownWorkflow,
-    UnknownReceipt,
+    /// A workflow or receipt reference does not name state this caller may read.
+    UnknownReference,
     DisclosureDenied,
 }
 
@@ -51,23 +71,31 @@ impl RuntimeFailure {
     #[must_use]
     pub const fn code(self) -> &'static str {
         match self {
-            Self::Denied => "authority.denied",
-            Self::Indeterminate => "authority.indeterminate",
+            // A denied disclosure is a denied authorization: the caller did not
+            // present the authorization this receipt requires.
+            Self::AuthorizationDenied(_) | Self::DisclosureDenied | Self::ReplayBudgetExhausted => {
+                "core.authorization-denied"
+            }
+            Self::AuthorizationIndeterminate(_) => "core.authorization-indeterminate",
+            Self::UnauthenticatedPrincipal => "core.unauthenticated-principal",
+            Self::StateConflict => "core.runtime-conflict",
             Self::Unavailable => "core.runtime-unavailable",
             Self::ProviderOutcomeUnknown => "core.outcome-unknown",
             Self::Malformed => "core.malformed-input",
-            Self::ProfileDisabled => "profile.disabled",
-            Self::UnknownWorkflow => "workflow.unknown",
-            Self::UnknownReceipt => "receipt.unknown",
-            Self::DisclosureDenied => "receipt.disclosure-denied",
+            // A profile this deployment did not enable is a configuration fact.
+            Self::ProfileDisabled => "core.invalid-configuration",
+            Self::UnknownReference => "core.forged-execution-reference",
         }
     }
 
     #[must_use]
     pub const fn retry(self) -> NextCall {
         match self {
-            Self::Unavailable => NextCall::Backoff,
-            Self::Indeterminate | Self::ProviderOutcomeUnknown => NextCall::Reconcile,
+            // Nothing was applied and the blocking condition may clear.
+            Self::AuthorizationIndeterminate(_) | Self::Unavailable | Self::StateConflict => {
+                NextCall::Backoff
+            }
+            Self::ProviderOutcomeUnknown => NextCall::Reconcile,
             _ => NextCall::Never,
         }
     }
@@ -76,15 +104,19 @@ impl RuntimeFailure {
     #[must_use]
     pub const fn effect(self) -> EffectState {
         match self {
-            // Authority verification and provider entry both end here without
-            // conclusive evidence, so neither may assert non-effect.
-            Self::Indeterminate | Self::ProviderOutcomeUnknown => EffectState::Possible,
-            Self::Denied
+            // Provider entry is the only place this node loses the proof of
+            // non-effect. Every authorization outcome, including an
+            // indeterminate one, is decided strictly before any effect.
+            Self::ProviderOutcomeUnknown => EffectState::Possible,
+            Self::AuthorizationDenied(_)
+            | Self::AuthorizationIndeterminate(_)
+            | Self::UnauthenticatedPrincipal
+            | Self::ReplayBudgetExhausted
+            | Self::StateConflict
             | Self::Unavailable
             | Self::Malformed
             | Self::ProfileDisabled
-            | Self::UnknownWorkflow
-            | Self::UnknownReceipt
+            | Self::UnknownReference
             | Self::DisclosureDenied => EffectState::NotApplied,
         }
     }
@@ -116,7 +148,9 @@ pub struct WorkflowProjection {
 pub struct ReceiptSummary {
     pub receipt_id: String,
     pub profile: String,
-    pub outcome: String,
+    /// Rust-owned effect axis. Never a locally invented word: this field
+    /// previously carried the free `String` `"succeeded"`.
+    pub effect: EffectState,
     pub completed_at: u64,
     pub disclosure: &'static str,
 }
@@ -324,13 +358,15 @@ fn completed_authority(value: Vec<u8>) -> Result<ProductionResponse, RuntimeFail
 #[must_use]
 pub fn failure_response(error: RuntimeFailure) -> ProductionResponse {
     let kind = match error {
-        RuntimeFailure::Denied
+        RuntimeFailure::AuthorizationDenied(_)
+        | RuntimeFailure::UnauthenticatedPrincipal
+        | RuntimeFailure::ReplayBudgetExhausted
         | RuntimeFailure::Malformed
         | RuntimeFailure::ProfileDisabled
-        | RuntimeFailure::UnknownWorkflow
-        | RuntimeFailure::UnknownReceipt
+        | RuntimeFailure::UnknownReference
         | RuntimeFailure::DisclosureDenied => ClientOutcomeKind::Denied,
-        RuntimeFailure::Indeterminate
+        RuntimeFailure::AuthorizationIndeterminate(_)
+        | RuntimeFailure::StateConflict
         | RuntimeFailure::Unavailable
         | RuntimeFailure::ProviderOutcomeUnknown => ClientOutcomeKind::Indeterminate,
     };
@@ -354,14 +390,16 @@ mod tests {
     use super::*;
 
     const EVERY_FAILURE: &[RuntimeFailure] = &[
-        RuntimeFailure::Denied,
-        RuntimeFailure::Indeterminate,
+        RuntimeFailure::AuthorizationDenied(DenialReason::UntrustedRoot),
+        RuntimeFailure::AuthorizationIndeterminate(Requirement::ExternalFactUnavailable),
+        RuntimeFailure::UnauthenticatedPrincipal,
+        RuntimeFailure::ReplayBudgetExhausted,
+        RuntimeFailure::StateConflict,
         RuntimeFailure::Unavailable,
         RuntimeFailure::ProviderOutcomeUnknown,
         RuntimeFailure::Malformed,
         RuntimeFailure::ProfileDisabled,
-        RuntimeFailure::UnknownWorkflow,
-        RuntimeFailure::UnknownReceipt,
+        RuntimeFailure::UnknownReference,
         RuntimeFailure::DisclosureDenied,
     ];
 
@@ -403,6 +441,64 @@ mod tests {
             assert_eq!(response.code(), Some(failure.code()));
             assert_eq!(response.retry(), failure.retry());
         }
+    }
+
+    /// Every code this node can put on the wire must exist in the product error
+    /// registry. Eight of the ten it previously emitted did not:
+    /// `authority.denied`, `authority.indeterminate`, `profile.disabled`,
+    /// `workflow.unknown`, `receipt.unknown`, `receipt.disclosure-denied`,
+    /// `provider.outcome-unknown`, and `verification.rejected`.
+    #[test]
+    fn every_wire_code_is_registered() {
+        for failure in EVERY_FAILURE.iter().copied() {
+            let code = failure.code();
+            assert!(
+                auths_errors::registry().any(|definition| definition.code == code),
+                "{failure:?} puts the unregistered code {code:?} on the wire"
+            );
+        }
+    }
+
+    /// A registry definition states which retry and effect pairs the code is
+    /// allowed to carry. The node's own projection must be one of them.
+    #[test]
+    fn every_wire_code_carries_a_registered_effect() {
+        for failure in EVERY_FAILURE.iter().copied() {
+            let code = failure.code();
+            let definition = auths_errors::registry()
+                .find(|definition| definition.code == code)
+                .unwrap_or_else(|| panic!("{code} is registered"));
+            let effect = match failure.effect() {
+                EffectState::NotApplied => auths_errors::EffectState::NotApplied,
+                EffectState::Possible => auths_errors::EffectState::Possible,
+                EffectState::Applied => auths_errors::EffectState::Applied,
+            };
+            assert!(
+                definition
+                    .outcomes
+                    .iter()
+                    .any(|outcome| outcome.effect == effect),
+                "{failure:?} claims an effect {code} does not allow"
+            );
+        }
+    }
+
+    /// The receipt summary must speak the same Rust-owned effect vocabulary as
+    /// the workflow projection. It previously carried the invented
+    /// `outcome: "succeeded"`.
+    #[test]
+    fn the_receipt_summary_speaks_only_the_rust_owned_effect_vocabulary() {
+        let summary = ReceiptSummary {
+            receipt_id: "a".repeat(64),
+            profile: "auths.github.issue-address/1".into(),
+            effect: EffectState::Applied,
+            completed_at: 1,
+            disclosure: "summary",
+        };
+        let value: serde_json::Value =
+            serde_json::from_str(&serde_json::to_string(&summary).unwrap()).unwrap();
+        assert_eq!(value["effect"].as_str(), Some("applied"));
+        assert!(value.get("outcome").is_none());
     }
 
     /// The public status projection must speak the one Rust-owned effect

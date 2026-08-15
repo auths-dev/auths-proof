@@ -1,9 +1,12 @@
 #![forbid(unsafe_code)]
 
-use auths_node::{NodeConfig, NodeRuntime, PostgresSandboxStore, SandboxRuntime, app, shutdown};
+use auths_node::{
+    KernelRuntime, NodeConfig, NodeKernel, NodeRuntime, PostgresSandboxStore, app, shutdown,
+};
+use auths_ports::{PrincipalMethod, SignatureSuite};
 use base64ct::{Base64UrlUnpadded, Encoding as _};
 use std::{
-    env,
+    env, fs,
     path::Path,
     process::ExitCode,
     sync::{Arc, atomic::AtomicBool},
@@ -18,6 +21,35 @@ async fn main() -> ExitCode {
             ExitCode::from(1)
         }
     }
+}
+
+/// Builds the deployment's verification inputs from configuration.
+///
+/// The trusted context is supplied as canonical bytes rather than assembled
+/// from TOML: it is the deployment's complete trust decision, and re-encoding it
+/// from a friendlier format would put a second, unverified encoder between the
+/// operator and the verifier.
+///
+/// The registered principal methods are the three that need no external trust
+/// material. `did:web`, `WebAuthn`, HSM attestation, and SPIFFE each require
+/// deployment-supplied trust records that this configuration does not yet carry;
+/// a proof relying on one of them is answered `core.authorization-indeterminate`
+/// rather than accepted, which is the fail-closed direction.
+fn kernel(config: &NodeConfig) -> Result<NodeKernel, Box<dyn std::error::Error>> {
+    let bytes = fs::read(config.trusted_context_path())
+        .map_err(|_| "the trusted context is unavailable")?;
+    let context = auths_codec::decode_verifier_context(&bytes)
+        .map_err(|_| "the trusted context is not canonical")?;
+    let methods: Vec<Box<dyn PrincipalMethod + Send + Sync>> = vec![
+        Box::new(auths_raw_key::RawKeyMethod::new()?),
+        Box::new(auths_did_key::DidKeyMethod::new()?),
+        Box::new(auths_did_keri::DidKeriMethod::new()?),
+    ];
+    let suites: Vec<Box<dyn SignatureSuite + Send + Sync>> = vec![
+        Box::new(auths_signature::Ed25519Suite::new()?),
+        Box::new(auths_signature::P256Sha256Suite::new()?),
+    ];
+    Ok(NodeKernel::new(context, methods, suites)?)
 }
 
 async fn run() -> Result<(), Box<dyn std::error::Error>> {
@@ -43,6 +75,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     let mut seed_bytes = [0; 32];
     Base64UrlUnpadded::decode(&seed, &mut seed_bytes)
         .map_err(|_| "local fixture custody seed is malformed")?;
+    let kernel = kernel(&config)?;
     let connection = env::var(config.lifecycle_url_env())
         .map_err(|_| "PostgreSQL lifecycle connection is unavailable")?;
     let lifecycle_ca_pem = config.lifecycle_ca_pem().to_owned();
@@ -57,7 +90,8 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         )
     })
     .await??;
-    let runtime = Arc::new(SandboxRuntime::with_postgres(
+    let runtime = Arc::new(KernelRuntime::with_postgres(
+        kernel,
         seed_bytes,
         config.enabled_profiles(),
         store,

@@ -353,6 +353,81 @@
     },
     {
       "schema": "auths.error/1",
+      "family": "input",
+      "code": "core.authorization-denied",
+      "operation": "verify",
+      "stage": "authorization",
+      "summary": "Authorization denied",
+      "correlationId": "fixture:core-authorization-denied",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "satisfy-condition",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "state",
+      "code": "core.authorization-indeterminate",
+      "operation": "verify",
+      "stage": "authorization",
+      "summary": "Authorization indeterminate",
+      "correlationId": "fixture:core-authorization-indeterminate",
+      "retry": "conditional",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "satisfy-condition",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "input",
+      "code": "core.unauthenticated-principal",
+      "operation": "create",
+      "stage": "authentication",
+      "summary": "Unauthenticated principal",
+      "correlationId": "fixture:core-unauthenticated-principal",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "correct-input",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
       "family": "profile",
       "code": "mcp.invalid-handler-output",
       "operation": "execute",

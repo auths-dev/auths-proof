@@ -324,6 +324,75 @@ export const ERROR_REGISTRY = {
       "fixtureId": "core-internal-invariant"
     },
     {
+      "code": "core.authorization-denied",
+      "family": "input",
+      "owner": "core",
+      "ownerVersion": 1,
+      "operation": "verify",
+      "stages": [
+        "authorization"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "satisfy-condition",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "Authorization denied",
+      "explanation": "Available facts prove the supplied proof does not authorize the exact action.",
+      "fixtureId": "core-authorization-denied"
+    },
+    {
+      "code": "core.authorization-indeterminate",
+      "family": "state",
+      "owner": "core",
+      "ownerVersion": 1,
+      "operation": "verify",
+      "stages": [
+        "authorization"
+      ],
+      "outcomes": [
+        {
+          "retry": "conditional",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "satisfy-condition",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "Authorization indeterminate",
+      "explanation": "A required authorization fact was unavailable, so no decision was reached before any effect.",
+      "fixtureId": "core-authorization-indeterminate"
+    },
+    {
+      "code": "core.unauthenticated-principal",
+      "family": "input",
+      "owner": "core",
+      "ownerVersion": 1,
+      "operation": "create",
+      "stages": [
+        "authentication"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "correct-input",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "Unauthenticated principal",
+      "explanation": "The request asserts a principal the runtime cannot authenticate, so no authority is issued.",
+      "fixtureId": "core-unauthenticated-principal"
+    },
+    {
       "code": "mcp.invalid-handler-output",
       "family": "profile",
       "owner": "mcp",
