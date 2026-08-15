@@ -1628,6 +1628,23 @@ structure ActionAuthorityViewValid
   audience : StringBounded view.audience
   validity : ValidityWindowValid view.validity
 
+/--
+The trust root supplied to `richAuthorityState` is the root the production
+state actually descends from.
+
+`auths_authority::AuthorityStateView` gained a `root` field so the shipping
+kernel can compute `root_preserved` instead of asserting it; the Aeneas
+translation replayed here predates that field, so the correspondence between
+the Rust root and the model root must be carried as an explicit hypothesis
+until the translation is regenerated.  Regenerating it lets this predicate be
+discharged as `richPrincipal view.root = root` rather than assumed.
+-/
+def AuthorityStateAnchored
+    (root : Auths.Rich.Principal ProductionVocabulary)
+    (view : auths_authority.AuthorityStateView) : Prop :=
+  (view.last_grant.map richGrantId).isSome = true ∨
+    root = richPrincipal view.subject
+
 def richAuthorityState
     (root : Auths.Rich.Principal ProductionVocabulary)
     (view : auths_authority.AuthorityStateView)
@@ -2100,7 +2117,8 @@ theorem translated_coverage_refines_rich_spec
     (authority : auths_authority.AuthorityStateView)
     (action : auths_model.ActionAuthorityView)
     (authorityValid : AuthorityStateViewValid authority)
-    (actionValid : ActionAuthorityViewValid action) :
+    (actionValid : ActionAuthorityViewValid action)
+    (anchored : AuthorityStateAnchored root authority) :
     auths_authority.evaluate_action_coverage_view authority action
       ⦃ result =>
         result = productionCoverageDecision
@@ -2176,7 +2194,7 @@ theorem translated_coverage_refines_rich_spec
                         (authority.budget_ceiling.map richBudget)
                         (action.requested_budget.map richBudget) :=
                     budgetIff.mp budgetCondition
-                  simp_all [Auths.Rich.evaluateCoverage,
+                  simp_all [Auths.Rich.evaluateCoverage, Auths.Rich.rooted, AuthorityStateAnchored,
                     productionCoverageDecision, richAuthorityState,
                     richAction]
                 · have budgetSemantic :
@@ -2185,7 +2203,7 @@ theorem translated_coverage_refines_rich_spec
                         (action.requested_budget.map richBudget) := by
                     intro semantic
                     exact budgetCondition (budgetIff.mpr semantic)
-                  simp_all [Auths.Rich.evaluateCoverage,
+                  simp_all [Auths.Rich.evaluateCoverage, Auths.Rich.rooted, AuthorityStateAnchored,
                     productionCoverageDecision, richAuthorityState,
                     richAction]
               · have constraintSemantic :
@@ -2196,7 +2214,7 @@ theorem translated_coverage_refines_rich_spec
                   intro semantic
                   exact constraintCondition
                     (constraintIff.mpr semantic)
-                simp_all [Auths.Rich.evaluateCoverage,
+                simp_all [Auths.Rich.evaluateCoverage, Auths.Rich.rooted, AuthorityStateAnchored,
                   productionCoverageDecision, richAuthorityState,
                   richAction]
             · have audienceSemantic :
@@ -2205,7 +2223,7 @@ theorem translated_coverage_refines_rich_spec
                 intro semantic
                 exact audienceCondition
                   (audienceIff.mpr semantic)
-              simp_all [Auths.Rich.evaluateCoverage,
+              simp_all [Auths.Rich.evaluateCoverage, Auths.Rich.rooted, AuthorityStateAnchored,
                 productionCoverageDecision, richAuthorityState,
                 richAction]
           · have validitySemantic :
@@ -2214,7 +2232,7 @@ theorem translated_coverage_refines_rich_spec
                   (richWindow authority.validity authorityWindow) := by
               intro semantic
               exact validityCondition (validityIff.mpr semantic)
-            simp_all [Auths.Rich.evaluateCoverage,
+            simp_all [Auths.Rich.evaluateCoverage, Auths.Rich.rooted, AuthorityStateAnchored,
               productionCoverageDecision, richAuthorityState,
               richAction]
         · have permissionSemantic :
@@ -2222,7 +2240,7 @@ theorem translated_coverage_refines_rich_spec
                 richPermissionSet authority.permissions := by
             intro semantic
             exact permissionCondition (permissionIff.mpr semantic)
-          simp_all [Auths.Rich.evaluateCoverage,
+          simp_all [Auths.Rich.evaluateCoverage, Auths.Rich.rooted, AuthorityStateAnchored,
             productionCoverageDecision, richAuthorityState,
             richAction]
       · have profileSemantic :
@@ -2232,21 +2250,21 @@ theorem translated_coverage_refines_rich_spec
               (richProfile action.profile) := by
           intro semantic
           exact profileCondition (profileIff.mpr semantic)
-        simp_all [Auths.Rich.evaluateCoverage,
+        simp_all [Auths.Rich.evaluateCoverage, Auths.Rich.rooted, AuthorityStateAnchored,
           productionCoverageDecision, richAuthorityState, richAction]
     · have grantSemantic :
           action.terminal_grant.map richGrantId ≠
             authority.last_grant.map richGrantId := by
         intro semantic
         exact grantCondition (grantIff.mpr semantic)
-      simp_all [Auths.Rich.evaluateCoverage,
+      simp_all [Auths.Rich.evaluateCoverage, Auths.Rich.rooted, AuthorityStateAnchored,
         productionCoverageDecision, richAuthorityState, richAction]
   · have actorSemantic :
         richPrincipal action.actor ≠
           richPrincipal authority.subject := by
       intro semantic
       exact actorCondition (actorIff.mpr semantic)
-    simp_all [Auths.Rich.evaluateCoverage,
+    simp_all [Auths.Rich.evaluateCoverage, Auths.Rich.rooted, AuthorityStateAnchored,
       productionCoverageDecision, richAuthorityState, richAction]
 
 /--
@@ -2260,7 +2278,8 @@ theorem translated_delegation_refines_rich_spec
     (grantId : auths_model.GrantId)
     (grant : auths_model.GrantAuthorityView)
     (parentValid : AuthorityStateViewValid parent)
-    (grantValid : GrantAuthorityViewValid grant) :
+    (grantValid : GrantAuthorityViewValid grant)
+    (anchored : AuthorityStateAnchored root parent) :
     auths_authority.evaluate_grant_view parent grantId grant
       ⦃ result =>
         result.outcome = productionDelegationOutcome
@@ -2309,6 +2328,7 @@ theorem translated_delegation_refines_rich_spec
           ⟨scopeAccepted, scopeIff⟩
         split <;> rename_i scopeCondition
         · simp_all [Auths.Rich.evaluateGrant, Auths.Rich.linked,
+            Auths.Rich.rootPreserved, Auths.Rich.rooted, AuthorityStateAnchored,
             Auths.Rich.scopeDepthChecks, Auths.Rich.grantScopeChecks,
             productionDelegationOutcome, expectedAcceptedTransition,
             extensionAwareDelegationDecision,
@@ -2435,7 +2455,8 @@ theorem translated_delegation_refines_rich_spec
                     assurance := grantAssurance
                     extensions := grantExtensions
                   }) := by
-            simp_all [Auths.Rich.linked, richAuthorityState,
+            simp_all [Auths.Rich.linked, Auths.Rich.rootPreserved,
+              Auths.Rich.rooted, AuthorityStateAnchored, richAuthorityState,
               richGrant]
           rcases scopeOrExtensions with
             ⟨scopeSemantic, extensionsSemantic⟩ | extensionsSemantic
@@ -2446,10 +2467,12 @@ theorem translated_delegation_refines_rich_spec
             split <;> simp [productionDelegationOutcome,
               extensionAwareDelegationDecision, extensionsSemantic]
       · simp_all [Auths.Rich.evaluateGrant, Auths.Rich.linked,
+            Auths.Rich.rootPreserved, Auths.Rich.rooted, AuthorityStateAnchored,
           productionDelegationOutcome,
           extensionAwareDelegationDecision,
           richAuthorityState, richGrant]
     · simp_all [Auths.Rich.evaluateGrant, Auths.Rich.linked,
+            Auths.Rich.rootPreserved, Auths.Rich.rooted, AuthorityStateAnchored,
         productionDelegationOutcome,
         extensionAwareDelegationDecision,
         richAuthorityState, richGrant]

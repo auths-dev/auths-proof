@@ -6,7 +6,9 @@
 extern crate alloc;
 
 use alloc::vec::Vec;
-use auths_algebra_kernel::{AttenuationChecks, attenuation_checks_accept};
+use auths_algebra_kernel::{
+    AttenuationChecks, RootLinkage, attenuation_checks_accept, root_preserved,
+};
 use auths_model::{
     ActionAuthorityView, ActionConstraint, ActionEnvelope, AssurancePolicyId, AudienceSet,
     BudgetCeiling, CriticalExtensions, DenialReason, GrantAuthorityView, GrantId, GrantStatement,
@@ -106,6 +108,10 @@ pub enum AuthorScopeDecision {
 #[doc(hidden)]
 #[derive(Clone, Copy, Debug)]
 pub struct AuthorityStateView<'a> {
+    /// Trust root this authority is anchored at. Every accepted delegation
+    /// copies it forward unchanged, so it is the identity a chain must still
+    /// descend from after any number of edges.
+    pub root: &'a PrincipalId,
     pub subject: &'a PrincipalId,
     pub allowed_profiles: &'a [ProfileRef],
     pub profile: Option<&'a ProfileRef>,
@@ -119,6 +125,34 @@ pub struct AuthorityStateView<'a> {
     pub assurance_policy: &'a AssurancePolicyId,
     pub status_policy: &'a StatusPolicy,
     pub extensions: Option<&'a CriticalExtensions>,
+}
+
+/// Borrowed principal whose equality is the canonical protocol comparison.
+///
+/// The derived `PartialEq` on [`PrincipalId`] is deliberately not used: every
+/// authority decision in this crate compares principals through
+/// [`principal_id_equal`], and the trust-root dimension must not become a
+/// second, unmodelled comparison path.
+#[derive(Clone, Copy, Debug)]
+struct CanonicalPrincipal<'a>(&'a PrincipalId);
+
+impl PartialEq for CanonicalPrincipal<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        principal_id_equal(self.0, other.0)
+    }
+}
+
+/// Projects the chain-linkage facts the trust-root dimension consumes.
+fn root_linkage<'a>(
+    parent: &AuthorityStateView<'a>,
+    issuer: &'a PrincipalId,
+) -> RootLinkage<CanonicalPrincipal<'a>> {
+    RootLinkage {
+        parent_root: CanonicalPrincipal(parent.root),
+        parent_subject: CanonicalPrincipal(parent.subject),
+        parent_delegated: parent.last_grant.is_some(),
+        grant_issuer: CanonicalPrincipal(issuer),
+    }
 }
 
 fn selected_profile_attenuates(
@@ -198,7 +232,7 @@ pub fn evaluate_grant_view<'grant>(
     grant: GrantAuthorityView<'grant>,
 ) -> DelegationEvaluation<'grant> {
     let checks = AttenuationChecks {
-        root_preserved: true,
+        root_preserved: root_preserved(&root_linkage(&parent, grant.issuer)),
         depth_decreases: parent.remaining_depth > 0
             && grant.remaining_depth < parent.remaining_depth,
         profile_attenuates: selected_profile_attenuates(
@@ -224,9 +258,10 @@ pub fn evaluate_grant_view<'grant>(
             None => true,
         },
     };
-    if !principal_id_equal(grant.issuer, parent.subject)
-        || !optional_grant_id_equal(grant.parent, parent.last_grant)
-    {
+    // `root_preserved` subsumes the issuer/subject linkage and additionally
+    // rejects a parent state that never descended from the root it claims, so
+    // the linkage gate consumes it rather than recomputing a weaker condition.
+    if !checks.root_preserved || !optional_grant_id_equal(grant.parent, parent.last_grant) {
         return DelegationEvaluation {
             checks,
             outcome: DelegationOutcome::Denied(DenialReason::BrokenGrantChain),
@@ -277,7 +312,10 @@ pub fn evaluate_action_coverage_view(
     authority: AuthorityStateView<'_>,
     action: ActionAuthorityView<'_>,
 ) -> CoverageDecision {
-    if !principal_id_equal(action.actor, authority.subject)
+    // Terminal coverage is the same chain claim as a delegation edge with the
+    // actor in the issuer position: an authority that never descended from the
+    // root it claims authorizes nothing.
+    if !root_preserved(&root_linkage(&authority, action.actor))
         || !optional_grant_id_equal(action.terminal_grant, authority.last_grant)
     {
         return CoverageDecision::Denied(DenialReason::BrokenGrantChain);
@@ -312,6 +350,7 @@ pub fn evaluate_action_coverage_view(
 #[must_use]
 pub fn authority_state_view(authority: &EffectiveAuthority) -> AuthorityStateView<'_> {
     AuthorityStateView {
+        root: &authority.root,
         subject: &authority.subject,
         allowed_profiles: &authority.allowed_profiles,
         profile: authority.profile.as_ref(),
@@ -409,8 +448,8 @@ mod tests {
     use super::*;
     use alloc::vec;
     use auths_model::{
-        Audience, CapabilityId, CriticalExtension, CriticalExtensions, ExtensionId,
-        PrincipalMethodId, ProfileId, ResourceId, Timestamp, TrustAnchorId,
+        ActionAuthorityView, Audience, CapabilityId, CriticalExtension, CriticalExtensions,
+        ExtensionId, PrincipalMethodId, ProfileId, ResourceId, Timestamp, TrustAnchorId,
     };
 
     fn profile(name: &str) -> ProfileRef {
@@ -501,6 +540,155 @@ mod tests {
             .expect("extension"),
         ])
         .expect("extensions")
+    }
+
+    #[test]
+    fn delegation_denies_a_grant_issued_under_a_different_root() {
+        let mut authority = EffectiveAuthority::from_anchor(&anchor());
+        assert_eq!(
+            authority.delegate(
+                GrantId::new([9; 32]),
+                &grant("did:key:other-root", "did:key:agent", "profile-a", 1, None),
+            ),
+            Err(DenialReason::BrokenGrantChain)
+        );
+    }
+
+    #[test]
+    fn kernel_denies_a_delegation_whose_parent_state_is_not_rooted() {
+        // A chain state that claims a root it never received authority from.
+        // `evaluate_grant_view` is the pure kernel entry point: nothing above
+        // it re-derives the root, so this state must be rejected here.
+        let anchor = anchor();
+        let root = PrincipalId::parse("did:key:root").expect("root");
+        let forged = PrincipalId::parse("did:key:attacker").expect("attacker");
+        let permissions = permissions();
+        let audiences = audiences();
+        let profiles = [profile("profile-a"), profile("profile-b")];
+        let constraint = ActionConstraint::AnyBody;
+        let assurance = AssurancePolicyId::parse("assurance-v1").expect("assurance");
+        let status = StatusPolicy::ExpiryOnly;
+        let unrooted = AuthorityStateView {
+            root: &root,
+            subject: &forged,
+            allowed_profiles: &profiles,
+            profile: None,
+            permissions: &permissions,
+            validity: anchor.validity(),
+            audiences: &audiences,
+            action_constraint: &constraint,
+            budget_ceiling: None,
+            remaining_depth: 2,
+            last_grant: None,
+            assurance_policy: &assurance,
+            status_policy: &status,
+            extensions: None,
+        };
+        let statement = grant("did:key:attacker", "did:key:victim", "profile-a", 1, None);
+        let evaluation = evaluate_grant_view(
+            unrooted,
+            GrantId::new([7; 32]),
+            grant_authority_view(&statement),
+        );
+        let preserved = evaluation.checks.root_preserved;
+        assert!(
+            matches!(
+                evaluation.outcome,
+                DelegationOutcome::Denied(DenialReason::BrokenGrantChain)
+            ),
+            "unrooted parent state must not mint authority (root_preserved={preserved})"
+        );
+        assert!(
+            !preserved,
+            "root preservation must be computed, not asserted"
+        );
+    }
+
+    #[test]
+    fn terminal_coverage_denies_an_authority_that_is_not_rooted() {
+        let anchor = anchor();
+        let root = PrincipalId::parse("did:key:root").expect("root");
+        let forged = PrincipalId::parse("did:key:attacker").expect("attacker");
+        let permissions = permissions();
+        let audiences = audiences();
+        let profiles = [profile("profile-a"), profile("profile-b")];
+        let constraint = ActionConstraint::AnyBody;
+        let assurance = AssurancePolicyId::parse("assurance-v1").expect("assurance");
+        let status = StatusPolicy::ExpiryOnly;
+        let selected = profile("profile-a");
+        let permission = auths_model::Permission::new(
+            CapabilityId::parse("deploy").expect("capability"),
+            ResourceId::parse("cluster://production").expect("resource"),
+        );
+        let audience = Audience::parse("cluster://production").expect("audience");
+        let action = ActionAuthorityView {
+            profile: &selected,
+            canonical_body_digest: auths_model::Digest::new([0; 32]),
+            permission: &permission,
+            requested_budget: None,
+            audience: &audience,
+            validity: anchor.validity(),
+            actor: &forged,
+            terminal_grant: None,
+        };
+        let unrooted = AuthorityStateView {
+            root: &root,
+            subject: &forged,
+            allowed_profiles: &profiles,
+            profile: None,
+            permissions: &permissions,
+            validity: anchor.validity(),
+            audiences: &audiences,
+            action_constraint: &constraint,
+            budget_ceiling: None,
+            remaining_depth: 2,
+            last_grant: None,
+            assurance_policy: &assurance,
+            status_policy: &status,
+            extensions: None,
+        };
+        assert_eq!(
+            evaluate_action_coverage_view(unrooted, action),
+            CoverageDecision::Denied(DenialReason::BrokenGrantChain)
+        );
+    }
+
+    #[test]
+    fn every_edge_of_a_rooted_chain_reports_root_preservation() {
+        // Guards the other direction: a check that denied everything would
+        // also make the exploit tests above pass.
+        let anchor = anchor();
+        let mut authority = EffectiveAuthority::from_anchor(&anchor);
+        let first_id = GrantId::new([1; 32]);
+        let first = grant("did:key:root", "did:key:agent", "profile-b", 1, None);
+        assert!(
+            evaluate_grant(&authority, first_id, &first)
+                .checks
+                .root_preserved
+        );
+        authority.delegate(first_id, &first).expect("first edge");
+        let second = grant(
+            "did:key:agent",
+            "did:key:child",
+            "profile-b",
+            0,
+            Some(first_id),
+        );
+        assert!(
+            evaluate_grant(&authority, GrantId::new([2; 32]), &second)
+                .checks
+                .root_preserved
+        );
+        assert_eq!(authority.root().as_str(), "did:key:root");
+    }
+
+    #[test]
+    fn a_broken_root_is_reported_on_the_dimension_not_only_in_the_reason() {
+        let authority = EffectiveAuthority::from_anchor(&anchor());
+        let statement = grant("did:key:other-root", "did:key:agent", "profile-a", 1, None);
+        let evaluation = evaluate_grant(&authority, GrantId::new([9; 32]), &statement);
+        assert!(!evaluation.checks.root_preserved);
+        assert!(!attenuation_checks_accept(&evaluation.checks));
     }
 
     #[test]

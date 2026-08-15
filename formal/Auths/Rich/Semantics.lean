@@ -168,9 +168,40 @@ def semanticAttenuates {v : Vocabulary}
     (child parent : AuthorityScope v) : Prop :=
   ∀ facts, admits child facts → admits parent facts
 
+/--
+A chain state genuinely descends from the root it names.
+
+Either an accepted edge has already been applied — and `acceptedNextState`
+copies the root forward, so the root was carried by that edge — or no edge has
+been applied yet and the state must still *be* the root.  A state with no
+applied grant whose subject differs from its root descends from nothing.
+-/
+def rooted {v : Vocabulary} (state : ChainState v) : Prop :=
+  state.lastGrant.isSome = true ∨ state.root = state.subject
+
+instance {v : Vocabulary} (state : ChainState v) : Decidable (rooted state) := by
+  unfold rooted
+  infer_instance
+
+/--
+The trust-root dimension of the generated attenuation contract: this edge
+continues the chain rooted at `parent.root`.
+
+Two independent facts are required and neither implies the other — the parent
+must be rooted, and the edge must be issued by the parent's own subject.
+-/
+def rootPreserved {v : Vocabulary}
+    (parent : ChainState v) (grant : Grant v) : Prop :=
+  rooted parent ∧ grant.issuer = parent.subject
+
+instance {v : Vocabulary} (parent : ChainState v) (grant : Grant v) :
+    Decidable (rootPreserved parent grant) := by
+  unfold rootPreserved
+  infer_instance
+
 def linked {v : Vocabulary}
     (parent : ChainState v) (grant : Grant v) : Prop :=
-  grant.issuer = parent.subject ∧ grant.parent = parent.lastGrant
+  rootPreserved parent grant ∧ grant.parent = parent.lastGrant
 
 instance {v : Vocabulary} (parent : ChainState v) (grant : Grant v) :
     Decidable (linked parent grant) := by
@@ -348,7 +379,8 @@ inductive CoverageDecision where
 /-- First-failure order used by the shipping terminal-coverage API. -/
 def evaluateCoverage {v : Vocabulary}
     (authority : ChainState v) (action : Action v) : CoverageDecision :=
-  if action.actor = authority.subject ∧
+  if rooted authority ∧
+      action.actor = authority.subject ∧
       action.terminalGrant = authority.lastGrant ∧
       profileAllows authority.scope.profileScope action.profile then
     if action.permission ∉ authority.scope.permissions then
@@ -368,6 +400,7 @@ def evaluateCoverage {v : Vocabulary}
 
 def terminalCovers {v : Vocabulary}
     (authority : ChainState v) (action : Action v) : Prop :=
+  rooted authority ∧
   action.actor = authority.subject ∧
   action.terminalGrant = authority.lastGrant ∧
   actionCovers authority.scope action
@@ -375,7 +408,7 @@ def terminalCovers {v : Vocabulary}
 def delegationProjection {v : Vocabulary}
     (parent : ChainState v) (grant : Grant v) :
     Auths.Generated.AttenuationProjection where
-  rootPreserved := true
+  rootPreserved := decide (rootPreserved parent grant)
   depthDecreases :=
     decide (0 < parent.remainingDepth ∧
       grant.remainingDepth < parent.remainingDepth)

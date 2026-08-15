@@ -412,6 +412,125 @@ theorem delegate_preserves_root {v : Vocabulary}
   rcases accepted with ⟨_, ⟨_, rfl⟩⟩
   rfl
 
+/-!
+### Trust-root preservation
+
+`delegate_preserves_root` alone is not the security claim: it holds for any
+definition of `delegates` because `acceptedNextState` copies the root field.
+The claim only has content once an edge is *required* to descend from that
+root.  The theorems below establish that requirement over all inputs.
+-/
+
+/-- An edge is only accepted from a parent that descends from its own root. -/
+theorem delegate_requires_rooted_parent {v : Vocabulary}
+    {parent child : ChainState v} {grantId : GrantId v} {grant : Grant v}
+    (accepted : delegates parent grantId grant child) :
+    rooted parent :=
+  accepted.1.1.1
+
+/-- An accepted edge is issued by the principal the parent speaks for. -/
+theorem delegate_requires_parent_issuer {v : Vocabulary}
+    {parent child : ChainState v} {grantId : GrantId v} {grant : Grant v}
+    (accepted : delegates parent grantId grant child) :
+    grant.issuer = parent.subject :=
+  accepted.1.1.2
+
+/-- Rootedness is closed under accepted edges, so the invariant is inductive. -/
+theorem delegate_preserves_rootedness {v : Vocabulary}
+    {parent child : ChainState v} {grantId : GrantId v} {grant : Grant v}
+    (accepted : delegates parent grantId grant child) :
+    rooted child := by
+  rcases accepted with ⟨_, ⟨_, rfl⟩⟩
+  exact Or.inl rfl
+
+/--
+The first edge of any chain is issued by the root itself.  This is the case
+`delegate_preserves_root` cannot see: with an unrooted parent the model would
+mint authority under a root that never conferred it.
+-/
+theorem first_edge_is_issued_by_the_root {v : Vocabulary}
+    {parent child : ChainState v} {grantId : GrantId v} {grant : Grant v}
+    (fresh : parent.lastGrant = none)
+    (accepted : delegates parent grantId grant child) :
+    grant.issuer = parent.root := by
+  have issuer := delegate_requires_parent_issuer accepted
+  rcases delegate_requires_rooted_parent accepted with applied | isRoot
+  · rw [fresh] at applied
+    exact absurd applied (by simp)
+  · rw [issuer, ← isRoot]
+
+/-- Every state reachable from `start` descends from `start.root`. -/
+theorem chain_preserves_root {v : Vocabulary}
+    {start : ChainState v} {rest : List (ChainState v)}
+    (chain : DelegationChain start rest) :
+    ∀ state ∈ rest, state.root = start.root := by
+  induction chain with
+  | nil => simp
+  | cons parent child grantId grant rest edge tail inductionHypothesis =>
+      intro state member
+      rcases List.mem_cons.1 member with head | inTail
+      · rw [head]
+        exact delegate_preserves_root edge
+      · exact (inductionHypothesis state inTail).trans
+          (delegate_preserves_root edge)
+
+/-- Every state reachable from a rooted `start` is itself rooted. -/
+theorem chain_preserves_rootedness {v : Vocabulary}
+    {start : ChainState v} {rest : List (ChainState v)}
+    (chain : DelegationChain start rest) :
+    ∀ state ∈ rest, rooted state := by
+  induction chain with
+  | nil => simp
+  | cons parent child grantId grant rest edge tail inductionHypothesis =>
+      intro state member
+      rcases List.mem_cons.1 member with head | inTail
+      · rw [head]
+        exact delegate_preserves_rootedness edge
+      · exact inductionHypothesis state inTail
+
+/-- A parent that descends from no root delegates nothing, for every grant. -/
+theorem unrooted_parent_delegates_nothing {v : Vocabulary}
+    (parent : ChainState v) (grantId : GrantId v) (grant : Grant v)
+    (unrooted : ¬ rooted parent) :
+    evaluateGrant parent grantId grant = .denied .brokenGrantChain := by
+  simp [evaluateGrant, linked, rootPreserved, unrooted]
+
+/-- A parent that descends from no root authorizes no action either. -/
+theorem unrooted_authority_covers_nothing {v : Vocabulary}
+    (authority : ChainState v) (action : Action v)
+    (unrooted : ¬ rooted authority) :
+    evaluateCoverage authority action = .denied .brokenGrantChain := by
+  simp [evaluateCoverage, unrooted]
+
+/--
+The generated trust-root dimension reports exactly the semantic predicate.
+This is what makes the dimension non-vacuous: it is `false` on a real class of
+inputs, so a literal `true` would refute it.
+-/
+theorem root_dimension_is_exact {v : Vocabulary}
+    (parent : ChainState v) (grant : Grant v) :
+    (delegationProjection parent grant).rootPreserved = true ↔
+      rootPreserved parent grant := by
+  simp [delegationProjection]
+
+/-- Witness that the dimension is falsifiable, stated over all inputs. -/
+theorem root_dimension_false_of_foreign_issuer {v : Vocabulary}
+    (parent : ChainState v) (grant : Grant v)
+    (foreign : grant.issuer ≠ parent.subject) :
+    (delegationProjection parent grant).rootPreserved = false := by
+  simp [delegationProjection, rootPreserved, foreign]
+
+/--
+No other attenuation dimension can rescue a broken root: acceptance is the
+conjunction, so the whole projection is rejected.
+-/
+theorem broken_root_denies_every_projection {v : Vocabulary}
+    (parent : ChainState v) (grant : Grant v)
+    (broken : ¬ rootPreserved parent grant) :
+    Auths.Generated.attenuationAccepts
+      (delegationProjection parent grant) = false := by
+  simp [Auths.Generated.attenuationAccepts, delegationProjection, broken]
+
 theorem delegate_updates_subject_and_parent {v : Vocabulary}
     {parent child : ChainState v} {grantId : GrantId v} {grant : Grant v}
     (accepted : delegates parent grantId grant child) :
@@ -467,11 +586,20 @@ theorem authorized_action_covered {v : Vocabulary}
     actionCovers parent.scope action :=
   action_coverage_downward_closed (delegate_implies_scope_le accepted) authorized
 
-theorem rich_projection_accepts_iff_scope_depth_checks {v : Vocabulary}
+/--
+The generated conjunction accepts exactly the trust-root dimension together
+with every scope and depth dimension.
+
+The `rootPreserved` conjunct is not redundant: before the trust root became a
+computed dimension this theorem read `↔ scopeDepthChecks parent grant`, which
+is precisely the vacuity — the eleven-dimension contract was proved equivalent
+to ten dimensions.
+-/
+theorem rich_projection_accepts_iff_root_and_scope_depth_checks {v : Vocabulary}
     (parent : ChainState v) (grant : Grant v) :
     Auths.Generated.attenuationAccepts
       (delegationProjection parent grant) = true ↔
-      scopeDepthChecks parent grant := by
+      rootPreserved parent grant ∧ scopeDepthChecks parent grant := by
   simp [Auths.Generated.attenuationAccepts, delegationProjection,
     scopeDepthChecks, grantScopeChecks]
   tauto
@@ -485,9 +613,9 @@ theorem apply_grant_success_iff_linked_and_projection {v : Vocabulary}
         (delegationProjection parent grant) = true ∧
       ∃ checks : scopeDepthChecks parent grant,
         child = acceptedNextState parent grantId grant checks := by
-  rw [rich_projection_accepts_iff_scope_depth_checks]
+  rw [rich_projection_accepts_iff_root_and_scope_depth_checks]
   simp only [evaluateGrant]
-  split_ifs with linkage checks <;> simp_all [eq_comm]
+  split_ifs with linkage checks <;> simp_all [linked, eq_comm]
 
 theorem apply_grant_success_iff_delegates {v : Vocabulary}
     (parent : ChainState v) (grantId : GrantId v) (grant : Grant v)
@@ -495,8 +623,9 @@ theorem apply_grant_success_iff_delegates {v : Vocabulary}
     evaluateGrant parent grantId grant = .accepted child ↔
       delegates parent grantId grant child := by
   rw [apply_grant_success_iff_linked_and_projection,
-    rich_projection_accepts_iff_scope_depth_checks]
-  simp [delegates]
+    rich_projection_accepts_iff_root_and_scope_depth_checks]
+  simp [delegates, linked]
+  tauto
 
 theorem apply_grant_success_unique {v : Vocabulary}
     {parent : ChainState v} {grantId : GrantId v} {grant : Grant v}
