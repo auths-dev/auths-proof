@@ -363,16 +363,6 @@ export interface WorkflowWasmEngine {
     rootPrincipal: string,
     verifierConfiguration: Uint8Array,
   ): Uint8Array;
-  parseHttpActionV1(input: unknown): WorkflowDomainActionFields;
-  parseGitActionV1(input: unknown): WorkflowDomainActionFields;
-  parseDeploymentActionV1(input: unknown): WorkflowDomainActionFields;
-  parseSupplyChainActionV1(input: unknown): WorkflowDomainActionFields;
-  parseEdgeActionV1(input: unknown): WorkflowDomainActionFields;
-  parseCanonicalHttpActionV1(body: Uint8Array): WorkflowDomainActionFields;
-  parseCanonicalGitActionV1(body: Uint8Array): WorkflowDomainActionFields;
-  parseCanonicalDeploymentActionV1(body: Uint8Array): WorkflowDomainActionFields;
-  parseCanonicalSupplyChainActionV1(body: Uint8Array): WorkflowDomainActionFields;
-  parseCanonicalEdgeActionV1(body: Uint8Array): WorkflowDomainActionFields;
   prepareMcpActionV1(
     service: string,
     name: string,
@@ -667,21 +657,6 @@ export interface WorkflowAuthorizationPlanSummary {
   readonly proofReferences: Uint8Array;
   readonly leafCount: number;
   readonly maximumDepth: number;
-  free?(): void;
-}
-
-export interface WorkflowDomainActionFields {
-  readonly body: Uint8Array;
-  readonly mediaType: string;
-  readonly capability: string;
-  readonly resource: string;
-  readonly hasBudget: boolean;
-  readonly budgetAlgebra: string;
-  readonly budgetValue: bigint;
-  readonly reviewTitle: string;
-  readonly reviewLabels: readonly string[];
-  readonly reviewValues: readonly string[];
-  readonly normalized: unknown;
   free?(): void;
 }
 

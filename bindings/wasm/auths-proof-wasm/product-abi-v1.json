@@ -1,0 +1,88 @@
+{
+  "schema": "auths.wasm-product-abi/1",
+  "abiVersion": 1,
+  "audience": "consumer",
+  "limits": "VerifierLimits::default_deployment",
+  "exports": [
+    "verifyV1",
+    "verifyBatchV1",
+    "configurationV1",
+    "classifyErrorCodeV1",
+    "productionClientContractVersionV1",
+    "encodeProductionRequestV1",
+    "decodeProductionRequestV1",
+    "decodeProductionResponseV1",
+    "encodeProductionDelegationV1",
+    "projectSdkEventV2",
+    "prepareAuthorizedDecisionReceiptV1",
+    "prepareApplicationExecutionReceiptV1",
+    "attestDecisionReceiptV1",
+    "attestExecutionReceiptV1",
+    "verifyRawKeyReceiptV1",
+    "verifyReceiptLinkV1",
+    "prepareReceiptDisclosureV1",
+    "inspectRawKeyReceiptV1",
+    "profileReceiptBindingsV1",
+    "developmentEd25519PublicKeyV1"
+  ],
+  "types": [
+    "ReceiptPreparationV1",
+    "ProfileReceiptBindingsV1"
+  ],
+  "errorEnvelope": {
+    "schema": "auths.error/1",
+    "owner": "product/errors/auths-errors",
+    "registry": "product/errors/v1/registry.json",
+    "thrownAs": "Error",
+    "errorName": "AuthsError",
+    "correlationId": "wasm-boundary",
+    "fields": [
+      "schema",
+      "family",
+      "code",
+      "operation",
+      "stage",
+      "summary",
+      "correlationId",
+      "retry",
+      "effect",
+      "entered",
+      "recommendedAction",
+      "causes"
+    ],
+    "codes": [
+      "core.malformed-input",
+      "core.invalid-configuration",
+      "core.native-runtime-unavailable"
+    ],
+    "unrecognizedCode": {
+      "known": false,
+      "effect": "possible",
+      "retry": "unknown",
+      "recommendedAction": "resume-and-reconcile"
+    }
+  },
+  "removedInV1": {
+    "reason": "generic reference domain machinery is not consumer surface; see docs/target-state/PRELAUNCH_CODEBASE_CONSOLIDATION_SPEC.md phase 2 item 6",
+    "profiles": [
+      "auths.http",
+      "auths.git",
+      "auths.deploy",
+      "auths.supply-chain",
+      "auths.edge"
+    ],
+    "exports": [
+      "parseHttpActionV1",
+      "parseGitActionV1",
+      "parseDeploymentActionV1",
+      "parseSupplyChainActionV1",
+      "parseEdgeActionV1",
+      "parseCanonicalHttpActionV1",
+      "parseCanonicalGitActionV1",
+      "parseCanonicalDeploymentActionV1",
+      "parseCanonicalSupplyChainActionV1",
+      "parseCanonicalEdgeActionV1",
+      "DomainActionFieldsV1"
+    ]
+  }
+}

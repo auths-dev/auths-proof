@@ -34,11 +34,16 @@ use auths_production_client::{
     project_sdk_event_v2,
 };
 use auths_profile_api::ActionProfile;
-use auths_profile_domains::{
-    DeploymentProfile, DomainReceiptInspector, EdgeProfile, GitProfile, HttpProfile,
-    SupplyChainProfile, reference_canonicalize_deployment, reference_canonicalize_edge,
-    reference_canonicalize_git, reference_canonicalize_http, reference_canonicalize_supply_chain,
-};
+// The generic reference domain profiles (HTTP, Git, deployment, supply-chain,
+// edge) are no longer projected to JavaScript: this consumer package exposes
+// no generic domain parser, canonicalizer, or action-field carrier. The one
+// remaining use is the receipt projector below, which the checked-in
+// `product/fixtures/v1/receipt-disclosure/inspection-v1.json` corpus still
+// keys to the unqualified `auths.edge` profile. Removing it needs a
+// qualified-profile receipt projector in Rust and a re-keyed corpus, and the
+// pyo3 binding carries the identical coupling at
+// `bindings/python/src/receipts.rs:411`.
+use auths_profile_domains::DomainReceiptInspector;
 use auths_profile_mcp::{
     McpCause, McpExecutionSession, McpHandlerEffect, McpHandlerResult, McpProfile,
     McpReservationResult, McpSessionKey, McpSessionStep, McpTerminal, McpToolCall,
@@ -2647,288 +2652,6 @@ impl ProfileReceiptBindingsV1 {
     }
 }
 
-#[wasm_bindgen]
-pub struct DomainActionFieldsV1 {
-    body: Vec<u8>,
-    media_type: String,
-    capability: String,
-    resource: String,
-    has_budget: bool,
-    budget_algebra: String,
-    budget_value: u64,
-    review_title: String,
-    review_labels: Vec<String>,
-    review_values: Vec<String>,
-    normalized: JsValue,
-}
-
-#[wasm_bindgen]
-impl DomainActionFieldsV1 {
-    #[must_use]
-    #[wasm_bindgen(getter)]
-    pub fn body(&self) -> Vec<u8> {
-        self.body.clone()
-    }
-
-    #[must_use]
-    #[wasm_bindgen(getter, js_name = mediaType)]
-    pub fn media_type(&self) -> String {
-        self.media_type.clone()
-    }
-
-    #[must_use]
-    #[wasm_bindgen(getter)]
-    pub fn capability(&self) -> String {
-        self.capability.clone()
-    }
-
-    #[must_use]
-    #[wasm_bindgen(getter)]
-    pub fn resource(&self) -> String {
-        self.resource.clone()
-    }
-
-    #[must_use]
-    #[wasm_bindgen(getter, js_name = hasBudget)]
-    pub fn has_budget(&self) -> bool {
-        self.has_budget
-    }
-
-    #[must_use]
-    #[wasm_bindgen(getter, js_name = budgetAlgebra)]
-    pub fn budget_algebra(&self) -> String {
-        self.budget_algebra.clone()
-    }
-
-    #[must_use]
-    #[wasm_bindgen(getter, js_name = budgetValue)]
-    pub fn budget_value(&self) -> u64 {
-        self.budget_value
-    }
-
-    #[must_use]
-    #[wasm_bindgen(getter, js_name = reviewTitle)]
-    pub fn review_title(&self) -> String {
-        self.review_title.clone()
-    }
-
-    #[must_use]
-    #[wasm_bindgen(getter, js_name = reviewLabels)]
-    pub fn review_labels(&self) -> Vec<String> {
-        self.review_labels.clone()
-    }
-
-    #[must_use]
-    #[wasm_bindgen(getter, js_name = reviewValues)]
-    pub fn review_values(&self) -> Vec<String> {
-        self.review_values.clone()
-    }
-
-    #[must_use]
-    #[wasm_bindgen(getter)]
-    pub fn normalized(&self) -> JsValue {
-        self.normalized.clone()
-    }
-}
-
-fn domain_input(input: JsValue, profile: &str) -> Result<Vec<u8>, EngineError> {
-    let Value::Object(mut fields) = serde_wasm_bindgen::from_value(input)
-        .map_err(|_| EngineError::Abi("domain action must be an object"))?
-    else {
-        return Err(EngineError::Abi("domain action must be an object"));
-    };
-    if fields.contains_key("profile") || fields.contains_key("profile_version") {
-        return Err(EngineError::Abi(
-            "domain profile identity is not caller-selectable",
-        ));
-    }
-    fields.insert("profile".into(), Value::String(profile.into()));
-    fields.insert("profile_version".into(), Value::Number(1.into()));
-    serde_json::to_vec(&Value::Object(fields))
-        .map_err(|_| EngineError::Abi("invalid domain action"))
-}
-
-fn domain_fields<P: ActionProfile>(
-    profile: &P,
-    canonical: &auths_model::CanonicalAction,
-) -> Result<DomainActionFieldsV1, EngineError> {
-    let review = profile.review_display(canonical)?;
-    let (has_budget, budget_algebra, budget_value) = canonical.requested_budget().map_or_else(
-        || (false, String::new(), 0),
-        |budget| (true, budget.algebra().as_str().to_owned(), budget.value()),
-    );
-    let (review_labels, review_values) = review.fields().iter().cloned().unzip();
-    let normalized: Value = serde_json::from_slice(canonical.body())
-        .map_err(|_| EngineError::Abi("canonical domain action is not JSON"))?;
-    let serializer =
-        serde_wasm_bindgen::Serializer::new().serialize_large_number_types_as_bigints(true);
-    let normalized = normalized
-        .serialize(&serializer)
-        .map_err(|_| EngineError::Abi("canonical domain action cannot cross the ABI"))?;
-    Ok(DomainActionFieldsV1 {
-        body: canonical.body().to_vec(),
-        media_type: canonical.media_type().as_str().to_owned(),
-        capability: canonical.permission().capability().as_str().to_owned(),
-        resource: canonical.permission().resource().as_str().to_owned(),
-        has_budget,
-        budget_algebra,
-        budget_value,
-        review_title: review.title().to_owned(),
-        review_labels,
-        review_values,
-        normalized,
-    })
-}
-
-fn canonical_domain<P: ActionProfile>(
-    body: &[u8],
-    profile: &P,
-    parse: fn(
-        &[u8],
-    ) -> Result<auths_model::CanonicalAction, auths_profile_api::ProfileContractError>,
-) -> Result<DomainActionFieldsV1, JsValue> {
-    let canonical = parse(body).map_err(EngineError::from).map_err(js_error)?;
-    if canonical.body() != body {
-        return Err(js_error("domain action is not canonical"));
-    }
-    domain_fields(profile, &canonical).map_err(js_error)
-}
-
-/// Parses one HTTP action through the maintained Rust profile.
-///
-/// # Errors
-///
-/// Rejects malformed, non-canonical, or out-of-profile input.
-#[wasm_bindgen(js_name = parseHttpActionV1)]
-pub fn parse_http_action_v1(input: JsValue) -> Result<DomainActionFieldsV1, JsValue> {
-    let bytes = domain_input(input, "auths.http").map_err(js_error)?;
-    let profile = HttpProfile::default();
-    let canonical = reference_canonicalize_http(&bytes)
-        .map_err(EngineError::from)
-        .map_err(js_error)?;
-    domain_fields(&profile, &canonical).map_err(js_error)
-}
-
-/// Parses one Git action through the maintained Rust profile.
-///
-/// # Errors
-///
-/// Rejects malformed, non-canonical, or out-of-profile input.
-#[wasm_bindgen(js_name = parseGitActionV1)]
-pub fn parse_git_action_v1(input: JsValue) -> Result<DomainActionFieldsV1, JsValue> {
-    let bytes = domain_input(input, "auths.git").map_err(js_error)?;
-    let profile = GitProfile::default();
-    let canonical = reference_canonicalize_git(&bytes)
-        .map_err(EngineError::from)
-        .map_err(js_error)?;
-    domain_fields(&profile, &canonical).map_err(js_error)
-}
-
-/// Parses one deployment action through the maintained Rust profile.
-///
-/// # Errors
-///
-/// Rejects malformed, non-canonical, or out-of-profile input.
-#[wasm_bindgen(js_name = parseDeploymentActionV1)]
-pub fn parse_deployment_action_v1(input: JsValue) -> Result<DomainActionFieldsV1, JsValue> {
-    let bytes = domain_input(input, "auths.deploy").map_err(js_error)?;
-    let profile = DeploymentProfile::default();
-    let canonical = reference_canonicalize_deployment(&bytes)
-        .map_err(EngineError::from)
-        .map_err(js_error)?;
-    domain_fields(&profile, &canonical).map_err(js_error)
-}
-
-/// Parses one supply-chain action through the maintained Rust profile.
-///
-/// # Errors
-///
-/// Rejects malformed, non-canonical, or out-of-profile input.
-#[wasm_bindgen(js_name = parseSupplyChainActionV1)]
-pub fn parse_supply_chain_action_v1(input: JsValue) -> Result<DomainActionFieldsV1, JsValue> {
-    let bytes = domain_input(input, "auths.supply-chain").map_err(js_error)?;
-    let profile = SupplyChainProfile::default();
-    let canonical = reference_canonicalize_supply_chain(&bytes)
-        .map_err(EngineError::from)
-        .map_err(js_error)?;
-    domain_fields(&profile, &canonical).map_err(js_error)
-}
-
-/// Parses one edge action through the maintained Rust profile.
-///
-/// # Errors
-///
-/// Rejects malformed, non-canonical, or out-of-profile input.
-#[wasm_bindgen(js_name = parseEdgeActionV1)]
-pub fn parse_edge_action_v1(input: JsValue) -> Result<DomainActionFieldsV1, JsValue> {
-    let bytes = domain_input(input, "auths.edge").map_err(js_error)?;
-    let profile = EdgeProfile::default();
-    let canonical = reference_canonicalize_edge(&bytes)
-        .map_err(EngineError::from)
-        .map_err(js_error)?;
-    domain_fields(&profile, &canonical).map_err(js_error)
-}
-
-/// Parses canonical HTTP action bytes through the maintained Rust profile.
-///
-/// # Errors
-///
-/// Rejects malformed, non-canonical, or out-of-profile input.
-#[wasm_bindgen(js_name = parseCanonicalHttpActionV1)]
-pub fn parse_canonical_http_action_v1(body: &[u8]) -> Result<DomainActionFieldsV1, JsValue> {
-    canonical_domain(body, &HttpProfile::default(), reference_canonicalize_http)
-}
-
-/// Parses canonical Git action bytes through the maintained Rust profile.
-///
-/// # Errors
-///
-/// Rejects malformed, non-canonical, or out-of-profile input.
-#[wasm_bindgen(js_name = parseCanonicalGitActionV1)]
-pub fn parse_canonical_git_action_v1(body: &[u8]) -> Result<DomainActionFieldsV1, JsValue> {
-    canonical_domain(body, &GitProfile::default(), reference_canonicalize_git)
-}
-
-/// Parses canonical deployment action bytes through the maintained Rust profile.
-///
-/// # Errors
-///
-/// Rejects malformed, non-canonical, or out-of-profile input.
-#[wasm_bindgen(js_name = parseCanonicalDeploymentActionV1)]
-pub fn parse_canonical_deployment_action_v1(body: &[u8]) -> Result<DomainActionFieldsV1, JsValue> {
-    canonical_domain(
-        body,
-        &DeploymentProfile::default(),
-        reference_canonicalize_deployment,
-    )
-}
-
-/// Parses canonical supply-chain action bytes through the maintained Rust profile.
-///
-/// # Errors
-///
-/// Rejects malformed, non-canonical, or out-of-profile input.
-#[wasm_bindgen(js_name = parseCanonicalSupplyChainActionV1)]
-pub fn parse_canonical_supply_chain_action_v1(
-    body: &[u8],
-) -> Result<DomainActionFieldsV1, JsValue> {
-    canonical_domain(
-        body,
-        &SupplyChainProfile::default(),
-        reference_canonicalize_supply_chain,
-    )
-}
-
-/// Parses canonical edge action bytes through the maintained Rust profile.
-///
-/// # Errors
-///
-/// Rejects malformed, non-canonical, or out-of-profile input.
-#[wasm_bindgen(js_name = parseCanonicalEdgeActionV1)]
-pub fn parse_canonical_edge_action_v1(body: &[u8]) -> Result<DomainActionFieldsV1, JsValue> {
-    canonical_domain(body, &EdgeProfile::default(), reference_canonicalize_edge)
-}
-
 /// Unsigned root grant and matching self-contained raw-key trust context.
 #[wasm_bindgen]
 pub struct RawKeyAuthorityPreparationV1 {
@@ -4925,8 +4648,97 @@ fn bind_trusted_context_request_native(
     Ok(auths_codec::encode_verifier_context(&context)?)
 }
 
-fn js_error(error: impl fmt::Display) -> JsValue {
-    JsValue::from_str(&error.to_string())
+/// Correlation identifier carried by every failure minted at this boundary.
+///
+/// The WASM module has no clock, no randomness, and no request scope, so it
+/// reports the boundary itself rather than inventing a per-call identifier.
+const BOUNDARY_CORRELATION_ID: &str = "wasm-boundary";
+
+/// Projects one bounded boundary failure as a structured JavaScript `Error`.
+///
+/// The returned value is a real `Error` instance whose own properties are the
+/// camelCase serialization of [`auths_errors::ErrorEnvelope`]: `schema`,
+/// `family`, `code`, `operation`, `stage`, `summary`, `correlationId`,
+/// `retry`, `effect`, `entered`, `recommendedAction`, and `causes`.
+///
+/// This module decides none of that meaning. It names the failure with a
+/// stable registry code; [`auths_errors::classify`] decides the effect state,
+/// the retry class, and the recommended action, and an unrecognized code fails
+/// closed to `effect: "possible"` there rather than here.
+fn js_error(error: impl Into<EngineError>) -> JsValue {
+    boundary_error(&error.into())
+}
+
+fn boundary_error(error: &EngineError) -> JsValue {
+    let code = error.registry_code();
+    let classification = auths_errors::classify(code);
+    let summary = bounded_summary(&error.to_string());
+    let envelope = auths_errors::ErrorEnvelope {
+        schema: auths_errors::ENVELOPE_SCHEMA.to_owned(),
+        family: classification.family,
+        code: code.to_owned(),
+        operation: classification.operation.to_owned(),
+        stage: classification.stage().to_owned(),
+        summary: summary.clone(),
+        correlation_id: BOUNDARY_CORRELATION_ID.to_owned(),
+        retry: classification.retry,
+        effect: classification.effect,
+        entered: auths_errors::EnteredBoundaries::default(),
+        recommended_action: classification.recommended_action,
+        execution_reference: None,
+        decision_reference: None,
+        receipt_reference: None,
+        causes: Vec::new(),
+    };
+    let failure = js_sys::Error::new(&summary);
+    failure.set_name("AuthsError");
+    let value = JsValue::from(failure);
+    if let Ok(fields) = serde_wasm_bindgen::to_value(&envelope)
+        && let Some(fields) = fields.dyn_ref::<js_sys::Object>()
+    {
+        for entry in js_sys::Object::entries(fields).iter() {
+            let pair = js_sys::Array::from(&entry);
+            let _ = js_sys::Reflect::set(&value, &pair.get(0), &pair.get(1));
+        }
+    }
+    value
+}
+
+/// Truncates a human summary onto a character boundary within the registry's
+/// bound without ever producing the empty summary the contract forbids.
+fn bounded_summary(message: &str) -> String {
+    let trimmed = message.trim();
+    if trimmed.is_empty() {
+        return "bounded Auths boundary failure".to_owned();
+    }
+    if trimmed.len() <= auths_errors::MAX_SUMMARY_BYTES {
+        return trimmed.to_owned();
+    }
+    let mut end = auths_errors::MAX_SUMMARY_BYTES;
+    while end > 0 && !trimmed.is_char_boundary(end) {
+        end -= 1;
+    }
+    trimmed[..end].to_owned()
+}
+
+/// Classification of one stable code, projected for a JavaScript caller.
+///
+/// A caller that receives a code from a newer Auths build asks this function
+/// what the code means. It never fails: an unrecognized code is reported with
+/// `known: false` and `effect: "possible"`, so a newer code is never swallowed
+/// and never downgraded to `not-applied`.
+/// # Errors
+///
+/// Returns a structured Auths error only when the classification cannot cross
+/// the ABI.
+#[wasm_bindgen(js_name = classifyErrorCodeV1)]
+pub fn classify_error_code_v1(code: &str) -> Result<JsValue, JsValue> {
+    let classification = auths_errors::classify(code);
+    serde_wasm_bindgen::to_value(&classification).map_err(|_| {
+        js_error(EngineError::Abi(
+            "error classification cannot cross the ABI",
+        ))
+    })
 }
 
 /// Verifies with the self-contained target V1 principal methods.
@@ -4988,7 +4800,7 @@ pub fn self_contained_v1_configuration() -> Result<[u8; 32], EngineError> {
 pub fn configuration_v1() -> Result<Vec<u8>, JsValue> {
     self_contained_v1_configuration()
         .map(|bytes| bytes.to_vec())
-        .map_err(|error| JsValue::from_str(&error.to_string()))
+        .map_err(js_error)
 }
 
 /// JavaScript-facing three-input portable V1 verifier.
@@ -5008,7 +4820,7 @@ pub fn verify_v1(
     trusted_context_cbor: &[u8],
 ) -> Result<Vec<u8>, JsValue> {
     verify_self_contained_v1(proof_cbor, canonical_action_cbor, trusted_context_cbor)
-        .map_err(|error| JsValue::from_str(&error.to_string()))
+        .map_err(js_error)
 }
 
 #[derive(Deserialize)]
@@ -5080,8 +4892,57 @@ pub enum EngineError {
     Profile(auths_profile_api::ProfileContractError),
     /// General identity encoding or validation failed.
     Identity(auths_identity::IdentityError),
+    /// A bounded production-client request or response was invalid.
+    Client(auths_production_client::ProductionClientError),
+    /// An MCP execution session rejected a transition or a bounded input.
+    Session(auths_profile_mcp::McpSessionError),
+    /// Receipt preparation, encoding, or attestation failed.
+    Receipt(auths_receipts::ReceiptError),
+    /// Receipt inspection or disclosure projection failed.
+    Inspection(auths_receipts::ReceiptInspectionError),
     /// A binding-level invariant could not be represented.
     Abi(&'static str),
+}
+
+impl EngineError {
+    /// Names the stable registry code for one boundary failure.
+    ///
+    /// This module names the failure; `auths_errors` decides what the name
+    /// means. No effect state, retry class, or recommended action is chosen
+    /// here — see [`boundary_error`].
+    ///
+    /// Every code named here is a pre-effect failure. The WASM module encodes,
+    /// decodes, plans, and prepares signing inputs; it opens no connection,
+    /// invokes no provider, and holds no durable state, so no failure it can
+    /// produce could have applied a real-world effect. `wasm_boundary_codes_
+    /// are_registered_and_pre_effect` proves that against the registry.
+    const fn registry_code(&self) -> &'static str {
+        match self {
+            Self::Keri(_) => "core.native-runtime-unavailable",
+            Self::Registry(_) => "core.invalid-configuration",
+            Self::Model(_)
+            | Self::Codec(_)
+            | Self::Planning(_)
+            | Self::Author(_)
+            | Self::Workflow(_)
+            | Self::Mcp(_)
+            | Self::Profile(_)
+            | Self::Identity(_)
+            | Self::Client(_)
+            | Self::Session(_)
+            | Self::Receipt(_)
+            | Self::Inspection(_)
+            | Self::Abi(_) => "core.malformed-input",
+        }
+    }
+
+    /// Every stable code this boundary can name.
+    #[cfg(test)]
+    const CODES: &'static [&'static str] = &[
+        "core.native-runtime-unavailable",
+        "core.invalid-configuration",
+        "core.malformed-input",
+    ];
 }
 
 impl fmt::Display for EngineError {
@@ -5107,6 +4968,14 @@ impl fmt::Display for EngineError {
             Self::Mcp(error) => write!(formatter, "could not construct MCP action: {error}"),
             Self::Profile(error) => write!(formatter, "MCP profile contract failed: {error}"),
             Self::Identity(error) => write!(formatter, "identity descriptor failed: {error}"),
+            // These four variants exist only so the boundary can name a
+            // registry code for an error that previously reached JavaScript
+            // as its own bare `Display`. They add no prefix, because callers
+            // and tests match on the owning crate's stable code text.
+            Self::Client(error) => fmt::Display::fmt(error, formatter),
+            Self::Session(error) => fmt::Display::fmt(error, formatter),
+            Self::Receipt(error) => fmt::Display::fmt(error, formatter),
+            Self::Inspection(error) => fmt::Display::fmt(error, formatter),
             Self::Abi(message) => formatter.write_str(message),
         }
     }
@@ -5174,9 +5043,130 @@ impl From<auths_identity::IdentityError> for EngineError {
     }
 }
 
+impl From<auths_production_client::ProductionClientError> for EngineError {
+    fn from(error: auths_production_client::ProductionClientError) -> Self {
+        Self::Client(error)
+    }
+}
+
+impl From<auths_profile_mcp::McpSessionError> for EngineError {
+    fn from(error: auths_profile_mcp::McpSessionError) -> Self {
+        Self::Session(error)
+    }
+}
+
+impl From<auths_receipts::ReceiptError> for EngineError {
+    fn from(error: auths_receipts::ReceiptError) -> Self {
+        Self::Receipt(error)
+    }
+}
+
+impl From<auths_receipts::ReceiptInspectionError> for EngineError {
+    fn from(error: auths_receipts::ReceiptInspectionError) -> Self {
+        Self::Inspection(error)
+    }
+}
+
+impl From<serde_wasm_bindgen::Error> for EngineError {
+    fn from(_: serde_wasm_bindgen::Error) -> Self {
+        Self::Abi("bounded value cannot cross the ABI")
+    }
+}
+
+impl From<core::num::TryFromIntError> for EngineError {
+    fn from(_: core::num::TryFromIntError) -> Self {
+        Self::Abi("bounded value is outside its integer range")
+    }
+}
+
+impl From<&'static str> for EngineError {
+    fn from(message: &'static str) -> Self {
+        Self::Abi(message)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn wasm_boundary_codes_are_registered_and_pre_effect() {
+        for code in EngineError::CODES {
+            let classification = auths_errors::classify(code);
+            assert!(
+                classification.known,
+                "{code} is not in product/errors/v1/registry.json; this boundary mints no codes"
+            );
+            assert_eq!(
+                classification.effect,
+                auths_errors::EffectState::NotApplied,
+                "{code} claims an effect this module cannot cause: it opens no connection, \
+                 invokes no provider, and holds no durable state"
+            );
+        }
+    }
+
+    #[test]
+    fn every_engine_error_variant_names_a_registered_code() {
+        let variants: [EngineError; 5] = [
+            EngineError::Abi("bounded"),
+            EngineError::Keri(auths_did_keri::KeriError::UnsupportedKey),
+            EngineError::Model(auths_model::ModelError::InvalidPrincipal),
+            EngineError::Codec(auths_codec::CodecError::Malformed),
+            EngineError::Profile(auths_profile_api::ProfileContractError::Malformed),
+        ];
+        for variant in &variants {
+            let code = variant.registry_code();
+            assert!(
+                EngineError::CODES.contains(&code),
+                "{code} escaped the declared boundary code set"
+            );
+            assert!(auths_errors::classify(code).known, "{code} is unregistered");
+        }
+    }
+
+    /// The boundary must project the registry's classification, never compute
+    /// one. A literal effect state, retry class, or recommended action in this
+    /// module would be a second definition of meaning.
+    #[test]
+    fn the_boundary_names_codes_and_decides_no_classification() {
+        // Only the shipping half of the module is under test; the assertions
+        // below necessarily name the vocabulary they forbid.
+        let source = include_str!("lib.rs");
+        let shipping = source
+            .split_once("\n#[cfg(test)]\nmod tests {")
+            .expect("the test module marks the end of the shipping surface")
+            .0;
+        for banned in [
+            "EffectState::",
+            "RetryClass::",
+            "RecommendedAction::",
+            "ErrorFamily::",
+        ] {
+            assert!(
+                !shipping.contains(banned),
+                "{banned} appears in the shipping WASM boundary; effect, retry, family, and \
+                 recommended action are decided by auths_errors::classify, not here"
+            );
+        }
+    }
+
+    #[test]
+    fn an_unrecognized_code_reaches_the_caller_as_possible() {
+        let classification = auths_errors::classify("future.minted-by-a-newer-build");
+        assert!(!classification.known);
+        assert_eq!(classification.effect, auths_errors::EffectState::Possible);
+    }
+
+    #[test]
+    fn a_summary_is_bounded_and_never_empty() {
+        assert_eq!(bounded_summary("  "), "bounded Auths boundary failure");
+        let long = "é".repeat(auths_errors::MAX_SUMMARY_BYTES);
+        let bounded = bounded_summary(&long);
+        assert!(bounded.len() <= auths_errors::MAX_SUMMARY_BYTES);
+        assert!(!bounded.is_empty());
+        assert!(long.starts_with(&bounded));
+    }
 
     fn raw_key_bundle() -> auths_model::ProofBundle {
         let fixture = auths_testkit::raw_key_chain();

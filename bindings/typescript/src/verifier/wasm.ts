@@ -54,16 +54,6 @@ async function loadPackagedWorkflowEngineOnce(): Promise<PackagedWorkflowEngine>
     typeof loaded.compileTrustedContextV1 !== "function" ||
     typeof loaded.configurationV1 !== "function" ||
     typeof loaded.validateTrustedContextV1 !== "function" ||
-    typeof loaded.parseHttpActionV1 !== "function" ||
-    typeof loaded.parseGitActionV1 !== "function" ||
-    typeof loaded.parseDeploymentActionV1 !== "function" ||
-    typeof loaded.parseSupplyChainActionV1 !== "function" ||
-    typeof loaded.parseEdgeActionV1 !== "function" ||
-    typeof loaded.parseCanonicalHttpActionV1 !== "function" ||
-    typeof loaded.parseCanonicalGitActionV1 !== "function" ||
-    typeof loaded.parseCanonicalDeploymentActionV1 !== "function" ||
-    typeof loaded.parseCanonicalSupplyChainActionV1 !== "function" ||
-    typeof loaded.parseCanonicalEdgeActionV1 !== "function" ||
     typeof loaded.prepareMcpActionV1 !== "function" ||
     typeof loaded.canonicalizeMcpPlanMemberV1 !== "function" ||
     typeof loaded.beginMcpExecutionV1 !== "function" ||
