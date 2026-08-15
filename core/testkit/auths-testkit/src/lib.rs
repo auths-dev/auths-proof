@@ -2525,6 +2525,7 @@ enum ActionVariation {
     Permission,
     Constraint,
     Budget,
+    BudgetAbsent,
     Validity,
     Actor,
     UnsupportedProfile,
@@ -2556,10 +2557,13 @@ fn action_authority_fixture(name: &'static str, variation: ActionVariation) -> C
     } else {
         BODY.to_vec()
     };
-    let action_budget = if matches!(variation, ActionVariation::Budget) {
-        11
-    } else {
-        5
+    // `BudgetAbsent` declares no budget at all while the terminal grant still
+    // carries a bounded ceiling. A bounded ceiling with nothing to compare
+    // against is not vacuously satisfied; the verifier must deny.
+    let action_budget = match variation {
+        ActionVariation::Budget => Some(11),
+        ActionVariation::BudgetAbsent => None,
+        _ => Some(5),
     };
     let action_profile = if matches!(variation, ActionVariation::UnsupportedProfile) {
         ProfileRef::new(ProfileId::parse("auths.unknown").expect("profile"), 1)
@@ -2572,10 +2576,12 @@ fn action_authority_fixture(name: &'static str, variation: ActionVariation) -> C
         MediaType::parse("application/vnd.auths.mcp-call.v1+cbor").expect("media type"),
         action_body,
         action_permission.clone(),
-        Some(BudgetCeiling::new(
-            BudgetAlgebraId::parse("numeric-ceiling-v1").expect("budget algebra"),
-            action_budget,
-        )),
+        action_budget.map(|value| {
+            BudgetCeiling::new(
+                BudgetAlgebraId::parse("numeric-ceiling-v1").expect("budget algebra"),
+                value,
+            )
+        }),
     )
     .expect("canonical action");
     let proof_ref = ProofRef::new([0xa1; 32]);
@@ -2674,7 +2680,9 @@ fn action_authority_fixture(name: &'static str, variation: ActionVariation) -> C
     let expected = match variation {
         ActionVariation::Permission => Expected::Denied(DenialReason::PermissionNotGranted),
         ActionVariation::Constraint => Expected::Denied(DenialReason::ActionConstraintMismatch),
-        ActionVariation::Budget => Expected::Denied(DenialReason::BudgetCeilingExceeded),
+        ActionVariation::Budget | ActionVariation::BudgetAbsent => {
+            Expected::Denied(DenialReason::BudgetCeilingExceeded)
+        }
         ActionVariation::Validity => Expected::Denied(DenialReason::ActionOutsideValidity),
         ActionVariation::Actor => Expected::Denied(DenialReason::BrokenGrantChain),
         ActionVariation::UnsupportedProfile => {
@@ -2727,6 +2735,12 @@ action_fixture!(
     action_budget_exceeded,
     "action-budget-exceeded",
     Budget
+);
+action_fixture!(
+    /// Signed action declares no budget while terminal authority is bounded.
+    action_budget_absent,
+    "action-budget-absent",
+    BudgetAbsent
 );
 action_fixture!(
     /// Signed action validity exceeds the grant window.
@@ -4660,6 +4674,7 @@ pub fn corpus() -> Vec<CorpusFixture> {
         action_permission_not_granted(),
         action_constraint_mismatch(),
         action_budget_exceeded(),
+        action_budget_absent(),
         action_validity_expanded(),
         action_actor_mismatch(),
         unsupported_action_profile(),

@@ -2875,6 +2875,58 @@
       "expected_code": "budget-ceiling-exceeded"
     },
     {
+      "name": "action-budget-absent",
+      "class": "denied",
+      "proof": {
+        "path": "denied/action-budget-absent.proof.cbor",
+        "sha256": "b83cd035292a01f14c987032beed5134059ed35db6d34346ef40fab2a85932a1"
+      },
+      "context": {
+        "path": "denied/action-budget-absent.context.cbor",
+        "sha256": "bba4e01d24b8031b68b728355c163d4ea5baf033bbc7e647666738492947166a"
+      },
+      "canonical_action": {
+        "path": "denied/action-budget-absent.action.cbor",
+        "sha256": "2689e2076637a9d685e83f1118ebda241a62727b84752fca1d867ddfa974efdd",
+        "profile": "auths.mcp",
+        "profile_version": 1,
+        "media_type": "application/vnd.auths.mcp-call.v1+cbor",
+        "capability": "tools/call",
+        "resource": "mcp://reports/read",
+        "requested_budget": null
+      },
+      "canonical_body": {
+        "path": "denied/action-budget-absent.body.cbor",
+        "sha256": "5c63cdd40e91c52d8e1e01d76e968cb2cd262c6c0ca0e9674a0975a1118f0a2d"
+      },
+      "expected_result": {
+        "path": "denied/action-budget-absent.result.cbor",
+        "sha256": "73f83d1f9d6911976bc05bcdc1f680e3e919012169395e12a1dc6f6f02e3d983",
+        "stage": "authority",
+        "decision": "denied",
+        "code": "budget-ceiling-exceeded",
+        "proof_digest": "b83cd035292a01f14c987032beed5134059ed35db6d34346ef40fab2a85932a1",
+        "action_digest": "2689e2076637a9d685e83f1118ebda241a62727b84752fca1d867ddfa974efdd",
+        "context_digest": "524846ecba92c7e1d7b8793743915d83f735de0bdaa7cdd83e38c13975837671",
+        "plan_digest": "2af75ddb207db5bcdec335d9cc1ee40da5747e49fa927ea28dd1002d6aa9726f",
+        "result_digest": "133920946e8c2e9a9a3e77728381c874b214826839c2644ca01bbe2e04343637",
+        "authorized_branches": [],
+        "assurance_satisfactions": 0,
+        "resources": {
+          "proof_bytes": 1453,
+          "action_bytes": 122,
+          "context_bytes": 1158,
+          "object_count": 6,
+          "plan_leaves": 1,
+          "plan_depth": 1,
+          "work_units": 307
+        },
+        "registry_manifest": "3333333333333333333333333333333333333333333333333333333333333333"
+      },
+      "expected_decision": "denied",
+      "expected_code": "budget-ceiling-exceeded"
+    },
+    {
       "name": "action-validity-expanded",
       "class": "denied",
       "proof": {

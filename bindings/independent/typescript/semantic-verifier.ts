@@ -1496,9 +1496,13 @@ function budgetAttenuates(child?: Budget, parent?: Budget): boolean {
   return parent === undefined ||
     (child !== undefined && child.algebra === parent.algebra && child.value <= parent.value);
 }
+// An unbounded ceiling covers everything. A bounded ceiling does NOT vacuously
+// cover an action that declares no budget: nothing bounds what such an action
+// would spend, so it is not covered.
 function budgetCovers(ceiling?: Budget, requested?: Budget): boolean {
-  return requested === undefined || ceiling === undefined ||
-    (ceiling.algebra === requested.algebra && requested.value <= ceiling.value);
+  if (ceiling === undefined) return true;
+  if (requested === undefined) return false;
+  return ceiling.algebra === requested.algebra && requested.value <= ceiling.value;
 }
 function requireBudgetAlgebra(value: Budget | undefined, contextValue: Context): void {
   if (value === undefined) return;

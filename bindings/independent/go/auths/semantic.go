@@ -1338,9 +1338,16 @@ func budgetAttenuates(child, parent *budget) bool {
 	return child != nil && child.algebra == parent.algebra && child.value <= parent.value
 }
 
+// budgetCovers reports whether a bounded terminal ceiling covers the budget the
+// action requests. An unbounded ceiling covers everything. A bounded ceiling
+// does NOT vacuously cover an action that declares no budget: nothing bounds
+// what such an action would spend, so it is not covered.
 func budgetCovers(ceiling, requested *budget) bool {
-	if requested == nil || ceiling == nil {
+	if ceiling == nil {
 		return true
+	}
+	if requested == nil {
+		return false
 	}
 	return ceiling.algebra == requested.algebra && requested.value <= ceiling.value
 }
