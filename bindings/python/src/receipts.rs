@@ -13,7 +13,7 @@ use auths_receipts::{
     prepare_decision_receipt, prepare_execution_receipt, verify_attested_decision_bytes,
     verify_attested_execution_bytes, verify_decision_attestation, verify_execution_attestation,
 };
-use pyo3::{exceptions::PyValueError, prelude::*, types::PyBytes};
+use pyo3::{prelude::*, types::PyBytes};
 use serde_json::{Value, json};
 
 #[derive(Clone)]
@@ -63,7 +63,7 @@ pub(crate) fn prepare_decision(
         .as_slice()
         != proof_cbor
     {
-        return Err(PyValueError::new_err("proof is not canonical"));
+        return Err(crate::errors::malformed_input("proof is not canonical"));
     }
     let action = auths_codec::decode_canonical_action(canonical_action_cbor, &limits)
         .map_err(value_error)?;
@@ -72,7 +72,7 @@ pub(crate) fn prepare_decision(
         .as_slice()
         != canonical_action_cbor
     {
-        return Err(PyValueError::new_err("action is not canonical"));
+        return Err(crate::errors::malformed_input("action is not canonical"));
     }
     let context =
         auths_codec::decode_verifier_context(trusted_context_cbor).map_err(value_error)?;
@@ -81,7 +81,9 @@ pub(crate) fn prepare_decision(
         .as_slice()
         != trusted_context_cbor
     {
-        return Err(PyValueError::new_err("trusted context is not canonical"));
+        return Err(crate::errors::malformed_input(
+            "trusted context is not canonical",
+        ));
     }
     let signer = receipt_signer(verifier, verification_method, suite)?;
     let authority_commitment = auths_codec::proof_digest(&proof).map_err(value_error)?;
@@ -140,7 +142,9 @@ fn prepare_application_execution_receipt_v1(
     suite: &str,
 ) -> PyResult<PyReceiptPreparation> {
     if command_bytes.is_empty() || command_bytes.len() > auths_model::HARD_MAX_ACTION_BYTES {
-        return Err(PyValueError::new_err("command bytes are outside bounds"));
+        return Err(crate::errors::malformed_input(
+            "command bytes are outside bounds",
+        ));
     }
     let decision = ReceiptId::new(array32(decision_receipt_id_bytes, "decision receipt id")?);
     let plan = plan_commitment
@@ -149,7 +153,11 @@ fn prepare_application_execution_receipt_v1(
     let member = match (member_index, member_count) {
         (Some(index), Some(count)) => Some((index, count)),
         (None, None) => None,
-        _ => return Err(PyValueError::new_err("plan member position is incomplete")),
+        _ => {
+            return Err(crate::errors::malformed_input(
+                "plan member position is incomplete",
+            ));
+        }
     };
     application_execution_lease_digest(idempotency_key, plan, member).map_err(value_error)?;
     let signer = receipt_signer(verifier, verification_method, suite)?;
@@ -164,7 +172,7 @@ fn prepare_application_execution_receipt_v1(
             "failed" => ExecutionOutcome::Failed,
             "indeterminate" => ExecutionOutcome::Indeterminate,
             _ => {
-                return Err(PyValueError::new_err(
+                return Err(crate::errors::malformed_input(
                     "execution outcome cannot be attested",
                 ));
             }
@@ -239,11 +247,13 @@ fn verify_raw_key_receipt_v1(
         SignatureSuiteId::parse(suite).map_err(value_error)?,
     );
     let descriptor = RawKeyDescriptor::decode(raw_key_evidence)
-        .map_err(|_| PyValueError::new_err("invalid raw-key receipt evidence"))?;
+        .map_err(|_| crate::errors::malformed_input("invalid raw-key receipt evidence"))?;
     if descriptor.principal().map_err(value_error)?.as_str() != verifier
         || descriptor.suite() != suite
     {
-        return Err(PyValueError::new_err("receipt key does not match signer"));
+        return Err(crate::errors::malformed_input(
+            "receipt key does not match signer",
+        ));
     }
     let expected = ReceiptId::new(array32(expected_id, "receipt id")?);
     let suite = auths_signature::Ed25519Suite::new().map_err(value_error)?;
@@ -257,7 +267,7 @@ fn verify_raw_key_receipt_v1(
             verify_execution_attestation(attested, expected, &expected_verifier, &configured)
                 .map_err(value_error)?;
         }
-        _ => return Err(PyValueError::new_err("unsupported receipt kind")),
+        _ => return Err(crate::errors::malformed_input("unsupported receipt kind")),
     }
     Ok(())
 }
@@ -275,7 +285,7 @@ fn verify_receipt_link_v1(
     let execution =
         verify_attested_execution_bytes(execution, execution_id).map_err(value_error)?;
     if execution.receipt().decision_receipt() != decision_id {
-        return Err(PyValueError::new_err("receipt linkage mismatch"));
+        return Err(crate::errors::malformed_input("receipt linkage mismatch"));
     }
     Ok(())
 }
@@ -508,11 +518,11 @@ fn receipt_signer(
 fn array32(value: &[u8], label: &str) -> PyResult<[u8; 32]> {
     value
         .try_into()
-        .map_err(|_| PyValueError::new_err(format!("{label} must contain 32 bytes")))
+        .map_err(|_| crate::errors::malformed_input(format!("{label} must contain 32 bytes")))
 }
 
 fn value_error(error: impl core::fmt::Display) -> PyErr {
-    PyValueError::new_err(error.to_string())
+    crate::errors::malformed_input(error)
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {

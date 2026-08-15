@@ -22,7 +22,7 @@ use auths_profile_mcp::{
     McpToolCall, PROFILE_ID, PROFILE_VERSION, mcp_authority_commitment,
 };
 use pyo3::{
-    exceptions::{PyRuntimeError, PyTypeError, PyValueError},
+    exceptions::{PyRuntimeError, PyTypeError},
     prelude::*,
     types::PyBytes,
 };
@@ -434,7 +434,11 @@ impl PyMcpExecutionSession {
             "acquired" => McpReservationResult::Acquired,
             "exact-replay" => McpReservationResult::ExactReplay,
             "conflict" => McpReservationResult::Conflict,
-            _ => return Err(PyValueError::new_err("invalid MCP reservation result")),
+            _ => {
+                return Err(crate::errors::malformed_input(
+                    "invalid MCP reservation result",
+                ));
+            }
         };
         self.inner.accept_reservation(result).map_err(session_error)
     }
@@ -458,7 +462,7 @@ impl PyMcpExecutionSession {
             "not-applied" => McpHandlerEffect::NotApplied,
             "applied" => McpHandlerEffect::Applied,
             "possible" => McpHandlerEffect::Possible,
-            _ => return Err(PyValueError::new_err("invalid MCP handler effect")),
+            _ => return Err(crate::errors::malformed_input("invalid MCP handler effect")),
         };
         let cause = cause.map(parse_cause).transpose()?;
         let result = McpHandlerResult::parse(effect, output_json, cause).map_err(session_error)?;
@@ -509,12 +513,12 @@ fn begin_mcp_execution(
 ) -> PyResult<PyMcpExecutionSession> {
     let key: [u8; 32] = session_key
         .try_into()
-        .map_err(|_| PyValueError::new_err("MCP session key must contain 32 bytes"))?;
+        .map_err(|_| crate::errors::malformed_input("MCP session key must contain 32 bytes"))?;
     let action_commitment = command.action_commitment_bytes()?;
     let canonical_action = command.canonical_action_bytes()?;
-    let decision_receipt_id: [u8; 32] = decision_receipt_id
-        .try_into()
-        .map_err(|_| PyValueError::new_err("MCP decision receipt ID must contain 32 bytes"))?;
+    let decision_receipt_id: [u8; 32] = decision_receipt_id.try_into().map_err(|_| {
+        crate::errors::malformed_input("MCP decision receipt ID must contain 32 bytes")
+    })?;
     let authority_commitment = command.authority_commitment;
     let context_commitment = command.context_commitment;
     let inner = command
@@ -569,7 +573,7 @@ fn resume_mcp_execution(
 ) -> PyResult<PyMcpExecutionSession> {
     let key: [u8; 32] = session_key
         .try_into()
-        .map_err(|_| PyValueError::new_err("MCP session key must contain 32 bytes"))?;
+        .map_err(|_| crate::errors::malformed_input("MCP session key must contain 32 bytes"))?;
     let inner = McpExecutionSession::resume(McpSessionKey::new(key), reference, record_json)
         .map_err(session_error)?;
     Ok(PyMcpExecutionSession { inner })
@@ -602,12 +606,16 @@ fn validate_mcp_service(service: &str) -> PyResult<()> {
 #[pyfunction]
 fn mcp_call(service: &str, name: &str, arguments_json: &[u8]) -> PyResult<PyMcpCall> {
     if arguments_json.is_empty() || arguments_json.len() > MAX_CANONICAL_CALL_BYTES {
-        return Err(PyValueError::new_err("MCP arguments exceed native limits"));
+        return Err(crate::errors::malformed_input(
+            "MCP arguments exceed native limits",
+        ));
     }
     let Value::Object(arguments) =
         serde_json::from_slice::<Value>(arguments_json).map_err(value_error)?
     else {
-        return Err(PyValueError::new_err("MCP arguments must be a JSON object"));
+        return Err(crate::errors::malformed_input(
+            "MCP arguments must be a JSON object",
+        ));
     };
     Ok(PyMcpCall {
         inner: McpToolCall::new(service, name, arguments).map_err(value_error)?,
@@ -634,7 +642,7 @@ fn review_mcp_call<'py>(
 #[pyfunction]
 fn commit_mcp_plan(py: Python<'_>, calls: Vec<Py<PyMcpCall>>) -> PyResult<PyNativeMcpPlan> {
     if calls.is_empty() || calls.len() > 256 {
-        return Err(PyValueError::new_err(
+        return Err(crate::errors::malformed_input(
             "MCP plan action count is outside native limits",
         ));
     }
@@ -661,9 +669,9 @@ fn commit_mcp_plan(py: Python<'_>, calls: Vec<Py<PyMcpCall>>) -> PyResult<PyNati
             ))
         })
         .collect::<PyResult<Vec<_>>>()?;
-    let first = calls
-        .first()
-        .ok_or_else(|| PyValueError::new_err("MCP plan action count is outside native limits"))?;
+    let first = calls.first().ok_or_else(|| {
+        crate::errors::malformed_input("MCP plan action count is outside native limits")
+    })?;
     let resource_namespaces = vec![format!("mcp://{}", first.service())];
     let audiences = vec![first.audience().map_err(value_error)?.to_string()];
     Ok(PyNativeMcpPlan {
@@ -699,7 +707,7 @@ fn prepare_mcp_call_action(
     let display = profile.review_display(&canonical).map_err(value_error)?;
     let challenge: [u8; 32] = challenge
         .try_into()
-        .map_err(|_| PyValueError::new_err("challenge must contain 32 bytes"))?;
+        .map_err(|_| crate::errors::malformed_input("challenge must contain 32 bytes"))?;
     let prepared = prepare_profile_action(
         canonical,
         call.inner.audience().map_err(value_error)?,
@@ -734,7 +742,7 @@ fn authorize_mcp(
     context: PyRef<'_, PyTrustedContext>,
 ) -> PyResult<(NativeVerificationResult, Option<PyMcpCommand>)> {
     if grants.len() != grant_evidence.len() {
-        return Err(PyValueError::new_err(
+        return Err(crate::errors::malformed_input(
             "each grant requires one evidence collection",
         ));
     }
@@ -742,7 +750,7 @@ fn authorize_mcp(
         return Err(PyTypeError::new_err("signed action must be an action"));
     };
     if action.envelope() != &prepared.envelope {
-        return Err(PyValueError::new_err(
+        return Err(crate::errors::malformed_input(
             "signed action does not match its native preparation",
         ));
     }
@@ -826,19 +834,19 @@ fn seal_mcp_plan_command(
     expected_commitment: &[u8],
 ) -> PyResult<PyMcpPlanCommand> {
     if commands.is_empty() || commands.len() > 256 {
-        return Err(PyValueError::new_err(
+        return Err(crate::errors::malformed_input(
             "MCP plan command count is outside native limits",
         ));
     }
     let expected: [u8; 32] = expected_commitment
         .try_into()
-        .map_err(|_| PyValueError::new_err("plan commitment must contain 32 bytes"))?;
+        .map_err(|_| crate::errors::malformed_input("plan commitment must contain 32 bytes"))?;
     let mut identities = std::collections::HashSet::with_capacity(commands.len());
     if commands
         .iter()
         .any(|command| !identities.insert(command.as_ptr() as usize))
     {
-        return Err(PyValueError::new_err(
+        return Err(crate::errors::malformed_input(
             "MCP plan contains a duplicate command handle",
         ));
     }
@@ -858,7 +866,7 @@ fn seal_mcp_plan_command(
     let commitment = ProfilePlanCommitment::commit(PROFILE_ID, PROFILE_VERSION, &borrowed)
         .map_err(value_error)?;
     if commitment.plan().as_bytes() != &expected {
-        return Err(PyValueError::new_err(
+        return Err(crate::errors::malformed_input(
             "verified commands do not match the exact MCP plan",
         ));
     }
@@ -941,20 +949,20 @@ fn begin_mcp_plan_member_execution(
     request_id: Option<&str>,
 ) -> PyResult<PyMcpExecutionSession> {
     if member_index != command.next_member {
-        return Err(PyValueError::new_err(
+        return Err(crate::errors::malformed_input(
             "MCP plan members must execute in order",
         ));
     }
     let member_count = command.receipt_bindings.len();
     let plan_commitment = command.commitment;
     let member_index_u16 = u16::try_from(member_index)
-        .map_err(|_| PyValueError::new_err("MCP plan member is outside bounds"))?;
+        .map_err(|_| crate::errors::malformed_input("MCP plan member is outside bounds"))?;
     let member_count_u16 = u16::try_from(member_count)
-        .map_err(|_| PyValueError::new_err("MCP plan member count is outside bounds"))?;
+        .map_err(|_| crate::errors::malformed_input("MCP plan member count is outside bounds"))?;
     let binding = *command
         .receipt_bindings
         .get(member_index)
-        .ok_or_else(|| PyValueError::new_err("MCP plan member is outside bounds"))?;
+        .ok_or_else(|| crate::errors::malformed_input("MCP plan member is outside bounds"))?;
     let commands = command
         .commands
         .as_mut()
@@ -971,10 +979,10 @@ fn begin_mcp_plan_member_execution(
     let canonical_action = auths_codec::encode_canonical_action(&canonical).map_err(value_error)?;
     let key: [u8; 32] = session_key
         .try_into()
-        .map_err(|_| PyValueError::new_err("MCP session key must contain 32 bytes"))?;
-    let receipt_id: [u8; 32] = decision_receipt_id
-        .try_into()
-        .map_err(|_| PyValueError::new_err("MCP decision receipt ID must contain 32 bytes"))?;
+        .map_err(|_| crate::errors::malformed_input("MCP session key must contain 32 bytes"))?;
+    let receipt_id: [u8; 32] = decision_receipt_id.try_into().map_err(|_| {
+        crate::errors::malformed_input("MCP decision receipt ID must contain 32 bytes")
+    })?;
     let session = McpExecutionSession::begin_plan_member(
         inner,
         binding.0,
@@ -1185,7 +1193,7 @@ fn parse_cause(value: &str) -> PyResult<McpCause> {
         "timeout" => Ok(McpCause::Timeout),
         "unavailable" => Ok(McpCause::Unavailable),
         "unknown" => Ok(McpCause::Unknown),
-        _ => Err(PyValueError::new_err("invalid MCP cause category")),
+        _ => Err(crate::errors::malformed_input("invalid MCP cause category")),
     }
 }
 

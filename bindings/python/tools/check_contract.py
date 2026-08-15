@@ -29,6 +29,21 @@ def main() -> None:
     for operation in (*abi["operations"], *abi["inspection"]):
         if not callable(getattr(_native, operation, None)):
             raise SystemExit(f"native ABI operation is unavailable: {operation}")
+    # The manifest is a two-way contract. Checking only that every declared
+    # symbol exists lets the native layer publish anything it likes as long as
+    # it also keeps its promises, which is how 23 undeclared symbols -- among
+    # them a whole generic reference vertical -- reached callers unreviewed.
+    declared = {*abi["types"], *abi["operations"], *abi["inspection"]}
+    exported = {name for name in dir(_native) if not name.startswith("__")}
+    undeclared = sorted(exported - declared)
+    if undeclared:
+        raise SystemExit(
+            "native symbols are exported but undeclared in native-abi-v2.json: "
+            + ", ".join(undeclared)
+        )
+    for native_type in abi["types"]:
+        if native_type in abi["operations"] or native_type in abi["inspection"]:
+            raise SystemExit(f"native ABI symbol is declared twice: {native_type}")
     if capability["implementationStatus"] != "elite-repository-implementation-complete":
         raise SystemExit("capability evidence does not describe the implemented SDK")
     for module in runtime["excludedModules"]:

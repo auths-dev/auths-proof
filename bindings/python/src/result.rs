@@ -6,7 +6,7 @@ use auths_model::{
 };
 use auths_ports::{PrincipalMethod, SignatureSuite};
 use pyo3::{
-    exceptions::{PyRuntimeError, PyTypeError, PyValueError},
+    exceptions::{PyRuntimeError, PyTypeError},
     prelude::*,
     types::PyBytes,
 };
@@ -134,7 +134,7 @@ fn verify_many_v1(
     inputs: Vec<(Vec<u8>, Vec<u8>, Vec<u8>)>,
 ) -> PyResult<Vec<NativeVerificationResult>> {
     if inputs.is_empty() || inputs.len() > MAX_VERIFY_BATCH {
-        return Err(PyValueError::new_err(
+        return Err(crate::errors::malformed_input(
             "verification batch is outside native limits",
         ));
     }
@@ -145,7 +145,7 @@ fn verify_many_v1(
             .checked_add(value.2.len())
     });
     if total_bytes.is_none_or(|total| total > MAX_VERIFY_BATCH_BYTES) {
-        return Err(PyValueError::new_err(
+        return Err(crate::errors::malformed_input(
             "verification batch is outside native limits",
         ));
     }
@@ -193,7 +193,7 @@ const fn diagnostic_input_limits_v1() -> (usize, usize, usize) {
 #[pyfunction]
 fn commitments_equal_v1(left: &[u8], right: &[u8]) -> PyResult<bool> {
     if left.len() != 32 || right.len() != 32 {
-        return Err(PyValueError::new_err(
+        return Err(crate::errors::malformed_input(
             "native commitments must contain 32 bytes",
         ));
     }

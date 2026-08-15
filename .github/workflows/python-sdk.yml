@@ -128,7 +128,7 @@ jobs:
           python-version: "3.9"
       - run: python -m pip install maturin==1.9.6
       - run: >-
-          maturin build --release --locked
+          maturin build --profile python-extension --locked
           --manifest-path bindings/python/Cargo.toml
           --out target/python-release-wheels
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

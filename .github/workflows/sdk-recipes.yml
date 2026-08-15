@@ -64,7 +64,7 @@ jobs:
       - run: npm pack --pack-destination ../../target/recipe-artifacts
         working-directory: bindings/typescript
       - run: >-
-          .recipe-venv/bin/maturin build --release --locked
+          .recipe-venv/bin/maturin build --profile python-extension --locked
           --manifest-path bindings/python/Cargo.toml
           --out target/recipe-artifacts
       - run: npm ci

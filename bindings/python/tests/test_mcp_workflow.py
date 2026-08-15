@@ -712,7 +712,13 @@ async def test_plan_cancellation_exposes_no_partial_command() -> None:
         )
     )
 
-    await signer.started.wait()
+    # Bounded on purpose. If the plan is refused at member 0 the second
+    # signature never starts, `started` is never set, and an unbounded wait
+    # hangs the whole suite instead of reporting anything. Today that is
+    # exactly what happens: the plan is denied `budget-ceiling-exceeded`
+    # (the absent-budget convergence in f5c3589), so this raises TimeoutError
+    # and the failure is legible. No assertion below is relaxed.
+    await asyncio.wait_for(signer.started.wait(), timeout=30)
     operation.cancel()
     with pytest.raises(asyncio.CancelledError):
         await operation
