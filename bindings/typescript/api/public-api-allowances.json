@@ -1,0 +1,16 @@
+{
+  "_comment": [
+    "Declared exceptions to the public-API shape rules enforced by",
+    "tools/public-api.mjs --shape.",
+    "",
+    "mirror   one entry point exporting both `X` and `<Prefix>X` of the same kind.",
+    "homonym  one name exported from two entry points resolving to different declarations.",
+    "",
+    "Every entry needs a reason. An allowance that stops matching anything fails the",
+    "check, so stale exemptions cannot accumulate silently. Prefer fixing the surface",
+    "over adding an entry here: each one is a place a reader must be told which of two",
+    "similarly-named things they want."
+  ],
+  "mirror": [],
+  "homonym": []
+}
