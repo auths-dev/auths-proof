@@ -25,12 +25,21 @@ instance {v : Vocabulary}
     Decidable (budgetLe child parent) := by
   cases child <;> cases parent <;> simp [budgetLe] <;> infer_instance
 
+/--
+Terminal budget coverage.
+
+An absent ceiling is the unbounded top scope, so it covers every request.  An
+absent *request* under a present ceiling is **not** covered: an action that
+declares no bound on what it may spend is exactly the authority the ceiling
+exists to deny.  This mirrors `auths_model::optional_budget_covers`, the
+`auths-verifier` guard, Go `budgetCovers`, and TypeScript `budgetCovers`.
+-/
 def budgetCovers {v : Vocabulary}
     (ceiling requested : Option (BudgetCeiling v)) : Prop :=
-  match requested, ceiling with
+  match ceiling, requested with
   | none, _ => True
-  | some _, none => True
-  | some requested, some ceiling =>
+  | some _, none => False
+  | some ceiling, some requested =>
       requested.algebra = ceiling.algebra ∧
         requested.value ≤ ceiling.value
 
@@ -39,6 +48,39 @@ instance {v : Vocabulary}
     Decidable (budgetCovers ceiling requested) := by
   cases ceiling <;> cases requested <;>
     simp [budgetCovers] <;> infer_instance
+
+/--
+The critical-extension delegation relation.
+
+This is the one dimension where delegation must **preserve**, not narrow.  A
+critical extension is a constraint an unaware verifier is forbidden to ignore
+(the X.509 / JWT sense).  If a delegate could drop one, the mechanism would be
+worthless: attach a constraint at the root and the first delegation strips it.
+Equality is the point, and it is what
+`auths_model::critical_extensions_equal` computes.
+
+A parent that has not pinned a set yet (`none`, the state of
+`EffectiveAuthority::from_anchor`) admits any set, matching
+`match parent.extensions { Some(parent) => .., None => true }` in
+`auths_authority::evaluate_grant_view`.  A child that drops back to `none`
+under a parent that has pinned one is rejected — that is precisely the
+strip-the-constraint move.
+-/
+def extensionsLe {v : Vocabulary}
+    (child parent : Option (CriticalExtensions v)) : Prop :=
+  match child, parent with
+  | _, none => True
+  | none, some _ => False
+  | some child, some parent => child = parent
+
+instance {v : Vocabulary}
+    (child parent : Option (CriticalExtensions v)) :
+    Decidable (extensionsLe child parent) :=
+  match child, parent with
+  | _, none => isTrue trivial
+  | none, some _ => isFalse fun absurdity => absurdity
+  | some child, some parent =>
+      if equality : child = parent then isTrue equality else isFalse equality
 
 def statusLe {v : Vocabulary}
     (child parent : StatusPolicy v) : Prop :=
@@ -127,7 +169,8 @@ def structuralScopeLe {v : Vocabulary}
   actionConstraintLe child.actionConstraint parent.actionConstraint ∧
   budgetLe child.budget parent.budget ∧
   statusLe child.status parent.status ∧
-  child.assurance = parent.assurance
+  child.assurance = parent.assurance ∧
+  extensionsLe child.extensions parent.extensions
 
 instance {v : Vocabulary} (child parent : AuthorityScope v) :
     Decidable (structuralScopeLe child parent) := by
@@ -217,7 +260,8 @@ def grantScopeChecks {v : Vocabulary}
   actionConstraintLe grant.actionConstraint parent.actionConstraint ∧
   budgetLe grant.budget parent.budget ∧
   statusLe grant.status parent.status ∧
-  grant.assurance = parent.assurance
+  grant.assurance = parent.assurance ∧
+  extensionsLe (some grant.extensions) parent.extensions
 
 instance {v : Vocabulary} (parent : AuthorityScope v) (grant : Grant v) :
     Decidable (grantScopeChecks parent grant) := by
@@ -270,6 +314,7 @@ def acceptedScope {v : Vocabulary}
   budget := grant.budget
   status := grant.status
   assurance := grant.assurance
+  extensions := some grant.extensions
 
 def acceptedNextState {v : Vocabulary}
     (parent : ChainState v) (grantId : GrantId v) (grant : Grant v)
@@ -330,6 +375,7 @@ inductive AuthorDiagnostic where
   | delegationDepth
   | status
   | assurance
+  | extensions
   deriving DecidableEq, Repr
 
 inductive AuthorDecision where
@@ -359,6 +405,8 @@ def evaluateAuthorScope {v : Vocabulary}
     .denied .status
   else if child.assurance ≠ parent.assurance then
     .denied .assurance
+  else if ¬ extensionsLe child.extensions parent.extensions then
+    .denied .extensions
   else
     .accepted
 
@@ -429,6 +477,7 @@ def delegationProjection {v : Vocabulary}
     decide (statusLe grant.status parent.scope.status)
   assuranceAttenuates :=
     decide (grant.assurance = parent.scope.assurance)
-  extensionsAttenuate := true
+  extensionsAttenuate :=
+    decide (extensionsLe (some grant.extensions) parent.scope.extensions)
 
 end Auths.Rich

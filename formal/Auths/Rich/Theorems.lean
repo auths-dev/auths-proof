@@ -140,18 +140,91 @@ theorem budget_coverage_monotone {v : Vocabulary}
     (order : budgetLe child parent)
     (covered : budgetCovers child requested) :
     budgetCovers parent requested := by
-  cases requested with
+  cases parent with
   | none => simp [budgetCovers]
-  | some requested =>
-      cases parent with
-      | none => simp [budgetCovers]
-      | some parent =>
-          cases child with
-          | none => simp [budgetLe] at order
-          | some child =>
-              simp only [budgetLe] at order
+  | some parent =>
+      cases child with
+      | none => simp [budgetLe] at order
+      | some child =>
+          simp only [budgetLe] at order
+          cases requested with
+          | none => simp only [budgetCovers] at covered
+          | some requested =>
               simp only [budgetCovers] at covered ⊢
               exact ⟨covered.1.trans order.1, covered.2.trans order.2⟩
+
+theorem extensions_refl {v : Vocabulary}
+    (extensions : Option (CriticalExtensions v)) :
+    extensionsLe extensions extensions := by
+  cases extensions <;> simp [extensionsLe]
+
+theorem extensions_trans {v : Vocabulary}
+    {a b c : Option (CriticalExtensions v)}
+    (hab : extensionsLe a b) (hbc : extensionsLe b c) :
+    extensionsLe a c := by
+  cases c with
+  | none => trivial
+  | some c =>
+      cases b with
+      | none => simp [extensionsLe] at hbc
+      | some b =>
+          cases a with
+          | none => simp [extensionsLe] at hab
+          | some a =>
+              simp only [extensionsLe] at hab hbc ⊢
+              exact hab.trans hbc
+
+theorem extensions_antisymm {v : Vocabulary}
+    {a b : Option (CriticalExtensions v)}
+    (hab : extensionsLe a b) (hba : extensionsLe b a) :
+    a = b := by
+  cases a with
+  | none =>
+      cases b with
+      | none => rfl
+      | some b => simp [extensionsLe] at hab
+  | some a =>
+      cases b with
+      | none => simp [extensionsLe] at hba
+      | some b =>
+          simp only [extensionsLe] at hab
+          rw [hab]
+
+/--
+A parent that has pinned an extension set admits exactly that set.
+
+This is the falsifiable content of dimension 11: for every pinned set there is
+a child set the relation refuses, so no constant can satisfy it.
+-/
+@[simp] theorem extensions_le_pinned_iff {v : Vocabulary}
+    (child parent : CriticalExtensions v) :
+    extensionsLe (some child) (some parent) ↔ child = parent :=
+  Iff.rfl
+
+/-- A child that drops a pinned set is refused, for every pinned set. -/
+theorem extensions_le_false_of_dropped {v : Vocabulary}
+    (parent : CriticalExtensions v) :
+    ¬ extensionsLe (none : Option (CriticalExtensions v)) (some parent) := by
+  simp [extensionsLe]
+
+/-- A child that alters a pinned set is refused, for every alteration. -/
+theorem extensions_le_false_of_altered {v : Vocabulary}
+    {child parent : CriticalExtensions v}
+    (altered : child ≠ parent) :
+    ¬ extensionsLe (some child) (some parent) := by
+  simpa [extensionsLe] using altered
+
+/--
+The class the two theorems above quantify over is inhabited, so neither is
+vacuous: dropping the single extension of a one-element set is refused.
+-/
+theorem extensions_le_refuses_a_dropped_singleton {v : Vocabulary}
+    (extension : CriticalExtension v) :
+    ¬ extensionsLe
+        (some (CriticalExtensions.empty v))
+        (some (CriticalExtensions.singleton extension)) :=
+  extensions_le_false_of_altered
+    (CriticalExtensions.empty_ne_singleton extension)
 
 theorem status_refl {v : Vocabulary} (status : StatusPolicy v) :
     statusLe status status := by
@@ -258,16 +331,16 @@ theorem structural_scope_le_refl {v : Vocabulary}
     (scope : AuthorityScope v) :
     structuralScopeLe scope scope := by
   simp [structuralScopeLe, profile_refl, window_contained_refl,
-    action_constraint_refl, budget_refl, status_refl]
+    action_constraint_refl, budget_refl, status_refl, extensions_refl]
 
 theorem structural_scope_le_trans {v : Vocabulary}
     {a b c : AuthorityScope v}
     (hab : structuralScopeLe a b) (hbc : structuralScopeLe b c) :
     structuralScopeLe a c := by
   rcases hab with ⟨profileAB, permissionAB, validityAB, audienceAB,
-    actionAB, budgetAB, statusAB, assuranceAB⟩
+    actionAB, budgetAB, statusAB, assuranceAB, extensionsAB⟩
   rcases hbc with ⟨profileBC, permissionBC, validityBC, audienceBC,
-    actionBC, budgetBC, statusBC, assuranceBC⟩
+    actionBC, budgetBC, statusBC, assuranceBC, extensionsBC⟩
   exact ⟨
     profile_trans profileAB profileBC,
     Finset.Subset.trans permissionAB permissionBC,
@@ -276,7 +349,8 @@ theorem structural_scope_le_trans {v : Vocabulary}
     action_constraint_trans actionAB actionBC,
     budget_trans budgetAB budgetBC,
     status_trans statusAB statusBC,
-    assuranceAB.trans assuranceBC
+    assuranceAB.trans assuranceBC,
+    extensions_trans extensionsAB extensionsBC
   ⟩
 
 theorem scope_le_canonical_antisymmetry {v : Vocabulary}
@@ -286,9 +360,9 @@ theorem scope_le_canonical_antisymmetry {v : Vocabulary}
     (hab : structuralScopeLe a b) (hba : structuralScopeLe b a) :
     a = b := by
   rcases hab with ⟨profileAB, permissionAB, validityAB, audienceAB,
-    actionAB, budgetAB, statusAB, assuranceAB⟩
+    actionAB, budgetAB, statusAB, assuranceAB, extensionsAB⟩
   rcases hba with ⟨profileBA, permissionBA, validityBA, audienceBA,
-    actionBA, budgetBA, statusBA, assuranceBA⟩
+    actionBA, budgetBA, statusBA, assuranceBA, extensionsBA⟩
   have profileEquality := profile_antisymm profileAB profileBA
   have permissionEquality := Finset.Subset.antisymm permissionAB permissionBA
   have validityEquality := window_contained_antisymm validityAB validityBA
@@ -297,10 +371,11 @@ theorem scope_le_canonical_antisymmetry {v : Vocabulary}
     aActionCanonical bActionCanonical actionAB actionBA
   have budgetEquality := budget_antisymm budgetAB budgetBA
   have statusEquality := status_antisymm statusAB statusBA
+  have extensionsEquality := extensions_antisymm extensionsAB extensionsBA
   rcases a with ⟨aProfile, aPermissions, aValidity, aAudiences, aAction,
-    aBudget, aStatus, aAssurance⟩
+    aBudget, aStatus, aAssurance, aExtensions⟩
   rcases b with ⟨bProfile, bPermissions, bValidity, bAudiences, bAction,
-    bBudget, bStatus, bAssurance⟩
+    bBudget, bStatus, bAssurance, bExtensions⟩
   simp_all
 
 theorem action_coverage_downward_closed {v : Vocabulary}
@@ -309,7 +384,8 @@ theorem action_coverage_downward_closed {v : Vocabulary}
     (covered : actionCovers child action) :
     actionCovers parent action := by
   rcases order with ⟨profileOrder, permissionOrder, validityOrder,
-    audienceOrder, actionOrder, budgetOrder, statusOrder, assuranceOrder⟩
+    audienceOrder, actionOrder, budgetOrder, statusOrder, assuranceOrder,
+    extensionsOrder⟩
   rcases covered with ⟨profileCovered, permissionCovered, validityCovered,
     audienceCovered, actionCovered, budgetCovered⟩
   exact ⟨
@@ -326,7 +402,7 @@ theorem evidence_requirements_downward_closed {v : Vocabulary}
     (order : structuralScopeLe child parent)
     (satisfied : evidenceRequirementsSatisfied child facts) :
     evidenceRequirementsSatisfied parent facts := by
-  rcases order with ⟨_, _, _, _, _, _, statusOrder, assuranceOrder⟩
+  rcases order with ⟨_, _, _, _, _, _, statusOrder, assuranceOrder, _⟩
   rcases satisfied with ⟨statusSatisfiedByFacts, assuranceSatisfied⟩
   exact ⟨
     status_satisfaction_monotone statusOrder statusSatisfiedByFacts,
@@ -386,7 +462,8 @@ theorem accepted_scope_le {v : Vocabulary}
     (checks : grantScopeChecks parent grant) :
     structuralScopeLe (acceptedScope parent grant checks) parent := by
   rcases checks with ⟨profileCheck, permissionCheck, validityCheck,
-    audienceCheck, actionCheck, budgetCheck, statusCheck, assuranceCheck⟩
+    audienceCheck, actionCheck, budgetCheck, statusCheck, assuranceCheck,
+    extensionsCheck⟩
   constructor
   · constructor
     · rfl
@@ -395,7 +472,7 @@ theorem accepted_scope_le {v : Vocabulary}
       | some selectedProfile =>
           simpa [acceptedScope, profileAllows, selected] using profileCheck
   · exact ⟨permissionCheck, validityCheck, audienceCheck, actionCheck,
-      budgetCheck, statusCheck, assuranceCheck⟩
+      budgetCheck, statusCheck, assuranceCheck, extensionsCheck⟩
 
 theorem delegate_implies_scope_le {v : Vocabulary}
     {parent child : ChainState v} {grantId : GrantId v} {grant : Grant v}
@@ -531,6 +608,83 @@ theorem broken_root_denies_every_projection {v : Vocabulary}
       (delegationProjection parent grant) = false := by
   simp [Auths.Generated.attenuationAccepts, delegationProjection, broken]
 
+/-!
+### Critical-extension preservation
+
+`extensionsAttenuate` was a literal `true` until the model gained an
+`extensions` field, so the eleven-dimension contract was proved over ten
+dimensions and reported eleven — structurally the same defect as the old
+`root_preserved: true`.  The theorems below pin the dimension to the semantic
+relation and exhibit the input classes on which it is `false`, so a literal
+cannot satisfy them.
+-/
+
+/-- The generated extension dimension reports exactly the semantic relation. -/
+theorem extensions_dimension_is_exact {v : Vocabulary}
+    (parent : ChainState v) (grant : Grant v) :
+    (delegationProjection parent grant).extensionsAttenuate = true ↔
+      extensionsLe (some grant.extensions) parent.scope.extensions := by
+  simp [delegationProjection]
+
+/--
+Witness that the dimension is falsifiable, stated over all inputs: a grant that
+alters a pinned critical-extension set drives it to `false`.
+-/
+theorem extensions_dimension_false_of_altered_set {v : Vocabulary}
+    (parent : ChainState v) (grant : Grant v)
+    (pinned : CriticalExtensions v)
+    (pinnedBy : parent.scope.extensions = some pinned)
+    (altered : grant.extensions ≠ pinned) :
+    (delegationProjection parent grant).extensionsAttenuate = false := by
+  simp [delegationProjection, extensionsLe, pinnedBy, altered]
+
+/--
+No other attenuation dimension can rescue a stripped critical extension:
+acceptance is the conjunction, so the whole projection is rejected.
+-/
+theorem altered_extensions_deny_every_projection {v : Vocabulary}
+    (parent : ChainState v) (grant : Grant v)
+    (broken : ¬ extensionsLe (some grant.extensions) parent.scope.extensions) :
+    Auths.Generated.attenuationAccepts
+      (delegationProjection parent grant) = false := by
+  simp [Auths.Generated.attenuationAccepts, delegationProjection, broken]
+
+/-- Every accepted edge preserves a pinned critical-extension set exactly. -/
+theorem delegate_preserves_pinned_extensions {v : Vocabulary}
+    {parent child : ChainState v} {grantId : GrantId v} {grant : Grant v}
+    (accepted : delegates parent grantId grant child)
+    (pinned : CriticalExtensions v)
+    (pinnedBy : parent.scope.extensions = some pinned) :
+    child.scope.extensions = some pinned := by
+  rcases accepted with ⟨_, ⟨checks, rfl⟩⟩
+  obtain ⟨_, _, _, _, _, _, _, _, preserved⟩ := checks.2.2
+  rw [pinnedBy] at preserved
+  simp only [extensionsLe] at preserved
+  simp [acceptedNextState, acceptedScope, preserved]
+
+/--
+Once a chain has pinned a critical-extension set, every reachable state carries
+that same set.  This is the inductive statement the single-edge theorem does
+not carry, and it is what makes "a delegate cannot strip a critical extension"
+a claim about whole chains rather than about one hop.
+-/
+theorem chain_preserves_pinned_extensions {v : Vocabulary}
+    {start : ChainState v} {rest : List (ChainState v)}
+    (chain : DelegationChain start rest)
+    (pinned : CriticalExtensions v)
+    (pinnedBy : start.scope.extensions = some pinned) :
+    ∀ state ∈ rest, state.scope.extensions = some pinned := by
+  induction chain with
+  | nil => simp
+  | cons parent child grantId grant rest edge tail inductionHypothesis =>
+      intro state member
+      have childPinned : child.scope.extensions = some pinned :=
+        delegate_preserves_pinned_extensions edge pinned pinnedBy
+      rcases List.mem_cons.1 member with head | inTail
+      · rw [head]
+        exact childPinned
+      · exact inductionHypothesis childPinned state inTail
+
 theorem delegate_updates_subject_and_parent {v : Vocabulary}
     {parent child : ChainState v} {grantId : GrantId v} {grant : Grant v}
     (accepted : delegates parent grantId grant child) :
@@ -594,6 +748,11 @@ The `rootPreserved` conjunct is not redundant: before the trust root became a
 computed dimension this theorem read `↔ scopeDepthChecks parent grant`, which
 is precisely the vacuity — the eleven-dimension contract was proved equivalent
 to ten dimensions.
+
+`scopeDepthChecks` now also carries `extensionsLe`.  While `extensionsAttenuate`
+was a literal `true` this equivalence held with `grantScopeChecks` silent about
+critical extensions, so the same vacuity was present in the eleventh dimension
+and invisible here.
 -/
 theorem rich_projection_accepts_iff_root_and_scope_depth_checks {v : Vocabulary}
     (parent : ChainState v) (grant : Grant v) :

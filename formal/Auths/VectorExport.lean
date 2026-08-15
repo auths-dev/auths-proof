@@ -62,6 +62,8 @@ def natVocabulary : Rich.Vocabulary where
   StatusMethodCarrier := Nat
   AssuranceCarrier := Nat
   GrantIdCarrier := Nat
+  ExtensionIdCarrier := Nat
+  ExtensionBodyCarrier := Nat
   principalDecidableEq := inferInstance
   profileDecidableEq := inferInstance
   permissionDecidableEq := inferInstance
@@ -71,6 +73,8 @@ def natVocabulary : Rich.Vocabulary where
   statusMethodDecidableEq := inferInstance
   assuranceDecidableEq := inferInstance
   grantIdDecidableEq := inferInstance
+  extensionIdDecidableEq := inferInstance
+  extensionBodyDecidableEq := inferInstance
 
 def natArrayCode (values : List Nat) : String :=
   "[" ++ String.intercalate "," (values.map toString) ++ "]"
