@@ -1,12 +1,97 @@
-import { ERROR_REGISTRY } from "./generated/error-registry.js";
+import { ERROR_REGISTRY, UNRECOGNIZED_CODE } from "./generated/error-registry.js";
 
 type Definition = (typeof ERROR_REGISTRY.definitions)[number];
 
 export type AuthsErrorCode = Definition["code"] | (string & {});
-export type ErrorFamily = Definition["family"] | "unknown";
+export type ErrorFamily = Definition["family"];
+
+/**
+ * Answers *may I retry?* — `auths_errors::RetryClass`.
+ *
+ * This is not the same question as {@link NextCall}, which answers *what should
+ * I call next?*. The two shared an identifier once; they never will again.
+ */
 export type RetryClass = Definition["outcomes"][number]["retry"];
-export type EffectState = Definition["outcomes"][number]["effect"] | "unknown";
+
+/**
+ * Answers *did the real-world effect happen?* — `auths_errors::EffectState`.
+ *
+ * Exactly three members, owned by Rust. `possible` means WE DO NOT KNOW: a
+ * caller who reads it must reconcile before retrying. There is no fourth value
+ * and no second spelling; a code this build does not recognize fails closed to
+ * `possible`, never to `not-applied`.
+ */
+export type EffectState = Definition["outcomes"][number]["effect"];
 export type RecommendedAction = Definition["recommendedAction"];
+export type ProductStage = Definition["stages"][number] | typeof UNRECOGNIZED_CODE.stages[number];
+
+/**
+ * The five product verbs — `ProductVerb` in Rust. The wire field is `verb`.
+ */
+export type ProductVerb = "create" | "delegate" | "execute" | "resume" | "verify";
+
+const PRODUCT_VERBS: readonly ProductVerb[] = Object.freeze([
+  "create", "delegate", "execute", "resume", "verify",
+]);
+
+export function isProductVerb(value: unknown): value is ProductVerb {
+  return typeof value === "string" && (PRODUCT_VERBS as readonly string[]).includes(value);
+}
+
+/**
+ * Rust's classification of one stable code, projected from the generated
+ * registry. TypeScript never recomputes a classification and never mints a
+ * code: an unrecognized code takes the generated fail-closed answer.
+ */
+export interface CodeClassification {
+  /** False when this build's registry does not contain the code. */
+  readonly known: boolean;
+  readonly family: ErrorFamily;
+  readonly operation: string;
+  readonly stage: string;
+  readonly retry: RetryClass;
+  readonly effect: EffectState;
+  readonly recommendedAction: RecommendedAction;
+}
+
+/**
+ * Classifies one stable code exactly as `auths_errors::classify` does.
+ *
+ * When a definition permits several outcomes the dominant one is reported —
+ * `possible` over `applied` over `not-applied` — because a caller who must
+ * reconcile has strictly more work than one who must not repeat.
+ */
+export function classifyErrorCode(code: string): CodeClassification {
+  const definition = definitions.get(code);
+  if (definition === undefined) {
+    return Object.freeze({
+      known: false,
+      family: UNRECOGNIZED_CODE.family,
+      operation: UNRECOGNIZED_CODE.operation,
+      stage: UNRECOGNIZED_CODE.stages[0],
+      retry: UNRECOGNIZED_CODE.retry,
+      effect: UNRECOGNIZED_CODE.effect,
+      recommendedAction: UNRECOGNIZED_CODE.recommendedAction,
+    });
+  }
+  let dominant = definition.outcomes[0]!;
+  for (const outcome of definition.outcomes) {
+    if (effectRank(outcome.effect) > effectRank(dominant.effect)) dominant = outcome;
+  }
+  return Object.freeze({
+    known: true,
+    family: definition.family,
+    operation: definition.operation,
+    stage: definition.stages[0],
+    retry: dominant.retry,
+    effect: dominant.effect,
+    recommendedAction: definition.recommendedAction,
+  });
+}
+
+function effectRank(effect: EffectState): number {
+  return effect === "possible" ? 2 : effect === "applied" ? 1 : 0;
+}
 export type CauseCategory =
   | "cancelled"
   | "conflict"
@@ -225,6 +310,14 @@ function parseDetails(input: unknown): AuthsErrorDetails {
   });
 }
 
+/**
+ * Fails closed for a code this build's registry does not contain.
+ *
+ * Every classification field is the generated projection of
+ * `auths_errors::classify`, so a code minted by a newer Auths reaches the caller
+ * with its identity intact and with `effect: "possible"` — never swallowed,
+ * never downgraded to `not-applied`, and never renamed to a fourth value.
+ */
 function parseUnknownDetails(
   value: Record<string, unknown>,
   code: string,
@@ -236,18 +329,19 @@ function parseUnknownDetails(
   const rawCauses = array(value.causes);
   if (rawCauses.length > 8) throw new TypeError("Auths error has too many cause categories");
   const unknownCauses: readonly CauseCategory[] = rawCauses.length === 0 ? [] : ["unknown"];
+  const classification = classifyErrorCode(code);
   return Object.freeze({
     schema: "auths.error/1",
-    family: "unknown",
+    family: classification.family,
     code,
-    operation: "unknown",
-    stage: "unknown",
-    summary: "Unknown Auths error code",
+    operation: classification.operation,
+    stage: classification.stage,
+    summary: "Unrecognized Auths error code",
     correlationId,
-    retry: "unknown",
-    effect: "unknown",
+    retry: classification.retry,
+    effect: classification.effect,
     entered: Object.freeze({ approval: false, signer: false, state: false, credential: false, provider: false }),
-    recommendedAction: "contact-support",
+    recommendedAction: classification.recommendedAction,
     causes: Object.freeze(unknownCauses),
   });
 }

@@ -1113,3 +1113,18 @@ ERROR_REGISTRY: Final[dict[str, Any]] = json.loads(r'''{
   ]
 }
 ''')
+
+# `auths_errors::classify` applied to a code this build's registry does not
+# contain. A binding projects this; it never recomputes it.
+UNRECOGNIZED_CODE: Final[dict[str, Any]] = json.loads(r'''{
+  "known": false,
+  "family": "runtime",
+  "operation": "execute",
+  "stages": [
+    "unrecognized-code"
+  ],
+  "retry": "unknown",
+  "effect": "possible",
+  "recommendedAction": "resume-and-reconcile"
+}
+''')

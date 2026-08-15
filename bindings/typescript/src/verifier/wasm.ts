@@ -1,6 +1,7 @@
 import type { WorkflowWasmEngine } from "../workflow.js";
 import type { PortableWasmEngine } from "./result.js";
 import { registerPackagedEngine } from "./packaged-registry.js";
+import { guardWasmBoundary } from "./wasm-boundary.js";
 
 export type PackagedWorkflowEngine = WorkflowWasmEngine & PortableWasmEngine;
 
@@ -94,5 +95,8 @@ async function loadPackagedWorkflowEngineOnce(): Promise<PackagedWorkflowEngine>
   ) {
     throw new TypeError("Auths WASM module omitted workflow authoring exports");
   }
-  return registerPackagedEngine(loaded);
+  // Registered AFTER guarding so the guarded namespace is the only engine
+  // object any consumer ever holds: `isPackagedEngine` compares identity, and
+  // an unguarded engine must not be able to satisfy it.
+  return registerPackagedEngine(guardWasmBoundary(loaded));
 }

@@ -6,6 +6,8 @@
  * callers select concrete identity-method and signature-suite adapters explicitly.
  */
 
+import { guardWasmBoundary } from "./verifier/wasm-boundary.js";
+
 const DECODED_IDENTITY = Symbol("auths-decoded-identity");
 const VALIDATED_IDENTITY = Symbol("auths-validated-identity");
 const DECODED_MESSAGE = Symbol("auths-decoded-identity-message");
@@ -769,7 +771,9 @@ async function loadPackagedIdentityEngine(): Promise<IdentityWasmEngine> {
     if (loaded.identityAbiVersionV1() !== 1) {
       throw new TypeError("Auths WASM module has an unsupported neutral identity ABI");
     }
-    return loaded;
+    // Same guard, same WASM namespace object, therefore the same proxy the
+    // workflow loader hands out: a failure on this path is an AuthsError too.
+    return guardWasmBoundary(loaded);
   })();
   return packaged;
 }

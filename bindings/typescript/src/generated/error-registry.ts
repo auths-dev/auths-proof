@@ -1107,3 +1107,20 @@ export const ERROR_REGISTRY = {
     }
   ]
 } as const;
+
+/**
+ * `auths_errors::classify` applied to a code this build's registry does not
+ * contain. A binding projects this; it never recomputes it and never invents a
+ * fourth effect state.
+ */
+export const UNRECOGNIZED_CODE = {
+  "known": false,
+  "family": "runtime",
+  "operation": "execute",
+  "stages": [
+    "unrecognized-code"
+  ],
+  "retry": "unknown",
+  "effect": "possible",
+  "recommendedAction": "resume-and-reconcile"
+} as const;
