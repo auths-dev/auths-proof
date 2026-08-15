@@ -354,7 +354,24 @@ mod proofs {
 
     #[kani::proof]
     fn exact_replay_never_becomes_absent_or_conflict() {
-        assert_eq!(replay_code(true, true), ReplayCode::ExactReplay);
+        let record_exists: bool = kani::any();
+        let commitments_equal: bool = kani::any();
+        let code = replay_code(record_exists, commitments_equal);
+        // Total specification: each classification holds on exactly its own
+        // inputs. Stating all three as iff makes any reassignment between them
+        // falsifiable, which a single concrete point cannot do.
+        assert_eq!(
+            code == ReplayCode::ExactReplay,
+            record_exists && commitments_equal
+        );
+        // Absence must never absorb a conflicting prior record: claiming Absent
+        // for an existing record would let a second identity be created for the
+        // same workflow.
+        assert_eq!(code == ReplayCode::Absent, !record_exists);
+        assert_eq!(
+            code == ReplayCode::Conflict,
+            record_exists && !commitments_equal
+        );
     }
 
     #[kani::proof]

@@ -329,6 +329,147 @@ pub(crate) fn ci_formal_translation() -> Result<(), String> {
     run_formal_semantic_checks(&formal_root, false, false)
 }
 
+/// One workspace package whose `#[kani::proof]` harnesses the formal gate runs.
+struct KaniHarnessPackage {
+    /// Cargo package name passed to `cargo kani -p`.
+    package: &'static str,
+    /// Workspace-relative source root that must contain every harness the
+    /// package owns.
+    source_root: &'static str,
+}
+
+/// Complete inventory of packages carrying Kani harnesses.
+///
+/// `kani_harness_inventory` fails the gate when any `#[kani::proof]` appears
+/// outside these roots. Before this list existed the gate ran only the two core
+/// packages, so 31 product harnesses were never executed by anything — which is
+/// the structural reason single-point harnesses could wear universally
+/// quantified names undetected. Adding a harness in a new package must extend
+/// this list, not silently skip the gate.
+const KANI_HARNESS_PACKAGES: &[KaniHarnessPackage] = &[
+    KaniHarnessPackage {
+        package: "auths-algebra-kernel",
+        source_root: "core/crates/auths-algebra-kernel",
+    },
+    KaniHarnessPackage {
+        package: "auths-model",
+        source_root: "core/crates/auths-model",
+    },
+    KaniHarnessPackage {
+        package: "auths-lifecycle",
+        source_root: "product/runtime/auths-lifecycle",
+    },
+    KaniHarnessPackage {
+        package: "auths-bounded-policy",
+        source_root: "product/policy/auths-bounded-policy",
+    },
+    KaniHarnessPackage {
+        package: "auths-stripe",
+        source_root: "product/integrations/auths-stripe",
+    },
+];
+
+/// Runs the complete harness set for every package in `KANI_HARNESS_PACKAGES`.
+///
+/// Nothing is filtered. Kani 0.67 offers only an inclusion filter
+/// (`--harness`), so excluding one slow harness would mean hand-listing every
+/// other harness name here — a list that goes stale exactly the way the phantom
+/// `kani_harnesses` citations did. The complete set is run instead.
+///
+/// MEASURED COST of the 31 product harnesses this list newly gates: ~281s of
+/// solving, of which ~235s is the single harness
+/// `connect::transfer::evaluator::proofs::basis_points_floor_never_exceeds_denominator`
+/// (symbolic 64-bit division by 10_000; kissat was tried and was slower at
+/// ~279s). Every other harness is under 0.3s. If this gate needs to get faster,
+/// make that division cheaper to reason about — do not shrink its input domain.
+fn run_kani_harnesses() -> Result<(), String> {
+    for package in KANI_HARNESS_PACKAGES.iter().map(|entry| entry.package) {
+        command_in(
+            "cargo",
+            // `-j` requires terse output; both are needed to keep the wall
+            // clock down while still running the complete set.
+            &["kani", "-p", package, "-j", "--output-format=terse"],
+            &root(),
+            None,
+        )?;
+    }
+    println!("Kani bounded harnesses:      PASS (complete set)");
+    Ok(())
+}
+
+/// Fails when a `#[kani::proof]` exists that no gated package would run.
+///
+/// This runs even under `--skip-kani`: skipping execution is a local
+/// convenience, but an unrunnable harness is a permanent evidence gap and must
+/// be reported either way.
+fn kani_harness_inventory() -> Result<(), String> {
+    let root = root();
+    let mut orphans = Vec::new();
+    let mut total = 0_usize;
+    let mut sources = Vec::new();
+    collect_rust_sources(&root, &root, &mut sources)?;
+    sources.sort();
+    for relative in sources {
+        let text = fs::read_to_string(root.join(&relative))
+            .map_err(|error| format!("could not read {}: {error}", relative.display()))?;
+        let count = text
+            .lines()
+            .filter(|line| line.trim_start().starts_with("#[kani::proof]"))
+            .count();
+        if count == 0 {
+            continue;
+        }
+        total += count;
+        let display = relative.to_string_lossy().replace('\\', "/");
+        if !KANI_HARNESS_PACKAGES
+            .iter()
+            .any(|entry| display.starts_with(&format!("{}/", entry.source_root)))
+        {
+            orphans.push(format!("{display} ({count} harnesses)"));
+        }
+    }
+    if !orphans.is_empty() {
+        return Err(format!(
+            "Kani harnesses exist that no gated package runs; add the owning package to \
+             KANI_HARNESS_PACKAGES in xtask/src/formal.rs: {}",
+            orphans.join(", ")
+        ));
+    }
+    println!("Kani harness inventory:      PASS ({total} harnesses, all gated)");
+    Ok(())
+}
+
+/// Collects workspace-relative paths of every `.rs` file outside build output.
+fn collect_rust_sources(
+    root: &Path,
+    directory: &Path,
+    found: &mut Vec<PathBuf>,
+) -> Result<(), String> {
+    let entries = fs::read_dir(directory)
+        .map_err(|error| format!("could not read {}: {error}", directory.display()))?;
+    for entry in entries {
+        let entry = entry.map_err(|error| format!("could not read a directory entry: {error}"))?;
+        let path = entry.path();
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        if name.starts_with('.') || name == "target" || name == "node_modules" {
+            continue;
+        }
+        let kind = entry
+            .file_type()
+            .map_err(|error| format!("could not stat {}: {error}", path.display()))?;
+        if kind.is_dir() {
+            collect_rust_sources(root, &path, found)?;
+        } else if kind.is_file() && path.extension().is_some_and(|value| value == "rs") {
+            let relative = path
+                .strip_prefix(root)
+                .map_err(|error| format!("path escaped the workspace root: {error}"))?;
+            found.push(relative.to_path_buf());
+        }
+    }
+    Ok(())
+}
+
 pub(crate) fn prepare_formal(
     require_kani: bool,
     update: bool,
@@ -355,17 +496,11 @@ pub(crate) fn run_formal_semantic_checks(
     synchronize_lean_vectors(formal_root, update)?;
 
     cargo(&["test", "-p", "auths-formal-refinement"])?;
+    kani_harness_inventory()?;
     if skip_kani {
         println!("Kani bounded harnesses:      SKIPPED (--skip-kani)");
     } else {
-        command_in(
-            "cargo",
-            &["kani", "-p", "auths-algebra-kernel"],
-            &root(),
-            None,
-        )?;
-        command_in("cargo", &["kani", "-p", "auths-model"], &root(), None)?;
-        println!("Kani bounded harnesses:      PASS");
+        run_kani_harnesses()?;
     }
     println!("Lean theorems:              PASS");
     println!("Generated semantic vectors: byte-stable");

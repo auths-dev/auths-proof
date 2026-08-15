@@ -451,8 +451,40 @@ mod tests {
 mod kani_proofs {
     use super::*;
 
+    // Compile-time completeness guard: adding a `MerchantReservationState`
+    // variant fails to compile here, which forces `arbitrary_state` to be
+    // extended instead of silently under-sampling the state space. Omitted
+    // states are exactly how an illegal edge stays invisible to a harness whose
+    // name claims to quantify over all of them.
+    const fn state_index(state: MerchantReservationState) -> u8 {
+        use MerchantReservationState as S;
+        match state {
+            S::Reserved => 0,
+            S::Claimed => 1,
+            S::Attempting => 2,
+            S::ProviderAccepted => 3,
+            S::Committed => 4,
+            S::Authorized => 5,
+            S::Released => 6,
+            S::OutcomeUnknown => 7,
+            S::ReconciledCommitted => 8,
+            S::ReconciledAuthorized => 9,
+            S::CaptureCommitted => 10,
+            S::ReconciledCaptureCommitted => 11,
+            S::CancelCommitted => 12,
+            S::ReconciledCancelCommitted => 13,
+            S::CancelCaptureConflict => 14,
+            S::AuthorizationReleasedByCapture => 15,
+            S::AuthorizationReleasedByCancel => 16,
+            S::ReconciledReleased => 17,
+        }
+    }
+
+    // Every `MerchantReservationState` variant must appear here. A generator
+    // that omits variants silently exempts those states from every harness
+    // below, which is how an illegal edge out of an omitted state would survive.
     fn arbitrary_state() -> MerchantReservationState {
-        match kani::any::<u8>() % 16 {
+        let state = match kani::any::<u8>() % 18 {
             0 => MerchantReservationState::Reserved,
             1 => MerchantReservationState::Claimed,
             2 => MerchantReservationState::Attempting,
@@ -468,8 +500,16 @@ mod kani_proofs {
             12 => MerchantReservationState::CancelCommitted,
             13 => MerchantReservationState::ReconciledCancelCommitted,
             14 => MerchantReservationState::CancelCaptureConflict,
+            15 => MerchantReservationState::AuthorizationReleasedByCapture,
+            16 => MerchantReservationState::AuthorizationReleasedByCancel,
             _ => MerchantReservationState::ReconciledReleased,
-        }
+        };
+        // Tripwire, not a constraint: `state_index` is always in range, so this
+        // never prunes the state space. Its purpose is the exhaustive match in
+        // `state_index`, which fails to compile when a variant is added and so
+        // forces an author to extend the generator above.
+        assert!(state_index(state) < 18);
+        state
     }
 
     #[kani::proof]

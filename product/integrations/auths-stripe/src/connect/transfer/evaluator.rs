@@ -148,6 +148,20 @@ fn held(snapshot: &ConnectTransferAggregateSnapshot, id: &str) -> u64 {
         .unwrap_or_default()
 }
 
+/// Returns the source-relative transfer ceiling in minor units.
+///
+/// Returns `None` when the basis-point multiplication would overflow, so an
+/// overflow denies rather than wrapping into a larger ceiling.
+///
+/// The division floors deliberately: a fractional basis point of headroom is
+/// never granted, so the ceiling can only round toward denying.
+#[must_use]
+pub fn source_basis_point_ceiling(source_amount_minor: u64, basis_points: u16) -> Option<u64> {
+    source_amount_minor
+        .checked_mul(u64::from(basis_points))
+        .map(|product| product / 10_000)
+}
+
 /// Evaluates an exact source-funded transfer with checked arithmetic.
 #[must_use]
 #[allow(
@@ -333,18 +347,16 @@ pub fn evaluate_connect_transfer(
             "exact amount exceeds the inclusive per-transfer ceiling",
         );
     }
-    let Some(source_product) = context
-        .evidence
-        .source_charge_amount_minor
-        .checked_mul(u64::from(context.policy.source_basis_points()))
-    else {
+    let Some(source_ceiling) = source_basis_point_ceiling(
+        context.evidence.source_charge_amount_minor,
+        context.policy.source_basis_points(),
+    ) else {
         return ConnectTransferDecision::denied(
             ConnectTransferDecisionCode::ConnectArithmeticFailure,
             ConnectTransferDecisionStage::Source,
             "source-relative multiplication overflowed",
         );
     };
-    let source_ceiling = source_product / 10_000;
     let Some(source_committed_net) = context
         .evidence
         .source_committed_transfer_minor
@@ -486,14 +498,23 @@ pub fn evaluate_connect_transfer(
 
 #[cfg(kani)]
 mod proofs {
+    use super::source_basis_point_ceiling;
+
+    // MEASURED COST: ~235s on the default solver, ~279s on kissat, against
+    // <0.3s for every other harness in this crate. The 64x64 multiply plus the
+    // symbolic 64-bit division are what bit-blasting cannot do cheaply. The
+    // claim is deliberately left unbounded over the full u64 amount space; the
+    // gate pays the cost rather than shrinking the domain. See
+    // `run_kani_harnesses` in xtask/src/formal.rs.
     #[kani::proof]
     fn basis_points_floor_never_exceeds_denominator() {
         let amount: u64 = kani::any();
         let basis_points: u16 = kani::any();
-        if basis_points <= 10_000
-            && let Some(product) = amount.checked_mul(u64::from(basis_points))
-        {
-            assert!(product / 10_000 <= amount);
+        kani::assume(basis_points <= 10_000);
+        // Proves the production ceiling function itself, not a transcription of
+        // its arithmetic: a change at the call site is now falsifiable here.
+        if let Some(ceiling) = source_basis_point_ceiling(amount, basis_points) {
+            assert!(ceiling <= amount);
         }
     }
 }
