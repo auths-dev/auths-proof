@@ -925,13 +925,22 @@ pub fn optional_budget_attenuates(
 }
 
 /// Applies target-V1 terminal coverage to an optional requested budget.
+///
+/// An absent ceiling is the unbounded top scope and covers every request. A
+/// bounded ceiling requires a bounded request in the same algebra: an action
+/// that declares no budget states no bound on what it may spend, so there is
+/// nothing for the ceiling to bound and the action is **not** covered.
+///
+/// This is the whole answer. It does not depend on any earlier check a caller
+/// may or may not run first.
 #[must_use]
 pub fn optional_budget_covers(
     ceiling: Option<&BudgetCeiling>,
     requested: Option<&BudgetCeiling>,
 ) -> bool {
     match (ceiling, requested) {
-        (_, None) | (None, Some(_)) => true,
+        (None, _) => true,
+        (Some(_), None) => false,
         (Some(ceiling), Some(requested)) => ceiling.covers(requested),
     }
 }
@@ -4853,7 +4862,41 @@ mod tests {
         assert!(optional_budget_attenuates(Some(&maximum), None));
         assert!(!optional_budget_attenuates(None, Some(&maximum)));
         assert!(optional_budget_covers(None, Some(&maximum)));
-        assert!(optional_budget_covers(Some(&zero), None));
+        assert!(!optional_budget_covers(Some(&zero), None));
+    }
+
+    /// Terminal coverage is decided by the algebra, not by check ordering.
+    ///
+    /// The full verifier also refuses an absent request under a bounded ceiling
+    /// (`auths-verifier`'s `validate_budget_constraints`), but that guard runs
+    /// before the authority kernel is consulted. This test calls the kernel
+    /// predicate directly so a regression here cannot be masked by the order in
+    /// which the verifier happens to run its statements.
+    #[test]
+    fn a_bounded_ceiling_never_covers_an_absent_request() {
+        let bounded = numeric_budget(10);
+        let requested = numeric_budget(5);
+
+        // An absent ceiling is the unbounded top scope: it covers everything.
+        assert!(optional_budget_covers(None, None));
+        assert!(optional_budget_covers(None, Some(&requested)));
+
+        // A present ceiling compares against a present request.
+        assert!(optional_budget_covers(Some(&bounded), Some(&requested)));
+        assert!(!optional_budget_covers(
+            Some(&bounded),
+            Some(&numeric_budget(11))
+        ));
+
+        // An absent request under a present ceiling states no bound at all, so
+        // there is nothing the ceiling can bound. It is not vacuously covered.
+        for ceiling in [numeric_budget(0), bounded, numeric_budget(u64::MAX)] {
+            assert!(
+                !optional_budget_covers(Some(&ceiling), None),
+                "bounded ceiling {} must not cover an absent request",
+                ceiling.value()
+            );
+        }
     }
 
     #[test]

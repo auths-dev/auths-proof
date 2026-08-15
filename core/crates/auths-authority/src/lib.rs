@@ -472,6 +472,10 @@ mod tests {
     }
 
     fn anchor() -> TrustAnchor {
+        anchor_with_budget(None)
+    }
+
+    fn anchor_with_budget(budget_ceiling: Option<BudgetCeiling>) -> TrustAnchor {
         TrustAnchor::new(
             TrustAnchorId::parse("root").expect("anchor id"),
             PrincipalId::parse("did:key:root").expect("root"),
@@ -481,7 +485,7 @@ mod tests {
             vec![ResourceId::parse("cluster://").expect("namespace")],
             audiences(),
             ValidityWindow::new(Timestamp::new(0), Timestamp::new(u64::MAX)).expect("validity"),
-            None,
+            budget_ceiling,
             2,
             AssurancePolicyId::parse("assurance-v1").expect("assurance"),
             StatusPolicy::ExpiryOnly,
@@ -650,6 +654,88 @@ mod tests {
         assert_eq!(
             evaluate_action_coverage_view(unrooted, action),
             CoverageDecision::Denied(DenialReason::BrokenGrantChain)
+        );
+    }
+
+    fn numeric_budget(value: u64) -> BudgetCeiling {
+        BudgetCeiling::new(
+            auths_model::BudgetAlgebraId::parse("numeric-ceiling-v1").expect("algebra"),
+            value,
+        )
+    }
+
+    /// A bounded ceiling must not cover an action that declares no budget.
+    ///
+    /// This reaches terminal coverage directly, so nothing above the kernel can
+    /// supply the denial: the full verifier's `validate_budget_constraints`
+    /// guard runs earlier in `auths-verifier` and is bypassed here on purpose.
+    /// An action with no requested budget under a bounded ceiling has no bound
+    /// on what it may spend, so the kernel itself must deny it.
+    #[test]
+    fn terminal_coverage_denies_an_absent_request_under_a_bounded_ceiling() {
+        let anchor = anchor_with_budget(Some(numeric_budget(10)));
+        let authority = EffectiveAuthority::from_anchor(&anchor);
+        let actor = PrincipalId::parse("did:key:root").expect("root");
+        let selected = profile("profile-a");
+        let permission = auths_model::Permission::new(
+            CapabilityId::parse("deploy").expect("capability"),
+            ResourceId::parse("cluster://production").expect("resource"),
+        );
+        let audience = Audience::parse("cluster://production").expect("audience");
+        let action = ActionAuthorityView {
+            profile: &selected,
+            canonical_body_digest: auths_model::Digest::new([0; 32]),
+            permission: &permission,
+            requested_budget: None,
+            audience: &audience,
+            validity: anchor.validity(),
+            actor: &actor,
+            terminal_grant: None,
+        };
+        assert_eq!(
+            evaluate_action_coverage_view(authority_state_view(&authority), action),
+            CoverageDecision::Denied(DenialReason::BudgetCeilingExceeded),
+            "a bounded ceiling must not authorize an unbounded (absent) request"
+        );
+    }
+
+    /// The same fact through the public `EffectiveAuthority::authorizes` entry
+    /// point, which is what every embedder that is not the full verifier calls.
+    #[test]
+    fn authorizes_denies_an_absent_request_under_a_bounded_ceiling() {
+        let anchor = anchor_with_budget(Some(numeric_budget(10)));
+        let authority = EffectiveAuthority::from_anchor(&anchor);
+        let actor = PrincipalId::parse("did:key:root").expect("root");
+        let selected = profile("profile-a");
+        let permission = auths_model::Permission::new(
+            CapabilityId::parse("deploy").expect("capability"),
+            ResourceId::parse("cluster://production").expect("resource"),
+        );
+        let audience = Audience::parse("cluster://production").expect("audience");
+        let action = ActionAuthorityView {
+            profile: &selected,
+            canonical_body_digest: auths_model::Digest::new([0; 32]),
+            permission: &permission,
+            requested_budget: None,
+            audience: &audience,
+            validity: anchor.validity(),
+            actor: &actor,
+            terminal_grant: None,
+        };
+        // A bounded request inside the ceiling is still authorized: the denial
+        // above is specific to the absent request, not a blanket budget denial.
+        let requested = numeric_budget(5);
+        let bounded = ActionAuthorityView {
+            requested_budget: Some(&requested),
+            ..action
+        };
+        assert_eq!(
+            evaluate_action_coverage_view(authority_state_view(&authority), bounded),
+            CoverageDecision::Authorized
+        );
+        assert_eq!(
+            evaluate_action_coverage_view(authority_state_view(&authority), action),
+            CoverageDecision::Denied(DenialReason::BudgetCeilingExceeded)
         );
     }
 

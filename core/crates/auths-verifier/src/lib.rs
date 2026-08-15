@@ -2655,6 +2655,7 @@ mod tests {
         bytes: Vec<u8>,
         canonical: CanonicalAction,
         context: TrustedContext,
+        action: SignedAction,
     }
 
     fn target_fixture(mutate_signature: bool) -> Fixture {
@@ -2755,7 +2756,7 @@ mod tests {
         let bundle = ProofBundle::new(
             BundleHeader::v1(),
             Vec::new(),
-            vec![signed_action],
+            vec![signed_action.clone()],
             plan,
             vec![evidence],
             vec![ControlBinding::new(statement, vec![evidence_identifier]).unwrap()],
@@ -2862,6 +2863,7 @@ mod tests {
             bytes: encode_bundle(&bundle).unwrap(),
             canonical,
             context,
+            action: signed_action,
         }
     }
 
@@ -2931,6 +2933,102 @@ mod tests {
         assert_eq!(
             verify_budget_fixture(Some(numeric_ceiling(10_000)), Some(numeric_ceiling(10_001))),
             VerificationOutcome::Denied(DenialReason::BudgetCeilingExceeded)
+        );
+    }
+
+    /// The denial above must not depend on statement order inside
+    /// [`verify_authority_and_assurance`].
+    ///
+    /// `validate_budget_constraints` runs at the top of that function, before
+    /// `EffectiveAuthority::authorizes`. It is deliberately kept — it is the
+    /// only thing that resolves the ceiling's algebra against the accepted
+    /// registries (yielding `Indeterminate(UnsupportedBudgetAlgebra)` for an
+    /// algebra the verifier does not implement) and the only thing that meters
+    /// the comparison's work. But it must never be the *sole* reason a bounded
+    /// ceiling denies an absent request, or a kernel regression would be
+    /// invisible here. This drives the authority kernel with that guard
+    /// bypassed entirely.
+    #[test]
+    fn the_authority_kernel_denies_an_absent_request_without_the_verifier_guard() {
+        let fixture = target_fixture_with_budget(false, Some(numeric_ceiling(10_000)), None);
+        let anchor = fixture
+            .context
+            .trust_anchors()
+            .first()
+            .expect("fixture anchor");
+        let authority = EffectiveAuthority::from_anchor(anchor);
+        assert_eq!(
+            authority.authorizes(fixture.action.envelope()),
+            Err(DenialReason::BudgetCeilingExceeded),
+            "the kernel alone must deny; the Wave 1 guard is defense in depth"
+        );
+
+        // The same kernel, same guard-free path, still authorizes a request
+        // that is inside the ceiling: this is not a blanket budget denial.
+        let inside = target_fixture_with_budget(
+            false,
+            Some(numeric_ceiling(10_000)),
+            Some(numeric_ceiling(10_000)),
+        );
+        let inside_anchor = inside
+            .context
+            .trust_anchors()
+            .first()
+            .expect("fixture anchor");
+        assert_eq!(
+            EffectiveAuthority::from_anchor(inside_anchor).authorizes(inside.action.envelope()),
+            Ok(())
+        );
+    }
+
+    /// Evidence that `validate_budget_constraints` is not a duplicate of the
+    /// kernel and must be kept.
+    ///
+    /// The kernel compares algebra *identifiers* bytewise and then applies the
+    /// numeric `<=` unconditionally. It has no notion of "this verifier does
+    /// not implement that algebra". Only the verifier guard resolves the
+    /// ceiling's algebra against the accepted registries, so only it can fail
+    /// closed with `Indeterminate(UnsupportedBudgetAlgebra)`. Delete the guard
+    /// and this case silently becomes a numeric comparison the verifier is not
+    /// entitled to make.
+    #[test]
+    fn only_the_verifier_guard_can_reject_an_unimplemented_budget_algebra() {
+        let unknown = BudgetCeiling::new(
+            auths_model::BudgetAlgebraId::parse("credits-v1").unwrap(),
+            10_000,
+        );
+        let inside = BudgetCeiling::new(
+            auths_model::BudgetAlgebraId::parse("credits-v1").unwrap(),
+            5_000,
+        );
+        let fixture = target_fixture_with_budget(false, Some(unknown), Some(inside));
+
+        // The kernel alone authorizes: same algebra id, 5_000 <= 10_000.
+        let anchor = fixture
+            .context
+            .trust_anchors()
+            .first()
+            .expect("fixture anchor");
+        assert_eq!(
+            EffectiveAuthority::from_anchor(anchor).authorizes(fixture.action.envelope()),
+            Ok(())
+        );
+
+        // The full verifier refuses to decide, because it cannot evaluate that
+        // algebra. This is the capability the guard uniquely provides.
+        let method = RawKeyMethod::new().unwrap();
+        let suite = Ed25519Suite::new().unwrap();
+        let methods: [&dyn auths_ports::PrincipalMethod; 1] = [&method];
+        let suites: [&dyn auths_ports::SignatureSuite; 1] = [&suite];
+        let registries = ImmutableRegistries::new(&methods, &suites).unwrap();
+        assert_eq!(
+            verify(
+                &fixture.bytes,
+                &fixture.canonical,
+                &fixture.context,
+                &registries,
+            ),
+            VerificationOutcome::Indeterminate(Requirement::UnsupportedBudgetAlgebra)
         );
     }
 

@@ -73,8 +73,8 @@
     },
     {
       "id": "optional-budget-no-request",
-      "operator": "Treat a missing action budget request as an unbounded child authority.",
-      "witness": "No requested spend is covered by every authority ceiling."
+      "operator": "Treat a missing action budget request as vacuously covered by a bounded ceiling.",
+      "witness": "An absent request states no bound, so a bounded ceiling does not cover it."
     },
     {
       "id": "status-age-direction",
