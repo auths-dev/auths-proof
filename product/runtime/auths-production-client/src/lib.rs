@@ -162,6 +162,17 @@ impl ProductVerb {
             Self::Verify => "verify",
         }
     }
+
+    /// Reports whether a delivered request for this verb can change durable or
+    /// provider state.
+    ///
+    /// Only `verify` is effect-free. Every other verb mints authority, consumes
+    /// a use, or enters a provider, so a lost response for it leaves the effect
+    /// genuinely unknown rather than provably not applied.
+    #[must_use]
+    pub const fn applies_effect(self) -> bool {
+        !matches!(self, Self::Verify)
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -412,27 +423,33 @@ impl ClientOutcomeKind {
     }
 }
 
+/// What the caller should call next after one production response.
+///
+/// This answers *what should I call next?*. It is a different closed set from
+/// `auths_errors::RetryClass`, which answers *may I retry?*, and the two must
+/// never share an identifier again.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "kebab-case")]
-pub enum RetryClass {
+pub enum NextCall {
     Never,
     Backoff,
     Resume,
     Reconcile,
 }
 
-impl RetryClass {
+impl NextCall {
     fn parse(value: &str) -> Result<Self, ProductionClientError> {
         match value {
             "never" => Ok(Self::Never),
             "backoff" => Ok(Self::Backoff),
             "resume" => Ok(Self::Resume),
             "reconcile" => Ok(Self::Reconcile),
-            _ => Err(ProductionClientError::UnknownRetryClass),
+            _ => Err(ProductionClientError::UnknownNextCall),
         }
     }
 
-    const fn as_str(self) -> &'static str {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
         match self {
             Self::Never => "never",
             Self::Backoff => "backoff",
@@ -440,13 +457,138 @@ impl RetryClass {
             Self::Reconcile => "reconcile",
         }
     }
+
+    /// Reports whether this class tells the caller the request produced no
+    /// effect.
+    ///
+    /// `never` and `backoff` both mean "nothing happened": the first says do not
+    /// try again, the second says a blind retry is safe. Neither may be attached
+    /// to an outcome the runtime cannot prove was not applied. `resume` and
+    /// `reconcile` are the only classes that preserve a possible effect.
+    #[must_use]
+    pub const fn asserts_non_effect(self) -> bool {
+        matches!(self, Self::Never | Self::Backoff)
+    }
+}
+
+/// Where one client-side failure occurred relative to request transmission.
+///
+/// This boundary is the whole safety question. Before transmission the client
+/// holds proof that nothing reached the server; after transmission it holds no
+/// evidence at all, and a connection reset is indistinguishable from a response
+/// lost after the effect was applied.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TransmissionBoundary {
+    /// No request byte was written, so non-effect is provable.
+    BeforeTransmission,
+    /// Request bytes may already have reached the server.
+    AfterTransmission,
+}
+
+/// Closed classification of one client transport failure.
+///
+/// Every variant states what the transport can actually prove. A transport that
+/// cannot distinguish its own failure modes must report [`Self::ConnectionFailed`],
+/// which fails closed to a possible effect.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TransportFailure {
+    /// The endpoint could not be resolved and no connection was attempted.
+    EndpointUnresolvable,
+    /// The peer refused the connection before any request byte was written.
+    ConnectionRefused,
+    /// The transport failed without proving whether request bytes were written.
+    ConnectionFailed,
+    /// The connection failed or closed after request bytes were written.
+    ConnectionLost,
+    /// No usable response arrived before the client deadline.
+    ResponseTimeout,
+    /// The caller cancelled the operation after the request was written.
+    Cancelled,
+    /// A response arrived that is not a bounded product response.
+    UnusableResponse,
+}
+
+impl TransportFailure {
+    /// Reports the exact transmission boundary this failure crossed.
+    #[must_use]
+    pub const fn boundary(self) -> TransmissionBoundary {
+        match self {
+            Self::EndpointUnresolvable | Self::ConnectionRefused => {
+                TransmissionBoundary::BeforeTransmission
+            }
+            Self::ConnectionFailed
+            | Self::ConnectionLost
+            | Self::ResponseTimeout
+            | Self::Cancelled
+            | Self::UnusableResponse => TransmissionBoundary::AfterTransmission,
+        }
+    }
+
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::EndpointUnresolvable => "endpoint-unresolvable",
+            Self::ConnectionRefused => "connection-refused",
+            Self::ConnectionFailed => "connection-failed",
+            Self::ConnectionLost => "connection-lost",
+            Self::ResponseTimeout => "response-timeout",
+            Self::Cancelled => "cancelled",
+            Self::UnusableResponse => "unusable-response",
+        }
+    }
+}
+
+/// Registry code for a failure that provably occurred before provider entry.
+pub const TRANSPORT_NOT_APPLIED_CODE: &str = "core.runtime-unavailable";
+/// Registry code for a failure whose effect may already have occurred.
+pub const TRANSPORT_OUTCOME_UNKNOWN_CODE: &str = "core.outcome-unknown";
+
+/// Projects one transport failure into the bounded production response contract.
+///
+/// Any failure that is not provably before transmission, on a verb that applies
+/// an effect, is projected as `core.outcome-unknown` with
+/// [`NextCall::Reconcile`]. Only a failure that provably occurred before any
+/// request byte was written, or a failure of the effect-free `verify` verb, may
+/// claim `core.runtime-unavailable`, whose registered effect is `not-applied`.
+///
+/// # Panics
+///
+/// Panics only if the closed transport projection stops satisfying the
+/// production response invariant.
+#[must_use]
+pub fn transport_failure_response(
+    verb: ProductVerb,
+    failure: TransportFailure,
+) -> ProductionResponse {
+    let effect_possible =
+        verb.applies_effect() && failure.boundary() == TransmissionBoundary::AfterTransmission;
+    let (code, retry) = if effect_possible {
+        (TRANSPORT_OUTCOME_UNKNOWN_CODE, NextCall::Reconcile)
+    } else {
+        (TRANSPORT_NOT_APPLIED_CODE, NextCall::Backoff)
+    };
+    debug_assert!(
+        !(effect_possible && retry.asserts_non_effect()),
+        "a possible effect may never be projected with a non-effect next call"
+    );
+    ProductionResponse::new(
+        ClientOutcomeKind::Indeterminate,
+        Some(code.to_owned()),
+        retry,
+        None,
+        None,
+        None,
+    )
+    .expect("closed transport projections are valid")
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProductionResponse {
     kind: ClientOutcomeKind,
     code: Option<String>,
-    retry: RetryClass,
+    retry: NextCall,
     recovery_reference: Option<RecoveryReference>,
     value: Option<Vec<u8>>,
     receipt: Option<Vec<u8>>,
@@ -458,11 +600,11 @@ impl ProductionResponse {
     /// # Errors
     ///
     /// Returns an error when a field exceeds its bound or the supplied fields
-    /// contradict the selected outcome or retry class.
+    /// contradict the selected outcome or next call.
     pub fn new(
         kind: ClientOutcomeKind,
         code: Option<String>,
-        retry: RetryClass,
+        retry: NextCall,
         recovery_reference: Option<RecoveryReference>,
         value: Option<Vec<u8>>,
         receipt: Option<Vec<u8>>,
@@ -482,34 +624,34 @@ impl ProductionResponse {
                 code.is_none()
                     && recovery_reference.is_none()
                     && receipt.is_some()
-                    && retry == RetryClass::Never
+                    && retry == NextCall::Never
             }
             ClientOutcomeKind::Denied | ClientOutcomeKind::Rejected => {
                 code.is_some()
                     && recovery_reference.is_none()
                     && value.is_none()
                     && receipt.is_none()
-                    && retry == RetryClass::Never
+                    && retry == NextCall::Never
             }
             ClientOutcomeKind::Indeterminate => {
                 code.is_some()
                     && recovery_reference.is_none()
                     && value.is_none()
                     && receipt.is_none()
-                    && matches!(retry, RetryClass::Backoff | RetryClass::Reconcile)
+                    && matches!(retry, NextCall::Backoff | NextCall::Reconcile)
             }
             ClientOutcomeKind::Recoverable => {
                 code.is_some()
                     && recovery_reference.is_some()
                     && value.is_none()
                     && receipt.is_none()
-                    && retry == RetryClass::Resume
+                    && retry == NextCall::Resume
             }
             ClientOutcomeKind::Verified => {
                 code.is_none()
                     && recovery_reference.is_none()
                     && receipt.is_none()
-                    && retry == RetryClass::Never
+                    && retry == NextCall::Never
             }
         };
         if !valid_shape {
@@ -536,7 +678,7 @@ impl ProductionResponse {
     }
 
     #[must_use]
-    pub const fn retry(&self) -> RetryClass {
+    pub const fn retry(&self) -> NextCall {
         self.retry
     }
 
@@ -586,7 +728,7 @@ struct ProductionResponseProjection<'a> {
     contract_version: u16,
     kind: ClientOutcomeKind,
     code: Option<&'a str>,
-    retry: RetryClass,
+    retry: NextCall,
     recovery_reference: Option<&'a str>,
     value: Option<String>,
     receipt: Option<String>,
@@ -726,7 +868,7 @@ pub fn decode_response(input: &[u8]) -> Result<ProductionResponse, ProductionCli
             .map_err(|_| ProductionClientError::Malformed)?,
     )?;
     let code = decode_optional_str(&mut decoder)?;
-    let retry = RetryClass::parse(
+    let retry = NextCall::parse(
         decoder
             .str()
             .map_err(|_| ProductionClientError::Malformed)?,
@@ -905,7 +1047,7 @@ pub enum ProductionClientError {
     UnknownVerb,
     UnknownProfile,
     UnknownOutcome,
-    UnknownRetryClass,
+    UnknownNextCall,
     InvalidIdentity,
     InvalidBody,
     InvalidShape,
@@ -923,7 +1065,7 @@ impl ProductionClientError {
             Self::UnknownVerb => "client.unknown-verb",
             Self::UnknownProfile => "client.unknown-profile",
             Self::UnknownOutcome => "client.unknown-outcome",
-            Self::UnknownRetryClass => "client.unknown-retry-class",
+            Self::UnknownNextCall => "client.unknown-retry-class",
             Self::InvalidIdentity => "client.invalid-identity",
             Self::InvalidBody => "client.invalid-body",
             Self::InvalidShape => "client.invalid-shape",
@@ -1013,7 +1155,7 @@ mod tests {
             ProductionResponse::new(
                 ClientOutcomeKind::Completed,
                 None,
-                RetryClass::Never,
+                NextCall::Never,
                 None,
                 Some(vec![1]),
                 Some(vec![2]),
@@ -1022,7 +1164,7 @@ mod tests {
             ProductionResponse::new(
                 ClientOutcomeKind::Denied,
                 Some("authority.denied".into()),
-                RetryClass::Never,
+                NextCall::Never,
                 None,
                 None,
                 None,
@@ -1031,7 +1173,7 @@ mod tests {
             ProductionResponse::new(
                 ClientOutcomeKind::Indeterminate,
                 Some("provider.unknown".into()),
-                RetryClass::Reconcile,
+                NextCall::Reconcile,
                 None,
                 None,
                 None,
@@ -1040,7 +1182,7 @@ mod tests {
             ProductionResponse::new(
                 ClientOutcomeKind::Recoverable,
                 Some("workflow.recoverable".into()),
-                RetryClass::Resume,
+                NextCall::Resume,
                 Some(reference()),
                 None,
                 None,
@@ -1049,7 +1191,7 @@ mod tests {
             ProductionResponse::new(
                 ClientOutcomeKind::Verified,
                 None,
-                RetryClass::Never,
+                NextCall::Never,
                 None,
                 Some(vec![3]),
                 None,
@@ -1058,7 +1200,7 @@ mod tests {
             ProductionResponse::new(
                 ClientOutcomeKind::Rejected,
                 Some("verification.rejected".into()),
-                RetryClass::Never,
+                NextCall::Never,
                 None,
                 None,
                 None,
@@ -1140,5 +1282,94 @@ mod tests {
             ),
             Err(ProductionClientError::InvalidBody)
         );
+    }
+
+    const EVERY_TRANSPORT_FAILURE: &[TransportFailure] = &[
+        TransportFailure::EndpointUnresolvable,
+        TransportFailure::ConnectionRefused,
+        TransportFailure::ConnectionFailed,
+        TransportFailure::ConnectionLost,
+        TransportFailure::ResponseTimeout,
+        TransportFailure::Cancelled,
+        TransportFailure::UnusableResponse,
+    ];
+
+    const EVERY_VERB: &[ProductVerb] = &[
+        ProductVerb::Create,
+        ProductVerb::Delegate,
+        ProductVerb::Execute,
+        ProductVerb::Resume,
+        ProductVerb::Verify,
+    ];
+
+    #[test]
+    fn transport_failure_after_transmission_never_asserts_non_effect() {
+        for verb in EVERY_VERB
+            .iter()
+            .copied()
+            .filter(|verb| verb.applies_effect())
+        {
+            for failure in EVERY_TRANSPORT_FAILURE
+                .iter()
+                .copied()
+                .filter(|failure| failure.boundary() == TransmissionBoundary::AfterTransmission)
+            {
+                let response = transport_failure_response(verb, failure);
+                assert!(
+                    !response.retry().asserts_non_effect(),
+                    "{verb:?}/{failure:?} claimed a non-effect next call"
+                );
+                assert_eq!(response.retry(), NextCall::Reconcile);
+                assert_eq!(response.code(), Some(TRANSPORT_OUTCOME_UNKNOWN_CODE));
+            }
+        }
+    }
+
+    #[test]
+    fn only_proven_pre_transmission_failures_claim_not_applied() {
+        for verb in EVERY_VERB.iter().copied() {
+            for failure in EVERY_TRANSPORT_FAILURE.iter().copied() {
+                let response = transport_failure_response(verb, failure);
+                let claims_not_applied = response.code() == Some(TRANSPORT_NOT_APPLIED_CODE);
+                let provable = failure.boundary() == TransmissionBoundary::BeforeTransmission
+                    || !verb.applies_effect();
+                assert_eq!(
+                    claims_not_applied, provable,
+                    "{verb:?}/{failure:?} misclassified the transmission boundary"
+                );
+                assert_eq!(response.retry().asserts_non_effect(), provable);
+            }
+        }
+    }
+
+    #[test]
+    fn an_unclassifiable_transport_failure_fails_closed_to_possible() {
+        assert_eq!(
+            TransportFailure::ConnectionFailed.boundary(),
+            TransmissionBoundary::AfterTransmission
+        );
+        let response =
+            transport_failure_response(ProductVerb::Execute, TransportFailure::ConnectionFailed);
+        assert_eq!(response.code(), Some(TRANSPORT_OUTCOME_UNKNOWN_CODE));
+        assert_eq!(response.retry(), NextCall::Reconcile);
+    }
+
+    #[test]
+    fn a_non_product_http_response_is_not_malformed_input() {
+        let response =
+            transport_failure_response(ProductVerb::Execute, TransportFailure::UnusableResponse);
+        assert_ne!(response.code(), Some("core.malformed-input"));
+        assert_eq!(response.code(), Some(TRANSPORT_OUTCOME_UNKNOWN_CODE));
+    }
+
+    #[test]
+    fn transport_projections_round_trip_on_the_wire() {
+        for verb in EVERY_VERB.iter().copied() {
+            for failure in EVERY_TRANSPORT_FAILURE.iter().copied() {
+                let response = transport_failure_response(verb, failure);
+                let encoded = encode_response(&response).unwrap();
+                assert_eq!(decode_response(&encoded).unwrap(), response);
+            }
+        }
     }
 }

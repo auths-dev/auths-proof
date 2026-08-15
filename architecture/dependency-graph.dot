@@ -22,7 +22,6 @@ digraph auths_architecture {
   "auths-custody" [group="product"];
   "auths-custody-aws-kms" [group="product"];
   "auths-custody-pkcs11" [group="product"];
-  "auths-deployment" [group="product"];
   "auths-did-keri" [group="core"];
   "auths-did-key" [group="core"];
   "auths-did-web" [group="core"];
@@ -176,8 +175,6 @@ digraph auths_architecture {
   "auths-custody-aws-kms" -> "auths-model" [label="normal"];
   "auths-custody-pkcs11" -> "auths-custody" [label="normal"];
   "auths-custody-pkcs11" -> "auths-model" [label="normal"];
-  "auths-deployment" -> "auths-enforcement" [label="normal"];
-  "auths-deployment" -> "auths-sdk" [label="normal"];
   "auths-did-keri" -> "auths-codec" [label="dev"];
   "auths-did-keri" -> "auths-model" [label="normal"];
   "auths-did-keri" -> "auths-ports" [label="normal"];
@@ -334,6 +331,7 @@ digraph auths_architecture {
   "auths-profile-domains" -> "auths-model" [label="normal"];
   "auths-profile-domains" -> "auths-profile-api" [label="normal"];
   "auths-profile-domains" -> "auths-receipts" [label="normal"];
+  "auths-profile-domains" -> "auths-registries" [label="dev"];
   "auths-profile-domains" -> "auths-verifier" [label="normal"];
   "auths-profile-kit" -> "auths-codec" [label="normal"];
   "auths-profile-kit" -> "auths-model" [label="normal"];

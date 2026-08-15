@@ -24,8 +24,8 @@ use auths_model::{
     PrincipalStatusSnapshot, PrincipalStatusStatement, ProfileId, ProfilePolicyId, ProfileRef,
     ProofRef, PurposeId, ResourceId, ResourceMatcherId, SignatureBytes, SignatureDescriptor,
     SignatureSuiteId, StatusMethodId, StatusPolicy, StatusSnapshotId, StatusTrustRule, Timestamp,
-    TrustAnchor, TrustAnchorId, ValidityWindow, VerificationMethod, VerifierConfigurationId,
-    VerifierContext, VerifierLimits,
+    TrustAnchor, TrustAnchorId, TrustedContext, ValidityWindow, VerificationMethod,
+    VerifierConfigurationId, VerifierLimits,
 };
 use auths_ports::{PrincipalMethod, SignatureSuite};
 use auths_production_client::{
@@ -902,7 +902,7 @@ pub fn compile_trusted_context_v1(
     let grant_status =
         auths_codec::decode_grant_status_snapshot(grant_status_cbor, &limits).map_err(js_error)?;
     let configuration = self_contained_v1_configuration().map_err(js_error)?;
-    let context = VerifierContext::new(
+    let context = TrustedContext::new(
         VerifierConfigurationId::new(configuration),
         composition(input.composition).map_err(js_error)?,
         input
@@ -3219,7 +3219,7 @@ fn prepare_raw_key_authority_native(
             auths_registries::EXACT_PROFILE_V1,
         )?],
     )?;
-    let context = auths_model::VerifierContext::new(
+    let context = auths_model::TrustedContext::new(
         VerifierConfigurationId::new(self_contained_v1_configuration()?),
         CompositionRequirement::new(None, 1, 1, 1)?,
         vec![anchor],

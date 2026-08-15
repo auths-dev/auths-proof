@@ -13,7 +13,7 @@ use auths_did_key::DidKeyMethod;
 use auths_hsm_attested::HsmAttestedMethod;
 use auths_model::{
     CompositionRequirement, DenialReason, EvidenceId, EvidenceObject, EvidenceTypeId, MediaType,
-    ModelError, PrincipalStatusSnapshot, Requirement, Timestamp, VerifierContext,
+    ModelError, PrincipalStatusSnapshot, Requirement, Timestamp, TrustedContext,
 };
 use auths_ports::{
     ControlPurpose, PrincipalControlError, PrincipalControlInput, PrincipalMethod, SignatureSuite,
@@ -351,12 +351,12 @@ fn work_limit_minus_one() -> CorpusFixture {
 }
 
 fn rebuild_context(
-    context: &VerifierContext,
+    context: &TrustedContext,
     composition: CompositionRequirement,
     anchors: Vec<auths_model::TrustAnchor>,
     principal_status: Option<PrincipalStatusSnapshot>,
-) -> Result<VerifierContext, ModelError> {
-    VerifierContext::new(
+) -> Result<TrustedContext, ModelError> {
+    TrustedContext::new(
         context.configuration(),
         composition,
         anchors,

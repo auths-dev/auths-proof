@@ -1,15 +1,36 @@
+use auths_operations::EffectState;
 use auths_production_client::{
-    ClientOutcomeKind, ProductVerb, ProductionRequest, ProductionResponse, QualifiedProfile,
-    RecoveryReference, RetryClass,
+    ClientOutcomeKind, NextCall, ProductVerb, ProductionRequest, ProductionResponse,
+    QualifiedProfile, RecoveryReference,
 };
 use serde::Serialize;
 use std::{collections::BTreeSet, sync::Arc};
+
+/// Whether a failing provider call had already entered the provider.
+///
+/// A profile port cannot report an honest effect state without stating this.
+/// Before entry the runtime holds proof that nothing was applied; after entry it
+/// holds none, and a failed call is indistinguishable from an applied call whose
+/// acknowledgement was lost.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ProviderBoundary {
+    /// The exact request provably never reached the provider.
+    BeforeEntry,
+    /// The exact request entered, or may have entered, the provider.
+    AfterEntry,
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RuntimeFailure {
     Denied,
     Indeterminate,
+    /// A bounded operation failed **before provider entry**.
+    ///
+    /// This is the only runtime failure that may claim a safe blind retry. A
+    /// failure after provider entry must use [`Self::ProviderOutcomeUnknown`].
     Unavailable,
+    /// A provider call failed after entry with no evidence of non-effect.
+    ProviderOutcomeUnknown,
     Malformed,
     ProfileDisabled,
     UnknownWorkflow,
@@ -18,12 +39,22 @@ pub enum RuntimeFailure {
 }
 
 impl RuntimeFailure {
+    /// Classifies one failed provider call by the exact boundary it crossed.
+    #[must_use]
+    pub const fn provider(boundary: ProviderBoundary) -> Self {
+        match boundary {
+            ProviderBoundary::BeforeEntry => Self::Unavailable,
+            ProviderBoundary::AfterEntry => Self::ProviderOutcomeUnknown,
+        }
+    }
+
     #[must_use]
     pub const fn code(self) -> &'static str {
         match self {
             Self::Denied => "authority.denied",
             Self::Indeterminate => "authority.indeterminate",
             Self::Unavailable => "core.runtime-unavailable",
+            Self::ProviderOutcomeUnknown => "core.outcome-unknown",
             Self::Malformed => "core.malformed-input",
             Self::ProfileDisabled => "profile.disabled",
             Self::UnknownWorkflow => "workflow.unknown",
@@ -33,11 +64,28 @@ impl RuntimeFailure {
     }
 
     #[must_use]
-    pub const fn retry(self) -> RetryClass {
+    pub const fn retry(self) -> NextCall {
         match self {
-            Self::Unavailable => RetryClass::Backoff,
-            Self::Indeterminate => RetryClass::Reconcile,
-            _ => RetryClass::Never,
+            Self::Unavailable => NextCall::Backoff,
+            Self::Indeterminate | Self::ProviderOutcomeUnknown => NextCall::Reconcile,
+            _ => NextCall::Never,
+        }
+    }
+
+    /// Projects the Rust-owned effect state this failure is entitled to claim.
+    #[must_use]
+    pub const fn effect(self) -> EffectState {
+        match self {
+            // Authority verification and provider entry both end here without
+            // conclusive evidence, so neither may assert non-effect.
+            Self::Indeterminate | Self::ProviderOutcomeUnknown => EffectState::Possible,
+            Self::Denied
+            | Self::Unavailable
+            | Self::Malformed
+            | Self::ProfileDisabled
+            | Self::UnknownWorkflow
+            | Self::UnknownReceipt
+            | Self::DisclosureDenied => EffectState::NotApplied,
         }
     }
 }
@@ -56,8 +104,9 @@ pub struct WorkflowProjection {
     pub reference: String,
     pub profile: String,
     pub state: String,
-    pub effect: String,
-    pub retry: String,
+    /// Rust-owned effect axis. Never a locally invented word.
+    pub effect: EffectState,
+    pub retry: NextCall,
     pub updated_at: u64,
     pub receipt_id: Option<String>,
 }
@@ -224,7 +273,7 @@ impl crate::api::NodeRuntime for ClosedProfileRegistry {
             ProductVerb::Verify => ProductionResponse::new(
                 ClientOutcomeKind::Verified,
                 None,
-                RetryClass::Never,
+                NextCall::Never,
                 None,
                 self.authority.verify(&request)?,
                 None,
@@ -258,7 +307,7 @@ fn completed_authority(value: Vec<u8>) -> Result<ProductionResponse, RuntimeFail
     ProductionResponse::new(
         ClientOutcomeKind::Completed,
         None,
-        RetryClass::Never,
+        NextCall::Never,
         None,
         Some(value),
         Some(b"auths-authority-issued-v1".to_vec()),
@@ -281,10 +330,14 @@ pub fn failure_response(error: RuntimeFailure) -> ProductionResponse {
         | RuntimeFailure::UnknownWorkflow
         | RuntimeFailure::UnknownReceipt
         | RuntimeFailure::DisclosureDenied => ClientOutcomeKind::Denied,
-        RuntimeFailure::Indeterminate | RuntimeFailure::Unavailable => {
-            ClientOutcomeKind::Indeterminate
-        }
+        RuntimeFailure::Indeterminate
+        | RuntimeFailure::Unavailable
+        | RuntimeFailure::ProviderOutcomeUnknown => ClientOutcomeKind::Indeterminate,
     };
+    debug_assert!(
+        !(error.effect() == EffectState::Possible && error.retry().asserts_non_effect()),
+        "a possible effect may never be projected with a non-effect retry class"
+    );
     ProductionResponse::new(
         kind,
         Some(error.code().to_owned()),
@@ -294,4 +347,97 @@ pub fn failure_response(error: RuntimeFailure) -> ProductionResponse {
         None,
     )
     .expect("closed failure projections are valid")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const EVERY_FAILURE: &[RuntimeFailure] = &[
+        RuntimeFailure::Denied,
+        RuntimeFailure::Indeterminate,
+        RuntimeFailure::Unavailable,
+        RuntimeFailure::ProviderOutcomeUnknown,
+        RuntimeFailure::Malformed,
+        RuntimeFailure::ProfileDisabled,
+        RuntimeFailure::UnknownWorkflow,
+        RuntimeFailure::UnknownReceipt,
+        RuntimeFailure::DisclosureDenied,
+    ];
+
+    #[test]
+    fn a_failure_after_provider_entry_never_asserts_non_effect() {
+        let failure = RuntimeFailure::provider(ProviderBoundary::AfterEntry);
+        assert_eq!(failure.effect(), EffectState::Possible);
+        assert_eq!(failure.code(), "core.outcome-unknown");
+        assert!(!failure.retry().asserts_non_effect());
+        assert_eq!(failure.retry(), NextCall::Reconcile);
+        let response = failure_response(failure);
+        assert_eq!(response.code(), Some("core.outcome-unknown"));
+        assert!(!response.retry().asserts_non_effect());
+    }
+
+    #[test]
+    fn only_a_failure_before_provider_entry_claims_not_applied() {
+        let failure = RuntimeFailure::provider(ProviderBoundary::BeforeEntry);
+        assert_eq!(failure.effect(), EffectState::NotApplied);
+        assert_eq!(failure.code(), "core.runtime-unavailable");
+        assert_eq!(failure.retry(), NextCall::Backoff);
+        assert_ne!(
+            RuntimeFailure::provider(ProviderBoundary::AfterEntry),
+            failure,
+            "the two provider boundaries must not collapse onto one failure"
+        );
+    }
+
+    #[test]
+    fn no_possible_effect_is_ever_paired_with_a_non_effect_retry_class() {
+        for failure in EVERY_FAILURE.iter().copied() {
+            if failure.effect() == EffectState::Possible {
+                assert!(
+                    !failure.retry().asserts_non_effect(),
+                    "{failure:?} told the caller nothing happened"
+                );
+            }
+            let response = failure_response(failure);
+            assert_eq!(response.code(), Some(failure.code()));
+            assert_eq!(response.retry(), failure.retry());
+        }
+    }
+
+    /// The public status projection must speak the one Rust-owned effect
+    /// vocabulary. It previously carried a free `String` and shipped the locally
+    /// invented words `"unknown"` and `"succeeded"`.
+    #[test]
+    fn the_status_projection_speaks_only_the_rust_owned_effect_vocabulary() {
+        let tokens: Vec<String> = [
+            EffectState::NotApplied,
+            EffectState::Possible,
+            EffectState::Applied,
+        ]
+        .into_iter()
+        .map(|effect| {
+            let projection = WorkflowProjection {
+                reference: "reference".into(),
+                profile: "auths.github.issue-address/1".into(),
+                state: "outcome-unknown".into(),
+                effect,
+                retry: NextCall::Resume,
+                updated_at: 1,
+                receipt_id: None,
+            };
+            serde_json::from_str::<serde_json::Value>(&serde_json::to_string(&projection).unwrap())
+                .unwrap()["effect"]
+                .as_str()
+                .unwrap()
+                .to_owned()
+        })
+        .collect();
+        assert_eq!(tokens, ["not-applied", "possible", "applied"]);
+        assert!(
+            !tokens
+                .iter()
+                .any(|token| token == "unknown" || token == "succeeded")
+        );
+    }
 }

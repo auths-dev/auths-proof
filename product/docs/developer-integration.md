@@ -124,7 +124,7 @@ Run the native package test and the shared corpus in the service repository:
 
 ```sh
 # Rust
-cargo test -p auths-enforcement -p auths-deployment
+cargo test -p auths-enforcement
 
 # TypeScript
 npm test

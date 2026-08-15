@@ -16,6 +16,14 @@ use std::{collections::BTreeMap, marker::PhantomData};
 
 const MAX_ACTION_BYTES: usize = 256 * 1024;
 
+/// Budget algebra used for the deployment blast-radius ceiling.
+///
+/// This must name an algebra installed in the target V1 registry
+/// (`auths_registries::NUMERIC_CEILING_V1`); an unregistered identifier makes
+/// every ceiling comparison unresolvable and the action unauthorizable for a
+/// reason unrelated to authority.
+const BLAST_RADIUS_BUDGET_ALGEBRA: &str = "numeric-ceiling-v1";
+
 trait DomainMeaning: Clone + DeserializeOwned + Serialize {
     const PROFILE_ID: &'static str;
     const PROFILE_VERSION: u16 = 1;
@@ -663,7 +671,7 @@ impl DomainMeaning for DeploymentAction {
 
     fn budget(&self) -> Result<Option<BudgetCeiling>, ProfileContractError> {
         Ok(Some(BudgetCeiling::new(
-            BudgetAlgebraId::parse("deploy-blast-radius-v1")
+            BudgetAlgebraId::parse(BLAST_RADIUS_BUDGET_ALGEBRA)
                 .map_err(|_| ProfileContractError::MeaningMismatch)?,
             self.blast_radius,
         )))
@@ -1095,6 +1103,41 @@ mod tests {
                 .unwrap()
             );
         }
+    }
+
+    /// Regression: `DeploymentAction` used to mint the unregistered algebra
+    /// `deploy-blast-radius-v1`. No verifier registry installs that algebra, so
+    /// a ceiling-bearing grant could never resolve it (denied for a reason
+    /// unrelated to authority) and a ceiling-free chain skipped the check
+    /// entirely while an integration claimed real blast radius against it.
+    #[test]
+    fn every_profile_budget_uses_a_registered_algebra() {
+        let digest = "11".repeat(32);
+        let deployment = DeploymentProfile::default()
+            .canonicalize(
+                &serde_json::to_vec(&DeploymentAction::new(
+                    "production".into(),
+                    "eu-west-1".into(),
+                    "deploy".into(),
+                    digest.clone(),
+                    digest.clone(),
+                    digest,
+                    "canary".into(),
+                    1_800_000_000,
+                    1_800_003_600,
+                    10,
+                ))
+                .unwrap(),
+            )
+            .expect("valid deployment action");
+        let budget = deployment
+            .requested_budget()
+            .expect("deployment binds a blast-radius ceiling");
+        assert_eq!(
+            budget.algebra().as_str(),
+            auths_registries::NUMERIC_CEILING_V1
+        );
+        assert_eq!(budget.value(), 10);
     }
 
     #[test]

@@ -5,9 +5,10 @@ use crate::{
         MemorySandboxStore, PendingEffect, PostgresSandboxStore, SandboxStore, StoredReceipt,
     },
 };
+use auths_operations::EffectState;
 use auths_production_client::{
-    ClientOutcomeKind, ProductVerb, ProductionRequest, ProductionResponse, QualifiedProfile,
-    RecoveryReference, RetryClass, decode_delegation_body,
+    ClientOutcomeKind, NextCall, ProductVerb, ProductionRequest, ProductionResponse,
+    QualifiedProfile, RecoveryReference, decode_delegation_body,
 };
 use base64ct::{Base64UrlUnpadded, Encoding as _};
 use ed25519_dalek::{Signature, Signer as _, SigningKey, Verifier as _, VerifyingKey};
@@ -168,7 +169,7 @@ impl SandboxRuntime {
             return ProductionResponse::new(
                 ClientOutcomeKind::Recoverable,
                 Some("provider.outcome-unknown".into()),
-                RetryClass::Resume,
+                NextCall::Resume,
                 Some(reference),
                 None,
                 None,
@@ -288,7 +289,7 @@ impl NodeRuntime for SandboxRuntime {
                     return ProductionResponse::new(
                         ClientOutcomeKind::Rejected,
                         Some("verification.rejected".into()),
-                        RetryClass::Never,
+                        NextCall::Never,
                         None,
                         None,
                         None,
@@ -298,7 +299,7 @@ impl NodeRuntime for SandboxRuntime {
                 ProductionResponse::new(
                     ClientOutcomeKind::Verified,
                     None,
-                    RetryClass::Never,
+                    NextCall::Never,
                     None,
                     None,
                     None,
@@ -314,8 +315,8 @@ impl NodeRuntime for SandboxRuntime {
                 reference: reference.as_str().to_owned(),
                 profile: pending.profile.as_str().into(),
                 state: "outcome-unknown".into(),
-                effect: "unknown".into(),
-                retry: "resume".into(),
+                effect: EffectState::Possible,
+                retry: NextCall::Resume,
                 updated_at: pending.created_at,
                 receipt_id: None,
             });
@@ -328,8 +329,8 @@ impl NodeRuntime for SandboxRuntime {
             reference: reference.as_str().to_owned(),
             profile: completed.profile.as_str().into(),
             state: "committed".into(),
-            effect: "succeeded".into(),
-            retry: "never".into(),
+            effect: EffectState::Applied,
+            retry: NextCall::Never,
             updated_at: completed.completed_at,
             receipt_id: Some(hex::encode(digest(&completed.bytes))),
         })
@@ -404,7 +405,7 @@ fn authority_response(value: Vec<u8>) -> Result<ProductionResponse, RuntimeFailu
     ProductionResponse::new(
         ClientOutcomeKind::Completed,
         None,
-        RetryClass::Never,
+        NextCall::Never,
         None,
         Some(value),
         Some(b"auths-sandbox-authority-v1".to_vec()),
@@ -419,7 +420,7 @@ fn completed_response(
     ProductionResponse::new(
         ClientOutcomeKind::Completed,
         None,
-        RetryClass::Never,
+        NextCall::Never,
         None,
         Some(value),
         Some(receipt),
@@ -794,7 +795,7 @@ mod tests {
         assert_eq!(first.value(), replay.value());
         let status = runtime.status(&reference).unwrap();
         assert_eq!(status.state, "committed");
-        assert_eq!(status.effect, "succeeded");
+        assert_eq!(status.effect, EffectState::Applied);
         assert!(status.receipt_id.is_some());
     }
 }

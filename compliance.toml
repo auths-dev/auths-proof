@@ -216,25 +216,6 @@ security_state = ["external-key-handle", "pin", "public-key", "session"]
 [packages.auths-custody-pkcs11.claims]
 proof-author-or-assembler = ["product/integrations/auths-custody-pkcs11/src/lib.rs#configuration_rejects_unbounded_sessions", "product/integrations/auths-custody-pkcs11/src/lib.rs#startup_freezes_public_descriptor_and_safe_readiness"]
 
-[packages.auths-deployment]
-kind = "cargo"
-layer = "product"
-path = "product/integrations/auths-deployment"
-core_apis = []
-protocol_versions = ["auths-proof/v1"]
-wire_objects = ["VerifiedAction"]
-fixture_suites = ["product/fixtures/v1"]
-principal_families = []
-signature_families = []
-profiles = ["auths.deploy/1"]
-transports = []
-configuration_inputs = ["action-id", "evaluation-time", "verifier-context"]
-security_state = ["deployment-budget", "replay-claim"]
-
-[packages.auths-deployment.claims]
-runtime-enforcement-boundary = ["demos/testkit/auths-apps-testkit/src/lib.rs#authenticated_transport_does_not_upgrade_bad_proof"]
-stateful-replay-budget-component = ["demos/testkit/auths-apps-testkit/src/lib.rs#concurrent_duplicate_executes_exactly_once"]
-
 [packages.auths-enforcement]
 kind = "cargo"
 layer = "product"
@@ -1035,7 +1016,7 @@ profile-contract = ["product/profiles/auths-profile-domains/src/lib.rs#every_pro
 kind = "cargo"
 layer = "product"
 path = "product/profiles/auths-profile-domains"
-core_apis = ["auths-model", "auths-verifier"]
+core_apis = ["auths-model", "auths-registries", "auths-verifier"]
 protocol_versions = ["auths-proof/v1"]
 wire_objects = ["CanonicalAction", "VerifiedAction"]
 fixture_suites = ["product/fixtures/v1"]

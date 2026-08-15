@@ -112,11 +112,6 @@
       "path": "product/integrations/auths-custody-pkcs11"
     },
     {
-      "name": "auths-deployment",
-      "layer": "product",
-      "path": "product/integrations/auths-deployment"
-    },
-    {
       "name": "auths-did-keri",
       "layer": "core",
       "path": "core/adapters/auths-did-keri"
@@ -2119,42 +2114,6 @@
       "source": "auths-custody-pkcs11",
       "source_layer": "product",
       "target": "sha2",
-      "target_layer": null,
-      "scope": "external",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": false,
-      "features": []
-    },
-    {
-      "source": "auths-deployment",
-      "source_layer": "product",
-      "target": "auths-enforcement",
-      "target_layer": "product",
-      "scope": "internal",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": true,
-      "features": []
-    },
-    {
-      "source": "auths-deployment",
-      "source_layer": "product",
-      "target": "auths-sdk",
-      "target_layer": "product",
-      "scope": "internal",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": true,
-      "features": []
-    },
-    {
-      "source": "auths-deployment",
-      "source_layer": "product",
-      "target": "thiserror",
       "target_layer": null,
       "scope": "external",
       "kind": "normal",
@@ -6626,6 +6585,18 @@
       "target_condition": null,
       "optional": false,
       "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-profile-domains",
+      "source_layer": "product",
+      "target": "auths-registries",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
       "features": []
     },
     {

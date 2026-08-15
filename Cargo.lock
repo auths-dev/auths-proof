@@ -452,15 +452,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "auths-deployment"
-version = "1.0.0-rc.1"
-dependencies = [
- "auths-enforcement",
- "auths-sdk",
- "thiserror 2.0.19",
-]
-
-[[package]]
 name = "auths-did-keri"
 version = "1.0.0-rc.1"
 dependencies = [
@@ -1024,6 +1015,7 @@ dependencies = [
  "auths-model",
  "auths-profile-api",
  "auths-receipts",
+ "auths-registries",
  "auths-verifier",
  "hex",
  "serde",

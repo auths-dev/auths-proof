@@ -41,8 +41,8 @@ pub use auths_verifier::{VerificationOutcome, VerifiedAction};
 
 use auths_codec::{CodecError, decode_verification_result};
 use auths_model::{
-    CanonicalAction, PortableVerificationResult, Requirement, VerificationCode,
-    VerificationDecision, VerificationResources, VerificationStage, VerifierContext,
+    CanonicalAction, PortableVerificationResult, Requirement, TrustedContext, VerificationCode,
+    VerificationDecision, VerificationResources, VerificationStage,
 };
 use auths_registries::ImmutableRegistries;
 
@@ -99,7 +99,7 @@ impl<'a> Engine<'a> {
         &self,
         proof_cbor: &[u8],
         canonical_action: &CanonicalAction,
-        context: &VerifierContext,
+        context: &TrustedContext,
     ) -> VerificationOutcome {
         auths_verifier::verify(proof_cbor, canonical_action, context, &self.registries)
     }

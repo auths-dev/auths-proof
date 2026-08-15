@@ -423,6 +423,11 @@ fn status_for(error: RuntimeFailure) -> StatusCode {
         RuntimeFailure::Indeterminate | RuntimeFailure::Unavailable => {
             StatusCode::SERVICE_UNAVAILABLE
         }
+        // Deliberately not 503: proxies and clients treat 503 as a safe
+        // automatic retry, which is the exact behaviour an outcome-unknown
+        // provider result must not invite. The body carries the registry code
+        // and the reconcile retry class.
+        RuntimeFailure::ProviderOutcomeUnknown => StatusCode::INTERNAL_SERVER_ERROR,
     }
 }
 
@@ -431,12 +436,7 @@ fn json_error(status: StatusCode, error: RuntimeFailure) -> Response {
         status,
         axum::Json(ApiError {
             code: error.code(),
-            retry: match error.retry() {
-                auths_production_client::RetryClass::Never => "never",
-                auths_production_client::RetryClass::Backoff => "backoff",
-                auths_production_client::RetryClass::Resume => "resume",
-                auths_production_client::RetryClass::Reconcile => "reconcile",
-            },
+            retry: error.retry().as_str(),
         }),
     )
         .into_response()
@@ -458,7 +458,7 @@ mod tests {
             ProductionResponse::new(
                 auths_production_client::ClientOutcomeKind::Completed,
                 None,
-                auths_production_client::RetryClass::Never,
+                auths_production_client::NextCall::Never,
                 None,
                 Some(request.body().unwrap_or_default().to_vec()),
                 Some(vec![1]),
@@ -474,8 +474,8 @@ mod tests {
                 reference: reference.as_str().into(),
                 profile: QualifiedProfile::GitHubIssueAddress.as_str().into(),
                 state: "outcome-unknown".into(),
-                effect: "unknown".into(),
-                retry: "resume".into(),
+                effect: auths_operations::EffectState::Possible,
+                retry: auths_production_client::NextCall::Resume,
                 updated_at: 1,
                 receipt_id: None,
             })

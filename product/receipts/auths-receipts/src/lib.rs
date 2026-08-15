@@ -13,8 +13,8 @@ pub use disclosure::{
 
 use auths_model::{
     CanonicalAction, ContextDigest, Digest, PROTOCOL_V1, PrincipalId, ProfileRef, ReceiptId,
-    SignatureBytes, SignatureSuiteId, StatusSnapshotId, Timestamp, VerificationMethod,
-    VerifierContext,
+    SignatureBytes, SignatureSuiteId, StatusSnapshotId, Timestamp, TrustedContext,
+    VerificationMethod,
 };
 use auths_ports::{SignatureInput, SignatureSuite};
 use minicbor::{Decoder, Encoder, data::Type};
@@ -74,7 +74,7 @@ impl PreparedReceipt {
 pub fn prepare_decision_receipt(
     authority_commitment: Digest,
     action: &CanonicalAction,
-    context: &VerifierContext,
+    context: &TrustedContext,
     decision: DecisionClass,
     reasons: Vec<String>,
     decided_at: Timestamp,
@@ -251,7 +251,7 @@ impl DecisionReceipt {
         self.action_digest
     }
 
-    /// Returns the public verifier-context digest.
+    /// Returns the public trusted-context digest.
     #[must_use]
     pub const fn context_digest(&self) -> ContextDigest {
         self.context_digest

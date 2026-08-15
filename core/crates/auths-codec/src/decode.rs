@@ -28,9 +28,9 @@ use auths_model::{
     ProtocolVersion, PurposeId, RegistryManifestId, ResourceId, ResourceMatcherId, SignatureBytes,
     SignatureDescriptor, SignatureEnvelope, SignatureSuiteId, SignedAction, SignedGrant,
     SignedGrantStatus, SignedPrincipalStatus, StatementRef, StatusMethodId, StatusPolicy,
-    StatusSnapshotId, StatusTrustRule, Timestamp, TrustAnchor, TrustAnchorId, ValidityWindow,
-    VerificationCode, VerificationDecision, VerificationMethod, VerificationResources,
-    VerificationResultDigest, VerificationStage, VerifierConfigurationId, VerifierContext,
+    StatusSnapshotId, StatusTrustRule, Timestamp, TrustAnchor, TrustAnchorId, TrustedContext,
+    ValidityWindow, VerificationCode, VerificationDecision, VerificationMethod,
+    VerificationResources, VerificationResultDigest, VerificationStage, VerifierConfigurationId,
     VerifierLimits,
 };
 use minicbor::{Decoder, data::Type};
@@ -1128,7 +1128,7 @@ fn verifier_limits(decoder: &mut V1Decoder<'_>) -> Result<VerifierLimits, CodecE
         .map_err(CodecError::from)
 }
 
-fn context_from(decoder: &mut V1Decoder<'_>) -> Result<VerifierContext, CodecError> {
+fn context_from(decoder: &mut V1Decoder<'_>) -> Result<TrustedContext, CodecError> {
     map(decoder, 14)?;
     key(decoder, 0)?;
     let limits = verifier_limits(decoder)?;
@@ -1181,7 +1181,7 @@ fn context_from(decoder: &mut V1Decoder<'_>) -> Result<VerifierContext, CodecErr
     let profile_policy = parse_text!(decoder, ProfilePolicyId)?;
     key(decoder, 13)?;
     let channel_policy = parse_text!(decoder, ChannelBindingId)?;
-    VerifierContext::new(
+    TrustedContext::new(
         configuration,
         composition,
         trust_anchors,
@@ -1755,13 +1755,13 @@ pub fn decode_verification_result(input: &[u8]) -> Result<PortableVerificationRe
     Ok(result)
 }
 
-/// Decodes the deterministic public verifier-context projection.
+/// Decodes the deterministic public trusted-context projection.
 ///
 /// # Errors
 ///
 /// Returns a typed codec error for malformed, non-canonical, over-limit, or
 /// semantically invalid input.
-pub fn decode_verifier_context(input: &[u8]) -> Result<VerifierContext, CodecError> {
+pub fn decode_verifier_context(input: &[u8]) -> Result<TrustedContext, CodecError> {
     if input.len() > auths_model::HARD_MAX_CONTEXT_BYTES {
         return Err(CodecError::LimitExceeded);
     }
@@ -1835,7 +1835,7 @@ mod tests {
         .unwrap()
     }
 
-    fn minimal_context() -> VerifierContext {
+    fn minimal_context() -> TrustedContext {
         let profile = ProfileRef::new(ProfileId::parse("test").unwrap(), 1).unwrap();
         let method = PrincipalMethodId::parse("did-key").unwrap();
         let policy_id = AssurancePolicyId::parse("baseline").unwrap();
@@ -1874,7 +1874,7 @@ mod tests {
             StatusPolicy::ExpiryOnly,
         )
         .unwrap();
-        VerifierContext::new(
+        TrustedContext::new(
             VerifierConfigurationId::new(identifier(8)),
             CompositionRequirement::exact(PlanId::new(identifier(4))),
             vec![anchor],

@@ -1,0 +1,37 @@
+{
+  "schema": "auths.docs.bundle/1",
+  "contractDigest": "14b2d4439129915287da91cf3d57783fef00766c00606e63f95e270ca8a342e3",
+  "sourceCommit": "ca69e410acb848eb420abc407ba245e50aabb80f",
+  "files": [
+    {
+      "path": "contract.json",
+      "sha256": "b486cf2d888b56f32a11924e16685401c86f1bea85c635cc288fe7cb3e258bb3",
+      "bytes": 13210
+    },
+    {
+      "path": "runtime-facts.json",
+      "sha256": "3229ccc5a4adbcdfd4b55bdca58ab9e7e5c333719aeff3a0dba54976e6fef1f1",
+      "bytes": 3158
+    },
+    {
+      "path": "public-docs-report.json",
+      "sha256": "1f3c1e27be157615ba21e23919474bd6d3ff29709b9c2385fce772ff699b1210",
+      "bytes": 666
+    },
+    {
+      "path": "typescript-public-api.txt",
+      "sha256": "adbaa75a2da41d92ebf1bb112e6baa4ecab1dd8f6e18ab7c381028db23580259",
+      "bytes": 6205
+    },
+    {
+      "path": "python-public-api.txt",
+      "sha256": "b794ea97ae40795b2601ebe8e263deb57ca41a74c4fc7fbd84593a47d8e1162b",
+      "bytes": 2567
+    },
+    {
+      "path": "public-topology.json",
+      "sha256": "419f933e67caf0f9aa638fd0a590f692f3d08053acc04b63a9c9d6dd50a6b4bd",
+      "bytes": 860
+    }
+  ]
+}

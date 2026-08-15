@@ -55,7 +55,6 @@ members = [
     "product/policy/auths-bounded-policy",
     "product/policy/auths-bounded-policy/fuzz",
     "product/integrations/auths-enforcement",
-    "product/integrations/auths-deployment",
     "product/integrations/auths-evidence-assemblers",
     "product/integrations/auths-custody",
     "product/integrations/auths-custody-aws-kms",
@@ -187,7 +186,6 @@ auths-profile-kit = { version = "1.0.0-rc.1", path = "product/sdk/auths-profile-
 auths-errors = { version = "1.0.0-rc.1", path = "product/errors/auths-errors", default-features = false }
 auths-bounded-policy = { version = "1.0.0-rc.1", path = "product/policy/auths-bounded-policy", default-features = false }
 auths-enforcement = { version = "1.0.0-rc.1", path = "product/integrations/auths-enforcement" }
-auths-deployment = { version = "1.0.0-rc.1", path = "product/integrations/auths-deployment" }
 auths-resolver-did-web = { version = "1.0.0-rc.1", path = "product/integrations/auths-resolver-did-web" }
 auths-evidence-assemblers = { version = "1.0.0-rc.1", path = "product/integrations/auths-evidence-assemblers" }
 auths-custody = { version = "1.0.0-rc.1", path = "product/integrations/auths-custody" }

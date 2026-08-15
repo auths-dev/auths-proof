@@ -21,8 +21,8 @@ use auths_model::{
     PrincipalStatusSnapshot, PrincipalStatusStatement, ProfileId, ProfileRef, ProofRef, PurposeId,
     ResourceId, SignatureBytes, SignatureDescriptor, SignatureSuiteId, SignedAction, SignedGrant,
     SignedGrantStatus, SignedPrincipalStatus, StatusMethodId, StatusPolicy, StatusSnapshotId,
-    StatusTrustRule, Timestamp, TrustAnchor, TrustAnchorId, ValidityWindow, VerificationMethod,
-    VerifierConfigurationId, VerifierContext, VerifierLimits,
+    StatusTrustRule, Timestamp, TrustAnchor, TrustAnchorId, TrustedContext, ValidityWindow,
+    VerificationMethod, VerifierConfigurationId, VerifierLimits,
 };
 use auths_ports::{PrincipalMethod, SignatureSuite};
 use auths_profile_api::ActionProfile;
@@ -628,7 +628,7 @@ impl PyAuthorizationPlanBuilder {
         members: Vec<Py<PyAuthorizationPlan>>,
     ) -> PyResult<PyAuthorizationPlan> {
         build_plan(py, members, |builder, values| {
-            builder.k_of_n(required, values)
+            builder.threshold(required, values)
         })
     }
 }
@@ -930,7 +930,7 @@ fn status_snapshot(
 
 #[pyclass(name = "TrustedContext", frozen, module = "auths._native")]
 pub struct PyTrustedContext {
-    pub(crate) inner: VerifierContext,
+    pub(crate) inner: TrustedContext,
 }
 
 #[pymethods]

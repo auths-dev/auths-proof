@@ -213,7 +213,7 @@ fn write_mcp_workflow_vectors(output: &std::path::Path) -> Result<(), Box<dyn st
         auths_model::AssurancePolicyId::parse("raw-key-baseline")?,
         auths_model::StatusPolicy::ExpiryOnly,
     )?;
-    let context = auths_model::VerifierContext::new(
+    let context = auths_model::TrustedContext::new(
         template.configuration(),
         template.composition(),
         vec![anchor],
@@ -399,7 +399,7 @@ fn write_shared_workflow_projection(
     actor_key: &SigningKey,
     actor: &auths_model::PrincipalId,
     root_grant: &auths_model::SignedGrant,
-    context: &auths_model::VerifierContext,
+    context: &auths_model::TrustedContext,
     call: &auths_profile_mcp::McpToolCall,
     canonical: &auths_model::CanonicalAction,
     child_diff: &auths_author::AuthorityDiff,

@@ -3597,7 +3597,7 @@ fn canonical_registry_ids<T: Ord>(
     Ok(identifiers)
 }
 
-/// Exact immutable registry selection accepted by one verifier context.
+/// Exact immutable registry selection accepted by one trusted context.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AcceptedRegistries {
     manifest_id: RegistryManifestId,
@@ -3844,7 +3844,7 @@ impl AcceptedRegistries {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct VerifierContext {
+pub struct TrustedContext {
     configuration: VerifierConfigurationId,
     composition: CompositionRequirement,
     trust_anchors: Vec<TrustAnchor>,
@@ -3861,9 +3861,9 @@ pub struct VerifierContext {
     limits: VerifierLimits,
 }
 
-impl VerifierContext {
+impl TrustedContext {
     #[allow(clippy::too_many_arguments)]
-    /// Constructs an explicit, immutable verifier context.
+    /// Constructs an explicit, immutable trusted context.
     ///
     /// # Errors
     ///

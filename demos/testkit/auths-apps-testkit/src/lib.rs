@@ -18,8 +18,8 @@ use auths_model::{
     ParticipantRole, Permission, PermissionSet, PrincipalMethodId, PrincipalStatusSnapshot,
     ProfilePolicyId, ProofBundle, ProofRef, RegistryManifestId, ResourceMatcherId, SignatureBytes,
     SignatureDescriptor, SignatureSuiteId, StatementRef, StatusPolicy, StatusSnapshotId, Timestamp,
-    TrustAnchor, TrustAnchorId, ValidityWindow, VerificationMethod, VerifierConfigurationId,
-    VerifierContext, VerifierLimits,
+    TrustAnchor, TrustAnchorId, TrustedContext, ValidityWindow, VerificationMethod,
+    VerifierConfigurationId, VerifierLimits,
 };
 use auths_profile_api::ActionProfile;
 use auths_profile_mcp::{McpProfile, McpToolCall};
@@ -127,13 +127,17 @@ impl McpToolExecutor for StaticReportExecutor {
     async fn execute(
         &self,
         action: ExecutableAction<auths_profile_mcp::McpCommand>,
-    ) -> Result<Vec<u8>, String> {
+    ) -> Result<Vec<u8>, auths_runtime::ToolExecutionFailure> {
         let command = action.command();
         if command.name() != "read_report"
             || command.arguments().get("name") != Some(&Value::String("q3".into()))
             || action.lease().challenge() != self.expected_challenge
         {
-            return Err("verified report command is outside the demo policy".into());
+            // Rejected by local policy: the report was never read, so the
+            // definite non-effect claim is provable.
+            return Err(auths_runtime::ToolExecutionFailure::before_provider_entry(
+                "verified report command is outside the demo policy",
+            ));
         }
         self.executions.fetch_add(1, Ordering::SeqCst);
         Ok(br#"{"name":"q3","status":"approved"}"#.to_vec())
@@ -218,7 +222,7 @@ struct DemoFixture {
     body: Vec<u8>,
     canonical_action: Vec<u8>,
     proof: Vec<u8>,
-    context: VerifierContext,
+    context: TrustedContext,
     root_principal: String,
 }
 
@@ -260,17 +264,18 @@ pub fn demo_fixture_bytes_for_challenge(nonce: [u8; 32]) -> DemoFixtureBytes {
 /// assertion fails.
 pub async fn run_memory_demo() -> DemoResult {
     let fixture = build_fixture(DEMO_CHALLENGE, None);
-    let (service, executor, receipts) = demo_service(
-        fixture.context,
-        ChannelBindingPolicy::RequireAuthenticatedPeer,
-        None,
-    );
+    // The in-process reference channel authenticates no peer. It therefore
+    // runs under `ChannelBindingPolicy::None` and reports the truth. It used
+    // to claim `AuthenticatedOpaque { kind: "memory-demo" }` under
+    // `RequireAuthenticatedPeer`, which is exactly the forged transport
+    // assertion the runtime now refuses. The authenticated-transport path is
+    // covered by `run_iroh_demo` and
+    // `authenticated_transport_does_not_upgrade_bad_proof`.
+    let (service, executor, receipts) =
+        demo_service(fixture.context, ChannelBindingPolicy::None, None);
     let (mut client, mut server) = channel_pair(
-        PeerObservation::ServerAuthenticated,
-        PeerObservation::AuthenticatedOpaque {
-            kind: "memory-demo".into(),
-            identifier: vec![1],
-        },
+        PeerObservation::Unauthenticated,
+        PeerObservation::Unauthenticated,
     );
     let server_service = service.clone();
     let server_task = tokio::spawn(async move {
@@ -642,7 +647,7 @@ fn demo_call() -> McpToolCall {
 }
 
 fn demo_service(
-    context: VerifierContext,
+    context: TrustedContext,
     channel_policy: ChannelBindingPolicy,
     local_endpoint: Option<[u8; 32]>,
 ) -> (
@@ -654,7 +659,7 @@ fn demo_service(
 }
 
 fn demo_service_with_challenge(
-    context: VerifierContext,
+    context: TrustedContext,
     channel_policy: ChannelBindingPolicy,
     local_endpoint: Option<[u8; 32]>,
     challenge: ChallengeNonce,
@@ -878,7 +883,7 @@ pub fn exact_action_fixture(
         vec![ProfilePolicyId::parse("exact-v1").unwrap()],
     )
     .unwrap();
-    let context = VerifierContext::new(
+    let context = TrustedContext::new(
         demo_configuration_id(),
         CompositionRequirement::exact(plan_id(proof.plan()).unwrap()),
         vec![anchor],
@@ -1041,7 +1046,7 @@ fn build_fixture(challenge: ChallengeNonce, signed_permission: Option<Permission
         vec![ProfilePolicyId::parse("exact-v1").unwrap()],
     )
     .unwrap();
-    let context = VerifierContext::new(
+    let context = TrustedContext::new(
         demo_configuration_id(),
         CompositionRequirement::exact(plan_id(proof.plan()).unwrap()),
         vec![anchor],

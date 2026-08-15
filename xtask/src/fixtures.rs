@@ -141,8 +141,8 @@ pub(crate) fn product_fixtures(update: bool) -> Result<(), String> {
 
 fn production_client_fixtures() -> Result<BTreeMap<PathBuf, Vec<u8>>, String> {
     use auths_production_client::{
-        ClientOutcomeKind, ProductVerb, ProductionRequest, ProductionResponse, QualifiedProfile,
-        RecoveryReference, RetryClass, decode_request, decode_response, encode_request,
+        ClientOutcomeKind, NextCall, ProductVerb, ProductionRequest, ProductionResponse,
+        QualifiedProfile, RecoveryReference, decode_request, decode_response, encode_request,
         encode_response,
     };
 
@@ -238,7 +238,7 @@ fn production_client_fixtures() -> Result<BTreeMap<PathBuf, Vec<u8>>, String> {
             ProductionResponse::new(
                 ClientOutcomeKind::Completed,
                 None,
-                RetryClass::Never,
+                NextCall::Never,
                 None,
                 Some(vec![8; 32]),
                 Some(vec![9; 96]),
@@ -249,7 +249,7 @@ fn production_client_fixtures() -> Result<BTreeMap<PathBuf, Vec<u8>>, String> {
             ProductionResponse::new(
                 ClientOutcomeKind::Denied,
                 Some("authority.denied".into()),
-                RetryClass::Never,
+                NextCall::Never,
                 None,
                 None,
                 None,
@@ -260,7 +260,7 @@ fn production_client_fixtures() -> Result<BTreeMap<PathBuf, Vec<u8>>, String> {
             ProductionResponse::new(
                 ClientOutcomeKind::Indeterminate,
                 Some("provider.outcome-unknown".into()),
-                RetryClass::Reconcile,
+                NextCall::Reconcile,
                 None,
                 None,
                 None,
@@ -271,7 +271,7 @@ fn production_client_fixtures() -> Result<BTreeMap<PathBuf, Vec<u8>>, String> {
             ProductionResponse::new(
                 ClientOutcomeKind::Recoverable,
                 Some("workflow.recoverable".into()),
-                RetryClass::Resume,
+                NextCall::Resume,
                 Some(reference),
                 None,
                 None,
@@ -282,7 +282,7 @@ fn production_client_fixtures() -> Result<BTreeMap<PathBuf, Vec<u8>>, String> {
             ProductionResponse::new(
                 ClientOutcomeKind::Verified,
                 None,
-                RetryClass::Never,
+                NextCall::Never,
                 None,
                 Some(vec![10; 32]),
                 None,
@@ -293,7 +293,7 @@ fn production_client_fixtures() -> Result<BTreeMap<PathBuf, Vec<u8>>, String> {
             ProductionResponse::new(
                 ClientOutcomeKind::Rejected,
                 Some("verification.rejected".into()),
-                RetryClass::Never,
+                NextCall::Never,
                 None,
                 None,
                 None,

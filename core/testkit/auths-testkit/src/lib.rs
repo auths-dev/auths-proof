@@ -30,8 +30,8 @@ use auths_model::{
     PurposeId, RegistryManifestId, Requirement, ResourceId, ResourceMatcherId, SignatureBytes,
     SignatureDescriptor, SignatureEnvelope, SignatureSuiteId, SignedAction, SignedGrant,
     SignedGrantStatus, SignedPrincipalStatus, StatementRef, StatusMethodId, StatusPolicy,
-    StatusSnapshotId, Timestamp, TrustAnchor, TrustAnchorId, ValidityWindow, VerificationMethod,
-    VerifierConfigurationId, VerifierContext, VerifierLimits,
+    StatusSnapshotId, Timestamp, TrustAnchor, TrustAnchorId, TrustedContext, ValidityWindow,
+    VerificationMethod, VerifierConfigurationId, VerifierLimits,
 };
 use auths_multikey::{Multikey, MultikeyType};
 use auths_raw_key::{RAW_KEY_MEDIA_TYPE, RAW_KEY_V1, RawKeyDescriptor, RawKeyType};
@@ -754,7 +754,7 @@ fn anchor(identity: &Identity, depth: u16) -> TrustAnchor {
     anchor_with_status(identity, depth, StatusPolicy::ExpiryOnly)
 }
 
-fn context(identities: &[Identity], anchors: Vec<TrustAnchor>) -> VerifierContext {
+fn context(identities: &[Identity], anchors: Vec<TrustAnchor>) -> TrustedContext {
     context_with_assurance(identities, anchors, assurance_policy(identities))
 }
 
@@ -762,8 +762,8 @@ fn context_with_assurance(
     identities: &[Identity],
     anchors: Vec<TrustAnchor>,
     assurance: AssurancePolicy,
-) -> VerifierContext {
-    VerifierContext::new(
+) -> TrustedContext {
+    TrustedContext::new(
         corpus_configuration_id(),
         CompositionRequirement::new(None, 1, 1, 1).expect("baseline composition"),
         anchors,
@@ -896,7 +896,7 @@ fn fixture(
     name: &'static str,
     class: &'static str,
     bundle: &ProofBundle,
-    context: &VerifierContext,
+    context: &TrustedContext,
     canonical_action: CanonicalAction,
     expected: Expected,
 ) -> CorpusFixture {
@@ -2282,7 +2282,7 @@ fn status_fixture(name: &'static str, variation: StatusVariation) -> CorpusFixtu
     } else {
         StatusPolicy::ExpiryOnly
     };
-    let verifier_context = VerifierContext::new(
+    let verifier_context = TrustedContext::new(
         corpus_configuration_id(),
         CompositionRequirement::new(None, 1, 1, 1).expect("baseline composition"),
         vec![anchor_with_status(&identities[0], 1, anchor_policy)],
@@ -2451,7 +2451,7 @@ fn principal_status_selection_fixture(
     let status = signed_principal_status(issuer, statement);
     let status_id = principal_status_id(status.statement()).expect("status ID");
     let action_id = action_id(action.envelope()).expect("action ID");
-    let context = VerifierContext::new(
+    let context = TrustedContext::new(
         corpus_configuration_id(),
         CompositionRequirement::new(None, 1, 1, 1).expect("baseline composition"),
         vec![anchor_with_status(&root, 1, required_status(METHOD))],
@@ -3256,7 +3256,7 @@ fn replace_context(
     expected: Expected,
 ) -> CorpusFixture {
     let context = decode_context(&fixture);
-    let limited = VerifierContext::new(
+    let limited = TrustedContext::new(
         context.configuration(),
         context.composition(),
         context.trust_anchors().to_vec(),
@@ -3763,7 +3763,7 @@ pub fn verifier_configuration_mismatch() -> CorpusFixture {
     fixture
 }
 
-fn decode_context(fixture: &CorpusFixture) -> VerifierContext {
+fn decode_context(fixture: &CorpusFixture) -> TrustedContext {
     auths_codec::decode_verifier_context(fixture.context_bytes())
         .expect("repository-owned canonical context")
 }
@@ -3795,13 +3795,13 @@ fn accepted_from(
 }
 
 fn context_replacement(
-    source: &VerifierContext,
+    source: &TrustedContext,
     anchors: Vec<TrustAnchor>,
     accepted: AcceptedRegistries,
     resource_matcher: ResourceMatcherId,
     profile_policy: ProfilePolicyId,
-) -> VerifierContext {
-    VerifierContext::new(
+) -> TrustedContext {
+    TrustedContext::new(
         source.configuration(),
         source.composition(),
         anchors,
@@ -3822,7 +3822,7 @@ fn context_replacement(
 
 fn registry_semantics_fixture(
     name: &'static str,
-    mutate: impl FnOnce(&VerifierContext) -> VerifierContext,
+    mutate: impl FnOnce(&TrustedContext) -> TrustedContext,
     expected: Expected,
 ) -> CorpusFixture {
     let mut fixture = raw_key_chain();

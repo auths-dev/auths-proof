@@ -1,7 +1,7 @@
 //! Privacy-preserving causal explanation report.
 
 use auths_codec::{body_digest, context_digest, encode_canonical_action};
-use auths_model::{CanonicalAction, VerificationCode, VerificationDecision, VerifierContext};
+use auths_model::{CanonicalAction, TrustedContext, VerificationCode, VerificationDecision};
 use auths_registries::ImmutableRegistries;
 use auths_verifier::{
     ExplainedVerification, VerificationOutcome,
@@ -196,7 +196,7 @@ pub fn explain(
     verification: &ExplainedVerification,
     proof: &[u8],
     action: &CanonicalAction,
-    context: &VerifierContext,
+    context: &TrustedContext,
     registries: &ImmutableRegistries<'_>,
     disclosure: DisclosurePolicy,
 ) -> Result<ExplanationReport, ExplanationError> {
