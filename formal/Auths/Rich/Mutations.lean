@@ -49,6 +49,7 @@ open Auths.Rich
   grantIdDecidableEq := inferInstance
   extensionIdDecidableEq := inferInstance
   extensionBodyDecidableEq := inferInstance
+  extensionBodySize := fun _ => 0
 
 abbrev V := natVocabulary
 

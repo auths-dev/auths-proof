@@ -35,6 +35,13 @@ structure Vocabulary where
   grantIdDecidableEq : DecidableEq GrantIdCarrier
   extensionIdDecidableEq : DecidableEq ExtensionIdCarrier
   extensionBodyDecidableEq : DecidableEq ExtensionBodyCarrier
+  /-- Size of an extension payload, in the units Rust bounds.
+
+  `CriticalExtension::new` rejects a payload longer than
+  `HARD_MAX_EXTENSION_BYTES`. Without a measure the opaque carrier cannot state
+  that bound, so a Lean inhabitant could exceed it and the claim that this type
+  is exactly the Rust-constructible image would be too strong. -/
+  extensionBodySize : ExtensionBodyCarrier → Nat
 
 structure Principal (v : Vocabulary) where
   value : v.PrincipalCarrier
@@ -181,6 +188,9 @@ instance (v : Vocabulary) : DecidableEq (CriticalExtension v) :=
 /-- Mirrors Rust `auths_model::HARD_MAX_EXTENSIONS`. -/
 def hardMaxExtensions : Nat := 32
 
+/-- Mirrors Rust `auths_model::HARD_MAX_EXTENSION_BYTES`. -/
+def hardMaxExtensionBytes : Nat := 65536
+
 /--
 A canonical critical-extension set.
 
@@ -203,6 +213,10 @@ structure CriticalExtensions (v : Vocabulary) where
   entries : List (CriticalExtension v)
   distinctIds : entries.Pairwise fun left right => left.id ≠ right.id
   bounded : entries.length ≤ hardMaxExtensions
+  /-- Every payload is within `HARD_MAX_EXTENSION_BYTES`, as
+  `CriticalExtension::new` enforces. -/
+  bodiesBounded : ∀ entry ∈ entries,
+    v.extensionBodySize entry.body.value ≤ hardMaxExtensionBytes
 
 /-- Two extension sets are equal exactly when their canonical entries are. -/
 @[ext] theorem CriticalExtensions.ext {v : Vocabulary}
@@ -225,13 +239,18 @@ def CriticalExtensions.empty (v : Vocabulary) : CriticalExtensions v where
   entries := []
   distinctIds := List.Pairwise.nil
   bounded := by simp [hardMaxExtensions]
+  bodiesBounded := by simp
 
 /-- The one-element set, the smallest thing a delegate could try to drop. -/
 def CriticalExtensions.singleton {v : Vocabulary}
-    (extension : CriticalExtension v) : CriticalExtensions v where
+    (extension : CriticalExtension v)
+    (bodyBounded :
+      v.extensionBodySize extension.body.value ≤ hardMaxExtensionBytes) :
+    CriticalExtensions v where
   entries := [extension]
   distinctIds := by simp
   bounded := by simp [hardMaxExtensions]
+  bodiesBounded := by simpa using bodyBounded
 
 /--
 The carrier is not a subsingleton.
@@ -242,8 +261,11 @@ quantified over a differing pair, so it would be vacuous if
 vocabulary that can name a single extension.
 -/
 theorem CriticalExtensions.empty_ne_singleton {v : Vocabulary}
-    (extension : CriticalExtension v) :
-    CriticalExtensions.empty v ≠ CriticalExtensions.singleton extension := by
+    (extension : CriticalExtension v)
+    (bodyBounded :
+      v.extensionBodySize extension.body.value ≤ hardMaxExtensionBytes) :
+    CriticalExtensions.empty v ≠
+      CriticalExtensions.singleton extension bodyBounded := by
   intro equality
   have entries := congrArg CriticalExtensions.entries equality
   simp [CriticalExtensions.empty, CriticalExtensions.singleton] at entries

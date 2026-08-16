@@ -219,12 +219,14 @@ The class the two theorems above quantify over is inhabited, so neither is
 vacuous: dropping the single extension of a one-element set is refused.
 -/
 theorem extensions_le_refuses_a_dropped_singleton {v : Vocabulary}
-    (extension : CriticalExtension v) :
+    (extension : CriticalExtension v)
+    (bodyBounded :
+      v.extensionBodySize extension.body.value ≤ hardMaxExtensionBytes) :
     ¬ extensionsLe
         (some (CriticalExtensions.empty v))
-        (some (CriticalExtensions.singleton extension)) :=
+        (some (CriticalExtensions.singleton extension bodyBounded)) :=
   extensions_le_false_of_altered
-    (CriticalExtensions.empty_ne_singleton extension)
+    (CriticalExtensions.empty_ne_singleton extension bodyBounded)
 
 theorem status_refl {v : Vocabulary} (status : StatusPolicy v) :
     statusLe status status := by

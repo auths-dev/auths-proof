@@ -1173,6 +1173,7 @@ abbrev productionVocabulary : Auths.Rich.Vocabulary where
   grantIdDecidableEq := inferInstance
   extensionIdDecidableEq := inferInstance
   extensionBodyDecidableEq := inferInstance
+  extensionBodySize := List.length
 
 abbrev ProductionVocabulary := productionVocabulary
 
@@ -1214,6 +1215,15 @@ structure CriticalExtensionsCanonical
   distinctIds :
     (extensions.val.map fun extension => stringBytes extension.id).Nodup
   size : extensions.val.length ≤ Auths.Rich.hardMaxExtensions
+  /-- Every payload is within `HARD_MAX_EXTENSION_BYTES`.
+
+  `CriticalExtension::new` rejects a longer payload, so every value the Rust
+  constructor produces satisfies this. Stating it here is what makes the claim
+  that a Lean inhabitant is exactly a Rust-constructible canonical value true
+  rather than merely close: without it the predicate admitted extension sets
+  Rust would have refused. -/
+  bodiesBounded : ∀ extension ∈ extensions.val,
+    extension.bytes.val.length ≤ Auths.Rich.hardMaxExtensionBytes
 
 theorem richCriticalExtension_entries
     (extensions : auths_model.CriticalExtensions) :
@@ -1227,6 +1237,11 @@ def richCriticalExtensions
     (canonical : CriticalExtensionsCanonical extensions) :
     Auths.Rich.CriticalExtensions ProductionVocabulary where
   entries := extensions.val.map richCriticalExtension
+  bodiesBounded := by
+    intro entry membership
+    obtain ⟨extension, source, rfl⟩ := List.mem_map.mp membership
+    simpa [richCriticalExtension, richCriticalExtensionOfKey,
+      criticalExtensionKey] using canonical.bodiesBounded extension source
   distinctIds := by
     have nodup :
         (extensions.val.map fun extension => stringBytes extension.id).Pairwise
