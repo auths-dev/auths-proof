@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from auths.service import create_auths
+from auths.service import create_service_client
 from auths._native import (
     decode_production_request_v1,
     decode_production_response_v1,
@@ -82,15 +82,15 @@ def test_production_facade_uses_closed_profile_routes() -> None:
 
     async def scenario() -> None:
         transport = Transport()
-        auths = create_auths(
+        client = create_service_client(
             endpoint="https://operator.example",
             identity=bytes([1]) * 32,
             profile=github_issue_address(),
             transport=transport,
         )
-        authority = await auths.create(b"create")
+        authority = await client.create(b"create")
         assert authority.kind == "authority"
-        executed = await auths.execute(authority, b"execute")
+        executed = await client.execute(authority, b"execute")
         assert executed.kind == "completed"
         assert transport.paths == [
             "/v1/authority/create",

@@ -31,7 +31,7 @@
     {
       "concept": "create",
       "typescript": "createAuths",
-      "python": "Auths"
+      "python": "create_auths"
     },
     {
       "concept": "delegate",

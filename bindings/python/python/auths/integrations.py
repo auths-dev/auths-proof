@@ -29,8 +29,8 @@ from ._product import (
     Auths,
     AuthsConfiguration,
     _AuthsResources,
-    _create_auths,
     _create_auths_configuration,
+    create_auths,
 )
 from ._bootstrap import prepare_raw_key_authority
 from .profiles._mcp import (
@@ -285,7 +285,7 @@ class _PendingAuths(Awaitable[Auths]):
 
     async def _open(self) -> Auths:
         if self._auths is None:
-            self._auths = await _create_auths(self._configuration)
+            self._auths = await create_auths(self._configuration)
         return self._auths
 
     async def __aenter__(self) -> Auths:

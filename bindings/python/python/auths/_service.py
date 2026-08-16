@@ -179,7 +179,18 @@ ServiceVerificationResult = Union[
 ]
 
 
-class ServiceAuths:
+class ServiceClient:
+    """The remote Auths runtime client -- TypeScript's `ServiceClient`.
+
+    Deliberately not named `ServiceAuths`. The remote counterpart of the local
+    `Auths` facade is the `ServiceAuthority` this client returns from `create`;
+    this object is the transport that asks a service to mint one. Naming the
+    transport `Auths` would advertise a substitutability with the local facade
+    that does not exist: `Auths.execute` takes an action and a provider this
+    process holds, and `ServiceClient.execute` takes an authority and opaque
+    bytes over HTTPS.
+    """
+
     def __init__(
         self,
         *,
@@ -342,17 +353,22 @@ def _axis(code: str) -> tuple[EffectState, RetryClass, RecommendedAction]:
     )
 
 
-def create_auths(
+def create_service_client(
     *,
     endpoint: str,
     identity: bytes,
     profile: ServiceProfile,
     transport: Optional[ServiceTransport] = None,
     timeout_seconds: float = _DEFAULT_TIMEOUT_SECONDS,
-) -> ServiceAuths:
+) -> ServiceClient:
+    """Opens a client for a remote Auths service -- `createServiceClient` in TypeScript.
+
+    Formerly `create_auths`, which returned something that is not an `Auths`
+    while `auths.integrations.development.create_auths` returned one.
+    """
     if production_client_contract_version_v1() != 1:
         raise RuntimeError("Auths production client contract mismatch")
-    return ServiceAuths(
+    return ServiceClient(
         endpoint=endpoint,
         identity=identity,
         profile=profile,
@@ -582,9 +598,9 @@ def _is_recovery_reference(value: str) -> bool:
 
 __all__ = [
     "NextCall",
-    "ServiceAuths",
     "ServiceAuthority",
     "ServiceAuthorityResult",
+    "ServiceClient",
     "ServiceCompleted",
     "ServiceDenied",
     "ServiceExecutionResult",
@@ -598,5 +614,5 @@ __all__ = [
     "ServiceTransportResponse",
     "ServiceVerificationResult",
     "ServiceVerified",
-    "create_auths",
+    "create_service_client",
 ]

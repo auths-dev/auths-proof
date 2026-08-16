@@ -12,6 +12,8 @@ import re
 import typing
 from pathlib import Path
 
+import pytest
+
 import auths
 from auths._product_errors import EffectState, RecommendedAction, RetryClass
 import auths.service
@@ -233,4 +235,62 @@ def test_no_name_is_exported_from_two_entry_points_as_two_different_types() -> N
         "these names resolve to different declarations depending on the import "
         f"path: {homonyms}. A shared declaration re-exported from two paths is "
         "fine; two unrelated types under one name is not."
+    )
+
+
+# ---------------------------------------------------------------------------
+# The two factories: same concept, same word, one spelling per language.
+# ---------------------------------------------------------------------------
+
+
+def _typescript_source(*parts: str) -> str:
+    return (_TYPESCRIPT.joinpath(*parts)).read_text()
+
+
+def test_create_is_a_factory_in_both_languages_and_not_a_constructor() -> None:
+    """Contract 4.2: `create` is one operation with one entry point per language.
+
+    TypeScript never exports the class behind `Auths`, so `createAuths` is the
+    only way to obtain one. Python exported the class itself, which made
+    `Auths(...)` a second, undocumented entry point for the same verb.
+    """
+    product = _typescript_source("product.ts")
+    assert "export function createAuths(" in product, (
+        "TypeScript no longer spells the create verb `createAuths`; this check "
+        "is asserting a spelling that no longer exists"
+    )
+    assert "export class AuthsFacade" not in product, (
+        "TypeScript exported the facade class, so it too now has two entry "
+        "points for `create` and Python was aligned to the wrong shape"
+    )
+
+    assert callable(auths.create_auths)
+    assert "create_auths" in auths.__all__
+
+    with pytest.raises(TypeError, match="sealed Auths facade"):
+        auths.Auths(object(), object(), ())
+
+
+def test_the_service_client_is_named_the_same_thing_in_both_languages() -> None:
+    """Contract 4.4: the remote client is `ServiceClient`, minted by a factory.
+
+    Python called the factory `create_auths` and the type `ServiceAuths`, so
+    one word named the remote client here and the local facade in
+    `auths.integrations`, and neither matched TypeScript.
+    """
+    service = _typescript_source("service.ts")
+    assert "export function createServiceClient(" in service
+    assert "export interface ServiceClient {" in service
+
+    import auths.integrations
+
+    assert callable(auths.service.create_service_client)
+    assert isinstance(auths.service.ServiceClient, type)
+    assert not hasattr(auths.service, "create_auths"), (
+        "`create_auths` is back on the remote client, where it names something "
+        "that is not an Auths"
+    )
+    assert not hasattr(auths.service, "ServiceAuths")
+    assert callable(auths.integrations.development.create_auths), (
+        "`create_auths` must keep meaning exactly one thing: make a local Auths"
     )

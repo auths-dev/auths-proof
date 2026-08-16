@@ -14,6 +14,7 @@ if TYPE_CHECKING:
         Completed as Completed,
         Denied as Denied,
         ExecutionReference as ExecutionReference,
+        create_auths as create_auths,
         ExecutionResult as ExecutionResult,
         Indeterminate as Indeterminate,
         PlanCompleted as PlanCompleted,
@@ -55,6 +56,7 @@ _OWNERS = {
     "RecommendedAction": "._product_errors",
     "RecoveryResult": "._product",
     "RetryClass": "._product_errors",
+    "create_auths": "._product",
     "doctor": "._doctor",
 }
 

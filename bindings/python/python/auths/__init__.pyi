@@ -22,6 +22,7 @@ from ._product import Receipt as Receipt
 from ._product_errors import RecommendedAction as RecommendedAction
 from ._product import RecoveryResult as RecoveryResult
 from ._product_errors import RetryClass as RetryClass
+from ._product import create_auths as create_auths
 from ._doctor import doctor as doctor
 
 __all__: list[str]

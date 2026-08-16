@@ -19,6 +19,7 @@ Receipt
 RecommendedAction
 RecoveryResult
 RetryClass
+create_auths
 doctor
 
 [auths.identity]
@@ -88,7 +89,7 @@ RecommendedAction
 RetryClass
 ServiceAuthority
 ServiceAuthorityResult
-ServiceAuths
+ServiceClient
 ServiceCompleted
 ServiceDenied
 ServiceExecutionResult
@@ -102,7 +103,7 @@ ServiceTransportRequest
 ServiceTransportResponse
 ServiceVerificationResult
 ServiceVerified
-create_auths
+create_service_client
 
 [auths.profiles]
 DevelopmentMcpProvider

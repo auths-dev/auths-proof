@@ -21,7 +21,7 @@ from ._service import (
     NextCall,
     ServiceAuthority,
     ServiceAuthorityResult,
-    ServiceAuths,
+    ServiceClient,
     ServiceCompleted,
     ServiceDenied,
     ServiceExecutionResult,
@@ -35,7 +35,7 @@ from ._service import (
     ServiceTransportResponse,
     ServiceVerificationResult,
     ServiceVerified,
-    create_auths,
+    create_service_client,
 )
 
 __all__ = [
@@ -48,7 +48,7 @@ __all__ = [
     "RetryClass",
     "ServiceAuthority",
     "ServiceAuthorityResult",
-    "ServiceAuths",
+    "ServiceClient",
     "ServiceCompleted",
     "ServiceDenied",
     "ServiceExecutionResult",
@@ -62,5 +62,5 @@ __all__ = [
     "ServiceTransportResponse",
     "ServiceVerificationResult",
     "ServiceVerified",
-    "create_auths",
+    "create_service_client",
 ]

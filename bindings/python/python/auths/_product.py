@@ -54,6 +54,7 @@ from ._workflow import (
 )
 
 _CONFIGURATION_TOKEN = object()
+_FACADE_TOKEN = object()
 _REFERENCE_TOKEN = object()
 
 
@@ -226,11 +227,23 @@ class AuthsConfiguration:
 
 
 class Auths:
+    """The local product facade. Obtained from `create_auths`, never built here.
+
+    The constructor is sealed for the same reason TypeScript never exports
+    `AuthsFacade`: `create_auths` is the one entry point for the `create` verb,
+    and a second reachable way to mint an `Auths` would be a second entry point
+    wearing a private name. `_AuthsResources` is only ever assembled by an
+    integration, so a caller reaching this directly has skipped composition.
+    """
+
     def __init__(
         self,
+        token: object,
         resources: _AuthsResources,
         diagnostics: tuple[str, ...],
     ) -> None:
+        if token is not _FACADE_TOKEN:
+            raise TypeError("sealed Auths facade; use auths.create_auths")
         self._resources = resources
         self.actor = Actor(resources.agent.identity.principal.principal.value)
         self.authority: Authority = resources.authority
@@ -329,6 +342,7 @@ class Auths:
             await agent.aclose()
 
         child = Auths(
+            _FACADE_TOKEN,
             _AuthsResources(
                 agent,
                 authority,
@@ -401,10 +415,18 @@ def _create_auths_configuration(
     )
 
 
-async def _create_auths(configuration: AuthsConfiguration) -> Auths:
+async def create_auths(configuration: AuthsConfiguration) -> Auths:
+    """Opens the local product facade over a configuration an integration built.
+
+    The `create` verb, spelled `createAuths` in TypeScript. This is the only
+    public way to obtain an `Auths`: the class is the noun, this is the
+    operation, and the two are not the same name in either language.
+    """
     if type(configuration) is not AuthsConfiguration:
         raise TypeError("Auths configuration was not created by an integration")
-    return Auths(await configuration._open(), configuration.diagnostics)
+    return Auths(
+        _FACADE_TOKEN, await configuration._open(), configuration.diagnostics
+    )
 
 
 def verify_receipt(receipt: Receipt) -> None:
@@ -510,6 +532,7 @@ __all__ = [
     "AuthsErrorCode",
     "Authority",
     "Completed",
+    "create_auths",
     "Denied",
     "decode_execution_reference",
     "decode_receipt",
