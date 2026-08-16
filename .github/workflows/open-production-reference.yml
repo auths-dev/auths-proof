@@ -95,6 +95,8 @@ jobs:
           python-version: "3.12"
       - name: Generate isolated TLS material
         run: sh demos/open-production-reference/tests/generate-local-certificates.sh
+      - name: Generate the local-fixture trusted context
+        run: sh demos/open-production-reference/tests/generate-local-context.sh
       - name: Start the reference stack
         run: docker compose -f demos/open-production-reference/compose/compose.yaml up -d --build --wait
       - name: Verify health and readiness

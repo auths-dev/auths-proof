@@ -3,3 +3,5 @@ compose/postgres/certs/*
 compose/ingress/certs/*
 !compose/ingress/certs/README.md
 tests/__pycache__/
+compose/context/*
+!compose/context/README.md

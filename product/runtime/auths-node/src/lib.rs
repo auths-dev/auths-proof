@@ -3,6 +3,7 @@
 pub mod api;
 pub mod config;
 pub mod kernel;
+pub mod local_fixture;
 pub mod profiles;
 mod sandbox_store;
 pub mod shutdown;
