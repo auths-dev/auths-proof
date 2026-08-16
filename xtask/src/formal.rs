@@ -684,6 +684,17 @@ pub(crate) struct FormalAssuranceClaim {
 pub(crate) struct FormalEvidence {
     kind: String,
     artifact: String,
+    /// SHA-256 of the artifact's bytes.
+    ///
+    /// Evidence used to be EXISTENCE-CHECKED only: the audit confirmed a file
+    /// was present at the path and read nothing. An artifact could be emptied,
+    /// rewritten, or replaced wholesale and every claim citing it still passed.
+    ///
+    /// Optional so entries can be introduced before their digest is recorded,
+    /// but once present it is verified, and `cargo xtask formal --update`
+    /// fills it in for every entry.
+    #[serde(default)]
+    sha256: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -859,6 +870,19 @@ pub(crate) fn formal_assurance_audit(formal_root: &Path, update: bool) -> Result
                 ));
             }
             validate_mutation_witnesses(&artifact, &compiled)?;
+            if let Some(expected) = item.sha256.as_deref() {
+                let bytes = fs::read(&artifact).map_err(|error| {
+                    format!("could not read evidence {}: {error}", artifact.display())
+                })?;
+                let actual = hex::encode(Sha256::digest(&bytes));
+                if actual != expected {
+                    return Err(format!(
+                        "formal claim {} cites evidence {} with digest {expected}, \
+                         but the artifact hashes to {actual}",
+                        claim.lean_declaration, item.artifact
+                    ));
+                }
+            }
         }
 
         let declaration = compiled.get(&claim.lean_declaration).ok_or_else(|| {
@@ -1017,6 +1041,7 @@ pub(crate) fn synchronize_formal_assurance_manifest(
                     } else {
                         "formal/Auths/Rich/Theorems.lean".to_owned()
                     },
+                    sha256: None,
                 }],
                 scope: if is_lifecycle {
                     "Pure V1 lifecycle transitions, capacity conservation, replay, configuration gates, credential ordering, provider entry, and reconciliation.".to_owned()
@@ -1047,6 +1072,7 @@ pub(crate) fn synchronize_formal_assurance_manifest(
             claim.evidence = vec![FormalEvidence {
                 kind: "lean-refinement".to_owned(),
                 artifact: "formal/Auths/Lifecycle/Refinement.lean".to_owned(),
+                sha256: None,
             }];
             claim.scope = format!(
                 "The pinned Charon/Aeneas translation of `{rust_symbol}` is extensionally equivalent to the corresponding rich Lean V1 lifecycle semantics."

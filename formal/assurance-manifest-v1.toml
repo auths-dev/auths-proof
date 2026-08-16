@@ -58,6 +58,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-002"
@@ -110,6 +111,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-003"
@@ -162,6 +164,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-004"
@@ -214,6 +217,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-005"
@@ -263,6 +267,7 @@ axioms = ["propext"]
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-006"
@@ -316,6 +321,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-007"
@@ -369,6 +375,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-008"
@@ -422,6 +429,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-009"
@@ -474,6 +482,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-010"
@@ -527,6 +536,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-011"
@@ -580,6 +590,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-092"
@@ -633,6 +644,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-012"
@@ -686,6 +698,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-013"
@@ -735,6 +748,7 @@ axioms = ["propext"]
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-014"
@@ -784,6 +798,7 @@ axioms = []
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-015"
@@ -833,6 +848,7 @@ axioms = ["propext"]
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-016"
@@ -882,6 +898,7 @@ axioms = []
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-093"
@@ -931,6 +948,7 @@ axioms = ["propext"]
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-094"
@@ -980,6 +998,7 @@ axioms = []
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-095"
@@ -1029,6 +1048,7 @@ axioms = []
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-096"
@@ -1078,6 +1098,7 @@ axioms = []
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-097"
@@ -1127,6 +1148,7 @@ axioms = ["propext"]
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-098"
@@ -1176,6 +1198,7 @@ axioms = []
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-105"
@@ -1228,6 +1251,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-017"
@@ -1277,6 +1301,7 @@ axioms = ["propext"]
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-018"
@@ -1326,6 +1351,7 @@ axioms = []
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-019"
@@ -1378,6 +1404,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-020"
@@ -1427,6 +1454,7 @@ axioms = []
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-021"
@@ -1479,6 +1507,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-022"
@@ -1531,6 +1560,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-023"
@@ -1583,6 +1613,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-024"
@@ -1635,6 +1666,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-025"
@@ -1687,6 +1719,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-026"
@@ -1740,6 +1773,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-027"
@@ -1793,6 +1827,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-028"
@@ -1846,6 +1881,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-029"
@@ -1898,6 +1934,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-030"
@@ -1951,6 +1988,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-031"
@@ -2003,6 +2041,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-032"
@@ -2055,6 +2094,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-033"
@@ -2108,6 +2148,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-034"
@@ -2160,6 +2201,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-035"
@@ -2213,6 +2255,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-036"
@@ -2265,6 +2308,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-037"
@@ -2317,6 +2361,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-038"
@@ -2369,6 +2414,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-039"
@@ -2421,6 +2467,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-040"
@@ -2473,6 +2520,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-041"
@@ -2525,6 +2573,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-042"
@@ -2577,6 +2626,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-043"
@@ -2630,6 +2680,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-044"
@@ -2683,6 +2734,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-099"
@@ -2736,6 +2788,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-100"
@@ -2789,6 +2842,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-101"
@@ -2842,6 +2896,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-102"
@@ -2894,6 +2949,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-103"
@@ -2946,6 +3002,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-045"
@@ -2999,6 +3056,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-046"
@@ -3052,6 +3110,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-047"
@@ -3105,6 +3164,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-048"
@@ -3158,6 +3218,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-049"
@@ -3211,6 +3272,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-050"
@@ -3264,6 +3326,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-051"
@@ -3317,6 +3380,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-052"
@@ -3369,6 +3433,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-122"
@@ -3422,6 +3487,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-123"
@@ -3475,6 +3541,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-109"
@@ -3524,6 +3591,7 @@ axioms = []
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-110"
@@ -3573,6 +3641,7 @@ axioms = []
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-111"
@@ -3622,6 +3691,7 @@ axioms = ["propext"]
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-112"
@@ -3671,6 +3741,7 @@ axioms = ["propext"]
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-113"
@@ -3720,6 +3791,7 @@ axioms = ["propext"]
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-114"
@@ -3769,6 +3841,7 @@ axioms = ["propext"]
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-115"
@@ -3818,6 +3891,7 @@ axioms = []
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-116"
@@ -3867,6 +3941,7 @@ axioms = ["propext"]
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-117"
@@ -3916,6 +3991,7 @@ axioms = ["propext"]
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-118"
@@ -3965,6 +4041,7 @@ axioms = []
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-119"
@@ -4014,6 +4091,7 @@ axioms = ["propext"]
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-120"
@@ -4063,6 +4141,7 @@ axioms = []
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-121"
@@ -4112,6 +4191,7 @@ axioms = []
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-053"
@@ -4164,6 +4244,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-054"
@@ -4230,22 +4311,27 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Refinement/Production.lean"
+sha256 = "accc5207c5203893673fa3aa6a7d341c797bfd9a487eb346faa725d7d4683163"
 
 [[claims.evidence]]
 kind = "mechanical-translation"
 artifact = "formal/qualification/aeneas/generated/authority/Funs.lean"
+sha256 = "8b285906cc66125575211a1fa7860459bb91a7472ccc6ab99f81f178902ff773"
 
 [[claims.evidence]]
 kind = "source-closure"
 artifact = "formal/qualification/aeneas/source-closure.json"
+sha256 = "94263dd8276ab7bfbdc67f2ca3b31d1662ed66cca45c59f00d045ec98c4d6ee7"
 
 [[claims.evidence]]
 kind = "lean-generated-vectors"
 artifact = "core/formal-vectors/v1/rich-authority.json"
+sha256 = "8f560ad3afa1ae5f0ef7dc5a8b77779e5da79c59d94d39bf2d2a005edac25a92"
 
 [[claims.evidence]]
 kind = "mutation-matrix"
 artifact = "formal/refinement-mutations-v1.json"
+sha256 = "8da37d014eecc1aab4a2c73bcc2076956970b61f64041964daa04b48b8b9d15a"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-055"
@@ -4309,18 +4395,22 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Refinement/Production.lean"
+sha256 = "accc5207c5203893673fa3aa6a7d341c797bfd9a487eb346faa725d7d4683163"
 
 [[claims.evidence]]
 kind = "translated-rust"
 artifact = "formal/qualification/aeneas/generated/authority/Funs.lean"
+sha256 = "8b285906cc66125575211a1fa7860459bb91a7472ccc6ab99f81f178902ff773"
 
 [[claims.evidence]]
 kind = "lean-generated-vectors"
 artifact = "core/formal-vectors/v1/rich-authority.json"
+sha256 = "8f560ad3afa1ae5f0ef7dc5a8b77779e5da79c59d94d39bf2d2a005edac25a92"
 
 [[claims.evidence]]
 kind = "mutation-matrix"
 artifact = "formal/refinement-mutations-v1.json"
+sha256 = "8da37d014eecc1aab4a2c73bcc2076956970b61f64041964daa04b48b8b9d15a"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-056"
@@ -4387,18 +4477,22 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Refinement/Production.lean"
+sha256 = "accc5207c5203893673fa3aa6a7d341c797bfd9a487eb346faa725d7d4683163"
 
 [[claims.evidence]]
 kind = "translated-rust"
 artifact = "formal/qualification/aeneas/generated/authority/Funs.lean"
+sha256 = "8b285906cc66125575211a1fa7860459bb91a7472ccc6ab99f81f178902ff773"
 
 [[claims.evidence]]
 kind = "lean-generated-vectors"
 artifact = "core/formal-vectors/v1/rich-authority.json"
+sha256 = "8f560ad3afa1ae5f0ef7dc5a8b77779e5da79c59d94d39bf2d2a005edac25a92"
 
 [[claims.evidence]]
 kind = "mutation-matrix"
 artifact = "formal/refinement-mutations-v1.json"
+sha256 = "8da37d014eecc1aab4a2c73bcc2076956970b61f64041964daa04b48b8b9d15a"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-104"
@@ -4452,6 +4546,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-106"
@@ -4505,6 +4600,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-107"
@@ -4558,6 +4654,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-108"
@@ -4611,6 +4708,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Rich/Theorems.lean"
+sha256 = "7dcf0fbc0904c1ccc2a3ae762bb761460ddf83fed99acb512cfee13f8253a49b"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-057"
@@ -4660,6 +4758,7 @@ axioms = ["propext"]
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Product/Theorems.lean"
+sha256 = "7c05061876df3a8d71c86e7ea07cf9db89f9e1c1eb32ecf45899008c8fade154"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-058"
@@ -4709,6 +4808,7 @@ axioms = []
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Product/Theorems.lean"
+sha256 = "7c05061876df3a8d71c86e7ea07cf9db89f9e1c1eb32ecf45899008c8fade154"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-059"
@@ -4758,6 +4858,7 @@ axioms = []
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Product/Theorems.lean"
+sha256 = "7c05061876df3a8d71c86e7ea07cf9db89f9e1c1eb32ecf45899008c8fade154"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-060"
@@ -4807,6 +4908,7 @@ axioms = []
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Product/Theorems.lean"
+sha256 = "7c05061876df3a8d71c86e7ea07cf9db89f9e1c1eb32ecf45899008c8fade154"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-061"
@@ -4856,6 +4958,7 @@ axioms = ["propext"]
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Product/Theorems.lean"
+sha256 = "7c05061876df3a8d71c86e7ea07cf9db89f9e1c1eb32ecf45899008c8fade154"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-062"
@@ -4905,6 +5008,7 @@ axioms = []
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Product/Theorems.lean"
+sha256 = "7c05061876df3a8d71c86e7ea07cf9db89f9e1c1eb32ecf45899008c8fade154"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-063"
@@ -4954,6 +5058,7 @@ axioms = ["propext"]
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Product/Theorems.lean"
+sha256 = "7c05061876df3a8d71c86e7ea07cf9db89f9e1c1eb32ecf45899008c8fade154"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-064"
@@ -5006,6 +5111,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Product/Theorems.lean"
+sha256 = "7c05061876df3a8d71c86e7ea07cf9db89f9e1c1eb32ecf45899008c8fade154"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-065"
@@ -5055,6 +5161,7 @@ axioms = []
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Product/Theorems.lean"
+sha256 = "7c05061876df3a8d71c86e7ea07cf9db89f9e1c1eb32ecf45899008c8fade154"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-066"
@@ -5108,6 +5215,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Product/Theorems.lean"
+sha256 = "7c05061876df3a8d71c86e7ea07cf9db89f9e1c1eb32ecf45899008c8fade154"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-067"
@@ -5161,6 +5269,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Product/Theorems.lean"
+sha256 = "7c05061876df3a8d71c86e7ea07cf9db89f9e1c1eb32ecf45899008c8fade154"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-068"
@@ -5214,6 +5323,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Product/Theorems.lean"
+sha256 = "7c05061876df3a8d71c86e7ea07cf9db89f9e1c1eb32ecf45899008c8fade154"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-069"
@@ -5267,6 +5377,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Product/Theorems.lean"
+sha256 = "7c05061876df3a8d71c86e7ea07cf9db89f9e1c1eb32ecf45899008c8fade154"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-070"
@@ -5320,6 +5431,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Lifecycle/Theorems.lean"
+sha256 = "1d30fad27e732bb77a87d7c34cb8230fbb869edc64fc3d3f33e7ee3f8592c8ab"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-071"
@@ -5372,6 +5484,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Lifecycle/Theorems.lean"
+sha256 = "1d30fad27e732bb77a87d7c34cb8230fbb869edc64fc3d3f33e7ee3f8592c8ab"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-072"
@@ -5424,6 +5537,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Lifecycle/Theorems.lean"
+sha256 = "1d30fad27e732bb77a87d7c34cb8230fbb869edc64fc3d3f33e7ee3f8592c8ab"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-073"
@@ -5476,6 +5590,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Lifecycle/Theorems.lean"
+sha256 = "1d30fad27e732bb77a87d7c34cb8230fbb869edc64fc3d3f33e7ee3f8592c8ab"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-074"
@@ -5529,6 +5644,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Lifecycle/Theorems.lean"
+sha256 = "1d30fad27e732bb77a87d7c34cb8230fbb869edc64fc3d3f33e7ee3f8592c8ab"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-075"
@@ -5582,6 +5698,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Lifecycle/Theorems.lean"
+sha256 = "1d30fad27e732bb77a87d7c34cb8230fbb869edc64fc3d3f33e7ee3f8592c8ab"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-076"
@@ -5631,6 +5748,7 @@ axioms = []
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Lifecycle/Theorems.lean"
+sha256 = "1d30fad27e732bb77a87d7c34cb8230fbb869edc64fc3d3f33e7ee3f8592c8ab"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-077"
@@ -5680,6 +5798,7 @@ axioms = []
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Lifecycle/Theorems.lean"
+sha256 = "1d30fad27e732bb77a87d7c34cb8230fbb869edc64fc3d3f33e7ee3f8592c8ab"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-078"
@@ -5729,6 +5848,7 @@ axioms = []
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Lifecycle/Theorems.lean"
+sha256 = "1d30fad27e732bb77a87d7c34cb8230fbb869edc64fc3d3f33e7ee3f8592c8ab"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-079"
@@ -5778,6 +5898,7 @@ axioms = ["propext"]
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Lifecycle/Theorems.lean"
+sha256 = "1d30fad27e732bb77a87d7c34cb8230fbb869edc64fc3d3f33e7ee3f8592c8ab"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-080"
@@ -5827,6 +5948,7 @@ axioms = ["propext"]
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Lifecycle/Theorems.lean"
+sha256 = "1d30fad27e732bb77a87d7c34cb8230fbb869edc64fc3d3f33e7ee3f8592c8ab"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-081"
@@ -5876,6 +5998,7 @@ axioms = ["propext"]
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Lifecycle/Theorems.lean"
+sha256 = "1d30fad27e732bb77a87d7c34cb8230fbb869edc64fc3d3f33e7ee3f8592c8ab"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-082"
@@ -5925,6 +6048,7 @@ axioms = ["propext"]
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Lifecycle/Theorems.lean"
+sha256 = "1d30fad27e732bb77a87d7c34cb8230fbb869edc64fc3d3f33e7ee3f8592c8ab"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-083"
@@ -5974,6 +6098,7 @@ axioms = ["propext"]
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Lifecycle/Theorems.lean"
+sha256 = "1d30fad27e732bb77a87d7c34cb8230fbb869edc64fc3d3f33e7ee3f8592c8ab"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-084"
@@ -6023,6 +6148,7 @@ axioms = ["propext"]
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Lifecycle/Theorems.lean"
+sha256 = "1d30fad27e732bb77a87d7c34cb8230fbb869edc64fc3d3f33e7ee3f8592c8ab"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-085"
@@ -6072,6 +6198,7 @@ axioms = ["propext"]
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Lifecycle/Theorems.lean"
+sha256 = "1d30fad27e732bb77a87d7c34cb8230fbb869edc64fc3d3f33e7ee3f8592c8ab"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-086"
@@ -6121,6 +6248,7 @@ axioms = ["propext"]
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Lifecycle/Theorems.lean"
+sha256 = "1d30fad27e732bb77a87d7c34cb8230fbb869edc64fc3d3f33e7ee3f8592c8ab"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-087"
@@ -6422,6 +6550,7 @@ axioms = ["propext"]
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Composition.lean"
+sha256 = "30413bde277c7f72922d10a3de2d39eef9ef429bb1cf0d093619407d88e5e388"
 
 [[claims]]
 claim_id = "AP-FORMAL-BASELINE-013"
@@ -6471,6 +6600,7 @@ axioms = ["propext"]
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Composition.lean"
+sha256 = "30413bde277c7f72922d10a3de2d39eef9ef429bb1cf0d093619407d88e5e388"
 
 [[claims]]
 claim_id = "AP-FORMAL-BASELINE-014"
@@ -6520,6 +6650,7 @@ axioms = ["propext"]
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Composition.lean"
+sha256 = "30413bde277c7f72922d10a3de2d39eef9ef429bb1cf0d093619407d88e5e388"
 
 [[claims]]
 claim_id = "AP-FORMAL-BASELINE-015"
@@ -6569,6 +6700,7 @@ axioms = ["propext"]
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Composition.lean"
+sha256 = "30413bde277c7f72922d10a3de2d39eef9ef429bb1cf0d093619407d88e5e388"
 
 [[claims]]
 claim_id = "AP-FORMAL-BASELINE-016"
@@ -6618,6 +6750,7 @@ axioms = ["propext"]
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Composition.lean"
+sha256 = "30413bde277c7f72922d10a3de2d39eef9ef429bb1cf0d093619407d88e5e388"
 
 [[claims]]
 claim_id = "AP-FORMAL-BASELINE-017"
@@ -6667,6 +6800,7 @@ axioms = ["propext"]
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Composition.lean"
+sha256 = "30413bde277c7f72922d10a3de2d39eef9ef429bb1cf0d093619407d88e5e388"
 
 [[claims]]
 claim_id = "AP-FORMAL-BASELINE-018"
@@ -6716,10 +6850,12 @@ axioms = ["propext"]
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Composition.lean"
+sha256 = "30413bde277c7f72922d10a3de2d39eef9ef429bb1cf0d093619407d88e5e388"
 
 [[claims.evidence]]
 kind = "test-corpus"
 artifact = "core/formal-vectors/v1/threshold-counts.json"
+sha256 = "e2d3878d0da4344f9d5b1abc35545cfd5df513b94474ce229b728139e63dd1f6"
 
 [[claims]]
 claim_id = "AP-FORMAL-BASELINE-019"
@@ -6769,10 +6905,12 @@ axioms = ["propext"]
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Composition.lean"
+sha256 = "30413bde277c7f72922d10a3de2d39eef9ef429bb1cf0d093619407d88e5e388"
 
 [[claims.evidence]]
 kind = "test-corpus"
 artifact = "core/formal-vectors/v1/threshold-counts.json"
+sha256 = "e2d3878d0da4344f9d5b1abc35545cfd5df513b94474ce229b728139e63dd1f6"
 
 [[claims]]
 claim_id = "AP-FORMAL-BASELINE-020"
@@ -6825,10 +6963,12 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Composition.lean"
+sha256 = "30413bde277c7f72922d10a3de2d39eef9ef429bb1cf0d093619407d88e5e388"
 
 [[claims.evidence]]
 kind = "test-corpus"
 artifact = "core/formal-vectors/v1/threshold-counts.json"
+sha256 = "e2d3878d0da4344f9d5b1abc35545cfd5df513b94474ce229b728139e63dd1f6"
 
 [[claims]]
 claim_id = "AP-FORMAL-BASELINE-021"
@@ -6878,6 +7018,7 @@ axioms = ["propext"]
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Composition.lean"
+sha256 = "30413bde277c7f72922d10a3de2d39eef9ef429bb1cf0d093619407d88e5e388"
 
 [[claims]]
 claim_id = "AP-FORMAL-BASELINE-022"
@@ -6927,6 +7068,7 @@ axioms = ["propext"]
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Composition.lean"
+sha256 = "30413bde277c7f72922d10a3de2d39eef9ef429bb1cf0d093619407d88e5e388"
 
 [[claims]]
 claim_id = "AP-FORMAL-BASELINE-023"
@@ -6979,6 +7121,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Composition.lean"
+sha256 = "30413bde277c7f72922d10a3de2d39eef9ef429bb1cf0d093619407d88e5e388"
 
 [[claims]]
 claim_id = "AP-FORMAL-BASELINE-024"
@@ -7031,6 +7174,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Composition.lean"
+sha256 = "30413bde277c7f72922d10a3de2d39eef9ef429bb1cf0d093619407d88e5e388"
 
 [[claims]]
 claim_id = "AP-FORMAL-BASELINE-025"
@@ -7080,10 +7224,12 @@ axioms = []
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Composition.lean"
+sha256 = "30413bde277c7f72922d10a3de2d39eef9ef429bb1cf0d093619407d88e5e388"
 
 [[claims.evidence]]
 kind = "test-corpus"
 artifact = "core/formal-vectors/v1/threshold-counts.json"
+sha256 = "e2d3878d0da4344f9d5b1abc35545cfd5df513b94474ce229b728139e63dd1f6"
 
 [[claims]]
 claim_id = "AP-FORMAL-BASELINE-026"
@@ -7136,10 +7282,12 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Composition.lean"
+sha256 = "30413bde277c7f72922d10a3de2d39eef9ef429bb1cf0d093619407d88e5e388"
 
 [[claims.evidence]]
 kind = "test-corpus"
 artifact = "core/formal-vectors/v1/threshold-counts.json"
+sha256 = "e2d3878d0da4344f9d5b1abc35545cfd5df513b94474ce229b728139e63dd1f6"
 
 [[claims]]
 claim_id = "AP-FORMAL-BASELINE-027"
@@ -7193,7 +7341,9 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-proof"
 artifact = "formal/Auths/Composition.lean"
+sha256 = "30413bde277c7f72922d10a3de2d39eef9ef429bb1cf0d093619407d88e5e388"
 
 [[claims.evidence]]
 kind = "test-corpus"
 artifact = "core/formal-vectors/v1/threshold-counts.json"
+sha256 = "e2d3878d0da4344f9d5b1abc35545cfd5df513b94474ce229b728139e63dd1f6"
