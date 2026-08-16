@@ -20,11 +20,10 @@ use auths_model::{
     ParticipantRole, Permission, PermissionSet, PrincipalId, PrincipalMethodId,
     PrincipalStatusSnapshot, ProfileId, ProfilePolicyId, ProfileRef, ResourceId, ResourceMatcherId,
     SignatureSuiteId, StatusPolicy, StatusSnapshotId, Timestamp, TrustAnchor, TrustAnchorId,
-    TrustedContext, ValidityWindow, VerifierConfigurationId, VerifierLimits,
+    TrustedContext, ValidityWindow, VerifierLimits,
 };
-use auths_ports::{PrincipalMethod, SignatureSuite};
-use auths_raw_key::{RAW_KEY_V1, RawKeyDescriptor, RawKeyMethod, RawKeyType};
-use auths_signature::{ED25519_V1, Ed25519Suite};
+use auths_raw_key::{RAW_KEY_V1, RawKeyDescriptor, RawKeyType};
+use auths_signature::ED25519_V1;
 use ed25519_dalek::SigningKey;
 use sha2::{Digest as _, Sha256};
 
@@ -109,17 +108,6 @@ pub fn anchor_principal(seed: &[u8; 32]) -> Result<(SigningKey, PrincipalId), Fi
         .principal()
         .map_err(|_| fail("the derived anchor key has no principal"))?;
     Ok((signing, principal))
-}
-
-fn verifier_configuration() -> Result<VerifierConfigurationId, FixtureError> {
-    let method = RawKeyMethod::new().map_err(|_| fail("raw-key method unavailable"))?;
-    let suite = Ed25519Suite::new().map_err(|_| fail("ed25519 suite unavailable"))?;
-    auths_registries::ImmutableRegistries::new(
-        &[&method as &dyn PrincipalMethod],
-        &[&suite as &dyn SignatureSuite],
-    )
-    .map(|registries| registries.configuration_id())
-    .map_err(|_| fail("the verifier configuration could not be computed"))
 }
 
 /// The permission, namespace, audience and assurance policy the trusted
@@ -327,7 +315,8 @@ pub fn build_context(
     )
     .map_err(|_| fail("the fixture trust anchor is invalid"))?;
     TrustedContext::new(
-        verifier_configuration()?,
+        crate::NodeKernel::built_in_configuration_id()
+            .map_err(|_| fail("the verifier configuration could not be computed"))?,
         CompositionRequirement::new(None, 1, 1, 1)
             .map_err(|_| fail("the composition requirement is invalid"))?,
         vec![anchor],

@@ -47,6 +47,10 @@ fn fail(message: &str) -> ExitCode {
     ExitCode::from(1)
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "the local fixture is one auditable linear authoring transcript"
+)]
 fn main() -> ExitCode {
     let mut arguments = env::args().skip(1);
     let (Some(profile), Some(action_path), Some(agent_label)) =

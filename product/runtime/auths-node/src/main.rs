@@ -3,7 +3,6 @@
 use auths_node::{
     KernelRuntime, NodeConfig, NodeKernel, NodeRuntime, PostgresSandboxStore, app, shutdown,
 };
-use auths_ports::{PrincipalMethod, SignatureSuite};
 use base64ct::{Base64UrlUnpadded, Encoding as _};
 use std::{
     env, fs,
@@ -40,16 +39,7 @@ fn kernel(config: &NodeConfig) -> Result<NodeKernel, Box<dyn std::error::Error>>
         .map_err(|_| "the trusted context is unavailable")?;
     let context = auths_codec::decode_verifier_context(&bytes)
         .map_err(|_| "the trusted context is not canonical")?;
-    let methods: Vec<Box<dyn PrincipalMethod + Send + Sync>> = vec![
-        Box::new(auths_raw_key::RawKeyMethod::new()?),
-        Box::new(auths_did_key::DidKeyMethod::new()?),
-        Box::new(auths_did_keri::DidKeriMethod::new()?),
-    ];
-    let suites: Vec<Box<dyn SignatureSuite + Send + Sync>> = vec![
-        Box::new(auths_signature::Ed25519Suite::new()?),
-        Box::new(auths_signature::P256Sha256Suite::new()?),
-    ];
-    Ok(NodeKernel::new(context, methods, suites)?)
+    Ok(NodeKernel::with_built_ins(context)?)
 }
 
 async fn run() -> Result<(), Box<dyn std::error::Error>> {

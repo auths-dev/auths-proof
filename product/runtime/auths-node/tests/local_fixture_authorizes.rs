@@ -11,11 +11,21 @@
 
 use auths_node::local_fixture::build_context;
 use std::{
+    collections::BTreeSet,
     process::Command,
+    sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
 };
 
 const SEED_B64: &str = "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE";
+
+struct FixedClock(u64);
+
+impl auths_node::NodeClock for FixedClock {
+    fn now_unix_seconds(&self) -> u64 {
+        self.0
+    }
+}
 
 fn authored(profile: &str, body: &str, agent: &str) -> (Vec<u8>, Vec<u8>) {
     use base64ct::{Base64UrlUnpadded, Encoding as _};
@@ -53,22 +63,20 @@ fn an_offline_authored_proof_is_authorized_by_the_generated_context() {
         .duration_since(UNIX_EPOCH)
         .map_or(0, |duration| duration.as_secs());
     let context = build_context(&seed, now, 3_600).expect("trusted context");
+    let kernel = auths_node::NodeKernel::with_built_ins(context)
+        .expect("the deployed verifier registry must initialize");
+    let runtime = auths_node::KernelRuntime::with_clock(
+        kernel,
+        [0x55; 32],
+        BTreeSet::from([auths_production_client::QualifiedProfile::OpenTofuSavedPlanApply]),
+        Arc::new(FixedClock(now)),
+    )
+    .expect("runtime");
 
     for profile in auths_node::local_fixture::REFERENCE_PROFILES {
         let (proof, action_bytes) = authored(profile, "exact reference operation", "fixture-agent");
-        let action = auths_codec::decode_canonical_action(&action_bytes, context.limits())
-            .expect("the authored action is canonical");
-
-        let method = auths_raw_key::RawKeyMethod::new().expect("raw-key method");
-        let suite = auths_signature::Ed25519Suite::new().expect("ed25519 suite");
-        let methods: [&dyn auths_ports::PrincipalMethod; 1] = [&method];
-        let suites: [&dyn auths_ports::SignatureSuite; 1] = [&suite];
-        let registries =
-            auths_registries::ImmutableRegistries::new(&methods, &suites).expect("registries");
-
-        match auths_verifier::verify(&proof, &action, &context, &registries) {
-            auths_verifier::VerificationOutcome::Authorized(_) => {}
-            other => panic!("{profile} was not authorized: {other:?}"),
-        }
+        runtime
+            .authorize(&proof, &action_bytes)
+            .unwrap_or_else(|error| panic!("{profile} was not authorized: {error:?}"));
     }
 }

@@ -769,7 +769,7 @@ fn declaring_budget_free(source: &TrustedContext, budget_free: Vec<ProfileRef>) 
             .with_budget_free_profiles(budget_free)
             .expect("budget-free declaration"),
         source.expected_audience().clone(),
-        source.expected_challenge().clone(),
+        source.expected_challenge(),
         source.evaluation_time(),
         source.assurance_policy().clone(),
         source.principal_status_snapshot().clone(),

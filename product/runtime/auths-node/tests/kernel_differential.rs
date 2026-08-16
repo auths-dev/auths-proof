@@ -185,11 +185,19 @@ fn reference_side_matches_the_normative_corpus() {
 }
 
 #[test]
-fn node_and_kernel_agree_on_every_canonical_corpus_input() {
+fn node_and_kernel_agree_on_every_startable_canonical_corpus_input() {
     let mut disagreements = Vec::new();
     let mut compared = 0_usize;
     for fixture in auths_testkit::corpus() {
         let context = fixture_context(&fixture);
+        if context.configuration() != auths_testkit::corpus_configuration_id() {
+            assert_eq!(
+                fixture.name(),
+                "verifier-configuration-mismatch",
+                "only the deliberate startup mismatch may carry another configuration"
+            );
+            continue;
+        }
         let action_bytes = fixture_action_bytes(&fixture);
         let kernel = kernel_decision(fixture.proof_bytes(), fixture.canonical_action(), &context);
         let node = node_decision(&context, fixture.proof_bytes(), &action_bytes);
@@ -207,6 +215,19 @@ fn node_and_kernel_agree_on_every_canonical_corpus_input() {
         disagreements.len(),
         disagreements.join("\n")
     );
+}
+
+#[test]
+fn a_mismatched_corpus_configuration_is_rejected_before_the_node_can_serve() {
+    let fixture = auths_testkit::corpus()
+        .into_iter()
+        .find(|fixture| fixture.name() == "verifier-configuration-mismatch")
+        .expect("configuration mismatch fixture");
+    let context = fixture_context(&fixture);
+    assert!(matches!(
+        NodeKernel::new(context, methods(), suites()),
+        Err(RuntimeFailure::Malformed)
+    ));
 }
 
 #[test]

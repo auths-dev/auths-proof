@@ -988,12 +988,11 @@ fn selected_files(
         ));
     }
     let mut selected = Vec::new();
-    visit_files(directory, &mut |path| {
-        if predicate(path) {
-            selected.push(repository_relative(path)?);
+    for path in tracked_files_under(directory)? {
+        if predicate(&path) {
+            selected.push(repository_relative(&path)?);
         }
-        Ok(())
-    })?;
+    }
     selected.sort();
     if selected.is_empty() {
         return Err(format!(
@@ -1047,14 +1046,13 @@ fn digest_owners(owners: &[String]) -> Result<String, String> {
         if metadata.is_file() {
             files.insert(owner.clone(), read_owned_file(&path)?);
         } else if metadata.is_dir() {
-            let before = files.len();
-            visit_files(&path, &mut |file| {
-                let relative = repository_relative(file)?;
-                files.insert(relative, read_owned_file(file)?);
-                Ok(())
-            })?;
-            if files.len() == before {
+            let tracked = tracked_files_under(&path)?;
+            if tracked.is_empty() {
                 return Err(format!("semantic owner directory is empty: {owner}"));
+            }
+            for file in tracked {
+                let relative = repository_relative(&file)?;
+                files.insert(relative, read_owned_file(&file)?);
             }
         } else {
             return Err(format!(
@@ -1073,68 +1071,41 @@ fn digest_owners(owners: &[String]) -> Result<String, String> {
     Ok(hex::encode(hasher.finalize()))
 }
 
-fn visit_files(
-    directory: &Path,
-    visitor: &mut impl FnMut(&Path) -> Result<(), String>,
-) -> Result<(), String> {
-    let mut entries = fs::read_dir(directory)
-        .map_err(|error| format!("could not read {}: {error}", directory.display()))?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|error| format!("could not enumerate {}: {error}", directory.display()))?;
-    entries.sort_by_key(std::fs::DirEntry::file_name);
-    for entry in entries {
-        let path = entry.path();
+fn tracked_files_under(directory: &Path) -> Result<Vec<PathBuf>, String> {
+    tracked_files_under_in(&root(), directory)
+}
+
+fn tracked_files_under_in(repository: &Path, directory: &Path) -> Result<Vec<PathBuf>, String> {
+    let relative = repository_relative_to(repository, directory)?;
+    let output = Command::new("git")
+        .args(["ls-files", "--cached", "-z", "--", &relative])
+        .current_dir(repository)
+        .output()
+        .map_err(|error| format!("could not inspect tracked semantic owners: {error}"))?;
+    if !output.status.success() {
+        return Err("git ls-files failed while freezing semantic owners".to_owned());
+    }
+    let mut files = Vec::new();
+    for encoded in output.stdout.split(|byte| *byte == 0) {
+        if encoded.is_empty() {
+            continue;
+        }
+        let tracked = std::str::from_utf8(encoded)
+            .map_err(|_| "tracked semantic owner path is not UTF-8".to_owned())?;
+        validate_relative_path(tracked)?;
+        let path = repository.join(tracked);
         let metadata = fs::symlink_metadata(&path)
-            .map_err(|error| format!("could not inspect {}: {error}", path.display()))?;
-        if metadata.file_type().is_symlink() {
+            .map_err(|error| format!("tracked semantic owner is absent {tracked}: {error}"))?;
+        if metadata.file_type().is_symlink() || !metadata.is_file() {
             return Err(format!(
-                "semantic owner trees must not contain symlinks: {}",
-                path.display()
+                "tracked semantic owner must be a regular non-symlink file: {tracked}"
             ));
         }
-        if metadata.is_dir() {
-            if generated_owner_directory(&path) {
-                continue;
-            }
-            visit_files(&path, visitor)?;
-        } else if metadata.is_file() {
-            if generated_owner_file(&path) {
-                continue;
-            }
-            visitor(&path)?;
-        }
+        files.push(path);
     }
-    Ok(())
-}
-
-fn generated_owner_directory(path: &Path) -> bool {
-    matches!(
-        path.file_name().and_then(|name| name.to_str()),
-        Some(
-            ".git"
-                | ".lake"
-                | ".mypy_cache"
-                | ".pytest_cache"
-                | ".ruff_cache"
-                | ".venv"
-                | "__pycache__"
-                | "node_modules"
-                | "target"
-        )
-    )
-}
-
-fn generated_owner_file(path: &Path) -> bool {
-    if matches!(
-        path.file_name().and_then(|name| name.to_str()),
-        Some(".DS_Store" | ".coverage")
-    ) {
-        return true;
-    }
-    matches!(
-        path.extension().and_then(|extension| extension.to_str()),
-        Some("dll" | "dylib" | "pyc" | "pyd" | "pyo" | "so")
-    )
+    files.sort();
+    files.dedup();
+    Ok(files)
 }
 
 fn read_owned_file(path: &Path) -> Result<Vec<u8>, String> {
@@ -1147,8 +1118,12 @@ fn hash_field(hasher: &mut Sha256, bytes: &[u8]) {
 }
 
 fn repository_relative(path: &Path) -> Result<String, String> {
+    repository_relative_to(&root(), path)
+}
+
+fn repository_relative_to(repository: &Path, path: &Path) -> Result<String, String> {
     let relative = path
-        .strip_prefix(root())
+        .strip_prefix(repository)
         .map_err(|_| format!("path escapes repository: {}", path.display()))?;
     let text = relative.to_string_lossy().replace('\\', "/");
     validate_relative_path(&text)?;
@@ -1398,12 +1373,74 @@ mod tests {
     }
 
     #[test]
-    fn generated_owner_artifacts_are_excluded() {
-        assert!(generated_owner_directory(Path::new("auths/__pycache__")));
-        assert!(generated_owner_directory(Path::new("auths/node_modules")));
-        assert!(generated_owner_file(Path::new("auths/module.pyc")));
-        assert!(generated_owner_file(Path::new("auths/_native.abi3.so")));
-        assert!(!generated_owner_directory(Path::new("auths/profiles")));
-        assert!(!generated_owner_file(Path::new("auths/verify.py")));
+    fn tracked_inventory_is_exact_and_fails_closed() {
+        fn git(repository: &Path, arguments: &[&str]) {
+            let status = Command::new("git")
+                .args(arguments)
+                .current_dir(repository)
+                .status()
+                .expect("git command starts");
+            assert!(status.success(), "git {arguments:?} failed");
+        }
+
+        fn tracked_digest(repository: &Path, directory: &Path) -> String {
+            let mut hasher = Sha256::new();
+            for path in
+                tracked_files_under_in(repository, directory).expect("tracked semantic inventory")
+            {
+                let relative = repository_relative_to(repository, &path)
+                    .expect("repository-relative tracked path");
+                hash_field(&mut hasher, relative.as_bytes());
+                hash_field(
+                    &mut hasher,
+                    &fs::read(path).expect("read tracked semantic owner"),
+                );
+            }
+            hex::encode(hasher.finalize())
+        }
+
+        let repository = tempfile::tempdir().expect("temporary repository");
+        let repository = repository.path();
+        let owner = repository.join("owner");
+        fs::create_dir_all(owner.join("generated")).expect("semantic owner directories");
+        fs::write(
+            repository.join(".gitignore"),
+            "owner/generated/\nowner/untracked.txt\n",
+        )
+        .expect("ignore rules");
+        fs::write(owner.join("tracked.txt"), b"tracked").expect("tracked owner");
+        git(repository, &["init", "--quiet"]);
+        git(repository, &["add", ".gitignore", "owner/tracked.txt"]);
+
+        let baseline = tracked_digest(repository, &owner);
+        let tracked = tracked_files_under_in(repository, &owner).expect("tracked inventory");
+        assert_eq!(tracked, vec![owner.join("tracked.txt")]);
+
+        fs::write(owner.join("generated/ignored.txt"), b"ignored").expect("ignored owner");
+        fs::write(owner.join("untracked.txt"), b"untracked").expect("untracked owner");
+        assert_eq!(tracked_digest(repository, &owner), baseline);
+
+        fs::write(owner.join("staged.txt"), b"staged").expect("staged owner");
+        git(repository, &["add", "owner/staged.txt"]);
+        assert_ne!(tracked_digest(repository, &owner), baseline);
+        git(
+            repository,
+            &["rm", "--cached", "--quiet", "owner/staged.txt"],
+        );
+        assert_eq!(tracked_digest(repository, &owner), baseline);
+
+        fs::write(owner.join("missing.txt"), b"missing").expect("missing owner");
+        git(repository, &["add", "owner/missing.txt"]);
+        fs::remove_file(owner.join("missing.txt")).expect("remove tracked owner");
+        let error = tracked_files_under_in(repository, &owner)
+            .expect_err("a tracked-but-missing owner must fail closed");
+        assert!(error.contains("tracked semantic owner is absent"));
+
+        let not_a_repository = tempfile::tempdir().expect("non-repository directory");
+        let untracked_owner = not_a_repository.path().join("owner");
+        fs::create_dir(&untracked_owner).expect("non-repository owner");
+        let error = tracked_files_under_in(not_a_repository.path(), &untracked_owner)
+            .expect_err("git inventory failure must fail closed");
+        assert!(error.contains("git ls-files failed"));
     }
 }

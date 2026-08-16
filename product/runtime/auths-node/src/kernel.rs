@@ -18,7 +18,7 @@ use crate::{
         MemorySandboxStore, PendingEffect, PostgresSandboxStore, SandboxStore, StoredReceipt,
     },
 };
-use auths_model::{CanonicalAction, Timestamp, TrustedContext};
+use auths_model::{CanonicalAction, Timestamp, TrustedContext, VerifierConfigurationId};
 use auths_operations::EffectState;
 use auths_ports::{PrincipalMethod, SignatureSuite};
 use auths_production_client::{
@@ -87,18 +87,96 @@ pub struct NodeKernel {
     signature_suites: Vec<Box<dyn SignatureSuite + Send + Sync>>,
 }
 
+struct BuiltInVerifierComponents {
+    principal_methods: Vec<Box<dyn PrincipalMethod + Send + Sync>>,
+    signature_suites: Vec<Box<dyn SignatureSuite + Send + Sync>>,
+}
+
+impl BuiltInVerifierComponents {
+    fn configuration_id(&self) -> Result<VerifierConfigurationId, RuntimeFailure> {
+        executable_configuration_id(&self.principal_methods, &self.signature_suites)
+    }
+}
+
+fn executable_configuration_id(
+    principal_methods: &[Box<dyn PrincipalMethod + Send + Sync>],
+    signature_suites: &[Box<dyn SignatureSuite + Send + Sync>],
+) -> Result<VerifierConfigurationId, RuntimeFailure> {
+    let methods = principal_methods
+        .iter()
+        .map(|method| method.as_ref() as &dyn PrincipalMethod)
+        .collect::<Vec<_>>();
+    let suites = signature_suites
+        .iter()
+        .map(|suite| suite.as_ref() as &dyn SignatureSuite)
+        .collect::<Vec<_>>();
+    ImmutableRegistries::new(&methods, &suites)
+        .map(|registries| registries.configuration_id())
+        .map_err(|_| RuntimeFailure::Malformed)
+}
+
+fn built_in_verifier_components() -> Result<BuiltInVerifierComponents, RuntimeFailure> {
+    Ok(BuiltInVerifierComponents {
+        principal_methods: vec![
+            Box::new(auths_raw_key::RawKeyMethod::new().map_err(|_| RuntimeFailure::Unavailable)?),
+            Box::new(auths_did_key::DidKeyMethod::new().map_err(|_| RuntimeFailure::Unavailable)?),
+            Box::new(
+                auths_did_keri::DidKeriMethod::new().map_err(|_| RuntimeFailure::Unavailable)?,
+            ),
+        ],
+        signature_suites: vec![
+            Box::new(
+                auths_signature::Ed25519Suite::new().map_err(|_| RuntimeFailure::Unavailable)?,
+            ),
+            Box::new(
+                auths_signature::P256Sha256Suite::new().map_err(|_| RuntimeFailure::Unavailable)?,
+            ),
+        ],
+    })
+}
+
 impl NodeKernel {
+    /// Builds the node with the exact verifier registry shipped by the binary.
+    ///
+    /// The same component inventory computes the configuration commitment used
+    /// by local-fixture trusted contexts. Keeping construction and commitment
+    /// on one path prevents a context from authorizing under a smaller registry
+    /// than the deployed node actually executes.
+    ///
+    /// # Errors
+    ///
+    /// Returns unavailable if a built-in method or suite cannot initialize.
+    pub fn with_built_ins(context_template: TrustedContext) -> Result<Self, RuntimeFailure> {
+        let components = built_in_verifier_components()?;
+        Self::new(
+            context_template,
+            components.principal_methods,
+            components.signature_suites,
+        )
+    }
+
+    pub(crate) fn built_in_configuration_id() -> Result<VerifierConfigurationId, RuntimeFailure> {
+        built_in_verifier_components()?.configuration_id()
+    }
+
     /// Builds the node's immutable verification inputs.
     ///
     /// # Errors
     ///
-    /// Returns malformed when either executable registry is empty.
+    /// Returns malformed when either executable registry is empty, contains a
+    /// duplicate exact identifier, or does not match the verifier
+    /// configuration committed by the trusted context.
     pub fn new(
         context_template: TrustedContext,
         principal_methods: Vec<Box<dyn PrincipalMethod + Send + Sync>>,
         signature_suites: Vec<Box<dyn SignatureSuite + Send + Sync>>,
     ) -> Result<Self, RuntimeFailure> {
         if principal_methods.is_empty() || signature_suites.is_empty() {
+            return Err(RuntimeFailure::Malformed);
+        }
+        let executable_configuration =
+            executable_configuration_id(&principal_methods, &signature_suites)?;
+        if context_template.configuration() != executable_configuration {
             return Err(RuntimeFailure::Malformed);
         }
         Ok(Self {
@@ -689,6 +767,34 @@ mod tests {
             Arc::new(FrozenClock(evaluation_time)),
         )
         .unwrap()
+    }
+
+    #[test]
+    fn construction_rejects_registries_that_do_not_match_the_trusted_context() {
+        let context = crate::local_fixture::build_context(&[7; 32], 1_700_000_000, 3_600)
+            .expect("local trusted context");
+        let result = NodeKernel::new(
+            context,
+            vec![Box::new(auths_raw_key::RawKeyMethod::new().unwrap())],
+            vec![Box::new(auths_signature::Ed25519Suite::new().unwrap())],
+        );
+        assert!(matches!(result, Err(RuntimeFailure::Malformed)));
+    }
+
+    #[test]
+    fn construction_rejects_duplicate_registry_identifiers() {
+        let context = crate::local_fixture::build_context(&[7; 32], 1_700_000_000, 3_600)
+            .expect("local trusted context");
+        let mut components = built_in_verifier_components().expect("built-in registry");
+        components
+            .principal_methods
+            .push(Box::new(auths_raw_key::RawKeyMethod::new().unwrap()));
+        let result = NodeKernel::new(
+            context,
+            components.principal_methods,
+            components.signature_suites,
+        );
+        assert!(matches!(result, Err(RuntimeFailure::Malformed)));
     }
 
     fn execute(fixture: &CorpusFixture, identity: &[u8]) -> ProductionRequest {

@@ -567,7 +567,7 @@ fn validate_mutation_matrix_source(
     source: &str,
     compiled: &BTreeMap<String, LeanAssuranceDeclaration>,
 ) -> Result<(), String> {
-    let matrix: MutationMatrix = serde_json::from_str(&source)
+    let matrix: MutationMatrix = serde_json::from_str(source)
         .map_err(|error| format!("invalid mutation matrix: {error}"))?;
     if matrix.schema != "auths-proof-semantic-mutations/v1" {
         return Err(format!(
