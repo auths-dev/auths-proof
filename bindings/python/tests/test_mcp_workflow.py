@@ -47,6 +47,7 @@ from auths.profiles._mcp import (
     mcp,
 )
 from auths import _native as native_abi
+from auths._product_errors import EffectState, WORKFLOW_REASON_CODES
 from auths._diagnostics import create_diagnostic_verifier
 from auths._inspection import (
     inspect_decision,
@@ -469,7 +470,9 @@ async def test_profile_mismatch_and_gateway_failure_are_closed() -> None:
 
     with pytest.raises(McpGatewayError) as failure:
         await profile.gateway(fail).execute(result.command, idempotency_key="failure")
-    assert failure.value.code == "gateway-failed"
+    assert failure.value.reason == "gateway-failed"
+    assert failure.value.code == "mcp.handler-failed"
+    assert failure.value.effect is EffectState.POSSIBLE
     assert failure.value.receipt.state_claim == "outcome-unknown"
     assert failure.value.receipt.outcome == "outcome-unknown"
     assert "secret endpoint detail" not in str(failure.value)
@@ -679,7 +682,8 @@ async def test_plan_approval_response_substitution_fails_before_signing() -> Non
                 AuthorizationRequest(bytes([0x22]) * 32, 50),
             ),
         )
-    assert failure.value.code == "approval-rejected"
+    assert failure.value.reason == "approval-rejected"
+    assert failure.value.code == WORKFLOW_REASON_CODES["approval-rejected"]
     assert signer.signatures == 0
     assert provider.calls == 1
     await client.aclose()

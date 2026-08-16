@@ -33,6 +33,7 @@ from auths._workflow import (
 )
 from auths import _native as native
 from auths._inspection import parse_signed_object, parse_unsigned_object
+from auths._product_errors import WORKFLOW_REASON_CODES, registry_codes
 
 
 VECTORS = Path(__file__).parents[3] / "target" / "binding-vectors"
@@ -342,7 +343,9 @@ def test_every_exposed_authority_dimension_fails_before_approval_when_widened(
                     authority=authority(),
                     signer=child_signer,  # type: ignore[arg-type]
                 )
-            assert raised.value.code == "delegation-expanded"
+            assert raised.value.reason == "delegation-expanded"
+            assert raised.value.code == WORKFLOW_REASON_CODES["delegation-expanded"]
+            assert raised.value.code in registry_codes()
             assert provider.calls == 0
             assert parent_signer.sign_calls == 0
             assert child_signer.close_calls == 1
@@ -375,7 +378,9 @@ def test_action_widening_fails_before_approval() -> None:
                     ),
                     signer=child_signer,  # type: ignore[arg-type]
                 )
-            assert raised.value.code == "delegation-expanded"
+            assert raised.value.reason == "delegation-expanded"
+            assert raised.value.code == WORKFLOW_REASON_CODES["delegation-expanded"]
+            assert raised.value.code in registry_codes()
             assert provider.calls == 0
             assert parent_signer.sign_calls == 0
 
@@ -408,7 +413,9 @@ def test_approval_substitution_never_calls_the_parent_signer() -> None:
                     authority=base_authority(),
                     signer=child_signer,  # type: ignore[arg-type]
                 )
-            assert raised.value.code == "approval-response-mismatch"
+            assert raised.value.reason == "approval-response-mismatch"
+            assert raised.value.code == WORKFLOW_REASON_CODES["approval-response-mismatch"]
+            assert raised.value.code in registry_codes()
             assert provider.calls == 1
             assert parent_signer.sign_calls == 0
             assert child_signer.close_calls == 1
@@ -488,7 +495,9 @@ def test_every_approval_binding_field_fails_closed(substitution: str) -> None:
                 if substitution == "decision"
                 else "approval-response-mismatch"
             )
-            assert raised.value.code == expected
+            assert raised.value.reason == expected
+            assert raised.value.code == WORKFLOW_REASON_CODES[expected]
+            assert raised.value.code in registry_codes()
             assert parent_signer.sign_calls == 0
             assert child_signer.close_calls == 1
 
@@ -517,7 +526,9 @@ def test_signer_substitution_cannot_complete_the_child_grant() -> None:
                     authority=base_authority(),
                     signer=child_signer,  # type: ignore[arg-type]
                 )
-            assert raised.value.code == "signer-response-mismatch"
+            assert raised.value.reason == "signer-response-mismatch"
+            assert raised.value.code == WORKFLOW_REASON_CODES["signer-response-mismatch"]
+            assert raised.value.code in registry_codes()
             assert provider.calls == 1
             assert parent_signer.sign_calls == 1
             assert child_signer.close_calls == 1
@@ -569,7 +580,9 @@ def test_every_signer_binding_field_fails_closed(substitution: str) -> None:
                     authority=base_authority(),
                     signer=child_signer,  # type: ignore[arg-type]
                 )
-            assert raised.value.code == "signer-response-mismatch"
+            assert raised.value.reason == "signer-response-mismatch"
+            assert raised.value.code == WORKFLOW_REASON_CODES["signer-response-mismatch"]
+            assert raised.value.code in registry_codes()
             assert provider.calls == 1
             assert parent_signer.sign_calls == 1
             assert child_signer.close_calls == 1
@@ -602,7 +615,9 @@ def test_provider_errors_are_typed_and_sanitized() -> None:
                     authority=base_authority(),
                     signer=child_signer,  # type: ignore[arg-type]
                 )
-            assert raised.value.code == "approval-failed"
+            assert raised.value.reason == "approval-failed"
+            assert raised.value.code == WORKFLOW_REASON_CODES["approval-failed"]
+            assert raised.value.code in registry_codes()
             assert "credential" not in str(raised.value)
 
     asyncio.run(scenario())
@@ -881,6 +896,8 @@ def test_provider_failure_kinds_survive_without_arbitrary_causes() -> None:
                     authority=base_authority(),
                     signer=child_signer,  # type: ignore[arg-type]
                 )
-            assert raised.value.code == "approval-failed"
+            assert raised.value.reason == "approval-failed"
+            assert raised.value.code == WORKFLOW_REASON_CODES["approval-failed"]
+            assert raised.value.code in registry_codes()
 
     asyncio.run(scenario())

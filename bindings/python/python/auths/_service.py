@@ -9,7 +9,7 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from types import MappingProxyType
-from typing import IO, Literal, Mapping, NoReturn, Optional, Protocol, Union, cast, runtime_checkable
+from typing import IO, Final, Literal, Mapping, NoReturn, Optional, Protocol, Union, cast, runtime_checkable
 from urllib.parse import urlparse
 
 from ._native import (
@@ -18,7 +18,15 @@ from ._native import (
     encode_production_request_v1,
     production_client_contract_version_v1,
 )
-from .profiles import ProductionProfile
+from ._product_errors import (
+    AuthsErrorCode,
+    ProductVerb,
+    EffectState,
+    RecommendedAction,
+    RetryClass,
+    classify,
+)
+from .profiles import ServiceProfile
 
 _CONTENT_TYPE: Literal["application/auths+cbor"] = "application/auths+cbor"
 _MAX_RESPONSE_BYTES = 1_048_576
@@ -27,12 +35,17 @@ _AUTHORITY_TOKEN = object()
 _RECEIPT_TOKEN = object()
 _REFERENCE_TOKEN = object()
 
-ProductStep = Literal["create", "delegate", "execute", "resume", "verify"]
-RetryClass = Literal["never", "backoff", "resume", "reconcile"]
+NextCall = Literal["never", "backoff", "resume", "reconcile"]
+"""`auths_production_client::NextCall` -- *what should I call next?*
+
+This is not `RetryClass`. `auths.RetryClass` answers *may I retry?* and has
+the members never|safe|conditional|unknown. The two questions must never
+share an identifier again (contract 4.1).
+"""
 
 
 @dataclass(frozen=True)
-class ProductionTransportRequest:
+class ServiceTransportRequest:
     url: str
     body: bytes
     content_type: Literal["application/auths+cbor"]
@@ -40,20 +53,20 @@ class ProductionTransportRequest:
 
 
 @dataclass(frozen=True)
-class ProductionTransportResponse:
+class ServiceTransportResponse:
     status: int
     content_type: str
     body: bytes
 
 
 @runtime_checkable
-class ProductionTransport(Protocol):
+class ServiceTransport(Protocol):
     async def send(
-        self, request: ProductionTransportRequest
-    ) -> ProductionTransportResponse: ...
+        self, request: ServiceTransportRequest
+    ) -> ServiceTransportResponse: ...
 
 
-class ProductionAuthority:
+class ServiceAuthority:
     __slots__ = ("_bytes",)
     kind: Literal["authority"] = "authority"
 
@@ -66,7 +79,7 @@ class ProductionAuthority:
         raise TypeError("Auths authority is opaque")
 
 
-class ProductionReceipt:
+class ServiceReceipt:
     __slots__ = ("_bytes",)
     kind: Literal["receipt"] = "receipt"
 
@@ -79,7 +92,7 @@ class ProductionReceipt:
         raise TypeError("Auths receipt bytes require an explicit disclosure operation")
 
 
-class ProductionRecoveryReference:
+class ServiceRecoveryReference:
     __slots__ = ("_value",)
     kind: Literal["recovery-reference"] = "recovery-reference"
 
@@ -93,80 +106,92 @@ class ProductionRecoveryReference:
 
 
 @dataclass(frozen=True)
-class ProductionDenied:
+class ServiceDenied:
     kind: Literal["denied"]
-    step: ProductStep
-    code: str
-    retry: Literal["never"]
+    verb: ProductVerb
+    code: AuthsErrorCode
+    next_call: Literal["never"]
+    effect: EffectState
+    retry: RetryClass
+    recommended_action: RecommendedAction
 
 
 @dataclass(frozen=True)
-class ProductionIndeterminate:
+class ServiceIndeterminate:
     kind: Literal["indeterminate"]
-    step: ProductStep
-    code: str
-    retry: Literal["backoff", "reconcile"]
+    verb: ProductVerb
+    code: AuthsErrorCode
+    next_call: Literal["backoff", "reconcile"]
+    effect: EffectState
+    retry: RetryClass
+    recommended_action: RecommendedAction
 
 
 @dataclass(frozen=True)
-class ProductionRecoverable:
+class ServiceRecoverable:
     kind: Literal["recoverable"]
-    step: Literal["execute", "resume"]
-    code: str
-    retry: Literal["resume"]
-    reference: ProductionRecoveryReference
+    verb: Literal["execute", "resume"]
+    code: AuthsErrorCode
+    next_call: Literal["resume"]
+    effect: EffectState
+    retry: RetryClass
+    recommended_action: RecommendedAction
+    reference: ServiceRecoveryReference
 
 
 @dataclass(frozen=True)
-class ProductionCompleted:
+class ServiceCompleted:
     kind: Literal["completed"]
-    step: Literal["execute", "resume"]
+    verb: Literal["execute", "resume"]
     value: Optional[bytes]
-    receipt: ProductionReceipt
+    receipt: ServiceReceipt
 
 
 @dataclass(frozen=True)
-class ProductionVerified:
+class ServiceVerified:
     kind: Literal["verified"]
-    step: Literal["verify"]
+    verb: Literal["verify"]
     value: Optional[bytes]
 
 
 @dataclass(frozen=True)
-class ProductionRejected:
+class ServiceRejected:
     kind: Literal["rejected"]
-    step: Literal["verify"]
-    code: str
-    retry: Literal["never"]
+    verb: Literal["verify"]
+    code: AuthsErrorCode
+    next_call: Literal["never"]
+    effect: EffectState
+    retry: RetryClass
+    recommended_action: RecommendedAction
 
 
-ProductionAuthorityResult = Union[
-    ProductionAuthority, ProductionDenied, ProductionIndeterminate
+ServiceAuthorityResult = Union[
+    ServiceAuthority, ServiceDenied, ServiceIndeterminate
 ]
-ProductionExecutionResult = Union[
-    ProductionCompleted,
-    ProductionDenied,
-    ProductionIndeterminate,
-    ProductionRecoverable,
+ServiceExecutionResult = Union[
+    ServiceCompleted,
+    ServiceDenied,
+    ServiceIndeterminate,
+    ServiceRecoverable,
 ]
-ProductionVerificationResult = Union[
-    ProductionVerified, ProductionRejected, ProductionIndeterminate
+ServiceVerificationResult = Union[
+    ServiceVerified, ServiceRejected, ServiceIndeterminate
 ]
 
 
-class ProductionAuths:
+class ServiceAuths:
     def __init__(
         self,
         *,
         endpoint: str,
         identity: bytes,
-        profile: ProductionProfile,
-        transport: Optional[ProductionTransport] = None,
+        profile: ServiceProfile,
+        transport: Optional[ServiceTransport] = None,
         timeout_seconds: float = _DEFAULT_TIMEOUT_SECONDS,
     ) -> None:
         self._endpoint = _parse_endpoint(endpoint)
         self._identity = _bounded_bytes(identity, 65_536, "identity")
-        if type(profile) is not ProductionProfile or profile.id not in _PROFILE_IDS:
+        if type(profile) is not ServiceProfile or profile.id not in _PROFILE_IDS:
             raise TypeError("Auths production profile is unsupported")
         if (
             type(timeout_seconds) not in (int, float)
@@ -174,24 +199,24 @@ class ProductionAuths:
             or timeout_seconds > 120
         ):
             raise ValueError("Auths production timeout is outside bounds")
-        if transport is not None and not isinstance(transport, ProductionTransport):
+        if transport is not None and not isinstance(transport, ServiceTransport):
             raise TypeError("Auths production transport is invalid")
         self._profile = profile
-        self._transport = transport or _UrlLibProductionTransport()
+        self._transport = transport or _UrlLibServiceTransport()
         self._timeout_seconds = float(timeout_seconds)
 
-    async def create(self, request: bytes) -> ProductionAuthorityResult:
+    async def create(self, request: bytes) -> ServiceAuthorityResult:
         projection = await self._call("create", body=request)
         if projection["kind"] == "completed":
-            return ProductionAuthority(_AUTHORITY_TOKEN, _required_value(projection))
+            return ServiceAuthority(_AUTHORITY_TOKEN, _required_value(projection))
         return _authority_failure("create", projection)
 
     async def delegate(
         self,
-        authority: ProductionAuthority,
+        authority: ServiceAuthority,
         subject: bytes,
         attenuation: bytes = b"\x80",
-    ) -> ProductionAuthorityResult:
+    ) -> ServiceAuthorityResult:
         body = bytes(
             encode_production_delegation_v1(
                 _bounded_bytes(subject, 65_536, "subject"),
@@ -202,12 +227,12 @@ class ProductionAuths:
             "delegate", authority=_authority_bytes(authority), body=body
         )
         if projection["kind"] == "completed":
-            return ProductionAuthority(_AUTHORITY_TOKEN, _required_value(projection))
+            return ServiceAuthority(_AUTHORITY_TOKEN, _required_value(projection))
         return _authority_failure("delegate", projection)
 
     async def execute(
-        self, authority: ProductionAuthority, action: bytes
-    ) -> ProductionExecutionResult:
+        self, authority: ServiceAuthority, action: bytes
+    ) -> ServiceExecutionResult:
         return _execution_result(
             "execute",
             await self._call(
@@ -216,9 +241,9 @@ class ProductionAuths:
         )
 
     async def resume(
-        self, reference: ProductionRecoveryReference
-    ) -> ProductionExecutionResult:
-        if type(reference) is not ProductionRecoveryReference:
+        self, reference: ServiceRecoveryReference
+    ) -> ServiceExecutionResult:
+        if type(reference) is not ServiceRecoveryReference:
             raise TypeError("forged Auths recovery reference")
         return _execution_result(
             "resume",
@@ -226,20 +251,21 @@ class ProductionAuths:
         )
 
     async def verify(
-        self, value: Union[ProductionAuthority, ProductionReceipt, bytes]
-    ) -> ProductionVerificationResult:
-        if type(value) is ProductionAuthority:
+        self, value: Union[ServiceAuthority, ServiceReceipt, bytes]
+    ) -> ServiceVerificationResult:
+        if type(value) is ServiceAuthority:
             body = value._bytes
-        elif type(value) is ProductionReceipt:
+        elif type(value) is ServiceReceipt:
             body = value._bytes
         else:
             body = _bounded_bytes(value, _MAX_RESPONSE_BYTES, "verification input")
         projection = await self._call("verify", body=body)
         if projection["kind"] == "verified":
-            return ProductionVerified("verified", "verify", _optional_bytes(projection["value"]))
+            return ServiceVerified("verified", "verify", _optional_bytes(projection["value"]))
         if projection["kind"] == "rejected":
-            return ProductionRejected(
-                "rejected", "verify", _required_code(projection), "never"
+            code = _required_code(projection)
+            return ServiceRejected(
+                "rejected", "verify", code, "never", *_axis(code)
             )
         if projection["kind"] == "indeterminate":
             return _indeterminate("verify", projection)
@@ -247,7 +273,7 @@ class ProductionAuths:
 
     async def _call(
         self,
-        step: ProductStep,
+        verb: ProductVerb,
         *,
         authority: Optional[bytes] = None,
         body: Optional[bytes] = None,
@@ -255,7 +281,7 @@ class ProductionAuths:
     ) -> Mapping[str, object]:
         request_body = bytes(
             encode_production_request_v1(
-                step,
+                verb,
                 self._profile.id,
                 self._identity,
                 authority,
@@ -263,8 +289,8 @@ class ProductionAuths:
                 recovery_reference,
             )
         )
-        request = ProductionTransportRequest(
-            self._endpoint + _endpoint_path(step, self._profile.id),
+        request = ServiceTransportRequest(
+            self._endpoint + _endpoint_path(verb, self._profile.id),
             request_body,
             _CONTENT_TYPE,
             self._timeout_seconds,
@@ -272,48 +298,61 @@ class ProductionAuths:
         try:
             response = await self._transport.send(request)
         except Exception:
-            return MappingProxyType(
-                {
-                    "contractVersion": 1,
-                    "kind": "indeterminate",
-                    "code": "core.runtime-unavailable",
-                    "retry": "backoff",
-                    "recoveryReference": None,
-                    "value": None,
-                    "receipt": None,
-                }
-            )
+            # The request left this process. The server may have applied the
+            # effect and lost the response, so the effect is `possible`, never
+            # `not-applied`: `core.runtime-unavailable` would tell a caller a
+            # possibly-applied write is safe to blindly retry (contract 5.3).
+            return _unreachable_projection()
         if (
             not 200 <= response.status < 300
             or response.content_type.split(";", 1)[0].strip().lower() != _CONTENT_TYPE
             or not response.body
             or len(response.body) > _MAX_RESPONSE_BYTES
         ):
-            return MappingProxyType(
-                {
-                    "contractVersion": 1,
-                    "kind": "indeterminate",
-                    "code": "core.malformed-input",
-                    "retry": "backoff",
-                    "recoveryReference": None,
-                    "value": None,
-                    "receipt": None,
-                }
-            )
+            # A response this client cannot read is not evidence that nothing
+            # happened. Same rule as an unreachable server.
+            return _unreachable_projection()
         return _projection(decode_production_response_v1(response.body))
+
+
+_UNREACHABLE_CODE: Final = "core.outcome-unknown"
+
+
+def _unreachable_projection() -> Mapping[str, object]:
+    return MappingProxyType(
+        {
+            "contractVersion": 1,
+            "kind": "indeterminate",
+            "code": _UNREACHABLE_CODE,
+            "retry": "reconcile",
+            "recoveryReference": None,
+            "value": None,
+            "receipt": None,
+        }
+    )
+
+
+def _axis(code: str) -> tuple[EffectState, RetryClass, RecommendedAction]:
+    """Reads Rust's classification of `code`, failing closed for unknown ones."""
+    classification = classify(code)
+    return (
+        classification.effect,
+        classification.retry,
+        classification.recommended_action,
+    )
 
 
 def create_auths(
     *,
     endpoint: str,
     identity: bytes,
-    profile: ProductionProfile,
-    transport: Optional[ProductionTransport] = None,
+    profile: ServiceProfile,
+    transport: Optional[ServiceTransport] = None,
     timeout_seconds: float = _DEFAULT_TIMEOUT_SECONDS,
-) -> ProductionAuths:
+) -> ServiceAuths:
     if production_client_contract_version_v1() != 1:
         raise RuntimeError("Auths production client contract mismatch")
-    return ProductionAuths(
+    return ServiceAuths(
         endpoint=endpoint,
         identity=identity,
         profile=profile,
@@ -335,15 +374,15 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
-class _UrlLibProductionTransport:
+class _UrlLibServiceTransport:
     async def send(
-        self, request: ProductionTransportRequest
-    ) -> ProductionTransportResponse:
+        self, request: ServiceTransportRequest
+    ) -> ServiceTransportResponse:
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, _send_sync, request)
 
 
-def _send_sync(request: ProductionTransportRequest) -> ProductionTransportResponse:
+def _send_sync(request: ServiceTransportRequest) -> ServiceTransportResponse:
     opener = urllib.request.build_opener(
         urllib.request.HTTPSHandler(context=ssl.create_default_context()), _NoRedirect()
     )
@@ -367,7 +406,7 @@ def _send_sync(request: ProductionTransportRequest) -> ProductionTransportRespon
         status = response.status
         if type(status) is not int:
             raise TypeError("Auths production response has no HTTP status")
-        return ProductionTransportResponse(
+        return ServiceTransportResponse(
             status, response.headers.get("Content-Type", ""), body
         )
 
@@ -397,14 +436,14 @@ def _parse_endpoint(value: str) -> str:
     return value.rstrip("/")
 
 
-def _endpoint_path(step: ProductStep, profile: str) -> str:
-    if step == "create":
+def _endpoint_path(verb: ProductVerb, profile: str) -> str:
+    if verb == "create":
         return "/v1/authority/create"
-    if step == "delegate":
+    if verb == "delegate":
         return "/v1/authority/delegate"
-    if step == "resume":
+    if verb == "resume":
         return "/v1/workflows/resume"
-    if step == "verify":
+    if verb == "verify":
         return "/v1/authority/verify"
     return {
         _PROFILE_IDS[0]: "/v1/profiles/opentofu/saved-plan-apply/execute",
@@ -436,55 +475,61 @@ def _projection(value: str) -> Mapping[str, object]:
 
 
 def _authority_failure(
-    step: Literal["create", "delegate"], projection: Mapping[str, object]
-) -> Union[ProductionDenied, ProductionIndeterminate]:
+    verb: Literal["create", "delegate"], projection: Mapping[str, object]
+) -> Union[ServiceDenied, ServiceIndeterminate]:
     if projection["kind"] == "denied":
-        return ProductionDenied("denied", step, _required_code(projection), "never")
+        code = _required_code(projection)
+        return ServiceDenied("denied", verb, code, "never", *_axis(code))
     if projection["kind"] == "indeterminate":
-        return _indeterminate(step, projection)
-    raise TypeError("native response outcome does not match " + step)
+        return _indeterminate(verb, projection)
+    raise TypeError("native response outcome does not match " + verb)
 
 
 def _execution_result(
-    step: Literal["execute", "resume"], projection: Mapping[str, object]
-) -> ProductionExecutionResult:
+    verb: Literal["execute", "resume"], projection: Mapping[str, object]
+) -> ServiceExecutionResult:
     if projection["kind"] == "completed":
         receipt = _optional_bytes(projection["receipt"])
         if receipt is None:
             raise TypeError("native response omitted receipt bytes")
-        return ProductionCompleted(
+        return ServiceCompleted(
             "completed",
-            step,
+            verb,
             _optional_bytes(projection["value"]),
-            ProductionReceipt(_RECEIPT_TOKEN, receipt),
+            ServiceReceipt(_RECEIPT_TOKEN, receipt),
         )
     if projection["kind"] == "denied":
-        return ProductionDenied("denied", step, _required_code(projection), "never")
+        code = _required_code(projection)
+        return ServiceDenied("denied", verb, code, "never", *_axis(code))
     if projection["kind"] == "indeterminate":
-        return _indeterminate(step, projection)
+        return _indeterminate(verb, projection)
     reference = projection.get("recoveryReference")
     if projection["kind"] == "recoverable" and type(reference) is str:
-        return ProductionRecoverable(
+        code = _required_code(projection)
+        return ServiceRecoverable(
             "recoverable",
-            step,
-            _required_code(projection),
+            verb,
+            code,
             "resume",
-            ProductionRecoveryReference(_REFERENCE_TOKEN, reference),
+            *_axis(code),
+            ServiceRecoveryReference(_REFERENCE_TOKEN, reference),
         )
-    raise TypeError("native response outcome does not match " + step)
+    raise TypeError("native response outcome does not match " + verb)
 
 
 def _indeterminate(
-    step: ProductStep, projection: Mapping[str, object]
-) -> ProductionIndeterminate:
-    retry = projection["retry"]
-    if retry not in ("backoff", "reconcile"):
-        raise TypeError("native indeterminate result has invalid retry class")
-    return ProductionIndeterminate(
+    verb: ProductVerb, projection: Mapping[str, object]
+) -> ServiceIndeterminate:
+    next_call = projection["retry"]
+    if next_call not in ("backoff", "reconcile"):
+        raise TypeError("native indeterminate result has an invalid next call")
+    code = _required_code(projection)
+    return ServiceIndeterminate(
         "indeterminate",
-        step,
-        _required_code(projection),
-        cast(Literal["backoff", "reconcile"], retry),
+        verb,
+        code,
+        cast(Literal["backoff", "reconcile"], next_call),
+        *_axis(code),
     )
 
 
@@ -519,8 +564,8 @@ def _bounded_bytes(value: object, maximum: int, name: str) -> bytes:
     return value
 
 
-def _authority_bytes(value: ProductionAuthority) -> bytes:
-    if type(value) is not ProductionAuthority:
+def _authority_bytes(value: ServiceAuthority) -> bytes:
+    if type(value) is not ServiceAuthority:
         raise TypeError("forged Auths authority")
     return value._bytes
 
@@ -536,23 +581,22 @@ def _is_recovery_reference(value: str) -> bool:
 
 
 __all__ = [
-    "ProductStep",
-    "ProductionAuths",
-    "ProductionAuthority",
-    "ProductionAuthorityResult",
-    "ProductionCompleted",
-    "ProductionDenied",
-    "ProductionExecutionResult",
-    "ProductionIndeterminate",
-    "ProductionReceipt",
-    "ProductionRecoverable",
-    "ProductionRecoveryReference",
-    "ProductionRejected",
-    "ProductionTransport",
-    "ProductionTransportRequest",
-    "ProductionTransportResponse",
-    "ProductionVerificationResult",
-    "ProductionVerified",
-    "RetryClass",
+    "NextCall",
+    "ServiceAuths",
+    "ServiceAuthority",
+    "ServiceAuthorityResult",
+    "ServiceCompleted",
+    "ServiceDenied",
+    "ServiceExecutionResult",
+    "ServiceIndeterminate",
+    "ServiceReceipt",
+    "ServiceRecoverable",
+    "ServiceRecoveryReference",
+    "ServiceRejected",
+    "ServiceTransport",
+    "ServiceTransportRequest",
+    "ServiceTransportResponse",
+    "ServiceVerificationResult",
+    "ServiceVerified",
     "create_auths",
 ]

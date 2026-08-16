@@ -11,7 +11,7 @@ import pytest
 
 import auths
 import auths._native as native_implementation
-from auths.verify import Authorized, Denied, verify
+from auths.verify import AuthorizedResult, DeniedResult, verify
 from auths._inspection import canonical_action_bytes
 
 VerifiedAction = native_implementation.VerifiedAction
@@ -72,13 +72,13 @@ if forbidden:
     assert result.returncode == 0, result.stderr
 
 
-def authorized_result() -> Authorized:
+def authorized_result() -> AuthorizedResult:
     result = verify(
         (CORPUS / "raw-key-chain.proof.cbor").read_bytes(),
         (CORPUS / "raw-key-chain.action.cbor").read_bytes(),
         (BINDING_VECTORS / "authorized.context.cbor").read_bytes(),
     )
-    assert isinstance(result, Authorized)
+    assert isinstance(result, AuthorizedResult)
     return result
 
 
@@ -166,7 +166,7 @@ def test_configuration_mismatch_has_no_authorization_handle() -> None:
         (CORPUS / "raw-key-chain.context.cbor").read_bytes(),
     )
 
-    assert isinstance(result, Denied)
+    assert isinstance(result, DeniedResult)
     assert result.code == "verifier-configuration-mismatch"
     assert result.required_configuration is not None
     assert len(result.required_configuration) == 32
@@ -182,7 +182,7 @@ def test_native_result_parser_preserves_decode_failure_codes() -> None:
         (BINDING_VECTORS / "authorized.context.cbor").read_bytes(),
     )
 
-    assert isinstance(result, Denied)
+    assert isinstance(result, DeniedResult)
     assert result.stage == "decode"
     assert result.code == "malformed-proof"
     assert not hasattr(result, "action")

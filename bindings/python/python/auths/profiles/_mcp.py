@@ -26,7 +26,11 @@ from typing import (
 from .. import _native as native
 from .._mcp_profile import MCP_PROFILE
 from .._plan import PlanApprovalSession
-from .._product_errors import CauseCategory, cause_category_from
+from .._product_errors import (
+    CauseCategory,
+    EnteredBoundaries,
+    cause_category_from,
+)
 from .._receipts import (
     AttestedReceipt,
     ReceiptAttestor,
@@ -414,11 +418,7 @@ class McpGatewayError(AuthsWorkflowError):
         super().__init__(
             "gateway-failed",
             "MCP gateway execution outcome is unknown",
-            operation="execute",
-            stage="provider",
-            retry="unknown",
-            effect_state="outcome-unknown",
-            remediation="reconcile the idempotency key before another execution attempt",
+            entered=EnteredBoundaries(False, False, True, False, True),
         )
         self.receipt = receipt
         self.completed_receipts = completed_receipts
@@ -463,6 +463,16 @@ class McpClosedProvider(Protocol):
 
 McpToolHandler = Callable[[Mapping[str, object], McpToolContext], Awaitable[object]]
 McpReconciler = Callable[[str, str], Awaitable[McpHandlerOutcome[object]]]
+
+
+class McpProviderContractError(TypeError):
+    """The caller's handler does not implement the port it was registered as.
+
+    This is a programmer error, not an authorization outcome. The handler body
+    never ran, so no effect was attempted, and reporting it through the effect
+    axis would tell the caller a write may have happened when nothing did
+    (contract 5.7).
+    """
 
 
 class DevelopmentMcpProvider:
@@ -523,10 +533,19 @@ class DevelopmentMcpProvider:
         handler = self._tools.get(tool)
         if handler is None:
             return McpHandlerOutcome[object]("not-applied", cause="invalid-output")
-        return await asyncio.wait_for(
-            handler(arguments, context),
-            timeout=self._timeout_seconds,
-        )
+        # Bind the call before awaiting it. A handler declared with the wrong
+        # signature raises here, before its body runs, so it is a contract
+        # violation and not an authorization outcome (contract 5.7). Reporting
+        # it as `mcp.handler-failed`/`possible` would tell the caller a
+        # real-world effect may have been applied by a coroutine that never
+        # started.
+        try:
+            pending = handler(arguments, context)
+        except TypeError as error:
+            raise McpProviderContractError(
+                f"MCP tool handler {tool!r} does not accept (arguments, context)"
+            ) from error
+        return await asyncio.wait_for(pending, timeout=self._timeout_seconds)
 
     async def reconcile(
         self, execution_id: str, service: str
@@ -573,10 +592,6 @@ class McpExecutionStore(Protocol):
     async def save_recovery(self, recovery: McpRecoveryCheckpoint) -> None: ...
 
     async def load_recovery(self, reference: str) -> Optional[bytes]: ...
-
-    async def load_pending(
-        self, execution_id: str
-    ) -> Optional[McpRecoveryCheckpoint]: ...
 
     async def clear_pending(self, execution_id: str) -> None: ...
 
@@ -640,6 +655,8 @@ class McpAttestedReceipt:
 class McpNotApplied:
     kind: Literal["not-applied", "exact-replay", "conflict"]
     execution_id: str
+    code: str
+    """`McpTerminal::registry_code`. Never derived from `kind` here."""
 
 
 @dataclass(frozen=True)
@@ -647,6 +664,8 @@ class McpRecoverable:
     kind: Literal["recoverable"]
     execution_id: str
     execution_reference: str
+    code: str
+    """`McpTerminal::registry_code`. Never derived from `kind` here."""
 
 
 McpClosedResult = Union[McpCompleted, McpNotApplied, McpRecoverable]
@@ -663,6 +682,7 @@ class McpPlanCompleted:
 class McpPlanRecoveryResult:
     kind: Literal["recoverable", "not-applied", "exact-replay", "conflict"]
     execution_id: str
+    code: str
     completed_results: Tuple[object, ...]
     completed_receipts: Tuple[McpAttestedReceipt, ...]
     execution_reference: Optional[str] = None
@@ -680,11 +700,7 @@ class McpGatewayCancelled(AuthsWorkflowError):
         super().__init__(
             "gateway-cancelled",
             "MCP gateway task was cancelled after provider entry",
-            operation="execute",
-            stage="provider",
-            retry="unknown",
-            effect_state="outcome-unknown",
-            remediation="reconcile the idempotency key before another execution attempt",
+            entered=EnteredBoundaries(False, False, True, False, True),
         )
         self.receipt = receipt
         self.completed_receipts = completed_receipts
@@ -1070,51 +1086,6 @@ async def execute_mcp_closed(
     return await _drive_mcp_session(session, resources, decision_receipt)
 
 
-async def recover_mcp_closed(
-    agent: AttachedAgent,
-    action: McpAction,
-    resources: McpExecutionResources,
-    request: Optional[AuthorizationRequest] = None,
-) -> Union[McpDenied, McpIndeterminate, McpClosedResult]:
-    authorization = await _authorize_mcp(agent, action, request)
-    if not isinstance(authorization, McpAuthorized):
-        return authorization
-    signer = resources.attestor.signer
-    decision_preparation = native.prepare_mcp_command_decision_receipt_v1(
-        authorization.command,
-        int(time.time()),
-        signer.principal,
-        signer.verification_method,
-        signer.suite,
-    )
-    decision_receipt = await _attest_decision(decision_preparation, resources.attestor)
-    fresh = native.begin_mcp_execution(
-        authorization.command,
-        decision_receipt.receipt_id,
-        decision_receipt.bytes,
-        resources.session_key,
-        resources.request_id,
-    )
-    pending = await resources.state.load_pending(fresh.execution_id)
-    if pending is None:
-        raise AuthsWorkflowError(
-            "gateway-conflict", "MCP execution has no pending recovery checkpoint"
-        )
-    session = native.resume_mcp_execution(
-        resources.session_key,
-        pending.reference,
-        pending.record_json,
-    )
-    recovered_decision = AttestedReceipt(
-        "decision",
-        bytes(session.decision_receipt_id),
-        bytes(session.decision_receipt),
-        resources.attestor.signer,
-    )
-    verify_receipt(recovered_decision)
-    return await _drive_mcp_session(session, resources, recovered_decision)
-
-
 async def execute_mcp_plan_closed(
     agent: AttachedAgent,
     plan: McpPlan,
@@ -1160,6 +1131,7 @@ async def execute_mcp_plan_closed(
         return McpPlanRecoveryResult(
             member.kind,
             member.execution_id,
+            member.code,
             tuple(results),
             tuple(receipts),
             member.execution_reference if isinstance(member, McpRecoverable) else None,
@@ -1295,6 +1267,8 @@ async def _invoke_mcp_handler(
     except asyncio.CancelledError:
         session.accept_handler("possible", None, "cancelled")
         return
+    except McpProviderContractError:
+        raise
     except Exception as error:
         session.accept_handler("possible", None, _profile_cause(error))
         return
@@ -1326,6 +1300,8 @@ async def _reconcile_mcp_handler(
         _accept_mcp_observation(session, observed)
     except asyncio.CancelledError:
         session.accept_handler("possible", None, "cancelled")
+    except McpProviderContractError:
+        raise
     except Exception as error:
         session.accept_handler("possible", None, _profile_cause(error))
 
@@ -1375,7 +1351,12 @@ async def _project_terminal(
     if terminal.kind == "recoverable":
         recovery = _terminal_recovery(terminal)
         await state.save_recovery(recovery)
-        return McpRecoverable("recoverable", terminal.execution_id, recovery.reference)
+        return McpRecoverable(
+            "recoverable",
+            terminal.execution_id,
+            recovery.reference,
+            _terminal_code(terminal),
+        )
     if terminal.kind not in ("not-applied", "exact-replay", "conflict"):
         raise RuntimeError("native MCP session returned an unknown terminal result")
     if terminal.kind == "not-applied":
@@ -1383,7 +1364,16 @@ async def _project_terminal(
     return McpNotApplied(
         cast(Literal["not-applied", "exact-replay", "conflict"], terminal.kind),
         terminal.execution_id,
+        _terminal_code(terminal),
     )
+
+
+def _terminal_code(terminal: native.McpSessionTerminal) -> str:
+    """Reads the code the MCP profile assigned. Never invents one."""
+    code = terminal.code
+    if code is None:
+        raise RuntimeError("native MCP failure terminal carries no registry code")
+    return code
 
 
 def _recovery_checkpoint(
@@ -1654,6 +1644,7 @@ __all__ = [
     "McpPlanMemberAuthorized",
     "McpPlanMemberResult",
     "McpPlanRecoveryResult",
+    "McpProviderContractError",
     "McpProfile",
     "McpReceipt",
     "McpReceiptSink",
@@ -1666,6 +1657,5 @@ __all__ = [
     "execute_mcp_closed",
     "execute_mcp_plan_closed",
     "mcp",
-    "recover_mcp_closed",
     "resume_mcp_closed",
 ]

@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from auths._error_registry import UNRECOGNIZED_CODE
 from auths._product_errors import (
     AuthsError,
     EffectState,
@@ -80,15 +81,24 @@ def test_future_error_codes_remain_bounded_without_inferred_recovery() -> None:
     }
     error = AuthsError.parse(future)
     assert error.code == "future.new-code"
-    assert error.details.family == "unknown"
-    assert error.retry is RetryClass.UNKNOWN
-    assert error.effect is EffectState.UNKNOWN
+    # Rust answers for a code it does not know: `auths_errors::classify`,
+    # projected as UNRECOGNIZED_CODE. Python never computes this.
+    assert error.details.family == UNRECOGNIZED_CODE["family"]
+    assert error.retry.value == UNRECOGNIZED_CODE["retry"]
+    assert error.effect.value == UNRECOGNIZED_CODE["effect"]
+    assert error.recommended_action.value == UNRECOGNIZED_CODE["recommendedAction"]
+    # The safety-critical half of the above, stated so it cannot silently
+    # become anything else: an unknown code is `possible`, never `not-applied`.
+    assert error.effect is EffectState.POSSIBLE
     assert error.execution_reference is None
-    assert error.recommended_action is RecommendedAction.CONTACT_SUPPORT
 
 
 def test_future_profile_and_receipt_versions_fail_before_interpretation() -> None:
     with pytest.raises(AuthsWorkflowError, match="unsupported MCP profile version"):
         mcp.profile(service="future", version=2)  # type: ignore[arg-type]
-    with pytest.raises(ValueError, match="unsupported portable Auths receipt"):
+    # The published entry point reports a registry code, not a bare ValueError:
+    # a caller must be able to read the effect axis from every failure.
+    with pytest.raises(AuthsError) as raised:
         decode_receipt(b'{"schema":"auths.portable-receipt/2"}')
+    assert raised.value.code == "core.malformed-input"
+    assert raised.value.effect is EffectState.NOT_APPLIED

@@ -42,7 +42,9 @@ SafeLogValue = Union[str, bool]
 
 
 @dataclass(frozen=True)
-class InspectionMetrics:
+class VerificationMetrics:
+    """The one metrics type. `InspectionMetrics` was a second name for it."""
+
     proof_bytes: int
     action_bytes: int
     context_bytes: int
@@ -88,7 +90,7 @@ class DecisionInspection:
     decision: DecisionSummary
     kernel: KernelSummary
     commitments: DecisionCommitments
-    metrics: InspectionMetrics
+    metrics: VerificationMetrics
     approval: Optional[ApprovalInspection]
     safe_to_log: Mapping[str, SafeLogValue]
 
@@ -133,7 +135,7 @@ def inspect_decision(result: InspectableDecision) -> DecisionInspection:
     if result.kind not in ("authorized", "denied", "indeterminate"):
         raise TypeError("decision is not an Auths verification result")
     metrics = result.metrics
-    inspection_metrics = InspectionMetrics(
+    inspection_metrics = VerificationMetrics(
         metrics.proof_bytes,
         metrics.action_bytes,
         metrics.context_bytes,
@@ -258,7 +260,7 @@ __all__ = [
     "DecisionInspection",
     "DecisionSummary",
     "InspectableDecision",
-    "InspectionMetrics",
+    "VerificationMetrics",
     "KernelSummary",
     "authorization_plan_bytes",
     "canonical_action_bytes",

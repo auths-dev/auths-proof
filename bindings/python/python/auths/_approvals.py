@@ -6,7 +6,7 @@ import asyncio
 from typing import Sequence
 
 from ._native import ApprovalPolicyReference, approval_policy_reference
-from ._errors import ProviderOperationError
+from ._product_errors import ProviderOperationError
 from ._workflow import (
     Approval,
     ApprovalConfiguration,

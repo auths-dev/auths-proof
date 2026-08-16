@@ -154,17 +154,29 @@ ReceiptInspectionResult = Union[
 
 
 class ReceiptDisclosureProtector(Protocol):
-    def protect(self, tenant: str, receipt_id: bytes, plaintext: bytes) -> bytes: ...
+    """Async to match `@auths-dev/sdk`'s port.
 
-    def reveal(self, tenant: str, receipt_id: bytes, protected: bytes) -> bytes: ...
+    A synchronous port cannot be implemented over a KMS, an HSM, or any other
+    network custody boundary, which is every protector worth having.
+    """
+
+    async def protect(
+        self, tenant: str, receipt_id: bytes, plaintext: bytes
+    ) -> bytes: ...
+
+    async def reveal(
+        self, tenant: str, receipt_id: bytes, protected: bytes
+    ) -> bytes: ...
 
 
 class ReceiptDisclosureStore(Protocol):
-    def put(self, tenant: str, receipt_id: bytes, protected: bytes) -> None: ...
+    """Async to match `@auths-dev/sdk`'s port."""
 
-    def get(self, tenant: str, receipt_id: bytes) -> Optional[bytes]: ...
+    async def put(self, tenant: str, receipt_id: bytes, protected: bytes) -> None: ...
 
-    def delete(self, tenant: str, receipt_id: bytes) -> None: ...
+    async def get(self, tenant: str, receipt_id: bytes) -> Optional[bytes]: ...
+
+    async def delete(self, tenant: str, receipt_id: bytes) -> None: ...
 
 
 def verify_receipt(receipt: AttestedReceipt) -> None:

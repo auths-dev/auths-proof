@@ -5,10 +5,11 @@ from pathlib import Path
 
 import pytest
 
+from auths import Receipt
+from auths._product_errors import AuthsError, EffectState, registry_codes
 from auths._receipts import AttestedReceipt, ReceiptSigner
 from auths.verify import (
     InvalidReceiptInspection,
-    Receipt,
     VerifiedDisclosedReceipt,
     VerifiedOpaqueReceipt,
     create_receipt_disclosure,
@@ -70,13 +71,17 @@ def test_rust_typescript_and_python_share_the_receipt_disclosure_contract() -> N
     assert full.disclosure.command == command
     assert full.disclosure.result == result
 
-    with pytest.raises(ValueError, match="disclosure-limit-exceeded"):
+    # The bound is still enforced; it now reports the registry code so the
+    # caller can read the effect axis instead of matching a message.
+    with pytest.raises(AuthsError) as oversized:
         create_receipt_disclosure(
             receipt,
             profile_id=FIXTURE["profile"]["id"],
             profile_version=FIXTURE["profile"]["version"],
             command=b"x" * (1024 * 1024 + 1),
         )
+    assert oversized.value.code in registry_codes()
+    assert oversized.value.effect is EffectState.NOT_APPLIED
 
 
 def _scenario(

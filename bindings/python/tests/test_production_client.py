@@ -6,15 +6,15 @@ from pathlib import Path
 
 import pytest
 
-from auths import create_auths
+from auths.service import create_auths
 from auths._native import (
     decode_production_request_v1,
     decode_production_response_v1,
     encode_production_request_v1,
 )
-from auths._production_client import (
-    ProductionTransportRequest,
-    ProductionTransportResponse,
+from auths._service import (
+    ServiceTransportRequest,
+    ServiceTransportResponse,
 )
 from auths.profiles import github_issue_address
 
@@ -71,10 +71,10 @@ def test_production_facade_uses_closed_profile_routes() -> None:
             self.paths: list[str] = []
 
         async def send(
-            self, request: ProductionTransportRequest
-        ) -> ProductionTransportResponse:
+            self, request: ServiceTransportRequest
+        ) -> ServiceTransportResponse:
             self.paths.append(request.url.removeprefix("https://operator.example"))
-            return ProductionTransportResponse(
+            return ServiceTransportResponse(
                 200,
                 FIXTURE["contentType"],
                 bytes.fromhex(completed["bytesHex"]),

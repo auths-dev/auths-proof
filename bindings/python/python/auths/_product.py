@@ -3,8 +3,16 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass
 from types import TracebackType
-from typing import Awaitable, Callable, Literal, NoReturn, Optional, Type, Union
+from typing import Awaitable, Callable, Final, Literal, NoReturn, Optional, Type, Union
 
+from ._product_errors import (
+    AuthsError,
+    AuthsErrorCode,
+    EffectState,
+    RecommendedAction,
+    RetryClass,
+    classify,
+)
 from .profiles._mcp import (
     McpAction,
     McpClosedProvider,
@@ -25,7 +33,6 @@ from .profiles._mcp import (
     McpToolAuthority,
     execute_mcp_closed,
     execute_mcp_plan_closed,
-    recover_mcp_closed,
     resources_for_mcp_authority,
     resume_mcp_closed,
 )
@@ -68,14 +75,30 @@ class Completed:
 
 @dataclass(frozen=True)
 class Denied:
+    """Nothing happened, and the caller can prove it from `effect`."""
+
     kind: Literal["denied"]
-    code: str
+    code: AuthsErrorCode
+    reason: str
+    """The kernel's own denial reason, e.g. `permission-not-granted`.
+
+    Diagnostic. `code` is the stable identity a caller branches on.
+    """
+    effect: EffectState
+    retry: RetryClass
+    recommended_action: RecommendedAction
 
 
 @dataclass(frozen=True)
 class Indeterminate:
+    """The decision could not be reached; read `effect` before retrying."""
+
     kind: Literal["indeterminate"]
-    code: str
+    code: AuthsErrorCode
+    reason: str
+    effect: EffectState
+    retry: RetryClass
+    recommended_action: RecommendedAction
 
 
 class ExecutionReference:
@@ -127,8 +150,18 @@ def decode_execution_reference(value: bytes) -> ExecutionReference:
 
 @dataclass(frozen=True)
 class RecoveryResult:
+    """An execution that did not complete.
+
+    `effect` is the safety-critical field: `possible` means the real-world
+    effect may already have been applied and a blind retry may repeat it.
+    """
+
     kind: Literal["recoverable", "not-applied", "exact-replay", "conflict"]
     execution_id: str
+    code: AuthsErrorCode
+    effect: EffectState
+    retry: RetryClass
+    recommended_action: RecommendedAction
     reference: Optional[ExecutionReference] = None
 
 
@@ -143,6 +176,10 @@ class PlanCompleted:
 class PlanRecoveryResult:
     kind: Literal["recoverable", "not-applied", "exact-replay", "conflict"]
     execution_id: str
+    code: AuthsErrorCode
+    effect: EffectState
+    retry: RetryClass
+    recommended_action: RecommendedAction
     completed_results: tuple[object, ...]
     completed_receipts: tuple[Receipt, ...]
     reference: Optional[ExecutionReference] = None
@@ -249,30 +286,6 @@ class Auths:
                 self._resources.receipt_attestor,
                 self._resources.session_key,
                 None,
-                self._resources.observer,
-            ),
-        )
-        return _project_execution(result)
-
-    async def recover(
-        self,
-        *,
-        action: McpAction,
-        provider: McpClosedProvider,
-        request_id: Optional[str] = None,
-    ) -> ExecutionResult:
-        self._assert_active()
-        self._assert_provider(provider)
-        result = await recover_mcp_closed(
-            self._resources.agent,
-            action,
-            McpExecutionResources(
-                provider,
-                self._resources.state,
-                self._resources.receipts,
-                self._resources.receipt_attestor,
-                self._resources.session_key,
-                request_id,
                 self._resources.observer,
             ),
         )
@@ -406,6 +419,23 @@ def decode_receipt(value: bytes) -> Receipt:
     return decode_linked_receipt(value)
 
 
+# The two registry codes that name a kernel verdict. The kernel's own reason
+# string (`permission-not-granted`, ...) is carried as `reason`; these are the
+# stable identities whose effect, retry class, and recommended action Rust owns.
+_DENIED_CODE: Final = "core.authorization-denied"
+_INDETERMINATE_CODE: Final = "core.authorization-indeterminate"
+
+
+def _axis(code: str) -> tuple[EffectState, RetryClass, RecommendedAction]:
+    """Reads Rust's classification of `code`. Nothing here is computed."""
+    classification = classify(code)
+    return (
+        classification.effect,
+        classification.retry,
+        classification.recommended_action,
+    )
+
+
 def _project_execution(value: object) -> ExecutionResult:
     if isinstance(value, McpCompleted):
         return Completed(
@@ -415,17 +445,26 @@ def _project_execution(value: object) -> ExecutionResult:
             Receipt(value.receipt.decision, value.receipt.execution),
         )
     if isinstance(value, McpDenied):
-        return Denied("denied", value.code)
+        return Denied("denied", _DENIED_CODE, value.code, *_axis(_DENIED_CODE))
     if isinstance(value, McpIndeterminate):
-        return Indeterminate("indeterminate", value.code)
+        return Indeterminate(
+            "indeterminate",
+            _INDETERMINATE_CODE,
+            value.code,
+            *_axis(_INDETERMINATE_CODE),
+        )
     if isinstance(value, McpRecoverable):
         return RecoveryResult(
             "recoverable",
             value.execution_id,
+            value.code,
+            *_axis(value.code),
             ExecutionReference(_REFERENCE_TOKEN, value.execution_reference),
         )
     if isinstance(value, McpNotApplied):
-        return RecoveryResult(value.kind, value.execution_id)
+        return RecoveryResult(
+            value.kind, value.execution_id, value.code, *_axis(value.code)
+        )
     raise RuntimeError("MCP execution returned an unsupported result")
 
 
@@ -437,13 +476,20 @@ def _project_plan_execution(value: object) -> ExecutionResult:
             tuple(Receipt(item.decision, item.execution) for item in value.receipts),
         )
     if isinstance(value, McpPlanDenied):
-        return Denied("denied", value.result.code)
+        return Denied("denied", _DENIED_CODE, value.result.code, *_axis(_DENIED_CODE))
     if isinstance(value, McpPlanIndeterminate):
-        return Indeterminate("indeterminate", value.result.code)
+        return Indeterminate(
+            "indeterminate",
+            _INDETERMINATE_CODE,
+            value.result.code,
+            *_axis(_INDETERMINATE_CODE),
+        )
     if isinstance(value, McpPlanRecoveryResult):
         return PlanRecoveryResult(
             value.kind,
             value.execution_id,
+            value.code,
+            *_axis(value.code),
             value.completed_results,
             tuple(
                 Receipt(item.decision, item.execution)
@@ -460,6 +506,8 @@ __all__ = [
     "Actor",
     "Auths",
     "AuthsConfiguration",
+    "AuthsError",
+    "AuthsErrorCode",
     "Authority",
     "Completed",
     "Denied",
@@ -467,12 +515,15 @@ __all__ = [
     "decode_receipt",
     "encode_execution_reference",
     "encode_receipt",
+    "EffectState",
     "ExecutionReference",
     "ExecutionResult",
     "Indeterminate",
     "PlanCompleted",
     "PlanRecoveryResult",
     "Receipt",
+    "RecommendedAction",
     "RecoveryResult",
+    "RetryClass",
     "verify_receipt",
 ]

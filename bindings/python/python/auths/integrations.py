@@ -137,12 +137,6 @@ class _MemoryMcpResources(McpExecutionStore, McpReceiptSink):
                 return bytes(recovery.record_json)
         return None
 
-    async def load_pending(self, execution_id: str) -> Optional[McpRecoveryCheckpoint]:
-        existing = self._executions.get(execution_id)
-        if existing is None or existing[0] == "completed" or existing[1] is None:
-            return None
-        return _copy_recovery(existing[1])
-
     async def clear_pending(self, execution_id: str) -> None:
         if execution_id not in self._executions:
             raise ValueError("invalid development completion transition")
@@ -230,24 +224,6 @@ class _FileMcpResources(McpExecutionStore, McpReceiptSink):
                     "recovery", hashlib.sha256(reference.encode()).hexdigest()
                 ).read_bytes
             )
-        except FileNotFoundError:
-            return None
-
-    async def load_pending(self, execution_id: str) -> Optional[McpRecoveryCheckpoint]:
-        try:
-            stage, reference = _parse_execution_record(
-                await asyncio.to_thread(
-                    self._path("execution", execution_id).read_bytes
-                )
-            )
-            if stage == "completed" or reference is None:
-                return None
-            record_json = await asyncio.to_thread(
-                self._path(
-                    "recovery", hashlib.sha256(reference.encode()).hexdigest()
-                ).read_bytes
-            )
-            return McpRecoveryCheckpoint(execution_id, reference, record_json)
         except FileNotFoundError:
             return None
 

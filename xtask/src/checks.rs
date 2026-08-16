@@ -333,6 +333,10 @@ pub(crate) fn python_wheel_smoke() -> Result<(), String> {
     )?;
     command(
         path_text(&python)?,
+        &["bindings/python/tools/check_type_stub.py"],
+    )?;
+    command(
+        path_text(&python)?,
         &[
             "bindings/python/external/full_workflow_consumer.py",
             "target/binding-vectors",

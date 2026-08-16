@@ -63,6 +63,7 @@ jobs:
           python -m pyright --pythonpath "$(command -v python)"
           -p bindings/python-adapters/sqlite/pyrightconfig.json
       - run: python bindings/python/tools/check_public_api.py
+      - run: python bindings/python/tools/check_type_stub.py
       - run: python bindings/python/tools/check_contract.py
       - run: python bindings/python/tools/check_doc_snippets.py
 
@@ -97,6 +98,7 @@ jobs:
             bindings/python/pyrightconfig.json
             bindings/python/python/auths/
             bindings/python/tools/check_public_api.py
+            bindings/python/tools/check_type_stub.py
             bindings/python/tools/check_contract.py
             bindings/python/tools/check_doc_snippets.py
             bindings/python/tools/check_performance.py

@@ -4,7 +4,7 @@ import time
 from typing import Tuple
 
 from . import _native as native
-from ._errors import AuthsWorkflowError, ProviderOperationError
+from ._product_errors import AuthsWorkflowError, ProviderOperationError
 from ._workflow import (
     ApprovalConfiguration,
     ApprovalProvider,

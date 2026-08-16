@@ -292,7 +292,9 @@ async def _drive_denial(request_id: str) -> Any:
     development = _public("auths.integrations").development
     mcp = _public("auths.profiles").mcp
 
-    async def allowed(**_: Any) -> Mapping[str, Any]:
+    async def allowed(
+        arguments: Mapping[str, Any], context: Any
+    ) -> Mapping[str, Any]:
         return {"ok": True}
 
     provider = mcp.development_provider(tools={"allowed": allowed})
@@ -316,7 +318,7 @@ def _shape(result: Any) -> str:
 
 @pytest.mark.asyncio
 async def test_ea4_a_provider_failure_tells_the_public_caller_the_effect_is_possible() -> None:
-    async def boom(**_: Any) -> Mapping[str, Any]:
+    async def boom(arguments: Mapping[str, Any], context: Any) -> Mapping[str, Any]:
         raise RuntimeError("provider exploded after entry")
 
     result = await _drive_execution("boom", {"boom": boom}, "effect-axis-boom-000001")
@@ -344,10 +346,12 @@ async def test_ea4_a_provider_failure_tells_the_public_caller_the_effect_is_poss
 
 @pytest.mark.asyncio
 async def test_ea4b_two_distinct_registry_codes_do_not_collapse_to_one_caller_shape() -> None:
-    async def boom(**_: Any) -> Mapping[str, Any]:
+    async def boom(arguments: Mapping[str, Any], context: Any) -> Mapping[str, Any]:
         raise RuntimeError("provider exploded after entry")
 
-    async def oversized(**_: Any) -> Mapping[str, Any]:
+    async def oversized(
+        arguments: Mapping[str, Any], context: Any
+    ) -> Mapping[str, Any]:
         return {"blob": "x" * (2 * 1024 * 1024)}
 
     failed = await _drive_execution("boom", {"boom": boom}, "effect-axis-boom-000002")
@@ -385,7 +389,7 @@ async def test_ea4c_a_denial_tells_the_public_caller_the_effect_is_not_applied()
 
 @pytest.mark.asyncio
 async def test_ea5_every_code_the_public_execution_path_emits_is_in_the_rust_registry() -> None:
-    async def boom(**_: Any) -> Mapping[str, Any]:
+    async def boom(arguments: Mapping[str, Any], context: Any) -> Mapping[str, Any]:
         raise RuntimeError("provider exploded after entry")
 
     emitted: set[str] = set()

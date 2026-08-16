@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 
-from auths import verify_receipt
+from auths.verify import verify_receipt
 from auths.integrations import development
 from auths.profiles import mcp
 

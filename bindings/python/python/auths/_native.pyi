@@ -308,6 +308,22 @@ class SigningTransaction:
 
 class NativeDelegationExpandedError(ValueError): ...
 
+class NativeAuthsError(ValueError):
+    """A Rust failure crossing the pyo3 boundary with its classification.
+
+    Every attribute is `auths_errors`' answer for `code`; the binding reads
+    them rather than deriving anything from the message.
+    """
+
+    @property
+    def code(self) -> str: ...
+    @property
+    def effect(self) -> str: ...
+    @property
+    def retry(self) -> str: ...
+    @property
+    def recommended_action(self) -> str: ...
+
 class AuthorizationPlan:
     @property
     def plan_id(self) -> bytes: ...
@@ -398,6 +414,8 @@ class McpSessionStep:
 class McpSessionTerminal:
     @property
     def kind(self) -> str: ...
+    @property
+    def code(self) -> Optional[str]: ...
     @property
     def execution_id(self) -> str: ...
     @property

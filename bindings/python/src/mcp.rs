@@ -321,6 +321,7 @@ impl PyMcpSessionStep {
 )]
 pub struct PyMcpSessionTerminal {
     kind: &'static str,
+    code: Option<&'static str>,
     execution_id: String,
     output_json: Option<Vec<u8>>,
     receipt_json: Option<Vec<u8>>,
@@ -333,6 +334,15 @@ impl PyMcpSessionTerminal {
     #[getter]
     fn kind(&self) -> &'static str {
         self.kind
+    }
+
+    /// The stable registry code `McpTerminal::registry_code` assigns.
+    ///
+    /// `None` only for a completed execution, which is not a failure. The
+    /// binding reads this; it never derives a code from `kind`.
+    #[getter]
+    fn code(&self) -> Option<&'static str> {
+        self.code
     }
 
     #[getter]
@@ -1139,6 +1149,7 @@ fn session_terminal(value: &McpTerminal) -> PyMcpSessionTerminal {
             output_json,
             receipt_json,
         } => PyMcpSessionTerminal {
+            code: value.registry_code(),
             kind: "completed",
             execution_id: execution_id.clone(),
             output_json: Some(output_json.clone()),
@@ -1147,6 +1158,7 @@ fn session_terminal(value: &McpTerminal) -> PyMcpSessionTerminal {
             record_json: None,
         },
         McpTerminal::NotApplied { execution_id } => PyMcpSessionTerminal {
+            code: value.registry_code(),
             kind: "not-applied",
             execution_id: execution_id.clone(),
             output_json: None,
@@ -1155,6 +1167,7 @@ fn session_terminal(value: &McpTerminal) -> PyMcpSessionTerminal {
             record_json: None,
         },
         McpTerminal::ExactReplay { execution_id } => PyMcpSessionTerminal {
+            code: value.registry_code(),
             kind: "exact-replay",
             execution_id: execution_id.clone(),
             output_json: None,
@@ -1163,6 +1176,7 @@ fn session_terminal(value: &McpTerminal) -> PyMcpSessionTerminal {
             record_json: None,
         },
         McpTerminal::Conflict { execution_id } => PyMcpSessionTerminal {
+            code: value.registry_code(),
             kind: "conflict",
             execution_id: execution_id.clone(),
             output_json: None,
@@ -1174,7 +1188,9 @@ fn session_terminal(value: &McpTerminal) -> PyMcpSessionTerminal {
             execution_id,
             reference,
             record_json,
+            ..
         } => PyMcpSessionTerminal {
+            code: value.registry_code(),
             kind: "recoverable",
             execution_id: execution_id.clone(),
             output_json: None,
