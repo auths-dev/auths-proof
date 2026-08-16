@@ -1255,7 +1255,7 @@ fn encode_registries(
     encoder: &mut V1Encoder,
     registries: &AcceptedRegistries,
 ) -> Result<(), CodecError> {
-    map(encoder, 13)?;
+    map(encoder, 14)?;
     key(encoder, 0)?;
     bytes(encoder, registries.manifest_id().as_bytes())?;
     key(encoder, 1)?;
@@ -1289,6 +1289,11 @@ fn encode_registries(
     }
     key(encoder, 12)?;
     encode_registry_ids(encoder, registries.profile_policies(), |id| id.as_str())?;
+    key(encoder, 13)?;
+    array(encoder, registries.budget_free_profiles().len())?;
+    for profile in registries.budget_free_profiles() {
+        encode_profile_ref(encoder, profile)?;
+    }
     Ok(())
 }
 

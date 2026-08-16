@@ -86,6 +86,7 @@ pub struct TrustedContextBuilder {
     signature_suites: BTreeSet<SignatureSuiteId>,
     evidence_types: BTreeSet<EvidenceTypeId>,
     critical_extensions: BTreeSet<ExtensionId>,
+    budget_free_profiles: BTreeSet<ProfileRef>,
 }
 
 impl TrustedContextBuilder {
@@ -131,6 +132,7 @@ impl TrustedContextBuilder {
             signature_suites,
             evidence_types,
             critical_extensions: BTreeSet::new(),
+            budget_free_profiles: BTreeSet::new(),
         })
     }
 
@@ -176,6 +178,21 @@ impl TrustedContextBuilder {
         self
     }
 
+    /// Declares one profile whose canonical actions cannot express a requested
+    /// budget, so an action of that profile provably spends zero.
+    ///
+    /// The value must come from the profile's own
+    /// `ActionProfile::BUDGET_EXPRESSION`; this builder cannot see profile
+    /// implementations. A profile that is never declared keeps the denying
+    /// reading of an absent request under a bounded ceiling. A declaration for
+    /// a profile no trust anchor accepts is dropped rather than rejected, since
+    /// the builder derives its accepted-profile set from the anchors.
+    #[must_use]
+    pub fn declare_budget_free_profile(mut self, profile: ProfileRef) -> Self {
+        self.budget_free_profiles.insert(profile);
+        self
+    }
+
     /// Compiles one immutable trusted-context template.
     ///
     /// # Errors
@@ -209,6 +226,12 @@ impl TrustedContextBuilder {
             .iter()
             .map(|requirement| requirement.claim_kind().clone())
             .collect();
+        let budget_free_profiles: Vec<ProfileRef> = self
+            .budget_free_profiles
+            .iter()
+            .filter(|profile| profiles.contains(*profile))
+            .cloned()
+            .collect();
         let accepted = AcceptedRegistries::new(
             auths_registries::TARGET_V1_REGISTRY_MANIFEST,
             principal_methods.into_iter().collect(),
@@ -227,7 +250,8 @@ impl TrustedContextBuilder {
             self.critical_extensions.into_iter().collect(),
             profiles.into_iter().collect(),
             vec![ProfilePolicyId::parse(auths_registries::EXACT_PROFILE_V1)?],
-        )?;
+        )?
+        .with_budget_free_profiles(budget_free_profiles)?;
         Ok(TrustedContext::new(
             self.configuration,
             self.composition,

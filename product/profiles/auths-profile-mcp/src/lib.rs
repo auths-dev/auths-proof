@@ -10,7 +10,9 @@ use auths_model::{
     Audience, CanonicalAction, CapabilityId, MediaType, Permission, ProfileId, ProfileRef,
     ResourceId,
 };
-use auths_profile_api::{ActionProfile, ProfileContractError, ReviewDisplay};
+use auths_profile_api::{
+    ActionProfile, ProfileBudgetExpression, ProfileContractError, ReviewDisplay,
+};
 use auths_verifier::VerifiedAction;
 use rmcp::model::CallToolRequestParams;
 use serde::{Deserialize, Serialize};
@@ -231,8 +233,27 @@ impl McpToolCall {
 #[derive(Clone, Copy, Debug, Default)]
 pub struct McpProfile;
 
+/// Reports whether `auths.mcp/1` canonical actions can express a requested
+/// budget.
+///
+/// The answer is read off [`McpProfile`]'s own
+/// [`ActionProfile::BUDGET_EXPRESSION`], so it cannot drift from what
+/// `canonicalize` actually produces. Returns `None` for any other profile — a
+/// caller that gets `None` must keep the denying reading of an absent
+/// requested budget.
+#[must_use]
+pub fn budget_expression(profile: &ProfileRef) -> Option<ProfileBudgetExpression> {
+    (profile.id().as_str() == PROFILE_ID && profile.version() == PROFILE_VERSION)
+        .then_some(<McpProfile as ActionProfile>::BUDGET_EXPRESSION)
+}
+
 impl ActionProfile for McpProfile {
     type Command = McpCommand;
+
+    /// `McpToolCall` has no budget field, so `canonical_action` always builds a
+    /// `CanonicalAction` with `None` and `validate_canonical_action` rejects any
+    /// action that carries one. An MCP tool call provably spends zero.
+    const BUDGET_EXPRESSION: ProfileBudgetExpression = ProfileBudgetExpression::Inexpressible;
 
     fn canonicalize(&self, untrusted: &[u8]) -> Result<CanonicalAction, ProfileContractError> {
         if untrusted.is_empty() || untrusted.len() > MAX_CANONICAL_CALL_BYTES {
@@ -589,5 +610,79 @@ mod tests {
             McpProfile.canonicalize(&untrusted).unwrap(),
             reference_canonicalize(&untrusted).unwrap()
         );
+    }
+
+    /// The declaration must match what canonicalization actually produces.
+    ///
+    /// A profile that declares `Inexpressible` while emitting a requested
+    /// budget would tell a verifier that its actions provably spend zero when
+    /// they do not. This drives the real canonicalizer, so the declaration
+    /// cannot drift away from the bytes.
+    #[test]
+    fn mcp_cannot_express_a_budget_and_says_so() {
+        assert_eq!(
+            <McpProfile as ActionProfile>::BUDGET_EXPRESSION,
+            ProfileBudgetExpression::Inexpressible
+        );
+        for call in [
+            McpToolCall::new("reports", "read_report", Map::new()).unwrap(),
+            McpToolCall::new(
+                "reports",
+                "update",
+                Map::from_iter([("value".into(), Value::String("reviewed".into()))]),
+            )
+            .unwrap(),
+        ] {
+            let canonical = McpProfile
+                .canonicalize(&call.canonical_bytes().unwrap())
+                .unwrap();
+            assert!(
+                canonical.requested_budget().is_none(),
+                "auths.mcp/1 canonicalization must never produce a requested budget"
+            );
+        }
+        assert_eq!(
+            budget_expression(&ProfileRef::new(ProfileId::parse(PROFILE_ID).unwrap(), 1).unwrap()),
+            Some(ProfileBudgetExpression::Inexpressible)
+        );
+        // A different version is a different profile and stays undeclared.
+        assert_eq!(
+            budget_expression(&ProfileRef::new(ProfileId::parse(PROFILE_ID).unwrap(), 2).unwrap()),
+            None
+        );
+        assert_eq!(
+            budget_expression(
+                &ProfileRef::new(ProfileId::parse("auths.records").unwrap(), 1).unwrap()
+            ),
+            None
+        );
+    }
+
+    /// Rule A stays intact: an MCP action that somehow carries a requested
+    /// budget is a meaning mismatch, declaration or not.
+    #[test]
+    fn an_mcp_action_carrying_a_budget_is_still_a_meaning_mismatch() {
+        let call = McpToolCall::new("reports", "read_report", Map::new()).unwrap();
+        let canonical = McpProfile
+            .canonicalize(&call.canonical_bytes().unwrap())
+            .unwrap();
+        let with_budget = CanonicalAction::new(
+            canonical.profile().clone(),
+            canonical.media_type().clone(),
+            canonical.body().to_vec(),
+            canonical.permission().clone(),
+            Some(auths_model::BudgetCeiling::new(
+                auths_model::BudgetAlgebraId::parse("numeric-ceiling-v1").unwrap(),
+                1,
+            )),
+        )
+        .unwrap();
+        assert_eq!(
+            validate_canonical_action(&with_budget),
+            Err(ProfileContractError::MeaningMismatch)
+        );
+        // The unmodified action is accepted, so the assertion above is about
+        // the budget and not about some other rejection.
+        assert!(validate_canonical_action(&canonical).is_ok());
     }
 }

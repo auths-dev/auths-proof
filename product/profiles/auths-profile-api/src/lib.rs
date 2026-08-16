@@ -3,6 +3,7 @@
 #![forbid(unsafe_code)]
 
 use auths_model::CanonicalAction;
+pub use auths_model::ProfileBudgetExpression;
 use auths_verifier::VerifiedAction;
 use std::fmt;
 
@@ -52,6 +53,24 @@ impl ReviewDisplay {
 pub trait ActionProfile {
     /// Command type safe for a profile executor.
     type Command;
+
+    /// States whether this profile's canonical actions can carry a requested
+    /// budget.
+    ///
+    /// This is a structural fact about the profile's canonical body, not a
+    /// property of any one action: if the body has no budget field, no action
+    /// of this profile can ever declare a spend, and
+    /// [`ProfileBudgetExpression::Inexpressible`] says so. A profile whose
+    /// canonicalization ever produces a [`CanonicalAction`] with a requested
+    /// budget must declare [`ProfileBudgetExpression::Expressible`].
+    ///
+    /// A verifier consumes this through the trusted registry selection to
+    /// decide what an *absent* requested budget means under a bounded terminal
+    /// ceiling: unknown spend (deny) or provably zero spend (covered). The
+    /// constant carries no default so that a new profile cannot ship without
+    /// its author answering the question; the verifier's own fallback for an
+    /// undeclared profile is the denying reading.
+    const BUDGET_EXPRESSION: ProfileBudgetExpression;
 
     /// Canonicalizes untrusted application input and derives exact meaning.
     ///

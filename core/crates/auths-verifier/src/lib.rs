@@ -24,10 +24,10 @@ use auths_composition::{
 use auths_model::{
     ActionId, AssuranceSatisfaction, CanonicalAction, ContextDigest, DenialReason, Digest,
     EvidenceObject, GrantId, GrantStatusId, ParticipantAssurance, ParticipantRole, PlanId,
-    PortableVerificationResult, PrincipalId, PrincipalStatusId, ProofBundle, ProofRef, Requirement,
-    SignatureEnvelope, SignedAction, SignedGrant, StatementRef, StatusPolicy, Timestamp,
-    TrustAnchor, TrustedContext, VerificationCode, VerificationDecision, VerificationResources,
-    VerificationStage, VerifierConfigurationId,
+    PortableVerificationResult, PrincipalId, PrincipalStatusId, ProfileBudgetExpression,
+    ProofBundle, ProofRef, Requirement, SignatureEnvelope, SignedAction, SignedGrant, StatementRef,
+    StatusPolicy, Timestamp, TrustAnchor, TrustedContext, VerificationCode, VerificationDecision,
+    VerificationResources, VerificationStage, VerifierConfigurationId,
 };
 use auths_ports::{
     ControlEvidence, ControlPurpose, PrincipalControlError, PrincipalControlInput, ProfileDecision,
@@ -2248,7 +2248,12 @@ fn verify_branch_from_anchor(
         evaluate_extensions(grant.statement().extensions(), context, registries, meter)?;
     }
     authority
-        .authorizes(action.envelope())
+        .authorizes(
+            action.envelope(),
+            context
+                .accepted_registries()
+                .profile_budget_expression(action.envelope().profile()),
+        )
         .map_err(VerificationFailure::Denied)?;
     let action_control = control_for(controlled, StatementRef::Action(action_id))?;
     reports.push(participant_report(
@@ -2541,16 +2546,23 @@ fn validate_budget_constraints(
         parent = child;
     }
     if let Some(ceiling) = parent {
-        // A bounded terminal authority requires a bounded request. An action
-        // that declares no budget is NOT vacuously covered: it would spend an
-        // unbounded amount under a ceiling that the verifier could never
-        // compare against, so it is denied.
-        let requested = action
-            .envelope()
-            .requested_budget()
-            .ok_or(VerificationFailure::Denied(
-                DenialReason::BudgetCeilingExceeded,
-            ))?;
+        // A bounded terminal authority requires a bounded request *when the
+        // action's profile is able to state one*. An action of a profile that
+        // could have declared a budget and did not states no bound at all, so
+        // there is nothing for the ceiling to bound and it is denied. An action
+        // of a profile whose canonical body has no budget field provably spends
+        // zero, and zero is within every ceiling.
+        let expression = context
+            .accepted_registries()
+            .profile_budget_expression(action.envelope().profile());
+        let Some(requested) = action.envelope().requested_budget() else {
+            return match expression {
+                ProfileBudgetExpression::Inexpressible => Ok(()),
+                ProfileBudgetExpression::Expressible => Err(VerificationFailure::Denied(
+                    DenialReason::BudgetCeilingExceeded,
+                )),
+            };
+        };
         let algebra = registries
             .budget_algebra(context.accepted_registries(), ceiling.algebra())
             .ok_or(VerificationFailure::Indeterminate(
@@ -2958,7 +2970,13 @@ mod tests {
             .expect("fixture anchor");
         let authority = EffectiveAuthority::from_anchor(anchor);
         assert_eq!(
-            authority.authorizes(fixture.action.envelope()),
+            authority.authorizes(
+                fixture.action.envelope(),
+                fixture
+                    .context
+                    .accepted_registries()
+                    .profile_budget_expression(fixture.action.envelope().profile())
+            ),
             Err(DenialReason::BudgetCeilingExceeded),
             "the kernel alone must deny; the Wave 1 guard is defense in depth"
         );
@@ -2976,7 +2994,13 @@ mod tests {
             .first()
             .expect("fixture anchor");
         assert_eq!(
-            EffectiveAuthority::from_anchor(inside_anchor).authorizes(inside.action.envelope()),
+            EffectiveAuthority::from_anchor(inside_anchor).authorizes(
+                inside.action.envelope(),
+                inside
+                    .context
+                    .accepted_registries()
+                    .profile_budget_expression(inside.action.envelope().profile())
+            ),
             Ok(())
         );
     }
@@ -3010,7 +3034,13 @@ mod tests {
             .first()
             .expect("fixture anchor");
         assert_eq!(
-            EffectiveAuthority::from_anchor(anchor).authorizes(fixture.action.envelope()),
+            EffectiveAuthority::from_anchor(anchor).authorizes(
+                fixture.action.envelope(),
+                fixture
+                    .context
+                    .accepted_registries()
+                    .profile_budget_expression(fixture.action.envelope().profile())
+            ),
             Ok(())
         );
 
@@ -3029,6 +3059,91 @@ mod tests {
                 &registries,
             ),
             VerificationOutcome::Indeterminate(Requirement::UnsupportedBudgetAlgebra)
+        );
+    }
+
+    /// Rebuilds a context that declares exactly the given profiles budget-free.
+    ///
+    /// Everything else — anchors, registries, policies, limits — is carried
+    /// across unchanged, so a verdict that differs between the original and the
+    /// rebuilt context can only be caused by this one declaration.
+    fn declaring_budget_free(
+        context: &TrustedContext,
+        profiles: Vec<ProfileRef>,
+    ) -> TrustedContext {
+        TrustedContext::new(
+            context.configuration(),
+            context.composition(),
+            context.trust_anchors().to_vec(),
+            context
+                .accepted_registries()
+                .clone()
+                .with_budget_free_profiles(profiles)
+                .expect("budget-free declaration"),
+            context.expected_audience().clone(),
+            context.expected_challenge().clone(),
+            context.evaluation_time(),
+            context.assurance_policy().clone(),
+            context.principal_status_snapshot().clone(),
+            context.grant_status_snapshot().clone(),
+            context.resource_matcher().clone(),
+            context.profile_policy().clone(),
+            context.channel_policy().clone(),
+            context.limits().clone(),
+        )
+        .expect("rebuilt context")
+    }
+
+    /// The v1.0 blocker: a profile whose canonical body has no budget field is
+    /// unusable under any bounded grant chain unless the verifier is told so.
+    ///
+    /// `bounded_ceiling_denies_an_action_that_requests_no_budget` above proves
+    /// the denial for a profile that *can* express a budget, and must stay
+    /// green. This drives byte-identical proof material through a context that
+    /// differs in exactly one declaration, and the verdict flips.
+    #[test]
+    fn a_budget_free_profile_authorizes_under_a_bounded_ceiling() {
+        let fixture = target_fixture_with_budget(false, Some(numeric_ceiling(10_000)), None);
+        let method = RawKeyMethod::new().unwrap();
+        let suite = Ed25519Suite::new().unwrap();
+        let methods: [&dyn auths_ports::PrincipalMethod; 1] = [&method];
+        let suites: [&dyn auths_ports::SignatureSuite; 1] = [&suite];
+        let registries = ImmutableRegistries::new(&methods, &suites).unwrap();
+
+        // Undeclared: the action states no bound at all, so it is denied.
+        assert_eq!(
+            verify(
+                &fixture.bytes,
+                &fixture.canonical,
+                &fixture.context,
+                &registries,
+            ),
+            VerificationOutcome::Denied(DenialReason::BudgetCeilingExceeded)
+        );
+
+        // Declared budget-free: the same action provably spends zero.
+        let declared = declaring_budget_free(
+            &fixture.context,
+            vec![fixture.action.envelope().profile().clone()],
+        );
+        let outcome = verify(&fixture.bytes, &fixture.canonical, &declared, &registries);
+        assert!(
+            matches!(outcome, VerificationOutcome::Authorized(_)),
+            "a budget-free profile spends zero, which every ceiling covers: {outcome:?}"
+        );
+
+        // The kernel must reach the same answer with the verifier's own
+        // `validate_budget_constraints` guard bypassed, so correctness cannot
+        // rest on which of the two runs first.
+        let anchor = declared.trust_anchors().first().expect("fixture anchor");
+        assert_eq!(
+            EffectiveAuthority::from_anchor(anchor).authorizes(
+                fixture.action.envelope(),
+                declared
+                    .accepted_registries()
+                    .profile_budget_expression(fixture.action.envelope().profile())
+            ),
+            Ok(())
         );
     }
 

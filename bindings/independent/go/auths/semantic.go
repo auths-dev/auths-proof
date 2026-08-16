@@ -446,17 +446,20 @@ type verifierContext struct {
 	extensions        []string
 	profiles          []profile
 	profilePolicies   []string
-	expectedAudience  string
-	expectedChallenge []byte
-	evaluationTime    uint64
-	assuranceID       string
-	assurance         []assuranceRequirement
-	principalSnapshot statusSnapshot[principalStatus]
-	grantSnapshot     statusSnapshot[grantStatus]
-	resourceMatcher   string
-	profilePolicy     string
-	channelPolicy     string
-	limits            [27]uint64
+	// Profiles whose canonical actions cannot express a requested budget. An
+	// action of such a profile provably spends zero.
+	budgetFreeProfiles []profile
+	expectedAudience   string
+	expectedChallenge  []byte
+	evaluationTime     uint64
+	assuranceID        string
+	assurance          []assuranceRequirement
+	principalSnapshot  statusSnapshot[principalStatus]
+	grantSnapshot      statusSnapshot[grantStatus]
+	resourceMatcher    string
+	profilePolicy      string
+	channelPolicy      string
+	limits             [27]uint64
 }
 
 type canonicalAction struct {
@@ -1339,15 +1342,21 @@ func budgetAttenuates(child, parent *budget) bool {
 }
 
 // budgetCovers reports whether a bounded terminal ceiling covers the budget the
-// action requests. An unbounded ceiling covers everything. A bounded ceiling
-// does NOT vacuously cover an action that declares no budget: nothing bounds
-// what such an action would spend, so it is not covered.
-func budgetCovers(ceiling, requested *budget) bool {
+// action requests. An unbounded ceiling covers everything.
+//
+// An absent request means two different things. When the action's profile is
+// able to state a budget (budgetFree false), an absent request states no bound
+// at all, nothing bounds what the action would spend, and a bounded ceiling does
+// NOT vacuously cover it. When the profile's canonical body has no budget field
+// (budgetFree true), the action provably spends zero and every ceiling covers
+// it. The denying reading is the default for any profile the verifier's trusted
+// registry selection does not explicitly declare budget-free.
+func budgetCovers(ceiling, requested *budget, budgetFree bool) bool {
 	if ceiling == nil {
 		return true
 	}
 	if requested == nil {
-		return false
+		return budgetFree
 	}
 	return ceiling.algebra == requested.algebra && requested.value <= ceiling.value
 }

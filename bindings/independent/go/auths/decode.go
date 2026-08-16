@@ -645,7 +645,7 @@ func decodeContext(data []byte) (*verifierContext, error) {
 		result.anchors = append(result.anchors, anchor)
 	}
 	registries, _ := mapValue(root, 4)
-	if err := exactMap(registries, 13); err != nil {
+	if err := exactMap(registries, 14); err != nil {
 		return nil, err
 	}
 	if result.registryManifest, err = bytesValue(mustMap(registries, 0), 32); err != nil {
@@ -682,6 +682,9 @@ func decodeContext(data []byte) (*verifierContext, error) {
 		return nil, err
 	}
 	if result.profilePolicies, err = textArray(mustMap(registries, 12)); err != nil {
+		return nil, err
+	}
+	if result.budgetFreeProfiles, err = decodeProfileArray(mustMap(registries, 13)); err != nil {
 		return nil, err
 	}
 	result.expectedAudience, err = textValue(mustMap(root, 5))

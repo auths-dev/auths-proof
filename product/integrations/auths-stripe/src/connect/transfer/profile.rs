@@ -8,7 +8,9 @@
 use auths_model::{
     CanonicalAction, CapabilityId, MediaType, Permission, ProfileId, ProfileRef, ResourceId,
 };
-use auths_profile_api::{ActionProfile, ProfileContractError, ReviewDisplay};
+use auths_profile_api::{
+    ActionProfile, ProfileBudgetExpression, ProfileContractError, ReviewDisplay,
+};
 use auths_sdk::VerifiedAction;
 use sha2::{Digest as _, Sha256};
 
@@ -34,6 +36,10 @@ pub struct StripeConnectTransferProfile;
 
 impl ActionProfile for StripeConnectTransferProfile {
     type Command = StripeConnectTransferCommand;
+
+    /// `canonical_action` passes `None` and `validate_canonical` rejects any
+    /// requested budget.
+    const BUDGET_EXPRESSION: ProfileBudgetExpression = ProfileBudgetExpression::Inexpressible;
 
     fn canonicalize(&self, untrusted: &[u8]) -> Result<CanonicalAction, ProfileContractError> {
         if untrusted.is_empty() || untrusted.len() > MAX_ACTION_BYTES {

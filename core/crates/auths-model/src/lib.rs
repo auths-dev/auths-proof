@@ -945,6 +945,54 @@ pub fn optional_budget_covers(
     }
 }
 
+/// Whether a profile's canonical actions can express a requested budget.
+///
+/// An absent `requested_budget` means two different things, and only the
+/// profile knows which:
+///
+/// * [`Expressible`](Self::Expressible) — the profile's canonical actions
+///   *could* have carried a budget and this one did not. The spend is
+///   **unknown**, so a bounded ceiling has nothing to bound and cannot cover
+///   the action.
+/// * [`Inexpressible`](Self::Inexpressible) — the profile's canonical body has
+///   no budget field, so no action of this profile can ever declare one. The
+///   spend is **provably zero**, and zero is within every ceiling.
+///
+/// The default is [`Expressible`](Self::Expressible): a profile whose
+/// capability was never declared is treated as the denying case. Absence of a
+/// declaration must never open the gate.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum ProfileBudgetExpression {
+    /// Canonical actions of this profile can carry a requested budget.
+    #[default]
+    Expressible,
+    /// Canonical actions of this profile cannot carry a requested budget.
+    Inexpressible,
+}
+
+/// Applies target-V1 terminal coverage to one action of a known profile.
+///
+/// This is [`optional_budget_covers`] — the pure ceiling algebra — plus the one
+/// fact the algebra cannot see: whether the action's profile is *able* to state
+/// a budget at all. When it is not, the action provably spends zero and every
+/// ceiling covers it. When it is, an absent request states no bound and a
+/// bounded ceiling denies, exactly as before.
+///
+/// The profile capability only ever reclassifies an **absent** request. A
+/// declared request is always compared against the ceiling by the algebra.
+#[must_use]
+pub fn budget_ceiling_covers_action(
+    ceiling: Option<&BudgetCeiling>,
+    requested: Option<&BudgetCeiling>,
+    expression: ProfileBudgetExpression,
+) -> bool {
+    match (requested, expression) {
+        // Zero spend, and zero is within every ceiling including an absent one.
+        (None, ProfileBudgetExpression::Inexpressible) => true,
+        _ => optional_budget_covers(ceiling, requested),
+    }
+}
+
 /// Non-zero maximum age for a required status observation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub struct FreshnessLimit(u64);
@@ -3622,6 +3670,7 @@ pub struct AcceptedRegistries {
     critical_extensions: Vec<ExtensionId>,
     profiles: Vec<ProfileRef>,
     profile_policies: Vec<ProfilePolicyId>,
+    budget_free_profiles: Vec<ProfileRef>,
 }
 
 impl AcceptedRegistries {
@@ -3672,7 +3721,43 @@ impl AcceptedRegistries {
             critical_extensions,
             profiles,
             profile_policies: canonical_registry_ids(profile_policies, true)?,
+            // Safe default: no accepted profile is declared budget-free, so
+            // every absent request is treated as an unknown spend and denied
+            // under a bounded ceiling.
+            budget_free_profiles: Vec::new(),
         })
+    }
+
+    /// Declares which accepted profiles cannot express a requested budget.
+    ///
+    /// A profile listed here has no budget field in its canonical body, so any
+    /// of its actions provably spends zero and is covered by every terminal
+    /// ceiling. Every other accepted profile keeps the denying reading of an
+    /// absent request.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ModelError::InvalidRegistrySelection`] when the list exceeds
+    /// [`HARD_MAX_REGISTRY_ENTRIES`] or names a profile this registry does not
+    /// accept. A declaration about a profile the verifier will refuse anyway is
+    /// a configuration error, not a silently ignored entry.
+    pub fn with_budget_free_profiles(
+        mut self,
+        mut budget_free_profiles: Vec<ProfileRef>,
+    ) -> Result<Self, ModelError> {
+        if budget_free_profiles.len() > HARD_MAX_REGISTRY_ENTRIES {
+            return Err(ModelError::InvalidRegistrySelection);
+        }
+        budget_free_profiles.sort();
+        budget_free_profiles.dedup();
+        if budget_free_profiles
+            .iter()
+            .any(|profile| !self.accepts_profile(profile))
+        {
+            return Err(ModelError::InvalidRegistrySelection);
+        }
+        self.budget_free_profiles = budget_free_profiles;
+        Ok(self)
     }
 
     /// Returns the pinned registry-manifest identifier.
@@ -3829,6 +3914,27 @@ impl AcceptedRegistries {
         self.profile_policies.binary_search(policy).is_ok()
     }
 
+    /// Returns profiles declared unable to express a requested budget.
+    #[must_use]
+    pub fn budget_free_profiles(&self) -> &[ProfileRef] {
+        &self.budget_free_profiles
+    }
+
+    /// Resolves what an absent requested budget means for one exact profile.
+    ///
+    /// Returns [`ProfileBudgetExpression::Inexpressible`] only for a profile
+    /// this registry explicitly declares budget-free. Every other profile —
+    /// including one this registry has never heard of — resolves to
+    /// [`ProfileBudgetExpression::Expressible`], the denying reading.
+    #[must_use]
+    pub fn profile_budget_expression(&self, profile: &ProfileRef) -> ProfileBudgetExpression {
+        if self.budget_free_profiles.binary_search(profile).is_ok() {
+            ProfileBudgetExpression::Inexpressible
+        } else {
+            ProfileBudgetExpression::Expressible
+        }
+    }
+
     /// Returns the largest accepted registry collection.
     #[must_use]
     pub fn maximum_entry_count(&self) -> usize {
@@ -3845,6 +3951,7 @@ impl AcceptedRegistries {
             self.critical_extensions.len(),
             self.profiles.len(),
             self.profile_policies.len(),
+            self.budget_free_profiles.len(),
         ]
         .into_iter()
         .max()
@@ -4897,6 +5004,141 @@ mod tests {
                 ceiling.value()
             );
         }
+    }
+
+    /// The profile capability decides what an *absent* request means, and
+    /// nothing else.
+    ///
+    /// Both readings are exercised on the same inputs so neither arm can be a
+    /// constant: only the third argument differs between the two loops.
+    #[test]
+    fn only_a_budget_free_profile_makes_an_absent_request_a_zero_spend() {
+        let requested = numeric_budget(5);
+        let ceilings = [
+            numeric_budget(0),
+            numeric_budget(5),
+            numeric_budget(u64::MAX),
+        ];
+
+        for ceiling in &ceilings {
+            // (i) the profile could have declared a budget and did not: the
+            // spend is unknown, so a bounded ceiling cannot cover it.
+            assert!(
+                !budget_ceiling_covers_action(
+                    Some(ceiling),
+                    None,
+                    ProfileBudgetExpression::Expressible
+                ),
+                "unknown spend must stay denied under ceiling {}",
+                ceiling.value()
+            );
+            // (ii) the profile cannot declare a budget at all: the spend is
+            // provably zero and zero is within every ceiling.
+            assert!(
+                budget_ceiling_covers_action(
+                    Some(ceiling),
+                    None,
+                    ProfileBudgetExpression::Inexpressible
+                ),
+                "zero spend must be covered by ceiling {}",
+                ceiling.value()
+            );
+        }
+
+        // A declared request is never reclassified: both readings agree with
+        // the ceiling algebra, in both directions.
+        for expression in [
+            ProfileBudgetExpression::Expressible,
+            ProfileBudgetExpression::Inexpressible,
+        ] {
+            assert!(budget_ceiling_covers_action(
+                Some(&numeric_budget(5)),
+                Some(&requested),
+                expression
+            ));
+            assert!(!budget_ceiling_covers_action(
+                Some(&numeric_budget(4)),
+                Some(&requested),
+                expression
+            ));
+            // An unbounded ceiling covers everything under either reading.
+            assert!(budget_ceiling_covers_action(None, None, expression));
+            assert!(budget_ceiling_covers_action(
+                None,
+                Some(&requested),
+                expression
+            ));
+        }
+    }
+
+    /// A budget-free declaration reaches exactly the profiles it names.
+    #[test]
+    fn budget_free_declaration_is_exact_and_must_name_an_accepted_profile() {
+        let declared = ProfileRef::new(ProfileId::parse("auths.mcp").unwrap(), 1).unwrap();
+        let other_version = ProfileRef::new(ProfileId::parse("auths.mcp").unwrap(), 2).unwrap();
+        let other_id = ProfileRef::new(ProfileId::parse("auths.records").unwrap(), 1).unwrap();
+        let unaccepted = ProfileRef::new(ProfileId::parse("auths.absent").unwrap(), 1).unwrap();
+        let registries = AcceptedRegistries::new(
+            RegistryManifestId::new([0x11; 32]),
+            vec![PrincipalMethodId::parse("raw-key-v1").unwrap()],
+            vec![SignatureSuiteId::parse("ed25519-v1").unwrap()],
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            vec![ResourceMatcherId::parse("uri-namespace-v1").unwrap()],
+            Vec::new(),
+            Vec::new(),
+            vec![declared.clone(), other_version.clone(), other_id.clone()],
+            vec![ProfilePolicyId::parse("exact-v1").unwrap()],
+        )
+        .expect("registries");
+
+        // Undeclared: every accepted profile keeps the denying reading.
+        for profile in [&declared, &other_version, &other_id, &unaccepted] {
+            assert_eq!(
+                registries.profile_budget_expression(profile),
+                ProfileBudgetExpression::Expressible
+            );
+        }
+
+        let registries = registries
+            .with_budget_free_profiles(vec![declared.clone()])
+            .expect("declaration");
+        assert_eq!(
+            registries.profile_budget_expression(&declared),
+            ProfileBudgetExpression::Inexpressible
+        );
+        // A different version of the same identifier is a different profile.
+        for profile in [&other_version, &other_id, &unaccepted] {
+            assert_eq!(
+                registries.profile_budget_expression(profile),
+                ProfileBudgetExpression::Expressible,
+                "declaration must not leak to {profile:?}"
+            );
+        }
+
+        // Declaring a profile the registry does not accept is a configuration
+        // error, not a silently ignored entry.
+        assert_eq!(
+            registries.with_budget_free_profiles(vec![unaccepted]),
+            Err(ModelError::InvalidRegistrySelection)
+        );
+    }
+
+    /// The undeclared profile must land on the denying reading.
+    #[test]
+    fn the_default_profile_budget_expression_denies_an_absent_request() {
+        assert_eq!(
+            ProfileBudgetExpression::default(),
+            ProfileBudgetExpression::Expressible
+        );
+        assert!(!budget_ceiling_covers_action(
+            Some(&numeric_budget(10)),
+            None,
+            ProfileBudgetExpression::default()
+        ));
     }
 
     #[test]

@@ -21,11 +21,11 @@ use auths_model::{
     Digest, EvidenceId, EvidenceObject, EvidenceTypeId, ExtensionId, FreshnessLimit, GrantId,
     GrantState, GrantStatusSnapshot, GrantStatusStatement, LimitKind, MediaType, ParticipantRole,
     Permission, PermissionSet, PrincipalId, PrincipalMethodId, PrincipalState,
-    PrincipalStatusSnapshot, PrincipalStatusStatement, ProfileId, ProfilePolicyId, ProfileRef,
-    ProofRef, PurposeId, ResourceId, ResourceMatcherId, SignatureBytes, SignatureDescriptor,
-    SignatureSuiteId, StatusMethodId, StatusPolicy, StatusSnapshotId, StatusTrustRule, Timestamp,
-    TrustAnchor, TrustAnchorId, TrustedContext, ValidityWindow, VerificationMethod,
-    VerifierConfigurationId, VerifierLimits,
+    PrincipalStatusSnapshot, PrincipalStatusStatement, ProfileBudgetExpression, ProfileId,
+    ProfilePolicyId, ProfileRef, ProofRef, PurposeId, ResourceId, ResourceMatcherId,
+    SignatureBytes, SignatureDescriptor, SignatureSuiteId, StatusMethodId, StatusPolicy,
+    StatusSnapshotId, StatusTrustRule, Timestamp, TrustAnchor, TrustAnchorId, TrustedContext,
+    ValidityWindow, VerificationMethod, VerifierConfigurationId, VerifierLimits,
 };
 use auths_ports::{PrincipalMethod, SignatureSuite};
 use auths_production_client::{
@@ -757,6 +757,11 @@ fn accepted_registries(input: RegistryInput) -> Result<AcceptedRegistries, Engin
             "trusted context selected an adapter not installed in this SDK",
         ));
     }
+    let profiles = input
+        .profiles
+        .into_iter()
+        .map(|input| profile_ref(&input))
+        .collect::<Result<Vec<_>, _>>()?;
     Ok(AcceptedRegistries::new(
         auths_registries::TARGET_V1_REGISTRY_MANIFEST,
         input
@@ -809,17 +814,35 @@ fn accepted_registries(input: RegistryInput) -> Result<AcceptedRegistries, Engin
             .into_iter()
             .map(|value| ExtensionId::parse(&value))
             .collect::<Result<Vec<_>, _>>()?,
-        input
-            .profiles
-            .into_iter()
-            .map(|input| profile_ref(&input))
-            .collect::<Result<Vec<_>, _>>()?,
+        profiles.clone(),
         input
             .profile_policies
             .into_iter()
             .map(|value| ProfilePolicyId::parse(&value))
             .collect::<Result<Vec<_>, _>>()?,
+    )?
+    .with_budget_free_profiles(
+        profiles
+            .into_iter()
+            .filter(|profile| {
+                shipped_budget_expression(profile) == ProfileBudgetExpression::Inexpressible
+            })
+            .collect(),
     )?)
+}
+
+/// Resolves an accepted profile's budget-expression capability from the Rust
+/// profile implementations this SDK ships.
+///
+/// The capability is a structural fact about a profile's canonical body, so it
+/// is read from Rust rather than accepted from the caller: a JavaScript or
+/// Python embedder cannot assert that a profile spends nothing. A profile this
+/// SDK does not implement resolves to the default, `Expressible`, which keeps
+/// an absent requested budget uncovered by a bounded ceiling.
+fn shipped_budget_expression(profile: &ProfileRef) -> ProfileBudgetExpression {
+    auths_profile_mcp::budget_expression(profile)
+        .or_else(|| auths_profile_domains::budget_expression(profile))
+        .unwrap_or_default()
 }
 
 fn limit_kind(value: &str) -> Result<LimitKind, EngineError> {
@@ -2972,10 +2995,19 @@ fn prepare_raw_key_authority_native(
             .map(|value| vec![value.algebra().clone()])
             .unwrap_or_default(),
         Vec::new(),
-        vec![profile],
+        vec![profile.clone()],
         vec![auths_model::ProfilePolicyId::parse(
             auths_registries::EXACT_PROFILE_V1,
         )?],
+    )?
+    .with_budget_free_profiles(
+        // Read from the Rust profile implementation, never asserted here: a
+        // profile with no budget field in its canonical body spends zero, and a
+        // profile this SDK does not ship keeps the denying default.
+        (shipped_budget_expression(&profile) == ProfileBudgetExpression::Inexpressible)
+            .then_some(profile)
+            .into_iter()
+            .collect(),
     )?;
     let context = auths_model::TrustedContext::new(
         VerifierConfigurationId::new(self_contained_v1_configuration()?),

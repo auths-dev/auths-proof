@@ -989,14 +989,14 @@ fn compile_trusted_context(
         minimum_distinct_roots,
     )
     .map_err(value_error)?;
-    let anchors = anchors
+    let anchors: Vec<auths_model::TrustAnchor> = anchors
         .iter()
         .map(|anchor| anchor.borrow(py).inner.clone())
         .collect();
     let mut builder = auths_sdk::TrustedContextBuilder::new(
         VerifierConfigurationId::new(array32(configuration, "configuration")?),
         composition,
-        anchors,
+        anchors.clone(),
         assurance_policy.inner.clone(),
     )
     .map_err(value_error)?;
@@ -1021,6 +1021,20 @@ fn compile_trusted_context(
                 return Err(PyTypeError::new_err(
                     "grant_status must contain a grant snapshot",
                 ));
+            }
+        }
+    }
+    // A profile's ability to express a requested budget is a structural fact
+    // about its canonical body, so it is read from the Rust profile
+    // implementations this binding ships rather than accepted from Python. A
+    // profile this binding does not implement stays undeclared, which keeps the
+    // denying reading of an absent requested budget.
+    for anchor in &anchors {
+        for profile in anchor.profiles() {
+            if shipped_budget_expression(profile)
+                == auths_model::ProfileBudgetExpression::Inexpressible
+            {
+                builder = builder.declare_budget_free_profile(profile.clone());
             }
         }
     }
@@ -1480,4 +1494,18 @@ fn array32(value: &[u8], label: &str) -> PyResult<[u8; 32]> {
 
 pub(crate) fn value_error(error: impl std::fmt::Display) -> PyErr {
     crate::errors::malformed_input(error)
+}
+
+/// Resolves an accepted profile's budget-expression capability from the Rust
+/// profile implementations this binding ships.
+///
+/// Returns the default, `Expressible`, for any profile this binding does not
+/// implement: an undeclared profile must keep the denying reading of an absent
+/// requested budget.
+fn shipped_budget_expression(
+    profile: &auths_model::ProfileRef,
+) -> auths_model::ProfileBudgetExpression {
+    auths_profile_mcp::budget_expression(profile)
+        .or_else(|| auths_profile_domains::budget_expression(profile))
+        .unwrap_or_default()
 }

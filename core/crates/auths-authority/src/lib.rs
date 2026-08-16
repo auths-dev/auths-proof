@@ -12,13 +12,13 @@ use auths_algebra_kernel::{
 use auths_model::{
     ActionAuthorityView, ActionConstraint, ActionEnvelope, AssurancePolicyId, AudienceSet,
     BudgetCeiling, CriticalExtensions, DenialReason, GrantAuthorityView, GrantId, GrantStatement,
-    PermissionSet, PrincipalId, ProfileRef, ScopeAuthorityView, StatusPolicy, TrustAnchor,
-    ValidityWindow, action_authority_view, action_constraint_allows, action_constraint_attenuates,
-    assurance_policy_id_equal, audience_set_contains, audience_set_is_subset,
-    critical_extensions_equal, grant_authority_view, optional_budget_attenuates,
-    optional_budget_covers, optional_grant_id_equal, permission_set_contains,
-    permission_set_is_subset, principal_id_equal, profile_ref_equal, profile_slice_contains,
-    status_policy_attenuates, validity_window_contains,
+    PermissionSet, PrincipalId, ProfileBudgetExpression, ProfileRef, ScopeAuthorityView,
+    StatusPolicy, TrustAnchor, ValidityWindow, action_authority_view, action_constraint_allows,
+    action_constraint_attenuates, assurance_policy_id_equal, audience_set_contains,
+    audience_set_is_subset, budget_ceiling_covers_action, critical_extensions_equal,
+    grant_authority_view, optional_budget_attenuates, optional_grant_id_equal,
+    permission_set_contains, permission_set_is_subset, principal_id_equal, profile_ref_equal,
+    profile_slice_contains, status_policy_attenuates, validity_window_contains,
 };
 
 /// Authority accumulated while walking one root-to-terminal grant chain.
@@ -298,10 +298,12 @@ pub fn evaluate_grant_view<'grant>(
 pub fn evaluate_action_coverage(
     authority: &EffectiveAuthority,
     action: &ActionEnvelope,
+    expression: ProfileBudgetExpression,
 ) -> CoverageDecision {
     evaluate_action_coverage_view(
         authority_state_view(authority),
         action_authority_view(action),
+        expression,
     )
 }
 
@@ -311,6 +313,7 @@ pub fn evaluate_action_coverage(
 pub fn evaluate_action_coverage_view(
     authority: AuthorityStateView<'_>,
     action: ActionAuthorityView<'_>,
+    expression: ProfileBudgetExpression,
 ) -> CoverageDecision {
     // Terminal coverage is the same chain claim as a delegation edge with the
     // actor in the issuer position: an authority that never descended from the
@@ -339,7 +342,11 @@ pub fn evaluate_action_coverage_view(
     if !action_constraint_allows(authority.action_constraint, action.canonical_body_digest) {
         return CoverageDecision::Denied(DenialReason::ActionConstraintMismatch);
     }
-    if !optional_budget_covers(authority.budget_ceiling, action.requested_budget) {
+    if !budget_ceiling_covers_action(
+        authority.budget_ceiling,
+        action.requested_budget,
+        expression,
+    ) {
         return CoverageDecision::Denied(DenialReason::BudgetCeilingExceeded);
     }
     CoverageDecision::Authorized
@@ -423,8 +430,17 @@ impl EffectiveAuthority {
     /// # Errors
     ///
     /// Returns the first stable authority failure in protocol order.
-    pub fn authorizes(&self, action: &ActionEnvelope) -> Result<(), DenialReason> {
-        match evaluate_action_coverage(self, action) {
+    /// `expression` states whether the action's profile is able to declare a
+    /// requested budget at all; the caller resolves it from its trusted
+    /// registry selection. [`ProfileBudgetExpression::Expressible`] — the
+    /// default — keeps an absent request unknown and therefore uncovered by a
+    /// bounded ceiling.
+    pub fn authorizes(
+        &self,
+        action: &ActionEnvelope,
+        expression: ProfileBudgetExpression,
+    ) -> Result<(), DenialReason> {
+        match evaluate_action_coverage(self, action, expression) {
             CoverageDecision::Authorized => Ok(()),
             CoverageDecision::Denied(reason) => Err(reason),
         }
@@ -652,7 +668,7 @@ mod tests {
             extensions: None,
         };
         assert_eq!(
-            evaluate_action_coverage_view(unrooted, action),
+            evaluate_action_coverage_view(unrooted, action, ProfileBudgetExpression::Expressible),
             CoverageDecision::Denied(DenialReason::BrokenGrantChain)
         );
     }
@@ -693,7 +709,11 @@ mod tests {
             terminal_grant: None,
         };
         assert_eq!(
-            evaluate_action_coverage_view(authority_state_view(&authority), action),
+            evaluate_action_coverage_view(
+                authority_state_view(&authority),
+                action,
+                ProfileBudgetExpression::Expressible
+            ),
             CoverageDecision::Denied(DenialReason::BudgetCeilingExceeded),
             "a bounded ceiling must not authorize an unbounded (absent) request"
         );
@@ -730,11 +750,76 @@ mod tests {
             ..action
         };
         assert_eq!(
-            evaluate_action_coverage_view(authority_state_view(&authority), bounded),
+            evaluate_action_coverage_view(
+                authority_state_view(&authority),
+                bounded,
+                ProfileBudgetExpression::Expressible
+            ),
             CoverageDecision::Authorized
         );
         assert_eq!(
-            evaluate_action_coverage_view(authority_state_view(&authority), action),
+            evaluate_action_coverage_view(
+                authority_state_view(&authority),
+                action,
+                ProfileBudgetExpression::Expressible
+            ),
+            CoverageDecision::Denied(DenialReason::BudgetCeilingExceeded)
+        );
+    }
+
+    /// The mirror of the two tests above: the *only* thing that changes is what
+    /// the caller says about the action's profile, and the verdict flips.
+    ///
+    /// An action whose profile cannot express a budget provably spends zero, so
+    /// every ceiling covers it. Without this the whole class of budget-free
+    /// profiles — `auths.mcp/1` among them — is unconstructible under any
+    /// bounded grant chain.
+    #[test]
+    fn terminal_coverage_authorizes_an_absent_request_for_a_budget_free_profile() {
+        let anchor = anchor_with_budget(Some(numeric_budget(10)));
+        let authority = EffectiveAuthority::from_anchor(&anchor);
+        let actor = PrincipalId::parse("did:key:root").expect("root");
+        let selected = profile("profile-a");
+        let permission = auths_model::Permission::new(
+            CapabilityId::parse("deploy").expect("capability"),
+            ResourceId::parse("cluster://production").expect("resource"),
+        );
+        let audience = Audience::parse("cluster://production").expect("audience");
+        let action = ActionAuthorityView {
+            profile: &selected,
+            canonical_body_digest: auths_model::Digest::new([0; 32]),
+            permission: &permission,
+            requested_budget: None,
+            audience: &audience,
+            validity: anchor.validity(),
+            actor: &actor,
+            terminal_grant: None,
+        };
+        for ceiling in [0, 10, u64::MAX] {
+            let anchor = anchor_with_budget(Some(numeric_budget(ceiling)));
+            let authority = EffectiveAuthority::from_anchor(&anchor);
+            assert_eq!(
+                evaluate_action_coverage_view(
+                    authority_state_view(&authority),
+                    action,
+                    ProfileBudgetExpression::Inexpressible
+                ),
+                CoverageDecision::Authorized,
+                "zero spend is within ceiling {ceiling}"
+            );
+        }
+        // The capability only reclassifies an *absent* request. A declared
+        // request is still compared against the ceiling by the algebra.
+        let over = numeric_budget(11);
+        assert_eq!(
+            evaluate_action_coverage_view(
+                authority_state_view(&authority),
+                ActionAuthorityView {
+                    requested_budget: Some(&over),
+                    ..action
+                },
+                ProfileBudgetExpression::Inexpressible
+            ),
             CoverageDecision::Denied(DenialReason::BudgetCeilingExceeded)
         );
     }

@@ -217,7 +217,23 @@ fn write_mcp_workflow_vectors(output: &std::path::Path) -> Result<(), Box<dyn st
         template.configuration(),
         template.composition(),
         vec![anchor],
-        template.accepted_registries().clone(),
+        // `auths.mcp/1` has no budget field in its canonical body, so an MCP
+        // tool call can never declare a spend. Without this declaration the
+        // bounded ceilings below would deny every MCP action: an absent request
+        // would read as an unknown spend rather than the provable zero it is.
+        // The value is read off the Rust profile, never asserted here.
+        template
+            .accepted_registries()
+            .clone()
+            .with_budget_free_profiles(
+                auths_profile_mcp::budget_expression(canonical.profile())
+                    .filter(|expression| {
+                        *expression == auths_model::ProfileBudgetExpression::Inexpressible
+                    })
+                    .map(|_| canonical.profile().clone())
+                    .into_iter()
+                    .collect(),
+            )?,
         call.audience()?,
         auths_model::Challenge::new([0x22; 32]),
         auths_model::Timestamp::new(50),

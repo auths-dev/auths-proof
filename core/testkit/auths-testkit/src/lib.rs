@@ -754,6 +754,34 @@ fn anchor(identity: &Identity, depth: u16) -> TrustAnchor {
     anchor_with_status(identity, depth, StatusPolicy::ExpiryOnly)
 }
 
+/// Rebuilds a context that declares exactly the given profiles budget-free.
+///
+/// Every other field is carried across unchanged, so a fixture pair built from
+/// the same proof bytes differs in exactly this one declaration.
+fn declaring_budget_free(source: &TrustedContext, budget_free: Vec<ProfileRef>) -> TrustedContext {
+    TrustedContext::new(
+        source.configuration(),
+        source.composition(),
+        source.trust_anchors().to_vec(),
+        source
+            .accepted_registries()
+            .clone()
+            .with_budget_free_profiles(budget_free)
+            .expect("budget-free declaration"),
+        source.expected_audience().clone(),
+        source.expected_challenge().clone(),
+        source.evaluation_time(),
+        source.assurance_policy().clone(),
+        source.principal_status_snapshot().clone(),
+        source.grant_status_snapshot().clone(),
+        source.resource_matcher().clone(),
+        source.profile_policy().clone(),
+        source.channel_policy().clone(),
+        source.limits().clone(),
+    )
+    .expect("context")
+}
+
 fn context(identities: &[Identity], anchors: Vec<TrustAnchor>) -> TrustedContext {
     context_with_assurance(identities, anchors, assurance_policy(identities))
 }
@@ -2526,6 +2554,11 @@ enum ActionVariation {
     Constraint,
     Budget,
     BudgetAbsent,
+    /// Byte-identical to [`ActionVariation::BudgetAbsent`] except that the
+    /// verifier context declares the action's profile unable to express a
+    /// requested budget. The absent request is then a provable zero spend, so
+    /// the same bounded ceiling authorizes instead of denying.
+    BudgetAbsentBudgetFreeProfile,
     Validity,
     Actor,
     UnsupportedProfile,
@@ -2562,7 +2595,7 @@ fn action_authority_fixture(name: &'static str, variation: ActionVariation) -> C
     // against is not vacuously satisfied; the verifier must deny.
     let action_budget = match variation {
         ActionVariation::Budget => Some(11),
-        ActionVariation::BudgetAbsent => None,
+        ActionVariation::BudgetAbsent | ActionVariation::BudgetAbsentBudgetFreeProfile => None,
         _ => Some(5),
     };
     let action_profile = if matches!(variation, ActionVariation::UnsupportedProfile) {
@@ -2664,6 +2697,11 @@ fn action_authority_fixture(name: &'static str, variation: ActionVariation) -> C
         .expect("action binding"),
     ];
     let verifier_context = context(&identities, vec![anchor(&root, 1)]);
+    let verifier_context = if matches!(variation, ActionVariation::BudgetAbsentBudgetFreeProfile) {
+        declaring_budget_free(&verifier_context, vec![profile()])
+    } else {
+        verifier_context
+    };
     let bundle = ProofBundle::new(
         BundleHeader::v1(),
         vec![grant],
@@ -2678,6 +2716,7 @@ fn action_authority_fixture(name: &'static str, variation: ActionVariation) -> C
     )
     .expect("action authority proof");
     let expected = match variation {
+        ActionVariation::BudgetAbsentBudgetFreeProfile => Expected::Authorized,
         ActionVariation::Permission => Expected::Denied(DenialReason::PermissionNotGranted),
         ActionVariation::Constraint => Expected::Denied(DenialReason::ActionConstraintMismatch),
         ActionVariation::Budget | ActionVariation::BudgetAbsent => {
@@ -2693,14 +2732,12 @@ fn action_authority_fixture(name: &'static str, variation: ActionVariation) -> C
         }
         ActionVariation::Channel => Expected::Denied(DenialReason::LocalPolicyDenied),
     };
-    fixture(
-        name,
-        "denied",
-        &bundle,
-        &verifier_context,
-        canonical,
-        expected,
-    )
+    let class = if matches!(expected, Expected::Authorized) {
+        "valid"
+    } else {
+        "denied"
+    };
+    fixture(name, class, &bundle, &verifier_context, canonical, expected)
 }
 
 macro_rules! action_fixture {
@@ -2741,6 +2778,18 @@ action_fixture!(
     action_budget_absent,
     "action-budget-absent",
     BudgetAbsent
+);
+action_fixture!(
+    /// Signed action declares no budget while terminal authority is bounded,
+    /// and the verifier context declares that profile unable to express one.
+    ///
+    /// This is the authorizing mirror of `action-budget-absent`: identical
+    /// proof bytes, one differing declaration in the trusted context, opposite
+    /// verdict. Without both fixtures the branch is only exercised on one side
+    /// and independent implementations can disagree unnoticed.
+    action_budget_absent_budget_free_profile,
+    "action-budget-absent-budget-free-profile",
+    BudgetAbsentBudgetFreeProfile
 );
 action_fixture!(
     /// Signed action validity exceeds the grant window.
@@ -4675,6 +4724,7 @@ pub fn corpus() -> Vec<CorpusFixture> {
         action_constraint_mismatch(),
         action_budget_exceeded(),
         action_budget_absent(),
+        action_budget_absent_budget_free_profile(),
         action_validity_expanded(),
         action_actor_mismatch(),
         unsupported_action_profile(),

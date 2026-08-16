@@ -948,7 +948,7 @@ fn registries(
     limits: &VerifierLimits,
 ) -> Result<AcceptedRegistries, CodecError> {
     let maximum = limits.get(LimitKind::RegistryEntries);
-    map(decoder, 13)?;
+    map(decoder, 14)?;
     key(decoder, 0)?;
     let manifest_id = digest_id!(decoder, RegistryManifestId)?;
     key(decoder, 1)?;
@@ -975,6 +975,8 @@ fn registries(
     let profiles = profile_refs(decoder, maximum)?;
     key(decoder, 12)?;
     let profile_policies = parsed_texts(decoder, maximum, ProfilePolicyId::parse)?;
+    key(decoder, 13)?;
+    let budget_free_profiles = profile_refs(decoder, maximum)?;
     AcceptedRegistries::new(
         manifest_id,
         principal_methods,
@@ -990,6 +992,7 @@ fn registries(
         profiles,
         profile_policies,
     )
+    .and_then(|registries| registries.with_budget_free_profiles(budget_free_profiles))
     .map_err(CodecError::from)
 }
 

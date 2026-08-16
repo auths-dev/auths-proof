@@ -62,7 +62,11 @@ func TestSharedCorpusRunsInNativeGoTest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	const expected = "103:636140b3f7a660cfbcedf51f8efa170df6fb9d521aa67e8950e66fcbf059c616"
+	// Behavior change: the corpus gained `action-budget-absent-budget-free-profile`,
+	// the authorizing mirror of `action-budget-absent`. The pin covers 104 fixtures
+	// and is the same digest `cargo xtask cross-language` requires of Rust, Go, and
+	// the independent TypeScript verifier.
+	const expected = "104:979e94789848596358786439265dc3b0d857a26ef2c1e13ae8b439ff23e24f67"
 	if digest != expected {
 		t.Fatalf("semantic corpus digest mismatch: got %s", digest)
 	}
