@@ -254,7 +254,7 @@ export class ApplicationGatewayError extends AuthsWorkflowError {
       operation: "execute",
       stage: "provider",
       retry: unknown ? "unknown" : "safe",
-      effect: unknown ? "possible" : "none",
+      effect: unknown ? "possible" : "not-applied",
       remediation: { action: unknown ? "reconcile-idempotency-key" : "inspect-provider-failure" },
     });
     this.receipt = receipt;
@@ -274,7 +274,7 @@ export class ApplicationGatewayCancelled extends AuthsWorkflowError {
       operation: "execute",
       stage: enteredProvider ? "provider" : "credential",
       retry: enteredProvider ? "unknown" : "safe",
-      effect: enteredProvider ? "possible" : "none",
+      effect: enteredProvider ? "possible" : "not-applied",
       remediation: { action: enteredProvider ? "reconcile-idempotency-key" : "retry-with-new-command" },
     });
     this.receipt = receipt;
@@ -729,7 +729,7 @@ async function executeOne<Command, Credential, Result>(
   try {
     output = await options.execute(resources.command as Command, credential, exactContext);
   } catch (error) {
-    const definitelyFailed = error instanceof ProviderOperationError && error.effect === "none";
+    const definitelyFailed = error instanceof ProviderOperationError && error.effect === "not-applied";
     const outcome: ApplicationOutcome = definitelyFailed ? "failed" : "outcome-unknown";
     let executionReceipt: AttestedApplicationReceipt | undefined;
     if (definitelyFailed) {
@@ -828,7 +828,7 @@ function gatewayStateError(code: string): AuthsWorkflowError {
     operation: "execute",
     stage: "reservation",
     retry: normalized === "unavailable" ? "safe" : "never",
-    effect: "none",
+    effect: "not-applied",
   });
 }
 

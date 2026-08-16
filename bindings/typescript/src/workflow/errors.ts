@@ -36,6 +36,8 @@ export type WorkflowErrorCode =
   | "gateway-out-of-order"
   | "gateway-unavailable";
 
+import type { EffectState, RetryClass } from "../product-errors.js";
+
 export type ErrorFamily =
   | "configuration"
   | "authority"
@@ -44,8 +46,12 @@ export type ErrorFamily =
   | "provider"
   | "transaction";
 
-export type RetryClass = "never" | "safe" | "conditional" | "unknown";
-export type EffectState = "none" | "possible" | "occurred";
+// One vocabulary. This module used to declare its own `RetryClass` and its own
+// effect axis spelled `none | possible | occurred`, so the SDK carried two
+// unrelated words for "the effect did not happen" and two types named
+// `RetryClass` with different members. Both are Rust's, imported, never
+// redefined.
+export type { EffectState, RetryClass } from "../product-errors.js";
 
 export interface ErrorContext {
   readonly operation?: string;
@@ -77,7 +83,7 @@ export class AuthsWorkflowError extends Error {
     this.stage = safeToken(context.stage, "unknown");
     this.correlationId = safeOptionalToken(context.correlationId);
     this.retry = context.retry ?? workflowRetry(code);
-    this.effect = context.effect ?? "none";
+    this.effect = context.effect ?? "not-applied";
     this.remediation = safeRemediation(context.remediation);
     this.causeChain = safeCauseChain(context.causeChain);
   }
@@ -109,7 +115,7 @@ export class ProviderOperationError extends Error {
     this.stage = safeToken(context.stage, "call");
     this.correlationId = safeOptionalToken(context.correlationId);
     this.retry = context.retry ?? providerRetry(kind);
-    this.effect = context.effect ?? (kind === "timeout" || kind === "cancelled" ? "possible" : "none");
+    this.effect = context.effect ?? (kind === "timeout" || kind === "cancelled" ? "possible" : "not-applied");
     this.remediation = safeRemediation(context.remediation);
     this.causeChain = safeCauseChain(context.causeChain);
   }
