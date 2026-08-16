@@ -4885,6 +4885,43 @@ mod tests {
     }
 
     #[test]
+    fn critical_extension_constructor_establishes_the_refinement_invariant() {
+        let extension = |id: &str, byte: u8| {
+            CriticalExtension::new(ExtensionId::parse(id).expect("extension id"), vec![byte])
+                .expect("bounded extension")
+        };
+        let canonical = CriticalExtensions::new(vec![
+            extension("z-extension-v1", 2),
+            extension("a-extension-v1", 1),
+        ])
+        .expect("canonical extensions");
+        assert_eq!(canonical.as_slice()[0].id().as_str(), "a-extension-v1");
+        assert_eq!(canonical.as_slice()[1].id().as_str(), "z-extension-v1");
+
+        assert_eq!(
+            CriticalExtensions::new(vec![
+                extension("duplicate-v1", 1),
+                extension("duplicate-v1", 2),
+            ]),
+            Err(ModelError::DuplicateExtension)
+        );
+        let too_many = (0..=HARD_MAX_EXTENSIONS)
+            .map(|index| extension(&format!("extension-{index:02}"), 0))
+            .collect();
+        assert_eq!(
+            CriticalExtensions::new(too_many),
+            Err(ModelError::InvalidExtension)
+        );
+        assert_eq!(
+            CriticalExtension::new(
+                ExtensionId::parse("oversized-v1").expect("extension id"),
+                vec![0; HARD_MAX_EXTENSION_BYTES + 1],
+            ),
+            Err(ModelError::InvalidExtension)
+        );
+    }
+
+    #[test]
     fn action_constraint_is_monotonic() {
         let any = ActionConstraint::AnyBody;
         let set = ActionConstraint::allowed_body_digests(vec![digest(1), digest(2)]).expect("set");

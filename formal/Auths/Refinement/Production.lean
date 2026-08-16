@@ -1173,6 +1173,8 @@ abbrev productionVocabulary : Auths.Rich.Vocabulary where
   grantIdDecidableEq := inferInstance
   extensionIdDecidableEq := inferInstance
   extensionBodyDecidableEq := inferInstance
+  extensionIdLinearOrder := inferInstance
+  extensionBodyLinearOrder := inferInstance
   extensionBodySize := List.length
 
 abbrev ProductionVocabulary := productionVocabulary
@@ -1200,6 +1202,11 @@ def richCriticalExtension (extension : auths_model.CriticalExtension) :
     Auths.Rich.CriticalExtension ProductionVocabulary :=
   richCriticalExtensionOfKey (criticalExtensionKey extension)
 
+/-- Exact lexicographic order of Rust's derived `Ord` on a critical extension. -/
+def CriticalExtensionKeyLt
+    (left right : List Std.U8 × List Std.U8) : Prop :=
+  left.1 < right.1 ∨ (left.1 = right.1 ∧ left.2 < right.2)
+
 /--
 The representation invariants `CriticalExtensions::new` establishes.
 
@@ -1212,6 +1219,8 @@ carried here — the same pattern as `ValidityWindowValid` and
 -/
 structure CriticalExtensionsCanonical
     (extensions : auths_model.CriticalExtensions) : Prop where
+  sorted :
+    (criticalExtensionsKey extensions).Pairwise CriticalExtensionKeyLt
   distinctIds :
     (extensions.val.map fun extension => stringBytes extension.id).Nodup
   size : extensions.val.length ≤ Auths.Rich.hardMaxExtensions
@@ -1237,6 +1246,12 @@ def richCriticalExtensions
     (canonical : CriticalExtensionsCanonical extensions) :
     Auths.Rich.CriticalExtensions ProductionVocabulary where
   entries := extensions.val.map richCriticalExtension
+  sorted := by
+    rw [richCriticalExtension_entries, List.pairwise_map]
+    exact canonical.sorted.imp (by
+      intro left right ordered
+      simpa [Auths.Rich.criticalExtensionLt, CriticalExtensionKeyLt,
+        richCriticalExtensionOfKey] using ordered)
   bodiesBounded := by
     intro entry membership
     obtain ⟨extension, source, rfl⟩ := List.mem_map.mp membership

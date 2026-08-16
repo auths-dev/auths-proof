@@ -2248,12 +2248,7 @@ fn verify_branch_from_anchor(
         evaluate_extensions(grant.statement().extensions(), context, registries, meter)?;
     }
     authority
-        .authorizes(
-            action.envelope(),
-            context
-                .accepted_registries()
-                .profile_budget_expression(action.envelope().profile()),
-        )
+        .authorizes(action.envelope(), context.accepted_registries())
         .map_err(VerificationFailure::Denied)?;
     let action_control = control_for(controlled, StatementRef::Action(action_id))?;
     reports.push(participant_report(
@@ -2972,10 +2967,7 @@ mod tests {
         assert_eq!(
             authority.authorizes(
                 fixture.action.envelope(),
-                fixture
-                    .context
-                    .accepted_registries()
-                    .profile_budget_expression(fixture.action.envelope().profile())
+                fixture.context.accepted_registries()
             ),
             Err(DenialReason::BudgetCeilingExceeded),
             "the kernel alone must deny; the Wave 1 guard is defense in depth"
@@ -2996,10 +2988,7 @@ mod tests {
         assert_eq!(
             EffectiveAuthority::from_anchor(inside_anchor).authorizes(
                 inside.action.envelope(),
-                inside
-                    .context
-                    .accepted_registries()
-                    .profile_budget_expression(inside.action.envelope().profile())
+                inside.context.accepted_registries()
             ),
             Ok(())
         );
@@ -3036,10 +3025,7 @@ mod tests {
         assert_eq!(
             EffectiveAuthority::from_anchor(anchor).authorizes(
                 fixture.action.envelope(),
-                fixture
-                    .context
-                    .accepted_registries()
-                    .profile_budget_expression(fixture.action.envelope().profile())
+                fixture.context.accepted_registries()
             ),
             Ok(())
         );
@@ -3137,12 +3123,8 @@ mod tests {
         // rest on which of the two runs first.
         let anchor = declared.trust_anchors().first().expect("fixture anchor");
         assert_eq!(
-            EffectiveAuthority::from_anchor(anchor).authorizes(
-                fixture.action.envelope(),
-                declared
-                    .accepted_registries()
-                    .profile_budget_expression(fixture.action.envelope().profile())
-            ),
+            EffectiveAuthority::from_anchor(anchor)
+                .authorizes(fixture.action.envelope(), declared.accepted_registries()),
             Ok(())
         );
     }

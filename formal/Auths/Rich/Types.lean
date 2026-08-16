@@ -35,6 +35,10 @@ structure Vocabulary where
   grantIdDecidableEq : DecidableEq GrantIdCarrier
   extensionIdDecidableEq : DecidableEq ExtensionIdCarrier
   extensionBodyDecidableEq : DecidableEq ExtensionBodyCarrier
+  /-- Exact order used by Rust's derived `Ord` for extension identifiers. -/
+  extensionIdLinearOrder : LinearOrder ExtensionIdCarrier
+  /-- Exact order used by Rust's derived `Ord` for extension payload bytes. -/
+  extensionBodyLinearOrder : LinearOrder ExtensionBodyCarrier
   /-- Size of an extension payload, in the units Rust bounds.
 
   `CriticalExtension::new` rejects a payload longer than
@@ -185,6 +189,21 @@ instance (v : Vocabulary) : DecidableEq (CriticalExtension v) :=
     | _, isFalse different =>
         isFalse (by intro equality; exact different (by cases equality; rfl))
 
+/-- Lexicographic order of Rust's derived `(ExtensionId, Vec<u8>)` order. -/
+def criticalExtensionLt {v : Vocabulary}
+    (left right : CriticalExtension v) : Prop := by
+  letI : LinearOrder v.ExtensionIdCarrier := v.extensionIdLinearOrder
+  letI : LinearOrder v.ExtensionBodyCarrier := v.extensionBodyLinearOrder
+  exact left.id.value < right.id.value ∨
+    (left.id.value = right.id.value ∧ left.body.value < right.body.value)
+
+instance {v : Vocabulary} (left right : CriticalExtension v) :
+    Decidable (criticalExtensionLt left right) := by
+  unfold criticalExtensionLt
+  letI : LinearOrder v.ExtensionIdCarrier := v.extensionIdLinearOrder
+  letI : LinearOrder v.ExtensionBodyCarrier := v.extensionBodyLinearOrder
+  infer_instance
+
 /-- Mirrors Rust `auths_model::HARD_MAX_EXTENSIONS`. -/
 def hardMaxExtensions : Nat := 32
 
@@ -204,13 +223,14 @@ The entries are an ordered sequence rather than a `FiniteSet` deliberately.
 `critical_extensions_equal` compares the two canonical vectors **positionally**;
 a set-valued model would identify `[a, b]` with `[b, a]` and therefore report
 attenuation on a pair the shipping kernel denies, which is the model being
-weaker than the code.  Duplicate-freedom by identifier is what makes the
-sequence a faithful map from identifier to payload; the total order Rust sorts
-by is a representation-level fact that the opaque carriers cannot state, and
-none of the decisions below depend on it.
+weaker than the code. Duplicate-freedom by identifier makes the sequence a
+faithful map from identifier to payload. `sorted` additionally records the
+exact order Rust establishes, so this type excludes non-constructor-reachable
+permutations rather than merely assuming canonicality in prose.
 -/
 structure CriticalExtensions (v : Vocabulary) where
   entries : List (CriticalExtension v)
+  sorted : entries.Pairwise criticalExtensionLt
   distinctIds : entries.Pairwise fun left right => left.id ≠ right.id
   bounded : entries.length ≤ hardMaxExtensions
   /-- Every payload is within `HARD_MAX_EXTENSION_BYTES`, as
@@ -237,6 +257,7 @@ instance (v : Vocabulary) : DecidableEq (CriticalExtensions v) :=
 /-- The empty set, the value `CriticalExtensions::empty` constructs. -/
 def CriticalExtensions.empty (v : Vocabulary) : CriticalExtensions v where
   entries := []
+  sorted := List.Pairwise.nil
   distinctIds := List.Pairwise.nil
   bounded := by simp [hardMaxExtensions]
   bodiesBounded := by simp
@@ -248,6 +269,7 @@ def CriticalExtensions.singleton {v : Vocabulary}
       v.extensionBodySize extension.body.value ≤ hardMaxExtensionBytes) :
     CriticalExtensions v where
   entries := [extension]
+  sorted := by simp
   distinctIds := by simp
   bounded := by simp [hardMaxExtensions]
   bodiesBounded := by simpa using bodyBounded
@@ -353,8 +375,15 @@ structure EvidenceFacts (v : Vocabulary) where
   statusAge : Nat
   assurance : AssurancePolicy v
 
+/-- Trusted profile-registry classification, never an action-controlled bit. -/
+inductive BudgetExpression where
+  | expressible
+  | inexpressible
+  deriving DecidableEq, Repr
+
 structure AuthorizationFacts (v : Vocabulary) where
   action : Action v
+  budgetExpression : BudgetExpression
   evidence : EvidenceFacts v
 
 end Auths.Rich

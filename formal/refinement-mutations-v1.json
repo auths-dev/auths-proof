@@ -4,64 +4,73 @@
     {
       "id": "validity-start-direction",
       "operator": "Reverse the inclusive lower-bound comparison.",
-      "witness": "A child beginning after its parent must remain contained.",
+      "witness": "A child beginning before its parent must be rejected.",
       "lean_declaration": "Auths.Rich.Mutations.validity_start_direction"
     },
     {
       "id": "validity-end-direction",
       "operator": "Reverse the inclusive upper-bound comparison.",
-      "witness": "A child ending before its parent must remain contained.",
+      "witness": "A child ending after its parent must be rejected.",
       "lean_declaration": "Auths.Rich.Mutations.validity_end_direction"
     },
     {
       "id": "permission-subset-direction",
       "operator": "Reverse child and parent in permission subset evaluation.",
-      "witness": "A singleton child is permitted by a strict two-element parent."
+      "witness": "A singleton child is permitted by a strict two-element parent.",
+      "lean_declaration": "Auths.Rich.Mutations.permission_subset_direction"
     },
     {
       "id": "audience-subset-direction",
       "operator": "Reverse child and parent in audience subset evaluation.",
-      "witness": "A singleton child is permitted by a strict two-element parent."
+      "witness": "A singleton child is permitted by a strict two-element parent.",
+      "lean_declaration": "Auths.Rich.Mutations.audience_subset_direction"
     },
     {
       "id": "permission-membership-decision",
       "operator": "Negate permission membership.",
-      "witness": "A permission present in the authority set must be found."
+      "witness": "A permission present in the authority set must be found.",
+      "lean_declaration": "Auths.Rich.Mutations.permission_membership_decision"
     },
     {
       "id": "audience-membership-decision",
       "operator": "Negate audience membership.",
-      "witness": "An audience present in the authority set must be found."
+      "witness": "An audience present in the authority set must be found.",
+      "lean_declaration": "Auths.Rich.Mutations.audience_membership_decision"
     },
     {
       "id": "body-digest-membership-decision",
       "operator": "Negate body-digest membership.",
-      "witness": "A digest present in an allowed-body set must be found."
+      "witness": "A digest present in an allowed-body set must be found.",
+      "lean_declaration": "Auths.Rich.Mutations.body_digest_membership_decision"
     },
     {
       "id": "body-digest-subset-direction",
       "operator": "Reverse child and parent in body-digest subset evaluation.",
-      "witness": "A singleton digest set attenuates a strict two-element parent."
+      "witness": "A singleton digest set attenuates a strict two-element parent.",
+      "lean_declaration": "Auths.Rich.Mutations.body_digest_subset_direction"
     },
     {
       "id": "action-exact-equality",
       "operator": "Accept a different digest for an exact-body constraint.",
-      "witness": "Distinct 32-byte body digests must not compare equal."
+      "witness": "Distinct 32-byte body digests must not compare equal.",
+      "lean_declaration": "Auths.Rich.Mutations.action_exact_equality"
     },
     {
       "id": "action-constructor-fallback",
       "operator": "Accept a multi-digest allowed-body set beneath an exact-body parent.",
-      "witness": "A two-digest set admits more actions than an exact constraint."
+      "witness": "A two-digest set admits more actions than an exact constraint.",
+      "lean_declaration": "Auths.Rich.Mutations.action_constructor_fallback"
     },
     {
       "id": "action-singleton-exact-rejection",
       "operator": "Reject a singleton allowed-body set beneath its equivalent exact-body parent.",
-      "witness": "Allowed({d}) and Exact(d) admit the same canonical body digest."
+      "witness": "Allowed({d}) and Exact(d) admit the same canonical body digest.",
+      "lean_declaration": "Auths.Rich.Mutations.action_singleton_exact_rejection"
     },
     {
       "id": "budget-value-direction",
       "operator": "Reverse the numeric budget ceiling comparison.",
-      "witness": "A lower child ceiling attenuates a higher parent ceiling.",
+      "witness": "A child ceiling above its parent must be rejected.",
       "lean_declaration": "Auths.Rich.Mutations.budget_value_direction"
     },
     {
@@ -85,7 +94,7 @@
     {
       "id": "status-age-direction",
       "operator": "Reverse the maximum status age comparison.",
-      "witness": "A fresher child requirement attenuates a less-fresh parent.",
+      "witness": "A child allowing older status evidence than its parent must be rejected.",
       "lean_declaration": "Auths.Rich.Mutations.status_age_direction"
     },
     {
@@ -109,7 +118,8 @@
     {
       "id": "critical-extension-equality",
       "operator": "Ignore changes to a critical extension payload.",
-      "witness": "Target V1 requires the complete canonical critical-extension set to remain exactly equal."
+      "witness": "Target V1 requires the complete canonical critical-extension set to remain exactly equal.",
+      "lean_declaration": "Auths.Rich.Mutations.critical_extension_equality"
     },
     {
       "id": "delegation-depth-strictness",

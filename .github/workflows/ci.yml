@@ -234,6 +234,7 @@ jobs:
       - uses: ./.github/actions/setup-rust-cache
         with:
           toolchain: 1.97.1
+          compiler-cache: "false"
       - name: Check production source closure before formal setup
         if: github.event_name != 'pull_request'
         run: >-
@@ -303,12 +304,9 @@ jobs:
           --run-attempt "${{ github.run_attempt }}"
           --base-sha "${{ github.event.pull_request.base.sha }}"
           --head-sha "${{ github.event.pull_request.head.sha }}"
-      - name: Run full read-only verification when the PR is already reproducible
-        if: steps.formal-update.outputs.update_required == 'false'
-        env:
-          AUTHS_AENEAS_BIN: ${{ github.workspace }}/target/formal-tools/bin/aeneas
-          AUTHS_CHARON_BIN: ${{ github.workspace }}/target/formal-tools/bin/charon
-        run: cargo xtask ci formal-translation
+      - name: Run semantic and bounded checks without reproducing a second time
+        if: github.event_name == 'pull_request'
+        run: cargo xtask ci formal-post-qualification
       - name: Preserve the bounded generated update
         if: steps.formal-update.outputs.update_required == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

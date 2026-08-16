@@ -75,6 +75,8 @@ def natVocabulary : Rich.Vocabulary where
   grantIdDecidableEq := inferInstance
   extensionIdDecidableEq := inferInstance
   extensionBodyDecidableEq := inferInstance
+  extensionIdLinearOrder := inferInstance
+  extensionBodyLinearOrder := inferInstance
   extensionBodySize := fun _ => 0
 
 def natArrayCode (values : List Nat) : String :=

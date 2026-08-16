@@ -11,6 +11,7 @@ translation_warnings = []
 required_compiled_external_axioms = 0
 
 source_files = [
+  ".cargo/config.toml",
   "Cargo.toml",
   "Cargo.lock",
   "core/crates/auths-model/Cargo.toml",
@@ -30,6 +31,11 @@ source_files = [
   "formal/algebra-contract-v1.toml",
   "formal/qualification/aeneas/qualification.toml",
   "formal/translation-toolchain.lock",
+  "formal/qualification/aeneas/cases/Model.lean",
+  "formal/qualification/aeneas/cases/Algebra.lean",
+  "formal/qualification/aeneas/cases/Authority.lean",
+  "formal/qualification/aeneas/cases/BoundedPolicy.lean",
+  "formal/qualification/aeneas/cases/Lifecycle.lean",
   "xtask/ci-plan/Cargo.toml",
   "xtask/ci-plan/src/lib.rs",
   "xtask/src/formal.rs",
@@ -162,6 +168,18 @@ id = "aeneas-runtime-string-iterator"
 artifact = "formal/.lake/packages/aeneas/backends/lean/Aeneas/Std/StringIter.lean"
 upstream_lines = [12, 18]
 classification = "Pinned upstream iterator proof-support sorry; the qualified source uses String::as_bytes, not StringIter."
+
+[[warning_inventory]]
+id = "aeneas-tactic-step-star"
+artifact = "formal/.lake/packages/aeneas/backends/lean/Aeneas/Tactic/Step/StepStar.lean"
+upstream_lines = [521, 610, 650, 778]
+classification = "Pinned upstream tactic proof holes; documented guard-message examples are excluded as comments, and audited Auths declarations are separately required to have zero transitive sorryAx dependencies."
+
+[[warning_inventory]]
+id = "aeneas-meta-utils"
+artifact = "formal/.lake/packages/aeneas/backends/lean/AeneasMeta/Utils.lean"
+upstream_lines = [1344]
+classification = "Pinned upstream meta proof hole; comments and diagnostic strings are excluded, and audited Auths declarations are separately required to have zero transitive sorryAx dependencies."
 
 [[translations]]
 crate_name = "auths_model"

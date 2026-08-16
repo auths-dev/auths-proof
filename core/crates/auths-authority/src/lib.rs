@@ -10,18 +10,24 @@ use auths_algebra_kernel::{
     AttenuationChecks, RootLinkage, attenuation_checks_accept, root_preserved,
 };
 use auths_model::{
-    ActionAuthorityView, ActionConstraint, ActionEnvelope, AssurancePolicyId, AudienceSet,
-    BudgetCeiling, CriticalExtensions, DenialReason, GrantAuthorityView, GrantId, GrantStatement,
-    PermissionSet, PrincipalId, ProfileBudgetExpression, ProfileRef, ScopeAuthorityView,
-    StatusPolicy, TrustAnchor, ValidityWindow, action_authority_view, action_constraint_allows,
-    action_constraint_attenuates, assurance_policy_id_equal, audience_set_contains,
-    audience_set_is_subset, budget_ceiling_covers_action, critical_extensions_equal,
-    grant_authority_view, optional_budget_attenuates, optional_grant_id_equal,
-    permission_set_contains, permission_set_is_subset, principal_id_equal, profile_ref_equal,
-    profile_slice_contains, status_policy_attenuates, validity_window_contains,
+    AcceptedRegistries, ActionAuthorityView, ActionConstraint, ActionEnvelope, AssurancePolicyId,
+    AudienceSet, BudgetCeiling, CriticalExtensions, DenialReason, GrantAuthorityView, GrantId,
+    GrantStatement, PermissionSet, PrincipalId, ProfileBudgetExpression, ProfileRef,
+    ScopeAuthorityView, StatusPolicy, TrustAnchor, ValidityWindow, action_authority_view,
+    action_constraint_allows, action_constraint_attenuates, assurance_policy_id_equal,
+    audience_set_contains, audience_set_is_subset, budget_ceiling_covers_action,
+    critical_extensions_equal, grant_authority_view, optional_budget_attenuates,
+    optional_grant_id_equal, permission_set_contains, permission_set_is_subset, principal_id_equal,
+    profile_ref_equal, profile_slice_contains, status_policy_attenuates, validity_window_contains,
 };
 
 /// Authority accumulated while walking one root-to-terminal grant chain.
+///
+/// Raw state views are intentionally not part of the public API:
+///
+/// ```compile_fail
+/// use auths_authority::AuthorityStateView;
+/// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EffectiveAuthority {
     root: PrincipalId,
@@ -107,24 +113,24 @@ pub enum AuthorScopeDecision {
 /// Lossless borrowed projection of accumulated authority state.
 #[doc(hidden)]
 #[derive(Clone, Copy, Debug)]
-pub struct AuthorityStateView<'a> {
+pub(crate) struct AuthorityStateView<'a> {
     /// Trust root this authority is anchored at. Every accepted delegation
     /// copies it forward unchanged, so it is the identity a chain must still
     /// descend from after any number of edges.
-    pub root: &'a PrincipalId,
-    pub subject: &'a PrincipalId,
-    pub allowed_profiles: &'a [ProfileRef],
-    pub profile: Option<&'a ProfileRef>,
-    pub permissions: &'a PermissionSet,
-    pub validity: ValidityWindow,
-    pub audiences: &'a AudienceSet,
-    pub action_constraint: &'a ActionConstraint,
-    pub budget_ceiling: Option<&'a BudgetCeiling>,
-    pub remaining_depth: u16,
-    pub last_grant: Option<GrantId>,
-    pub assurance_policy: &'a AssurancePolicyId,
-    pub status_policy: &'a StatusPolicy,
-    pub extensions: Option<&'a CriticalExtensions>,
+    root: &'a PrincipalId,
+    subject: &'a PrincipalId,
+    allowed_profiles: &'a [ProfileRef],
+    profile: Option<&'a ProfileRef>,
+    permissions: &'a PermissionSet,
+    validity: ValidityWindow,
+    audiences: &'a AudienceSet,
+    action_constraint: &'a ActionConstraint,
+    budget_ceiling: Option<&'a BudgetCeiling>,
+    remaining_depth: u16,
+    last_grant: Option<GrantId>,
+    assurance_policy: &'a AssurancePolicyId,
+    status_policy: &'a StatusPolicy,
+    extensions: Option<&'a CriticalExtensions>,
 }
 
 /// Borrowed principal whose equality is the canonical protocol comparison.
@@ -262,7 +268,7 @@ pub fn evaluate_grant<'grant>(
 /// Pure authority-kernel evaluation over lossless validated-model views.
 #[doc(hidden)]
 #[must_use]
-pub fn evaluate_grant_view<'grant>(
+pub(crate) fn evaluate_grant_view<'grant>(
     parent: AuthorityStateView<'_>,
     grant_id: GrantId,
     grant: GrantAuthorityView<'grant>,
@@ -332,7 +338,7 @@ pub fn evaluate_grant_view<'grant>(
 /// first-failure diagnostics used by [`EffectiveAuthority::authorizes`].
 #[doc(hidden)]
 #[must_use]
-pub fn evaluate_action_coverage(
+fn evaluate_action_coverage(
     authority: &EffectiveAuthority,
     action: &ActionEnvelope,
     expression: ProfileBudgetExpression,
@@ -347,7 +353,7 @@ pub fn evaluate_action_coverage(
 /// Pure terminal-coverage evaluation over lossless validated-model views.
 #[doc(hidden)]
 #[must_use]
-pub fn evaluate_action_coverage_view(
+pub(crate) fn evaluate_action_coverage_view(
     authority: AuthorityStateView<'_>,
     action: ActionAuthorityView<'_>,
     expression: ProfileBudgetExpression,
@@ -393,7 +399,7 @@ pub fn evaluate_action_coverage_view(
 /// Projects exactly the accumulated fields consumed by authority decisions.
 #[doc(hidden)]
 #[must_use]
-pub fn authority_state_view(authority: &EffectiveAuthority) -> AuthorityStateView<'_> {
+pub(crate) fn authority_state_view(authority: &EffectiveAuthority) -> AuthorityStateView<'_> {
     AuthorityStateView {
         root: &authority.root,
         subject: &authority.subject,
@@ -468,16 +474,15 @@ impl EffectiveAuthority {
     /// # Errors
     ///
     /// Returns the first stable authority failure in protocol order.
-    /// `expression` states whether the action's profile is able to declare a
-    /// requested budget at all; the caller resolves it from its trusted
-    /// registry selection. [`ProfileBudgetExpression::Expressible`] — the
-    /// default — keeps an absent request unknown and therefore uncovered by a
-    /// bounded ceiling.
+    /// Budget expressibility is resolved inside this boundary from the exact
+    /// action profile and the caller's accepted registry set. Callers cannot
+    /// supply a naked expression that reclassifies an absent request.
     pub fn authorizes(
         &self,
         action: &ActionEnvelope,
-        expression: ProfileBudgetExpression,
+        registries: &AcceptedRegistries,
     ) -> Result<(), DenialReason> {
+        let expression = registries.profile_budget_expression(action.profile());
         match evaluate_action_coverage(self, action, expression) {
             CoverageDecision::Authorized => Ok(()),
             CoverageDecision::Denied(reason) => Err(reason),
@@ -502,8 +507,10 @@ mod tests {
     use super::*;
     use alloc::vec;
     use auths_model::{
-        ActionAuthorityView, Audience, CapabilityId, CriticalExtension, CriticalExtensions,
-        ExtensionId, PrincipalMethodId, ProfileId, ResourceId, Timestamp, TrustAnchorId,
+        ActionAuthorityView, Audience, CapabilityId, Challenge, ChannelBindingId,
+        CriticalExtension, CriticalExtensions, ExtensionId, MediaType, PlanId, PrincipalMethodId,
+        ProfileId, ProfilePolicyId, ProofRef, RegistryManifestId, ResourceId, ResourceMatcherId,
+        SignatureSuiteId, Timestamp, TrustAnchorId,
     };
 
     fn profile(name: &str) -> ProfileRef {
@@ -711,10 +718,123 @@ mod tests {
         );
     }
 
+    /// A present grant id is only a representation marker. This counterexample
+    /// records why raw views must stay crate-private and why formal historical
+    /// claims require `AnchoredChain`: if arbitrary construction were public,
+    /// matching a forged marker would pass the raw evaluator.
+    #[test]
+    fn forged_present_marker_demonstrates_why_raw_views_are_sealed() {
+        let anchor = anchor();
+        let root = PrincipalId::parse("did:key:root").expect("root");
+        let forged = PrincipalId::parse("did:key:attacker").expect("attacker");
+        let permissions = permissions();
+        let audiences = audiences();
+        let profiles = [profile("profile-a"), profile("profile-b")];
+        let constraint = ActionConstraint::AnyBody;
+        let assurance = AssurancePolicyId::parse("assurance-v1").expect("assurance");
+        let status = StatusPolicy::ExpiryOnly;
+        let marker = GrantId::new([4; 32]);
+        let raw = AuthorityStateView {
+            root: &root,
+            subject: &forged,
+            allowed_profiles: &profiles,
+            profile: None,
+            permissions: &permissions,
+            validity: anchor.validity(),
+            audiences: &audiences,
+            action_constraint: &constraint,
+            budget_ceiling: None,
+            remaining_depth: 2,
+            last_grant: Some(marker),
+            assurance_policy: &assurance,
+            status_policy: &status,
+            extensions: None,
+        };
+        let statement = grant(
+            "did:key:attacker",
+            "did:key:victim",
+            "profile-a",
+            1,
+            Some(marker),
+        );
+        assert!(matches!(
+            evaluate_grant_view(raw, GrantId::new([5; 32]), grant_authority_view(&statement))
+                .outcome,
+            DelegationOutcome::Accepted(_)
+        ));
+    }
+
     fn numeric_budget(value: u64) -> BudgetCeiling {
         BudgetCeiling::new(
             auths_model::BudgetAlgebraId::parse("numeric-ceiling-v1").expect("algebra"),
             value,
+        )
+    }
+
+    fn accepted_registries(selected: &ProfileRef, budget_free: bool) -> AcceptedRegistries {
+        accepted_registries_for(
+            vec![selected.clone()],
+            if budget_free {
+                vec![selected.clone()]
+            } else {
+                Vec::new()
+            },
+        )
+    }
+
+    fn accepted_registries_for(
+        profiles: Vec<ProfileRef>,
+        budget_free_profiles: Vec<ProfileRef>,
+    ) -> AcceptedRegistries {
+        let registries = AcceptedRegistries::new(
+            RegistryManifestId::new([0x11; 32]),
+            vec![PrincipalMethodId::parse("raw-key-v1").expect("principal method")],
+            vec![SignatureSuiteId::parse("ed25519-v1").expect("signature suite")],
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            vec![ResourceMatcherId::parse("uri-namespace-v1").expect("resource matcher")],
+            Vec::new(),
+            Vec::new(),
+            profiles,
+            vec![ProfilePolicyId::parse("exact-v1").expect("profile policy")],
+        )
+        .expect("accepted registries");
+        if budget_free_profiles.is_empty() {
+            registries
+        } else {
+            registries
+                .with_budget_free_profiles(budget_free_profiles)
+                .expect("budget-free declaration")
+        }
+    }
+
+    fn action_envelope(
+        anchor: &TrustAnchor,
+        selected: ProfileRef,
+        requested_budget: Option<BudgetCeiling>,
+    ) -> ActionEnvelope {
+        ActionEnvelope::new(
+            selected,
+            MediaType::parse("application/vnd.auths.test.v1+cbor").expect("media type"),
+            auths_model::Digest::new([0; 32]),
+            auths_model::Permission::new(
+                CapabilityId::parse("deploy").expect("capability"),
+                ResourceId::parse("cluster://production").expect("resource"),
+            ),
+            requested_budget,
+            Audience::parse("cluster://production").expect("audience"),
+            Challenge::new([1; 32]),
+            anchor.validity(),
+            PrincipalId::parse("did:key:root").expect("actor"),
+            None,
+            PlanId::new([2; 32]),
+            ChannelBindingId::parse("none-v1").expect("channel binding"),
+            ProofRef::new([3; 32]),
+            Vec::new(),
+            CriticalExtensions::empty(),
         )
     }
 
@@ -763,45 +883,51 @@ mod tests {
     fn authorizes_denies_an_absent_request_under_a_bounded_ceiling() {
         let anchor = anchor_with_budget(Some(numeric_budget(10)));
         let authority = EffectiveAuthority::from_anchor(&anchor);
-        let actor = PrincipalId::parse("did:key:root").expect("root");
         let selected = profile("profile-a");
-        let permission = auths_model::Permission::new(
-            CapabilityId::parse("deploy").expect("capability"),
-            ResourceId::parse("cluster://production").expect("resource"),
-        );
-        let audience = Audience::parse("cluster://production").expect("audience");
-        let action = ActionAuthorityView {
-            profile: &selected,
-            canonical_body_digest: auths_model::Digest::new([0; 32]),
-            permission: &permission,
-            requested_budget: None,
-            audience: &audience,
-            validity: anchor.validity(),
-            actor: &actor,
-            terminal_grant: None,
-        };
+        let registries = accepted_registries(&selected, false);
+        let action = action_envelope(&anchor, selected.clone(), None);
         // A bounded request inside the ceiling is still authorized: the denial
         // above is specific to the absent request, not a blanket budget denial.
-        let requested = numeric_budget(5);
-        let bounded = ActionAuthorityView {
-            requested_budget: Some(&requested),
-            ..action
-        };
         assert_eq!(
-            evaluate_action_coverage_view(
-                authority_state_view(&authority),
-                bounded,
-                ProfileBudgetExpression::Expressible
+            authority.authorizes(
+                &action_envelope(&anchor, selected.clone(), Some(numeric_budget(5))),
+                &registries,
             ),
-            CoverageDecision::Authorized
+            Ok(())
         );
         assert_eq!(
-            evaluate_action_coverage_view(
-                authority_state_view(&authority),
-                action,
-                ProfileBudgetExpression::Expressible
-            ),
-            CoverageDecision::Denied(DenialReason::BudgetCeilingExceeded)
+            authority.authorizes(&action, &registries),
+            Err(DenialReason::BudgetCeilingExceeded)
+        );
+
+        let budget_free = accepted_registries(&selected, true);
+        assert_eq!(
+            authority.authorizes(&action, &budget_free),
+            Ok(()),
+            "only a registry declaration bound to the exact action profile may reclassify absence"
+        );
+    }
+
+    #[test]
+    fn authorizes_resolves_budget_expression_for_the_exact_action_profile() {
+        let anchor = anchor_with_budget(Some(numeric_budget(10)));
+        let authority = EffectiveAuthority::from_anchor(&anchor);
+        let budget_free = profile("profile-a");
+        let budget_capable = profile("profile-b");
+        let registries = accepted_registries_for(
+            vec![budget_free.clone(), budget_capable.clone()],
+            vec![budget_free.clone()],
+        );
+
+        assert_eq!(
+            authority.authorizes(&action_envelope(&anchor, budget_free, None), &registries),
+            Ok(()),
+            "the exact profile declared budget-free may omit a request"
+        );
+        assert_eq!(
+            authority.authorizes(&action_envelope(&anchor, budget_capable, None), &registries),
+            Err(DenialReason::BudgetCeilingExceeded),
+            "a different accepted profile must not inherit budget-free status"
         );
     }
 

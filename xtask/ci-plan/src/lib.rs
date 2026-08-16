@@ -1492,21 +1492,24 @@ pub fn formal_source_closure_json(
     translation_roots: &[String],
 ) -> Result<Value, String> {
     let semantic_cargo = semantic_formal_cargo_inputs(root, translation_roots)?;
+    for relative in paths {
+        validated_formal_source_path(root, relative)?;
+    }
     let mut ordered = paths.to_vec();
+    let authored_count = ordered.len();
     ordered.sort();
     ordered.dedup();
-    if ordered.len() != paths.len() {
+    if ordered.len() != authored_count {
         return Err("production translation source paths must be unique".to_owned());
     }
+    ordered.extend(local_formal_rust_source_paths(root, translation_roots)?);
+    ordered.sort();
+    ordered.dedup();
 
     let mut aggregate = Sha256::new();
     let mut entries = Vec::with_capacity(ordered.len());
     for relative in ordered {
         let (bytes, normalization) = match relative.as_str() {
-            "Cargo.toml" => (
-                semantic_cargo.workspace_manifest.as_slice(),
-                Some("translated-cargo-closure-v1"),
-            ),
             "Cargo.lock" => (
                 semantic_cargo.resolved_dependencies.as_slice(),
                 Some("translated-cargo-closure-v1"),
@@ -1548,8 +1551,226 @@ pub fn formal_source_closure_json(
     }))
 }
 
+fn validate_formal_source_path(relative: &str) -> Result<(), String> {
+    let path = Path::new(relative);
+    if relative.is_empty()
+        || path.is_absolute()
+        || path
+            .components()
+            .any(|component| !matches!(component, std::path::Component::Normal(_)))
+    {
+        return Err(format!(
+            "production translation source must be a normalized workspace-relative path: {relative}"
+        ));
+    }
+    Ok(())
+}
+
+fn validated_formal_source_path(root: &Path, relative: &str) -> Result<PathBuf, String> {
+    validate_formal_source_path(relative)?;
+    let unresolved = root.join(relative);
+    let metadata = fs::symlink_metadata(&unresolved).map_err(|error| {
+        format!(
+            "could not stat production translation source {}: {error}",
+            unresolved.display()
+        )
+    })?;
+    if !metadata.file_type().is_file() || metadata.file_type().is_symlink() {
+        return Err(format!(
+            "production translation source is not a regular non-symlink file: {relative}"
+        ));
+    }
+    let workspace = fs::canonicalize(root)
+        .map_err(|error| format!("could not resolve workspace root: {error}"))?;
+    let resolved = fs::canonicalize(&unresolved).map_err(|error| {
+        format!(
+            "could not resolve production translation source {}: {error}",
+            unresolved.display()
+        )
+    })?;
+    if !resolved.starts_with(workspace) {
+        return Err(format!(
+            "production translation source escapes workspace: {relative}"
+        ));
+    }
+    Ok(resolved)
+}
+
+/// Conservatively closes the local Rust source side of the formal boundary.
+///
+/// Charon follows Rust modules through the compiler, whereas the original
+/// evidence list was hand-maintained.  A newly imported `mod policy;` could
+/// therefore influence the generated Lean without appearing in the recorded
+/// source closure.  Include every Rust source in every local package reachable
+/// from a translation root, plus the complete xtask/control-plane packages.
+/// This is intentionally broader than module parsing: every regular package
+/// file is bound, including `include_str!`/`include_bytes!` inputs and
+/// build-script data. Unused files may cause a harmless digest change, but a
+/// compiler-visible local input cannot be missed.
+fn local_formal_rust_source_paths(
+    root: &Path,
+    translation_roots: &[String],
+) -> Result<Vec<String>, String> {
+    let output = ProcessCommand::new("cargo")
+        .args(["metadata", "--locked", "--format-version", "1"])
+        .current_dir(root)
+        .output()
+        .map_err(|error| format!("could not run cargo metadata: {error}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "cargo metadata failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+    let metadata: Value = serde_json::from_slice(&output.stdout)
+        .map_err(|error| format!("invalid cargo metadata: {error}"))?;
+    local_formal_rust_source_paths_from_values(root, &metadata, translation_roots)
+}
+
+fn local_formal_rust_source_paths_from_values(
+    root: &Path,
+    metadata: &Value,
+    translation_roots: &[String],
+) -> Result<Vec<String>, String> {
+    let packages = metadata["packages"]
+        .as_array()
+        .ok_or("cargo metadata omits packages")?;
+    let mut ids_by_name: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    let mut package_by_id = BTreeMap::new();
+    for package in packages {
+        let id = required_json_string(package, "id")?.to_owned();
+        let name = required_json_string(package, "name")?.to_owned();
+        ids_by_name.entry(name).or_default().insert(id.clone());
+        package_by_id.insert(id, package);
+    }
+    let nodes = metadata["resolve"]["nodes"]
+        .as_array()
+        .ok_or("cargo metadata omits resolve.nodes")?;
+    let mut dependencies = BTreeMap::new();
+    for node in nodes {
+        let id = required_json_string(node, "id")?.to_owned();
+        let deps = node["dependencies"]
+            .as_array()
+            .ok_or("cargo metadata node omits dependencies")?
+            .iter()
+            .map(|dependency| {
+                dependency
+                    .as_str()
+                    .ok_or_else(|| "cargo dependency ID is not a string".to_owned())
+                    .map(str::to_owned)
+            })
+            .collect::<Result<BTreeSet<_>, _>>()?;
+        dependencies.insert(id, deps);
+    }
+
+    let mut root_names = translation_roots.to_vec();
+    root_names.sort();
+    root_names.dedup();
+    let mut root_ids = BTreeSet::new();
+    for name in root_names {
+        let package_name = name.replace('_', "-");
+        let ids = ids_by_name
+            .get(&package_name)
+            .ok_or_else(|| format!("formal source root package is absent: {name}"))?;
+        if ids.len() != 1 {
+            return Err(format!(
+                "formal source root package {name} resolves to {} package IDs",
+                ids.len()
+            ));
+        }
+        root_ids.extend(ids.iter().cloned());
+    }
+
+    let mut closure = graph_closure(&root_ids, &dependencies);
+    // The control plane is itself assurance-relevant, but its many unrelated
+    // workspace dependencies are not translation inputs. Bind both complete
+    // package trees without pulling every adapter/test fixture in the
+    // workspace into the production semantic closure.
+    for name in ["auths-ci-plan", "xtask"] {
+        let ids = ids_by_name
+            .get(name)
+            .ok_or_else(|| format!("formal control package is absent: {name}"))?;
+        if ids.len() != 1 {
+            return Err(format!(
+                "formal control package {name} resolves to {} package IDs",
+                ids.len()
+            ));
+        }
+        closure.extend(ids.iter().cloned());
+    }
+    let mut sources = BTreeSet::new();
+    for id in closure {
+        let package = package_by_id
+            .get(&id)
+            .ok_or_else(|| format!("resolved dependency package is absent: {id}"))?;
+        let manifest = PathBuf::from(required_json_string(package, "manifest_path")?);
+        let Some(relative_manifest) = local_manifest_relative_path(root, package, &manifest)?
+        else {
+            continue;
+        };
+        sources.insert(relative_manifest.to_string_lossy().replace('\\', "/"));
+        let package_root = manifest
+            .parent()
+            .ok_or_else(|| format!("package manifest has no parent: {}", manifest.display()))?;
+        collect_package_sources(root, package_root, &mut sources)?;
+    }
+    Ok(sources.into_iter().collect())
+}
+
+fn local_manifest_relative_path<'a>(
+    root: &'a Path,
+    package: &Value,
+    manifest: &'a Path,
+) -> Result<Option<&'a Path>, String> {
+    match manifest.strip_prefix(root) {
+        Ok(relative) => Ok(Some(relative)),
+        Err(_) if package["source"].is_null() => Err(format!(
+            "local path dependency escapes the formal workspace source closure: {}",
+            manifest.display()
+        )),
+        Err(_) => Ok(None),
+    }
+}
+
+fn collect_package_sources(
+    workspace_root: &Path,
+    directory: &Path,
+    sources: &mut BTreeSet<String>,
+) -> Result<(), String> {
+    for entry in fs::read_dir(directory)
+        .map_err(|error| format!("could not read {}: {error}", directory.display()))?
+    {
+        let entry = entry
+            .map_err(|error| format!("could not read entry in {}: {error}", directory.display()))?;
+        let path = entry.path();
+        let file_type = entry
+            .file_type()
+            .map_err(|error| format!("could not stat {}: {error}", path.display()))?;
+        if file_type.is_symlink() {
+            return Err(format!(
+                "local formal package source contains a symlink: {}",
+                path.display()
+            ));
+        }
+        if file_type.is_dir() {
+            let name = entry.file_name();
+            if name != "target" && name != ".git" {
+                collect_package_sources(workspace_root, &path, sources)?;
+            }
+        } else if file_type.is_file() {
+            let relative = path.strip_prefix(workspace_root).map_err(|_| {
+                format!(
+                    "local formal Rust source escapes workspace: {}",
+                    path.display()
+                )
+            })?;
+            sources.insert(relative.to_string_lossy().replace('\\', "/"));
+        }
+    }
+    Ok(())
+}
+
 struct SemanticCargoInputs {
-    workspace_manifest: Vec<u8>,
     resolved_dependencies: Vec<u8>,
 }
 
@@ -1572,8 +1793,14 @@ fn semantic_formal_cargo_inputs(
         .map_err(|error| format!("invalid cargo metadata: {error}"))?;
     let mut semantic_roots = translation_roots.to_vec();
     semantic_roots.push("auths-ci-plan".to_owned());
+    semantic_roots.push("xtask".to_owned());
     semantic_roots.sort();
     semantic_roots.dedup();
+    let cargo_lock = parse_toml(
+        &fs::read(root.join("Cargo.lock"))
+            .map_err(|error| format!("could not read Cargo.lock: {error}"))?,
+        "Cargo.lock",
+    )?;
     semantic_formal_cargo_inputs_from_values(
         root,
         &metadata,
@@ -1582,6 +1809,7 @@ fn semantic_formal_cargo_inputs(
                 .map_err(|error| format!("could not read Cargo.toml: {error}"))?,
             "Cargo.toml",
         )?,
+        &cargo_lock,
         &semantic_roots,
     )
 }
@@ -1589,7 +1817,8 @@ fn semantic_formal_cargo_inputs(
 fn semantic_formal_cargo_inputs_from_values(
     root: &Path,
     metadata: &Value,
-    workspace_manifest: &toml::Value,
+    _workspace_manifest: &toml::Value,
+    cargo_lock: &toml::Value,
     translation_roots: &[String],
 ) -> Result<SemanticCargoInputs, String> {
     let packages = metadata["packages"]
@@ -1639,13 +1868,6 @@ fn semantic_formal_cargo_inputs_from_values(
         roots.extend(ids.iter().cloned());
     }
     let closure = graph_closure(&roots, &dependencies);
-    let closure_names: BTreeSet<_> = closure
-        .iter()
-        .filter_map(|id| package_by_id.get(id))
-        .filter_map(|package| package["name"].as_str())
-        .map(str::to_owned)
-        .collect();
-
     let mut normalized_packages = Vec::new();
     for id in &closure {
         let package = package_by_id
@@ -1671,52 +1893,83 @@ fn semantic_formal_cargo_inputs_from_values(
             .ok_or("cargo metadata node omits enabled features")?
             .clone();
         enabled_features.sort_by_key(canonical_json);
+        let mut resolved_dependencies = dependencies
+            .get(id)
+            .ok_or_else(|| format!("resolved dependency edges are absent: {id}"))?
+            .iter()
+            .map(|dependency_id| {
+                let dependency = package_by_id.get(dependency_id).ok_or_else(|| {
+                    format!("resolved dependency package is absent: {dependency_id}")
+                })?;
+                normalized_package_identity(root, dependency)
+            })
+            .collect::<Result<Vec<_>, String>>()?;
+        resolved_dependencies.sort_by_key(canonical_json);
+        let locked = normalized_lock_identity(cargo_lock, package)?;
         normalized_packages.push(serde_json::json!({
             "name": package["name"],
             "version": package["version"],
             "source": package["source"],
             "manifest": normalized_manifest,
+            "locked": locked,
             "dependencies": package_dependencies,
+            "resolved_dependencies": resolved_dependencies,
             "enabled_features": enabled_features,
         }));
     }
     normalized_packages.sort_by_key(canonical_json);
 
-    let workspace = workspace_manifest
-        .get("workspace")
-        .and_then(toml::Value::as_table)
-        .ok_or("Cargo.toml omits [workspace]")?;
-    let workspace_package = workspace
-        .get("package")
-        .cloned()
-        .unwrap_or_else(|| toml::Value::Table(toml::map::Map::new()));
-    let mut relevant_workspace_dependencies = toml::map::Map::new();
-    if let Some(dependencies) = workspace
-        .get("dependencies")
-        .and_then(toml::Value::as_table)
-    {
-        for (key, value) in dependencies {
-            let package_name = value
-                .get("package")
-                .and_then(toml::Value::as_str)
-                .unwrap_or(key);
-            if closure_names.contains(package_name) {
-                relevant_workspace_dependencies.insert(key.clone(), value.clone());
-            }
-        }
-    }
-    let normalized_workspace = serde_json::json!({
-        "workspace_package": workspace_package,
-        "workspace_dependencies": relevant_workspace_dependencies,
-    });
     Ok(SemanticCargoInputs {
-        workspace_manifest: canonical_json(&normalized_workspace).into_bytes(),
         resolved_dependencies: canonical_json(&serde_json::json!({
             "translation_roots": translation_roots,
             "packages": normalized_packages,
         }))
         .into_bytes(),
     })
+}
+
+fn normalized_package_identity(root: &Path, package: &Value) -> Result<Value, String> {
+    let manifest_path = PathBuf::from(required_json_string(package, "manifest_path")?);
+    let manifest = manifest_path
+        .strip_prefix(root)
+        .map(|path| path.to_string_lossy().replace('\\', "/"))
+        .unwrap_or_else(|_| "<registry-or-git>".to_owned());
+    Ok(serde_json::json!({
+        "name": required_json_string(package, "name")?,
+        "version": required_json_string(package, "version")?,
+        "source": package["source"],
+        "manifest": manifest,
+    }))
+}
+
+fn normalized_lock_identity(cargo_lock: &toml::Value, package: &Value) -> Result<Value, String> {
+    let name = required_json_string(package, "name")?;
+    let version = required_json_string(package, "version")?;
+    let source = package["source"].as_str();
+    let entries = cargo_lock
+        .get("package")
+        .and_then(toml::Value::as_array)
+        .ok_or("Cargo.lock omits [[package]] entries")?;
+    let matches = entries
+        .iter()
+        .filter(|entry| {
+            entry.get("name").and_then(toml::Value::as_str) == Some(name)
+                && entry.get("version").and_then(toml::Value::as_str) == Some(version)
+                && entry.get("source").and_then(toml::Value::as_str) == source
+        })
+        .collect::<Vec<_>>();
+    if matches.len() != 1 {
+        return Err(format!(
+            "Cargo.lock has {} exact entries for resolved package {name} {version} {:?}",
+            matches.len(),
+            source
+        ));
+    }
+    let entry = matches[0];
+    Ok(serde_json::json!({
+        "source": entry.get("source").and_then(toml::Value::as_str),
+        "checksum": entry.get("checksum").and_then(toml::Value::as_str),
+    }))
 }
 
 fn normalize_dependency(value: &Value) -> Result<Value, String> {
@@ -1972,12 +2225,20 @@ unrelated = "9"
         .expect("valid manifest");
         let first = formal_metadata("1.0.0", "9.0.0");
         let second = formal_metadata("1.0.0", "10.0.0");
+        let first_lock = formal_lock("1.0.0", "serde-a", "9.0.0", "unrelated-a");
+        let second_lock = formal_lock("1.0.0", "serde-a", "10.0.0", "unrelated-b");
         let roots = ["auths-model".to_owned()];
-        let first = semantic_formal_cargo_inputs_from_values(root, &first, &manifest, &roots)
-            .expect("first closure");
-        let second = semantic_formal_cargo_inputs_from_values(root, &second, &manifest, &roots)
-            .expect("second closure");
-        assert_eq!(first.workspace_manifest, second.workspace_manifest);
+        let first =
+            semantic_formal_cargo_inputs_from_values(root, &first, &manifest, &first_lock, &roots)
+                .expect("first closure");
+        let second = semantic_formal_cargo_inputs_from_values(
+            root,
+            &second,
+            &manifest,
+            &second_lock,
+            &roots,
+        )
+        .expect("second closure");
         assert_eq!(first.resolved_dependencies, second.resolved_dependencies);
     }
 
@@ -1996,6 +2257,7 @@ serde = "1"
             root,
             &formal_metadata("1.0.0", "9.0.0"),
             &manifest,
+            &formal_lock("1.0.0", "serde-a", "9.0.0", "unrelated-a"),
             &roots,
         )
         .expect("first closure");
@@ -2003,10 +2265,211 @@ serde = "1"
             root,
             &formal_metadata("2.0.0", "9.0.0"),
             &manifest,
+            &formal_lock("2.0.0", "serde-b", "9.0.0", "unrelated-a"),
             &roots,
         )
         .expect("second closure");
         assert_ne!(first.resolved_dependencies, second.resolved_dependencies);
+    }
+
+    #[test]
+    fn translated_lock_checksum_change_drifts_but_unrelated_checksum_does_not() {
+        let root = Path::new("/repo");
+        let manifest: toml::Value =
+            toml::from_str("[workspace]\n[workspace.dependencies]\nserde = '1'\n")
+                .expect("valid manifest");
+        let metadata = formal_metadata("1.0.0", "9.0.0");
+        let roots = ["auths-model".to_owned()];
+        let baseline = semantic_formal_cargo_inputs_from_values(
+            root,
+            &metadata,
+            &manifest,
+            &formal_lock("1.0.0", "serde-a", "9.0.0", "unrelated-a"),
+            &roots,
+        )
+        .expect("baseline closure");
+        let unrelated = semantic_formal_cargo_inputs_from_values(
+            root,
+            &metadata,
+            &manifest,
+            &formal_lock("1.0.0", "serde-a", "9.0.0", "unrelated-b"),
+            &roots,
+        )
+        .expect("unrelated closure");
+        let relevant = semantic_formal_cargo_inputs_from_values(
+            root,
+            &metadata,
+            &manifest,
+            &formal_lock("1.0.0", "serde-b", "9.0.0", "unrelated-a"),
+            &roots,
+        )
+        .expect("relevant closure");
+        assert_eq!(
+            baseline.resolved_dependencies,
+            unrelated.resolved_dependencies
+        );
+        assert_ne!(
+            baseline.resolved_dependencies,
+            relevant.resolved_dependencies
+        );
+    }
+
+    #[test]
+    fn resolved_dependency_edge_change_drifts_even_when_package_set_is_unchanged() {
+        let root = Path::new("/repo");
+        let manifest: toml::Value =
+            toml::from_str("[workspace]\n[workspace.dependencies]\nserde = '1'\n")
+                .expect("valid manifest");
+        let mut baseline_metadata = formal_metadata("1.0.0", "9.0.0");
+        baseline_metadata["resolve"]["nodes"][0]["dependencies"] =
+            serde_json::json!(["registry+serde#1.0.0", "registry+unrelated#9.0.0"]);
+        let mut changed_metadata = baseline_metadata.clone();
+        changed_metadata["resolve"]["nodes"][1]["dependencies"] =
+            serde_json::json!(["registry+unrelated#9.0.0"]);
+        let lock = formal_lock("1.0.0", "serde-a", "9.0.0", "unrelated-a");
+        let roots = ["auths-model".to_owned()];
+        let baseline = semantic_formal_cargo_inputs_from_values(
+            root,
+            &baseline_metadata,
+            &manifest,
+            &lock,
+            &roots,
+        )
+        .expect("baseline graph");
+        let changed = semantic_formal_cargo_inputs_from_values(
+            root,
+            &changed_metadata,
+            &manifest,
+            &lock,
+            &roots,
+        )
+        .expect("changed graph");
+        assert_ne!(
+            baseline.resolved_dependencies,
+            changed.resolved_dependencies
+        );
+    }
+
+    #[test]
+    fn local_rust_source_closure_finds_new_modules_and_control_plane_sources() {
+        let unique = format!(
+            "auths-proof-source-closure-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("clock after epoch")
+                .as_nanos()
+        );
+        let root = env::temp_dir().join(unique);
+        let packages = [
+            ("auths-model", "core/auths-model"),
+            ("auths-ci-plan", "xtask/ci-plan"),
+            ("xtask", "xtask"),
+        ];
+        for (_, relative) in packages {
+            let package = root.join(relative);
+            fs::create_dir_all(package.join("src")).expect("package source directory");
+            fs::write(package.join("Cargo.toml"), "[package]\nname='fixture'\n")
+                .expect("fixture manifest");
+            fs::write(package.join("src/lib.rs"), "pub fn present() {}\n").expect("fixture source");
+        }
+        fs::write(
+            root.join("core/auths-model/src/policy.rs"),
+            "pub const POLICY: &[u8] = include_bytes!(\"policy.dat\");\n",
+        )
+        .expect("new imported module");
+        fs::write(root.join("core/auths-model/src/policy.dat"), b"deny\n")
+            .expect("included policy data");
+        fs::write(root.join("xtask/src/main.rs"), "fn main() {}\n").expect("xtask dispatcher");
+
+        let package_json = |name: &str, relative: &str| {
+            let id = format!("path+file://fixture/{name}#1.0.0");
+            serde_json::json!({
+                "id": id,
+                "name": name,
+                "manifest_path": root.join(relative).join("Cargo.toml"),
+            })
+        };
+        let packages_json = packages
+            .iter()
+            .map(|(name, relative)| package_json(name, relative))
+            .collect::<Vec<_>>();
+        let nodes = packages
+            .iter()
+            .map(|(name, _)| {
+                serde_json::json!({
+                    "id": format!("path+file://fixture/{name}#1.0.0"),
+                    "dependencies": [],
+                })
+            })
+            .collect::<Vec<_>>();
+        let metadata = serde_json::json!({
+            "packages": packages_json,
+            "resolve": { "nodes": nodes },
+        });
+        let paths = local_formal_rust_source_paths_from_values(
+            &root,
+            &metadata,
+            &["auths_model".to_owned()],
+        )
+        .expect("derived local source closure");
+        assert!(paths.contains(&"core/auths-model/src/policy.rs".to_owned()));
+        assert!(paths.contains(&"core/auths-model/src/policy.dat".to_owned()));
+        assert!(paths.contains(&"xtask/src/main.rs".to_owned()));
+        assert!(paths.contains(&"xtask/ci-plan/src/lib.rs".to_owned()));
+
+        fs::remove_dir_all(&root).expect("remove owned fixture directory");
+    }
+
+    #[test]
+    fn formal_source_paths_and_external_local_dependencies_fail_closed() {
+        for unsafe_path in ["", ".", "../outside", "/etc/passwd"] {
+            assert!(validate_formal_source_path(unsafe_path).is_err());
+        }
+        validate_formal_source_path("core/crates/auths-model/src/lib.rs")
+            .expect("normalized workspace path");
+
+        let root = Path::new("/workspace");
+        let external = Path::new("/external/auths-local/Cargo.toml");
+        let local_package = serde_json::json!({
+            "name": "auths-local",
+            "source": null,
+            "manifest_path": external,
+        });
+        assert!(local_manifest_relative_path(root, &local_package, external).is_err());
+
+        let registry_package = serde_json::json!({
+            "name": "serde",
+            "source": "registry+https://github.com/rust-lang/crates.io-index",
+            "manifest_path": "/registry/serde/Cargo.toml",
+        });
+        assert_eq!(
+            local_manifest_relative_path(
+                root,
+                &registry_package,
+                Path::new("/registry/serde/Cargo.toml")
+            )
+            .expect("registry dependency is lock-bound"),
+            None
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn authored_formal_source_symlink_is_rejected() {
+        let unique = format!("auths-source-symlink-{}", std::process::id());
+        let root = env::temp_dir().join(unique);
+        fs::create_dir_all(&root).expect("owned fixture root");
+        let outside = env::temp_dir().join(format!(
+            "auths-source-symlink-target-{}",
+            std::process::id()
+        ));
+        fs::write(&outside, "boundary\n").expect("outside fixture");
+        std::os::unix::fs::symlink(&outside, root.join("source.rs")).expect("source symlink");
+        assert!(validated_formal_source_path(&root, "source.rs").is_err());
+        fs::remove_file(root.join("source.rs")).expect("remove fixture symlink");
+        fs::remove_file(outside).expect("remove fixture target");
+        fs::remove_dir(root).expect("remove fixture root");
     }
 
     #[test]
@@ -2130,5 +2593,34 @@ serde = "1"
                 ]
             }
         })
+    }
+
+    fn formal_lock(
+        serde_version: &str,
+        serde_checksum: &str,
+        unrelated_version: &str,
+        unrelated_checksum: &str,
+    ) -> toml::Value {
+        toml::from_str(&format!(
+            r#"version = 4
+
+[[package]]
+name = "auths-model"
+version = "0.1.0"
+
+[[package]]
+name = "serde"
+version = "{serde_version}"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "{serde_checksum}"
+
+[[package]]
+name = "unrelated"
+version = "{unrelated_version}"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "{unrelated_checksum}"
+"#
+        ))
+        .expect("valid fixture Cargo.lock")
     }
 }

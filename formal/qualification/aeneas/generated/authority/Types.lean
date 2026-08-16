@@ -146,7 +146,7 @@ inductive auths_model.DenialReason where
 | LocalPolicyDenied : auths_model.DenialReason
 
 /-- [auths_authority::AcceptedTransition]
-    Source: 'core/crates/auths-authority/src/lib.rs', lines 46:0-58:1
+    Source: 'core/crates/auths-authority/src/lib.rs', lines 52:0-64:1
     Visibility: public -/
 structure AcceptedTransition where
   subject : auths_model.PrincipalId
@@ -162,7 +162,7 @@ structure AcceptedTransition where
   extensions : auths_model.CriticalExtensions
 
 /-- [auths_authority::DelegationOutcome]
-    Source: 'core/crates/auths-authority/src/lib.rs', lines 63:0-66:1
+    Source: 'core/crates/auths-authority/src/lib.rs', lines 69:0-72:1
     Visibility: public -/
 @[discriminant isize]
 inductive DelegationOutcome where
@@ -170,14 +170,14 @@ inductive DelegationOutcome where
 | Denied : auths_model.DenialReason → DelegationOutcome
 
 /-- [auths_authority::DelegationEvaluation]
-    Source: 'core/crates/auths-authority/src/lib.rs', lines 71:0-74:1
+    Source: 'core/crates/auths-authority/src/lib.rs', lines 77:0-80:1
     Visibility: public -/
 structure DelegationEvaluation where
   checks : auths_algebra_kernel.generated.AttenuationChecks
   outcome : DelegationOutcome
 
 /-- [auths_authority::CoverageDecision]
-    Source: 'core/crates/auths-authority/src/lib.rs', lines 79:0-82:1
+    Source: 'core/crates/auths-authority/src/lib.rs', lines 85:0-88:1
     Visibility: public -/
 @[discriminant isize]
 inductive CoverageDecision where
@@ -185,7 +185,7 @@ inductive CoverageDecision where
 | Denied : auths_model.DenialReason → CoverageDecision
 
 /-- [auths_authority::AuthorityDimension]
-    Source: 'core/crates/auths-authority/src/lib.rs', lines 86:0-97:1
+    Source: 'core/crates/auths-authority/src/lib.rs', lines 92:0-103:1
     Visibility: public -/
 @[discriminant isize]
 inductive AuthorityDimension where
@@ -201,7 +201,7 @@ inductive AuthorityDimension where
 | Extensions : AuthorityDimension
 
 /-- [auths_authority::AuthorScopeDecision]
-    Source: 'core/crates/auths-authority/src/lib.rs', lines 102:0-105:1
+    Source: 'core/crates/auths-authority/src/lib.rs', lines 108:0-111:1
     Visibility: public -/
 @[discriminant isize]
 inductive AuthorScopeDecision where
@@ -209,8 +209,7 @@ inductive AuthorScopeDecision where
 | Denied : AuthorityDimension → AuthorScopeDecision
 
 /-- [auths_authority::AuthorityStateView]
-    Source: 'core/crates/auths-authority/src/lib.rs', lines 110:0-128:1
-    Visibility: public -/
+    Source: 'core/crates/auths-authority/src/lib.rs', lines 116:0-134:1 -/
 structure AuthorityStateView where
   root : auths_model.PrincipalId
   subject : auths_model.PrincipalId
@@ -228,7 +227,7 @@ structure AuthorityStateView where
   extensions : Option auths_model.CriticalExtensions
 
 /-- [auths_authority::CanonicalPrincipal]
-    Source: 'core/crates/auths-authority/src/lib.rs', lines 137:0-137:47 -/
+    Source: 'core/crates/auths-authority/src/lib.rs', lines 143:0-143:47 -/
 @[reducible]
 def CanonicalPrincipal := auths_model.PrincipalId
 

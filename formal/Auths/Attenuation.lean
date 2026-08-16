@@ -27,8 +27,7 @@ content exactly because `rootPreserved` is decided from `parent.root`,
 theorem attenuation_requires_trust_root {v : Vocabulary}
     (parent : ChainState v) (grant : Grant v)
     (accepted :
-      Auths.Generated.attenuationAccepts
-        (delegationProjection parent grant) = true) :
+      certifiedAccepts (delegationProjection parent grant) = true) :
     rootPreserved parent grant :=
   ((rich_projection_accepts_iff_root_and_scope_depth_checks
     parent grant).1 accepted).1
@@ -40,8 +39,7 @@ whole projection no matter what the other ten dimensions report.
 theorem attenuation_denied_when_root_broken {v : Vocabulary}
     (parent : ChainState v) (grant : Grant v)
     (broken : ¬ rootPreserved parent grant) :
-    Auths.Generated.attenuationAccepts
-      (delegationProjection parent grant) = false :=
+    certifiedAccepts (delegationProjection parent grant) = false :=
   broken_root_denies_every_projection parent grant broken
 
 /--
@@ -52,13 +50,13 @@ returns a literal `true` can satisfy this theorem.
 theorem attenuation_root_dimension_is_not_a_literal {v : Vocabulary}
     (parent : ChainState v) (grant : Grant v)
     (foreign : grant.issuer ≠ parent.subject) :
-    (delegationProjection parent grant).rootPreserved = false :=
+    (delegationProjection parent grant).value.rootPreserved = false :=
   root_dimension_false_of_foreign_issuer parent grant foreign
 
 /-- The dimension reports the semantic predicate exactly, in both directions. -/
 theorem attenuation_root_dimension_is_exact {v : Vocabulary}
     (parent : ChainState v) (grant : Grant v) :
-    (delegationProjection parent grant).rootPreserved = true ↔
+    (delegationProjection parent grant).value.rootPreserved = true ↔
       rootPreserved parent grant :=
   root_dimension_is_exact parent grant
 
@@ -79,8 +77,7 @@ critical-extension set survived the edge exactly.
 theorem attenuation_requires_critical_extensions {v : Vocabulary}
     (parent : ChainState v) (grant : Grant v)
     (accepted :
-      Auths.Generated.attenuationAccepts
-        (delegationProjection parent grant) = true) :
+      certifiedAccepts (delegationProjection parent grant) = true) :
     extensionsLe (some grant.extensions) parent.scope.extensions :=
   -- Was `.2.2.2.2.2.2.2.2.2.2.2`: eleven projections whose meaning depended on
   -- counting. The eleventh dimension is now reached by name.
@@ -95,8 +92,7 @@ report.
 theorem attenuation_denied_when_extensions_altered {v : Vocabulary}
     (parent : ChainState v) (grant : Grant v)
     (broken : ¬ extensionsLe (some grant.extensions) parent.scope.extensions) :
-    Auths.Generated.attenuationAccepts
-      (delegationProjection parent grant) = false :=
+    certifiedAccepts (delegationProjection parent grant) = false :=
   altered_extensions_deny_every_projection parent grant broken
 
 /--
@@ -109,13 +105,13 @@ theorem attenuation_extension_dimension_is_not_a_literal {v : Vocabulary}
     (pinned : CriticalExtensions v)
     (pinnedBy : parent.scope.extensions = some pinned)
     (altered : grant.extensions ≠ pinned) :
-    (delegationProjection parent grant).extensionsAttenuate = false :=
+    (delegationProjection parent grant).value.extensionsAttenuate = false :=
   extensions_dimension_false_of_altered_set parent grant pinned pinnedBy altered
 
 /-- The dimension reports the semantic relation exactly, in both directions. -/
 theorem attenuation_extension_dimension_is_exact {v : Vocabulary}
     (parent : ChainState v) (grant : Grant v) :
-    (delegationProjection parent grant).extensionsAttenuate = true ↔
+    (delegationProjection parent grant).value.extensionsAttenuate = true ↔
       extensionsLe (some grant.extensions) parent.scope.extensions :=
   extensions_dimension_is_exact parent grant
 

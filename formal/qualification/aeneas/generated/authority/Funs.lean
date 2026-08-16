@@ -20,14 +20,14 @@ noncomputable section
 namespace auths_authority
 
 /-- [auths_authority::{impl core::cmp::PartialEq<auths_authority::CanonicalPrincipal<'_0>> for auths_authority::CanonicalPrincipal<'_0>}::eq]:
-    Source: 'core/crates/auths-authority/src/lib.rs', lines 140:4-142:5
+    Source: 'core/crates/auths-authority/src/lib.rs', lines 146:4-148:5
     Visibility: public -/
 def CanonicalPrincipal.Insts.CoreCmpPartialEqCanonicalPrincipal.eq
   (self : CanonicalPrincipal) (other : CanonicalPrincipal) : Result Bool := do
   auths_model.principal_id_equal self other
 
 /-- Trait implementation: [auths_authority::{impl core::cmp::PartialEq<auths_authority::CanonicalPrincipal<'_0>> for auths_authority::CanonicalPrincipal<'_0>}]
-    Source: 'core/crates/auths-authority/src/lib.rs', lines 139:0-143:1 -/
+    Source: 'core/crates/auths-authority/src/lib.rs', lines 145:0-149:1 -/
 @[reducible]
 def CanonicalPrincipal.Insts.CoreCmpPartialEqCanonicalPrincipal :
   core.cmp.PartialEq CanonicalPrincipal CanonicalPrincipal := {
@@ -35,7 +35,7 @@ def CanonicalPrincipal.Insts.CoreCmpPartialEqCanonicalPrincipal :
 }
 
 /-- [auths_authority::extensions_attenuate]:
-    Source: 'core/crates/auths-authority/src/lib.rs', lines 154:0-162:1 -/
+    Source: 'core/crates/auths-authority/src/lib.rs', lines 160:0-168:1 -/
 def extensions_attenuate
   (parent_extensions : Option auths_model.CriticalExtensions)
   (grant_extensions : auths_model.CriticalExtensions) :
@@ -47,7 +47,7 @@ def extensions_attenuate
     auths_model.critical_extensions_equal grant_extensions parent
 
 /-- [auths_authority::depth_decreases]:
-    Source: 'core/crates/auths-authority/src/lib.rs', lines 174:0-179:1 -/
+    Source: 'core/crates/auths-authority/src/lib.rs', lines 180:0-185:1 -/
 def depth_decreases
   (parent_remaining : Std.U16) (grant_remaining : Std.U16) : Result Bool := do
   if parent_remaining = 0#u16
@@ -55,7 +55,7 @@ def depth_decreases
   else ok (grant_remaining < parent_remaining)
 
 /-- [auths_authority::root_linkage]:
-    Source: 'core/crates/auths-authority/src/lib.rs', lines 182:0-192:1 -/
+    Source: 'core/crates/auths-authority/src/lib.rs', lines 188:0-198:1 -/
 def root_linkage
   (parent : AuthorityStateView) (issuer : auths_model.PrincipalId) :
   Result (auths_algebra_kernel.RootLinkage CanonicalPrincipal)
@@ -70,7 +70,7 @@ def root_linkage
     }
 
 /-- [auths_authority::selected_profile_attenuates]:
-    Source: 'core/crates/auths-authority/src/lib.rs', lines 194:0-203:1 -/
+    Source: 'core/crates/auths-authority/src/lib.rs', lines 200:0-209:1 -/
 def selected_profile_attenuates
   (selected : Option auths_model.ProfileRef)
   (allowed_profiles : Slice auths_model.ProfileRef)
@@ -82,7 +82,7 @@ def selected_profile_attenuates
   | some parent => auths_model.profile_ref_equal parent child
 
 /-- [auths_authority::evaluate_author_scope_view]:
-    Source: 'core/crates/auths-authority/src/lib.rs', lines 209:0-244:1
+    Source: 'core/crates/auths-authority/src/lib.rs', lines 215:0-250:1
     Visibility: public -/
 def evaluate_author_scope_view
   (parent : auths_model.ScopeAuthorityView)
@@ -156,8 +156,7 @@ def evaluate_author_scope_view
   else ok (AuthorScopeDecision.Denied AuthorityDimension.Profile)
 
 /-- [auths_authority::evaluate_grant_view]:
-    Source: 'core/crates/auths-authority/src/lib.rs', lines 265:0-329:1
-    Visibility: public -/
+    Source: 'core/crates/auths-authority/src/lib.rs', lines 271:0-335:1 -/
 def evaluate_grant_view
   (parent : AuthorityStateView) (grant_id : auths_model.GrantId)
   (grant : auths_model.GrantAuthorityView) :
@@ -309,8 +308,7 @@ def evaluate_grant_view
       }
 
 /-- [auths_authority::evaluate_action_coverage_view]:
-    Source: 'core/crates/auths-authority/src/lib.rs', lines 350:0-391:1
-    Visibility: public -/
+    Source: 'core/crates/auths-authority/src/lib.rs', lines 356:0-397:1 -/
 def evaluate_action_coverage_view
   (authority : AuthorityStateView) (action : auths_model.ActionAuthorityView)
   (expression : auths_model.ProfileBudgetExpression) :

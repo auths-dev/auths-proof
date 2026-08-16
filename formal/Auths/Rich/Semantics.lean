@@ -50,18 +50,6 @@ instance {v : Vocabulary}
     simp [budgetCovers] <;> infer_instance
 
 /--
-Whether a profile's canonical actions can state a budget at all.
-
-TRUSTED REGISTRY CONTEXT, not an action-controlled field. An action cannot
-declare itself inexpressible to escape a ceiling: the profile registry decides
-this, and the action only supplies the requested budget.
--/
-inductive BudgetExpression where
-  | expressible
-  | inexpressible
-  deriving DecidableEq, Repr
-
-/--
 Terminal budget coverage including profile expressibility.
 
 The capability only ever reclassifies an ABSENT request:
@@ -257,13 +245,14 @@ instance {v : Vocabulary} (child parent : AuthorityScope v) :
   infer_instance
 
 def actionCovers {v : Vocabulary}
-    (scope : AuthorityScope v) (action : Action v) : Prop :=
+    (scope : AuthorityScope v) (action : Action v)
+    (expression : BudgetExpression) : Prop :=
   profileAllows scope.profileScope action.profile ∧
   action.permission ∈ scope.permissions ∧
   windowContained action.validity scope.validity ∧
   action.audience ∈ scope.audiences ∧
   actionConstraintAllows scope.actionConstraint action.bodyDigest ∧
-  budgetCovers scope.budget action.requestedBudget
+  budgetCoversAction scope.budget action.requestedBudget expression
 
 def statusSatisfied {v : Vocabulary}
     (policy : StatusPolicy v) (facts : EvidenceFacts v) : Prop :=
@@ -282,7 +271,7 @@ def evidenceRequirementsSatisfied {v : Vocabulary}
 
 def admits {v : Vocabulary}
     (scope : AuthorityScope v) (facts : AuthorizationFacts v) : Prop :=
-  actionCovers scope facts.action ∧
+  actionCovers scope facts.action facts.budgetExpression ∧
   evidenceRequirementsSatisfied scope facts.evidence
 
 /-- Extensional semantic containment of complete authorization facts. -/
@@ -291,12 +280,14 @@ def semanticAttenuates {v : Vocabulary}
   ∀ facts, admits child facts → admits parent facts
 
 /--
-A chain state genuinely descends from the root it names.
+The representation-level root marker consumed by the translated raw kernel.
 
-Either an accepted edge has already been applied — and `acceptedNextState`
-copies the root forward, so the root was carried by that edge — or no edge has
-been applied yet and the state must still *be* the root.  A state with no
-applied grant whose subject differs from its root descends from nothing.
+`lastGrant.isSome` is not historical proof by itself. Genuine ancestry is the
+`AnchoredChain trusted` relation below: it starts from a root explicitly
+selected by the caller's trusted context, with `root = subject` and no prior
+grant, then contains only accepted edges. Shipping Rust makes raw state views
+crate-private and constructs them only from `EffectiveAuthority`, while this
+predicate keeps the translated evaluator exact over its representation.
 -/
 def rooted {v : Vocabulary} (state : ChainState v) : Prop :=
   state.lastGrant.isSome = true ∨ state.root = state.subject
@@ -450,6 +441,63 @@ def acceptedNextState {v : Vocabulary}
   remainingDepth := grant.remainingDepth
   lastGrant := some grantId
 
+/--
+Genuine ancestry: this state was reached from its own root by real delegations.
+
+`rooted` is a LOCAL test. It accepts `lastGrant.isSome`, which says a grant was
+recorded, not that the chain descends from `root`. A state with a mismatched
+root and subject and any present marker satisfies it, which is why the raw views
+are sealed in `auths-authority` -- sealing makes such a state unreachable from
+outside the crate without making `rooted` true.
+
+This predicate is what `rooted` approximates. It is inductive, so a state has it
+only by construction: either it is an origin, where root and subject coincide
+and nothing has been delegated yet, or it extends a state that already had it
+by an edge the scope and depth dimensions accept.
+
+Nothing decides it -- ancestry is history, not a property of the current record
+-- so it appears as a hypothesis rather than a check.
+-/
+inductive ReachableFromRoot {v : Vocabulary} : ChainState v → Prop where
+  | origin (state : ChainState v)
+      (anchored : state.root = state.subject)
+      (undelegated : state.lastGrant = none) :
+      ReachableFromRoot state
+  | delegated {parent : ChainState v} (grantId : GrantId v) (grant : Grant v)
+      (reachable : ReachableFromRoot parent)
+      (issued : grant.issuer = parent.subject)
+      (checks : scopeDepthChecks parent grant) :
+      ReachableFromRoot (acceptedNextState parent grantId grant checks)
+
+/-- An origin state is rooted, so the approximation holds where it starts. -/
+theorem rooted_of_origin {v : Vocabulary} (state : ChainState v)
+    (anchored : state.root = state.subject) (undelegated : state.lastGrant = none) :
+    rooted state := by
+  exact Or.inr anchored
+
+/-- Accepting a delegation preserves reachability, by construction. -/
+theorem reachable_accepted {v : Vocabulary}
+    {parent : ChainState v} (grantId : GrantId v) (grant : Grant v)
+    (reachable : ReachableFromRoot parent)
+    (issued : grant.issuer = parent.subject)
+    (checks : scopeDepthChecks parent grant) :
+    ReachableFromRoot (acceptedNextState parent grantId grant checks) :=
+  ReachableFromRoot.delegated grantId grant reachable issued checks
+
+/--
+Reachability implies `rooted`, but NOT the converse.
+
+This is the exact statement of what the local test buys: every genuinely rooted
+chain passes it, so the kernel never rejects a real chain, while a state that
+merely carries a present marker can pass it without being reachable. That gap
+is closed by construction -- sealing the raw views -- not by the predicate.
+-/
+theorem rooted_of_reachable {v : Vocabulary} {state : ChainState v}
+    (reachable : ReachableFromRoot state) : rooted state := by
+  induction reachable with
+  | origin state anchored _ => exact Or.inr anchored
+  | delegated _ _ _ _ _ _ => exact Or.inl rfl
+
 def delegates {v : Vocabulary}
     (parent : ChainState v) (grantId : GrantId v) (grant : Grant v)
     (child : ChainState v) : Prop :=
@@ -468,6 +516,15 @@ inductive DelegationChain {v : Vocabulary} :
       (edge : delegates parent grantId grant child)
       (tail : DelegationChain child rest) :
       DelegationChain parent (child :: rest)
+
+/-- A delegation history rooted in an identity selected by explicit context. -/
+structure AnchoredChain {v : Vocabulary}
+    (trusted : FiniteSet (Principal v))
+    (start : ChainState v) (rest : List (ChainState v)) : Prop where
+  rootTrusted : start.root ∈ trusted
+  rootIsSubject : start.root = start.subject
+  noPriorGrant : start.lastGrant = none
+  chain : DelegationChain start rest
 
 inductive DelegationDiagnostic where
   | brokenGrantChain
@@ -558,7 +615,7 @@ absent request; see `budgetCoversAction`.
 -/
 def evaluateCoverage {v : Vocabulary}
     (authority : ChainState v) (action : Action v)
-    (expression : BudgetExpression := BudgetExpression.expressible) :
+    (expression : BudgetExpression) :
     CoverageDecision :=
   if rooted authority ∧
       action.actor = authority.subject ∧
@@ -581,11 +638,26 @@ def evaluateCoverage {v : Vocabulary}
     .denied .brokenGrantChain
 
 def terminalCovers {v : Vocabulary}
-    (authority : ChainState v) (action : Action v) : Prop :=
+    (authority : ChainState v) (action : Action v)
+    (expression : BudgetExpression) : Prop :=
   rooted authority ∧
   action.actor = authority.subject ∧
   action.terminalGrant = authority.lastGrant ∧
-  actionCovers authority.scope action
+  actionCovers authority.scope action expression
+
+/-- Trusted, effect-free resolution of budget expressibility by exact profile. -/
+abbrev BudgetExpressionRegistry (v : Vocabulary) :=
+  Profile v → BudgetExpression
+
+def evaluateCoverageWithRegistry {v : Vocabulary}
+    (authority : ChainState v) (action : Action v)
+    (registry : BudgetExpressionRegistry v) : CoverageDecision :=
+  evaluateCoverage authority action (registry action.profile)
+
+def terminalCoversWithRegistry {v : Vocabulary}
+    (authority : ChainState v) (action : Action v)
+    (registry : BudgetExpressionRegistry v) : Prop :=
+  terminalCovers authority action (registry action.profile)
 
 /--
 A projection carrying a proof that every field IS its semantic decision.
@@ -595,11 +667,12 @@ A projection carrying a proof that every field IS its semantic decision.
 eleventh dimension shipped as a literal `true` and the exactness theorems were
 what eventually caught it. They catch a bad projection AFTER it exists.
 
-This type makes it unconstructible. Each field below pins one dimension to the
-`decide` of its rich relation, so a literal cannot be supplied without a proof
-that the literal equals the semantic answer -- and no such proof exists for a
-wrong literal. The reviewer's phrasing: a projection that must carry its own
-certificate.
+This type makes a forged projection unconstructible at the rich semantic
+boundary. The generated raw carrier remains public for generated code and
+vector transport, but it cannot be passed to `certifiedAccepts`. Each field
+below pins one dimension to the `decide` of its rich relation, so a literal
+cannot be supplied without a proof that the literal equals the semantic answer
+-- and no such proof exists for a wrong literal.
 
 Adding a twelfth dimension adds a twelfth obligation here, which no existing
 constructor satisfies, so the compiler demands it be addressed.
@@ -641,7 +714,7 @@ structure CertifiedProjection {v : Vocabulary}
     value.extensionsAttenuate =
       decide (extensionsLe (some grant.extensions) parent.scope.extensions)
 
-def delegationProjection {v : Vocabulary}
+private def rawDelegationProjection {v : Vocabulary}
     (parent : ChainState v) (grant : Grant v) :
     Auths.Generated.AttenuationProjection where
   rootPreserved := decide (rootPreserved parent grant)
@@ -668,11 +741,16 @@ def delegationProjection {v : Vocabulary}
   extensionsAttenuate :=
     decide (extensionsLe (some grant.extensions) parent.scope.extensions)
 
-/-- `delegationProjection` is certified: every field is its decision, by rfl. -/
-def certifiedDelegationProjection {v : Vocabulary}
+/--
+The only projection derived from a semantic parent/grant is proof-carrying. A
+field mutation fails here at the certificate constructor before it can reach
+any rich acceptance theorem. Raw generated/vector APIs remain explicitly
+outside this semantic boundary.
+-/
+def delegationProjection {v : Vocabulary}
     (parent : ChainState v) (grant : Grant v) :
     CertifiedProjection parent grant where
-  value := delegationProjection parent grant
+  value := rawDelegationProjection parent grant
   rootExact := rfl
   depthExact := rfl
   profileExact := rfl
@@ -684,6 +762,11 @@ def certifiedDelegationProjection {v : Vocabulary}
   statusExact := rfl
   assuranceExact := rfl
   extensionsExact := rfl
+
+/-- Rich acceptance consumes only a projection certified for these inputs. -/
+def certifiedAccepts {v : Vocabulary} {parent : ChainState v} {grant : Grant v}
+    (projection : CertifiedProjection parent grant) : Bool :=
+  Auths.Generated.attenuationAccepts projection.value
 
 
 /--
@@ -710,4 +793,3 @@ theorem CertifiedProjection.root_not_forgeable {v : Vocabulary}
   exact decide_eq_false denied
 
 end Auths.Rich
-

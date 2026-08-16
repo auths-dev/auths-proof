@@ -153,6 +153,21 @@ theorem budget_coverage_monotone {v : Vocabulary}
               simp only [budgetCovers] at covered ⊢
               exact ⟨covered.1.trans order.1, covered.2.trans order.2⟩
 
+theorem budget_action_coverage_monotone {v : Vocabulary}
+    {child parent requested : Option (BudgetCeiling v)}
+    {expression : BudgetExpression}
+    (order : budgetLe child parent)
+    (covered : budgetCoversAction child requested expression) :
+    budgetCoversAction parent requested expression := by
+  cases requested <;> cases expression
+  · simpa [budgetCoversAction] using
+      budget_coverage_monotone order covered
+  · simp [budgetCoversAction]
+  · simpa [budgetCoversAction] using
+      budget_coverage_monotone order covered
+  · simpa [budgetCoversAction] using
+      budget_coverage_monotone order covered
+
 theorem extensions_refl {v : Vocabulary}
     (extensions : Option (CriticalExtensions v)) :
     extensionsLe extensions extensions := by
@@ -382,9 +397,10 @@ theorem scope_le_canonical_antisymmetry {v : Vocabulary}
 
 theorem action_coverage_downward_closed {v : Vocabulary}
     {child parent : AuthorityScope v} {action : Action v}
+    {expression : BudgetExpression}
     (order : structuralScopeLe child parent)
-    (covered : actionCovers child action) :
-    actionCovers parent action := by
+    (covered : actionCovers child action expression) :
+    actionCovers parent action expression := by
   rcases order with ⟨profileOrder, permissionOrder, validityOrder,
     audienceOrder, actionOrder, budgetOrder, statusOrder, assuranceOrder,
     extensionsOrder⟩
@@ -396,7 +412,7 @@ theorem action_coverage_downward_closed {v : Vocabulary}
     window_coverage_monotone validityOrder validityCovered,
     audienceOrder audienceCovered,
     action_constraint_allows_monotone actionOrder actionCovered,
-    budget_coverage_monotone budgetOrder budgetCovered
+    budget_action_coverage_monotone budgetOrder budgetCovered
   ⟩
 
 theorem evidence_requirements_downward_closed {v : Vocabulary}
@@ -567,6 +583,33 @@ theorem chain_preserves_rootedness {v : Vocabulary}
         exact delegate_preserves_rootedness edge
       · exact inductionHypothesis state inTail
 
+/-- Every state in a history preserves the root selected by explicit context,
+not merely an arbitrary present `lastGrant` marker. -/
+theorem anchored_chain_preserves_provenance {v : Vocabulary}
+    {trusted : FiniteSet (Principal v)}
+    {start : ChainState v} {rest : List (ChainState v)}
+    (anchored : AnchoredChain trusted start rest) :
+    ∀ state, state = start ∨ state ∈ rest →
+      state.root = start.root ∧ rooted state ∧ state.root ∈ trusted := by
+  intro state member
+  rcases member with rfl | inRest
+  · exact ⟨rfl, Or.inr anchored.rootIsSubject, anchored.rootTrusted⟩
+  · have sameRoot := chain_preserves_root anchored.chain state inRest
+    exact ⟨sameRoot, chain_preserves_rootedness anchored.chain state inRest,
+      sameRoot ▸ anchored.rootTrusted⟩
+
+/-- Structural freshness does not manufacture trust: any fresh self-rooted
+start can form an empty chain only after a context explicitly selects it. -/
+theorem singleton_context_selects_fresh_self_rooted_start {v : Vocabulary}
+    (start : ChainState v)
+    (selfRooted : start.root = start.subject)
+    (fresh : start.lastGrant = none) :
+    AnchoredChain {start.root} start [] where
+  rootTrusted := by simp
+  rootIsSubject := selfRooted
+  noPriorGrant := fresh
+  chain := .nil start
+
 /-- A parent that descends from no root delegates nothing, for every grant. -/
 theorem unrooted_parent_delegates_nothing {v : Vocabulary}
     (parent : ChainState v) (grantId : GrantId v) (grant : Grant v)
@@ -577,8 +620,9 @@ theorem unrooted_parent_delegates_nothing {v : Vocabulary}
 /-- A parent that descends from no root authorizes no action either. -/
 theorem unrooted_authority_covers_nothing {v : Vocabulary}
     (authority : ChainState v) (action : Action v)
+    (expression : BudgetExpression)
     (unrooted : ¬ rooted authority) :
-    evaluateCoverage authority action = .denied .brokenGrantChain := by
+    evaluateCoverage authority action expression = .denied .brokenGrantChain := by
   simp [evaluateCoverage, unrooted]
 
 /--
@@ -588,16 +632,19 @@ inputs, so a literal `true` would refute it.
 -/
 theorem root_dimension_is_exact {v : Vocabulary}
     (parent : ChainState v) (grant : Grant v) :
-    (delegationProjection parent grant).rootPreserved = true ↔
+    (delegationProjection parent grant).value.rootPreserved = true ↔
       rootPreserved parent grant := by
-  simp [delegationProjection]
+  rw [(delegationProjection parent grant).rootExact]
+  simp
 
 /-- Witness that the dimension is falsifiable, stated over all inputs. -/
 theorem root_dimension_false_of_foreign_issuer {v : Vocabulary}
     (parent : ChainState v) (grant : Grant v)
     (foreign : grant.issuer ≠ parent.subject) :
-    (delegationProjection parent grant).rootPreserved = false := by
-  simp [delegationProjection, rootPreserved, foreign]
+    (delegationProjection parent grant).value.rootPreserved = false := by
+  apply CertifiedProjection.root_not_forgeable
+    (delegationProjection parent grant)
+  exact fun preserved => foreign preserved.2
 
 /--
 No other attenuation dimension can rescue a broken root: acceptance is the
@@ -606,9 +653,10 @@ conjunction, so the whole projection is rejected.
 theorem broken_root_denies_every_projection {v : Vocabulary}
     (parent : ChainState v) (grant : Grant v)
     (broken : ¬ rootPreserved parent grant) :
-    Auths.Generated.attenuationAccepts
-      (delegationProjection parent grant) = false := by
-  simp [Auths.Generated.attenuationAccepts, delegationProjection, broken]
+    certifiedAccepts (delegationProjection parent grant) = false := by
+  have refused := CertifiedProjection.root_not_forgeable
+    (delegationProjection parent grant) broken
+  simp [certifiedAccepts, Auths.Generated.attenuationAccepts, refused]
 
 /-!
 ### Critical-extension preservation
@@ -624,9 +672,10 @@ cannot satisfy them.
 /-- The generated extension dimension reports exactly the semantic relation. -/
 theorem extensions_dimension_is_exact {v : Vocabulary}
     (parent : ChainState v) (grant : Grant v) :
-    (delegationProjection parent grant).extensionsAttenuate = true ↔
+    (delegationProjection parent grant).value.extensionsAttenuate = true ↔
       extensionsLe (some grant.extensions) parent.scope.extensions := by
-  simp [delegationProjection]
+  rw [(delegationProjection parent grant).extensionsExact]
+  simp
 
 /--
 Witness that the dimension is falsifiable, stated over all inputs: a grant that
@@ -637,8 +686,10 @@ theorem extensions_dimension_false_of_altered_set {v : Vocabulary}
     (pinned : CriticalExtensions v)
     (pinnedBy : parent.scope.extensions = some pinned)
     (altered : grant.extensions ≠ pinned) :
-    (delegationProjection parent grant).extensionsAttenuate = false := by
-  simp [delegationProjection, extensionsLe, pinnedBy, altered]
+    (delegationProjection parent grant).value.extensionsAttenuate = false := by
+  apply CertifiedProjection.extensions_not_forgeable
+    (delegationProjection parent grant)
+  simpa [extensionsLe, pinnedBy] using altered
 
 /--
 No other attenuation dimension can rescue a stripped critical extension:
@@ -647,9 +698,10 @@ acceptance is the conjunction, so the whole projection is rejected.
 theorem altered_extensions_deny_every_projection {v : Vocabulary}
     (parent : ChainState v) (grant : Grant v)
     (broken : ¬ extensionsLe (some grant.extensions) parent.scope.extensions) :
-    Auths.Generated.attenuationAccepts
-      (delegationProjection parent grant) = false := by
-  simp [Auths.Generated.attenuationAccepts, delegationProjection, broken]
+    certifiedAccepts (delegationProjection parent grant) = false := by
+  have refused := CertifiedProjection.extensions_not_forgeable
+    (delegationProjection parent grant) broken
+  simp [certifiedAccepts, Auths.Generated.attenuationAccepts, refused]
 
 /-- Every accepted edge preserves a pinned critical-extension set exactly. -/
 theorem delegate_preserves_pinned_extensions {v : Vocabulary}
@@ -736,10 +788,10 @@ theorem chain_transitive_attenuation {v : Vocabulary}
 
 theorem authorized_action_covered {v : Vocabulary}
     {parent child : ChainState v} {grantId : GrantId v} {grant : Grant v}
-    {action : Action v}
+    {action : Action v} {expression : BudgetExpression}
     (accepted : delegates parent grantId grant child)
-    (authorized : actionCovers child.scope action) :
-    actionCovers parent.scope action :=
+    (authorized : actionCovers child.scope action expression) :
+    actionCovers parent.scope action expression :=
   action_coverage_downward_closed (delegate_implies_scope_le accepted) authorized
 
 /--
@@ -758,10 +810,21 @@ and invisible here.
 -/
 theorem rich_projection_accepts_iff_root_and_scope_depth_checks {v : Vocabulary}
     (parent : ChainState v) (grant : Grant v) :
-    Auths.Generated.attenuationAccepts
-      (delegationProjection parent grant) = true ↔
+    certifiedAccepts (delegationProjection parent grant) = true ↔
       rootPreserved parent grant ∧ scopeDepthChecks parent grant := by
-  simp [Auths.Generated.attenuationAccepts, delegationProjection,
+  simp only [certifiedAccepts, Auths.Generated.attenuationAccepts]
+  rw [(delegationProjection parent grant).rootExact,
+    (delegationProjection parent grant).depthExact,
+    (delegationProjection parent grant).profileExact,
+    (delegationProjection parent grant).permissionsExact,
+    (delegationProjection parent grant).validityExact,
+    (delegationProjection parent grant).audiencesExact,
+    (delegationProjection parent grant).actionConstraintExact,
+    (delegationProjection parent grant).budgetExact,
+    (delegationProjection parent grant).statusExact,
+    (delegationProjection parent grant).assuranceExact,
+    (delegationProjection parent grant).extensionsExact]
+  simp [
     scopeDepthChecks, grantScopeChecks, GrantScopeChecks.iff_conjunction]
   tauto
 
@@ -770,8 +833,7 @@ theorem apply_grant_success_iff_linked_and_projection {v : Vocabulary}
     (child : ChainState v) :
     evaluateGrant parent grantId grant = .accepted child ↔
       linked parent grant ∧
-      Auths.Generated.attenuationAccepts
-        (delegationProjection parent grant) = true ∧
+      certifiedAccepts (delegationProjection parent grant) = true ∧
       ∃ checks : scopeDepthChecks parent grant,
         child = acceptedNextState parent grantId grant checks := by
   rw [rich_projection_accepts_iff_root_and_scope_depth_checks]
@@ -835,50 +897,62 @@ theorem author_planning_diagnostic_sound_complete {v : Vocabulary}
   split_ifs <;> simp_all [structuralScopeLe]
 
 theorem coverage_decision_ok_iff_covers {v : Vocabulary}
-    (authority : ChainState v) (action : Action v) :
-    evaluateCoverage authority action = .authorized ↔
-      terminalCovers authority action := by
+    (authority : ChainState v) (action : Action v)
+    (expression : BudgetExpression) :
+    evaluateCoverage authority action expression = .authorized ↔
+      terminalCovers authority action expression := by
   simp only [evaluateCoverage]
   split_ifs <;> simp_all [terminalCovers, actionCovers]
 
 theorem coverage_diagnostic_sound_complete {v : Vocabulary}
-    (authority : ChainState v) (action : Action v) :
-    (evaluateCoverage authority action = .authorized ↔
-      terminalCovers authority action) ∧
-    (∀ reason, evaluateCoverage authority action = .denied reason →
-      ¬ terminalCovers authority action) := by
+    (authority : ChainState v) (action : Action v)
+    (expression : BudgetExpression) :
+    (evaluateCoverage authority action expression = .authorized ↔
+      terminalCovers authority action expression) ∧
+    (∀ reason, evaluateCoverage authority action expression = .denied reason →
+      ¬ terminalCovers authority action expression) := by
   constructor
-  · exact coverage_decision_ok_iff_covers authority action
+  · exact coverage_decision_ok_iff_covers authority action expression
   · intro reason denied covered
-    have authorized : evaluateCoverage authority action = .authorized :=
-      (coverage_decision_ok_iff_covers authority action).2 covered
+    have authorized : evaluateCoverage authority action expression = .authorized :=
+      (coverage_decision_ok_iff_covers authority action expression).2 covered
     rw [authorized] at denied
     contradiction
+
+/-- Registry composition binds the trusted expression to the exact action
+profile; no action field or caller-supplied naked expression intervenes. -/
+theorem registry_coverage_decision_ok_iff_covers {v : Vocabulary}
+    (authority : ChainState v) (action : Action v)
+    (registry : BudgetExpressionRegistry v) :
+    evaluateCoverageWithRegistry authority action registry = .authorized ↔
+      terminalCoversWithRegistry authority action registry := by
+  exact coverage_decision_ok_iff_covers
+    authority action (registry action.profile)
 
 theorem translated_rich_spec_target
     {v : Vocabulary}
     (evaluateRustGrant :
       ChainState v → GrantId v → Grant v → DelegationDecision v)
     (evaluateRustCoverage :
-      ChainState v → Action v → CoverageDecision)
+      ChainState v → Action v → BudgetExpression → CoverageDecision)
     (grantIdentity :
       ∀ parent grantId grant,
         evaluateRustGrant parent grantId grant =
           evaluateGrant parent grantId grant)
     (coverageIdentity :
-      ∀ authority action,
-        evaluateRustCoverage authority action =
-          evaluateCoverage authority action) :
+      ∀ authority action expression,
+        evaluateRustCoverage authority action expression =
+          evaluateCoverage authority action expression) :
     (∀ parent grantId grant child,
       evaluateRustGrant parent grantId grant = .accepted child ↔
         delegates parent grantId grant child) ∧
-    (∀ authority action,
-      evaluateRustCoverage authority action = .authorized ↔
-        terminalCovers authority action) := by
+    (∀ authority action expression,
+      evaluateRustCoverage authority action expression = .authorized ↔
+        terminalCovers authority action expression) := by
   constructor
   · intro parent grantId grant child
     rw [grantIdentity, apply_grant_success_iff_delegates]
-  · intro authority action
+  · intro authority action expression
     rw [coverageIdentity, coverage_decision_ok_iff_covers]
 
 end Auths.Rich

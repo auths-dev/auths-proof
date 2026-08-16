@@ -46,17 +46,18 @@ theorem first_delegation_comes_from_the_root {v : Vocabulary}
   first_edge_is_issued_by_the_root fresh edge
 
 /--
-Every state reachable by any number of delegations descends from the single
-root the chain started at.  Delegation can narrow authority; it can never
-re-anchor it.
+Every state in a history beginning at a fresh root selected by the caller's
+trusted context descends from that same root. Delegation can narrow authority;
+it can never re-anchor it. Both the context membership and freshness premises
+are essential: a present `lastGrant` marker alone is not ancestry evidence.
 -/
 theorem chain_descends_from_one_root {v : Vocabulary}
+    {trusted : FiniteSet (Principal v)}
     {start : ChainState v} {rest : List (ChainState v)}
-    (chain : DelegationChain start rest) :
-    ∀ state ∈ rest, state.root = start.root ∧ rooted state :=
-  fun state member =>
-    ⟨chain_preserves_root chain state member,
-      chain_preserves_rootedness chain state member⟩
+    (chain : AnchoredChain trusted start rest) :
+    ∀ state, state = start ∨ state ∈ rest →
+      state.root = start.root ∧ rooted state ∧ state.root ∈ trusted :=
+  anchored_chain_preserves_provenance chain
 
 /-- An authority that descends from no root delegates nothing. -/
 theorem unrooted_authority_delegates_nothing {v : Vocabulary}
@@ -68,8 +69,9 @@ theorem unrooted_authority_delegates_nothing {v : Vocabulary}
 /-- An authority that descends from no root authorizes nothing. -/
 theorem unrooted_authority_authorizes_nothing {v : Vocabulary}
     (authority : ChainState v) (action : Action v)
+    (expression : BudgetExpression)
     (unrooted : ¬ rooted authority) :
-    evaluateCoverage authority action = .denied .brokenGrantChain :=
-  unrooted_authority_covers_nothing authority action unrooted
+    evaluateCoverage authority action expression = .denied .brokenGrantChain :=
+  unrooted_authority_covers_nothing authority action expression unrooted
 
 end Auths.Authority

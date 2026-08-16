@@ -4,7 +4,7 @@ use crate::*;
 
 const INVENTORY_PATH: &str = "release/semantic-freeze.json";
 const INVENTORY_SCHEMA: &str = "auths.semantic-freeze/1";
-const FREEZE_VERSION: u64 = 124;
+const FREEZE_VERSION: u64 = 125;
 const PUBLIC_RUST_ROOTS: [&str; 10] = [
     "auths",
     "auths-byte-channel",
@@ -167,7 +167,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
     let mut entries = vec![
         freeze_entry(
             "auths.core.protocol",
-            16,
+            17,
             FreezeClassification::FrozenMeaning,
             &[
                 "protocol-versions",
@@ -246,7 +246,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.portable-abi-bindings",
-            52,
+            53,
             FreezeClassification::FrozenMeaning,
             &["portable-abi", "authoring-abi", "binding-contracts"],
             vec![
@@ -589,7 +589,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.release.evolution-contract",
-            15,
+            16,
             FreezeClassification::FrozenMeaning,
             &[
                 "version-axes",
@@ -633,10 +633,10 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
             "bindings/wasm/auths-proof-wasm/identity-abi-v1.json" => 4,
             "core/fixtures/v1/manifest.json" => 4,
             "product/conformance/v1/simplified-product-waist.json" => 2,
-            "formal/assurance-manifest-v1.toml" => 11,
-            "formal/qualification/aeneas/qualification.toml" => 4,
-            "formal/qualification/aeneas/generated" => 5,
-            "formal/qualification/aeneas/source-closure.json" => 18,
+            "formal/assurance-manifest-v1.toml" => 12,
+            "formal/qualification/aeneas/qualification.toml" => 5,
+            "formal/qualification/aeneas/generated" => 6,
+            "formal/qualification/aeneas/source-closure.json" => 19,
             "product/fixtures/v1/errors/manifest.json" => 4,
             "product/fixtures/v1/bounded-policy/manifest.json" => 2,
             "product/fixtures/v1/github/manifest.json"
@@ -696,7 +696,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
     ]);
     entries.push(freeze_entry(
         "auths.release.public-surface",
-        123,
+        124,
         FreezeClassification::ReleaseMetadata,
         &[
             "package-names",
