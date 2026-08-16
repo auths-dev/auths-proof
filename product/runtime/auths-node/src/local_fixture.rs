@@ -53,6 +53,10 @@ pub const REFERENCE_PROFILES: [&str; 3] = [
     "auths.github.issue-address/1",
 ];
 
+/// Action-body prefix used only by the open-production reference to exercise
+/// the durable outcome-unknown and resume path.
+pub const REFERENCE_RECOVERABLE_BODY_MARKER: &str = "AUTHS-SANDBOX-RECOVER";
+
 /// Namespace the fixture anchor may delegate within, one per profile.
 const REFERENCE_NAMESPACES: [&str; 3] = [
     "opentofu://reference",

@@ -47,7 +47,8 @@ const CLAIM_DOMAIN: &[u8] = b"AUTHS-NODE-EFFECT-CLAIM\x00\x01";
 /// Marker prefix inside a canonical action body that makes one effect
 /// deliberately recoverable, used by the open-production reference to exercise
 /// the outcome-unknown path.
-const RECOVERABLE_BODY_MARKER: &[u8] = b"AUTHS-NODE-RECOVER";
+const RECOVERABLE_BODY_MARKER: &[u8] =
+    crate::local_fixture::REFERENCE_RECOVERABLE_BODY_MARKER.as_bytes();
 
 /// A stateful (proof, action) pair may produce at most this many effects.
 ///

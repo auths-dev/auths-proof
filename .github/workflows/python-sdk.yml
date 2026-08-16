@@ -114,7 +114,7 @@ jobs:
   wheel-build:
     name: build abi3 wheel (${{ matrix.os }})
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
@@ -145,7 +145,7 @@ jobs:
     name: installed CPython ${{ matrix.python }} (${{ matrix.os }})
     needs: [consumer-contract, wheel-build]
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         python: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]

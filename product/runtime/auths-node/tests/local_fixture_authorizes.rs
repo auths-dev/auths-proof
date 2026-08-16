@@ -9,7 +9,10 @@
 //!
 //! This test closes that loop by running the real verifier.
 
-use auths_node::local_fixture::build_context;
+use auths_node::{NodeRuntime, local_fixture::build_context};
+use auths_production_client::{
+    ClientOutcomeKind, ProductVerb, ProductionRequest, QualifiedProfile,
+};
 use std::{
     collections::BTreeSet,
     process::Command,
@@ -79,4 +82,64 @@ fn an_offline_authored_proof_is_authorized_by_the_generated_context() {
             .authorize(&proof, &action_bytes)
             .unwrap_or_else(|error| panic!("{profile} was not authorized: {error:?}"));
     }
+}
+
+#[test]
+fn the_reference_recovery_marker_enters_and_resolves_the_resume_flow() {
+    use base64ct::{Base64UrlUnpadded, Encoding as _};
+    let mut seed = [0_u8; 32];
+    Base64UrlUnpadded::decode(SEED_B64, &mut seed).expect("seed");
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |duration| duration.as_secs());
+    let context = build_context(&seed, now, 3_600).expect("trusted context");
+    let kernel = auths_node::NodeKernel::with_built_ins(context)
+        .expect("the deployed verifier registry must initialize");
+    let runtime = auths_node::KernelRuntime::with_clock(
+        kernel,
+        [0x55; 32],
+        BTreeSet::from([QualifiedProfile::GitHubIssueAddress]),
+        Arc::new(FixedClock(now)),
+    )
+    .expect("runtime");
+
+    // Keep this literal independent from the kernel constant: drift between
+    // the installed-client contract and the node caused the hosted failure
+    // this test exists to catch.
+    let body = "AUTHS-SANDBOX-RECOVER issue 104";
+    let (proof, action) = authored(
+        QualifiedProfile::GitHubIssueAddress.as_str(),
+        body,
+        "fixture-recovery-agent",
+    );
+    let execute = ProductionRequest::new(
+        ProductVerb::Execute,
+        QualifiedProfile::GitHubIssueAddress,
+        b"fixture-recovery-agent".to_vec(),
+        Some(proof),
+        Some(action),
+        None,
+    )
+    .expect("execute request");
+    let unknown = runtime.handle(execute).expect("recoverable outcome");
+    assert_eq!(unknown.kind(), ClientOutcomeKind::Recoverable);
+
+    let resume = ProductionRequest::new(
+        ProductVerb::Resume,
+        QualifiedProfile::GitHubIssueAddress,
+        b"fixture-recovery-agent".to_vec(),
+        None,
+        None,
+        Some(
+            unknown
+                .recovery_reference()
+                .expect("recovery reference")
+                .clone(),
+        ),
+    )
+    .expect("resume request");
+    assert_eq!(
+        runtime.handle(resume).expect("completed resume").kind(),
+        ClientOutcomeKind::Completed
+    );
 }
