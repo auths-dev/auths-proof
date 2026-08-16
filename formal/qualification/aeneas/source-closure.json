@@ -1,6 +1,6 @@
 {
   "schema": "auths-proof-translation-source-closure/v2",
-  "digest": "9b3255fbec6e6181fabe435370b05ae2a8b266179bfc3d25935226ba091023bd",
+  "digest": "c9ab4c8e66d4c2f00947a9c71acfc32c6dc6ad6bc57c2cec69cdf0404cabdfd0",
   "files": [
     {
       "path": "Cargo.lock",
@@ -22,7 +22,7 @@
     },
     {
       "path": "core/crates/auths-algebra-kernel/src/lib.rs",
-      "sha256": "cc4f56f8568eab59e2a08eed701eb5e6be3815fb23619629d2764dda80290a3a"
+      "sha256": "6654667eeb9b353d6648954c9fd2e8838462a82ce6b2803eb49e1366892c68c6"
     },
     {
       "path": "core/crates/auths-authority/Cargo.toml",
@@ -30,7 +30,7 @@
     },
     {
       "path": "core/crates/auths-authority/src/lib.rs",
-      "sha256": "ec9be4188cb40016f70c4372787655f5cc90e7b4390a8624c609a1fcc89f01b0"
+      "sha256": "a99955461a8df1978a7aace9a3891ed0c3b606044ab3de40b2b05048217e7919"
     },
     {
       "path": "core/crates/auths-model/Cargo.toml",
@@ -38,7 +38,7 @@
     },
     {
       "path": "core/crates/auths-model/src/lib.rs",
-      "sha256": "8f31ea29b3b574d23440711fc83fa9167174679921406f92cd5e9a807a95a699"
+      "sha256": "3aef299e43b58c12a0b11356668cf6674fc4d72f37bfb0ace1f384c56c1362ad"
     },
     {
       "path": "formal/algebra-contract-v1.toml",
@@ -70,7 +70,7 @@
     },
     {
       "path": "product/runtime/auths-lifecycle/src/kernel.rs",
-      "sha256": "335d103efef3248e2277b5e97a9dd8a13389e086d2abeaa023a39890bbb7a943"
+      "sha256": "2abb8c094b36d35b364e74d78091d14c5d6f3d1eb6552cca3b5538dbd017ce23"
     },
     {
       "path": "product/runtime/auths-lifecycle/src/lib.rs",
@@ -90,7 +90,7 @@
     },
     {
       "path": "xtask/src/formal.rs",
-      "sha256": "b51f7a985f7856883cde246696cc09b72e9ffdfd6910cead9cea98a83ccf2cd2"
+      "sha256": "cda1f9895df58b7a63e5b32ce71b1e181c66424a991f423f88543ca03aa93a76"
     },
     {
       "path": "xtask/src/formal_qualification.rs",
