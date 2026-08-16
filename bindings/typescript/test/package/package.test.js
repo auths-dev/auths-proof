@@ -10,15 +10,18 @@ test("package exposes bounded public surfaces and includes contributor docs", as
   const manifest = JSON.parse(
     await readFile(new URL("../../package.json", import.meta.url), "utf8"),
   );
-  assert.deepEqual(Object.keys(manifest.exports).sort(), [
-    ".",
-    "./framework",
-    "./identity",
-    "./integrations",
-    "./profiles",
-    "./testkit",
-    "./verify",
-  ]);
+  // Derived, not restated: the published subpaths must be exactly the ones
+  // bindings/public-topology-v1.json declares. A hardcoded list here could
+  // agree with the package while both disagreed with the declared topology.
+  const topology = JSON.parse(
+    await readFile(new URL("../../../public-topology-v1.json", import.meta.url), "utf8"),
+  );
+  const declared = topology.layers
+    .flatMap((layer) => layer.typescript)
+    .map((name) => name === manifest.name ? "." : `.${name.slice(manifest.name.length)}`)
+    .sort();
+  assert.ok(declared.length > 0, "the topology declares no TypeScript entry points");
+  assert.deepEqual(Object.keys(manifest.exports).sort(), declared);
   assert.ok(manifest.files.includes("docs"));
   assert.ok(manifest.files.includes("sdk-runtime-contract.json"));
   assert.ok(manifest.files.includes("sdk-capability.json"));

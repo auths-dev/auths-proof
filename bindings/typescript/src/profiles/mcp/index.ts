@@ -18,6 +18,7 @@ import {
   attestExecution,
   attestedReceipt,
   verifyAttestedReceipt,
+  type Receipt,
 } from "../../internal/receipt-attestation.js";
 import { causeCategoryFrom } from "../../product-errors.js";
 import { MCP_PROFILE } from "../../generated/mcp-profile.js";
@@ -255,15 +256,12 @@ export interface McpExecutionResources {
   readonly observer?: McpExecutionObserver;
 }
 
-export interface McpAttestedReceipt {
-  readonly decision: AttestedApplicationReceipt;
-  readonly execution: AttestedApplicationReceipt;
-}
+
 
 export type McpPlanClosedResult =
-  | Readonly<{ readonly kind: "completed"; readonly results: readonly unknown[]; readonly receipts: readonly McpAttestedReceipt[] }>
-  | Readonly<{ readonly kind: "recoverable"; readonly executionId: string; readonly executionReference: string; readonly completedResults: readonly unknown[]; readonly completedReceipts: readonly McpAttestedReceipt[]; readonly code: string }>
-  | Readonly<{ readonly kind: "not-applied" | "exact-replay" | "conflict"; readonly executionId: string; readonly completedResults: readonly unknown[]; readonly completedReceipts: readonly McpAttestedReceipt[]; readonly code: string }>;
+  | Readonly<{ readonly kind: "completed"; readonly results: readonly unknown[]; readonly receipts: readonly Receipt[] }>
+  | Readonly<{ readonly kind: "recoverable"; readonly executionId: string; readonly executionReference: string; readonly completedResults: readonly unknown[]; readonly completedReceipts: readonly Receipt[]; readonly code: string }>
+  | Readonly<{ readonly kind: "not-applied" | "exact-replay" | "conflict"; readonly executionId: string; readonly completedResults: readonly unknown[]; readonly completedReceipts: readonly Receipt[]; readonly code: string }>;
 
 export interface McpDevelopmentProviderOptions {
   readonly tools: Readonly<Record<string, McpToolHandler>>;
@@ -277,7 +275,7 @@ export interface McpDevelopmentProviderOptions {
 }
 
 export type McpClosedResult =
-  | Readonly<{ readonly kind: "completed"; readonly executionId: string; readonly result: unknown; readonly receipt: McpAttestedReceipt }>
+  | Readonly<{ readonly kind: "completed"; readonly executionId: string; readonly result: unknown; readonly receipt: Receipt }>
   | Readonly<{ readonly kind: "not-applied" | "exact-replay" | "conflict"; readonly executionId: string; readonly code: string }>
   | Readonly<{ readonly kind: "recoverable"; readonly executionId: string; readonly executionReference: string; readonly code: string }>;
 
@@ -696,60 +694,6 @@ export async function executeMcpClosed(
   return driveMcpSession(session, resources, decisionReceipt);
 }
 
-export async function recoverMcpClosed(
-  agent: AttachedAgent<Profile>,
-  action: McpAction,
-  resources: McpExecutionResources,
-): Promise<Exclude<AuthorizationResult<McpCommand>, { readonly kind: "authorized" }> | McpClosedResult> {
-  const sessionKey = boundedSessionKey(resources.sessionKey);
-  let artifacts: VerifiedArtifactView | undefined;
-  const authorization = await authorizeMcp(agent, actionResources.get(action)?.profile ?? invalidProfile(), action, undefined, (value) => {
-    artifacts = Object.freeze({
-      proofCbor: value.proofCbor.slice(),
-      canonicalActionCbor: value.canonicalActionCbor.slice(),
-      trustedContextCbor: value.trustedContextCbor.slice(),
-    });
-  });
-  if (authorization.kind !== "authorized") return authorization;
-  if (artifacts === undefined) {
-    throw new AuthsWorkflowError("gateway-failed", "native MCP authorization omitted recovery artifacts");
-  }
-  const engine = engineForClient(resourcesForAttachedAgent(agent).client);
-  const freshDecision = await attestAuthorizedDecision(engine, artifacts, resources.attestor);
-  const fresh = engine.beginMcpExecutionV1(
-    artifacts.proofCbor,
-    artifacts.canonicalActionCbor,
-    artifacts.trustedContextCbor,
-    freshDecision.receiptId,
-    freshDecision.bytes,
-    false,
-    new Uint8Array(),
-    0,
-    0,
-    resources.requestId,
-    sessionKey,
-  );
-  const executionId = fresh.executionId;
-  fresh.free?.();
-  const pending = await resources.state.loadPending(executionId);
-  if (pending === undefined) {
-    throw new AuthsWorkflowError("gateway-conflict", "MCP execution has no pending recovery checkpoint");
-  }
-  const session = engine.resumeMcpExecutionV1(
-    sessionKey,
-    boundedReference(pending.reference),
-    requiredBytes(pending.recordJson),
-  );
-  const decisionReceipt = attestedReceipt({
-    kind: "decision",
-    receiptId: requiredBytes(session.decisionReceiptId),
-    bytes: requiredBytes(session.decisionReceipt),
-    signer: resources.attestor.signer,
-  });
-  verifyAttestedReceipt(engine, decisionReceipt);
-  return driveMcpSession(session, resources, decisionReceipt);
-}
-
 export async function executeMcpPlanClosed(
   agent: AttachedAgent<Profile>,
   plan: ProfilePlan<McpAction>,
@@ -759,7 +703,7 @@ export async function executeMcpPlanClosed(
   if (authorization.kind !== "authorized") return authorization;
   const commands = commandsForGateway(authorization.command as VerifiedPlanCommand<McpCommand>);
   const results: unknown[] = [];
-  const receipts: McpAttestedReceipt[] = [];
+  const receipts: Receipt[] = [];
   const engine = engineForClient(resourcesForAttachedAgent(agent).client);
   for (let index = 0; index < commands.length; index += 1) {
     const command = commands[index];
@@ -832,7 +776,7 @@ async function driveMcpSession(
   decisionReceipt: AttestedApplicationReceipt,
 ): Promise<McpClosedResult> {
   const signal = resources.signal ?? new AbortController().signal;
-  let receipt: McpAttestedReceipt | undefined;
+  let receipt: Receipt | undefined;
   try {
     for (;;) {
       const terminal = session.terminal();
@@ -987,7 +931,7 @@ function isMcpOutcome(value: unknown): value is McpHandlerOutcome<unknown> {
 async function projectTerminal(
   terminal: WorkflowMcpSessionTerminal,
   state: McpExecutionState,
-  receipt: McpAttestedReceipt | undefined,
+  receipt: Receipt | undefined,
 ): Promise<McpClosedResult> {
   if (terminal.kind === "completed") {
     if (receipt === undefined) {

@@ -1,7 +1,7 @@
 import type { WorkflowWasmEngine } from "../workflow.js";
 import type { PortableWasmEngine } from "./result.js";
 import { registerPackagedEngine } from "./packaged-registry.js";
-import { guardWasmBoundary } from "./wasm-boundary.js";
+import { guardWasmBoundary } from "../internal/wasm-boundary.js";
 
 export type PackagedWorkflowEngine = WorkflowWasmEngine & PortableWasmEngine;
 
@@ -40,6 +40,7 @@ async function loadPackagedWorkflowEngineOnce(): Promise<PackagedWorkflowEngine>
     typeof untyped.productionClientContractVersionV1 !== "function" ||
     typeof untyped.encodeProductionRequestV1 !== "function" ||
     typeof untyped.decodeProductionResponseV1 !== "function" ||
+    typeof untyped.productionTransportFailureV1 !== "function" ||
     typeof untyped.decodeProductionRequestV1 !== "function" ||
     typeof untyped.encodeProductionDelegationV1 !== "function" ||
     typeof untyped.projectSdkEventV2 !== "function" ||

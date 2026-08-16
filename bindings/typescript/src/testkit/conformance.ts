@@ -26,7 +26,7 @@ export interface ConformanceCaseResult {
   readonly passed: boolean;
 }
 
-export interface ConformanceReport {
+export interface MechanismConformanceReport {
   readonly schema: "auths.conformance-report/1";
   readonly suite: string;
   readonly suiteVersion: 1;
@@ -66,7 +66,7 @@ export type McpProviderFactory = (options: Readonly<{
 export async function certifySigner(
   factory: () => Signer | Promise<Signer>,
   metadata: ConformanceMetadata,
-): Promise<ConformanceReport> {
+): Promise<MechanismConformanceReport> {
   const observed = await custodyConformance({ create: async () => factory() });
   return report(
     "signer-custody/1",
@@ -78,7 +78,7 @@ export async function certifySigner(
 export async function certifyAtomicStore(
   factory: () => AtomicReservationStoreCandidate | Promise<AtomicReservationStoreCandidate>,
   metadata: ConformanceMetadata,
-): Promise<ConformanceReport> {
+): Promise<MechanismConformanceReport> {
   const record = reservation("case", 1, new Uint8Array([3]));
   const outcomes: Array<readonly [string, boolean]> = [];
   outcomes.push(["atomic-store/acquire", await atomicCase(factory, async (store) =>
@@ -119,7 +119,7 @@ export async function certifyAtomicStore(
 export async function certifyByteTransport(
   factory: ByteTransportFactory,
   metadata: ConformanceMetadata,
-): Promise<ConformanceReport> {
+): Promise<MechanismConformanceReport> {
   const outcomes: Array<readonly [string, boolean]> = [];
   outcomes.push(["byte-transport/exact-bytes", await transportCase(factory, (packet) => packet, async (transport) => {
     const value = new Uint8Array([1, 2, 3]);
@@ -167,7 +167,7 @@ export async function certifyByteTransport(
 export async function certifyMcpProvider(
   factory: McpProviderFactory,
   metadata: ConformanceMetadata,
-): Promise<ConformanceReport> {
+): Promise<MechanismConformanceReport> {
   const outcomes: Array<readonly [string, boolean]> = [];
   let calls = 0;
   let requestBound = false;
@@ -313,7 +313,7 @@ function report(
   suite: string,
   metadata: ConformanceMetadata,
   outcomes: readonly (readonly [string, boolean])[],
-): ConformanceReport {
+): MechanismConformanceReport {
   const expected = CONFORMANCE_CATALOG.suites.find((candidate) => candidate.id === suite);
   if (expected === undefined) throw new TypeError("unknown Auths conformance suite");
   const supplied = new Map(outcomes);

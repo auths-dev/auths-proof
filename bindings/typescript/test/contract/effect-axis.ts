@@ -12,18 +12,21 @@
  *   NextCall    = "never" | "backoff" | "resume" | "reconcile" — "what next"
  *
  * The last two are DIFFERENT QUESTIONS and must never share an identifier.
- * Today `@auths-dev/sdk` exports the NextCall set under the name `RetryClass`
- * (src/index.ts:47 re-exporting src/production-client.ts:12), and exports no
- * `EffectState` at all.
+ * `@auths-dev/sdk` used to export the NextCall set under the name `RetryClass`
+ * and export no `EffectState` at all. It now exports `EffectState` and the
+ * `RetryClass` question; `NextCall` belongs to `@auths-dev/sdk/service`.
  */
 
 import type {
   AuthsErrorDetails,
   EffectState,
-  NextCall,
   RecommendedAction,
   RetryClass,
 } from "../../src/index.js";
+// `NextCall` answers "what should I call next", which only the remote client
+// can answer, so it is exported from the subpath that publishes that client
+// (contract 4.4). Importing both here is the point: they must not unify.
+import type { NextCall } from "../../src/service.js";
 
 // --- EffectState: exactly three members, no fourth ------------------------
 

@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import {
-  createAuths,
-} from "../../dist/index.js";
-import { githubIssueAddress } from "../../dist/profiles.js";
+  createServiceClient,
+  githubIssueAddress,
+} from "../../dist/service.js";
 import { loadPackagedWorkflowEngine } from "../../dist/verifier/wasm.js";
 
 const fixture = JSON.parse(await readFile(
@@ -50,10 +50,13 @@ test("Rust-owned finite response projections are identical in TypeScript", async
   }
 });
 
-test("the production facade uses five verbs and closed profile routes", async () => {
+test("the service client uses five verbs and closed profile routes", async () => {
   const completed = fixture.responses.find((item) => item.id === "completed");
   const calls = [];
-  const auths = await createAuths({
+  // Explicit named constructor. This used to be `createAuths`, which chose
+  // between the local facade and this client by testing the argument for an
+  // `endpoint` property.
+  const auths = createServiceClient({
     endpoint: "https://operator.example",
     identity: new Uint8Array(32).fill(1),
     profile: githubIssueAddress(),

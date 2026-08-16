@@ -23,13 +23,12 @@
       "qualified MCP profile with opaque one-use execution sessions",
       "evidence-gated signer and atomic reservation framework contracts",
       "development and recoverable local compositions",
-      "standalone method- and suite-agnostic identity descriptors",
       "bounded native batch verification with single-item equivalence",
       "bounded trust evidence acquisition and offline bundles",
       "versioned adapter conformance and an exact runtime contract",
       "bounded auths doctor diagnostics for runtime and configuration readiness",
       "idempotent closed runtime with reconciliation and durable reference state",
-      "exact purpose-labelled root, identity, verify, profiles, integrations, framework, and testkit entry points"
+      "exact purpose-labelled root, identity, verify, service, profiles, integrations, framework, and testkit entry points"
     ],
     "excluded": [
       "promoted full workflow SDK release claim",

@@ -1,4 +1,4 @@
-import type { LinkedAttestedReceipt } from "./internal/receipt-attestation.js";
+import type { Receipt } from "./internal/receipt-attestation.js";
 import { loadPackagedWorkflowEngine } from "./verifier/wasm.js";
 
 export type ReceiptViewMode = "opaque" | "summary" | "full";
@@ -91,7 +91,7 @@ export interface ReceiptDisclosureStore {
 }
 
 export async function createReceiptDisclosure(input: Readonly<{
-  receipt: LinkedAttestedReceipt;
+  receipt: Receipt;
   profileId: string;
   profileVersion: number;
   command: Uint8Array;
@@ -110,7 +110,7 @@ export async function createReceiptDisclosure(input: Readonly<{
 }
 
 export async function inspectReceipt(input: Readonly<{
-  receipt: LinkedAttestedReceipt;
+  receipt: Receipt;
   mode?: ReceiptViewMode;
   disclosure?: Uint8Array;
 }>): Promise<ReceiptInspectionResult> {
@@ -185,7 +185,7 @@ function inspectionMetadata(value: NativeMetadata): ReceiptInspectionMetadata {
   });
 }
 
-function receiptPair(value: LinkedAttestedReceipt): LinkedAttestedReceipt {
+function receiptPair(value: Receipt): Receipt {
   if (
     value === null ||
     typeof value !== "object" ||

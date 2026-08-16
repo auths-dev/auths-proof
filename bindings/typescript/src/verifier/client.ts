@@ -1,8 +1,8 @@
-import { mintPackagedVerifierEngine, type Auths } from "./result.js";
+import { mintPackagedVerifierEngine, type Verifier } from "./result.js";
 import { loadPackagedWorkflowEngine } from "./wasm.js";
 
 export {
-  Auths,
+  Verifier,
   VerifiedAction,
   type AuthorizedResult,
   type DeniedResult,
@@ -23,6 +23,6 @@ export {
  * It accepts no module URL, WASM input, or engine: the capability-minting
  * path resolves only the reviewed implementation shipped with this package.
  */
-export async function loadVerifier(): Promise<Auths> {
+export async function loadVerifier(): Promise<Verifier> {
   return mintPackagedVerifierEngine(await loadPackagedWorkflowEngine());
 }

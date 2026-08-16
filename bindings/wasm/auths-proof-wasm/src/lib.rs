@@ -30,8 +30,8 @@ use auths_model::{
 use auths_ports::{PrincipalMethod, SignatureSuite};
 use auths_production_client::{
     PRODUCTION_CLIENT_CONTRACT_VERSION, ProductVerb, ProductionRequest, QualifiedProfile,
-    RecoveryReference, decode_request, decode_response, encode_delegation_body, encode_request,
-    project_sdk_event_v2,
+    RecoveryReference, TransportFailure, decode_request, decode_response, encode_delegation_body,
+    encode_request, project_sdk_event_v2, transport_failure_response,
 };
 use auths_profile_api::ActionProfile;
 // The generic reference domain profiles (HTTP, Git, deployment, supply-chain,
@@ -137,6 +137,41 @@ pub fn decode_production_response_v1(input: &[u8]) -> Result<String, JsValue> {
 pub fn decode_production_request_v1(input: &[u8]) -> Result<String, JsValue> {
     decode_request(input)
         .and_then(|request| request.projection_json())
+        .map_err(js_error)
+}
+
+/// Projects one client-side transport failure under the Rust-owned contract.
+///
+/// The caller reports only what its transport can PROVE about the failure --
+/// whether any request byte was written -- and Rust decides the registry code
+/// and next call. A failure that is not provably before transmission, on a verb
+/// that applies an effect, is `core.outcome-unknown` with `reconcile`, never a
+/// code whose registered effect is `not-applied`. A language binding that chose
+/// this itself would be telling a caller that a possibly-applied PostgreSQL
+/// update is safe to blindly retry.
+///
+/// # Errors
+///
+/// Returns a JavaScript error for an unknown verb or an unknown failure kind.
+#[wasm_bindgen(js_name = productionTransportFailureV1)]
+pub fn production_transport_failure_v1(verb: &str, failure: &str) -> Result<String, JsValue> {
+    let verb = ProductVerb::parse(verb).map_err(js_error)?;
+    let failure = match failure {
+        "endpoint-unresolvable" => TransportFailure::EndpointUnresolvable,
+        "connection-refused" => TransportFailure::ConnectionRefused,
+        "connection-failed" => TransportFailure::ConnectionFailed,
+        "connection-lost" => TransportFailure::ConnectionLost,
+        "response-timeout" => TransportFailure::ResponseTimeout,
+        "cancelled" => TransportFailure::Cancelled,
+        "unusable-response" => TransportFailure::UnusableResponse,
+        _ => {
+            return Err(js_error(EngineError::Abi(
+                "unknown production transport failure",
+            )));
+        }
+    };
+    transport_failure_response(verb, failure)
+        .projection_json()
         .map_err(js_error)
 }
 

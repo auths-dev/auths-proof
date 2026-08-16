@@ -1,47 +1,87 @@
-import type { ProductionProfile } from "./profiles.js";
 import { loadPackagedWorkflowEngine } from "./verifier/wasm.js";
+import { classifyErrorCode, type ProductVerb } from "./product-errors.js";
+
+/**
+ * The remote Auths runtime client.
+ *
+ * This is a DIFFERENT product from the local facade at `@auths-dev/sdk`: it
+ * calls an Auths service over HTTPS and shares no method with it. The two used
+ * to be published side by side at one entry point as `X` and `ProductionX`,
+ * which asked every reader to work out which of two APIs they were holding.
+ * They are separate entry points now, and the local facade keeps no import edge
+ * to this one.
+ */
+
+/** A profile the remote runtime routes on. */
+export type ServiceProfileId =
+  | "auths.opentofu.saved-plan-apply/1"
+  | "auths.postgresql.bounded-update/1"
+  | "auths.github.issue-address/1";
+
+export interface ServiceProfile {
+  readonly id: ServiceProfileId;
+}
+
+export function opentofuSavedPlanApply(): ServiceProfile {
+  return Object.freeze({ id: "auths.opentofu.saved-plan-apply/1" });
+}
+
+export function postgresqlBoundedUpdate(): ServiceProfile {
+  return Object.freeze({ id: "auths.postgresql.bounded-update/1" });
+}
+
+export function githubIssueAddress(): ServiceProfile {
+  return Object.freeze({ id: "auths.github.issue-address/1" });
+}
 
 const CONTENT_TYPE = "application/auths+cbor";
 const MAX_RESPONSE_BYTES = 1_048_576;
 const DEFAULT_TIMEOUT_MS = 15_000;
-const authorityBytes = new WeakMap<ProductionAuthority, Uint8Array>();
-const receiptBytes = new WeakMap<ProductionReceipt, Uint8Array>();
-const referenceValues = new WeakMap<ProductionRecoveryReference, string>();
+const authorityBytes = new WeakMap<ServiceAuthority, Uint8Array>();
+const receiptBytes = new WeakMap<ServiceReceipt, Uint8Array>();
+const referenceValues = new WeakMap<ServiceRecoveryReference, string>();
 
-export type ProductStep = "create" | "delegate" | "execute" | "resume" | "verify";
-export type RetryClass = "never" | "backoff" | "resume" | "reconcile";
+/**
+ * Answers *what should I call next?* — `auths_production_client::NextCall`.
+ *
+ * This is not {@link NextCall}, which answers *may I retry?*. Rust renamed
+ * this type precisely so the two questions stop sharing an identifier: a
+ * caller reading `backoff` is being told nothing happened, which is a claim
+ * about the effect axis, not about permission to retry.
+ */
+export type NextCall = "never" | "backoff" | "resume" | "reconcile";
 
-export interface ProductionTransportRequest {
+export interface ServiceTransportRequest {
   readonly url: URL;
   readonly body: Uint8Array;
   readonly contentType: typeof CONTENT_TYPE;
   readonly timeoutMs: number;
 }
 
-export interface ProductionTransportResponse {
+export interface ServiceTransportResponse {
   readonly status: number;
   readonly contentType: string;
   readonly body: Uint8Array;
 }
 
-export interface ProductionTransport {
-  send(request: ProductionTransportRequest): Promise<ProductionTransportResponse>;
+export interface ServiceTransport {
+  send(request: ServiceTransportRequest): Promise<ServiceTransportResponse>;
 }
 
-export interface ProductionAuthsOptions {
+export interface ServiceClientOptions {
   readonly endpoint: string | URL;
   readonly identity: Uint8Array;
-  readonly profile: ProductionProfile;
-  readonly transport?: ProductionTransport;
+  readonly profile: ServiceProfile;
+  readonly transport?: ServiceTransport;
   readonly timeoutMs?: number;
 }
 
-export interface ProductionAuthority {
+export interface ServiceAuthority {
   readonly kind: "authority";
   toJSON(): never;
 }
 
-class ProductionAuthorityValue implements ProductionAuthority {
+class ServiceAuthorityValue implements ServiceAuthority {
   readonly kind = "authority" as const;
 
   constructor(bytes: Uint8Array) {
@@ -54,12 +94,12 @@ class ProductionAuthorityValue implements ProductionAuthority {
   }
 }
 
-export interface ProductionReceipt {
+export interface ServiceReceipt {
   readonly kind: "receipt";
   toJSON(): never;
 }
 
-class ProductionReceiptValue implements ProductionReceipt {
+class ServiceReceiptValue implements ServiceReceipt {
   readonly kind = "receipt" as const;
 
   constructor(bytes: Uint8Array) {
@@ -72,12 +112,12 @@ class ProductionReceiptValue implements ProductionReceipt {
   }
 }
 
-export interface ProductionRecoveryReference {
+export interface ServiceRecoveryReference {
   readonly kind: "recovery-reference";
   toJSON(): never;
 }
 
-class ProductionRecoveryReferenceValue implements ProductionRecoveryReference {
+class ServiceRecoveryReferenceValue implements ServiceRecoveryReference {
   readonly kind = "recovery-reference" as const;
 
   constructor(value: string) {
@@ -90,68 +130,68 @@ class ProductionRecoveryReferenceValue implements ProductionRecoveryReference {
   }
 }
 
-export interface ProductionDenied {
+export interface ServiceDenied {
   readonly kind: "denied";
-  readonly step: ProductStep;
+  readonly verb: ProductVerb;
   readonly code: string;
   readonly retry: "never";
 }
 
-export interface ProductionIndeterminate {
+export interface ServiceIndeterminate {
   readonly kind: "indeterminate";
-  readonly step: ProductStep;
+  readonly verb: ProductVerb;
   readonly code: string;
   readonly retry: "backoff" | "reconcile";
 }
 
-export interface ProductionRecoverable {
+export interface ServiceRecoverable {
   readonly kind: "recoverable";
-  readonly step: "execute" | "resume";
+  readonly verb: "execute" | "resume";
   readonly code: string;
   readonly retry: "resume";
-  readonly reference: ProductionRecoveryReference;
+  readonly reference: ServiceRecoveryReference;
 }
 
-export interface ProductionCompleted {
+export interface ServiceCompleted {
   readonly kind: "completed";
-  readonly step: "execute" | "resume";
+  readonly verb: "execute" | "resume";
   readonly value?: Uint8Array;
-  readonly receipt: ProductionReceipt;
+  readonly receipt: ServiceReceipt;
 }
 
-export interface ProductionVerified {
+export interface ServiceVerified {
   readonly kind: "verified";
-  readonly step: "verify";
+  readonly verb: "verify";
   readonly value?: Uint8Array;
 }
 
-export interface ProductionRejected {
+export interface ServiceRejected {
   readonly kind: "rejected";
-  readonly step: "verify";
+  readonly verb: "verify";
   readonly code: string;
   readonly retry: "never";
 }
 
-export type ProductionAuthorityResult = ProductionAuthority | ProductionDenied | ProductionIndeterminate;
-export type ProductionExecutionResult = ProductionCompleted | ProductionDenied | ProductionIndeterminate | ProductionRecoverable;
-export type ProductionVerificationResult = ProductionVerified | ProductionRejected | ProductionIndeterminate;
+export type ServiceAuthorityResult = ServiceAuthority | ServiceDenied | ServiceIndeterminate;
+export type ServiceExecutionResult = ServiceCompleted | ServiceDenied | ServiceIndeterminate | ServiceRecoverable;
+export type ServiceVerificationResult = ServiceVerified | ServiceRejected | ServiceIndeterminate;
 
-export interface ProductionAuths {
-  create(request: Uint8Array): Promise<ProductionAuthorityResult>;
+export interface ServiceClient {
+  create(request: Uint8Array): Promise<ServiceAuthorityResult>;
   delegate(
-    authority: ProductionAuthority,
+    authority: ServiceAuthority,
     subject: Uint8Array,
     attenuation?: Uint8Array,
-  ): Promise<ProductionAuthorityResult>;
-  execute(authority: ProductionAuthority, action: Uint8Array): Promise<ProductionExecutionResult>;
-  resume(reference: ProductionRecoveryReference): Promise<ProductionExecutionResult>;
-  verify(value: ProductionAuthority | ProductionReceipt | Uint8Array): Promise<ProductionVerificationResult>;
+  ): Promise<ServiceAuthorityResult>;
+  execute(authority: ServiceAuthority, action: Uint8Array): Promise<ServiceExecutionResult>;
+  resume(reference: ServiceRecoveryReference): Promise<ServiceExecutionResult>;
+  verify(value: ServiceAuthority | ServiceReceipt | Uint8Array): Promise<ServiceVerificationResult>;
 }
 
 interface NativeProductionEngine {
   productionClientContractVersionV1(): number;
   encodeProductionRequestV1(input: Readonly<{
-    readonly verb: ProductStep;
+    readonly verb: ProductVerb;
     readonly profile: string;
     readonly identity: Uint8Array;
     readonly authority?: Uint8Array;
@@ -159,6 +199,7 @@ interface NativeProductionEngine {
     readonly recoveryReference?: string;
   }>): Uint8Array;
   decodeProductionResponseV1(input: Uint8Array): string;
+  productionTransportFailureV1(verb: string, failure: string): string;
   decodeProductionRequestV1(input: Uint8Array): string;
   encodeProductionDelegationV1(subject: Uint8Array, attenuation: Uint8Array): Uint8Array;
 }
@@ -167,68 +208,68 @@ interface NativeProjection {
   readonly contractVersion: number;
   readonly kind: "completed" | "denied" | "indeterminate" | "recoverable" | "verified" | "rejected";
   readonly code: string | null;
-  readonly retry: RetryClass;
+  readonly retry: NextCall;
   readonly recoveryReference: string | null;
   readonly value: string | null;
   readonly receipt: string | null;
 }
 
-class ProductionAuthsClient implements ProductionAuths {
+class ServiceClientValue implements ServiceClient {
   readonly #endpoint: URL;
   readonly #identity: Uint8Array;
-  readonly #profile: ProductionProfile;
-  readonly #transport: ProductionTransport;
+  readonly #profile: ServiceProfile;
+  readonly #transport: ServiceTransport;
   readonly #timeoutMs: number;
 
-  constructor(options: ProductionAuthsOptions) {
+  constructor(options: ServiceClientOptions) {
     this.#endpoint = parseEndpoint(options.endpoint);
     if (!(options.identity instanceof Uint8Array) || options.identity.length === 0 || options.identity.length > 65_536) {
       throw new TypeError("Auths identity bytes are outside production bounds");
     }
-    if (!isProductionProfile(options.profile)) throw new TypeError("Auths production profile is unsupported");
+    if (!isServiceProfile(options.profile)) throw new TypeError("Auths production profile is unsupported");
     const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 100 || timeoutMs > 120_000) {
       throw new TypeError("Auths production timeout is outside bounds");
     }
     this.#identity = options.identity.slice();
     this.#profile = options.profile;
-    this.#transport = options.transport ?? fetchProductionTransport;
+    this.#transport = options.transport ?? fetchServiceTransport;
     this.#timeoutMs = timeoutMs;
   }
 
-  async create(request: Uint8Array): Promise<ProductionAuthorityResult> {
+  async create(request: Uint8Array): Promise<ServiceAuthorityResult> {
     const projection = await this.#call("create", request);
     if (projection.kind === "completed") {
-      return productionAuthority(requiredValue(projection));
+      return serviceAuthority(requiredValue(projection));
     }
     return projectAuthorityFailure("create", projection);
   }
 
   async delegate(
-    authority: ProductionAuthority,
+    authority: ServiceAuthority,
     subject: Uint8Array,
     attenuation: Uint8Array = new Uint8Array([0x80]),
-  ): Promise<ProductionAuthorityResult> {
+  ): Promise<ServiceAuthorityResult> {
     const authorityValue = readAuthority(authority);
     const body = await encodeDelegationInput(subject, attenuation);
     const projection = await this.#call("delegate", body, authorityValue);
     if (projection.kind === "completed") {
-      return productionAuthority(requiredValue(projection));
+      return serviceAuthority(requiredValue(projection));
     }
     return projectAuthorityFailure("delegate", projection);
   }
 
-  async execute(authority: ProductionAuthority, action: Uint8Array): Promise<ProductionExecutionResult> {
+  async execute(authority: ServiceAuthority, action: Uint8Array): Promise<ServiceExecutionResult> {
     return projectExecution("execute", await this.#call("execute", action, readAuthority(authority)));
   }
 
-  async resume(reference: ProductionRecoveryReference): Promise<ProductionExecutionResult> {
+  async resume(reference: ServiceRecoveryReference): Promise<ServiceExecutionResult> {
     const value = referenceValues.get(reference);
     if (value === undefined) throw new TypeError("forged Auths recovery reference");
     return projectExecution("resume", await this.#call("resume", undefined, undefined, value));
   }
 
-  async verify(value: ProductionAuthority | ProductionReceipt | Uint8Array): Promise<ProductionVerificationResult> {
+  async verify(value: ServiceAuthority | ServiceReceipt | Uint8Array): Promise<ServiceVerificationResult> {
     const bytes = value instanceof Uint8Array
       ? value
       : value.kind === "authority"
@@ -238,34 +279,34 @@ class ProductionAuthsClient implements ProductionAuths {
     if (projection.kind === "verified") {
       return Object.freeze({
         kind: "verified" as const,
-        step: "verify" as const,
+        verb: "verify" as const,
         ...(projection.value === null ? {} : { value: decodeBase64Url(projection.value) }),
       });
     }
     if (projection.kind === "rejected") {
-      return Object.freeze({ kind: "rejected" as const, step: "verify" as const, code: requiredCode(projection), retry: "never" as const });
+      return Object.freeze({ kind: "rejected" as const, verb: "verify" as const, code: requiredCode(projection), retry: "never" as const });
     }
     if (projection.kind === "indeterminate") return projectIndeterminate("verify", projection);
     throw new TypeError("native response outcome does not match verify");
   }
 
   async #call(
-    step: ProductStep,
+    verb: ProductVerb,
     body?: Uint8Array,
     authority?: Uint8Array,
     recoveryReference?: string,
   ): Promise<NativeProjection> {
     const engine = await productionEngine();
     const requestBody = engine.encodeProductionRequestV1({
-      verb: step,
+      verb: verb,
       profile: this.#profile.id,
       identity: this.#identity,
       ...(authority === undefined ? {} : { authority }),
       ...(body === undefined ? {} : { body }),
       ...(recoveryReference === undefined ? {} : { recoveryReference }),
     });
-    const path = endpointPath(step, this.#profile.id);
-    let response: ProductionTransportResponse;
+    const path = endpointPath(verb, this.#profile.id);
+    let response: ServiceTransportResponse;
     try {
       response = await this.#transport.send(Object.freeze({
         url: new URL(path, this.#endpoint),
@@ -273,27 +314,13 @@ class ProductionAuthsClient implements ProductionAuths {
         contentType: CONTENT_TYPE,
         timeoutMs: this.#timeoutMs,
       }));
-    } catch {
-      return Object.freeze({
-        contractVersion: 1,
-        kind: "indeterminate",
-        code: "core.runtime-unavailable",
-        retry: "backoff",
-        recoveryReference: null,
-        value: null,
-        receipt: null,
-      });
+    } catch (error) {
+      return await transportFailure(engine, verb, observedFailure(error));
     }
+    // A response that is not a bounded product response proves nothing about
+    // what the server did with the request it already received.
     if (response.status < 200 || response.status >= 300 || normalizeContentType(response.contentType) !== CONTENT_TYPE) {
-      return Object.freeze({
-        contractVersion: 1,
-        kind: "indeterminate",
-        code: "core.malformed-input",
-        retry: "backoff",
-        recoveryReference: null,
-        value: null,
-        receipt: null,
-      });
+      return await transportFailure(engine, verb, "unusable-response");
     }
     if (!(response.body instanceof Uint8Array) || response.body.length === 0 || response.body.length > MAX_RESPONSE_BYTES) {
       throw new TypeError("Auths production response is outside bounds");
@@ -302,12 +329,12 @@ class ProductionAuthsClient implements ProductionAuths {
   }
 }
 
-export function createProductionAuths(options: ProductionAuthsOptions): ProductionAuths {
-  return new ProductionAuthsClient(options);
+export function createServiceClient(options: ServiceClientOptions): ServiceClient {
+  return new ServiceClientValue(options);
 }
 
-const fetchProductionTransport: ProductionTransport = Object.freeze({
-  async send(request: ProductionTransportRequest): Promise<ProductionTransportResponse> {
+const fetchServiceTransport: ServiceTransport = Object.freeze({
+  async send(request: ServiceTransportRequest): Promise<ServiceTransportResponse> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), request.timeoutMs);
     try {
@@ -352,6 +379,51 @@ async function encodeDelegationInput(subject: Uint8Array, attenuation: Uint8Arra
   return (await productionEngine()).encodeProductionDelegationV1(subject, attenuation);
 }
 
+
+/**
+ * Closed classification of one transport failure — `TransportFailure` in Rust.
+ *
+ * The only thing this client may decide is what its transport can PROVE. Which
+ * registry code and which next call that failure earns is Rust's, because the
+ * answer is a claim about whether the real-world effect happened.
+ */
+export type TransportFailure =
+  | "endpoint-unresolvable"
+  | "connection-refused"
+  | "connection-failed"
+  | "connection-lost"
+  | "response-timeout"
+  | "cancelled"
+  | "unusable-response";
+
+/**
+ * Reports only what the platform actually proved about a failed send.
+ *
+ * `fetch` rejects with an opaque `TypeError` for DNS failure, connection
+ * refusal, and a connection lost after the request was written. Those are not
+ * distinguishable here, so this reports `connection-failed`, the variant Rust
+ * documents as "failed without proving whether request bytes were written" —
+ * which fails closed to a possible effect. Claiming `connection-refused`
+ * because the message happens to say so would be asserting a non-effect this
+ * client cannot prove.
+ */
+function observedFailure(error: unknown): TransportFailure {
+  if (typeof DOMException !== "undefined" && error instanceof DOMException && error.name === "AbortError") {
+    return "response-timeout";
+  }
+  if (error instanceof Error && error.name === "TimeoutError") return "response-timeout";
+  return "connection-failed";
+}
+
+/** Asks Rust what one transport failure means for this verb. */
+async function transportFailure(
+  engine: NativeProductionEngine,
+  verb: ProductVerb,
+  failure: TransportFailure,
+): Promise<NativeProjection> {
+  return parseProjection(engine.productionTransportFailureV1(verb, failure));
+}
+
 function parseEndpoint(value: string | URL): URL {
   const endpoint = new URL(value);
   if (endpoint.protocol !== "https:" || endpoint.username !== "" || endpoint.password !== ""
@@ -361,7 +433,7 @@ function parseEndpoint(value: string | URL): URL {
   return endpoint;
 }
 
-function isProductionProfile(value: ProductionProfile): boolean {
+function isServiceProfile(value: ServiceProfile): boolean {
   return value !== null && typeof value === "object" && [
     "auths.opentofu.saved-plan-apply/1",
     "auths.postgresql.bounded-update/1",
@@ -369,11 +441,11 @@ function isProductionProfile(value: ProductionProfile): boolean {
   ].includes(value.id);
 }
 
-function endpointPath(step: ProductStep, profile: ProductionProfile["id"]): string {
-  if (step === "create") return "/v1/authority/create";
-  if (step === "delegate") return "/v1/authority/delegate";
-  if (step === "resume") return "/v1/workflows/resume";
-  if (step === "verify") return "/v1/authority/verify";
+function endpointPath(verb: ProductVerb, profile: ServiceProfile["id"]): string {
+  if (verb === "create") return "/v1/authority/create";
+  if (verb === "delegate") return "/v1/authority/delegate";
+  if (verb === "resume") return "/v1/workflows/resume";
+  if (verb === "verify") return "/v1/authority/verify";
   if (profile === "auths.opentofu.saved-plan-apply/1") return "/v1/profiles/opentofu/saved-plan-apply/execute";
   if (profile === "auths.postgresql.bounded-update/1") return "/v1/profiles/postgresql/bounded-update/execute";
   return "/v1/profiles/github/issue-address/execute";
@@ -391,62 +463,62 @@ function parseProjection(value: string): NativeProjection {
   return projection as unknown as NativeProjection;
 }
 
-function projectAuthorityFailure(step: "create" | "delegate", projection: NativeProjection): ProductionDenied | ProductionIndeterminate {
+function projectAuthorityFailure(verb: "create" | "delegate", projection: NativeProjection): ServiceDenied | ServiceIndeterminate {
   if (projection.kind === "denied") {
-    return Object.freeze({ kind: "denied", step, code: requiredCode(projection), retry: "never" });
+    return Object.freeze({ kind: "denied", verb, code: requiredCode(projection), retry: "never" });
   }
-  if (projection.kind === "indeterminate") return projectIndeterminate(step, projection);
-  throw new TypeError(`native response outcome does not match ${step}`);
+  if (projection.kind === "indeterminate") return projectIndeterminate(verb, projection);
+  throw new TypeError(`native response outcome does not match ${verb}`);
 }
 
-function projectExecution(step: "execute" | "resume", projection: NativeProjection): ProductionExecutionResult {
+function projectExecution(verb: "execute" | "resume", projection: NativeProjection): ServiceExecutionResult {
   if (projection.kind === "completed") {
     if (projection.receipt === null) throw new TypeError("native response omitted receipt bytes");
     return Object.freeze({
       kind: "completed",
-      step,
+      verb,
       ...(projection.value === null ? {} : { value: decodeBase64Url(projection.value) }),
-      receipt: productionReceipt(decodeBase64Url(projection.receipt)),
+      receipt: serviceReceipt(decodeBase64Url(projection.receipt)),
     });
   }
   if (projection.kind === "denied") {
-    return Object.freeze({ kind: "denied", step, code: requiredCode(projection), retry: "never" });
+    return Object.freeze({ kind: "denied", verb, code: requiredCode(projection), retry: "never" });
   }
-  if (projection.kind === "indeterminate") return projectIndeterminate(step, projection);
+  if (projection.kind === "indeterminate") return projectIndeterminate(verb, projection);
   if (projection.kind === "recoverable" && projection.recoveryReference !== null) {
     return Object.freeze({
       kind: "recoverable",
-      step,
+      verb,
       code: requiredCode(projection),
       retry: "resume",
-      reference: productionRecoveryReference(projection.recoveryReference),
+      reference: serviceRecoveryReference(projection.recoveryReference),
     });
   }
-  throw new TypeError(`native response outcome does not match ${step}`);
+  throw new TypeError(`native response outcome does not match ${verb}`);
 }
 
-function projectIndeterminate(step: ProductStep, projection: NativeProjection): ProductionIndeterminate {
+function projectIndeterminate(verb: ProductVerb, projection: NativeProjection): ServiceIndeterminate {
   if (projection.retry !== "backoff" && projection.retry !== "reconcile") {
     throw new TypeError("native indeterminate result has invalid retry class");
   }
-  return Object.freeze({ kind: "indeterminate", step, code: requiredCode(projection), retry: projection.retry });
+  return Object.freeze({ kind: "indeterminate", verb, code: requiredCode(projection), retry: projection.retry });
 }
 
-function productionAuthority(bytes: Uint8Array): ProductionAuthority {
+function serviceAuthority(bytes: Uint8Array): ServiceAuthority {
   if (bytes.length === 0) throw new TypeError("native response omitted authority bytes");
-  return new ProductionAuthorityValue(bytes);
+  return new ServiceAuthorityValue(bytes);
 }
 
-function productionReceipt(bytes: Uint8Array): ProductionReceipt {
+function serviceReceipt(bytes: Uint8Array): ServiceReceipt {
   if (bytes.length === 0) throw new TypeError("native response omitted receipt bytes");
-  return new ProductionReceiptValue(bytes);
+  return new ServiceReceiptValue(bytes);
 }
 
-function productionRecoveryReference(value: string): ProductionRecoveryReference {
+function serviceRecoveryReference(value: string): ServiceRecoveryReference {
   if (!/^[A-Za-z0-9_-]{43}$/.test(value)) {
     throw new TypeError("native response returned an invalid recovery reference");
   }
-  return new ProductionRecoveryReferenceValue(value);
+  return new ServiceRecoveryReferenceValue(value);
 }
 
 function requiredValue(projection: NativeProjection): Uint8Array {
@@ -459,13 +531,13 @@ function requiredCode(projection: NativeProjection): string {
   return projection.code;
 }
 
-function readAuthority(authority: ProductionAuthority): Uint8Array {
+function readAuthority(authority: ServiceAuthority): Uint8Array {
   const value = authorityBytes.get(authority);
   if (value === undefined) throw new TypeError("forged Auths authority");
   return value.slice();
 }
 
-function readReceipt(receipt: ProductionReceipt): Uint8Array {
+function readReceipt(receipt: ServiceReceipt): Uint8Array {
   const value = receiptBytes.get(receipt);
   if (value === undefined) throw new TypeError("forged Auths receipt");
   return value.slice();

@@ -3,7 +3,6 @@ import type { AttachedAgent, Profile } from "./workflow.js";
 import {
   executeMcpClosed,
   executeMcpPlanClosed,
-  recoverMcpClosed,
   resumeMcpClosed,
   resourcesForMcpAuthority,
   type McpAction,
@@ -11,7 +10,6 @@ import {
   type McpExecutionState,
   type McpExecutionObserver,
   type McpReceiptSink,
-  type McpAttestedReceipt,
   type McpToolAuthority,
   type McpPlanClosedResult,
 } from "./profiles/mcp/index.js";
@@ -29,12 +27,8 @@ import {
   decodeLinkedReceipt,
   encodeLinkedReceipt,
   verifyLinkedReceipt,
+  type Receipt,
 } from "./internal/receipt-attestation.js";
-import {
-  createProductionAuths,
-  type ProductionAuths,
-  type ProductionAuthsOptions,
-} from "./production-client.js";
 
 const configurationResources = new WeakMap<AuthsConfiguration, InternalConfiguration>();
 const referenceResources = new WeakMap<ExecutionReference, string>();
@@ -52,7 +46,7 @@ export interface AuthsConfiguration {
   readonly diagnostics: readonly string[];
 }
 
-export type Receipt = McpAttestedReceipt;
+export type { Receipt };
 
 export interface Completed {
   readonly kind: "completed";
@@ -184,11 +178,6 @@ export interface Auths {
     reference: ExecutionReference;
     provider: McpClosedProvider;
   }>): Promise<SingleExecutionResult>;
-  recover(input: Readonly<{
-    action: McpAction;
-    provider: McpClosedProvider;
-    requestId?: string;
-  }>): Promise<SingleExecutionResult>;
   delegate(input: Readonly<{
     authority: McpToolAuthority;
     name?: string;
@@ -287,28 +276,6 @@ class AuthsFacade implements Auths {
     ));
   }
 
-  async recover(input: Readonly<{
-    action: McpAction;
-    provider: McpClosedProvider;
-    requestId?: string;
-  }>): Promise<SingleExecutionResult> {
-    this.#assertActive();
-    this.#assertProvider(input.provider);
-    return projectExecution(await recoverMcpClosed(
-      this.#resources.agent,
-      input.action,
-      {
-        provider: input.provider,
-        state: this.#resources.state,
-        receipts: this.#resources.receipts,
-        attestor: this.#resources.receiptAttestor,
-        sessionKey: this.#resources.sessionKey,
-        ...(this.#resources.observer === undefined ? {} : { observer: this.#resources.observer }),
-        ...(input.requestId === undefined ? {} : { requestId: input.requestId }),
-      },
-    ));
-  }
-
   async delegate(input: Readonly<{
     authority: McpToolAuthority;
     name?: string;
@@ -386,12 +353,16 @@ export function createAuthsConfiguration(
   return configuration;
 }
 
-export function createAuths(configuration: AuthsConfiguration): Promise<Auths>;
-export function createAuths(configuration: ProductionAuthsOptions): ProductionAuths;
-export function createAuths(
-  configuration: AuthsConfiguration | ProductionAuthsOptions,
-): Promise<Auths> | ProductionAuths {
-  if ("endpoint" in configuration) return createProductionAuths(configuration);
+/**
+ * Opens the local product facade over a configuration an integration built.
+ *
+ * This used to be an overload that chose between the local facade and the
+ * remote service client by testing whether the argument happened to have an
+ * `endpoint` property. Two unrelated products behind one name, selected by
+ * duck-typing, is not an API: the remote client is `createServiceClient` at
+ * `@auths-dev/sdk/service`, and this returns the local facade or throws.
+ */
+export function createAuths(configuration: AuthsConfiguration): Promise<Auths> {
   const resources = configurationResources.get(configuration);
   if (resources === undefined) throw new TypeError("Auths configuration was not created by an integration");
   return resources.open().then((opened) => new AuthsFacade(opened, resources.diagnostics));

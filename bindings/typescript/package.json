@@ -19,6 +19,10 @@
       "types": "./dist/verify.d.ts",
       "import": "./dist/verify.js"
     },
+    "./service": {
+      "types": "./dist/service.d.ts",
+      "import": "./dist/service.js"
+    },
     "./profiles": {
       "types": "./dist/profiles.d.ts",
       "import": "./dist/profiles.js"
@@ -55,7 +59,7 @@
     "build:wasm": "wasm-pack build ../wasm/auths-proof-wasm --target web --out-dir ../../typescript/wasm",
     "test": "npm run test:all",
     "test:all": "npm run test:contract && npm run test:integration && npm run test:unit && npm run test:package && npm run test:examples && npm run test:api && npm run test:capability && npm run test:runtime-contract",
-    "test:api": "npm run build && node tools/public-api.mjs",
+    "test:api": "npm run build && node tools/public-api.mjs && node tools/public-api.mjs --shape",
     "test:browser": "npm run build && node test/package/packed-browser.mjs",
     "test:capability": "node tools/capability-metadata.mjs",
     "test:runtime-contract": "npm run build && node tools/runtime-contract.mjs",

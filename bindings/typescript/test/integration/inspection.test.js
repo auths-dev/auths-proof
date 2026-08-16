@@ -10,7 +10,7 @@ import { McpAction, McpCommand, mcp } from "../../dist/mcp.js";
 import { ApplicationCommand, defineProfile } from "../../dist/profile-kit.js";
 import { ProfilePlan, VerifiedPlanCommand } from "../../dist/internal-sdk.js";
 import * as publicRoot from "../../dist/index.js";
-import { development, InMemoryApplicationExecutionStore } from "../../dist/testkit/index.js";
+import { fixtures, InMemoryApplicationExecutionStore } from "../../dist/testkit/index.js";
 import { mcpFixture, packagedWasm } from "./helpers/mcp-fixture.js";
 
 const authorizedFixture = async () => {
@@ -149,7 +149,7 @@ test("application profile inspection cannot mint its own command", async () => {
     const gateway = profile.gateway({
       state: new InMemoryApplicationExecutionStore(),
       credentials: { async acquire() { return undefined; } },
-      receipts: await development.receiptAttestor(),
+      receipts: await fixtures.receiptAttestor(),
       canonicalizeResult: (value) => new TextEncoder().encode(value),
       execute: async (command) => command.permission.resource,
     });

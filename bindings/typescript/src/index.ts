@@ -1,3 +1,10 @@
+/**
+ * The local Auths product facade.
+ *
+ * One vocabulary, one entry point per operation. The remote service client is a
+ * separate product and lives at `@auths-dev/sdk/service`; this entry point
+ * publishes no mirror of it and holds no import edge to it.
+ */
 export { approval } from "./approvals.js";
 export type { ApprovalPolicy } from "./workflow.js";
 export {
@@ -9,8 +16,19 @@ export {
 } from "./doctor.js";
 export {
   AuthsError,
+  classifyErrorCode,
+  isProductVerb,
   type AuthsErrorCode,
+  type AuthsErrorDetails,
+  type CauseCategory,
+  type CodeClassification,
+  type EnteredBoundaries,
+  type EffectState,
+  type ErrorFamily,
+  type ProductStage,
+  type ProductVerb,
   type RecommendedAction,
+  type RetryClass,
 } from "./product-errors.js";
 export {
   createAuths,
@@ -23,27 +41,7 @@ export {
   ExecutionReference,
   type ExecutionResult,
   type Indeterminate,
+  type Outcome,
   type Receipt,
   type RecoveryResult,
 } from "./product.js";
-export {
-  type ProductionAuthority,
-  type ProductionReceipt,
-  type ProductionRecoveryReference,
-  type ProductStep,
-  type ProductionAuths,
-  type ProductionAuthsOptions,
-  type ProductionAuthorityResult,
-  type ProductionCompleted,
-  type ProductionDenied,
-  type ProductionExecutionResult,
-  type ProductionIndeterminate,
-  type ProductionRecoverable,
-  type ProductionRejected,
-  type ProductionTransport,
-  type ProductionTransportRequest,
-  type ProductionTransportResponse,
-  type ProductionVerificationResult,
-  type ProductionVerified,
-  type RetryClass,
-} from "./production-client.js";

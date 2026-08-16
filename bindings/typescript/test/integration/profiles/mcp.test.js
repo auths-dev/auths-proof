@@ -18,7 +18,7 @@ import {
   defineProfile,
   verifyApplicationReceipt,
 } from "../../../dist/profile-kit.js";
-import { development, InMemoryApplicationExecutionStore } from "../../../dist/testkit/index.js";
+import { fixtures, InMemoryApplicationExecutionStore } from "../../../dist/testkit/index.js";
 import {
   ACTOR,
   RAW_EVIDENCE,
@@ -71,7 +71,7 @@ test("application profile kit uses the native authoring and verification path", 
     const gateway = profile.gateway({
       state: new InMemoryApplicationExecutionStore(),
       credentials: { async acquire() { return undefined; } },
-      receipts: await development.receiptAttestor(),
+      receipts: await fixtures.receiptAttestor(),
       canonicalizeResult: (value) => new TextEncoder().encode(value),
       execute: async (command) => command.permission.resource,
     });
@@ -127,7 +127,7 @@ test("application plan gateway keeps exact bytes opaque and stores native signed
           return undefined;
         },
       },
-      receipts: await development.receiptAttestor(),
+      receipts: await fixtures.receiptAttestor(),
       canonicalizeResult: (value) => new TextEncoder().encode(value),
       async execute(command, _credential, context) {
         stages.push(`provider:${command}`);
