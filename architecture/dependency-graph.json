@@ -5075,7 +5075,9 @@
       "target_condition": null,
       "optional": false,
       "default_features": false,
-      "features": []
+      "features": [
+        "std"
+      ]
     },
     {
       "source": "auths-node",
@@ -5087,7 +5089,9 @@
       "target_condition": null,
       "optional": false,
       "default_features": false,
-      "features": []
+      "features": [
+        "std"
+      ]
     },
     {
       "source": "auths-node",
@@ -5207,7 +5211,9 @@
       "target_condition": null,
       "optional": false,
       "default_features": false,
-      "features": []
+      "features": [
+        "std"
+      ]
     },
     {
       "source": "auths-node",
