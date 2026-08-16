@@ -124,6 +124,11 @@ jobs:
           npm init --yes
           npm install ../open-reference-artifacts/auths-dev-sdk-*.tgz
           PATH="${{ github.workspace }}/target/debug:$PATH" node reference.mjs
+      - name: Capture node logs on client failure
+        if: failure()
+        run: |
+          docker compose -f demos/open-production-reference/compose/compose.yaml \
+            logs --tail 80 auths-1 auths-2 auths-3 || true
       - name: Run built Python wheel across replicas
         env:
           AUTHS_REFERENCE_ENDPOINT: https://localhost:8443
