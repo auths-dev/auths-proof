@@ -1059,6 +1059,7 @@ name = "auths-profile-mcp"
 version = "1.0.0-rc.1"
 dependencies = [
  "auths-codec",
+ "auths-errors",
  "auths-model",
  "auths-profile-api",
  "auths-verifier",
