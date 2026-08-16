@@ -8,6 +8,7 @@ description = "Hardened open reference node for the Auths production contract"
 publish = false
 
 [dependencies]
+auths-author = { workspace = true, features = ["std"] }
 auths-codec.workspace = true
 auths-did-key = { workspace = true, features = ["std"] }
 auths-did-keri = { workspace = true, features = ["std"] }

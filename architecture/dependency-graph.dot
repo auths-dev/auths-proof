@@ -288,6 +288,7 @@ digraph auths_architecture {
   "auths-live-service" -> "auths-proof-wasm" [label="normal"];
   "auths-mcp-demo" -> "auths-apps-testkit" [label="normal"];
   "auths-mcp-demo" -> "auths-proof-exchange-model" [label="normal"];
+  "auths-node" -> "auths-author" [label="normal"];
   "auths-node" -> "auths-codec" [label="normal"];
   "auths-node" -> "auths-did-keri" [label="normal"];
   "auths-node" -> "auths-did-key" [label="normal"];

@@ -122,6 +122,81 @@ fn verifier_configuration() -> Result<VerifierConfigurationId, FixtureError> {
     .map_err(|_| fail("the verifier configuration could not be computed"))
 }
 
+/// The permission, namespace, audience and assurance policy the trusted
+/// context accepts for one reference profile.
+///
+/// Exported so the authoring tool and the context are built from ONE source.
+/// If these drifted apart the node would deny every authored proof, and the
+/// failure would look like a verifier bug rather than a fixture mismatch.
+///
+/// # Errors
+///
+/// Returns [`FixtureError`] for a profile the reference stack does not enable.
+pub fn reference_grant_terms(
+    qualified: &str,
+) -> Result<
+    (
+        PermissionSet,
+        AudienceSet,
+        AssurancePolicyId,
+        Permission,
+        Audience,
+    ),
+    FixtureError,
+> {
+    let index = REFERENCE_PROFILES
+        .iter()
+        .position(|candidate| *candidate == qualified)
+        .ok_or_else(|| fail("that profile is not enabled by the reference stack"))?;
+    let permission = Permission::new(
+        CapabilityId::parse(REFERENCE_CAPABILITIES[index])
+            .map_err(|_| fail("a reference capability is malformed"))?,
+        ResourceId::parse(REFERENCE_NAMESPACES[index])
+            .map_err(|_| fail("a reference namespace is malformed"))?,
+    );
+    let permission_value = permission.clone();
+    let permissions = PermissionSet::new(vec![permission])
+        .map_err(|_| fail("the reference permission set is invalid"))?;
+    let audience = Audience::parse(REFERENCE_AUDIENCE)
+        .map_err(|_| fail("the reference audience is malformed"))?;
+    let audience_value = audience.clone();
+    let audiences =
+        AudienceSet::new(vec![audience]).map_err(|_| fail("the audience set is invalid"))?;
+    let assurance = AssurancePolicyId::parse(ASSURANCE_POLICY)
+        .map_err(|_| fail("the assurance policy id is malformed"))?;
+    Ok((
+        permissions,
+        audiences,
+        assurance,
+        permission_value,
+        audience_value,
+    ))
+}
+
+/// Parses one of the reference stack's enabled profiles.
+///
+/// # Errors
+///
+/// Returns [`FixtureError`] for any profile the reference stack does not
+/// enable, so the authoring tool cannot mint authority for a vertical the
+/// trusted context never accepted.
+pub fn reference_profile(qualified: &str) -> Result<ProfileRef, FixtureError> {
+    if !REFERENCE_PROFILES.contains(&qualified) {
+        return Err(fail("that profile is not enabled by the reference stack"));
+    }
+    let (id, version) = qualified
+        .rsplit_once('/')
+        .ok_or_else(|| fail("a reference profile id carries no version"))?;
+    let version = version
+        .parse::<u16>()
+        .map_err(|_| fail("a reference profile version is not a number"))?;
+    ProfileRef::new(
+        ProfileId::parse(id).map_err(|_| fail("a reference profile id is malformed"))?,
+        version,
+    )
+    .map_err(|_| fail("a reference profile reference is invalid"))
+}
+
 fn profiles() -> Result<Vec<ProfileRef>, FixtureError> {
     REFERENCE_PROFILES
         .iter()
