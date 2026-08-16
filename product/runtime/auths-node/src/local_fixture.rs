@@ -17,11 +17,10 @@ use auths_model::{
     AcceptedRegistries, AssuranceClaimId, AssurancePolicy, AssurancePolicyId, AssuranceQuantifier,
     AssuranceRequirement, Audience, AudienceSet, BudgetAlgebraId, BudgetCeiling, CapabilityId,
     Challenge, ChannelBindingId, CompositionRequirement, EvidenceTypeId, GrantStatusSnapshot,
-    ParticipantRole, Permission, PermissionSet, PrincipalId, PrincipalMethodId, PrincipalStatusSnapshot,
-    ProfileId,
-    ProfilePolicyId, ProfileRef, ResourceId, ResourceMatcherId, SignatureSuiteId, StatusPolicy,
-    StatusSnapshotId, Timestamp, TrustAnchor, TrustAnchorId, TrustedContext, ValidityWindow,
-    VerifierConfigurationId, VerifierLimits,
+    ParticipantRole, Permission, PermissionSet, PrincipalId, PrincipalMethodId,
+    PrincipalStatusSnapshot, ProfileId, ProfilePolicyId, ProfileRef, ResourceId, ResourceMatcherId,
+    SignatureSuiteId, StatusPolicy, StatusSnapshotId, Timestamp, TrustAnchor, TrustAnchorId,
+    TrustedContext, ValidityWindow, VerifierConfigurationId, VerifierLimits,
 };
 use auths_ports::{PrincipalMethod, SignatureSuite};
 use auths_raw_key::{RAW_KEY_V1, RawKeyDescriptor, RawKeyMethod, RawKeyType};
@@ -147,7 +146,8 @@ fn permissions() -> Result<PermissionSet, FixtureError> {
     let mut entries = Vec::new();
     for (capability, namespace) in REFERENCE_CAPABILITIES.iter().zip(REFERENCE_NAMESPACES) {
         entries.push(Permission::new(
-            CapabilityId::parse(capability).map_err(|_| fail("a reference capability is malformed"))?,
+            CapabilityId::parse(capability)
+                .map_err(|_| fail("a reference capability is malformed"))?,
             ResourceId::parse(namespace).map_err(|_| fail("a reference namespace is malformed"))?,
         ));
     }
@@ -190,7 +190,12 @@ fn assurance() -> Result<(AssurancePolicyId, AssurancePolicy), FixtureError> {
                 claim.clone(),
                 None,
             ),
-            AssuranceRequirement::new(ParticipantRole::Actor, AssuranceQuantifier::Every, claim, None),
+            AssuranceRequirement::new(
+                ParticipantRole::Actor,
+                AssuranceQuantifier::Every,
+                claim,
+                None,
+            ),
         ],
     )
     .map_err(|_| fail("the assurance policy is invalid"))?;
@@ -215,8 +220,8 @@ pub fn build_context(
     let (_signing, principal) = anchor_principal(seed)?;
     let profile_refs = profiles()?;
     let expires = now.saturating_add(lifetime_seconds);
-    let audience =
-        Audience::parse(REFERENCE_AUDIENCE).map_err(|_| fail("the reference audience is malformed"))?;
+    let audience = Audience::parse(REFERENCE_AUDIENCE)
+        .map_err(|_| fail("the reference audience is malformed"))?;
     let (assurance_id, assurance_policy) = assurance()?;
     let anchor = TrustAnchor::new(
         TrustAnchorId::parse(principal.as_str()).map_err(|_| fail("the anchor id is malformed"))?,
@@ -230,7 +235,8 @@ pub fn build_context(
                 ResourceId::parse(namespace).map_err(|_| fail("a reference namespace is malformed"))
             })
             .collect::<Result<Vec<_>, _>>()?,
-        AudienceSet::new(vec![audience.clone()]).map_err(|_| fail("the audience set is invalid"))?,
+        AudienceSet::new(vec![audience.clone()])
+            .map_err(|_| fail("the audience set is invalid"))?,
         ValidityWindow::new(
             Timestamp::new(now.saturating_sub(60)),
             Timestamp::new(expires),

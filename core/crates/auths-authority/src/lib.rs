@@ -231,8 +231,13 @@ pub fn evaluate_grant_view<'grant>(
     grant_id: GrantId,
     grant: GrantAuthorityView<'grant>,
 ) -> DelegationEvaluation<'grant> {
+    // Bound to a local rather than borrowed inline. `root_preserved` takes a
+    // reference, and a reference to a temporary in argument position is what
+    // aeneas failed to translate here (Aeneas.Errors.CFailure on this span).
+    // Same value, same order of evaluation, one name.
+    let linkage = root_linkage(&parent, grant.issuer);
     let checks = AttenuationChecks {
-        root_preserved: root_preserved(&root_linkage(&parent, grant.issuer)),
+        root_preserved: root_preserved(&linkage),
         depth_decreases: parent.remaining_depth > 0
             && grant.remaining_depth < parent.remaining_depth,
         profile_attenuates: selected_profile_attenuates(
@@ -318,7 +323,8 @@ pub fn evaluate_action_coverage_view(
     // Terminal coverage is the same chain claim as a delegation edge with the
     // actor in the issuer position: an authority that never descended from the
     // root it claims authorizes nothing.
-    if !root_preserved(&root_linkage(&authority, action.actor))
+    let linkage = root_linkage(&authority, action.actor);
+    if !root_preserved(&linkage)
         || !optional_grant_id_equal(action.terminal_grant, authority.last_grant)
     {
         return CoverageDecision::Denied(DenialReason::BrokenGrantChain);
