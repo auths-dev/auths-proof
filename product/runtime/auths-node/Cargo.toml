@@ -9,8 +9,8 @@ publish = false
 
 [dependencies]
 auths-codec.workspace = true
-auths-did-key.workspace = true
-auths-did-keri.workspace = true
+auths-did-key = { workspace = true, features = ["std"] }
+auths-did-keri = { workspace = true, features = ["std"] }
 auths-errors.workspace = true
 auths-model.workspace = true
 auths-operations.workspace = true
@@ -18,7 +18,7 @@ auths-operations-otel.workspace = true
 auths-ports.workspace = true
 auths-production-client.workspace = true
 auths-raw-key.workspace = true
-auths-registries.workspace = true
+auths-registries = { workspace = true, features = ["std"] }
 auths-signature.workspace = true
 auths-verifier.workspace = true
 axum.workspace = true
