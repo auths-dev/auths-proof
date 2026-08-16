@@ -63,7 +63,11 @@ async def test_installed_python_completes_the_same_reference_flow():
         authority = import_authority(_decode(authored["proof"]))
         assert authority.kind == "authority"
 
-        client = create_service_client(endpoint=endpoint, profile=profile)
+        client = create_service_client(
+            endpoint=endpoint,
+            identity=f"reference-python-{name}-agent".encode(),
+            profile=profile,
+        )
         completed = await client.execute(authority, _decode(authored["action"]))
         assert completed.kind == "completed"
 
@@ -92,7 +96,11 @@ async def test_installed_python_resolves_an_unknown_effect():
         "reference-python-recovery-agent",
     )
 
-    client = create_service_client(endpoint=endpoint, profile=profile)
+    client = create_service_client(
+        endpoint=endpoint,
+        identity=b"reference-python-recovery-agent",
+        profile=profile,
+    )
     unknown = await client.execute(
         import_authority(_decode(authored["proof"])),
         _decode(authored["action"]),

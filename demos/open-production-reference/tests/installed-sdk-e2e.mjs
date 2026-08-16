@@ -24,6 +24,7 @@ import {
 } from "@auths-dev/sdk/profiles";
 
 const directory = mkdtempSync(join(tmpdir(), "auths-reference-"));
+const encode = (value) => new TextEncoder().encode(value);
 const decode = (value) => Uint8Array.from(Buffer.from(value, "base64url"));
 const endpoint = process.env.AUTHS_REFERENCE_ENDPOINT ?? "https://localhost:8443";
 
@@ -45,7 +46,11 @@ for (const [name, profile] of profiles) {
   const authority = importAuthority(decode(authored.proof));
   assert.equal(authority.kind, "authority");
 
-  const client = createServiceClient({ endpoint, profile });
+  const client = createServiceClient({
+    endpoint,
+    identity: encode(`reference-${name}-agent`),
+    profile,
+  });
   const completed = await client.execute(authority, decode(authored.action));
   assert.equal(completed.kind, "completed");
 
@@ -69,7 +74,11 @@ const recovery = JSON.parse(
     encoding: "utf8",
   }),
 );
-const recoveryClient = createServiceClient({ endpoint, profile: recoveryProfile });
+const recoveryClient = createServiceClient({
+  endpoint,
+  identity: encode("reference-recovery-agent"),
+  profile: recoveryProfile,
+});
 const unknown = await recoveryClient.execute(
   importAuthority(decode(recovery.proof)),
   decode(recovery.action),
