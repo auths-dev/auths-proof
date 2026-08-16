@@ -212,7 +212,10 @@ impl McpTerminal {
             Self::ExactReplay { .. } => Some("mcp.replay"),
             Self::Conflict { .. } => Some("mcp.reservation-conflict"),
             Self::Recoverable {
-                recovery, cause, resumed, ..
+                recovery,
+                cause,
+                resumed,
+                ..
             } => Some(match recovery {
                 // Reserved, never entered: non-effect is still provable.
                 RecoveryKind::Reserved => "mcp.cancelled-before-entry",
@@ -1016,7 +1019,9 @@ mod tests {
         session.accept_provider_entry().unwrap();
         session.next_step().unwrap();
         session
-            .accept_handler(McpHandlerResult::parse(McpHandlerEffect::Possible, None, cause).unwrap())
+            .accept_handler(
+                McpHandlerResult::parse(McpHandlerEffect::Possible, None, cause).unwrap(),
+            )
             .unwrap();
         session.terminal().unwrap().clone()
     }

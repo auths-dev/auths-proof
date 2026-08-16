@@ -414,7 +414,11 @@ mod tests {
                 // `exports` does: "." for the root, "./identity" for the rest.
                 let suffix = entry.strip_prefix("@auths-dev/sdk").unwrap_or(entry);
                 let owned = format!(".{suffix}");
-                let subpath = if suffix.is_empty() { "." } else { owned.as_str() };
+                let subpath = if suffix.is_empty() {
+                    "."
+                } else {
+                    owned.as_str()
+                };
                 assert_ne!(
                     classify_typescript_entry(subpath),
                     "internal-leak",
