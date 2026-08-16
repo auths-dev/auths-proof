@@ -18,7 +18,9 @@ use crate::{
         MemorySandboxStore, PendingEffect, PostgresSandboxStore, SandboxStore, StoredReceipt,
     },
 };
-use auths_model::{CanonicalAction, Timestamp, TrustedContext, VerifierConfigurationId};
+use auths_model::{
+    CanonicalAction, DenialReason, Timestamp, TrustedContext, VerifierConfigurationId,
+};
 use auths_operations::EffectState;
 use auths_ports::{PrincipalMethod, SignatureSuite};
 use auths_production_client::{
@@ -28,8 +30,8 @@ use auths_production_client::{
 use auths_registries::ImmutableRegistries;
 use auths_verifier::{VerificationFailure, VerificationOutcome, VerifiedAction};
 use base64ct::{Base64UrlUnpadded, Encoding as _};
-use ed25519_dalek::{Signer as _, SigningKey};
-use minicbor::Encoder;
+use ed25519_dalek::{Signature, Signer as _, SigningKey};
+use minicbor::{Decoder, Encoder};
 use sha2::{Digest as _, Sha256};
 use std::{
     collections::BTreeSet,
@@ -503,6 +505,94 @@ impl KernelRuntime {
             .map_err(runtime_failure)
     }
 
+    /// Verifies one canonical receipt emitted by any replica holding this
+    /// deployment's receipt key.
+    ///
+    /// The client contract accepts authorities and receipts at the same
+    /// effect-free endpoint. Receipt verification is cryptographic rather than
+    /// store-backed so a receipt created by one replica remains verifiable by
+    /// every other replica. Re-encoding both CBOR layers rejects alternate
+    /// encodings before the signature is trusted.
+    fn verify_receipt(
+        &self,
+        receipt: &[u8],
+        expected_profile: QualifiedProfile,
+    ) -> Result<(), RuntimeFailure> {
+        let mut envelope = Decoder::new(receipt);
+        if envelope.array().map_err(|_| RuntimeFailure::Malformed)? != Some(3)
+            || envelope.u16().map_err(|_| RuntimeFailure::Malformed)? != 1
+        {
+            return Err(RuntimeFailure::Malformed);
+        }
+        let payload = envelope.bytes().map_err(|_| RuntimeFailure::Malformed)?;
+        let signature: [u8; 64] = envelope
+            .bytes()
+            .map_err(|_| RuntimeFailure::Malformed)?
+            .try_into()
+            .map_err(|_| RuntimeFailure::Malformed)?;
+        if envelope.position() != receipt.len()
+            || encode_envelope(payload, &signature)?.as_slice() != receipt
+        {
+            return Err(RuntimeFailure::Malformed);
+        }
+
+        let mut decoded = Decoder::new(payload);
+        if decoded.array().map_err(|_| RuntimeFailure::Malformed)? != Some(6)
+            || decoded.u16().map_err(|_| RuntimeFailure::Malformed)? != 1
+        {
+            return Err(RuntimeFailure::Malformed);
+        }
+        let profile =
+            QualifiedProfile::parse(decoded.str().map_err(|_| RuntimeFailure::Malformed)?)
+                .map_err(|_| RuntimeFailure::Malformed)?;
+        if profile != expected_profile {
+            return Err(RuntimeFailure::Malformed);
+        }
+        let claim: [u8; 32] = decoded
+            .bytes()
+            .map_err(|_| RuntimeFailure::Malformed)?
+            .try_into()
+            .map_err(|_| RuntimeFailure::Malformed)?;
+        let action: [u8; 32] = decoded
+            .bytes()
+            .map_err(|_| RuntimeFailure::Malformed)?
+            .try_into()
+            .map_err(|_| RuntimeFailure::Malformed)?;
+        let result: [u8; 32] = decoded
+            .bytes()
+            .map_err(|_| RuntimeFailure::Malformed)?
+            .try_into()
+            .map_err(|_| RuntimeFailure::Malformed)?;
+        let completed_at = decoded.u64().map_err(|_| RuntimeFailure::Malformed)?;
+        if decoded.position() != payload.len()
+            || encode_receipt_payload(profile, claim, action, result, completed_at)?.as_slice()
+                != payload
+        {
+            return Err(RuntimeFailure::Malformed);
+        }
+
+        self.signing
+            .verifying_key()
+            .verify_strict(
+                &preimage(RECEIPT_DOMAIN, payload),
+                &Signature::from_bytes(&signature),
+            )
+            .map_err(|_| RuntimeFailure::Malformed)
+    }
+
+    fn verify_material(
+        &self,
+        material: &[u8],
+        expected_profile: QualifiedProfile,
+    ) -> Result<(), RuntimeFailure> {
+        match self.verify_proof(material) {
+            Err(RuntimeFailure::AuthorizationDenied(DenialReason::MalformedProof)) => {
+                self.verify_receipt(material, expected_profile)
+            }
+            result => result,
+        }
+    }
+
     fn recovery_reference(claim: [u8; 32]) -> Result<RecoveryReference, RuntimeFailure> {
         let mut nonce = [0; 32];
         getrandom::fill(&mut nonce).map_err(|_| RuntimeFailure::Unavailable)?;
@@ -546,15 +636,29 @@ impl NodeRuntime for KernelRuntime {
             ProductVerb::Execute => self.execute(&request),
             ProductVerb::Resume => self.resume(&request),
             ProductVerb::Verify => {
-                self.verify_proof(request.body().ok_or(RuntimeFailure::Malformed)?)?;
-                ProductionResponse::new(
-                    ClientOutcomeKind::Verified,
-                    None,
-                    NextCall::Never,
-                    None,
-                    None,
-                    None,
-                )
+                let material = request.body().ok_or(RuntimeFailure::Malformed)?;
+                let verification = self
+                    .require_profile(request.profile())
+                    .and_then(|()| self.verify_material(material, request.profile()));
+                match verification {
+                    Ok(()) => ProductionResponse::new(
+                        ClientOutcomeKind::Verified,
+                        None,
+                        NextCall::Never,
+                        None,
+                        None,
+                        None,
+                    ),
+                    Err(error) if error.retry() == NextCall::Never => ProductionResponse::new(
+                        ClientOutcomeKind::Rejected,
+                        Some(error.code().to_owned()),
+                        NextCall::Never,
+                        None,
+                        None,
+                        None,
+                    ),
+                    Err(error) => return Err(error),
+                }
                 .map_err(|_| RuntimeFailure::Malformed)
             }
         }
@@ -757,16 +861,28 @@ mod tests {
             .unwrap_or_else(|| panic!("corpus fixture {name}"))
     }
 
-    fn runtime_for(fixture: &CorpusFixture) -> KernelRuntime {
+    fn runtime_for_with(
+        fixture: &CorpusFixture,
+        seed: [u8; 32],
+        profiles: BTreeSet<QualifiedProfile>,
+    ) -> KernelRuntime {
         let context = auths_codec::decode_verifier_context(fixture.context_bytes()).unwrap();
         let evaluation_time = context.evaluation_time().get();
         KernelRuntime::with_clock(
             NodeKernel::new(context, corpus_methods(), corpus_suites()).unwrap(),
-            [7; 32],
-            [QualifiedProfile::GitHubIssueAddress].into_iter().collect(),
+            seed,
+            profiles,
             Arc::new(FrozenClock(evaluation_time)),
         )
         .unwrap()
+    }
+
+    fn runtime_for(fixture: &CorpusFixture) -> KernelRuntime {
+        runtime_for_with(
+            fixture,
+            [7; 32],
+            [QualifiedProfile::GitHubIssueAddress].into_iter().collect(),
+        )
     }
 
     #[test]
@@ -1009,11 +1125,133 @@ mod tests {
             ClientOutcomeKind::Verified
         );
         let malformed = fixture("trailing-bytes");
+        let rejected = runtime
+            .handle(request(malformed.proof_bytes().to_vec()))
+            .expect("verification rejection is a bounded response");
+        assert_eq!(rejected.kind(), ClientOutcomeKind::Rejected);
+        assert_eq!(rejected.code(), Some(RuntimeFailure::Malformed.code()));
+    }
+
+    fn issued_receipt(fixture: &CorpusFixture) -> Vec<u8> {
+        runtime_for(fixture)
+            .handle(execute(fixture, b"caller"))
+            .expect("authorized effect")
+            .receipt()
+            .expect("signed receipt")
+            .to_vec()
+    }
+
+    fn verification_request(profile: QualifiedProfile, body: Vec<u8>) -> ProductionRequest {
+        ProductionRequest::new(
+            ProductVerb::Verify,
+            profile,
+            b"caller".to_vec(),
+            None,
+            Some(body),
+            None,
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn every_replica_can_verify_a_canonical_receipt_and_reject_tampering() {
+        let authorized = fixture("raw-key-chain");
+        let receipt = issued_receipt(&authorized);
+        let verifying = runtime_for(&authorized);
         assert_eq!(
-            runtime.handle(request(malformed.proof_bytes().to_vec())),
-            Err(RuntimeFailure::AuthorizationDenied(
-                auths_model::DenialReason::MalformedProof
-            ))
+            verifying
+                .handle(verification_request(
+                    QualifiedProfile::GitHubIssueAddress,
+                    receipt.clone(),
+                ))
+                .unwrap()
+                .kind(),
+            ClientOutcomeKind::Verified
         );
+
+        let wrong_key = runtime_for_with(
+            &authorized,
+            [8; 32],
+            [QualifiedProfile::GitHubIssueAddress].into_iter().collect(),
+        );
+        assert_eq!(
+            wrong_key
+                .handle(verification_request(
+                    QualifiedProfile::GitHubIssueAddress,
+                    receipt.clone(),
+                ))
+                .unwrap()
+                .kind(),
+            ClientOutcomeKind::Rejected,
+            "another deployment's receipt key was trusted"
+        );
+
+        let mut tampered = receipt;
+        let last = tampered.last_mut().expect("receipt byte");
+        *last ^= 1;
+        let rejected = verifying
+            .handle(verification_request(
+                QualifiedProfile::GitHubIssueAddress,
+                tampered,
+            ))
+            .unwrap();
+        assert_eq!(rejected.kind(), ClientOutcomeKind::Rejected);
+        assert_eq!(rejected.retry(), NextCall::Never);
+    }
+
+    #[test]
+    fn a_still_signed_but_noncanonical_receipt_envelope_is_rejected() {
+        let authorized = fixture("raw-key-chain");
+        let receipt = issued_receipt(&authorized);
+        let mut noncanonical = Vec::with_capacity(receipt.len() + 1);
+        assert_eq!(&receipt[..2], &[0x83, 0x01]);
+        noncanonical.extend_from_slice(&[0x83, 0x18, 0x01]);
+        noncanonical.extend_from_slice(&receipt[2..]);
+
+        let response = runtime_for(&authorized)
+            .handle(verification_request(
+                QualifiedProfile::GitHubIssueAddress,
+                noncanonical,
+            ))
+            .unwrap();
+        assert_eq!(response.kind(), ClientOutcomeKind::Rejected);
+    }
+
+    #[test]
+    fn receipt_verification_requires_the_exact_enabled_profile() {
+        let authorized = fixture("raw-key-chain");
+        let receipt = issued_receipt(&authorized);
+        let two_profiles = runtime_for_with(
+            &authorized,
+            [7; 32],
+            [
+                QualifiedProfile::GitHubIssueAddress,
+                QualifiedProfile::OpenTofuSavedPlanApply,
+            ]
+            .into_iter()
+            .collect(),
+        );
+        let cross_profile = two_profiles
+            .handle(verification_request(
+                QualifiedProfile::OpenTofuSavedPlanApply,
+                receipt.clone(),
+            ))
+            .unwrap();
+        assert_eq!(cross_profile.kind(), ClientOutcomeKind::Rejected);
+
+        let disabled_profile = runtime_for_with(
+            &authorized,
+            [7; 32],
+            [QualifiedProfile::OpenTofuSavedPlanApply]
+                .into_iter()
+                .collect(),
+        );
+        let disabled = disabled_profile
+            .handle(verification_request(
+                QualifiedProfile::GitHubIssueAddress,
+                receipt,
+            ))
+            .unwrap();
+        assert_eq!(disabled.kind(), ClientOutcomeKind::Rejected);
     }
 }

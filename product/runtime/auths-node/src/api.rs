@@ -256,12 +256,12 @@ async fn production_call(
 ) -> Response {
     let started = Instant::now();
     if !state.accepting.load(Ordering::Acquire) {
-        let response = failure_response(RuntimeFailure::Unavailable);
+        let response = failure_response(expected_verb, RuntimeFailure::Unavailable);
         record_operation(state, expected_verb, &response, started);
         return encoded_response(&response);
     }
     if !content_type_is_exact(headers, PRODUCTION_CLIENT_CONTENT_TYPE) {
-        let response = failure_response(RuntimeFailure::Malformed);
+        let response = failure_response(expected_verb, RuntimeFailure::Malformed);
         record_operation(state, expected_verb, &response, started);
         return encoded_response(&response);
     }
@@ -273,7 +273,7 @@ async fn production_call(
             request
         }
         _ => {
-            let response = failure_response(RuntimeFailure::Malformed);
+            let response = failure_response(expected_verb, RuntimeFailure::Malformed);
             record_operation(state, expected_verb, &response, started);
             return encoded_response(&response);
         }
@@ -281,7 +281,7 @@ async fn production_call(
     let runtime = Arc::clone(&state.runtime);
     let response = call_runtime(move || runtime.handle(request))
         .await
-        .unwrap_or_else(failure_response);
+        .unwrap_or_else(|error| failure_response(expected_verb, error));
     record_operation(state, expected_verb, &response, started);
     encoded_response(&response)
 }
@@ -584,6 +584,46 @@ sandbox_providers = true
             decode_response(&bytes).unwrap().code(),
             Some("core.malformed-input")
         );
+    }
+
+    #[tokio::test]
+    async fn verify_route_parse_failures_are_rejected_not_denied() {
+        let router = app(
+            &config(),
+            Arc::new(Runtime),
+            Arc::new(AtomicBool::new(true)),
+        );
+        let missing_content_type = router
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("POST")
+                    .uri("/v1/authority/verify")
+                    .body(axum::body::Body::from(vec![0x80]))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let malformed_cbor = router
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("POST")
+                    .uri("/v1/authority/verify")
+                    .header(header::CONTENT_TYPE, PRODUCTION_CLIENT_CONTENT_TYPE)
+                    .body(axum::body::Body::from(vec![0xff]))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        for response in [missing_content_type, malformed_cbor] {
+            let bytes = axum::body::to_bytes(response.into_body(), 1024)
+                .await
+                .unwrap();
+            assert_eq!(
+                decode_response(&bytes).unwrap().kind(),
+                ClientOutcomeKind::Rejected
+            );
+        }
     }
 
     #[tokio::test]

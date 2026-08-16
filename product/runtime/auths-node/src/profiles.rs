@@ -351,24 +351,35 @@ fn completed_authority(value: Vec<u8>) -> Result<ProductionResponse, RuntimeFail
 
 /// Projects a bounded runtime failure into the production response contract.
 ///
+/// Verification has its own terminal failure vocabulary: a definitive
+/// negative is `rejected`, while effect-capable verbs use `denied`. Keeping the
+/// verb at this boundary also covers failures that happen before a request can
+/// reach the runtime, such as malformed canonical bytes.
+///
 /// # Panics
 ///
 /// Panics only if the closed failure projection no longer satisfies the
 /// production response invariant.
 #[must_use]
-pub fn failure_response(error: RuntimeFailure) -> ProductionResponse {
+pub fn failure_response(verb: ProductVerb, error: RuntimeFailure) -> ProductionResponse {
     let kind = match error {
+        RuntimeFailure::AuthorizationIndeterminate(_)
+        | RuntimeFailure::StateConflict
+        | RuntimeFailure::Unavailable
+        | RuntimeFailure::ProviderOutcomeUnknown => ClientOutcomeKind::Indeterminate,
         RuntimeFailure::AuthorizationDenied(_)
         | RuntimeFailure::UnauthenticatedPrincipal
         | RuntimeFailure::ReplayBudgetExhausted
         | RuntimeFailure::Malformed
         | RuntimeFailure::ProfileDisabled
         | RuntimeFailure::UnknownReference
-        | RuntimeFailure::DisclosureDenied => ClientOutcomeKind::Denied,
-        RuntimeFailure::AuthorizationIndeterminate(_)
-        | RuntimeFailure::StateConflict
-        | RuntimeFailure::Unavailable
-        | RuntimeFailure::ProviderOutcomeUnknown => ClientOutcomeKind::Indeterminate,
+        | RuntimeFailure::DisclosureDenied => {
+            if verb == ProductVerb::Verify {
+                ClientOutcomeKind::Rejected
+            } else {
+                ClientOutcomeKind::Denied
+            }
+        }
     };
     debug_assert!(
         !(error.effect() == EffectState::Possible && error.retry().asserts_non_effect()),
@@ -410,7 +421,7 @@ mod tests {
         assert_eq!(failure.code(), "core.outcome-unknown");
         assert!(!failure.retry().asserts_non_effect());
         assert_eq!(failure.retry(), NextCall::Reconcile);
-        let response = failure_response(failure);
+        let response = failure_response(ProductVerb::Execute, failure);
         assert_eq!(response.code(), Some("core.outcome-unknown"));
         assert!(!response.retry().asserts_non_effect());
     }
@@ -437,10 +448,21 @@ mod tests {
                     "{failure:?} told the caller nothing happened"
                 );
             }
-            let response = failure_response(failure);
+            let response = failure_response(ProductVerb::Execute, failure);
             assert_eq!(response.code(), Some(failure.code()));
             assert_eq!(response.retry(), failure.retry());
         }
+    }
+
+    #[test]
+    fn verification_uses_rejected_for_terminal_failures() {
+        let rejected = failure_response(ProductVerb::Verify, RuntimeFailure::Malformed);
+        assert_eq!(rejected.kind(), ClientOutcomeKind::Rejected);
+        assert_eq!(rejected.retry(), NextCall::Never);
+
+        let indeterminate = failure_response(ProductVerb::Verify, RuntimeFailure::Unavailable);
+        assert_eq!(indeterminate.kind(), ClientOutcomeKind::Indeterminate);
+        assert_eq!(indeterminate.retry(), NextCall::Backoff);
     }
 
     /// Every code this node can put on the wire must exist in the product error
