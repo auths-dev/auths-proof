@@ -16,6 +16,14 @@ import {
   type McpPlanClosedResult,
 } from "./profiles/mcp/index.js";
 import type { ProfilePlan } from "./plans.js";
+import {
+  classifyErrorCode,
+  type AuthsErrorCode,
+  type EffectState,
+  type RecommendedAction,
+  type RetryClass,
+} from "./product-errors.js";
+import { OUTCOME_CODES } from "./generated/error-registry.js";
 import type { ApplicationReceiptAttestor } from "./profiles/application/index.js";
 import {
   decodeLinkedReceipt,
@@ -59,7 +67,7 @@ export interface PlanCompleted {
   readonly receipts: readonly Receipt[];
 }
 
-export interface PlanRecoveryResult {
+export interface PlanRecoveryResult extends Outcome {
   readonly kind: "recoverable" | "not-applied" | "exact-replay" | "conflict";
   readonly executionId: string;
   readonly completedResults: readonly unknown[];
@@ -67,14 +75,42 @@ export interface PlanRecoveryResult {
   readonly reference?: ExecutionReference;
 }
 
-export interface Denied {
-  readonly kind: "denied";
-  readonly code: string;
+/**
+ * The recovery contract every non-completed outcome carries.
+ *
+ * `effect` is the safety-critical field: `possible` means the real-world effect
+ * MAY have happened and this SDK cannot prove which. A caller who reads
+ * `not-applied` when the truth is `possible` will blindly retry and may repeat
+ * a payment or a database write.
+ *
+ * Every field is Rust's: `code` is named by the profile or the verdict, and the
+ * other three are `auths_errors::classify` applied to that code. Nothing here
+ * is decided in TypeScript.
+ */
+export interface Outcome {
+  readonly code: AuthsErrorCode;
+  readonly effect: EffectState;
+  readonly retry: RetryClass;
+  readonly recommendedAction: RecommendedAction;
 }
 
-export interface Indeterminate {
+export interface Denied extends Outcome {
+  readonly kind: "denied";
+}
+
+export interface Indeterminate extends Outcome {
   readonly kind: "indeterminate";
-  readonly code: string;
+}
+
+/** Projects one Rust-named code into the full Rust-owned recovery contract. */
+function outcomeFor(code: string): Outcome {
+  const classification = classifyErrorCode(code);
+  return {
+    code,
+    effect: classification.effect,
+    retry: classification.retry,
+    recommendedAction: classification.recommendedAction,
+  };
 }
 
 export class ExecutionReference {
@@ -120,7 +156,7 @@ export function decodeExecutionReference(input: Uint8Array): ExecutionReference 
 
 const REFERENCE_TOKEN = Symbol("auths-execution-reference");
 
-export interface RecoveryResult {
+export interface RecoveryResult extends Outcome {
   readonly kind: "recoverable" | "not-applied" | "exact-replay" | "conflict";
   readonly executionId: string;
   readonly reference?: ExecutionReference;
@@ -383,21 +419,34 @@ function projectExecution(value: RawMcpExecution): SingleExecutionResult {
     });
   }
   if (value.kind === "denied" || value.kind === "indeterminate") {
-    return Object.freeze({ kind: value.kind, code: value.code });
+    return Object.freeze({ kind: value.kind, ...verdictOutcome(value.kind) });
   }
   if (value.kind === "recoverable") {
     return Object.freeze({
       kind: "recoverable" as const,
       executionId: value.executionId,
       reference: ExecutionReference.create(REFERENCE_TOKEN, value.executionReference),
+      ...outcomeFor(value.code),
     });
   }
-  return Object.freeze({ kind: value.kind, executionId: value.executionId });
+  return Object.freeze({ kind: value.kind, executionId: value.executionId, ...outcomeFor(value.code) });
+}
+
+/**
+ * Translates one verifier verdict into its registry code.
+ *
+ * The kernel names a denial with a diagnostic such as `permission-not-granted`,
+ * which is not a registry code and exists in no error registry. Which registry
+ * code a verdict carries is `auths_errors::outcome_codes`, generated here; the
+ * kernel diagnostic stays a diagnostic.
+ */
+function verdictOutcome(kind: "denied" | "indeterminate"): Outcome {
+  return outcomeFor(OUTCOME_CODES[kind]);
 }
 
 function projectPlanExecution(value: RawMcpPlanExecution): PlanExecutionResult {
   if ("failedIndex" in value) {
-    return Object.freeze({ kind: value.kind, code: value.result.code });
+    return Object.freeze({ kind: value.kind, ...verdictOutcome(value.kind) });
   }
   if (value.kind === "completed") {
     return Object.freeze({ kind: "completed", results: value.results, receipts: value.receipts });
@@ -407,6 +456,7 @@ function projectPlanExecution(value: RawMcpPlanExecution): PlanExecutionResult {
     executionId: value.executionId,
     completedResults: value.completedResults,
     completedReceipts: value.completedReceipts,
+    ...outcomeFor(value.code),
     ...(value.kind === "recoverable"
       ? { reference: ExecutionReference.create(REFERENCE_TOKEN, value.executionReference) }
       : {}),

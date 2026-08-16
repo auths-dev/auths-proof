@@ -74,9 +74,9 @@ impl RuntimeFailure {
             // A denied disclosure is a denied authorization: the caller did not
             // present the authorization this receipt requires.
             Self::AuthorizationDenied(_) | Self::DisclosureDenied | Self::ReplayBudgetExhausted => {
-                "core.authorization-denied"
+                auths_errors::AUTHORIZATION_DENIED_CODE
             }
-            Self::AuthorizationIndeterminate(_) => "core.authorization-indeterminate",
+            Self::AuthorizationIndeterminate(_) => auths_errors::AUTHORIZATION_INDETERMINATE_CODE,
             Self::UnauthenticatedPrincipal => "core.unauthenticated-principal",
             Self::StateConflict => "core.runtime-conflict",
             Self::Unavailable => "core.runtime-unavailable",

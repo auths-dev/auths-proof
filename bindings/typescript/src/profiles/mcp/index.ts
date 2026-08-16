@@ -262,8 +262,8 @@ export interface McpAttestedReceipt {
 
 export type McpPlanClosedResult =
   | Readonly<{ readonly kind: "completed"; readonly results: readonly unknown[]; readonly receipts: readonly McpAttestedReceipt[] }>
-  | Readonly<{ readonly kind: "recoverable"; readonly executionId: string; readonly executionReference: string; readonly completedResults: readonly unknown[]; readonly completedReceipts: readonly McpAttestedReceipt[] }>
-  | Readonly<{ readonly kind: "not-applied" | "exact-replay" | "conflict"; readonly executionId: string; readonly completedResults: readonly unknown[]; readonly completedReceipts: readonly McpAttestedReceipt[] }>;
+  | Readonly<{ readonly kind: "recoverable"; readonly executionId: string; readonly executionReference: string; readonly completedResults: readonly unknown[]; readonly completedReceipts: readonly McpAttestedReceipt[]; readonly code: string }>
+  | Readonly<{ readonly kind: "not-applied" | "exact-replay" | "conflict"; readonly executionId: string; readonly completedResults: readonly unknown[]; readonly completedReceipts: readonly McpAttestedReceipt[]; readonly code: string }>;
 
 export interface McpDevelopmentProviderOptions {
   readonly tools: Readonly<Record<string, McpToolHandler>>;
@@ -278,8 +278,8 @@ export interface McpDevelopmentProviderOptions {
 
 export type McpClosedResult =
   | Readonly<{ readonly kind: "completed"; readonly executionId: string; readonly result: unknown; readonly receipt: McpAttestedReceipt }>
-  | Readonly<{ readonly kind: "not-applied" | "exact-replay" | "conflict"; readonly executionId: string }>
-  | Readonly<{ readonly kind: "recoverable"; readonly executionId: string; readonly executionReference: string }>;
+  | Readonly<{ readonly kind: "not-applied" | "exact-replay" | "conflict"; readonly executionId: string; readonly code: string }>
+  | Readonly<{ readonly kind: "recoverable"; readonly executionId: string; readonly executionReference: string; readonly code: string }>;
 
 /** Closed MCP tool-call action constructible only by this profile facade. */
 export class McpAction {
@@ -1005,10 +1005,31 @@ async function projectTerminal(
     const recovery = terminalRecovery(terminal);
     await state.saveRecovery(recovery);
     const reference = recovery.reference;
-    return Object.freeze({ kind: "recoverable", executionId: terminal.executionId, executionReference: reference });
+    return Object.freeze({
+      kind: "recoverable",
+      executionId: terminal.executionId,
+      executionReference: reference,
+      code: terminalCode(terminal),
+    });
   }
   if (terminal.kind === "not-applied") await state.clearPending(terminal.executionId);
-  return Object.freeze({ kind: terminal.kind, executionId: terminal.executionId });
+  return Object.freeze({ kind: terminal.kind, executionId: terminal.executionId, code: terminalCode(terminal) });
+}
+
+/**
+ * Reads the registry code the profile gave this outcome.
+ *
+ * A terminal that is not `completed` and carries no code means the native
+ * session stopped naming its own outcomes. That is a contract violation
+ * between this SDK and the engine, not an authorization result, so it is
+ * raised rather than papered over with a code chosen here.
+ */
+function terminalCode(terminal: WorkflowMcpSessionTerminal): string {
+  const code = terminal.code;
+  if (typeof code !== "string" || code.length === 0) {
+    throw new AuthsWorkflowError("gateway-failed", "native MCP terminal omitted its stable registry code");
+  }
+  return code;
 }
 
 function recoveryCheckpoint(session: WorkflowMcpExecutionSession): McpRecoveryCheckpoint {

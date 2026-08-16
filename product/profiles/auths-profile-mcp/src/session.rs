@@ -181,7 +181,52 @@ pub enum McpTerminal {
         execution_id: String,
         reference: McpExecutionReference,
         record_json: Vec<u8>,
+        /// What the session could still prove when it became recoverable.
+        recovery: RecoveryKind,
+        /// Why the handler could not report an applied effect, when it said so.
+        cause: Option<McpCause>,
+        /// True when this terminal ended a resumed session, so an unresolved
+        /// effect is a reconciliation that is still pending rather than a
+        /// first-attempt handler failure.
+        resumed: bool,
     },
+}
+
+impl McpTerminal {
+    /// Names this outcome with the stable registry code the MCP profile owns.
+    ///
+    /// This projection lives here because the profile is what knows the
+    /// difference between a handler that timed out, a handler that produced
+    /// unusable output, and a receipt that failed to persist AFTER the effect
+    /// was applied. A language binding that guessed would be inventing the
+    /// effect axis; it reads this instead.
+    ///
+    /// Returns `None` only for [`Self::Completed`], which is not a failure and
+    /// carries no code.
+    #[must_use]
+    pub const fn registry_code(&self) -> Option<&'static str> {
+        match self {
+            Self::Completed { .. } => None,
+            // The handler proved non-effect before the provider was entered.
+            Self::NotApplied { .. } => Some("mcp.cancelled-before-entry"),
+            Self::ExactReplay { .. } => Some("mcp.replay"),
+            Self::Conflict { .. } => Some("mcp.reservation-conflict"),
+            Self::Recoverable {
+                recovery, cause, resumed, ..
+            } => Some(match recovery {
+                // Reserved, never entered: non-effect is still provable.
+                RecoveryKind::Reserved => "mcp.cancelled-before-entry",
+                // The effect WAS applied; only the receipt is missing.
+                RecoveryKind::ReceiptPending => "mcp.receipt-persist-failed",
+                RecoveryKind::Possible => match (resumed, cause) {
+                    (true, _) => "mcp.reconciliation-pending",
+                    (false, Some(McpCause::InvalidOutput)) => "mcp.invalid-handler-output",
+                    (false, Some(McpCause::Timeout)) => "mcp.handler-timeout",
+                    (false, _) => "mcp.handler-failed",
+                },
+            }),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -253,6 +298,8 @@ pub struct McpExecutionSession {
     member_index: Option<u16>,
     member_count: Option<u16>,
     state: SessionState,
+    /// True when this session was reconstructed from a recovery record.
+    resumed: bool,
 }
 
 enum SessionState {
@@ -280,6 +327,7 @@ struct RecoveryRecord {
     execution_id: String,
     service: String,
     kind: RecoveryKind,
+    cause: Option<McpCause>,
     action_commitment: String,
     authority_commitment: String,
     context_commitment: String,
@@ -293,9 +341,10 @@ struct RecoveryRecord {
     receipt: Option<Value>,
 }
 
-#[derive(Clone, Copy, Serialize, Deserialize)]
+/// What a recoverable session could still prove when it checkpointed.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
-enum RecoveryKind {
+pub enum RecoveryKind {
     Reserved,
     Possible,
     ReceiptPending,
@@ -428,6 +477,7 @@ impl McpExecutionSession {
             member_index: plan.map(|value| value.1),
             member_count: plan.map(|value| value.2),
             state: SessionState::ReadyReserve,
+            resumed: false,
         })
     }
 
@@ -509,6 +559,7 @@ impl McpExecutionSession {
             member_index: plan.map(|value| value.1),
             member_count: plan.map(|value| value.2),
             state,
+            resumed: true,
         })
     }
 
@@ -577,7 +628,9 @@ impl McpExecutionSession {
                 return Err(McpSessionError::InvalidTransition);
             }
         };
-        self.recovery_terminal(kind, output, receipt)
+        // A mid-flight checkpoint has no handler observation yet, so it carries
+        // no cause; only a terminal reached through `accept_handler` does.
+        self.recovery_terminal(kind, None, output, receipt)
     }
 
     /// Releases exactly one bounded side-effect request.
@@ -735,6 +788,7 @@ impl McpExecutionSession {
         } else {
             self.state = SessionState::Terminal(self.recovery_terminal(
                 RecoveryKind::ReceiptPending,
+                None,
                 Some(output),
                 Some(receipt),
             )?);
@@ -762,6 +816,7 @@ impl McpExecutionSession {
             }
             McpHandlerEffect::Possible => SessionState::Terminal(self.recovery_terminal(
                 RecoveryKind::Possible,
+                result.cause,
                 None,
                 None,
             )?),
@@ -791,6 +846,7 @@ impl McpExecutionSession {
     fn recovery_terminal(
         &self,
         kind: RecoveryKind,
+        cause: Option<McpCause>,
         output: Option<Value>,
         receipt: Option<Vec<u8>>,
     ) -> Result<McpTerminal, McpSessionError> {
@@ -806,6 +862,7 @@ impl McpExecutionSession {
             execution_id: self.execution_id.clone(),
             service: self.service.clone(),
             kind,
+            cause,
             action_commitment: hex::encode(self.action_commitment),
             authority_commitment: hex::encode(self.authority_commitment),
             context_commitment: hex::encode(self.context_commitment),
@@ -825,6 +882,9 @@ impl McpExecutionSession {
             execution_id: self.execution_id.clone(),
             reference,
             record_json,
+            recovery: kind,
+            cause,
+            resumed: self.resumed,
         })
     }
 }
@@ -943,6 +1003,148 @@ mod tests {
             McpSessionKey::new([9; 32]),
         )
         .unwrap()
+    }
+
+    /// Drives a session to a `possible` terminal with the given cause.
+    fn possible_with(cause: Option<McpCause>) -> McpTerminal {
+        let mut session = session();
+        session.next_step().unwrap();
+        session
+            .accept_reservation(McpReservationResult::Acquired)
+            .unwrap();
+        session.next_step().unwrap();
+        session.accept_provider_entry().unwrap();
+        session.next_step().unwrap();
+        session
+            .accept_handler(McpHandlerResult::parse(McpHandlerEffect::Possible, None, cause).unwrap())
+            .unwrap();
+        session.terminal().unwrap().clone()
+    }
+
+    #[test]
+    fn every_terminal_names_a_code_that_is_in_the_registry() {
+        let terminals = [
+            possible_with(None),
+            possible_with(Some(McpCause::InvalidOutput)),
+            possible_with(Some(McpCause::Timeout)),
+            McpTerminal::NotApplied {
+                execution_id: "e".into(),
+            },
+            McpTerminal::ExactReplay {
+                execution_id: "e".into(),
+            },
+            McpTerminal::Conflict {
+                execution_id: "e".into(),
+            },
+        ];
+        for terminal in &terminals {
+            let code = terminal
+                .registry_code()
+                .unwrap_or_else(|| panic!("{terminal:?} named no code"));
+            assert!(
+                auths_errors::classify(code).known,
+                "{terminal:?} named {code}, which is in no registry"
+            );
+        }
+    }
+
+    #[test]
+    fn a_failed_handler_and_unusable_output_are_different_codes() {
+        // The distinction the caller needs: both are `possible`, but one is the
+        // provider's fault and one is the handler's contract. Collapsing them
+        // destroys the identity the registry exists to preserve.
+        let failed = possible_with(Some(McpCause::Unknown));
+        let unusable = possible_with(Some(McpCause::InvalidOutput));
+        assert_eq!(failed.registry_code(), Some("mcp.handler-failed"));
+        assert_eq!(unusable.registry_code(), Some("mcp.invalid-handler-output"));
+        assert_ne!(failed.registry_code(), unusable.registry_code());
+        assert_eq!(
+            possible_with(Some(McpCause::Timeout)).registry_code(),
+            Some("mcp.handler-timeout")
+        );
+    }
+
+    #[test]
+    fn every_possible_terminal_carries_a_possible_effect() {
+        // A `possible` handler observation must never be named with a code the
+        // registry declares `not-applied`: that would tell a caller a maybe-
+        // applied effect is safe to blindly retry.
+        for cause in [
+            None,
+            Some(McpCause::Cancelled),
+            Some(McpCause::InvalidOutput),
+            Some(McpCause::LimitExceeded),
+            Some(McpCause::Timeout),
+            Some(McpCause::Unavailable),
+            Some(McpCause::Unknown),
+        ] {
+            let terminal = possible_with(cause);
+            let code = terminal.registry_code().unwrap();
+            assert_eq!(
+                auths_errors::classify(code).effect,
+                auths_errors::EffectState::Possible,
+                "cause {cause:?} named {code}, whose registered effect is not possible"
+            );
+        }
+    }
+
+    #[test]
+    fn a_receipt_that_failed_to_persist_says_the_effect_was_applied() {
+        let mut session = session();
+        session.next_step().unwrap();
+        session
+            .accept_reservation(McpReservationResult::Acquired)
+            .unwrap();
+        session.next_step().unwrap();
+        session.accept_provider_entry().unwrap();
+        session.next_step().unwrap();
+        session
+            .accept_handler(
+                McpHandlerResult::parse(McpHandlerEffect::Applied, Some(br#"{"ok":true}"#), None)
+                    .unwrap(),
+            )
+            .unwrap();
+        session.next_step().unwrap();
+        assert_eq!(
+            session.accept_receipt(false),
+            Err(McpSessionError::ReceiptPersistenceFailed)
+        );
+        let code = session.terminal().unwrap().registry_code().unwrap();
+        assert_eq!(code, "mcp.receipt-persist-failed");
+        assert_eq!(
+            auths_errors::classify(code).effect,
+            auths_errors::EffectState::Applied
+        );
+    }
+
+    #[test]
+    fn a_resumed_session_reports_reconciliation_rather_than_a_fresh_failure() {
+        let terminal = possible_with(Some(McpCause::Timeout));
+        let McpTerminal::Recoverable {
+            reference,
+            record_json,
+            ..
+        } = &terminal
+        else {
+            panic!("expected recoverable");
+        };
+        let mut resumed = McpExecutionSession::resume(
+            McpSessionKey::new([9; 32]),
+            reference.as_str(),
+            record_json,
+        )
+        .unwrap();
+        resumed.next_step().unwrap();
+        resumed
+            .accept_handler(
+                McpHandlerResult::parse(McpHandlerEffect::Possible, None, Some(McpCause::Unknown))
+                    .unwrap(),
+            )
+            .unwrap();
+        assert_eq!(
+            resumed.terminal().unwrap().registry_code(),
+            Some("mcp.reconciliation-pending")
+        );
     }
 
     #[test]

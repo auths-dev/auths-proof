@@ -3084,6 +3084,9 @@ struct McpSessionTerminalProjection {
     receipt_json: Option<Vec<u8>>,
     reference: Option<String>,
     record_json: Option<Vec<u8>>,
+    /// The stable registry code this outcome carries, named by the profile.
+    /// `None` only for a completed execution, which is not a failure.
+    code: Option<&'static str>,
 }
 
 #[wasm_bindgen(js_name = McpExecutionSessionV1)]
@@ -3416,6 +3419,9 @@ fn mcp_session_step(step: McpSessionStep) -> McpSessionStepProjection {
 }
 
 fn mcp_session_terminal(value: &McpTerminal) -> McpSessionTerminalProjection {
+    // The code is read from the profile, never chosen here. WASM is a
+    // transport: it may not name an outcome the profile did not name.
+    let code = value.registry_code();
     match value {
         McpTerminal::Completed {
             execution_id,
@@ -3428,18 +3434,22 @@ fn mcp_session_terminal(value: &McpTerminal) -> McpSessionTerminalProjection {
             receipt_json: Some(receipt_json.clone()),
             reference: None,
             record_json: None,
+            code,
         },
         McpTerminal::NotApplied { execution_id } => {
-            terminal_without_data("not-applied", execution_id)
+            terminal_without_data("not-applied", execution_id, code)
         }
         McpTerminal::ExactReplay { execution_id } => {
-            terminal_without_data("exact-replay", execution_id)
+            terminal_without_data("exact-replay", execution_id, code)
         }
-        McpTerminal::Conflict { execution_id } => terminal_without_data("conflict", execution_id),
+        McpTerminal::Conflict { execution_id } => {
+            terminal_without_data("conflict", execution_id, code)
+        }
         McpTerminal::Recoverable {
             execution_id,
             reference,
             record_json,
+            ..
         } => McpSessionTerminalProjection {
             kind: "recoverable",
             execution_id: execution_id.clone(),
@@ -3447,11 +3457,16 @@ fn mcp_session_terminal(value: &McpTerminal) -> McpSessionTerminalProjection {
             receipt_json: None,
             reference: Some(reference.as_str().to_owned()),
             record_json: Some(record_json.clone()),
+            code,
         },
     }
 }
 
-fn terminal_without_data(kind: &'static str, execution_id: &str) -> McpSessionTerminalProjection {
+fn terminal_without_data(
+    kind: &'static str,
+    execution_id: &str,
+    code: Option<&'static str>,
+) -> McpSessionTerminalProjection {
     McpSessionTerminalProjection {
         kind,
         execution_id: execution_id.to_owned(),
@@ -3459,6 +3474,7 @@ fn terminal_without_data(kind: &'static str, execution_id: &str) -> McpSessionTe
         receipt_json: None,
         reference: None,
         record_json: None,
+        code,
     }
 }
 

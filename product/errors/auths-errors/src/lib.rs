@@ -227,6 +227,34 @@ pub fn registry() -> impl Iterator<Item = &'static ErrorDefinition> {
         .chain(CUSTODY_ERRORS)
 }
 
+/// Registry code carried by an authorization outcome that denied the request.
+pub const AUTHORIZATION_DENIED_CODE: &str = "core.authorization-denied";
+/// Registry code carried by an authorization outcome the verifier could not decide.
+pub const AUTHORIZATION_INDETERMINATE_CODE: &str = "core.authorization-indeterminate";
+
+/// The stable registry codes for outcomes that do not carry one themselves.
+///
+/// A verifier verdict names itself with a kernel diagnostic (`permission-not-granted`)
+/// and a runtime outcome names itself with a state word (`denied`). Neither is a
+/// registry code, so something has to say which registry code the outcome
+/// carries. That answer is here, once, and every consumer — the reference
+/// runtime, and both language bindings through the generated projection — reads
+/// it rather than restating it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OutcomeCodes {
+    pub denied: &'static str,
+    pub indeterminate: &'static str,
+}
+
+#[must_use]
+pub const fn outcome_codes() -> OutcomeCodes {
+    OutcomeCodes {
+        denied: AUTHORIZATION_DENIED_CODE,
+        indeterminate: AUTHORIZATION_INDETERMINATE_CODE,
+    }
+}
+
 /// Operation reported for a code this build's registry does not contain.
 pub const UNRECOGNIZED_CODE_OPERATION: &str = "execute";
 /// Stage reported for a code this build's registry does not contain.

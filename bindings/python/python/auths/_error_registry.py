@@ -1128,3 +1128,11 @@ UNRECOGNIZED_CODE: Final[dict[str, Any]] = json.loads(r'''{
   "recommendedAction": "resume-and-reconcile"
 }
 ''')
+
+# `auths_errors::outcome_codes` -- the registry code an authorization verdict
+# carries.
+OUTCOME_CODES: Final[dict[str, Any]] = json.loads(r'''{
+  "denied": "core.authorization-denied",
+  "indeterminate": "core.authorization-indeterminate"
+}
+''')

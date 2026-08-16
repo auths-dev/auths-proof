@@ -681,6 +681,12 @@ export interface WorkflowMcpSessionStep {
 export interface WorkflowMcpSessionTerminal {
   readonly kind: "completed" | "not-applied" | "exact-replay" | "conflict" | "recoverable";
   readonly executionId: string;
+  /**
+   * The stable registry code the MCP profile gave this outcome, absent only
+   * for a completed execution. Named by `McpTerminal::registry_code` in Rust;
+   * TypeScript never chooses it.
+   */
+  readonly code?: string;
   readonly outputJson?: Uint8Array;
   readonly receiptJson?: Uint8Array;
   readonly reference?: string;

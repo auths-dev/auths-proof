@@ -1124,3 +1124,13 @@ export const UNRECOGNIZED_CODE = {
   "effect": "possible",
   "recommendedAction": "resume-and-reconcile"
 } as const;
+
+/**
+ * `auths_errors::outcome_codes` -- the registry code an authorization verdict
+ * carries. A verdict names itself with a kernel diagnostic, not a registry
+ * code; this is the Rust-owned translation.
+ */
+export const OUTCOME_CODES = {
+  "denied": "core.authorization-denied",
+  "indeterminate": "core.authorization-indeterminate"
+} as const;

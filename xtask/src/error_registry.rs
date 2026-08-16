@@ -57,11 +57,14 @@ pub(crate) fn error_registry(update: bool) -> Result<(), String> {
     // is `auths_errors::classify`'s, not a binding's. Projecting it here is what
     // stops TypeScript and Python from each inventing their own fourth state.
     let unrecognized_json = pretty_json(&auths_errors::classify(UNRECOGNIZED_PROBE))?;
+    // Which registry code a verdict or runtime outcome carries is also Rust's
+    // answer, not a binding's.
+    let outcome_json = pretty_json(&auths_errors::outcome_codes())?;
     let outputs = [
         registry_json.clone(),
         pretty_json(&fixtures)?,
-        render_typescript(&registry_json, &unrecognized_json),
-        render_python(&registry_json, &unrecognized_json),
+        render_typescript(&registry_json, &unrecognized_json, &outcome_json),
+        render_python(&registry_json, &unrecognized_json, &outcome_json),
         render_docs(&registry),
     ];
     for (path, bytes) in OUTPUTS.iter().zip(outputs) {
@@ -133,22 +136,25 @@ fn pretty_json(value: &impl Serialize) -> Result<Vec<u8>, String> {
     Ok(bytes)
 }
 
-fn render_typescript(registry: &[u8], unrecognized: &[u8]) -> Vec<u8> {
+fn render_typescript(registry: &[u8], unrecognized: &[u8], outcomes: &[u8]) -> Vec<u8> {
     let json = String::from_utf8_lossy(registry);
     let unrecognized = String::from_utf8_lossy(unrecognized);
+    let outcomes = String::from_utf8_lossy(outcomes);
     format!(
-        "export const ERROR_REGISTRY = {} as const;\n\n/**\n * `auths_errors::classify` applied to a code this build's registry does not\n * contain. A binding projects this; it never recomputes it and never invents a\n * fourth effect state.\n */\nexport const UNRECOGNIZED_CODE = {} as const;\n",
+        "export const ERROR_REGISTRY = {} as const;\n\n/**\n * `auths_errors::classify` applied to a code this build's registry does not\n * contain. A binding projects this; it never recomputes it and never invents a\n * fourth effect state.\n */\nexport const UNRECOGNIZED_CODE = {} as const;\n\n/**\n * `auths_errors::outcome_codes` -- the registry code an authorization verdict\n * carries. A verdict names itself with a kernel diagnostic, not a registry\n * code; this is the Rust-owned translation.\n */\nexport const OUTCOME_CODES = {} as const;\n",
         json.trim_end(),
-        unrecognized.trim_end()
+        unrecognized.trim_end(),
+        outcomes.trim_end()
     )
     .into_bytes()
 }
 
-fn render_python(registry: &[u8], unrecognized: &[u8]) -> Vec<u8> {
+fn render_python(registry: &[u8], unrecognized: &[u8], outcomes: &[u8]) -> Vec<u8> {
     let json = String::from_utf8_lossy(registry);
     let unrecognized = String::from_utf8_lossy(unrecognized);
+    let outcomes = String::from_utf8_lossy(outcomes);
     format!(
-        "from __future__ import annotations\n\nimport json\nfrom typing import Any, Final\n\nERROR_REGISTRY: Final[dict[str, Any]] = json.loads(r'''{json}''')\n\n# `auths_errors::classify` applied to a code this build's registry does not\n# contain. A binding projects this; it never recomputes it.\nUNRECOGNIZED_CODE: Final[dict[str, Any]] = json.loads(r'''{unrecognized}''')\n"
+        "from __future__ import annotations\n\nimport json\nfrom typing import Any, Final\n\nERROR_REGISTRY: Final[dict[str, Any]] = json.loads(r'''{json}''')\n\n# `auths_errors::classify` applied to a code this build's registry does not\n# contain. A binding projects this; it never recomputes it.\nUNRECOGNIZED_CODE: Final[dict[str, Any]] = json.loads(r'''{unrecognized}''')\n\n# `auths_errors::outcome_codes` -- the registry code an authorization verdict\n# carries.\nOUTCOME_CODES: Final[dict[str, Any]] = json.loads(r'''{outcomes}''')\n"
     )
     .into_bytes()
 }
