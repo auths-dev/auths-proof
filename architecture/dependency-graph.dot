@@ -353,6 +353,7 @@ digraph auths_architecture {
   "auths-profile-kit" -> "auths-profile-api" [label="normal"];
   "auths-profile-kit" -> "auths-verifier" [label="dev"];
   "auths-profile-mcp" -> "auths-codec" [label="normal"];
+  "auths-profile-mcp" -> "auths-errors" [label="dev"];
   "auths-profile-mcp" -> "auths-model" [label="normal"];
   "auths-profile-mcp" -> "auths-profile-api" [label="normal"];
   "auths-profile-mcp" -> "auths-verifier" [label="normal"];
@@ -428,6 +429,7 @@ digraph auths_architecture {
   "auths-proof-python" -> "auths-custody" [label="normal"];
   "auths-proof-python" -> "auths-did-keri" [label="normal"];
   "auths-proof-python" -> "auths-did-key" [label="normal"];
+  "auths-proof-python" -> "auths-errors" [label="normal"];
   "auths-proof-python" -> "auths-identity" [label="normal"];
   "auths-proof-python" -> "auths-identity-raw-key" [label="normal"];
   "auths-proof-python" -> "auths-lifecycle" [label="normal"];
@@ -448,6 +450,7 @@ digraph auths_architecture {
   "auths-proof-wasm" -> "auths-codec" [label="normal"];
   "auths-proof-wasm" -> "auths-did-keri" [label="normal"];
   "auths-proof-wasm" -> "auths-did-key" [label="normal"];
+  "auths-proof-wasm" -> "auths-errors" [label="normal"];
   "auths-proof-wasm" -> "auths-identity" [label="normal"];
   "auths-proof-wasm" -> "auths-identity-raw-key" [label="normal"];
   "auths-proof-wasm" -> "auths-model" [label="normal"];

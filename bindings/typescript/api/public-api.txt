@@ -1,5 +1,5 @@
 # Installed @auths-dev/sdk public API v1
-# declaration-sha256 d1658d004ab4a6f8449e119f54bd2536ec003aa4b26a537366970ebbe1b7d768
+# declaration-sha256 2ae2287043286afa59c3a5931ffa9801c38f53fb2b8fc36aa1fe3209512c94f1
 .	Actor	type
 .	approval	value
 .	ApprovalPolicy	type
@@ -113,6 +113,7 @@
 ./service	TransportFailure	type
 ./profiles	executeMcpClosed	value
 ./profiles	executeMcpPlanClosed	value
+./profiles	githubIssueAddress	value
 ./profiles	mcp	value
 ./profiles	McpAction	value+type
 ./profiles	McpAuthority	type
@@ -139,8 +140,12 @@
 ./profiles	McpToolAuthority	value+type
 ./profiles	McpToolContext	type
 ./profiles	McpToolHandler	type
+./profiles	opentofuSavedPlanApply	value
+./profiles	postgresqlBoundedUpdate	value
 ./profiles	resourcesForMcpAuthority	value
 ./profiles	resumeMcpClosed	value
+./profiles	ServiceProfile	type
+./profiles	ServiceProfileId	type
 ./integrations	development	value
 ./integrations	DevelopmentAuthsOptions	type
 ./integrations	production	value

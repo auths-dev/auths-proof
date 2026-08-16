@@ -4,7 +4,7 @@ use crate::*;
 
 const INVENTORY_PATH: &str = "release/semantic-freeze.json";
 const INVENTORY_SCHEMA: &str = "auths.semantic-freeze/1";
-const FREEZE_VERSION: u64 = 110;
+const FREEZE_VERSION: u64 = 111;
 const PUBLIC_RUST_ROOTS: [&str; 10] = [
     "auths",
     "auths-byte-channel",
@@ -167,7 +167,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
     let mut entries = vec![
         freeze_entry(
             "auths.core.protocol",
-            15,
+            16,
             FreezeClassification::FrozenMeaning,
             &[
                 "protocol-versions",
@@ -187,7 +187,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.identity.protocol",
-            28,
+            29,
             FreezeClassification::FrozenMeaning,
             &[
                 "identity-protocol-versions",
@@ -213,7 +213,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.modular-components",
-            7,
+            8,
             FreezeClassification::FrozenMeaning,
             &[
                 "published-neutral-ports",
@@ -246,7 +246,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.portable-abi-bindings",
-            49,
+            50,
             FreezeClassification::FrozenMeaning,
             &["portable-abi", "authoring-abi", "binding-contracts"],
             vec![
@@ -262,7 +262,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.public-sdk-contract",
-            40,
+            41,
             FreezeClassification::FrozenMeaning,
             &[
                 "rust-sdk-contract",
@@ -283,7 +283,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.mcp-closed-execution",
-            12,
+            13,
             FreezeClassification::FrozenMeaning,
             &[
                 "profile-session",
@@ -306,7 +306,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.simplified-waist",
-            7,
+            8,
             FreezeClassification::FrozenMeaning,
             &[
                 "product-waist-invariants",
@@ -325,7 +325,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.facade",
-            9,
+            10,
             FreezeClassification::FrozenMeaning,
             &[
                 "create",
@@ -347,7 +347,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.development-composition",
-            7,
+            8,
             FreezeClassification::FrozenMeaning,
             &[
                 "explicit-development-mode",
@@ -365,7 +365,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.mechanism-profile-conformance",
-            4,
+            5,
             FreezeClassification::FrozenMeaning,
             &[
                 "contract-inventory",
@@ -383,7 +383,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.vocabulary",
-            7,
+            8,
             FreezeClassification::FrozenMeaning,
             &[
                 "customer-vocabulary",
@@ -404,7 +404,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.error-recovery-contract",
-            10,
+            11,
             FreezeClassification::FrozenMeaning,
             &[
                 "error-envelope",
@@ -427,7 +427,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.bounded-policy",
-            1,
+            2,
             FreezeClassification::FrozenMeaning,
             &[
                 "policy-semantic-ids",
@@ -441,7 +441,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.bounded-domains",
-            6,
+            7,
             FreezeClassification::FrozenMeaning,
             &[
                 "bounded-domain-inventory",
@@ -456,7 +456,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.lifecycle",
-            8,
+            9,
             FreezeClassification::FrozenMeaning,
             &[
                 "reservation-state",
@@ -476,7 +476,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.receipts",
-            4,
+            5,
             FreezeClassification::FrozenMeaning,
             &["receipt-schemas", "receipt-commitment-meanings"],
             vec![
@@ -499,7 +499,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.open-production-contract",
-            12,
+            13,
             FreezeClassification::FrozenMeaning,
             &[
                 "production-topology",
@@ -568,7 +568,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.operations",
-            4,
+            5,
             FreezeClassification::FrozenMeaning,
             &[
                 "privacy-safe-events",
@@ -589,7 +589,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.release.evolution-contract",
-            12,
+            13,
             FreezeClassification::FrozenMeaning,
             &[
                 "version-axes",
@@ -629,15 +629,16 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
 
     for (id, path) in frozen_byte_inventories()? {
         let version = match path.as_str() {
-            "architecture/dependency-graph.json" => 26,
-            "bindings/wasm/auths-proof-wasm/identity-abi-v1.json" => 3,
-            "core/fixtures/v1/manifest.json" => 3,
+            "architecture/dependency-graph.json" => 27,
+            "bindings/wasm/auths-proof-wasm/identity-abi-v1.json" => 4,
+            "core/fixtures/v1/manifest.json" => 4,
             "product/conformance/v1/simplified-product-waist.json" => 2,
-            "formal/assurance-manifest-v1.toml"
-            | "formal/qualification/aeneas/qualification.toml" => 3,
+            "formal/assurance-manifest-v1.toml" => 4,
+            "formal/qualification/aeneas/qualification.toml" => 3,
             "formal/qualification/aeneas/generated" => 4,
             "formal/qualification/aeneas/source-closure.json" => 12,
-            "product/fixtures/v1/errors/manifest.json" => 3,
+            "product/fixtures/v1/errors/manifest.json" => 4,
+            "product/fixtures/v1/bounded-policy/manifest.json" => 2,
             "product/fixtures/v1/github/manifest.json"
             | "product/fixtures/v1/opentofu/manifest.json" => 2,
             "product/fixtures/v1/lifecycle/manifest.json" => 2,
@@ -695,7 +696,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
     ]);
     entries.push(freeze_entry(
         "auths.release.public-surface",
-        109,
+        110,
         FreezeClassification::ReleaseMetadata,
         &[
             "package-names",

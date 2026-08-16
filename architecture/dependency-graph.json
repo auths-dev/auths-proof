@@ -6986,6 +6986,18 @@
     {
       "source": "auths-profile-mcp",
       "source_layer": "product",
+      "target": "auths-errors",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-profile-mcp",
+      "source_layer": "product",
       "target": "auths-model",
       "target_layer": "core",
       "scope": "internal",
@@ -8303,6 +8315,20 @@
     {
       "source": "auths-proof-python",
       "source_layer": "bindings",
+      "target": "auths-errors",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "std"
+      ]
+    },
+    {
+      "source": "auths-proof-python",
+      "source_layer": "bindings",
       "target": "auths-identity",
       "target_layer": "core",
       "scope": "internal",
@@ -8662,6 +8688,20 @@
     {
       "source": "auths-proof-wasm",
       "source_layer": "bindings",
+      "target": "auths-errors",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "std"
+      ]
+    },
+    {
+      "source": "auths-proof-wasm",
+      "source_layer": "bindings",
       "target": "auths-identity",
       "target_layer": "core",
       "scope": "internal",
@@ -8857,6 +8897,18 @@
       "source": "auths-proof-wasm",
       "source_layer": "bindings",
       "target": "hex",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-proof-wasm",
+      "source_layer": "bindings",
+      "target": "js-sys",
       "target_layer": null,
       "scope": "external",
       "kind": "normal",

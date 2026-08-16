@@ -33,6 +33,8 @@ Current blockers: independent-security-review, moderated-recipe-three-cohort, se
 
 | Code | Status | Replacement | Final producing version |
 | --- | --- | --- | --- |
+| `core.authorization-denied` | active | — | — |
+| `core.authorization-indeterminate` | active | — | — |
 | `core.forged-execution-reference` | active | — | — |
 | `core.internal-invariant` | active | — | — |
 | `core.invalid-configuration` | active | — | — |
@@ -44,6 +46,7 @@ Current blockers: independent-security-review, moderated-recipe-three-cohort, se
 | `core.runtime-cancelled` | active | — | — |
 | `core.runtime-conflict` | active | — | — |
 | `core.runtime-unavailable` | active | — | — |
+| `core.unauthenticated-principal` | active | — | — |
 | `core.unsupported-abi` | active | — | — |
 | `core.unsupported-semantic-subject` | active | — | — |
 | `core.workflow-terminal` | active | — | — |
