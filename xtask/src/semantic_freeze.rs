@@ -339,7 +339,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
                 "bindings/python/python/auths/_product.py".to_owned(),
                 "bindings/typescript/src/profiles/mcp/index.ts".to_owned(),
                 "bindings/python/python/auths/profiles/_mcp.py".to_owned(),
-                "bindings/typescript/src/production-client.ts".to_owned(),
+                "bindings/typescript/src/service.ts".to_owned(),
                 "bindings/typescript/src/profiles.ts".to_owned(),
                 "bindings/python/python/auths/_service.py".to_owned(),
                 "bindings/python/python/auths/profiles/__init__.py".to_owned(),
