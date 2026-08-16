@@ -17,19 +17,22 @@
 //! self-contained demo and disqualifying anywhere else.
 
 use auths_author::{prepare_action, prepare_grant};
-use auths_codec::{body_digest, encode_bundle, grant_id, plan_id};
+use auths_codec::{
+    action_id, body_digest, encode_bundle, encode_canonical_action, evidence_id, grant_id, plan_id,
+};
 use auths_model::{
     ActionConstraint, BudgetAlgebraId, BudgetCeiling, BundleHeader, CriticalExtensions,
     GrantStatement, PrincipalMethodId, ProofBundle, SignatureBytes, SignatureDescriptor,
     SignatureSuiteId, StatusPolicy, Timestamp, ValidityWindow, VerificationMethod,
 };
 use auths_model::{
-    ActionEnvelope, AuthorizationPlan, Challenge, ChannelBindingId, MediaType, Permission, ProofRef,
+    ActionEnvelope, AuthorizationPlan, CanonicalAction, Challenge, ChannelBindingId,
+    ControlBinding, EvidenceId, EvidenceObject, EvidenceTypeId, MediaType, ProofRef, StatementRef,
 };
 use auths_node::local_fixture::{
     SEED_ENV, anchor_principal, reference_grant_terms, reference_profile,
 };
-use auths_raw_key::{RAW_KEY_V1, RawKeyDescriptor, RawKeyType};
+use auths_raw_key::{RAW_KEY_MEDIA_TYPE, RAW_KEY_V1, RawKeyDescriptor, RawKeyType};
 use auths_signature::ED25519_V1;
 use base64ct::{Base64UrlUnpadded, Encoding as _};
 use ed25519_dalek::{Signer as _, SigningKey};
@@ -79,6 +82,8 @@ fn main() -> ExitCode {
         return fail("the reference grant terms are unavailable");
     };
     let profile_ref_for_action = profile_ref.clone();
+    let profile_ref_for_canonical = profile_ref.clone();
+    let action_permission_for_canonical = action_permission.clone();
 
     // The agent is a distinct principal, derived from the seed and its label so
     // the demo is reproducible without shipping a second secret.
@@ -111,6 +116,11 @@ fn main() -> ExitCode {
     let Ok(algebra) = BudgetAlgebraId::parse("numeric-ceiling-v1") else {
         return fail("the budget algebra id is malformed");
     };
+    // The action DECLARES a budget within the grant's ceiling. An absent
+    // request beneath a bounded ceiling is denied -- an action that states no
+    // bound on what it may spend is exactly the authority a ceiling exists to
+    // refuse -- so the demo has to say what it intends to spend.
+    let requested_budget = Some(BudgetCeiling::new(algebra.clone(), 1));
 
     // Root grant: the anchor delegates to the agent, one hop, bounded.
     let statement = GrantStatement::new(
@@ -128,6 +138,12 @@ fn main() -> ExitCode {
         assurance,
         CriticalExtensions::empty(),
     );
+    let Ok(anchor_raw_descriptor) = RawKeyDescriptor::new(
+        RawKeyType::Ed25519,
+        anchorKey.verifying_key().to_bytes().to_vec(),
+    ) else {
+        return fail("the anchor key is not a valid raw-key descriptor");
+    };
     let (Ok(method), Ok(verification), Ok(suite)) = (
         PrincipalMethodId::parse(RAW_KEY_V1),
         VerificationMethod::parse(anchorPrincipal.as_str()),
@@ -161,6 +177,7 @@ fn main() -> ExitCode {
     let Ok(media) = MediaType::parse("application/octet-stream") else {
         return fail("the media type is malformed");
     };
+    let media_for_canonical = media.clone();
     let Ok(channel) = ChannelBindingId::parse("none-v1") else {
         return fail("the channel binding id is malformed");
     };
@@ -169,7 +186,7 @@ fn main() -> ExitCode {
         media,
         body_digest(&action),
         action_permission,
-        None,
+        requested_budget.clone(),
         action_audience,
         Challenge::new([0x22; 32]),
         validity,
@@ -204,13 +221,51 @@ fn main() -> ExitCode {
     };
     let signed_action = action_request.complete(action_signature);
 
+    // Evidence binds each signature to the key that produced it. Without it the
+    // verifier has a signed grant and no way to check who signed it, and denies.
+    let evidence_for = |descriptor: &RawKeyDescriptor| -> Option<EvidenceObject> {
+        let evidence_type = EvidenceTypeId::parse(RAW_KEY_V1).ok()?;
+        let media = MediaType::parse(RAW_KEY_MEDIA_TYPE).ok()?;
+        let unaddressed = EvidenceObject::new(
+            EvidenceId::new([0; 32]),
+            evidence_type.clone(),
+            media.clone(),
+            descriptor.encode(),
+        )
+        .ok()?;
+        EvidenceObject::new(
+            evidence_id(&unaddressed).ok()?,
+            evidence_type,
+            media,
+            unaddressed.bytes().to_vec(),
+        )
+        .ok()
+    };
+    let (Some(anchor_evidence), Some(agent_evidence)) = (
+        evidence_for(&anchor_raw_descriptor),
+        evidence_for(&agent_descriptor),
+    ) else {
+        return fail("the key evidence could not be assembled");
+    };
+    let (Ok(grant_binding), Ok(action_binding)) = (
+        ControlBinding::new(StatementRef::Grant(terminal), vec![anchor_evidence.id()]),
+        action_id(signed_action.envelope())
+            .map_err(|_| ())
+            .and_then(|id| {
+                ControlBinding::new(StatementRef::Action(id), vec![agent_evidence.id()])
+                    .map_err(|_| ())
+            }),
+    ) else {
+        return fail("the control bindings could not be assembled");
+    };
+
     let bundle = match ProofBundle::new(
         BundleHeader::v1(),
         vec![grant],
         vec![signed_action],
         plan,
-        Vec::new(),
-        Vec::new(),
+        vec![anchor_evidence, agent_evidence],
+        vec![grant_binding, action_binding],
         Vec::new(),
         Vec::new(),
         Vec::new(),
@@ -227,10 +282,24 @@ fn main() -> ExitCode {
         return fail("the proof bundle could not be encoded canonically");
     };
 
+    // The node decodes a CANONICAL ACTION, not the raw body, so emit that.
+    let Ok(canonical) = CanonicalAction::new(
+        profile_ref_for_canonical,
+        media_for_canonical,
+        action.clone(),
+        action_permission_for_canonical,
+        requested_budget,
+    ) else {
+        return fail("the canonical action could not be assembled");
+    };
+    let Ok(canonical_bytes) = encode_canonical_action(&canonical) else {
+        return fail("the canonical action could not be encoded");
+    };
+
     println!(
         "{{\"proof\":\"{}\",\"action\":\"{}\"}}",
         Base64UrlUnpadded::encode_string(&proof),
-        Base64UrlUnpadded::encode_string(&action)
+        Base64UrlUnpadded::encode_string(&canonical_bytes)
     );
     ExitCode::SUCCESS
 }
