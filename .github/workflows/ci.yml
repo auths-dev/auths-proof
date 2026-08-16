@@ -606,13 +606,19 @@ jobs:
       - name: Real PostgreSQL rollback, restart, and reconciliation contract
         working-directory: demos/postgresql-data-change
         run: npm run test:live-recovery
-      - name: Transactional multi-process lifecycle-store contract
-        env:
-          AUTHS_LIFECYCLE_POSTGRES_URL: postgresql://migration_admin:${{ env.POSTGRES_ADMIN_PASSWORD }}@127.0.0.1:54329/auths_demo
-        run: >-
-          cargo test --locked -p auths-stores
-          --test postgres_lifecycle
-          -- --ignored --test-threads=1
+# The transactional multi-process lifecycle-store contract is NOT run here.
+      #
+      # postgres_lifecycle's `configured()` requires AUTHS_POSTGRES_URL,
+      # AUTHS_POSTGRES_CA_PEM and AUTHS_POSTGRES_SERVER_NAME -- a TLS PostgreSQL
+      # with a CA certificate. This job runs the plain demo database on 54329 and
+      # was setting AUTHS_LIFECYCLE_POSTGRES_URL, which `configured()` does not
+      # read, so the test panicked with "TLS PostgreSQL environment slots are
+      # required" on every run.
+      #
+      # It is owned by .github/workflows/postgres-lifecycle.yml, which stands up
+      # the TLS fixture in tests/postgres_tls/compose.yaml, supplies all three
+      # slots, and triggers on changes to auths-lifecycle or auths-stores.
+      # Running it in two places, correctly in one, was the defect.
       - name: Privilege, RLS, injection, concurrency, timeout, and drift contract
         working-directory: demos/postgresql-data-change
         run: npm run test:live-database

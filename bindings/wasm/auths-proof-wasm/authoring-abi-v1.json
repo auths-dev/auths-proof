@@ -39,7 +39,8 @@
     "commitPlanApprovalV1",
     "beginMcpExecutionV1",
     "resumeMcpExecutionV1",
-    "McpExecutionSessionV1"
+    "McpExecutionSessionV1",
+    "productionTransportFailureV1"
   ],
   "types": [
     "AuthoringSigningRequestV1",
