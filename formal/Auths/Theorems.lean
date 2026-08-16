@@ -77,6 +77,8 @@ def theoremInventory : List Lean.Name :=
     `Auths.Rich.authority_delegate_first_failure,
     `Auths.Rich.author_planning_diagnostic_sound_complete,
     `Auths.Rich.coverage_decision_ok_iff_covers,
+    `Auths.Rich.CertifiedProjection.extensions_not_forgeable,
+    `Auths.Rich.CertifiedProjection.root_not_forgeable,
     `Auths.Rich.Mutations.validity_start_direction,
     `Auths.Rich.Mutations.validity_end_direction,
     `Auths.Rich.Mutations.budget_value_direction,

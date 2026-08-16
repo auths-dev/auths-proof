@@ -587,6 +587,60 @@ def terminalCovers {v : Vocabulary}
   action.terminalGrant = authority.lastGrant ∧
   actionCovers authority.scope action
 
+/--
+A projection carrying a proof that every field IS its semantic decision.
+
+`Auths.Generated.AttenuationProjection` is eleven unconstrained `Bool`s, so
+`extensionsAttenuate := true` is expressible. That is not hypothetical: the
+eleventh dimension shipped as a literal `true` and the exactness theorems were
+what eventually caught it. They catch a bad projection AFTER it exists.
+
+This type makes it unconstructible. Each field below pins one dimension to the
+`decide` of its rich relation, so a literal cannot be supplied without a proof
+that the literal equals the semantic answer -- and no such proof exists for a
+wrong literal. The reviewer's phrasing: a projection that must carry its own
+certificate.
+
+Adding a twelfth dimension adds a twelfth obligation here, which no existing
+constructor satisfies, so the compiler demands it be addressed.
+-/
+structure CertifiedProjection {v : Vocabulary}
+    (parent : ChainState v) (grant : Grant v) where
+  value : Auths.Generated.AttenuationProjection
+  rootExact : value.rootPreserved = decide (rootPreserved parent grant)
+  depthExact :
+    value.depthDecreases =
+      decide (0 < parent.remainingDepth ∧
+        grant.remainingDepth < parent.remainingDepth)
+  profileExact :
+    value.profileAttenuates =
+      decide (profileAllows parent.scope.profileScope grant.profile)
+  permissionsExact :
+    value.permissionsAttenuate =
+      decide (grant.permissions ⊆ parent.scope.permissions)
+  validityExact :
+    value.validityAttenuates =
+      decide (windowContained grant.validity parent.scope.validity)
+  audiencesExact :
+    value.audiencesAttenuate =
+      decide (grant.audiences ⊆ parent.scope.audiences)
+  actionConstraintExact :
+    value.actionConstraintAttenuates =
+      decide (actionConstraintLe grant.actionConstraint
+        parent.scope.actionConstraint)
+  budgetExact :
+    value.budgetAttenuates =
+      decide (budgetLe grant.budget parent.scope.budget)
+  statusExact :
+    value.statusAttenuates =
+      decide (statusLe grant.status parent.scope.status)
+  assuranceExact :
+    value.assuranceAttenuates =
+      decide (grant.assurance = parent.scope.assurance)
+  extensionsExact :
+    value.extensionsAttenuate =
+      decide (extensionsLe (some grant.extensions) parent.scope.extensions)
+
 def delegationProjection {v : Vocabulary}
     (parent : ChainState v) (grant : Grant v) :
     Auths.Generated.AttenuationProjection where
@@ -614,4 +668,46 @@ def delegationProjection {v : Vocabulary}
   extensionsAttenuate :=
     decide (extensionsLe (some grant.extensions) parent.scope.extensions)
 
+/-- `delegationProjection` is certified: every field is its decision, by rfl. -/
+def certifiedDelegationProjection {v : Vocabulary}
+    (parent : ChainState v) (grant : Grant v) :
+    CertifiedProjection parent grant where
+  value := delegationProjection parent grant
+  rootExact := rfl
+  depthExact := rfl
+  profileExact := rfl
+  permissionsExact := rfl
+  validityExact := rfl
+  audiencesExact := rfl
+  actionConstraintExact := rfl
+  budgetExact := rfl
+  statusExact := rfl
+  assuranceExact := rfl
+  extensionsExact := rfl
+
+
+/--
+No certified projection can report a dimension the semantics deny.
+
+This is what the type buys. `extensionsAttenuate := true` beneath a parent that
+denies it is not merely detected, it cannot be constructed.
+-/
+theorem CertifiedProjection.extensions_not_forgeable {v : Vocabulary}
+    {parent : ChainState v} {grant : Grant v}
+    (certified : CertifiedProjection parent grant)
+    (denied : ¬ extensionsLe (some grant.extensions) parent.scope.extensions) :
+    certified.value.extensionsAttenuate = false := by
+  rw [certified.extensionsExact]
+  exact decide_eq_false denied
+
+/-- The same for the trust root, the dimension no other can rescue. -/
+theorem CertifiedProjection.root_not_forgeable {v : Vocabulary}
+    {parent : ChainState v} {grant : Grant v}
+    (certified : CertifiedProjection parent grant)
+    (denied : ¬ rootPreserved parent grant) :
+    certified.value.rootPreserved = false := by
+  rw [certified.rootExact]
+  exact decide_eq_false denied
+
 end Auths.Rich
+
