@@ -4,6 +4,8 @@ import { platform } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
 const MANIFEST = "auths-development-v2.json";
+const WINDOWS_RENAME_RETRIES = 8;
+const WINDOWS_RENAME_RETRY_DELAY_MS = 25;
 
 export interface RecoverableDevelopmentResources {
   readonly resources: McpExecutionState & McpReceiptSink;
@@ -182,12 +184,59 @@ async function atomicWrite(path: string, bytes: Uint8Array): Promise<void> {
     await handle.close();
   }
   try {
-    await rename(temporary, path);
+    await renameWithWindowsGracePeriod(temporary, path);
     await syncDirectory(dirname(path));
   } catch (error) {
     await unlink(temporary).catch(() => undefined);
     throw error;
   }
+}
+
+type RenameOperation = (from: string, to: string) => Promise<void>;
+type RenameRetryOptions = Readonly<{
+  operation?: RenameOperation;
+  operatingSystem?: string;
+  wait?: (milliseconds: number) => Promise<void>;
+}>;
+
+/**
+ * Gives Windows scanners and indexers a bounded grace period to release a
+ * destination file without deleting the last durable checkpoint first.
+ *
+ * @internal Exported only so the failure policy can be fault-injection tested;
+ * this module is not a public package export.
+ */
+export async function renameWithWindowsGracePeriod(
+  from: string,
+  to: string,
+  options: RenameRetryOptions = {},
+): Promise<void> {
+  const operation = options.operation ?? rename;
+  const operatingSystem = options.operatingSystem ?? platform();
+  const wait = options.wait ?? delay;
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      await operation(from, to);
+      return;
+    } catch (error) {
+      if (operatingSystem !== "win32"
+        || attempt >= WINDOWS_RENAME_RETRIES
+        || !isTransientWindowsRename(error)) {
+        throw error;
+      }
+      await wait(WINDOWS_RENAME_RETRY_DELAY_MS * (attempt + 1));
+    }
+  }
+}
+
+function isTransientWindowsRename(error: unknown): boolean {
+  if (error === null || typeof error !== "object" || !("code" in error)) return false;
+  const code = (error as { code?: unknown }).code;
+  return code === "EPERM" || code === "EACCES" || code === "EBUSY";
+}
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolveDelay) => setTimeout(resolveDelay, milliseconds));
 }
 
 async function syncDirectory(path: string): Promise<void> {

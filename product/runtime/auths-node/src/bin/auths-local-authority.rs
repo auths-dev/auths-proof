@@ -70,7 +70,7 @@ fn main() -> ExitCode {
         return fail("the action file is unavailable");
     };
 
-    let Ok((anchorKey, anchorPrincipal)) = anchor_principal(&seed) else {
+    let Ok((anchor_key, anchor_principal)) = anchor_principal(&seed) else {
         return fail("the trust anchor could not be derived");
     };
     let Ok(profile_ref) = reference_profile(&profile) else {
@@ -108,14 +108,14 @@ fn main() -> ExitCode {
         .duration_since(UNIX_EPOCH)
         .map_or(0, |duration| duration.as_secs());
     // The grant must be CONTAINED in the anchor's window, and the anchor's was
-    // fixed when the context was generated -- earlier than now. A window as long
-    // as the context's would end after it and be refused as DelegationExpanded,
-    // which is the validity dimension working: a child cannot outlive its
-    // parent. Fifteen minutes fits comfortably inside any context lifetime the
-    // fixture generates.
-    let Ok(validity) =
-        ValidityWindow::new(Timestamp::new(now), Timestamp::new(now.saturating_add(900)))
-    else {
+    // fixed when the context was generated -- earlier than now. Start one minute
+    // in the past so a second boundary or host/container clock skew cannot make
+    // a freshly authored action not-yet-valid. Fifteen minutes still fits
+    // comfortably inside the fixture anchor's one-hour window.
+    let Ok(validity) = ValidityWindow::new(
+        Timestamp::new(now.saturating_sub(60)),
+        Timestamp::new(now.saturating_add(900)),
+    ) else {
         return fail("the validity window is invalid");
     };
     let Ok(algebra) = BudgetAlgebraId::parse("numeric-ceiling-v1") else {
@@ -129,7 +129,7 @@ fn main() -> ExitCode {
 
     // Root grant: the anchor delegates to the agent, one hop, bounded.
     let statement = GrantStatement::new(
-        anchorPrincipal.clone(),
+        anchor_principal.clone(),
         agent_principal,
         profile_ref,
         permissions,
@@ -145,13 +145,13 @@ fn main() -> ExitCode {
     );
     let Ok(anchor_raw_descriptor) = RawKeyDescriptor::new(
         RawKeyType::Ed25519,
-        anchorKey.verifying_key().to_bytes().to_vec(),
+        anchor_key.verifying_key().to_bytes().to_vec(),
     ) else {
         return fail("the anchor key is not a valid raw-key descriptor");
     };
     let (Ok(method), Ok(verification), Ok(suite)) = (
         PrincipalMethodId::parse(RAW_KEY_V1),
-        VerificationMethod::parse(anchorPrincipal.as_str()),
+        VerificationMethod::parse(anchor_principal.as_str()),
         SignatureSuiteId::parse(ED25519_V1),
     ) else {
         return fail("the anchor signature descriptor is malformed");
@@ -161,7 +161,7 @@ fn main() -> ExitCode {
         return fail("the root grant could not be prepared");
     };
     let Ok(signature) = SignatureBytes::new(
-        anchorKey
+        anchor_key
             .sign(request.signing_preimage())
             .to_bytes()
             .to_vec(),

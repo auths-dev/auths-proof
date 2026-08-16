@@ -1,0 +1,71 @@
+freeze_version = 126
+
+# Semantic identity counters live outside the xtask source tree deliberately.
+# The formal source closure binds xtask's executable code, while the semantic
+# inventory binds that formal closure. Keeping these counters in the generator
+# made the two generated artifacts hash each other and therefore unable to
+# converge. This file is a reviewed release input, never an automatic output.
+[entries]
+"auths.core.protocol" = 17
+"auths.frozen-bytes/architecture/dependency-graph.json" = 29
+"auths.frozen-bytes/bindings/wasm/auths-proof-wasm/identity-abi-v1.json" = 4
+"auths.frozen-bytes/bounded-domains.toml" = 1
+"auths.frozen-bytes/core/conformance/v1/manifest.json" = 1
+"auths.frozen-bytes/core/explanations/v1/fact-inventory.json" = 1
+"auths.frozen-bytes/core/fixtures/identity/v1/vectors.json" = 1
+"auths.frozen-bytes/core/fixtures/v1/manifest.json" = 4
+"auths.frozen-bytes/core/formal-vectors/v1/manifest.json" = 1
+"auths.frozen-bytes/demos/benchmarks/profiles/release.toml" = 1
+"auths.frozen-bytes/formal/assurance-manifest-v1.toml" = 13
+"auths.frozen-bytes/formal/qualification/aeneas/generated" = 6
+"auths.frozen-bytes/formal/qualification/aeneas/qualification.toml" = 5
+"auths.frozen-bytes/formal/qualification/aeneas/source-closure.json" = 20
+"auths.frozen-bytes/product/conformance/v1/mechanism-profile-conformance.json" = 1
+"auths.frozen-bytes/product/conformance/v1/simplified-product-waist.json" = 2
+"auths.frozen-bytes/product/fixtures/v1/bounded-policy/manifest.json" = 2
+"auths.frozen-bytes/product/fixtures/v1/custody/manifest.json" = 1
+"auths.frozen-bytes/product/fixtures/v1/errors/manifest.json" = 4
+"auths.frozen-bytes/product/fixtures/v1/github/manifest.json" = 2
+"auths.frozen-bytes/product/fixtures/v1/kubernetes/manifest.json" = 1
+"auths.frozen-bytes/product/fixtures/v1/lifecycle/manifest.json" = 2
+"auths.frozen-bytes/product/fixtures/v1/opentofu/manifest.json" = 2
+"auths.frozen-bytes/product/fixtures/v1/postgresql/manifest.json" = 1
+"auths.frozen-bytes/product/fixtures/v1/production-client/manifest.json" = 1
+"auths.frozen-bytes/product/fixtures/v1/radicle/manifest.json" = 1
+"auths.frozen-bytes/product/fixtures/v1/records-api/manifest.json" = 1
+"auths.frozen-bytes/product/fixtures/v1/stripe/manifest.json" = 1
+"auths.frozen-bytes/product/integrations/auths-stripe/fixtures/connect-transfer/v1/manifest.sha256.json" = 1
+"auths.frozen-bytes/product/integrations/auths-stripe/fixtures/merchant-authorize/v1/manifest.sha256.json" = 1
+"auths.frozen-bytes/product/integrations/auths-stripe/fixtures/merchant-cancel/v1/manifest.sha256.json" = 1
+"auths.frozen-bytes/product/integrations/auths-stripe/fixtures/merchant-capture/v1/manifest.sha256.json" = 1
+"auths.frozen-bytes/product/integrations/auths-stripe/fixtures/merchant-collect/v1/manifest.sha256.json" = 1
+"auths.frozen-bytes/product/integrations/auths-stripe/fixtures/payment-mandate/v1/manifest.sha256.json" = 1
+"auths.frozen-bytes/product/integrations/auths-stripe/fixtures/payout/v1/manifest.sha256.json" = 1
+"auths.frozen-bytes/product/integrations/auths-stripe/fixtures/purchase-authorization/v1/manifest.sha256.json" = 1
+"auths.frozen-bytes/product/integrations/auths-stripe/fixtures/subscription-cancel/v1/manifest.sha256.json" = 1
+"auths.frozen-bytes/product/integrations/auths-stripe/fixtures/subscription-create/v1/manifest.sha256.json" = 1
+"auths.frozen-bytes/product/integrations/auths-stripe/fixtures/subscription-modify/v1/manifest.sha256.json" = 1
+"auths.frozen-bytes/product/integrations/auths-stripe/fixtures/v1/manifest.sha256.json" = 1
+"auths.identity.protocol" = 30
+"auths.modular-components" = 8
+"auths.portable-abi-bindings" = 54
+"auths.product.bounded-domains" = 7
+"auths.product.bounded-policy" = 2
+"auths.product.configuration-commitments" = 1
+"auths.product.development-composition" = 9
+"auths.product.error-recovery-contract" = 11
+"auths.product.external-custody" = 3
+"auths.product.facade" = 11
+"auths.product.lifecycle" = 9
+"auths.product.mcp-closed-execution" = 14
+"auths.product.mechanism-profile-conformance" = 5
+"auths.product.open-production-contract" = 13
+"auths.product.operations" = 5
+"auths.product.public-sdk-contract" = 43
+"auths.product.receipts" = 5
+"auths.product.release-assurance" = 4
+"auths.product.simplified-waist" = 8
+"auths.product.vocabulary" = 9
+"auths.release.benchmark-contract" = 1
+"auths.release.evolution-contract" = 16
+"auths.release.public-surface" = 125

@@ -18,3 +18,11 @@ repos:
         files: \.rs$
         pass_filenames: false
         require_serial: true
+
+      - id: semantic-freeze
+        name: Verify reviewed semantic identities
+        entry: cargo xtask semantic-freeze
+        language: system
+        always_run: true
+        pass_filenames: false
+        require_serial: true

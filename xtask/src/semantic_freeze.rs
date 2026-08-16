@@ -4,7 +4,7 @@ use crate::*;
 
 const INVENTORY_PATH: &str = "release/semantic-freeze.json";
 const INVENTORY_SCHEMA: &str = "auths.semantic-freeze/1";
-const FREEZE_VERSION: u64 = 125;
+const VERSIONS_PATH: &str = "release/semantic-freeze-versions.toml";
 const PUBLIC_RUST_ROOTS: [&str; 10] = [
     "auths",
     "auths-byte-channel",
@@ -91,6 +91,45 @@ struct FreezeEntry {
     sha256: String,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SemanticFreezeVersions {
+    freeze_version: u64,
+    entries: BTreeMap<String, u64>,
+}
+
+impl SemanticFreezeVersions {
+    fn entry(&self, id: &str) -> Result<u64, String> {
+        self.entries
+            .get(id)
+            .copied()
+            .ok_or_else(|| format!("semantic identity has no reviewed version: {id}"))
+    }
+
+    fn validate_exact_inventory(&self, entries: &[FreezeEntry]) -> Result<(), String> {
+        let generated = entries
+            .iter()
+            .map(|entry| entry.id.as_str())
+            .collect::<BTreeSet<_>>();
+        let configured = self
+            .entries
+            .keys()
+            .map(String::as_str)
+            .collect::<BTreeSet<_>>();
+        if generated != configured {
+            return Err(set_drift(
+                "semantic identity version inventory",
+                &generated.into_iter().map(str::to_owned).collect(),
+                &configured.into_iter().map(str::to_owned).collect(),
+            ));
+        }
+        if self.freeze_version == 0 || self.entries.values().any(|version| *version == 0) {
+            return Err("semantic identity versions must be non-zero".to_owned());
+        }
+        Ok(())
+    }
+}
+
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "kebab-case")]
 enum FreezeClassification {
@@ -161,13 +200,14 @@ pub(crate) fn semantic_freeze(update: bool) -> Result<(), String> {
 }
 
 fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
+    let versions = load_versions()?;
     let rust_surface = rust_surface()?;
     let bounded_domain_sources = bounded_domain_sources()?;
 
     let mut entries = vec![
         freeze_entry(
             "auths.core.protocol",
-            17,
+            versions.entry("auths.core.protocol")?,
             FreezeClassification::FrozenMeaning,
             &[
                 "protocol-versions",
@@ -187,7 +227,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.identity.protocol",
-            30,
+            versions.entry("auths.identity.protocol")?,
             FreezeClassification::FrozenMeaning,
             &[
                 "identity-protocol-versions",
@@ -213,7 +253,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.modular-components",
-            8,
+            versions.entry("auths.modular-components")?,
             FreezeClassification::FrozenMeaning,
             &[
                 "published-neutral-ports",
@@ -246,7 +286,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.portable-abi-bindings",
-            53,
+            versions.entry("auths.portable-abi-bindings")?,
             FreezeClassification::FrozenMeaning,
             &["portable-abi", "authoring-abi", "binding-contracts"],
             vec![
@@ -262,7 +302,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.public-sdk-contract",
-            43,
+            versions.entry("auths.product.public-sdk-contract")?,
             FreezeClassification::FrozenMeaning,
             &[
                 "rust-sdk-contract",
@@ -283,7 +323,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.mcp-closed-execution",
-            14,
+            versions.entry("auths.product.mcp-closed-execution")?,
             FreezeClassification::FrozenMeaning,
             &[
                 "profile-session",
@@ -306,7 +346,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.simplified-waist",
-            8,
+            versions.entry("auths.product.simplified-waist")?,
             FreezeClassification::FrozenMeaning,
             &[
                 "product-waist-invariants",
@@ -325,7 +365,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.facade",
-            11,
+            versions.entry("auths.product.facade")?,
             FreezeClassification::FrozenMeaning,
             &[
                 "create",
@@ -347,7 +387,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.development-composition",
-            8,
+            versions.entry("auths.product.development-composition")?,
             FreezeClassification::FrozenMeaning,
             &[
                 "explicit-development-mode",
@@ -365,7 +405,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.mechanism-profile-conformance",
-            5,
+            versions.entry("auths.product.mechanism-profile-conformance")?,
             FreezeClassification::FrozenMeaning,
             &[
                 "contract-inventory",
@@ -383,7 +423,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.vocabulary",
-            9,
+            versions.entry("auths.product.vocabulary")?,
             FreezeClassification::FrozenMeaning,
             &[
                 "customer-vocabulary",
@@ -404,7 +444,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.error-recovery-contract",
-            11,
+            versions.entry("auths.product.error-recovery-contract")?,
             FreezeClassification::FrozenMeaning,
             &[
                 "error-envelope",
@@ -427,7 +467,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.bounded-policy",
-            2,
+            versions.entry("auths.product.bounded-policy")?,
             FreezeClassification::FrozenMeaning,
             &[
                 "policy-semantic-ids",
@@ -441,7 +481,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.bounded-domains",
-            7,
+            versions.entry("auths.product.bounded-domains")?,
             FreezeClassification::FrozenMeaning,
             &[
                 "bounded-domain-inventory",
@@ -456,7 +496,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.lifecycle",
-            9,
+            versions.entry("auths.product.lifecycle")?,
             FreezeClassification::FrozenMeaning,
             &[
                 "reservation-state",
@@ -476,7 +516,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.receipts",
-            5,
+            versions.entry("auths.product.receipts")?,
             FreezeClassification::FrozenMeaning,
             &["receipt-schemas", "receipt-commitment-meanings"],
             vec![
@@ -486,7 +526,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.configuration-commitments",
-            1,
+            versions.entry("auths.product.configuration-commitments")?,
             FreezeClassification::FrozenMeaning,
             &[
                 "required-configuration-commitments",
@@ -499,7 +539,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.open-production-contract",
-            13,
+            versions.entry("auths.product.open-production-contract")?,
             FreezeClassification::FrozenMeaning,
             &[
                 "production-topology",
@@ -525,7 +565,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.release-assurance",
-            4,
+            versions.entry("auths.product.release-assurance")?,
             FreezeClassification::FrozenMeaning,
             &[
                 "immutable-candidate-binding",
@@ -545,7 +585,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.external-custody",
-            3,
+            versions.entry("auths.product.external-custody")?,
             FreezeClassification::FrozenMeaning,
             &[
                 "transaction-bound-signing",
@@ -568,7 +608,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.operations",
-            5,
+            versions.entry("auths.product.operations")?,
             FreezeClassification::FrozenMeaning,
             &[
                 "privacy-safe-events",
@@ -589,7 +629,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.release.evolution-contract",
-            16,
+            versions.entry("auths.release.evolution-contract")?,
             FreezeClassification::FrozenMeaning,
             &[
                 "version-axes",
@@ -613,7 +653,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.release.benchmark-contract",
-            1,
+            versions.entry("auths.release.benchmark-contract")?,
             FreezeClassification::FrozenMeaning,
             &["benchmark-definition", "accepted-baseline"],
             vec![
@@ -628,22 +668,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
     ];
 
     for (id, path) in frozen_byte_inventories()? {
-        let version = match path.as_str() {
-            "architecture/dependency-graph.json" => 29,
-            "bindings/wasm/auths-proof-wasm/identity-abi-v1.json" => 4,
-            "core/fixtures/v1/manifest.json" => 4,
-            "product/conformance/v1/simplified-product-waist.json" => 2,
-            "formal/assurance-manifest-v1.toml" => 12,
-            "formal/qualification/aeneas/qualification.toml" => 5,
-            "formal/qualification/aeneas/generated" => 6,
-            "formal/qualification/aeneas/source-closure.json" => 19,
-            "product/fixtures/v1/errors/manifest.json" => 4,
-            "product/fixtures/v1/bounded-policy/manifest.json" => 2,
-            "product/fixtures/v1/github/manifest.json"
-            | "product/fixtures/v1/opentofu/manifest.json" => 2,
-            "product/fixtures/v1/lifecycle/manifest.json" => 2,
-            _ => 1,
-        };
+        let version = versions.entry(&id)?;
         entries.push(freeze_entry(
             &id,
             version,
@@ -676,6 +701,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         "release/SLSA_BUILD_LEVEL_3_ASSESSMENT.md".to_owned(),
         "release/slsa-build-level-3-assessment.json".to_owned(),
         "release/RELEASE_CANDIDATE_NOTES.md".to_owned(),
+        VERSIONS_PATH.to_owned(),
         "release/release-manifest.contract-fixture.json".to_owned(),
         "release/release-manifest.schema.json".to_owned(),
         "release/release-subjects.toml".to_owned(),
@@ -696,7 +722,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
     ]);
     entries.push(freeze_entry(
         "auths.release.public-surface",
-        124,
+        versions.entry("auths.release.public-surface")?,
         FreezeClassification::ReleaseMetadata,
         &[
             "package-names",
@@ -712,9 +738,10 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
     )?);
 
     entries.sort_by(|left, right| left.id.cmp(&right.id));
+    versions.validate_exact_inventory(&entries)?;
     Ok(SemanticFreezeInventory {
         schema: INVENTORY_SCHEMA.to_owned(),
-        freeze_version: FREEZE_VERSION,
+        freeze_version: versions.freeze_version,
         public_surface: rust_surface.public,
         entries,
     })
@@ -1236,6 +1263,14 @@ fn load_inventory(path: &Path) -> Result<SemanticFreezeInventory, String> {
         fs::read(path).map_err(|error| format!("could not read {}: {error}", path.display()))?;
     serde_json::from_slice(&bytes)
         .map_err(|error| format!("invalid semantic freeze {}: {error}", path.display()))
+}
+
+fn load_versions() -> Result<SemanticFreezeVersions, String> {
+    let path = root().join(VERSIONS_PATH);
+    let bytes = fs::read_to_string(&path)
+        .map_err(|error| format!("could not read {}: {error}", path.display()))?;
+    toml::from_str(&bytes)
+        .map_err(|error| format!("invalid semantic versions {}: {error}", path.display()))
 }
 
 fn with_paths<const N: usize>(base: [&str; N], additions: &[String]) -> Vec<String> {
