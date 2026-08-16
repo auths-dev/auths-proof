@@ -325,7 +325,11 @@ pub(crate) fn formal(skip_kani: bool, update: bool) -> Result<(), String> {
 pub(crate) fn ci_formal_translation() -> Result<(), String> {
     formal_qualification::validate_source_closure(&root())?;
     let (formal_root, attenuation_dimensions) = prepare_formal(true, false)?;
-    formal_qualification::qualify(&root(), &attenuation_dimensions, false)?;
+    // The build in `prepare_formal` ran against pre-regeneration Lean, so the
+    // gate is re-run after qualification synchronizes its outputs.
+    formal_qualification::qualify(&root(), &attenuation_dimensions, false, &|| {
+        build_and_audit_formal(&formal_root, false)
+    })?;
     run_formal_semantic_checks(&formal_root, false, false)
 }
 
@@ -470,7 +474,20 @@ fn collect_rust_sources(
     Ok(())
 }
 
-pub(crate) fn prepare_formal(
+/// Prepares everything that does NOT read committed generated Lean.
+///
+/// Synchronizes the algebra contract sources, validates the pinned toolchain,
+/// and returns the attenuation dimensions. It deliberately runs neither `lake
+/// build` nor the assurance audit.
+///
+/// `formal qualify aeneas` regenerates the very Lean a build would compile, so
+/// building first makes regeneration impossible the moment a translation starts
+/// referencing a symbol its upstream crate has not exported yet: the build
+/// fails on the generated file, qualification aborts before `reproduce()`, and
+/// the upstream crate can never produce the symbol. Translation must come
+/// first; the complete build and audit still gate success, from
+/// [`build_and_audit_formal`] after synchronization.
+pub(crate) fn prepare_formal_translation(
     require_kani: bool,
     update: bool,
 ) -> Result<(PathBuf, Vec<String>), String> {
@@ -478,13 +495,34 @@ pub(crate) fn prepare_formal(
     let contract = load_algebra_contract()?;
     synchronize_algebra_sources(&contract, update)?;
     validate_formal_toolchain(&formal_root, require_kani)?;
-    command_in("lake", &["build"], &formal_root, None)?;
-    formal_assurance_audit(&formal_root, update)?;
     let attenuation_dimensions = contract
         .attenuation_dimensions
         .iter()
         .map(|dimension| dimension.rust.clone())
         .collect();
+    Ok((formal_root, attenuation_dimensions))
+}
+
+/// Compiles the Lean development and runs the compiled assurance audit.
+///
+/// Separated from [`prepare_formal_translation`] so qualification can run it
+/// AFTER regenerated outputs and reviewed bridges are in place. This is the
+/// gate: qualification does not succeed without it.
+pub(crate) fn build_and_audit_formal(formal_root: &Path, update: bool) -> Result<(), String> {
+    command_in("lake", &["build"], formal_root, None)?;
+    formal_assurance_audit(formal_root, update)
+}
+
+/// Build-first preparation used by ordinary `cargo xtask formal`.
+///
+/// Unchanged behaviour: everything downstream reads committed generated Lean,
+/// so the build belongs up front. Only `formal qualify aeneas` inverts this.
+pub(crate) fn prepare_formal(
+    require_kani: bool,
+    update: bool,
+) -> Result<(PathBuf, Vec<String>), String> {
+    let (formal_root, attenuation_dimensions) = prepare_formal_translation(require_kani, update)?;
+    build_and_audit_formal(&formal_root, update)?;
     Ok((formal_root, attenuation_dimensions))
 }
 
@@ -1043,6 +1081,79 @@ pub(crate) fn semantic_source_closure_digest(paths: &[String]) -> Result<String,
 }
 
 pub(crate) fn formal_qualify_aeneas(update: bool) -> Result<(), String> {
-    let (_, attenuation_dimensions) = prepare_formal(false, update)?;
-    formal_qualification::qualify(&root(), &attenuation_dimensions, update)
+    // TRANSLATION-FIRST. See `prepare_formal_translation` for why building here
+    // would make regeneration impossible. `phase_ordering` in the tests below
+    // locks this against reintroduction.
+    let (formal_root, attenuation_dimensions) = prepare_formal_translation(false, update)?;
+    formal_qualification::qualify(&root(), &attenuation_dimensions, update, &|| {
+        build_and_audit_formal(&formal_root, update)
+    })
+}
+
+#[cfg(test)]
+mod phase_ordering {
+    /// `formal qualify aeneas` must never compile Lean before it reproduces the
+    /// translations.
+    ///
+    /// This is not a style preference. Qualification REGENERATES the Lean a
+    /// build would compile. Building first deadlocks the moment a translation
+    /// starts referencing a symbol its upstream crate has not exported yet: the
+    /// build fails on the generated file, qualification aborts before
+    /// `reproduce()`, and the upstream crate can never produce the symbol. That
+    /// is exactly how the tree wedged while closing the authority dependency
+    /// closure, and a comment would not have prevented it.
+    ///
+    /// Asserted structurally against the source, because the property is "which
+    /// function is called first" and no type expresses it.
+    #[test]
+    fn qualify_aeneas_prepares_translation_without_building() {
+        let source = include_str!("formal.rs");
+        let body = source
+            .split_once("pub(crate) fn formal_qualify_aeneas(")
+            .expect("formal_qualify_aeneas is defined")
+            .1;
+        let body = body.split_once("\n}\n").expect("function body ends").0;
+
+        assert!(
+            body.contains("prepare_formal_translation("),
+            "formal_qualify_aeneas must prepare via prepare_formal_translation"
+        );
+        assert!(
+            !body.contains("prepare_formal("),
+            "formal_qualify_aeneas must NOT call build-first prepare_formal; \
+             it would compile committed Lean before regenerating it"
+        );
+        assert!(
+            body.contains("build_and_audit_formal("),
+            "formal_qualify_aeneas must still pass the compiled gate to qualify"
+        );
+    }
+
+    /// The compiled gate must remain qualification's success condition.
+    #[test]
+    fn qualification_still_requires_the_compiled_gate() {
+        let qualification = include_str!("formal_qualification.rs");
+        let body = qualification
+            .split_once("pub(crate) fn qualify(")
+            .expect("qualify is defined")
+            .1;
+        let call = body.find("build_and_audit()").expect(
+            "qualify must invoke the compiled gate; without it qualification \
+             could report success on Lean that never compiled",
+        );
+        let synchronize = body
+            .find("synchronize_reviewed_bridges(")
+            .expect("qualify synchronizes reviewed bridges");
+        assert!(
+            call > synchronize,
+            "the compiled gate must run AFTER bridges are synchronized"
+        );
+        let evidence = body
+            .find("write_evidence(")
+            .expect("qualify writes evidence");
+        assert!(
+            call < evidence,
+            "the compiled gate must run BEFORE qualification evidence is written"
+        );
+    }
 }

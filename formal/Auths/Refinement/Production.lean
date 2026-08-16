@@ -220,6 +220,26 @@ instance (child : auths_model.CriticalExtensions)
       intro result resultIff
       simpa [parentCase, OptionalCriticalExtensionsAttenuate] using resultIff
 
+/--
+The extensions dimension through its named helper.
+
+`auths_authority::extensions_attenuate` is the function the inline `match` in
+`evaluate_grant_view` became; aeneas cannot translate a branching expression in
+struct-field position. The semantics are unchanged, so this delegates to
+[`optional_critical_extensions_attenuate_spec`].
+-/
+@[step] theorem extensions_attenuate_spec
+    (parent : Option auths_model.CriticalExtensions)
+    (child : auths_model.CriticalExtensions)
+    (childBounded : CriticalExtensionsBounded child)
+    (parentBounded : ∀ extensions ∈ parent,
+      CriticalExtensionsBounded extensions) :
+    auths_authority.extensions_attenuate parent child
+      ⦃ result => result ↔
+        OptionalCriticalExtensionsAttenuate child parent ⦄ := by
+  unfold auths_authority.extensions_attenuate
+  exact optional_critical_extensions_attenuate_spec child parent childBounded parentBounded
+
 theorem slice_eq_iff_val_eq {α : Type} (left right : Slice α) :
     left = right ↔ left.val = right.val :=
   Subtype.ext_iff
@@ -1466,33 +1486,10 @@ def OptionalBudgetBounded
     · simpa [OptionalBudgetBounded, childEq] using childBounded
     · simpa [OptionalBudgetBounded, parentEq] using parentBounded
 
-/--
-The one input class on which the pinned Aeneas translation of
-`auths_model::optional_budget_covers` is known to be stale.
-
-The shipping Rust now answers `false` for a present ceiling with an absent
-request — an action that declares no bound on what it may spend is exactly the
-authority a ceiling exists to deny.  The translation replayed here predates
-that correction and still answers `true` on that one pair
-(`formal/qualification/aeneas/generated/model/Funs.lean`, `optional_budget_covers`,
-`| none => ok true`).
-
-Hand-editing the generated body would fabricate the claim the translation pin
-asserts — "this Lean was produced from this source" — so the gap is carried as
-an explicit hypothesis instead, exactly as `AuthorityStateAnchored` carries the
-missing `root` field.  `translated_budget_coverage_gap_is_the_absent_request`
-below pins the gap precisely and stops compiling the moment the translation is
-regenerated, which is what forces this hypothesis to be deleted then.
--/
-def TranslatedBudgetCoverageCurrent
-    (ceiling requested : Option auths_model.BudgetCeiling) : Prop :=
-  ceiling = none ∨ requested ≠ none
-
 @[step] theorem optional_budget_covers_spec
     (ceiling requested : Option auths_model.BudgetCeiling)
     (ceilingBounded : OptionalBudgetBounded ceiling)
-    (requestedBounded : OptionalBudgetBounded requested)
-    (translationCurrent : TranslatedBudgetCoverageCurrent ceiling requested) :
+    (requestedBounded : OptionalBudgetBounded requested) :
     auths_model.optional_budget_covers ceiling requested
       ⦃ result =>
         result ↔ Auths.Rich.budgetCovers
@@ -1500,8 +1497,11 @@ def TranslatedBudgetCoverageCurrent
   cases ceilingEq : ceiling <;> cases requestedEq : requested <;>
     simp only [auths_model.optional_budget_covers]
   case some.none =>
-    exact absurd translationCurrent (by simp [TranslatedBudgetCoverageCurrent,
-      ceilingEq, requestedEq])
+    -- A bounded ceiling with no declared request is DENIED. The translation
+    -- answers `ok false` here, matching the shipping Rust; this case used to be
+    -- excluded by a staleness hypothesis because the pinned translation still
+    -- answered `true` here.
+    simp [Auths.Rich.budgetCovers]
   case some.some =>
     unfold auths_model.BudgetCeiling.covers
     unfold auths_model.BudgetCeiling.attenuates
@@ -1517,21 +1517,39 @@ def TranslatedBudgetCoverageCurrent
       WP.spec, WP.theta, WP.wp_return]
 
 /--
-The translation gap is exactly one pair, and it is a fail-open one.
+Positive regression: a bounded ceiling denies an undeclared request.
 
-For every bounded ceiling the pinned translation answers `true` where the
-shipping semantics answer `false`.  Stating it as a theorem rather than a
-comment means the staleness is itself checked evidence: once the translation is
-regenerated this stops being provable, and the hypothesis
-`TranslatedBudgetCoverageCurrent` must be removed in the same change.
+This replaces `translated_budget_coverage_gap_is_the_absent_request`, which
+asserted the opposite as CHECKED EVIDENCE OF STALENESS while the pinned
+translation still answered `true` on this pair. The translation has been
+regenerated from the shipping Rust, so the gap it pinned no longer exists and
+the fact is now stated positively.
+
+An action declaring no bound on what it may spend is exactly the authority a
+ceiling exists to deny.
 -/
-theorem translated_budget_coverage_gap_is_the_absent_request
+theorem translated_bounded_ceiling_denies_absent_request
     (ceiling : auths_model.BudgetCeiling) :
-    auths_model.optional_budget_covers (some ceiling) none = ok true ∧
-      ¬ Auths.Rich.budgetCovers (some (richBudget ceiling)) none := by
-  constructor
-  · rfl
-  · simp [Auths.Rich.budgetCovers]
+    auths_model.optional_budget_covers (some ceiling) none = ok false := rfl
+
+/-- The same fact through the profile-aware entry point, expressible profile. -/
+theorem translated_expressible_absent_request_is_denied
+    (ceiling : auths_model.BudgetCeiling) :
+    auths_model.budget_ceiling_covers_action (some ceiling) none
+        auths_model.ProfileBudgetExpression.Expressible = ok false := rfl
+
+/-- An inexpressible profile spends zero, which every ceiling covers. -/
+theorem translated_inexpressible_absent_request_is_covered
+    (ceiling : auths_model.BudgetCeiling) :
+    auths_model.budget_ceiling_covers_action (some ceiling) none
+        auths_model.ProfileBudgetExpression.Inexpressible = ok true := rfl
+
+/-- An absent ceiling bounds nothing, so it covers any request. -/
+theorem translated_absent_ceiling_covers_anything
+    (requested : Option auths_model.BudgetCeiling)
+    (expression : auths_model.ProfileBudgetExpression) :
+    auths_model.budget_ceiling_covers_action none requested expression = ok true := by
+  cases requested <;> cases expression <;> rfl
 
 def StatusPolicyValid (policy : auths_model.StatusPolicy) : Prop :=
   match policy with
@@ -1770,6 +1788,9 @@ def richProfileScope
 
 structure AuthorityStateViewValid
     (view : auths_authority.AuthorityStateView) : Prop where
+  /-- The regenerated view carries the chain root; it is a principal like any
+      other and shares the same representation bound. -/
+  root : StringBounded view.root
   subject : StringBounded view.subject
   allowedProfiles : ProfileSliceBounded view.allowed_profiles
   selectedProfile :
@@ -1809,28 +1830,19 @@ structure ActionAuthorityViewValid
   validity : ValidityWindowValid view.validity
 
 /--
-The trust root supplied to `richAuthorityState` is the root the production
-state actually descends from.
+The rich chain state a translated authority view denotes.
 
-`auths_authority::AuthorityStateView` gained a `root` field so the shipping
-kernel can compute `root_preserved` instead of asserting it; the Aeneas
-translation replayed here predates that field, so the correspondence between
-the Rust root and the model root must be carried as an explicit hypothesis
-until the translation is regenerated.  Regenerating it lets this predicate be
-discharged as `richPrincipal view.root = root` rather than assumed.
+`root` is READ FROM THE VIEW. It used to be an extra parameter with an
+`AuthorityStateAnchored` hypothesis relating it to the view, because the
+translated `AuthorityStateView` carried no root field to read. The regenerated
+translation carries `root`, so the anchoring is structural and the hypothesis
+is gone.
 -/
-def AuthorityStateAnchored
-    (root : Auths.Rich.Principal ProductionVocabulary)
-    (view : auths_authority.AuthorityStateView) : Prop :=
-  (view.last_grant.map richGrantId).isSome = true ∨
-    root = richPrincipal view.subject
-
 def richAuthorityState
-    (root : Auths.Rich.Principal ProductionVocabulary)
     (view : auths_authority.AuthorityStateView)
     (valid : AuthorityStateViewValid view) :
     Auths.Rich.ChainState ProductionVocabulary where
-  root := root
+  root := richPrincipal view.root
   subject := richPrincipal view.subject
   scope := {
     profileScope :=
@@ -1938,6 +1950,112 @@ def productionCoverageDecision
     (principal_id_equal_spec left right leftBounded rightBounded)
   intro result resultIff
   simpa using resultIff
+
+/--
+Maps the translated profile-budget capability onto the rich carrier.
+
+Trusted registry context on both sides: the action supplies only the requested
+budget, never this flag.
+-/
+def richBudgetExpression
+    (expression : auths_model.ProfileBudgetExpression) : Auths.Rich.BudgetExpression :=
+  match expression with
+  | auths_model.ProfileBudgetExpression.Expressible => Auths.Rich.BudgetExpression.expressible
+  | auths_model.ProfileBudgetExpression.Inexpressible => Auths.Rich.BudgetExpression.inexpressible
+
+/--
+The profile-aware budget dimension refines the rich `budgetCoversAction`.
+
+Expressibility is trusted registry context: it only ever reclassifies an ABSENT
+request, and never lets a declared request escape a ceiling.
+-/
+@[step] theorem budget_ceiling_covers_action_rich_spec
+    (ceiling requested : Option auths_model.BudgetCeiling)
+    (expression : auths_model.ProfileBudgetExpression)
+    (ceilingBounded : OptionalBudgetBounded ceiling)
+    (requestedBounded : OptionalBudgetBounded requested) :
+    auths_model.budget_ceiling_covers_action ceiling requested expression
+      ⦃ result =>
+        result ↔ Auths.Rich.budgetCoversAction
+          (ceiling.map richBudget) (requested.map richBudget)
+          (richBudgetExpression expression) ⦄ := by
+  unfold auths_model.budget_ceiling_covers_action
+  cases requestedEq : requested <;> cases expressionEq : expression <;>
+    simp only [richBudgetExpression, Auths.Rich.budgetCoversAction]
+  · apply spec_mono
+      (optional_budget_covers_spec ceiling none ceilingBounded
+        (by simpa [OptionalBudgetBounded, requestedEq] using requestedBounded))
+    intro result resultIff
+    simpa using resultIff
+  · simp [WP.spec, WP.theta, WP.wp_return]
+  · apply spec_mono
+      (optional_budget_covers_spec ceiling _ ceilingBounded
+        (by simpa [OptionalBudgetBounded, requestedEq] using requestedBounded))
+    intro result resultIff
+    simpa using resultIff
+  · apply spec_mono
+      (optional_budget_covers_spec ceiling _ ceilingBounded
+        (by simpa [OptionalBudgetBounded, requestedEq] using requestedBounded))
+    intro result resultIff
+    simpa using resultIff
+
+/--
+The translated depth dimension is the rich strict-decrease relation.
+
+A parent with no remaining depth delegates nothing, and a child must have
+strictly less depth than its parent.
+-/
+@[step] theorem depth_decreases_spec
+    (parentRemaining grantRemaining : Std.U16) :
+    auths_authority.depth_decreases parentRemaining grantRemaining
+      ⦃ result =>
+        result ↔ (0 < parentRemaining.val ∧ grantRemaining.val < parentRemaining.val) ⦄ := by
+  unfold auths_authority.depth_decreases
+  split <;> simp_all [WP.spec, WP.theta, WP.wp_return] <;> omega
+
+/--
+The translated root-preservation dimension is exactly the rich root relation.
+
+`root_preserved` reads the linkage the regenerated translation builds from the
+authority view: its `parent_root` is `view.root`, the field that did not exist
+before regeneration and whose absence forced `AuthorityStateAnchored`. So the
+chain claim is now DERIVED from the translated state rather than assumed about
+it.
+
+The right-hand side is precisely `rooted` conjoined with the actor/subject
+identity that terminal coverage requires.
+-/
+@[step] theorem root_preserved_rich_spec
+    (view : auths_authority.AuthorityStateView)
+    (actor : auths_model.PrincipalId)
+    (rootBounded : StringBounded view.root)
+    (subjectBounded : StringBounded view.subject)
+    (actorBounded : StringBounded actor) :
+    auths_authority.auths_algebra_kernel.root_preserved
+        auths_authority.CanonicalPrincipal.Insts.CoreCmpPartialEqCanonicalPrincipal
+        { parent_root := view.root
+          parent_subject := view.subject
+          parent_delegated := view.last_grant.isSome
+          grant_issuer := actor }
+      ⦃ result =>
+        result ↔
+          ((view.last_grant.isSome = true ∨
+              richPrincipal view.root = richPrincipal view.subject) ∧
+            richPrincipal actor = richPrincipal view.subject) ⦄ := by
+  unfold
+    auths_authority.auths_algebra_kernel.root_preserved
+    auths_authority.auths_algebra_kernel.toRootLinkage
+    _root_.auths_algebra_kernel.root_preserved
+    auths_authority.CanonicalPrincipal.Insts.CoreCmpPartialEqCanonicalPrincipal
+    auths_authority.CanonicalPrincipal.Insts.CoreCmpPartialEqCanonicalPrincipal.eq
+  split
+  · step with principal_id_equal_rich_spec as ⟨issuerAccepted, issuerIff⟩
+    simp_all [WP.spec, WP.theta, WP.wp_return]
+  · step with principal_id_equal_rich_spec as ⟨rootAccepted, rootIff⟩
+    split
+    · step with principal_id_equal_rich_spec as ⟨issuerAccepted, issuerIff⟩
+      simp_all [WP.spec, WP.theta, WP.wp_return]
+    · simp_all [WP.spec, WP.theta, WP.wp_return]
 
 @[step] theorem optional_grant_id_equal_rich_spec
     (left right : Option auths_model.GrantId) :
@@ -2054,7 +2172,7 @@ def productionCoverageDecision
 @[step] theorem attenuation_checks_accept_spec
     (checks :
       auths_authority.auths_algebra_kernel.generated.AttenuationChecks) :
-    auths_algebra_kernel.generated.attenuation_checks_accept
+    auths_authority.auths_algebra_kernel.generated.attenuation_checks_accept
       checks
       ⦃ result =>
         result ↔
@@ -2069,8 +2187,14 @@ def productionCoverageDecision
           checks.status_attenuates ∧
           checks.assurance_attenuates ∧
           checks.extensions_attenuate ⦄ := by
+  -- The authority translation carries its own `AttenuationChecks`, so this
+  -- goes through the reviewed transparent adapter: unfold the delegation and
+  -- the field-by-field rebox, then the owning crate's conjunction. The rebox
+  -- is definitional, so the eleven projections reduce to `checks.<field>`.
   unfold
-    auths_algebra_kernel.generated.attenuation_checks_accept
+    auths_authority.auths_algebra_kernel.generated.attenuation_checks_accept
+    auths_authority.auths_algebra_kernel.generated.toAttenuationChecks
+    _root_.auths_algebra_kernel.generated.attenuation_checks_accept
   split <;> simp_all [WP.spec, WP.theta, WP.wp_return]
   split <;> simp_all [WP.wp_return]
   split <;> simp_all [WP.wp_return]
@@ -2295,30 +2419,27 @@ The mechanically translated terminal-coverage evaluator returns exactly the
 ordered rich coverage decision.  Permission and audience checks are proved as
 membership.
 
-A bounded ceiling with an absent requested budget is **excluded** by
-`budgetTranslationCurrent`: on that one pair the pinned translation still
-returns the pre-correction answer, so the statement would be false rather than
-weak if it claimed that case.  See `TranslatedBudgetCoverageCurrent` and
-`translated_budget_coverage_gap_is_the_absent_request`.
+The correspondence is UNCONDITIONAL over valid representations. A bounded
+ceiling with an absent requested budget used to be excluded by a
+`budgetTranslationCurrent` hypothesis, because the pinned translation still
+returned the pre-correction answer on that one pair. The translation is
+regenerated from the shipping Rust, so that case is now covered like any other.
 -/
 theorem translated_coverage_refines_rich_spec
-    (root : Auths.Rich.Principal ProductionVocabulary)
     (authority : auths_authority.AuthorityStateView)
     (action : auths_model.ActionAuthorityView)
     (authorityValid : AuthorityStateViewValid authority)
     (actionValid : ActionAuthorityViewValid action)
-    (anchored : AuthorityStateAnchored root authority)
-    (budgetTranslationCurrent :
-      TranslatedBudgetCoverageCurrent
-        authority.budget_ceiling action.requested_budget) :
-    auths_authority.evaluate_action_coverage_view authority action
+    (expression : auths_model.ProfileBudgetExpression) :
+    auths_authority.evaluate_action_coverage_view authority action expression
       ⦃ result =>
         result = productionCoverageDecision
           (Auths.Rich.evaluateCoverage
-            (richAuthorityState root authority authorityValid)
-            (richAction action actionValid)) ⦄ := by
+            (richAuthorityState authority authorityValid)
+            (richAction action actionValid)
+            (richBudgetExpression expression)) ⦄ := by
   rcases authorityValid with
-    ⟨authoritySubject, allowedProfiles, selectedProfile,
+    ⟨authorityRoot, authoritySubject, allowedProfiles, selectedProfile,
       authorityPermissions, authorityWindow, authorityAudiences,
       authorityBudget, authorityStatus, authorityAssurance,
       authorityExtensions, authorityExtensionsCanonical⟩
@@ -2326,12 +2447,19 @@ theorem translated_coverage_refines_rich_spec
     ⟨actionActor, actionProfile, actionPermission, requestedBudget,
       actionAudience, actionWindow⟩
   unfold auths_authority.evaluate_action_coverage_view
-  step with principal_id_equal_rich_spec as ⟨actorAccepted, actorIff⟩
+  -- The regenerated evaluator opens on the trust-root dimension: it builds the
+  -- linkage from the authority view and asks the algebra kernel whether the
+  -- chain is preserved. That single step now discharges both the rooting claim
+  -- and the actor/subject identity, which is why `AuthorityStateAnchored` is
+  -- gone rather than merely unused.
+  unfold auths_authority.root_linkage
+  step with root_preserved_rich_spec as ⟨rootAccepted, rootIff⟩
   split <;> rename_i actorCondition
-  · have actorSemantic :
+  · have rootSemantic := rootIff.mp actorCondition
+    have actorSemantic :
         richPrincipal action.actor =
-          richPrincipal authority.subject :=
-      actorIff.mp actorCondition
+          richPrincipal authority.subject := rootSemantic.right
+    have rootedSemantic := rootSemantic.left
     step with optional_grant_id_equal_rich_spec as
       ⟨grantAccepted, grantIff⟩
     split <;> rename_i grantCondition
@@ -2379,24 +2507,26 @@ theorem translated_coverage_refines_rich_spec
                         authority.action_constraint)
                       (richDigest action.canonical_body_digest) :=
                   constraintIff.mp constraintCondition
-                step with optional_budget_covers_spec as
+                step with budget_ceiling_covers_action_rich_spec as
                   ⟨budgetAccepted, budgetIff⟩
                 split <;> rename_i budgetCondition
                 · have budgetSemantic :
-                      Auths.Rich.budgetCovers
+                      Auths.Rich.budgetCoversAction
                         (authority.budget_ceiling.map richBudget)
-                        (action.requested_budget.map richBudget) :=
+                        (action.requested_budget.map richBudget)
+                        (richBudgetExpression expression) :=
                     budgetIff.mp budgetCondition
-                  simp_all [Auths.Rich.evaluateCoverage, Auths.Rich.rooted, AuthorityStateAnchored,
+                  simp_all [Auths.Rich.evaluateCoverage, Auths.Rich.rooted,
                     productionCoverageDecision, richAuthorityState,
                     richAction]
                 · have budgetSemantic :
-                      ¬Auths.Rich.budgetCovers
+                      ¬Auths.Rich.budgetCoversAction
                         (authority.budget_ceiling.map richBudget)
-                        (action.requested_budget.map richBudget) := by
+                        (action.requested_budget.map richBudget)
+                        (richBudgetExpression expression) := by
                     intro semantic
                     exact budgetCondition (budgetIff.mpr semantic)
-                  simp_all [Auths.Rich.evaluateCoverage, Auths.Rich.rooted, AuthorityStateAnchored,
+                  simp_all [Auths.Rich.evaluateCoverage, Auths.Rich.rooted,
                     productionCoverageDecision, richAuthorityState,
                     richAction]
               · have constraintSemantic :
@@ -2407,7 +2537,7 @@ theorem translated_coverage_refines_rich_spec
                   intro semantic
                   exact constraintCondition
                     (constraintIff.mpr semantic)
-                simp_all [Auths.Rich.evaluateCoverage, Auths.Rich.rooted, AuthorityStateAnchored,
+                simp_all [Auths.Rich.evaluateCoverage, Auths.Rich.rooted, 
                   productionCoverageDecision, richAuthorityState,
                   richAction]
             · have audienceSemantic :
@@ -2416,7 +2546,7 @@ theorem translated_coverage_refines_rich_spec
                 intro semantic
                 exact audienceCondition
                   (audienceIff.mpr semantic)
-              simp_all [Auths.Rich.evaluateCoverage, Auths.Rich.rooted, AuthorityStateAnchored,
+              simp_all [Auths.Rich.evaluateCoverage, Auths.Rich.rooted, 
                 productionCoverageDecision, richAuthorityState,
                 richAction]
           · have validitySemantic :
@@ -2425,7 +2555,7 @@ theorem translated_coverage_refines_rich_spec
                   (richWindow authority.validity authorityWindow) := by
               intro semantic
               exact validityCondition (validityIff.mpr semantic)
-            simp_all [Auths.Rich.evaluateCoverage, Auths.Rich.rooted, AuthorityStateAnchored,
+            simp_all [Auths.Rich.evaluateCoverage, Auths.Rich.rooted, 
               productionCoverageDecision, richAuthorityState,
               richAction]
         · have permissionSemantic :
@@ -2433,7 +2563,7 @@ theorem translated_coverage_refines_rich_spec
                 richPermissionSet authority.permissions := by
             intro semantic
             exact permissionCondition (permissionIff.mpr semantic)
-          simp_all [Auths.Rich.evaluateCoverage, Auths.Rich.rooted, AuthorityStateAnchored,
+          simp_all [Auths.Rich.evaluateCoverage, Auths.Rich.rooted, 
             productionCoverageDecision, richAuthorityState,
             richAction]
       · have profileSemantic :
@@ -2443,22 +2573,30 @@ theorem translated_coverage_refines_rich_spec
               (richProfile action.profile) := by
           intro semantic
           exact profileCondition (profileIff.mpr semantic)
-        simp_all [Auths.Rich.evaluateCoverage, Auths.Rich.rooted, AuthorityStateAnchored,
+        simp_all [Auths.Rich.evaluateCoverage, Auths.Rich.rooted, 
           productionCoverageDecision, richAuthorityState, richAction]
     · have grantSemantic :
           action.terminal_grant.map richGrantId ≠
             authority.last_grant.map richGrantId := by
         intro semantic
         exact grantCondition (grantIff.mpr semantic)
-      simp_all [Auths.Rich.evaluateCoverage, Auths.Rich.rooted, AuthorityStateAnchored,
+      simp_all [Auths.Rich.evaluateCoverage, Auths.Rich.rooted, 
         productionCoverageDecision, richAuthorityState, richAction]
-  · have actorSemantic :
-        richPrincipal action.actor ≠
-          richPrincipal authority.subject := by
+  · -- The root dimension refused: either the chain is not rooted or the actor
+    -- is not the subject. Both land on the same rich denial, so the ordered
+    -- rich evaluator takes its outermost else branch.
+    have rootRefused :
+        ¬(((authority.last_grant.map richGrantId).isSome = true ∨
+              richPrincipal authority.root = richPrincipal authority.subject) ∧
+            richPrincipal action.actor = richPrincipal authority.subject) := by
       intro semantic
-      exact actorCondition (actorIff.mpr semantic)
-    simp_all [Auths.Rich.evaluateCoverage, Auths.Rich.rooted, AuthorityStateAnchored,
+      refine actorCondition (rootIff.mpr ⟨?_, semantic.right⟩)
+      simpa using semantic.left
+    simp only [Auths.Rich.evaluateCoverage, Auths.Rich.rooted,
       productionCoverageDecision, richAuthorityState, richAction]
+    rw [if_neg (fun conjunction =>
+      rootRefused ⟨conjunction.left, conjunction.right.left⟩)]
+    rfl
 
 /--
 The mechanically translated delegation evaluator returns the same ordered rich
@@ -2474,23 +2612,22 @@ literal `true`.  Removing the wrapper is what makes this a refinement of eleven
 dimensions rather than of ten plus a patch.
 -/
 theorem translated_delegation_refines_rich_spec
-    (root : Auths.Rich.Principal ProductionVocabulary)
     (parent : auths_authority.AuthorityStateView)
     (grantId : auths_model.GrantId)
     (grant : auths_model.GrantAuthorityView)
     (parentValid : AuthorityStateViewValid parent)
     (grantValid : GrantAuthorityViewValid grant)
-    (anchored : AuthorityStateAnchored root parent) :
+ :
     auths_authority.evaluate_grant_view parent grantId grant
       ⦃ result =>
         result.outcome = productionDelegationOutcome
           (Auths.Rich.evaluateGrant
-            (richAuthorityState root parent parentValid)
+            (richAuthorityState parent parentValid)
             (richGrantId grantId)
             (richGrant grant grantValid))
           grantId grant ⦄ := by
   rcases parentValid with
-    ⟨parentSubject, allowedProfiles, selectedProfile,
+    ⟨parentRoot, parentSubject, allowedProfiles, selectedProfile,
       parentPermissions, parentWindow, parentAudiences,
       parentBudget, parentStatus, parentAssurance, parentExtensions,
       parentExtensionsCanonical⟩
@@ -2498,8 +2635,14 @@ theorem translated_delegation_refines_rich_spec
     ⟨grantIssuer, grantSubject, grantProfile, grantPermissions,
       grantWindow, grantAudiences, grantBudget, grantStatus,
       grantAssurance, grantExtensions, grantExtensionsCanonical⟩
-  unfold auths_authority.evaluate_grant_view
-  split <;> rename_i parentDepthCondition
+  -- The regenerated evaluator opens on the trust-root dimension and then the
+  -- depth dimension, both as calls rather than inline expressions, so the
+  -- binds are stepped through before the first branch.
+  unfold auths_authority.evaluate_grant_view auths_authority.root_linkage
+  step with root_preserved_rich_spec as ⟨rootAccepted, rootIff⟩
+  step with depth_decreases_spec as ⟨depthAccepted, depthIff⟩
+  -- All ten dimension binds precede the first branch in the regenerated
+  -- evaluator, so every dimension is stepped through before splitting.
   all_goals
     step with selected_profile_attenuates_rich_spec as
       ⟨profileAccepted, profileIff⟩
@@ -2517,151 +2660,166 @@ theorem translated_delegation_refines_rich_spec
       ⟨statusAccepted, statusIff⟩
     step with assurance_policy_id_equal_rich_spec as
       ⟨assuranceAccepted, assuranceIff⟩
-    step with optional_critical_extensions_attenuate_spec as
+    step with extensions_attenuate_spec as
       ⟨extensionsAccepted, extensionsIff⟩
-    step with principal_id_equal_rich_spec as
-      ⟨issuerAccepted, issuerIff⟩
-    split <;> rename_i issuerCondition
-    · step with optional_grant_id_equal_rich_spec as
-        ⟨parentGrantAccepted, parentGrantIff⟩
-      split <;> rename_i parentGrantCondition
-      · step with attenuation_checks_accept_spec as
-          ⟨scopeAccepted, scopeIff⟩
-        split <;> rename_i scopeCondition
-        · simp_all [Auths.Rich.evaluateGrant, Auths.Rich.linked,
-            Auths.Rich.rootPreserved, Auths.Rich.rooted, AuthorityStateAnchored,
-            Auths.Rich.scopeDepthChecks, Auths.Rich.grantScopeChecks,
-            productionDelegationOutcome, expectedAcceptedTransition,
-            extensions_le_rich_iff, OptionalCriticalExtensionsAttenuate,
-            richAuthorityState, richGrant]
-        · have failedScope :
-              ¬(grant.remaining_depth.val < parent.remaining_depth.val ∧
-                Auths.Rich.profileAllows
-                  (richProfileScope parent.profile
-                    parent.allowed_profiles selectedProfile)
-                  (richProfile grant.profile) ∧
-                (∀ candidate ∈ grant.permissions.val,
-                  ∃ parentCandidate ∈ parent.permissions.val,
-                    permissionKey parentCandidate =
-                      permissionKey candidate) ∧
-                parent.validity.not_before.val ≤
-                  grant.validity.not_before.val ∧
-                grant.validity.expires_at.val ≤
-                  parent.validity.expires_at.val ∧
-                (∀ candidate ∈ grant.audiences.val,
-                  ∃ parentCandidate ∈ parent.audiences.val,
-                    audienceKey parentCandidate =
-                      audienceKey candidate) ∧
-                Auths.Rich.actionConstraintLe
-                  (richActionConstraint grant.action_constraint)
-                  (richActionConstraint parent.action_constraint) ∧
-                Auths.Rich.budgetLe
-                  (grant.budget_ceiling.map richBudget)
-                  (parent.budget_ceiling.map richBudget) ∧
-                Auths.Rich.statusLe
-                  (richStatus grant.status_policy grantStatus)
-                  (richStatus parent.status_policy parentStatus) ∧
-                stringBytes grant.assurance_floor =
-                  stringBytes parent.assurance_policy ∧
-                OptionalCriticalExtensionsAttenuate
-                  grant.extensions parent.extensions) := by
-            rintro ⟨depth, profile, permissions, validityStart,
-              validityEnd, audiences, constraint, budget, status,
-              assurance, extensions⟩
-            have permissionsRich :
-                richPermissionSet grant.permissions ⊆
-                  richPermissionSet parent.permissions := by
-              simpa using permissions
-            have audiencesRich :
-                richAudienceSet grant.audiences ⊆
-                  richAudienceSet parent.audiences := by
-              simpa using audiences
-            have assuranceRich :
-                richAssurance grant.assurance_floor =
-                  richAssurance parent.assurance_policy := by
-              simpa using assurance
-            have scopeTrue : scopeAccepted = true := by
-              apply scopeIff.mpr
-              simp_all
-            simp_all
-          have scopeSemantic :
-              ¬Auths.Rich.scopeDepthChecks
-                (richAuthorityState root parent
-                  {
-                    subject := parentSubject
-                    allowedProfiles := allowedProfiles
-                    selectedProfile := selectedProfile
-                    permissions := parentPermissions
-                    validity := parentWindow
-                    audiences := parentAudiences
-                    budget := parentBudget
-                    status := parentStatus
-                    assurance := parentAssurance
-                    extensions := parentExtensions
-                    extensionsCanonical := parentExtensionsCanonical
-                  })
-                (richGrant grant
-                  {
-                    issuer := grantIssuer
-                    subject := grantSubject
-                    profile := grantProfile
-                    permissions := grantPermissions
-                    validity := grantWindow
-                    audiences := grantAudiences
-                    budget := grantBudget
-                    status := grantStatus
-                    assurance := grantAssurance
-                    extensions := grantExtensions
-                    extensionsCanonical := grantExtensionsCanonical
-                  }) := by
-            intro checks
-            apply failedScope
-            have richChecks := checks.2
-            simpa [Auths.Rich.scopeDepthChecks,
-              Auths.Rich.grantScopeChecks, richAuthorityState,
-              richGrant, extensions_le_rich_iff] using richChecks
-          have linkedSemantic :
-              Auths.Rich.linked
-                (richAuthorityState root parent
-                  {
-                    subject := parentSubject
-                    allowedProfiles := allowedProfiles
-                    selectedProfile := selectedProfile
-                    permissions := parentPermissions
-                    validity := parentWindow
-                    audiences := parentAudiences
-                    budget := parentBudget
-                    status := parentStatus
-                    assurance := parentAssurance
-                    extensions := parentExtensions
-                    extensionsCanonical := parentExtensionsCanonical
-                  })
-                (richGrant grant
-                  {
-                    issuer := grantIssuer
-                    subject := grantSubject
-                    profile := grantProfile
-                    permissions := grantPermissions
-                    validity := grantWindow
-                    audiences := grantAudiences
-                    budget := grantBudget
-                    status := grantStatus
-                    assurance := grantAssurance
-                    extensions := grantExtensions
-                    extensionsCanonical := grantExtensionsCanonical
-                  }) := by
-            simp_all [Auths.Rich.linked, Auths.Rich.rootPreserved,
-              Auths.Rich.rooted, AuthorityStateAnchored, richAuthorityState,
-              richGrant]
-          simp [Auths.Rich.evaluateGrant, linkedSemantic,
-            scopeSemantic, productionDelegationOutcome]
+    -- The first branch is the trust-root dimension. The issuer/subject identity
+    -- used to be a separate `principal_id_equal` branch; `root_preserved`
+    -- subsumes it, so the accepting side goes straight to the parent link.
+    split <;> rename_i parentDepthCondition
+    step with optional_grant_id_equal_rich_spec as
+      ⟨parentGrantAccepted, parentGrantIff⟩
+    split <;> rename_i parentGrantCondition
+    · step with attenuation_checks_accept_spec as
+        ⟨scopeAccepted, scopeIff⟩
+      split <;> rename_i scopeCondition
       · simp_all [Auths.Rich.evaluateGrant, Auths.Rich.linked,
-            Auths.Rich.rootPreserved, Auths.Rich.rooted, AuthorityStateAnchored,
-          productionDelegationOutcome,
+          Auths.Rich.rootPreserved, Auths.Rich.rooted, 
+          Auths.Rich.scopeDepthChecks, Auths.Rich.grantScopeChecks,
+          productionDelegationOutcome, expectedAcceptedTransition,
+          extensions_le_rich_iff, OptionalCriticalExtensionsAttenuate,
           richAuthorityState, richGrant]
+      · have failedScope :
+            ¬(grant.remaining_depth.val < parent.remaining_depth.val ∧
+              Auths.Rich.profileAllows
+                (richProfileScope parent.profile
+                  parent.allowed_profiles selectedProfile)
+                (richProfile grant.profile) ∧
+              (∀ candidate ∈ grant.permissions.val,
+                ∃ parentCandidate ∈ parent.permissions.val,
+                  permissionKey parentCandidate =
+                    permissionKey candidate) ∧
+              parent.validity.not_before.val ≤
+                grant.validity.not_before.val ∧
+              grant.validity.expires_at.val ≤
+                parent.validity.expires_at.val ∧
+              (∀ candidate ∈ grant.audiences.val,
+                ∃ parentCandidate ∈ parent.audiences.val,
+                  audienceKey parentCandidate =
+                    audienceKey candidate) ∧
+              Auths.Rich.actionConstraintLe
+                (richActionConstraint grant.action_constraint)
+                (richActionConstraint parent.action_constraint) ∧
+              Auths.Rich.budgetLe
+                (grant.budget_ceiling.map richBudget)
+                (parent.budget_ceiling.map richBudget) ∧
+              Auths.Rich.statusLe
+                (richStatus grant.status_policy grantStatus)
+                (richStatus parent.status_policy parentStatus) ∧
+              stringBytes grant.assurance_floor =
+                stringBytes parent.assurance_policy ∧
+              OptionalCriticalExtensionsAttenuate
+                grant.extensions parent.extensions) := by
+          rintro ⟨depth, profile, permissions, validityStart,
+            validityEnd, audiences, constraint, budget, status,
+            assurance, extensions⟩
+          have permissionsRich :
+              richPermissionSet grant.permissions ⊆
+                richPermissionSet parent.permissions := by
+            simpa using permissions
+          have audiencesRich :
+              richAudienceSet grant.audiences ⊆
+                richAudienceSet parent.audiences := by
+            simpa using audiences
+          have assuranceRich :
+              richAssurance grant.assurance_floor =
+                richAssurance parent.assurance_policy := by
+            simpa using assurance
+          have scopeTrue : scopeAccepted = true := by
+            apply scopeIff.mpr
+            simp_all
+          simp_all
+        have scopeSemantic :
+            ¬Auths.Rich.scopeDepthChecks
+              (richAuthorityState parent
+                {
+                  root := parentRoot
+                  subject := parentSubject
+                  allowedProfiles := allowedProfiles
+                  selectedProfile := selectedProfile
+                  permissions := parentPermissions
+                  validity := parentWindow
+                  audiences := parentAudiences
+                  budget := parentBudget
+                  status := parentStatus
+                  assurance := parentAssurance
+                  extensions := parentExtensions
+                  extensionsCanonical := parentExtensionsCanonical
+                })
+              (richGrant grant
+                {
+                  issuer := grantIssuer
+                  subject := grantSubject
+                  profile := grantProfile
+                  permissions := grantPermissions
+                  validity := grantWindow
+                  audiences := grantAudiences
+                  budget := grantBudget
+                  status := grantStatus
+                  assurance := grantAssurance
+                  extensions := grantExtensions
+                  extensionsCanonical := grantExtensionsCanonical
+                }) := by
+          intro checks
+          apply failedScope
+          have richChecks := checks.2
+          simpa [Auths.Rich.scopeDepthChecks,
+            Auths.Rich.grantScopeChecks, richAuthorityState,
+            richGrant, extensions_le_rich_iff] using richChecks
+        have linkedSemantic :
+            Auths.Rich.linked
+              (richAuthorityState parent
+                {
+                  root := parentRoot
+                  subject := parentSubject
+                  allowedProfiles := allowedProfiles
+                  selectedProfile := selectedProfile
+                  permissions := parentPermissions
+                  validity := parentWindow
+                  audiences := parentAudiences
+                  budget := parentBudget
+                  status := parentStatus
+                  assurance := parentAssurance
+                  extensions := parentExtensions
+                  extensionsCanonical := parentExtensionsCanonical
+                })
+              (richGrant grant
+                {
+                  issuer := grantIssuer
+                  subject := grantSubject
+                  profile := grantProfile
+                  permissions := grantPermissions
+                  validity := grantWindow
+                  audiences := grantAudiences
+                  budget := grantBudget
+                  status := grantStatus
+                  assurance := grantAssurance
+                  extensions := grantExtensions
+                  extensionsCanonical := grantExtensionsCanonical
+                }) := by
+          simp_all [Auths.Rich.linked, Auths.Rich.rootPreserved,
+            Auths.Rich.rooted,  richAuthorityState,
+            richGrant]
+        simp [Auths.Rich.evaluateGrant, linkedSemantic,
+          scopeSemantic, productionDelegationOutcome]
     · simp_all [Auths.Rich.evaluateGrant, Auths.Rich.linked,
-            Auths.Rich.rootPreserved, Auths.Rich.rooted, AuthorityStateAnchored,
+          Auths.Rich.rootPreserved, Auths.Rich.rooted,
         productionDelegationOutcome,
         richAuthorityState, richGrant]
+    · -- The trust-root dimension refused. `root_preserved := false` alone
+      -- denies the delegation: acceptance is the conjunction over every
+      -- dimension, so no other dimension can rescue it.
+      have rootRefused :
+          ¬(((parent.last_grant.map richGrantId).isSome = true ∨
+                richPrincipal parent.root = richPrincipal parent.subject) ∧
+              richPrincipal grant.issuer = richPrincipal parent.subject) := by
+        intro semantic
+        refine parentDepthCondition (rootIff.mpr ⟨?_, semantic.right⟩)
+        simpa using semantic.left
+      simp only [Auths.Rich.evaluateGrant, productionDelegationOutcome,
+        richAuthorityState, richGrant]
+      rw [if_neg (fun link =>
+        rootRefused ⟨link.left.left, link.left.right⟩)]
+      rfl
+
 
 end Auths.Refinement

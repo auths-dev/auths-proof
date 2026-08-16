@@ -50,6 +50,85 @@ instance {v : Vocabulary}
     simp [budgetCovers] <;> infer_instance
 
 /--
+Whether a profile's canonical actions can state a budget at all.
+
+TRUSTED REGISTRY CONTEXT, not an action-controlled field. An action cannot
+declare itself inexpressible to escape a ceiling: the profile registry decides
+this, and the action only supplies the requested budget.
+-/
+inductive BudgetExpression where
+  | expressible
+  | inexpressible
+  deriving DecidableEq, Repr
+
+/--
+Terminal budget coverage including profile expressibility.
+
+The capability only ever reclassifies an ABSENT request:
+
+* inexpressible profile, absent request -- the action provably spends zero, and
+  zero is within every ceiling including an absent one;
+* expressible profile, absent request, present ceiling -- denied, because an
+  action that could have stated a bound and did not states no bound at all;
+* declared request -- ordinary ceiling comparison, expressibility irrelevant;
+* absent ceiling -- covered, nothing is bounded.
+
+Mirrors `auths_model::budget_ceiling_covers_action`.
+-/
+def budgetCoversAction {v : Vocabulary}
+    (ceiling requested : Option (BudgetCeiling v))
+    (expression : BudgetExpression) : Prop :=
+  match requested, expression with
+  | none, BudgetExpression.inexpressible => True
+  | _, _ => budgetCovers ceiling requested
+
+instance {v : Vocabulary}
+    (ceiling requested : Option (BudgetCeiling v)) (expression : BudgetExpression) :
+    Decidable (budgetCoversAction ceiling requested expression) := by
+  cases requested <;> cases expression
+  · exact inferInstanceAs (Decidable (budgetCovers _ _))
+  · exact inferInstanceAs (Decidable True)
+  · exact inferInstanceAs (Decidable (budgetCovers _ _))
+  · exact inferInstanceAs (Decidable (budgetCovers _ _))
+
+/-- Inexpressible profile with no request spends zero: always covered. -/
+@[simp] theorem budgetCoversAction_inexpressible_absent {v : Vocabulary}
+    (ceiling : Option (BudgetCeiling v)) :
+    budgetCoversAction ceiling none BudgetExpression.inexpressible := by
+  simp [budgetCoversAction]
+
+/-- Expressible profile with no request and a bounded ceiling: denied. -/
+@[simp] theorem budgetCoversAction_expressible_absent_bounded {v : Vocabulary}
+    (ceiling : BudgetCeiling v) :
+    ¬ budgetCoversAction (some ceiling) none BudgetExpression.expressible := by
+  simp [budgetCoversAction, budgetCovers]
+
+/-- An absent ceiling bounds nothing, whatever the profile can express. -/
+@[simp] theorem budgetCoversAction_absent_ceiling {v : Vocabulary}
+    (requested : Option (BudgetCeiling v)) (expression : BudgetExpression) :
+    budgetCoversAction none requested expression := by
+  cases requested <;> cases expression <;> simp [budgetCoversAction, budgetCovers]
+
+/--
+An expressible profile adds nothing: the capability only ever reclassifies an
+absent request, and an expressible profile never does. This is what keeps every
+existing coverage theorem true unchanged.
+-/
+@[simp] theorem budgetCoversAction_expressible {v : Vocabulary}
+    (ceiling requested : Option (BudgetCeiling v)) :
+    budgetCoversAction ceiling requested BudgetExpression.expressible =
+      budgetCovers ceiling requested := by
+  cases requested <;> rfl
+
+/-- A declared request is compared against the ceiling, expressibility aside. -/
+theorem budgetCoversAction_declared {v : Vocabulary}
+    (ceiling : Option (BudgetCeiling v)) (requested : BudgetCeiling v)
+    (expression : BudgetExpression) :
+    budgetCoversAction ceiling (some requested) expression =
+      budgetCovers ceiling (some requested) := by
+  cases expression <;> rfl
+
+/--
 The critical-extension delegation relation.
 
 This is the one dimension where delegation must **preserve**, not narrow.  A
@@ -424,9 +503,18 @@ inductive CoverageDecision where
   | denied (reason : CoverageDiagnostic)
   deriving DecidableEq, Repr
 
-/-- First-failure order used by the shipping terminal-coverage API. -/
+/--
+Ordered terminal coverage. First-failure order, as the shipping API.
+
+`expression` is TRUSTED PROFILE-REGISTRY CONTEXT: whether the action's profile
+can state a budget at all. It is not read from the action, so an action cannot
+declare itself inexpressible to escape a ceiling. It only ever reclassifies an
+absent request; see `budgetCoversAction`.
+-/
 def evaluateCoverage {v : Vocabulary}
-    (authority : ChainState v) (action : Action v) : CoverageDecision :=
+    (authority : ChainState v) (action : Action v)
+    (expression : BudgetExpression := BudgetExpression.expressible) :
+    CoverageDecision :=
   if rooted authority ∧
       action.actor = authority.subject ∧
       action.terminalGrant = authority.lastGrant ∧
@@ -439,7 +527,8 @@ def evaluateCoverage {v : Vocabulary}
       .denied .audienceMismatch
     else if ¬ actionConstraintAllows authority.scope.actionConstraint action.bodyDigest then
       .denied .actionConstraintMismatch
-    else if ¬ budgetCovers authority.scope.budget action.requestedBudget then
+    else if ¬ budgetCoversAction authority.scope.budget action.requestedBudget
+        expression then
       .denied .budgetCeilingExceeded
     else
       .authorized

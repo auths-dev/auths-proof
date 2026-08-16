@@ -142,6 +142,42 @@ impl PartialEq for CanonicalPrincipal<'_> {
     }
 }
 
+/// Whether a grant's critical extensions attenuate its parent's.
+///
+/// A parent declaring no extension scope constrains nothing, so any grant
+/// attenuates it. Otherwise the sets must match exactly: the eleventh
+/// dimension is equality, not containment.
+///
+/// Named for the same reason as [`depth_decreases`]: aeneas cannot translate a
+/// branching expression sitting in struct-field position, and this `match` was
+/// the second one in `evaluate_grant_view`.
+fn extensions_attenuate(
+    parent_extensions: Option<&CriticalExtensions>,
+    grant_extensions: &CriticalExtensions,
+) -> bool {
+    match parent_extensions {
+        Some(parent) => critical_extensions_equal(grant_extensions, parent),
+        None => true,
+    }
+}
+
+/// Whether a delegation strictly decreases the remaining delegation depth.
+///
+/// A parent with no depth left can delegate nothing, and a child must have
+/// strictly less depth than its parent.
+///
+/// This is a named function rather than the inline conjunction it replaces
+/// because aeneas raises `Internal error, please file an issue` translating a
+/// short-circuiting `&&` here, in struct-field position or hoisted to a local
+/// alike. Every sibling dimension in `AttenuationChecks` is already a function
+/// call, so this also makes the one odd field out consistent with the rest.
+fn depth_decreases(parent_remaining: u16, grant_remaining: u16) -> bool {
+    if parent_remaining == 0 {
+        return false;
+    }
+    grant_remaining < parent_remaining
+}
+
 /// Projects the chain-linkage facts the trust-root dimension consumes.
 fn root_linkage<'a>(
     parent: &AuthorityStateView<'a>,
@@ -238,8 +274,7 @@ pub fn evaluate_grant_view<'grant>(
     let linkage = root_linkage(&parent, grant.issuer);
     let checks = AttenuationChecks {
         root_preserved: root_preserved(&linkage),
-        depth_decreases: parent.remaining_depth > 0
-            && grant.remaining_depth < parent.remaining_depth,
+        depth_decreases: depth_decreases(parent.remaining_depth, grant.remaining_depth),
         profile_attenuates: selected_profile_attenuates(
             parent.profile,
             parent.allowed_profiles,
@@ -258,10 +293,7 @@ pub fn evaluate_grant_view<'grant>(
             grant.assurance_floor,
             parent.assurance_policy,
         ),
-        extensions_attenuate: match parent.extensions {
-            Some(parent) => critical_extensions_equal(grant.extensions, parent),
-            None => true,
-        },
+        extensions_attenuate: extensions_attenuate(parent.extensions, grant.extensions),
     };
     // `root_preserved` subsumes the issuer/subject linkage and additionally
     // rejects a parent state that never descended from the root it claims, so

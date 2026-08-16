@@ -30,4 +30,13 @@ structure generated.AttenuationChecks where
   assurance_attenuates : Bool
   extensions_attenuate : Bool
 
+/-- [auths_algebra_kernel::RootLinkage]
+    Source: 'core/crates/auths-algebra-kernel/src/lib.rs', lines 21:0-32:1
+    Visibility: public -/
+structure RootLinkage (Identity : Type) where
+  parent_root : Identity
+  parent_subject : Identity
+  parent_delegated : Bool
+  grant_issuer : Identity
+
 end auths_algebra_kernel

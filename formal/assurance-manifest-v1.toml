@@ -46,7 +46,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -98,7 +98,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -150,7 +150,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -202,7 +202,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -254,7 +254,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -303,7 +303,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -356,7 +356,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -409,7 +409,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -462,7 +462,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -514,7 +514,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -567,7 +567,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -620,7 +620,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -673,7 +673,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -726,7 +726,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -775,7 +775,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -824,7 +824,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -873,7 +873,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -922,7 +922,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -971,7 +971,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -1020,7 +1020,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -1069,7 +1069,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -1118,7 +1118,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -1167,7 +1167,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -1216,7 +1216,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -1268,7 +1268,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -1317,7 +1317,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -1366,7 +1366,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -1418,7 +1418,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -1467,7 +1467,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -1519,7 +1519,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -1571,7 +1571,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -1623,7 +1623,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -1675,7 +1675,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -1727,7 +1727,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -1780,7 +1780,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -1833,7 +1833,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -1886,7 +1886,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -1938,7 +1938,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -1991,7 +1991,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -2043,7 +2043,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -2095,7 +2095,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -2148,7 +2148,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -2200,7 +2200,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -2253,7 +2253,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -2305,7 +2305,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -2357,7 +2357,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -2409,7 +2409,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -2461,7 +2461,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -2513,7 +2513,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -2565,7 +2565,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -2617,7 +2617,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -2670,7 +2670,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -2723,7 +2723,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -2776,7 +2776,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -2829,7 +2829,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -2882,7 +2882,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -2934,7 +2934,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -2986,7 +2986,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -3039,7 +3039,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -3092,7 +3092,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -3145,7 +3145,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -3198,7 +3198,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -3251,7 +3251,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -3304,7 +3304,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -3357,7 +3357,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -3409,7 +3409,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -3471,7 +3471,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "The exact Aeneas translation of the production pre-signing scope evaluator over validated, bounded Rust model views, including ordered diagnostics."
 residual_assumptions = [
     "Lean's kernel, the pinned Rust/Lean/Aeneas/Charon toolchain, the reviewed Aeneas external models, the listed foundational axioms, and the theorem's representation-validity premises are trusted.",
@@ -3509,7 +3509,7 @@ claim_id = "AP-FORMAL-RICH-055"
 claim_text = "The mechanically translated production terminal-coverage evaluator returns exactly the ordered rich target-V1 decision, including linkage, set membership, interval containment, action constraints, and requested-budget coverage."
 claim_status = "proved"
 lean_declaration = "Auths.Refinement.translated_coverage_refines_rich_spec"
-lean_statement_sha256 = "ab27e2b4d47c49c1978a41c8c6414cd53ff1b1a500432b2adb88e6c4367b5140"
+lean_statement_sha256 = "e8deba0035a09886221c46411be908f1ac8c30e0e3755ca956a62884a416a0fa"
 formal_review = "rich-authority-refinement-2026-07-29"
 rust_symbols = [
     "auths_authority::evaluate_action_coverage_view",
@@ -3553,7 +3553,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Validated target-V1 authority and action views through the production terminal-coverage decision, including its first-failure diagnostic order."
 residual_assumptions = ["The theorem assumes validated Rust representation invariants: string-backed identifiers are canonical bounded byte sequences; mathematical counters and timestamps lie within their Rust u16/u64 ranges; windows are well formed; sets are canonical, bounded, and non-empty where required; freshness limits are non-zero; and selected profiles are members. The budget result is stateless per action, assurance uses exact identifier equality, and deterministic diagnostic precedence is not a side-channel noninterference claim. Codec validation and cryptography remain outside this claim."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -3584,7 +3584,7 @@ claim_id = "AP-FORMAL-RICH-056"
 claim_text = "The mechanically translated production delegation evaluator returns exactly the rich target-V1 linkage and attenuation decision, including the unique accepted transition fields."
 claim_status = "proved"
 lean_declaration = "Auths.Refinement.translated_delegation_refines_rich_spec"
-lean_statement_sha256 = "9687263cb09963abc3090c34d4d58560512b322659b0828628ddcb941c6af51e"
+lean_statement_sha256 = "713bd7e21397824f362ff65803d2085bc74915fbeb34cdfdc0c9a9e88a57909b"
 formal_review = "rich-authority-refinement-2026-07-29"
 rust_symbols = [
     "auths_authority::evaluate_grant_view",
@@ -3631,7 +3631,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Validated target-V1 parent-authority and grant views through the production delegation outcome and accepted transition."
 residual_assumptions = ["The theorem assumes validated Rust representation invariants: string-backed identifiers are canonical bounded byte sequences; mathematical counters and timestamps lie within their Rust u16/u64 ranges; windows are well formed; sets are canonical, bounded, and non-empty where required; freshness limits are non-zero; and selected profiles are members. The budget relation is stateless per action, assurance retention is exact identifier equality rather than a lattice, and deterministic diagnostic precedence is not a side-channel noninterference claim. Root preservation and assurance retention occur in the caller around the proved returned transition; codec validation and cryptography remain outside this claim."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -3659,10 +3659,10 @@ artifact = "formal/refinement-mutations-v1.json"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-104"
-claim_text = "Lean records, as a checked theorem rather than a comment, that the pinned Aeneas translation of optional_budget_covers is stale on exactly one input class: a present ceiling with an absent request, where the translation answers true and the shipping Rust answers false. It stops being provable when the translation is regenerated."
+claim_text = "The regenerated Aeneas translation of optional_budget_covers answers false for a present ceiling with an absent request, matching the shipping Rust. Lean records this positively: an action declaring no bound on what it may spend is exactly the authority a ceiling exists to deny. This replaces the former staleness claim, which recorded the opposite as checked evidence while the pinned translation was stale."
 claim_status = "proved"
-lean_declaration = "Auths.Refinement.translated_budget_coverage_gap_is_the_absent_request"
-lean_statement_sha256 = "3c0b39c13aef92097036b16c569166a15be4b6a8dc4e38f8eac70fb3ce677e58"
+lean_declaration = "Auths.Refinement.translated_bounded_ceiling_denies_absent_request"
+lean_statement_sha256 = "9c4ea11fa46f39a993ab4038263180284eca394df782a70259346c8167d7e4fc"
 formal_review = "rich-authority-refinement-2026-07-29"
 rust_symbols = []
 semantic_source_closure = [
@@ -3696,7 +3696,166 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Classical.choice",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-106"
+claim_text = "Lean proves the rich authority property: translated expressible absent request is denied."
+claim_status = "proved"
+lean_declaration = "Auths.Refinement.translated_expressible_absent_request_is_denied"
+lean_statement_sha256 = "90aa025faf3b73862f51432d5b07d0ef69c1bd67826d739083b6e42d65f00e4a"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Product/Commitment.lean",
+    "formal/Auths/Product/Arithmetic.lean",
+    "formal/Auths/Product/Eligibility.lean",
+    "formal/Auths/Product/Tightening.lean",
+    "formal/Auths/Product/Theorems.lean",
+    "formal/Auths/Product/Refinement.lean",
+    "formal/Auths/Lifecycle/Semantics.lean",
+    "formal/Auths/Lifecycle/Theorems.lean",
+    "formal/Auths/Lifecycle/Refinement.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/bounded_policy/Funs.lean",
+    "formal/qualification/aeneas/generated/bounded_policy/Types.lean",
+    "formal/qualification/aeneas/generated/lifecycle/Funs.lean",
+    "formal/qualification/aeneas/generated/lifecycle/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Classical.choice",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-107"
+claim_text = "Lean proves the rich authority property: translated inexpressible absent request is covered."
+claim_status = "proved"
+lean_declaration = "Auths.Refinement.translated_inexpressible_absent_request_is_covered"
+lean_statement_sha256 = "294ac2be47b25a2f72d528f66b974cb3acc2dfd8a330a8c6696b8dad12fb8d97"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Product/Commitment.lean",
+    "formal/Auths/Product/Arithmetic.lean",
+    "formal/Auths/Product/Eligibility.lean",
+    "formal/Auths/Product/Tightening.lean",
+    "formal/Auths/Product/Theorems.lean",
+    "formal/Auths/Product/Refinement.lean",
+    "formal/Auths/Lifecycle/Semantics.lean",
+    "formal/Auths/Lifecycle/Theorems.lean",
+    "formal/Auths/Lifecycle/Refinement.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/bounded_policy/Funs.lean",
+    "formal/qualification/aeneas/generated/bounded_policy/Types.lean",
+    "formal/qualification/aeneas/generated/lifecycle/Funs.lean",
+    "formal/qualification/aeneas/generated/lifecycle/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
+scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
+residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
+toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+axioms = [
+    "propext",
+    "Classical.choice",
+    "Quot.sound",
+]
+
+[[claims.evidence]]
+kind = "lean-proof"
+artifact = "formal/Auths/Rich/Theorems.lean"
+
+[[claims]]
+claim_id = "AP-FORMAL-RICH-108"
+claim_text = "Lean proves the rich authority property: translated absent ceiling covers anything."
+claim_status = "proved"
+lean_declaration = "Auths.Refinement.translated_absent_ceiling_covers_anything"
+lean_statement_sha256 = "90df3548fb3d56bed30812c94acb18b2d6b0028f77aff11cd44aade8e2889961"
+formal_review = "rich-authority-refinement-2026-07-29"
+rust_symbols = []
+semantic_source_closure = [
+    "formal/Auths/Base.lean",
+    "formal/Auths/Authority.lean",
+    "formal/Auths/Attenuation.lean",
+    "formal/Auths/Rich/Types.lean",
+    "formal/Auths/Rich/Semantics.lean",
+    "formal/Auths/Rich/Theorems.lean",
+    "formal/Auths/Product/Commitment.lean",
+    "formal/Auths/Product/Arithmetic.lean",
+    "formal/Auths/Product/Eligibility.lean",
+    "formal/Auths/Product/Tightening.lean",
+    "formal/Auths/Product/Theorems.lean",
+    "formal/Auths/Product/Refinement.lean",
+    "formal/Auths/Lifecycle/Semantics.lean",
+    "formal/Auths/Lifecycle/Theorems.lean",
+    "formal/Auths/Lifecycle/Refinement.lean",
+    "formal/Auths/Refinement/Production.lean",
+    "formal/Auths/Composition.lean",
+    "formal/Auths/Diversity.lean",
+    "formal/Auths/Generated/Algebra.lean",
+    "formal/Auths/Theorems.lean",
+    "formal/qualification/aeneas/generated/authority/Funs.lean",
+    "formal/qualification/aeneas/generated/authority/Types.lean",
+    "formal/qualification/aeneas/generated/bounded_policy/Funs.lean",
+    "formal/qualification/aeneas/generated/bounded_policy/Types.lean",
+    "formal/qualification/aeneas/generated/lifecycle/Funs.lean",
+    "formal/qualification/aeneas/generated/lifecycle/Types.lean",
+    "formal/qualification/aeneas/generated/model/Funs.lean",
+    "formal/qualification/aeneas/generated/model/Types.lean",
+    "formal/algebra-contract-v1.toml",
+]
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Rich target-V1 authority semantics over opaque identity carriers and extensional finite sets."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -3749,7 +3908,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Pure V1 bounded product-policy commitments, checked arithmetic, configuration gating, and eligibility."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -3798,7 +3957,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Pure V1 bounded product-policy commitments, checked arithmetic, configuration gating, and eligibility."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -3847,7 +4006,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Pure V1 bounded product-policy commitments, checked arithmetic, configuration gating, and eligibility."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -3896,7 +4055,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Pure V1 bounded product-policy commitments, checked arithmetic, configuration gating, and eligibility."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -3945,7 +4104,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Pure V1 bounded product-policy commitments, checked arithmetic, configuration gating, and eligibility."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -3994,7 +4153,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Pure V1 bounded product-policy commitments, checked arithmetic, configuration gating, and eligibility."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -4043,7 +4202,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Pure V1 bounded product-policy commitments, checked arithmetic, configuration gating, and eligibility."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -4092,7 +4251,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Pure V1 bounded product-policy commitments, checked arithmetic, configuration gating, and eligibility."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -4144,7 +4303,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Pure V1 bounded product-policy commitments, checked arithmetic, configuration gating, and eligibility."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -4193,7 +4352,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Pure V1 bounded product-policy commitments, checked arithmetic, configuration gating, and eligibility."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -4246,7 +4405,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Pure V1 bounded product-policy commitments, checked arithmetic, configuration gating, and eligibility."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -4299,7 +4458,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Pure V1 bounded product-policy commitments, checked arithmetic, configuration gating, and eligibility."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -4352,7 +4511,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Pure V1 bounded product-policy commitments, checked arithmetic, configuration gating, and eligibility."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -4405,7 +4564,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Pure V1 lifecycle transitions, capacity conservation, replay, configuration gates, credential ordering, provider entry, and reconciliation."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -4458,7 +4617,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Pure V1 lifecycle transitions, capacity conservation, replay, configuration gates, credential ordering, provider entry, and reconciliation."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -4510,7 +4669,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Pure V1 lifecycle transitions, capacity conservation, replay, configuration gates, credential ordering, provider entry, and reconciliation."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -4562,7 +4721,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Pure V1 lifecycle transitions, capacity conservation, replay, configuration gates, credential ordering, provider entry, and reconciliation."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -4614,7 +4773,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Pure V1 lifecycle transitions, capacity conservation, replay, configuration gates, credential ordering, provider entry, and reconciliation."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -4667,7 +4826,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Pure V1 lifecycle transitions, capacity conservation, replay, configuration gates, credential ordering, provider entry, and reconciliation."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -4720,7 +4879,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Pure V1 lifecycle transitions, capacity conservation, replay, configuration gates, credential ordering, provider entry, and reconciliation."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -4769,7 +4928,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Pure V1 lifecycle transitions, capacity conservation, replay, configuration gates, credential ordering, provider entry, and reconciliation."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -4818,7 +4977,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Pure V1 lifecycle transitions, capacity conservation, replay, configuration gates, credential ordering, provider entry, and reconciliation."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -4867,7 +5026,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Pure V1 lifecycle transitions, capacity conservation, replay, configuration gates, credential ordering, provider entry, and reconciliation."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -4916,7 +5075,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Pure V1 lifecycle transitions, capacity conservation, replay, configuration gates, credential ordering, provider entry, and reconciliation."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -4965,7 +5124,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Pure V1 lifecycle transitions, capacity conservation, replay, configuration gates, credential ordering, provider entry, and reconciliation."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -5014,7 +5173,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Pure V1 lifecycle transitions, capacity conservation, replay, configuration gates, credential ordering, provider entry, and reconciliation."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -5063,7 +5222,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Pure V1 lifecycle transitions, capacity conservation, replay, configuration gates, credential ordering, provider entry, and reconciliation."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -5112,7 +5271,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Pure V1 lifecycle transitions, capacity conservation, replay, configuration gates, credential ordering, provider entry, and reconciliation."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -5161,7 +5320,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Pure V1 lifecycle transitions, capacity conservation, replay, configuration gates, credential ordering, provider entry, and reconciliation."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -5210,7 +5369,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Pure V1 lifecycle transitions, capacity conservation, replay, configuration gates, credential ordering, provider entry, and reconciliation."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -5259,7 +5418,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "The pinned Charon/Aeneas translation of `auths_lifecycle::model::LifecycleState::is_terminal` is extensionally equivalent to the corresponding rich Lean V1 lifecycle semantics."
 residual_assumptions = ["Lean's kernel, the pinned Rust/Charon/Aeneas/Lean toolchain, the qualified translation boundary, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -5308,7 +5467,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "The pinned Charon/Aeneas translation of `auths_lifecycle::kernel::transition_code` is extensionally equivalent to the corresponding rich Lean V1 lifecycle semantics."
 residual_assumptions = ["Lean's kernel, the pinned Rust/Charon/Aeneas/Lean toolchain, the qualified translation boundary, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -5360,7 +5519,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "The pinned Charon/Aeneas translation of `auths_lifecycle::kernel::exclusive_capacity_available` is extensionally equivalent to the corresponding rich Lean V1 lifecycle semantics."
 residual_assumptions = ["Lean's kernel, the pinned Rust/Charon/Aeneas/Lean toolchain, the qualified translation boundary, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -5409,7 +5568,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "The pinned Charon/Aeneas translation of `auths_lifecycle::kernel::additive_capacity_available` is extensionally equivalent to the corresponding rich Lean V1 lifecycle semantics."
 residual_assumptions = ["Lean's kernel, the pinned Rust/Charon/Aeneas/Lean toolchain, the qualified translation boundary, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -5462,7 +5621,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "The pinned Charon/Aeneas translation of `auths_lifecycle::kernel::replay_code` is extensionally equivalent to the corresponding rich Lean V1 lifecycle semantics."
 residual_assumptions = ["Lean's kernel, the pinned Rust/Charon/Aeneas/Lean toolchain, the qualified translation boundary, the listed foundational axioms, and the theorem premises are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -5511,7 +5670,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "The closed three-valued binary all operator."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, and the listed foundational axioms are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -5560,7 +5719,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "The closed three-valued binary all operator."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, and the listed foundational axioms are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -5609,7 +5768,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "The closed three-valued binary all operator."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, and the listed foundational axioms are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -5658,7 +5817,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "The closed three-valued binary any operator."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, and the listed foundational axioms are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -5707,7 +5866,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "The closed three-valued binary any operator."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, and the listed foundational axioms are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -5756,7 +5915,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "The closed three-valued binary any operator."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, and the listed foundational axioms are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -5805,7 +5964,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "The generated two-input threshold abstraction."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, generator correctness, and the Rust vector harness are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -5858,7 +6017,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "The generated two-input threshold abstraction."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, generator correctness, and the Rust vector harness are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -5911,7 +6070,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "Exactly the two-input threshold helper and the declared three-valued truth order."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, listed foundational axioms, generator correctness, and the Rust vector harness are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -5967,7 +6126,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "A two-value swap only; arbitrary authorization-plan permutations are not claimed."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, and the listed foundational axioms are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -6016,7 +6175,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "The two-value canonicalCode helper; arbitrary plan diagnostic permutations are not claimed."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, and the listed foundational axioms are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -6065,7 +6224,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "A definitional model equality; it does not prove that the shipping evaluator visits leaves once."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, and the listed foundational axioms are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -6117,7 +6276,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "A definitional model equality; no asymptotic or shipping evaluator cost bound is claimed."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, and the listed foundational axioms are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -6169,7 +6328,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "The generated count classifier and its exhaustive target-V1 bounded Rust vectors."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, generator correctness, and the Rust vector harness are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -6222,7 +6381,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "The generated count classifier and its exhaustive target-V1 bounded Rust vectors."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, listed foundational axioms, generator correctness, and the Rust vector harness are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
@@ -6278,7 +6437,7 @@ semantic_source_closure = [
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/algebra-contract-v1.toml",
 ]
-semantic_source_closure_sha256 = "8f6869551d48d857ef1c6e84dc6db81ee222cce635007a3471114beb08c8e501"
+semantic_source_closure_sha256 = "391fc2ce13ef7e5f655293b575e2c66ddcd33bcd855841ba63cc7298707aed07"
 scope = "The generated count classifier and its exhaustive target-V1 bounded Rust vectors."
 residual_assumptions = ["Lean's kernel, the pinned toolchain, listed foundational axioms, generator correctness, and the Rust vector harness are trusted."]
 toolchain_lock_sha256 = "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"

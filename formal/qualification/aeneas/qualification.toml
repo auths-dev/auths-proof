@@ -166,10 +166,11 @@ classification = "Pinned upstream iterator proof-support sorry; the qualified so
 [[translations]]
 crate_name = "auths_model"
 translation_json = "formal/qualification/aeneas/generated/model/translation.json"
-local_functions = 48
+local_functions = 49
 external_functions = 1
 opaque_local_functions = 0
 required_symbols = [
+  "auths_model::budget_ceiling_covers_action",
   "auths_model::inclusive_window_contains",
   "auths_model::validity_window_contains",
   "auths_model::permission_set_contains",
@@ -200,11 +201,12 @@ allowed_external_symbols = [
 [[translations]]
 crate_name = "auths_algebra_kernel"
 translation_json = "formal/qualification/aeneas/generated/algebra/translation.json"
-local_functions = 1
+local_functions = 2
 external_functions = 0
 opaque_local_functions = 0
 required_symbols = [
   "auths_algebra_kernel::generated::attenuation_checks_accept",
+  "auths_algebra_kernel::root_preserved",
 ]
 allowed_external_symbols = []
 
@@ -225,10 +227,18 @@ allowed_external_symbols = []
 [[translations]]
 crate_name = "auths_authority"
 translation_json = "formal/qualification/aeneas/generated/authority/translation.json"
-local_functions = 4
-external_functions = 17
+local_functions = 8
+external_functions = 18
 opaque_local_functions = 0
 required_symbols = [
+  # `depth_decreases` and `extensions_attenuate` are NAMED FUNCTIONS rather than
+  # the inline `&&` and `match` they replaced: aeneas cannot translate a
+  # branching expression in struct-field position. Requiring them here means
+  # re-inlining either dimension fails this gate instead of silently dropping
+  # it from the translation.
+  "auths_authority::depth_decreases",
+  "auths_authority::extensions_attenuate",
+  "auths_authority::root_linkage",
   "auths_authority::selected_profile_attenuates",
   "auths_authority::evaluate_author_scope_view",
   "auths_authority::evaluate_grant_view",
@@ -236,6 +246,9 @@ required_symbols = [
 ]
 allowed_external_symbols = [
   "auths_algebra_kernel::generated::attenuation_checks_accept",
+  # The trust-root dimension is owned by the algebra kernel and reached
+  # through the reviewed transparent adapter, not restated in the bridge.
+  "auths_algebra_kernel::root_preserved",
   "auths_model::principal_id_equal",
   "auths_model::validity_window_contains",
   "auths_model::profile_ref_equal",
@@ -249,7 +262,9 @@ allowed_external_symbols = [
   "auths_model::action_constraint_allows",
   "auths_model::action_constraint_attenuates",
   "auths_model::optional_budget_attenuates",
-  "auths_model::optional_budget_covers",
+  # Terminal coverage now calls the profile-aware entry point, which reaches
+  # `optional_budget_covers` inside `auths_model` rather than from here.
+  "auths_model::budget_ceiling_covers_action",
   "auths_model::status_policy_attenuates",
   "auths_model::critical_extensions_equal",
 ]
@@ -276,10 +291,10 @@ compiled = false
 
 [[template_axioms]]
 artifact = "formal/qualification/aeneas/generated/authority/TypesExternal_Template.lean"
-count = 14
+count = 15
 compiled = false
 
 [[template_axioms]]
 artifact = "formal/qualification/aeneas/generated/authority/FunsExternal_Template.lean"
-count = 17
+count = 18
 compiled = false

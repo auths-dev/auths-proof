@@ -130,10 +130,22 @@ pub(crate) fn validate_source_closure(root: &Path) -> Result<String, String> {
     synchronize_source_closure(root, &qualification, false)
 }
 
+/// Qualifies the Aeneas translation, translation-first.
+///
+/// `build_and_audit` compiles Lean and runs the compiled assurance audit. It is
+/// invoked AFTER regenerated outputs and reviewed bridges are synchronized,
+/// never before reproduction: qualification regenerates the Lean a build would
+/// compile, so building first deadlocks the moment a translation references a
+/// symbol its upstream crate has not exported yet.
+///
+/// A failing build still fails qualification. Intentionally regenerated files
+/// are left in the tree for the proofs to be repaired, but no evidence is
+/// written and no success is printed.
 pub(crate) fn qualify(
     root: &Path,
     attenuation_dimensions: &[String],
     update: bool,
+    build_and_audit: &dyn Fn() -> Result<(), String>,
 ) -> Result<(), String> {
     let qualification = load_qualification(root)?;
     validate_manifest(root, &qualification)?;
@@ -168,6 +180,10 @@ pub(crate) fn qualify(
     synchronize_aeneas_output(root, &first, update)?;
     synchronize_reviewed_bridges(root, attenuation_dimensions, update)?;
     let closure_digest = synchronize_source_closure(root, &qualification, update)?;
+
+    // Everything below reads the generated Lean just synchronized above, so the
+    // compiled gate runs here and not a step earlier.
+    build_and_audit()?;
 
     validate_generated_inventory(root, &qualification)?;
     validate_translation_reports(root, &qualification)?;
@@ -473,47 +489,151 @@ import qualification.aeneas.generated.model.Types\n"
         .to_owned()
 }
 
+/// Renders the authority external bridge: transparent adapters plus imports.
+///
+/// The authority translation emits its OWN copies of the algebra carriers,
+/// `auths_authority.auths_algebra_kernel.RootLinkage` and
+/// `...generated.AttenuationChecks`, distinct from the `_root_` types the
+/// translated `auths_algebra_kernel` owns. Lean rejects passing one where the
+/// other is expected.
+///
+/// This file reboxes, field by field, and delegates. It restates NO Boolean
+/// semantics: `root_preserved` and `attenuation_checks_accept` remain owned by
+/// the mechanically translated algebra crate, and the adapters below only move
+/// fields and call them. No axiom, cast, assumed equality, or reimplementation.
+///
+/// The eleven attenuation assignments are generated from `dimensions`, i.e.
+/// from `formal/algebra-contract-v1.toml`, so adding a twelfth dimension
+/// regenerates this file rather than silently dropping the field.
+///
+/// Emitted as explicit lines: Lean structure literals are layout-sensitive and
+/// Rust string continuations strip leading whitespace.
 fn render_authority_functions_external(dimensions: &[String]) -> String {
-    let mut output =
-        "-- REVIEWED TRANSPARENT LINKS FOR AENEAS-GENERATED PRODUCTION AUTHORITY CODE.\n\
---\n\
--- Every rich leaf predicate below is imported from the mechanically\n\
--- translated `auths-model` production source. The sole local definition is\n\
--- the eleven-field conjunction generated from `formal/algebra-contract-v1.toml`;\n\
--- `cargo xtask formal` rejects drift from that contract.\n\
-import Aeneas\n\
-import qualification.aeneas.generated.authority.Types\n\
-import qualification.aeneas.generated.model.Funs\n\
-\n\
-open Aeneas Aeneas.Std Result ControlFlow Error\n\
-\n\
-set_option linter.dupNamespace false\n\
-set_option linter.hashCommand false\n\
-set_option linter.unusedVariables false\n\
-set_option maxHeartbeats 1000000\n\
-set_option maxRecDepth 2048\n\
-\n\
-open auths_authority\n\
-\n\
-@[rust_fun \"auths_algebra_kernel::generated::attenuation_checks_accept\"]\n\
-def auths_algebra_kernel.generated.attenuation_checks_accept\n\
-    (checks : auths_algebra_kernel.generated.AttenuationChecks) : Result Bool := do\n"
-            .to_owned();
-    if let Some((last, prefix)) = dimensions.split_last() {
-        let mut indent = 2;
-        for dimension in prefix {
-            output.push_str(&format!(
-                "{}if checks.{dimension} then\n",
-                " ".repeat(indent)
-            ));
-            indent += 2;
-        }
-        output.push_str(&format!("{}ok checks.{last}\n", " ".repeat(indent)));
-        for _ in prefix.iter().rev() {
-            indent -= 2;
-            output.push_str(&format!("{}else ok false\n", " ".repeat(indent)));
-        }
+    const LINKAGE_FIELDS: [&str; 4] = [
+        "parent_root",
+        "parent_subject",
+        "parent_delegated",
+        "grant_issuer",
+    ];
+    let mut lines: Vec<String> = vec![
+        "-- REVIEWED TRANSPARENT ADAPTERS FOR AENEAS-GENERATED PRODUCTION AUTHORITY CODE.".into(),
+        "--".into(),
+        "-- The authority translation emits authority-local copies of the algebra".into(),
+        "-- carriers. These adapters rebox them field by field into the carriers the".into(),
+        "-- translated `auths_algebra_kernel` owns and delegate to its functions.".into(),
+        "--".into(),
+        "-- NO axiom, cast, assumed equality, or restated semantics. Every Boolean".into(),
+        "-- decision below is computed by the mechanically translated owning crate.".into(),
+        format!(
+            "-- Attenuation dimensions bound by formal/algebra-contract-v1.toml: {}.",
+            dimensions.len()
+        ),
+        "import Aeneas".into(),
+        "import qualification.aeneas.generated.authority.Types".into(),
+        "import qualification.aeneas.generated.model.Funs".into(),
+        "import qualification.aeneas.generated.algebra.Funs".into(),
+        String::new(),
+        "open Aeneas Aeneas.Std Result ControlFlow Error".into(),
+        String::new(),
+        "set_option linter.dupNamespace false".into(),
+        "set_option linter.hashCommand false".into(),
+        "set_option linter.unusedVariables false".into(),
+        "set_option maxHeartbeats 1000000".into(),
+        "set_option maxRecDepth 2048".into(),
+        String::new(),
+        "namespace auths_authority".into(),
+        String::new(),
+        "/-- Reboxes the authority-local root linkage into the owning carrier. -/".into(),
+        "def auths_algebra_kernel.toRootLinkage {Identity : Type}".into(),
+        "    (value : auths_algebra_kernel.RootLinkage Identity) :".into(),
+        "    _root_.auths_algebra_kernel.RootLinkage Identity :=".into(),
+    ];
+    for (index, field) in LINKAGE_FIELDS.iter().enumerate() {
+        let open = if index == 0 { "  { " } else { "    " };
+        let close = if index + 1 == LINKAGE_FIELDS.len() {
+            " }"
+        } else {
+            ","
+        };
+        lines.push(format!("{open}{field} := value.{field}{close}"));
     }
+    lines.extend([
+        String::new(),
+        "/-- Delegates root preservation to the translated algebra kernel. -/".into(),
+        "@[rust_fun \"auths_algebra_kernel::root_preserved\"]".into(),
+        "def auths_algebra_kernel.root_preserved {Identity : Type}".into(),
+        "    (inst : core.cmp.PartialEq Identity Identity)".into(),
+        "    (linkage : auths_algebra_kernel.RootLinkage Identity) : Result Bool :=".into(),
+        "  _root_.auths_algebra_kernel.root_preserved inst".into(),
+        "    (auths_algebra_kernel.toRootLinkage linkage)".into(),
+        String::new(),
+        "/-- Reboxes the authority-local attenuation checks into the owning carrier. -/".into(),
+        "def auths_algebra_kernel.generated.toAttenuationChecks".into(),
+        "    (value : auths_algebra_kernel.generated.AttenuationChecks) :".into(),
+        "    _root_.auths_algebra_kernel.generated.AttenuationChecks :=".into(),
+    ]);
+    for (index, dimension) in dimensions.iter().enumerate() {
+        let open = if index == 0 { "  { " } else { "    " };
+        let close = if index + 1 == dimensions.len() {
+            " }"
+        } else {
+            ","
+        };
+        lines.push(format!("{open}{dimension} := value.{dimension}{close}"));
+    }
+    lines.extend([
+        String::new(),
+        "/-- Delegates the attenuation conjunction to the translated algebra kernel. -/".into(),
+        "@[rust_fun \"auths_algebra_kernel::generated::attenuation_checks_accept\"]".into(),
+        "def auths_algebra_kernel.generated.attenuation_checks_accept".into(),
+        "    (checks : auths_algebra_kernel.generated.AttenuationChecks) : Result Bool :=".into(),
+        "  _root_.auths_algebra_kernel.generated.attenuation_checks_accept".into(),
+        "    (auths_algebra_kernel.generated.toAttenuationChecks checks)".into(),
+        String::new(),
+        "-- EXACT BRIDGE PROOFS. Each reboxed field is definitionally its source".into(),
+        "-- field, and each adapter is definitionally the owning-crate function".into(),
+        "-- applied to the conversion. A rebox that dropped or crossed a field".into(),
+        "-- would not close by rfl.".into(),
+        String::new(),
+    ]);
+    for field in LINKAGE_FIELDS {
+        lines.extend([
+            format!("theorem auths_algebra_kernel.toRootLinkage_{field} {{Identity : Type}}"),
+            "    (value : auths_algebra_kernel.RootLinkage Identity) :".into(),
+            format!(
+                "    (auths_algebra_kernel.toRootLinkage value).{field} = value.{field} := rfl"
+            ),
+            String::new(),
+        ]);
+    }
+    for dimension in dimensions {
+        lines.extend([
+            format!("theorem auths_algebra_kernel.generated.toAttenuationChecks_{dimension}"),
+            "    (value : auths_algebra_kernel.generated.AttenuationChecks) :".into(),
+            format!(
+                "    (auths_algebra_kernel.generated.toAttenuationChecks value).{dimension} = value.{dimension} := rfl"
+            ),
+            String::new(),
+        ]);
+    }
+    lines.extend([
+        "theorem auths_algebra_kernel.root_preserved_delegates {Identity : Type}".into(),
+        "    (inst : core.cmp.PartialEq Identity Identity)".into(),
+        "    (linkage : auths_algebra_kernel.RootLinkage Identity) :".into(),
+        "    auths_algebra_kernel.root_preserved inst linkage =".into(),
+        "      _root_.auths_algebra_kernel.root_preserved inst".into(),
+        "        (auths_algebra_kernel.toRootLinkage linkage) := rfl".into(),
+        String::new(),
+        "theorem auths_algebra_kernel.generated.attenuation_checks_accept_delegates".into(),
+        "    (checks : auths_algebra_kernel.generated.AttenuationChecks) :".into(),
+        "    auths_algebra_kernel.generated.attenuation_checks_accept checks =".into(),
+        "      _root_.auths_algebra_kernel.generated.attenuation_checks_accept".into(),
+        "        (auths_algebra_kernel.generated.toAttenuationChecks checks) := rfl".into(),
+        String::new(),
+        "end auths_authority".into(),
+    ]);
+    let mut output = lines.join("\n");
+    output.push('\n');
     output
 }
 
@@ -567,7 +687,7 @@ fn validate_generated_inventory(root: &Path, qualification: &Qualification) -> R
 }
 
 fn validate_translation_reports(root: &Path, qualification: &Qualification) -> Result<(), String> {
-    let expected_aeneas = &qualification.tools.aeneas_commit[..7];
+    let expected_aeneas = qualification.tools.aeneas_commit.as_str();
     for expected in &qualification.translations {
         let path = root.join(&expected.translation_json);
         let report: TranslationReport = serde_json::from_slice(
@@ -643,8 +763,23 @@ fn validate_translation_reports(root: &Path, qualification: &Qualification) -> R
     Ok(())
 }
 
+/// Whether a reported Aeneas version names the pinned commit.
+///
+/// `expected_commit` is the FULL commit from the qualification manifest. The
+/// check used to compare against exactly its first seven characters, so an
+/// Aeneas built from precisely the pinned commit was rejected whenever git
+/// abbreviated to eight -- which is what a local build of 3a8586fa does. That
+/// gate tested the abbreviation's formatting rather than the commit's identity.
+///
+/// Any abbreviation is accepted provided it is a genuine prefix of the pinned
+/// commit and at least seven characters, which is git's own lower bound for an
+/// unambiguous short hash. A shorter or non-prefix string still fails, so the
+/// gate keeps refusing a genuinely different Aeneas.
 fn aeneas_version_matches(actual: &str, expected_commit: &str) -> bool {
-    actual == expected_commit || actual.ends_with(&format!("-{expected_commit}"))
+    let candidate = actual.rsplit('-').next().unwrap_or(actual);
+    candidate.len() >= 7
+        && candidate.len() <= expected_commit.len()
+        && expected_commit.starts_with(candidate)
 }
 
 fn validate_workflow_gates(root: &Path) -> Result<(), String> {
@@ -767,7 +902,7 @@ fn validate_translation_tool_versions(
         ));
     }
     let aeneas_version = run_output(aeneas, &["-version"], Path::new("."), &[])?;
-    let expected_commit = &qualification.tools.aeneas_commit[..7];
+    let expected_commit = qualification.tools.aeneas_commit.as_str();
     let expected = format!("aeneas {expected_commit}");
     let actual = aeneas_version.trim();
     let actual_version = actual.strip_prefix("aeneas ").unwrap_or(actual);
@@ -835,6 +970,7 @@ fn reproduce(
         "auths_model::budget_ceiling_attenuates",
         "auths_model::optional_budget_attenuates",
         "auths_model::optional_budget_covers",
+        "auths_model::budget_ceiling_covers_action",
         "auths_model::status_policy_attenuates",
         "auths_model::critical_extensions_equal",
         "auths_model::assurance_policy_id_equal",
@@ -859,7 +995,7 @@ fn reproduce(
     run_checked(
         charon,
         &charon_arguments(
-            "auths_algebra_kernel::generated::attenuation_checks_accept",
+            "auths_algebra_kernel::generated::attenuation_checks_accept,auths_algebra_kernel::root_preserved,auths_algebra_kernel::RootLinkage",
             &stable_llbc.join("auths_algebra_kernel.llbc"),
             "core/crates/auths-algebra-kernel/Cargo.toml",
             &[],
@@ -1118,7 +1254,7 @@ fn synchronize_aeneas_output(root: &Path, reproduced: &Path, update: bool) -> Re
 }
 
 fn canonicalize_aeneas_versions(reproduced: &Path, expected_commit: &str) -> Result<(), String> {
-    let expected_short = &expected_commit[..7];
+    let expected_short = expected_commit;
     for component in [
         "model",
         "algebra",

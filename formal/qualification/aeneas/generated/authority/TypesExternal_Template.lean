@@ -97,15 +97,22 @@ axiom auths_model.ActionConstraint : Type
 @[rust_type "auths_model::BudgetCeiling"]
 axiom auths_model.BudgetCeiling : Type
 
+/-- [auths_model::ProfileBudgetExpression]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 965:0-965:32
+    Name pattern: [auths_model::ProfileBudgetExpression]
+    Visibility: public -/
+@[rust_type "auths_model::ProfileBudgetExpression"]
+axiom auths_model.ProfileBudgetExpression : Type
+
 /-- [auths_model::StatusPolicy]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 966:0-966:21
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1023:0-1023:21
     Name pattern: [auths_model::StatusPolicy]
     Visibility: public -/
 @[rust_type "auths_model::StatusPolicy"]
 axiom auths_model.StatusPolicy : Type
 
 /-- [auths_model::CriticalExtensions]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1041:0-1041:29
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1098:0-1098:29
     Name pattern: [auths_model::CriticalExtensions]
     Visibility: public -/
 @[rust_type "auths_model::CriticalExtensions"]
