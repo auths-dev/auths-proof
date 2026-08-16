@@ -338,6 +338,34 @@ fn validate_warning_inventory(root: &Path, qualification: &Qualification) -> Res
                 ));
             }
         }
+        // The inventory confirmed each RECORDED line still holds a `sorry`. It
+        // did not confirm there are no OTHERS: a new upstream `sorry`, arriving
+        // with a toolchain bump, would have been accepted silently while the
+        // inventory still read as a complete account of them.
+        //
+        // The audited theorems provably depend on none of these -- all 139
+        // compiled declarations reduce to `Classical.choice`, `Quot.sound` and
+        // `propext`, with zero `sorryAx` -- so this is not about soundness. It
+        // is about the inventory meaning what it says.
+        let present = lines
+            .iter()
+            .enumerate()
+            .filter(|(_, text)| text.contains("sorry"))
+            .map(|(index, _)| index + 1)
+            .collect::<Vec<_>>();
+        let inventoried: BTreeSet<_> = warning.upstream_lines.iter().copied().collect();
+        let unaccounted = present
+            .iter()
+            .copied()
+            .filter(|line| !inventoried.contains(line))
+            .collect::<Vec<_>>();
+        if !unaccounted.is_empty() {
+            return Err(format!(
+                "warning {} accounts for {:?} in {} but the file also carries \
+                 `sorry` at {unaccounted:?}; review and update the inventory",
+                warning.id, warning.upstream_lines, warning.artifact
+            ));
+        }
     }
     Ok(())
 }

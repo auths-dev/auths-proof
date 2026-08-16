@@ -4321,7 +4321,7 @@ sha256 = "8b285906cc66125575211a1fa7860459bb91a7472ccc6ab99f81f178902ff773"
 [[claims.evidence]]
 kind = "source-closure"
 artifact = "formal/qualification/aeneas/source-closure.json"
-sha256 = "94263dd8276ab7bfbdc67f2ca3b31d1662ed66cca45c59f00d045ec98c4d6ee7"
+sha256 = "c7db6aa29674dac02b7b9b1eafaf42a57b3ffde9d173732b320641c882d89519"
 
 [[claims.evidence]]
 kind = "lean-generated-vectors"
@@ -6298,6 +6298,7 @@ axioms = ["propext"]
 [[claims.evidence]]
 kind = "lean-refinement"
 artifact = "formal/Auths/Lifecycle/Refinement.lean"
+sha256 = "dd5eeb17239035d0e385be2392d944f6c1094f854744f4960e823bf0b868c7e6"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-088"
@@ -6350,6 +6351,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-refinement"
 artifact = "formal/Auths/Lifecycle/Refinement.lean"
+sha256 = "dd5eeb17239035d0e385be2392d944f6c1094f854744f4960e823bf0b868c7e6"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-089"
@@ -6399,6 +6401,7 @@ axioms = []
 [[claims.evidence]]
 kind = "lean-refinement"
 artifact = "formal/Auths/Lifecycle/Refinement.lean"
+sha256 = "dd5eeb17239035d0e385be2392d944f6c1094f854744f4960e823bf0b868c7e6"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-090"
@@ -6452,6 +6455,7 @@ axioms = [
 [[claims.evidence]]
 kind = "lean-refinement"
 artifact = "formal/Auths/Lifecycle/Refinement.lean"
+sha256 = "dd5eeb17239035d0e385be2392d944f6c1094f854744f4960e823bf0b868c7e6"
 
 [[claims]]
 claim_id = "AP-FORMAL-RICH-091"
@@ -6501,6 +6505,7 @@ axioms = []
 [[claims.evidence]]
 kind = "lean-refinement"
 artifact = "formal/Auths/Lifecycle/Refinement.lean"
+sha256 = "dd5eeb17239035d0e385be2392d944f6c1094f854744f4960e823bf0b868c7e6"
 
 [[claims]]
 claim_id = "AP-FORMAL-BASELINE-012"
