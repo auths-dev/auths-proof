@@ -4,7 +4,7 @@ use crate::*;
 
 const INVENTORY_PATH: &str = "release/semantic-freeze.json";
 const INVENTORY_SCHEMA: &str = "auths.semantic-freeze/1";
-const FREEZE_VERSION: u64 = 123;
+const FREEZE_VERSION: u64 = 124;
 const PUBLIC_RUST_ROOTS: [&str; 10] = [
     "auths",
     "auths-byte-channel",
@@ -187,7 +187,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.identity.protocol",
-            29,
+            30,
             FreezeClassification::FrozenMeaning,
             &[
                 "identity-protocol-versions",
@@ -246,7 +246,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.portable-abi-bindings",
-            51,
+            52,
             FreezeClassification::FrozenMeaning,
             &["portable-abi", "authoring-abi", "binding-contracts"],
             vec![
@@ -262,7 +262,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.public-sdk-contract",
-            42,
+            43,
             FreezeClassification::FrozenMeaning,
             &[
                 "rust-sdk-contract",
@@ -325,7 +325,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.facade",
-            10,
+            11,
             FreezeClassification::FrozenMeaning,
             &[
                 "create",
@@ -589,7 +589,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.release.evolution-contract",
-            14,
+            15,
             FreezeClassification::FrozenMeaning,
             &[
                 "version-axes",
@@ -696,7 +696,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
     ]);
     entries.push(freeze_entry(
         "auths.release.public-surface",
-        122,
+        123,
         FreezeClassification::ReleaseMetadata,
         &[
             "package-names",

@@ -504,6 +504,28 @@ function projectIndeterminate(verb: ProductVerb, projection: NativeProjection): 
   return Object.freeze({ kind: "indeterminate", verb, code: requiredCode(projection), retry: projection.retry });
 }
 
+/**
+ * Carries an authority the caller already holds.
+ *
+ * Authority in V1 originates from a trust anchor's signature and arrives inside
+ * the proof; the service does not mint it. Until now the only producers of a
+ * `ServiceAuthority` were {@link ServiceClient.create} and
+ * {@link ServiceClient.delegate}, and a node that refuses to mint answers both
+ * with `core.unauthenticated-principal`. So a caller holding a perfectly valid
+ * proof had no way to give it to this SDK -- a proof-carrying client that could
+ * not carry a proof inward.
+ *
+ * The bytes are a canonical proof bundle. They are copied and held opaquely,
+ * exactly as an authority returned by the service would be, so this adds a way
+ * IN and no way out.
+ *
+ * @throws TypeError when the bytes are empty.
+ */
+export function importAuthority(proof: Uint8Array): ServiceAuthority {
+  if (proof.length === 0) throw new TypeError("an authority proof cannot be empty");
+  return new ServiceAuthorityValue(proof);
+}
+
 function serviceAuthority(bytes: Uint8Array): ServiceAuthority {
   if (bytes.length === 0) throw new TypeError("native response omitted authority bytes");
   return new ServiceAuthorityValue(bytes);

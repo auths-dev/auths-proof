@@ -20,6 +20,7 @@ from ._product_errors import (
 from ._service import (
     NextCall,
     ServiceAuthority,
+    import_authority,
     ServiceAuthorityResult,
     ServiceClient,
     ServiceCompleted,
@@ -47,6 +48,7 @@ __all__ = [
     "RecommendedAction",
     "RetryClass",
     "ServiceAuthority",
+    "import_authority",
     "ServiceAuthorityResult",
     "ServiceClient",
     "ServiceCompleted",

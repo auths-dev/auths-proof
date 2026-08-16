@@ -104,6 +104,7 @@ ServiceTransportResponse
 ServiceVerificationResult
 ServiceVerified
 create_service_client
+import_authority
 
 [auths.profiles]
 DevelopmentMcpProvider

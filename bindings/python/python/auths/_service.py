@@ -79,6 +79,29 @@ class ServiceAuthority:
         raise TypeError("Auths authority is opaque")
 
 
+def import_authority(proof: bytes) -> ServiceAuthority:
+    """Carry an authority the caller already holds.
+
+    Authority in V1 originates from a trust anchor's signature and arrives
+    inside the proof; the service does not mint it. Until now the only
+    producers of a :class:`ServiceAuthority` were ``create`` and ``delegate``,
+    and a node that refuses to mint answers both with
+    ``core.unauthenticated-principal``. A caller holding a valid proof had no
+    way to give it to this SDK -- a proof-carrying client that could not carry
+    a proof inward.
+
+    ``proof`` is a canonical proof bundle. It is copied and held opaquely,
+    exactly as an authority returned by the service would be, so this adds a
+    way IN and no way out.
+
+    :raises TypeError: when ``proof`` is empty.
+    """
+
+    if not proof:
+        raise TypeError("an authority proof cannot be empty")
+    return ServiceAuthority(_AUTHORITY_TOKEN, proof)
+
+
 class ServiceReceipt:
     __slots__ = ("_bytes",)
     kind: Literal["receipt"] = "receipt"

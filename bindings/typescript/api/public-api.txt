@@ -1,5 +1,5 @@
 # Installed @auths-dev/sdk public API v1
-# declaration-sha256 2ae2287043286afa59c3a5931ffa9801c38f53fb2b8fc36aa1fe3209512c94f1
+# declaration-sha256 507c68077876e8b7453f1116df41503e86e769e2dd4f95b6771236271e7cda93
 .	Actor	type
 .	approval	value
 .	ApprovalPolicy	type
@@ -88,6 +88,7 @@
 ./verify	verifyReceipt	value
 ./service	createServiceClient	value
 ./service	githubIssueAddress	value
+./service	importAuthority	value
 ./service	NextCall	type
 ./service	opentofuSavedPlanApply	value
 ./service	postgresqlBoundedUpdate	value
