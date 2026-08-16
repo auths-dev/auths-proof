@@ -466,10 +466,30 @@ _DEFINITIONS: Final[Mapping[str, Any]] = MappingProxyType(
 )
 
 
+def _effect_rank(effect: str) -> int:
+    """Ranks one effect exactly as `auths_errors::effect_rank` does.
+
+    Rust reports the *dominant* outcome of a multi-outcome definition --
+    `possible` over `applied` over `not-applied` -- because a caller who must
+    reconcile has strictly more work than one who must not repeat. Reporting
+    the first-declared outcome instead would let a definition whose second
+    outcome is `possible` reach a Python caller as `not-applied`: a
+    possibly-applied write described as one that provably did not happen.
+    """
+    if effect == "possible":
+        return 2
+    if effect == "applied":
+        return 1
+    return 0
+
+
 def classify(code: str) -> AuthsErrorClassification:
     """Reads Rust's classification of `code`, failing closed for unknown codes.
 
     This is the only way anything in this package learns what a code means.
+    The selection rule is `auths_errors::classify`'s and is not Python's to
+    choose; `tests/test_vocabulary_parity.py` drives a two-outcome definition
+    through it so a divergence is a red test rather than a silent one.
     """
     definition = _DEFINITIONS.get(code)
     if definition is None:
@@ -485,7 +505,7 @@ def classify(code: str) -> AuthsErrorClassification:
                 UNRECOGNIZED_CODE["recommendedAction"]
             ),
         )
-    outcome = definition["outcomes"][0]
+    outcome = max(definition["outcomes"], key=lambda value: _effect_rank(value["effect"]))
     return AuthsErrorClassification(
         code=code,
         known=True,

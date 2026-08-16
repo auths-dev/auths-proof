@@ -16,7 +16,7 @@
 //! `EffectState` has exactly three members, and this module can only ever
 //! produce those three, because it projects `auths_errors::EffectState`.
 
-use auths_errors::{EffectState, ErrorDefinition, RecommendedAction, RetryClass, registry};
+use auths_errors::{EffectState, RecommendedAction, RetryClass};
 use pyo3::{create_exception, exceptions::PyValueError, prelude::*};
 
 create_exception!(
@@ -71,57 +71,22 @@ pub(crate) struct Classification {
     pub(crate) registered: bool,
 }
 
-const UNCLASSIFIED: Classification = Classification {
-    effect: EffectState::Possible,
-    retry: RetryClass::Unknown,
-    recommended_action: RecommendedAction::ResumeAndReconcile,
-    operation: "execute",
-    stage: "unknown",
-    registered: false,
-};
-
-fn definition(code: &str) -> Option<&'static ErrorDefinition> {
-    registry().find(|candidate| candidate.code == code)
-}
-
 /// Reads the registry's classification of `code`.
 ///
-/// An unrecognised code fails closed to `possible` / `unknown` /
-/// `resume-and-reconcile`. A recognised code whose outcomes disagree about the
-/// effect also fails closed, because in that case the boundary genuinely does
-/// not know which outcome occurred.
+/// The answer is [`auths_errors::classify`]'s, verbatim. This boundary does
+/// not decide which outcome of a multi-outcome definition is reported, and it
+/// does not own the fail-closed answer for a code this build's registry does
+/// not contain: both of those are single Rust-owned rules, and a second
+/// implementation here could only ever drift away from them.
 pub(crate) fn classify(code: &str) -> Classification {
-    let Some(definition) = definition(code) else {
-        return UNCLASSIFIED;
-    };
-    let Some(first) = definition.outcomes.first() else {
-        return UNCLASSIFIED;
-    };
-    let effect = if definition
-        .outcomes
-        .iter()
-        .all(|outcome| outcome.effect == first.effect)
-    {
-        first.effect
-    } else {
-        EffectState::Possible
-    };
-    let retry = if definition
-        .outcomes
-        .iter()
-        .all(|outcome| outcome.retry == first.retry)
-    {
-        first.retry
-    } else {
-        RetryClass::Unknown
-    };
+    let classification = auths_errors::classify(code);
     Classification {
-        effect,
-        retry,
-        recommended_action: definition.recommended_action,
-        operation: definition.operation,
-        stage: definition.stages.first().copied().unwrap_or("unknown"),
-        registered: true,
+        effect: classification.effect,
+        retry: classification.retry,
+        recommended_action: classification.recommended_action,
+        operation: classification.operation,
+        stage: classification.stage(),
+        registered: classification.known,
     }
 }
 
@@ -247,6 +212,39 @@ mod tests {
                 "{} is not in the Rust registry",
                 boundary.code()
             );
+        }
+    }
+
+    /// The boundary reports `auths_errors::classify` and nothing else.
+    ///
+    /// This drives every code in the registry plus codes no build defines. A
+    /// second selection rule here (first-declared outcome, unanimity-else-
+    /// possible, anything) diverges from the owner as soon as one definition
+    /// declares two outcomes, and this check is what makes that a red test
+    /// rather than a silent disagreement between two languages.
+    #[test]
+    fn the_boundary_reports_the_owner_classification_verbatim() {
+        let unknown = [
+            "not.a.registry.code",
+            "core.brand-new",
+            "mcp.future-code",
+            "plan.tomorrow",
+        ];
+        let codes = auths_errors::registry()
+            .map(|definition| definition.code)
+            .chain(unknown);
+        for code in codes {
+            let owner = auths_errors::classify(code);
+            let boundary = classify(code);
+            assert_eq!(boundary.effect, owner.effect, "effect for {code}");
+            assert_eq!(boundary.retry, owner.retry, "retry for {code}");
+            assert_eq!(
+                boundary.recommended_action, owner.recommended_action,
+                "recommended action for {code}"
+            );
+            assert_eq!(boundary.operation, owner.operation, "operation for {code}");
+            assert_eq!(boundary.stage, owner.stage(), "stage for {code}");
+            assert_eq!(boundary.registered, owner.known, "known for {code}");
         }
     }
 

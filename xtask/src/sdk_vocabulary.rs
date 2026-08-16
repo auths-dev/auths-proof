@@ -138,6 +138,7 @@ fn validate_contract(contract: &VocabularyContract) -> Result<(), String> {
     for owner in [
         "product",
         "component",
+        "service",
         "profile",
         "integration",
         "framework",

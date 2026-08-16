@@ -84,6 +84,50 @@ def test_the_public_root_names_the_vocabulary_a_caller_branches_on() -> None:
     assert auths.RecommendedAction is RecommendedAction
 
 
+def test_classify_reports_the_dominant_outcome_the_way_rust_does() -> None:
+    """`auths_errors::classify` picks the dominant outcome, not the first one.
+
+    Every definition in today's registry declares exactly one outcome, so the
+    two rules are indistinguishable on real data and a parity check over the
+    registry cannot see the difference. This drives a synthetic two-outcome
+    definition instead, ordered so that first-declared and dominant disagree:
+    the first-declared rule answers `not-applied` (nothing happened, safe to
+    retry) where Rust answers `possible` (reconcile before retrying).
+    """
+    from auths import _product_errors
+
+    two_outcomes = {
+        "code": "test.two-outcomes",
+        "family": "runtime",
+        "operation": "execute",
+        "stages": ["provider"],
+        "outcomes": [
+            {"retry": "never", "effect": "not-applied"},
+            {"retry": "unknown", "effect": "possible"},
+        ],
+        "recommendedAction": "resume-and-reconcile",
+    }
+    single = {code: definition for code, definition in _product_errors._DEFINITIONS.items()}
+    assert all(
+        len(definition["outcomes"]) == 1 for definition in single.values()
+    ), "registry gained a multi-outcome definition; this synthetic case is no longer needed"
+
+    original = _product_errors._DEFINITIONS
+    _product_errors._DEFINITIONS = {**single, "test.two-outcomes": two_outcomes}
+    try:
+        classification = _product_errors.classify("test.two-outcomes")
+    finally:
+        _product_errors._DEFINITIONS = original
+
+    assert classification.effect is EffectState.POSSIBLE, (
+        "classify reported the first-declared outcome. Rust reports the "
+        "dominant one (possible > applied > not-applied), and a binding that "
+        "picks differently tells a caller a possibly-applied effect provably "
+        "did not happen."
+    )
+    assert classification.retry is RetryClass.UNKNOWN
+
+
 # ---------------------------------------------------------------------------
 # ApprovalMode: one list, and the validator agrees with the declared type.
 # ---------------------------------------------------------------------------
