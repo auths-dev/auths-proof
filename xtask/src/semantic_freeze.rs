@@ -4,7 +4,7 @@ use crate::*;
 
 const INVENTORY_PATH: &str = "release/semantic-freeze.json";
 const INVENTORY_SCHEMA: &str = "auths.semantic-freeze/1";
-const FREEZE_VERSION: u64 = 114;
+const FREEZE_VERSION: u64 = 115;
 const PUBLIC_RUST_ROOTS: [&str; 10] = [
     "auths",
     "auths-byte-channel",
@@ -636,7 +636,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
             "formal/assurance-manifest-v1.toml" => 4,
             "formal/qualification/aeneas/qualification.toml" => 3,
             "formal/qualification/aeneas/generated" => 4,
-            "formal/qualification/aeneas/source-closure.json" => 13,
+            "formal/qualification/aeneas/source-closure.json" => 14,
             "product/fixtures/v1/errors/manifest.json" => 4,
             "product/fixtures/v1/bounded-policy/manifest.json" => 2,
             "product/fixtures/v1/github/manifest.json"
@@ -696,7 +696,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
     ]);
     entries.push(freeze_entry(
         "auths.release.public-surface",
-        113,
+        114,
         FreezeClassification::ReleaseMetadata,
         &[
             "package-names",
