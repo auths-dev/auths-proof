@@ -762,7 +762,7 @@ theorem rich_projection_accepts_iff_root_and_scope_depth_checks {v : Vocabulary}
       (delegationProjection parent grant) = true ↔
       rootPreserved parent grant ∧ scopeDepthChecks parent grant := by
   simp [Auths.Generated.attenuationAccepts, delegationProjection,
-    scopeDepthChecks, grantScopeChecks]
+    scopeDepthChecks, grantScopeChecks, GrantScopeChecks.iff_conjunction]
   tauto
 
 theorem apply_grant_success_iff_linked_and_projection {v : Vocabulary}

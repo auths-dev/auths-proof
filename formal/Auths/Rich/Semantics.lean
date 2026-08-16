@@ -330,22 +330,67 @@ instance {v : Vocabulary} (parent : ChainState v) (grant : Grant v) :
   unfold linked
   infer_instance
 
+/--
+Every scope dimension a delegation must attenuate, ONE NAMED FIELD EACH.
+
+This was a nine-way anonymous conjunction. Two things follow from naming the
+fields that did not follow from nesting them.
+
+A caller reaches a dimension by NAME rather than by counting `.2`s, so a proof
+cannot silently address the wrong one; the old form produced expressions like
+`accepted.2.2.2.2.2.2.2.2` whose meaning depended on position.
+
+More importantly, adding a tenth dimension now forces every constructor and
+every pattern match to mention it. The eleventh attenuation dimension was once
+reported as `extensionsAttenuate := true` and nobody noticed, because nothing
+in the shape of the definition required it to be addressed. A structure
+requires it.
+-/
+structure GrantScopeChecks {v : Vocabulary}
+    (parent : AuthorityScope v) (grant : Grant v) : Prop where
+  profile : profileAllows parent.profileScope grant.profile
+  permissions : grant.permissions ⊆ parent.permissions
+  validity : windowContained grant.validity parent.validity
+  audiences : grant.audiences ⊆ parent.audiences
+  actionConstraint :
+    actionConstraintLe grant.actionConstraint parent.actionConstraint
+  budget : budgetLe grant.budget parent.budget
+  status : statusLe grant.status parent.status
+  assurance : grant.assurance = parent.assurance
+  extensions : extensionsLe (some grant.extensions) parent.extensions
+
+/-- The named structure spelled as the conjunction, for rewriting. -/
+theorem GrantScopeChecks.iff_conjunction {v : Vocabulary}
+    (parent : AuthorityScope v) (grant : Grant v) :
+    GrantScopeChecks parent grant ↔
+      (profileAllows parent.profileScope grant.profile ∧
+        grant.permissions ⊆ parent.permissions ∧
+        windowContained grant.validity parent.validity ∧
+        grant.audiences ⊆ parent.audiences ∧
+        actionConstraintLe grant.actionConstraint parent.actionConstraint ∧
+        budgetLe grant.budget parent.budget ∧
+        statusLe grant.status parent.status ∧
+        grant.assurance = parent.assurance ∧
+        extensionsLe (some grant.extensions) parent.extensions) := by
+  constructor
+  · intro checks
+    exact ⟨checks.profile, checks.permissions, checks.validity,
+      checks.audiences, checks.actionConstraint, checks.budget, checks.status,
+      checks.assurance, checks.extensions⟩
+  · rintro ⟨profile, permissions, validity, audiences, actionConstraint,
+      budget, status, assurance, extensions⟩
+    exact ⟨profile, permissions, validity, audiences, actionConstraint,
+      budget, status, assurance, extensions⟩
+
+/-- The named structure, as the predicate the rest of the development uses. -/
 def grantScopeChecks {v : Vocabulary}
     (parent : AuthorityScope v) (grant : Grant v) : Prop :=
-  profileAllows parent.profileScope grant.profile ∧
-  grant.permissions ⊆ parent.permissions ∧
-  windowContained grant.validity parent.validity ∧
-  grant.audiences ⊆ parent.audiences ∧
-  actionConstraintLe grant.actionConstraint parent.actionConstraint ∧
-  budgetLe grant.budget parent.budget ∧
-  statusLe grant.status parent.status ∧
-  grant.assurance = parent.assurance ∧
-  extensionsLe (some grant.extensions) parent.extensions
+  GrantScopeChecks parent grant
 
 instance {v : Vocabulary} (parent : AuthorityScope v) (grant : Grant v) :
     Decidable (grantScopeChecks parent grant) := by
   unfold grantScopeChecks
-  infer_instance
+  exact decidable_of_iff _ (GrantScopeChecks.iff_conjunction parent grant).symm
 
 def scopeDepthChecks {v : Vocabulary}
     (parent : ChainState v) (grant : Grant v) : Prop :=

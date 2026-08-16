@@ -82,8 +82,10 @@ theorem attenuation_requires_critical_extensions {v : Vocabulary}
       Auths.Generated.attenuationAccepts
         (delegationProjection parent grant) = true) :
     extensionsLe (some grant.extensions) parent.scope.extensions :=
-  ((rich_projection_accepts_iff_root_and_scope_depth_checks
-    parent grant).1 accepted).2.2.2.2.2.2.2.2.2.2.2
+  -- Was `.2.2.2.2.2.2.2.2.2.2.2`: eleven projections whose meaning depended on
+  -- counting. The eleventh dimension is now reached by name.
+  (((rich_projection_accepts_iff_root_and_scope_depth_checks
+    parent grant).1 accepted).2.2.2).extensions
 
 /--
 The contrapositive, stated for every input: a stripped or altered critical

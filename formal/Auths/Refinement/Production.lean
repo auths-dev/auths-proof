@@ -2690,6 +2690,7 @@ theorem translated_delegation_refines_rich_spec
       · simp_all [Auths.Rich.evaluateGrant, Auths.Rich.linked,
           Auths.Rich.rootPreserved, Auths.Rich.rooted, 
           Auths.Rich.scopeDepthChecks, Auths.Rich.grantScopeChecks,
+          Auths.Rich.GrantScopeChecks.iff_conjunction,
           productionDelegationOutcome, expectedAcceptedTransition,
           extensions_le_rich_iff, OptionalCriticalExtensionsAttenuate,
           richAuthorityState, richGrant]
@@ -2778,7 +2779,8 @@ theorem translated_delegation_refines_rich_spec
           apply failedScope
           have richChecks := checks.2
           simpa [Auths.Rich.scopeDepthChecks,
-            Auths.Rich.grantScopeChecks, richAuthorityState,
+            Auths.Rich.grantScopeChecks,
+          Auths.Rich.GrantScopeChecks.iff_conjunction, richAuthorityState,
             richGrant, extensions_le_rich_iff] using richChecks
         have linkedSemantic :
             Auths.Rich.linked
