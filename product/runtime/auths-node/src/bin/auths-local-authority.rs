@@ -107,10 +107,15 @@ fn main() -> ExitCode {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |duration| duration.as_secs());
-    let Ok(validity) = ValidityWindow::new(
-        Timestamp::new(now.saturating_sub(60)),
-        Timestamp::new(now.saturating_add(3600)),
-    ) else {
+    // The grant must be CONTAINED in the anchor's window, and the anchor's was
+    // fixed when the context was generated -- earlier than now. A window as long
+    // as the context's would end after it and be refused as DelegationExpanded,
+    // which is the validity dimension working: a child cannot outlive its
+    // parent. Fifteen minutes fits comfortably inside any context lifetime the
+    // fixture generates.
+    let Ok(validity) =
+        ValidityWindow::new(Timestamp::new(now), Timestamp::new(now.saturating_add(900)))
+    else {
         return fail("the validity window is invalid");
     };
     let Ok(algebra) = BudgetAlgebraId::parse("numeric-ceiling-v1") else {

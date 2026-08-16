@@ -52,7 +52,13 @@ for (const [name, profile] of profiles) {
     profile,
   });
   const completed = await client.execute(authority, decode(authored.action));
-  assert.equal(completed.kind, "completed");
+  // Report WHY on refusal. A bare `expected completed, got denied` sends the
+  // reader back to CI for another round trip; the code names the dimension.
+  assert.equal(
+    completed.kind,
+    "completed",
+    `${name}: ${completed.kind}${completed.code ? ` (${completed.code})` : ""}`,
+  );
 
   const verified = await client.verify(completed.receipt);
   assert.equal(verified.kind, "verified");
@@ -83,7 +89,11 @@ const unknown = await recoveryClient.execute(
   importAuthority(decode(recovery.proof)),
   decode(recovery.action),
 );
-assert.equal(unknown.kind, "recoverable");
+assert.equal(
+  unknown.kind,
+  "recoverable",
+  `recovery: ${unknown.kind}${unknown.code ? ` (${unknown.code})` : ""}`,
+);
 const resumed = await recoveryClient.resume(unknown.reference);
 assert.equal(resumed.kind, "completed");
 

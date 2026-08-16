@@ -69,7 +69,10 @@ async def test_installed_python_completes_the_same_reference_flow():
             profile=profile,
         )
         completed = await client.execute(authority, _decode(authored["action"]))
-        assert completed.kind == "completed"
+        # Report WHY on refusal; a bare kind mismatch costs another CI round trip.
+        assert completed.kind == "completed", (
+            f"{name}: {completed.kind} {getattr(completed, 'code', '')}"
+        )
 
         verified = await client.verify(completed.receipt)
         assert verified.kind == "verified"
@@ -105,7 +108,9 @@ async def test_installed_python_resolves_an_unknown_effect():
         import_authority(_decode(authored["proof"])),
         _decode(authored["action"]),
     )
-    assert unknown.kind == "recoverable"
+    assert unknown.kind == "recoverable", (
+        f"recovery: {unknown.kind} {getattr(unknown, 'code', '')}"
+    )
 
     resumed = await client.resume(unknown.reference)
     assert resumed.kind == "completed"
