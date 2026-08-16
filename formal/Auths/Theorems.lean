@@ -1,4 +1,5 @@
 import Auths.Attenuation
+import Auths.Rich.Mutations
 import Auths.Composition
 import Auths.Diversity
 import Auths.Product.Theorems
@@ -76,6 +77,19 @@ def theoremInventory : List Lean.Name :=
     `Auths.Rich.authority_delegate_first_failure,
     `Auths.Rich.author_planning_diagnostic_sound_complete,
     `Auths.Rich.coverage_decision_ok_iff_covers,
+    `Auths.Rich.Mutations.validity_start_direction,
+    `Auths.Rich.Mutations.validity_end_direction,
+    `Auths.Rich.Mutations.budget_value_direction,
+    `Auths.Rich.Mutations.budget_algebra_equality,
+    `Auths.Rich.Mutations.optional_budget_bounded_parent,
+    `Auths.Rich.Mutations.optional_budget_no_request,
+    `Auths.Rich.Mutations.delegation_depth_strictness,
+    `Auths.Rich.Mutations.status_age_direction,
+    `Auths.Rich.Mutations.status_method_equality,
+    `Auths.Rich.Mutations.assurance_equality,
+    `Auths.Rich.Mutations.profile_version_equality,
+    `Auths.Rich.Mutations.principal_linkage_equality,
+    `Auths.Rich.Mutations.grant_linkage_equality,
     `Auths.Rich.coverage_diagnostic_sound_complete,
     `Auths.Refinement.translated_rust_refines_rich_spec,
     `Auths.Refinement.translated_coverage_refines_rich_spec,

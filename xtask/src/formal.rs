@@ -487,6 +487,54 @@ fn collect_rust_sources(
 /// the upstream crate can never produce the symbol. Translation must come
 /// first; the complete build and audit still gate success, from
 /// [`build_and_audit_formal`] after synchronization.
+/// Requires every mutation case naming a witness to name a COMPILED one.
+///
+/// `formal/refinement-mutations-v1.json` used to be existence-checked only: the
+/// audit confirmed the file was present and read nothing inside it. Each case
+/// carried an `operator` describing how a dimension could be weakened and a
+/// `witness` sentence asserting the weakening would be caught -- prose, in an
+/// evidence file, standing in for a check.
+///
+/// A case that names `lean_declaration` must now name a declaration the
+/// assurance audit actually compiled. Deleting the theorem, renaming it, or
+/// pointing a case at something that does not exist fails here.
+///
+/// Cases with no `lean_declaration` are still prose and are reported as such by
+/// `mutation_witness_coverage`; they are not silently treated as proved.
+fn validate_mutation_witnesses(
+    artifact: &Path,
+    compiled: &BTreeMap<String, LeanAssuranceDeclaration>,
+) -> Result<(), String> {
+    if artifact.extension().and_then(|value| value.to_str()) != Some("json") {
+        return Ok(());
+    }
+    let Ok(source) = fs::read_to_string(artifact) else {
+        return Ok(());
+    };
+    let Ok(document) = serde_json::from_str::<Value>(&source) else {
+        return Ok(());
+    };
+    let Some(cases) = document.get("cases").and_then(Value::as_array) else {
+        return Ok(());
+    };
+    for case in cases {
+        let Some(declaration) = case.get("lean_declaration").and_then(Value::as_str) else {
+            continue;
+        };
+        let identifier = case
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or("<unnamed mutation>");
+        if !compiled.contains_key(declaration) {
+            return Err(format!(
+                "mutation case {identifier} names witness {declaration}, which the \
+                 assurance audit did not compile"
+            ));
+        }
+    }
+    Ok(())
+}
+
 pub(crate) fn prepare_formal_translation(
     require_kani: bool,
     update: bool,
@@ -810,6 +858,7 @@ pub(crate) fn formal_assurance_audit(formal_root: &Path, update: bool) -> Result
                     artifact.display()
                 ));
             }
+            validate_mutation_witnesses(&artifact, &compiled)?;
         }
 
         let declaration = compiled.get(&claim.lean_declaration).ok_or_else(|| {
