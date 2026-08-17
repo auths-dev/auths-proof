@@ -1,6 +1,6 @@
 {
   "schema": "auths.semantic-freeze/1",
-  "freezeVersion": 133,
+  "freezeVersion": 135,
   "publicSurface": {
     "rustRoots": [
       "auths",
@@ -199,7 +199,7 @@
     },
     {
       "id": "auths.frozen-bytes/formal/assurance-manifest-v1.toml",
-      "version": 16,
+      "version": 17,
       "classification": "frozen-bytes",
       "categories": [
         "canonical-generated-evidence"
@@ -207,7 +207,7 @@
       "owners": [
         "formal/assurance-manifest-v1.toml"
       ],
-      "sha256": "5ad03fd0b99091be06fd82784979aa34abdba91b0132f52d89783ba69402c81a"
+      "sha256": "c3918c9c4f4aa655efac439658f1e4ea3c2d9d70db562888d0c3926d465fa0aa"
     },
     {
       "id": "auths.frozen-bytes/formal/qualification/aeneas/generated",
@@ -235,7 +235,7 @@
     },
     {
       "id": "auths.frozen-bytes/formal/qualification/aeneas/source-closure.json",
-      "version": 23,
+      "version": 24,
       "classification": "frozen-bytes",
       "categories": [
         "canonical-generated-evidence"
@@ -243,7 +243,7 @@
       "owners": [
         "formal/qualification/aeneas/source-closure.json"
       ],
-      "sha256": "919dff5a4d619f76e8d22884ed200b2c3838890d984bc16258b213f5897dca57"
+      "sha256": "57e23e20ee95ddd488bde6a21e7270e57c55517a205a6d05b9e2f7874f0e3cbd"
     },
     {
       "id": "auths.frozen-bytes/product/conformance/v1/mechanism-profile-conformance.json",
@@ -1013,7 +1013,7 @@
     },
     {
       "id": "auths.release.evolution-contract",
-      "version": 18,
+      "version": 19,
       "classification": "frozen-meaning",
       "categories": [
         "version-axes",
@@ -1034,11 +1034,11 @@
         "release/fixtures/evolution",
         "xtask/src/evolution_policy.rs"
       ],
-      "sha256": "cc426b66fa161ef75e8115028d809b373ffa741d99363c88c9df9a25bc337c53"
+      "sha256": "8f74e3791acdd7e63b28b37ce812eff3ef5a339d5bfbe4ea81247af79dc5fe12"
     },
     {
       "id": "auths.release.public-surface",
-      "version": 132,
+      "version": 134,
       "classification": "release-metadata",
       "categories": [
         "package-names",
@@ -1133,7 +1133,7 @@
         "xtask/src/release_control.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "59a77d5c8089c1ffe7bfd3d2fa14c3add091ff11a38631468d834da58c13b797"
+      "sha256": "478566fd33b6f729c26b857cc96a5142baf85379f7e7de93890eb949df3ac3af"
     }
   ]
 }

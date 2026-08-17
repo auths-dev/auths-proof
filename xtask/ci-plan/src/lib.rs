@@ -520,6 +520,12 @@ fn generate_plan(options: &Options) -> Result<(), String> {
     let baseline = CostBaseline::load(&options.root.join(DEFAULT_BASELINE))?;
     let model = RepositoryModel::load(&options.root)?;
     validate_manifest(&loaded.manifest)?;
+    if options.workflow == "ci" {
+        let path = options.root.join(".github/workflows/ci.yml");
+        let source = fs::read_to_string(&path)
+            .map_err(|error| format!("could not read {}: {error}", path.display()))?;
+        validate_ci_cancellation_policy(&source)?;
+    }
 
     let comprehensive = loaded
         .manifest
@@ -1199,6 +1205,9 @@ fn validate_repository(
     for workflow_file in workflow_files {
         let source = fs::read_to_string(root.join(workflow_file))
             .map_err(|error| format!("could not read {workflow_file}: {error}"))?;
+        if workflow_file == ".github/workflows/ci.yml" {
+            validate_ci_cancellation_policy(&source)?;
+        }
         let actual_jobs = workflow_job_ids(&source);
         let declared_jobs: BTreeSet<_> = manifest
             .workflow_jobs
@@ -1210,6 +1219,65 @@ fn validate_repository(
             return Err(format!(
                 "workflow {workflow_file} job map drifted: actual={actual_jobs:?}, declared={declared_jobs:?}"
             ));
+        }
+    }
+    Ok(())
+}
+
+fn validate_ci_cancellation_policy(source: &str) -> Result<(), String> {
+    if !source.contains("cancel-in-progress: true") {
+        return Err("CI must cancel superseded workflow runs".to_owned());
+    }
+
+    let mut in_jobs = false;
+    let mut current_job = None;
+    let mut in_job_condition = false;
+    for line in source.lines() {
+        if line == "jobs:" {
+            in_jobs = true;
+            continue;
+        }
+        if !in_jobs {
+            continue;
+        }
+        if !line.starts_with(' ') && !line.trim().is_empty() {
+            break;
+        }
+        if line.starts_with("  ")
+            && !line.starts_with("    ")
+            && let Some(job) = line
+                .strip_prefix("  ")
+                .and_then(|line| line.strip_suffix(':'))
+        {
+            current_job = Some(job);
+            in_job_condition = false;
+            continue;
+        }
+        if let Some(condition) = line.strip_prefix("    if: ") {
+            in_job_condition = condition == ">-" || condition == "|";
+            if condition.contains("always()") {
+                return Err(format!(
+                    "CI job `{}` uses cancellation-resistant `always()`; use `!cancelled()`",
+                    current_job.unwrap_or("unknown")
+                ));
+            }
+            continue;
+        }
+        if in_job_condition {
+            let Some(condition) = line.strip_prefix("      ") else {
+                in_job_condition = false;
+                continue;
+            };
+            if condition.starts_with(' ') {
+                in_job_condition = false;
+                continue;
+            }
+            if condition.contains("always()") {
+                return Err(format!(
+                    "CI job `{}` uses cancellation-resistant `always()`; use `!cancelled()`",
+                    current_job.unwrap_or("unknown")
+                ));
+            }
         }
     }
     Ok(())
@@ -2207,6 +2275,43 @@ serde = "2"
     fn help_text_is_stable() {
         assert!(usage().contains("auths-ci-plan formal-source-closure <check|update>"));
         assert!(usage().contains("auths-ci-plan formal-update-artifact <create|apply>"));
+    }
+
+    #[test]
+    fn ci_jobs_allow_superseding_runs_to_cancel_them() {
+        let workflow = r#"name: CI
+concurrency:
+  cancel-in-progress: true
+jobs:
+  formal:
+    if: >-
+      !cancelled() &&
+      needs.preflight.result == 'success'
+    steps:
+      - name: Preserve diagnostics
+        if: always()
+        run: echo diagnostics
+"#;
+        validate_ci_cancellation_policy(workflow)
+            .expect("job conditions must cancel while diagnostic steps may still run");
+    }
+
+    #[test]
+    fn ci_jobs_cannot_resist_superseding_run_cancellation() {
+        let workflow = r#"name: CI
+concurrency:
+  cancel-in-progress: true
+jobs:
+  formal:
+    if: >-
+      always() &&
+      needs.preflight.result == 'success'
+    steps:
+      - run: cargo xtask formal qualify aeneas
+"#;
+        let error = validate_ci_cancellation_policy(workflow)
+            .expect_err("job-level always must not defeat concurrency cancellation");
+        assert!(error.contains("cancellation-resistant `always()`"));
     }
 
     #[test]

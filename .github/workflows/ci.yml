@@ -112,7 +112,7 @@ jobs:
 
   formal-update-gate:
     name: generated artifacts current
-    if: always()
+    if: ${{ !cancelled() }}
     needs: [ci-plan, formal-update-preflight]
     runs-on: ubuntu-latest
     steps:
@@ -139,7 +139,7 @@ jobs:
     name: repository preflight
     needs: [ci-plan, formal-update-gate]
     if: >-
-      always() &&
+      !cancelled() &&
       needs.ci-plan.result == 'success' &&
       needs.formal-update-gate.result == 'success'
     runs-on: ubuntu-latest
@@ -160,7 +160,7 @@ jobs:
     name: authoritative implementation
     needs: [ci-plan, formal-update-gate, repository-preflight]
     if: >-
-      always() &&
+      !cancelled() &&
       needs.ci-plan.result == 'success' &&
       needs.formal-update-gate.result == 'success' &&
       needs.repository-preflight.result == 'success' &&
@@ -227,7 +227,7 @@ jobs:
     name: formal-translation implementation
     needs: [ci-plan, formal-update-gate, repository-preflight]
     if: >-
-      always() &&
+      !cancelled() &&
       needs.ci-plan.result == 'success' &&
       needs.formal-update-gate.result == 'success' &&
       needs.repository-preflight.result == 'success' &&
@@ -359,7 +359,7 @@ jobs:
     name: compliance implementation
     needs: [ci-plan, formal-update-gate, repository-preflight]
     if: >-
-      always() &&
+      !cancelled() &&
       needs.ci-plan.result == 'success' &&
       needs.formal-update-gate.result == 'success' &&
       needs.repository-preflight.result == 'success' &&
@@ -417,7 +417,7 @@ jobs:
     name: dependencies implementation
     needs: [ci-plan, formal-update-gate, repository-preflight]
     if: >-
-      always() &&
+      !cancelled() &&
       needs.ci-plan.result == 'success' &&
       needs.formal-update-gate.result == 'success' &&
       needs.repository-preflight.result == 'success' &&
@@ -452,7 +452,7 @@ jobs:
     name: secrets implementation
     needs: [ci-plan, formal-update-gate, repository-preflight]
     if: >-
-      always() &&
+      !cancelled() &&
       needs.ci-plan.result == 'success' &&
       needs.formal-update-gate.result == 'success' &&
       needs.repository-preflight.result == 'success' &&
@@ -487,7 +487,7 @@ jobs:
     name: opentofu-live implementation
     needs: [ci-plan, formal-update-gate, repository-preflight]
     if: >-
-      always() &&
+      !cancelled() &&
       needs.ci-plan.result == 'success' &&
       needs.formal-update-gate.result == 'success' &&
       needs.repository-preflight.result == 'success' &&
@@ -566,7 +566,7 @@ jobs:
     name: postgresql-live implementation
     needs: [ci-plan, formal-update-gate, repository-preflight]
     if: >-
-      always() &&
+      !cancelled() &&
       needs.ci-plan.result == 'success' &&
       needs.formal-update-gate.result == 'success' &&
       needs.repository-preflight.result == 'success' &&
@@ -680,7 +680,7 @@ jobs:
     name: records-api-live implementation
     needs: [ci-plan, formal-update-gate, repository-preflight]
     if: >-
-      always() &&
+      !cancelled() &&
       needs.ci-plan.result == 'success' &&
       needs.formal-update-gate.result == 'success' &&
       needs.repository-preflight.result == 'success' &&
@@ -758,7 +758,7 @@ jobs:
 
   authoritative:
     name: authoritative
-    if: always()
+    if: ${{ !cancelled() }}
     needs: [ci-plan, authoritative-run]
     runs-on: ubuntu-latest
     steps:
@@ -775,7 +775,7 @@ jobs:
 
   formal-translation:
     name: formal-translation
-    if: always()
+    if: ${{ !cancelled() }}
     needs: [ci-plan, formal-translation-run]
     runs-on: ubuntu-latest
     steps:
@@ -793,7 +793,7 @@ jobs:
 
   compliance:
     name: compliance
-    if: always()
+    if: ${{ !cancelled() }}
     needs: [ci-plan, compliance-run]
     runs-on: ubuntu-latest
     steps:
@@ -810,7 +810,7 @@ jobs:
 
   dependencies:
     name: dependencies
-    if: always()
+    if: ${{ !cancelled() }}
     needs: [ci-plan, dependencies-run]
     runs-on: ubuntu-latest
     steps:
@@ -827,7 +827,7 @@ jobs:
 
   secrets:
     name: secrets
-    if: always()
+    if: ${{ !cancelled() }}
     needs: [ci-plan, secrets-run]
     runs-on: ubuntu-latest
     steps:
@@ -844,7 +844,7 @@ jobs:
 
   opentofu-live:
     name: opentofu-live
-    if: always()
+    if: ${{ !cancelled() }}
     needs: [ci-plan, opentofu-live-run]
     runs-on: ubuntu-latest
     steps:
@@ -861,7 +861,7 @@ jobs:
 
   postgresql-live:
     name: postgresql-live
-    if: always()
+    if: ${{ !cancelled() }}
     needs: [ci-plan, postgresql-live-run]
     runs-on: ubuntu-latest
     steps:
@@ -878,7 +878,7 @@ jobs:
 
   records-api-live:
     name: records-api-live
-    if: always()
+    if: ${{ !cancelled() }}
     needs: [ci-plan, records-api-live-run]
     runs-on: ubuntu-latest
     steps:
@@ -895,7 +895,7 @@ jobs:
 
   ci-qualified:
     name: CI qualified
-    if: always()
+    if: ${{ !cancelled() }}
     needs:
       - authoritative
       - formal-translation
