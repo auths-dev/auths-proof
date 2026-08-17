@@ -8,8 +8,8 @@
 //! inside `auths_verifier::verify`, and `tests/kernel_differential.rs` holds
 //! that equality against the canonical corpus.
 //!
-//! The node issues no authority. `/v1/authority/create` and
-//! `/v1/authority/delegate` refuse: see [`KernelRuntime::create`].
+//! The node issues no authority: its request dispatcher refuses both
+//! `/v1/authority/create` and `/v1/authority/delegate`.
 
 use crate::{
     api::NodeRuntime,
