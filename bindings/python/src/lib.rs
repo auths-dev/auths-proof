@@ -3,8 +3,8 @@
 //! This crate is a transport, not a tier. It carries meaning that Rust already
 //! owns across the pyo3 call boundary, and it defines none of its own:
 //!
-//! * Failures cross as [`errors::NativeAuthsError`], carrying the stable code
-//!   and the registry's own effect state, retry class, and recommended action.
+//! * Failures cross as native Python exceptions carrying the stable code and
+//!   the registry's own effect state, retry class, and recommended action.
 //! * It projects no generic reference vertical. `auths-profile-domains` is
 //!   tier-1 reference Rust and is not reachable from Python, so a Python caller
 //!   cannot introduce a vertical whose canonical form lives in Python.
