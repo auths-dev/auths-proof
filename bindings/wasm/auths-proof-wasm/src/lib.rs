@@ -147,7 +147,7 @@ pub fn decode_production_request_v1(input: &[u8]) -> Result<String, JsValue> {
 /// and next call. A failure that is not provably before transmission, on a verb
 /// that applies an effect, is `core.outcome-unknown` with `reconcile`, never a
 /// code whose registered effect is `not-applied`. A language binding that chose
-/// this itself would be telling a caller that a possibly-applied PostgreSQL
+/// this itself would be telling a caller that a possibly-applied `PostgreSQL`
 /// update is safe to blindly retry.
 ///
 /// # Errors
@@ -725,7 +725,7 @@ fn assurance_policy(input: AssuranceInput) -> Result<AssurancePolicy, EngineErro
     .map_err(EngineError::from)
 }
 
-fn accepted_registries(input: RegistryInput) -> Result<AcceptedRegistries, EngineError> {
+fn validate_registry_input(input: &RegistryInput) -> Result<(), EngineError> {
     if contains_duplicates(&input.principal_methods)
         || contains_duplicates(&input.signature_suites)
         || contains_duplicates(&input.evidence_types)
@@ -757,6 +757,21 @@ fn accepted_registries(input: RegistryInput) -> Result<AcceptedRegistries, Engin
             "trusted context selected an adapter not installed in this SDK",
         ));
     }
+    Ok(())
+}
+
+fn parse_registry_ids<T>(
+    values: Vec<String>,
+    parse: impl Fn(&str) -> Result<T, auths_model::ModelError>,
+) -> Result<Vec<T>, EngineError> {
+    values
+        .into_iter()
+        .map(|value| parse(&value).map_err(EngineError::from))
+        .collect()
+}
+
+fn accepted_registries(input: RegistryInput) -> Result<AcceptedRegistries, EngineError> {
+    validate_registry_input(&input)?;
     let profiles = input
         .profiles
         .into_iter()
@@ -764,62 +779,18 @@ fn accepted_registries(input: RegistryInput) -> Result<AcceptedRegistries, Engin
         .collect::<Result<Vec<_>, _>>()?;
     Ok(AcceptedRegistries::new(
         auths_registries::TARGET_V1_REGISTRY_MANIFEST,
-        input
-            .principal_methods
-            .into_iter()
-            .map(|value| PrincipalMethodId::parse(&value))
-            .collect::<Result<Vec<_>, _>>()?,
-        input
-            .signature_suites
-            .into_iter()
-            .map(|value| SignatureSuiteId::parse(&value))
-            .collect::<Result<Vec<_>, _>>()?,
-        input
-            .evidence_types
-            .into_iter()
-            .map(|value| EvidenceTypeId::parse(&value))
-            .collect::<Result<Vec<_>, _>>()?,
-        input
-            .principal_status_methods
-            .into_iter()
-            .map(|value| StatusMethodId::parse(&value))
-            .collect::<Result<Vec<_>, _>>()?,
-        input
-            .grant_status_methods
-            .into_iter()
-            .map(|value| StatusMethodId::parse(&value))
-            .collect::<Result<Vec<_>, _>>()?,
-        input
-            .assurance_claims
-            .into_iter()
-            .map(|value| AssuranceClaimId::parse(&value))
-            .collect::<Result<Vec<_>, _>>()?,
-        input
-            .assurance_implications
-            .into_iter()
-            .map(|value| AssuranceImplicationId::parse(&value))
-            .collect::<Result<Vec<_>, _>>()?,
-        input
-            .resource_matchers
-            .into_iter()
-            .map(|value| ResourceMatcherId::parse(&value))
-            .collect::<Result<Vec<_>, _>>()?,
-        input
-            .budget_algebras
-            .into_iter()
-            .map(|value| BudgetAlgebraId::parse(&value))
-            .collect::<Result<Vec<_>, _>>()?,
-        input
-            .critical_extensions
-            .into_iter()
-            .map(|value| ExtensionId::parse(&value))
-            .collect::<Result<Vec<_>, _>>()?,
+        parse_registry_ids(input.principal_methods, PrincipalMethodId::parse)?,
+        parse_registry_ids(input.signature_suites, SignatureSuiteId::parse)?,
+        parse_registry_ids(input.evidence_types, EvidenceTypeId::parse)?,
+        parse_registry_ids(input.principal_status_methods, StatusMethodId::parse)?,
+        parse_registry_ids(input.grant_status_methods, StatusMethodId::parse)?,
+        parse_registry_ids(input.assurance_claims, AssuranceClaimId::parse)?,
+        parse_registry_ids(input.assurance_implications, AssuranceImplicationId::parse)?,
+        parse_registry_ids(input.resource_matchers, ResourceMatcherId::parse)?,
+        parse_registry_ids(input.budget_algebras, BudgetAlgebraId::parse)?,
+        parse_registry_ids(input.critical_extensions, ExtensionId::parse)?,
         profiles.clone(),
-        input
-            .profile_policies
-            .into_iter()
-            .map(|value| ProfilePolicyId::parse(&value))
-            .collect::<Result<Vec<_>, _>>()?,
+        parse_registry_ids(input.profile_policies, ProfilePolicyId::parse)?,
     )?
     .with_budget_free_profiles(
         profiles

@@ -1,6 +1,6 @@
 {
   "schema": "auths-proof-translation-source-closure/v2",
-  "digest": "f07cf64b7b6e4198a767335bf59773a35b9f37e40b750f6c5753a549fa3b320a",
+  "digest": "0fbb1153de69314c95db7cb138b9f9bf0c2c885ab09a27164039aacd3fa0dad2",
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -221,7 +221,7 @@
     },
     {
       "path": "xtask/src/checks.rs",
-      "sha256": "867dedc085734b1a713124b9a22200ed231b1c7de07284802839224ea9482e80"
+      "sha256": "928cabc1f6ced5ecfd01d63bba5ac64a51e4f8b67f502b3e791f74083f21eeca"
     },
     {
       "path": "xtask/src/compliance.rs",
@@ -249,7 +249,7 @@
     },
     {
       "path": "xtask/src/formal_qualification.rs",
-      "sha256": "7fa6e6bab2ad01ff071a12940064726a743767b4a0861377789434e1bedbfcac"
+      "sha256": "dee7d3dc4c5f8ed62e426365c98de9bb3cf62a00c493525ab3bbd08d4dcc37a5"
     },
     {
       "path": "xtask/src/fuzz.rs",
@@ -261,7 +261,7 @@
     },
     {
       "path": "xtask/src/main.rs",
-      "sha256": "3950c5eace93c58ef80b14ddb8b40bd91bc0acc7bc67e680d9a1e4acea9b9d91"
+      "sha256": "f8d04a848eecd0abdbacae997b15b3c686186f6b9de0c24459d164510adc3b43"
     },
     {
       "path": "xtask/src/mcp_session_contract.rs",

@@ -1333,13 +1333,13 @@ security_state = ["opaque-recovery-reference", "receipt-disclosure", "shared-lif
 
 [packages.auths-node.claims]
 core-api-consumer = [
-  "product/runtime/auths-node/tests/kernel_differential.rs#node_and_kernel_agree_on_every_canonical_corpus_input",
+  "product/runtime/auths-node/tests/kernel_differential.rs#node_and_kernel_agree_on_every_startable_canonical_corpus_input",
   "product/runtime/auths-node/src/kernel.rs#the_node_refuses_to_mint_authority_from_a_self_asserted_identity",
 ]
 runtime-enforcement-boundary = [
   "product/runtime/auths-node/src/api.rs#route_and_envelope_must_agree",
   "product/runtime/auths-node/src/kernel.rs#exact_action_and_replay_budget_are_enforced",
-  "product/runtime/auths-node/tests/kernel_differential.rs#node_and_kernel_agree_on_every_canonical_corpus_input",
+  "product/runtime/auths-node/tests/kernel_differential.rs#node_and_kernel_agree_on_every_startable_canonical_corpus_input",
 ]
 operational-diagnostics = ["product/runtime/auths-node/src/api.rs#metrics_expose_only_the_frozen_operational_vocabulary"]
 stateful-replay-budget-component = [

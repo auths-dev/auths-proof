@@ -8,6 +8,23 @@ pub(crate) fn ci() -> Result<(), String> {
     ci_compliance()
 }
 
+/// Runs inexpensive, repository-wide gates before CI fans out into the
+/// long-running implementation and formal jobs.
+pub(crate) fn ci_preflight() -> Result<(), String> {
+    cargo(&["fmt", "--all", "--check"])?;
+    semantic_freeze(false)?;
+    compliance_inventory()?;
+    cargo(&[
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--all-features",
+        "--",
+        "-D",
+        "warnings",
+    ])
+}
+
 pub(crate) fn ci_authoritative() -> Result<(), String> {
     format_all()?;
     arch(false)?;

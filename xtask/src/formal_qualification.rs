@@ -1234,6 +1234,7 @@ fn validate_ci_workflow_gates(ci: &str) -> Result<(), String> {
         &[
             "uses: ./.github/actions/setup-lean",
             "kani-verifier --version 0.67.0",
+            "cargo xtask ci preflight",
             "cargo xtask ci authoritative",
             "cargo xtask ci formal-translation",
             "cargo xtask ci compliance",
@@ -1264,7 +1265,49 @@ fn validate_ci_workflow_gates(ci: &str) -> Result<(), String> {
                 .to_owned(),
         );
     }
+    for job_name in [
+        "authoritative-run",
+        "formal-translation-run",
+        "compliance-run",
+        "dependencies-run",
+        "secrets-run",
+        "opentofu-live-run",
+        "postgresql-live-run",
+        "records-api-live-run",
+    ] {
+        let job = workflow_job_source(ci, job_name)?;
+        if !job.contains("needs: [ci-plan, formal-update-gate, repository-preflight]")
+            || !job.contains("needs.repository-preflight.result == 'success'")
+        {
+            return Err(format!(
+                "hosted CI job `{job_name}` can start before the repository preflight succeeds"
+            ));
+        }
+    }
+    let compliance_job = workflow_job_source(ci, "compliance-run")?;
+    if !compliance_job.contains("if: always() && hashFiles('target/compliance/**') != ''") {
+        return Err(
+            "hosted compliance evidence upload must skip a missing evidence directory without masking the primary failure"
+                .to_owned(),
+        );
+    }
     Ok(())
+}
+
+fn workflow_job_source<'a>(workflow: &'a str, job_name: &str) -> Result<&'a str, String> {
+    let marker = format!("\n  {job_name}:");
+    let tail = workflow
+        .split_once(&marker)
+        .map(|(_, tail)| tail)
+        .ok_or_else(|| format!("hosted CI omits the `{job_name}` job boundary"))?;
+    let next_job = tail.match_indices("\n  ").find_map(|(index, _)| {
+        tail[index + 3..]
+            .chars()
+            .next()
+            .filter(|character| !character.is_whitespace())
+            .map(|_| index)
+    });
+    Ok(next_job.map_or(tail, |index| &tail[..index]))
 }
 
 fn validate_release_workflow_gates(orchestration: &str, builder: &str) -> Result<(), String> {
@@ -1996,7 +2039,7 @@ fn format_command_failure(arguments: &[String], directory: &Path, output: &Outpu
 mod tests {
     use super::*;
 
-    const CI_GATES: &str = "uses: ./.github/actions/setup-lean\nkani-verifier --version 0.67.0\ncargo xtask ci authoritative\ncargo xtask ci formal-translation\n  formal-translation-run:\ncompiler-cache: \"false\"\ncargo xtask formal qualify aeneas --update\ncargo xtask ci formal-post-qualification\n  compliance-run:\ncargo xtask ci compliance\ntarget/formal/\n";
+    const CI_GATES: &str = "uses: ./.github/actions/setup-lean\nkani-verifier --version 0.67.0\ncargo xtask ci preflight\ncargo xtask ci authoritative\ncargo xtask ci formal-translation\ntarget/formal/\n  authoritative-run:\nneeds: [ci-plan, formal-update-gate, repository-preflight]\nneeds.repository-preflight.result == 'success'\n  formal-translation-run:\nneeds: [ci-plan, formal-update-gate, repository-preflight]\nneeds.repository-preflight.result == 'success'\ncompiler-cache: \"false\"\ncargo xtask formal qualify aeneas --update\ncargo xtask ci formal-post-qualification\n  compliance-run:\nneeds: [ci-plan, formal-update-gate, repository-preflight]\nneeds.repository-preflight.result == 'success'\ncargo xtask ci compliance\nif: always() && hashFiles('target/compliance/**') != ''\n  dependencies-run:\nneeds: [ci-plan, formal-update-gate, repository-preflight]\nneeds.repository-preflight.result == 'success'\n  secrets-run:\nneeds: [ci-plan, formal-update-gate, repository-preflight]\nneeds.repository-preflight.result == 'success'\n  opentofu-live-run:\nneeds: [ci-plan, formal-update-gate, repository-preflight]\nneeds.repository-preflight.result == 'success'\n  postgresql-live-run:\nneeds: [ci-plan, formal-update-gate, repository-preflight]\nneeds.repository-preflight.result == 'success'\n  records-api-live-run:\nneeds: [ci-plan, formal-update-gate, repository-preflight]\nneeds.repository-preflight.result == 'success'\n";
     const BUILDER_GATES: &str = "leanprover/lean-action@\nkani-verifier --version 0.67.0\ncargo xtask release-check\ncargo xtask formal qualify aeneas\n";
 
     #[test]
@@ -2007,10 +2050,33 @@ mod tests {
     #[test]
     fn hosted_ci_cannot_omit_pinned_lean_setup() {
         let error = validate_ci_workflow_gates(
-            "kani-verifier --version 0.67.0\ncargo xtask ci authoritative\ncargo xtask ci formal-translation\ncargo xtask formal qualify aeneas --update\ncargo xtask ci formal-post-qualification\ncargo xtask ci compliance\ntarget/formal/\n",
+            &CI_GATES.replace("uses: ./.github/actions/setup-lean\n", ""),
         )
         .expect_err("missing pinned Lean setup must fail");
         assert!(error.contains("hosted CI omits required formal gate"));
+    }
+
+    #[test]
+    fn every_expensive_ci_job_waits_for_repository_preflight() {
+        let bypass = CI_GATES.replacen(
+            "needs: [ci-plan, formal-update-gate, repository-preflight]",
+            "needs: [ci-plan, formal-update-gate]",
+            1,
+        );
+        let error = validate_ci_workflow_gates(&bypass)
+            .expect_err("an implementation job must not bypass the shared preflight");
+        assert!(error.contains("can start before the repository preflight succeeds"));
+    }
+
+    #[test]
+    fn compliance_upload_does_not_mask_the_primary_failure() {
+        let masking = CI_GATES.replace(
+            "if: always() && hashFiles('target/compliance/**') != ''",
+            "if: always()",
+        );
+        let error = validate_ci_workflow_gates(&masking)
+            .expect_err("missing compliance evidence must not create a second failure");
+        assert!(error.contains("without masking the primary failure"));
     }
 
     #[test]
