@@ -892,3 +892,50 @@ jobs:
           echo "Decision: ${REQUIRED}; implementation: ${RUN_RESULT}; ${REASON}" >> "$GITHUB_STEP_SUMMARY"
           [[ "$PLANNER" == success ]]
           [[ "$REQUIRED" == true && "$RUN_RESULT" == success ]] || [[ "$REQUIRED" == false && "$RUN_RESULT" == skipped ]]
+
+  ci-qualified:
+    name: CI qualified
+    if: always()
+    needs:
+      - authoritative
+      - formal-translation
+      - compliance
+      - dependencies
+      - secrets
+      - opentofu-live
+      - postgresql-live
+      - records-api-live
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every planned CI result
+        env:
+          AUTHORITATIVE: ${{ needs.authoritative.result }}
+          FORMAL_TRANSLATION: ${{ needs.formal-translation.result }}
+          COMPLIANCE: ${{ needs.compliance.result }}
+          DEPENDENCIES: ${{ needs.dependencies.result }}
+          SECRETS: ${{ needs.secrets.result }}
+          OPENTOFU_LIVE: ${{ needs.opentofu-live.result }}
+          POSTGRESQL_LIVE: ${{ needs.postgresql-live.result }}
+          RECORDS_API_LIVE: ${{ needs.records-api-live.result }}
+        run: |
+          set -euo pipefail
+          {
+            echo "| Gate | Result |"
+            echo "| --- | --- |"
+            echo "| authoritative | ${AUTHORITATIVE} |"
+            echo "| formal-translation | ${FORMAL_TRANSLATION} |"
+            echo "| compliance | ${COMPLIANCE} |"
+            echo "| dependencies | ${DEPENDENCIES} |"
+            echo "| secrets | ${SECRETS} |"
+            echo "| opentofu-live | ${OPENTOFU_LIVE} |"
+            echo "| postgresql-live | ${POSTGRESQL_LIVE} |"
+            echo "| records-api-live | ${RECORDS_API_LIVE} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          [[ "$AUTHORITATIVE" == success ]]
+          [[ "$FORMAL_TRANSLATION" == success ]]
+          [[ "$COMPLIANCE" == success ]]
+          [[ "$DEPENDENCIES" == success ]]
+          [[ "$SECRETS" == success ]]
+          [[ "$OPENTOFU_LIVE" == success ]]
+          [[ "$POSTGRESQL_LIVE" == success ]]
+          [[ "$RECORDS_API_LIVE" == success ]]
