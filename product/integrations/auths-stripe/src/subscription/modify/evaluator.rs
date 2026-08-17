@@ -144,6 +144,24 @@ impl SubscriptionModifyDecision {
     }
 }
 
+/// Splits a term-liability change into the amount that must be newly reserved
+/// and the amount the modification supersedes.
+///
+/// This is the whole liability arithmetic of a modification, isolated so it is
+/// callable from a bounded proof harness with the same bytes production runs.
+///
+/// The two sides are deliberately disjoint: an upgrade reserves and releases
+/// nothing, a downgrade releases and reserves nothing. Netting them (or letting
+/// a credit reduce `incremental`) would let a modification widen spend beyond
+/// the reserved ceiling.
+#[must_use]
+pub const fn term_liability_delta(before_term: u64, after_term: u64) -> (u64, u64) {
+    (
+        after_term.saturating_sub(before_term),
+        before_term.saturating_sub(after_term),
+    )
+}
+
 pub struct SubscriptionModifyEvaluationContext<'a> {
     pub action: &'a StripeExactSubscriptionModifyV1,
     pub policy: &'a StripeBoundedSubscriptionPolicyV1,
@@ -558,8 +576,7 @@ pub fn evaluate_subscription_modify(
             "after term liability overflowed",
         );
     };
-    let incremental = after_term.saturating_sub(before_term);
-    let superseded = before_term.saturating_sub(after_term);
+    let (incremental, superseded) = term_liability_delta(before_term, after_term);
     if incremental != action.incremental_term_liability_minor() {
         return SubscriptionModifyDecision::denied(
             SubscriptionModifyDecisionCode::PreviewMismatch,
@@ -748,23 +765,43 @@ mod tests {
 
 #[cfg(kani)]
 mod proofs {
+    use super::term_liability_delta;
+
     #[kani::proof]
     fn credits_never_reduce_incremental_term_liability() {
         let before = kani::any::<u64>();
         let after = kani::any::<u64>();
-        let credit = kani::any::<u64>();
-        let incremental = after.saturating_sub(before);
-        let with_any_credit = after.saturating_sub(before);
-        assert_eq!(incremental, with_any_credit);
-        let _ = credit;
+        let (incremental, _) = term_liability_delta(before, after);
+
+        // `term_liability_delta` takes no credit input at all, so no credit can
+        // enter the reserved amount. The falsifiable content of that claim is
+        // that `incremental` is exactly the un-netted upgrade amount: it is
+        // positive whenever the term grows, and equals the full growth.
+        if after > before {
+            assert!(incremental > 0);
+            assert_eq!(
+                u128::from(incremental),
+                u128::from(after) - u128::from(before)
+            );
+        } else {
+            assert_eq!(incremental, 0);
+        }
+        // The reserved amount never exceeds the new term liability, so it can
+        // never demand more capacity than the modification actually creates.
+        assert!(incremental <= after);
     }
 
     #[kani::proof]
     fn downgrade_release_is_disjoint_from_upgrade_reservation() {
         let before = kani::any::<u64>();
         let after = kani::any::<u64>();
-        let reserve = after.saturating_sub(before);
-        let release = before.saturating_sub(after);
+        let (reserve, release) = term_liability_delta(before, after);
         assert!(reserve == 0 || release == 0);
+        // Conservation: the two sides reconstruct the original terms exactly,
+        // so neither side can silently absorb liability.
+        assert_eq!(
+            u128::from(before) + u128::from(reserve),
+            u128::from(after) + u128::from(release)
+        );
     }
 }

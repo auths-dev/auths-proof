@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { development } from "../../dist/testkit/index.js";
+import { fixtures } from "../../dist/testkit/index.js";
 
 test("development signer owns raw-key descriptor and signing details", async () => {
-  const signer = await development.ephemeralSigner();
+  const signer = await fixtures.ephemeralSigner();
   const principal = await signer.publicIdentity();
   assert.match(principal.principal, /^key:sha256:/);
   assert.equal(principal.principalMethod, "raw-key-v1");

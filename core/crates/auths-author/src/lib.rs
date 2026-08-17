@@ -23,7 +23,7 @@ use auths_model::{
     MediaType, ModelError, PermissionSet, PrincipalId, PrincipalStatusId, PrincipalStatusStatement,
     ProfileRef, ProofBundle, ProofRef, ResourceId, ScopeAuthorityView, SignatureBytes,
     SignatureDescriptor, SignatureEnvelope, SignedAction, SignedGrant, SignedGrantStatus,
-    SignedPrincipalStatus, StatementRef, StatusPolicy, Timestamp, ValidityWindow, VerifierContext,
+    SignedPrincipalStatus, StatementRef, StatusPolicy, Timestamp, TrustedContext, ValidityWindow,
     VerifierLimits, grant_authority_view, scope_authority_view,
 };
 use core::fmt;
@@ -108,7 +108,7 @@ struct GrantProofMaterial {
 #[derive(Clone, Debug)]
 pub struct WorkflowAuthorizationArtifacts {
     proof: ProofBundle,
-    context: VerifierContext,
+    context: TrustedContext,
 }
 
 impl WorkflowAuthorizationArtifacts {
@@ -118,9 +118,9 @@ impl WorkflowAuthorizationArtifacts {
         &self.proof
     }
 
-    /// Returns the request-bound verifier context.
+    /// Returns the request-bound trusted context.
     #[must_use]
-    pub const fn context(&self) -> &VerifierContext {
+    pub const fn context(&self) -> &TrustedContext {
         &self.context
     }
 }
@@ -198,7 +198,7 @@ impl WorkflowProofBuilder {
         Ok(())
     }
 
-    /// Assembles the proof and exact request-bound verifier context.
+    /// Assembles the proof and exact request-bound trusted context.
     ///
     /// # Errors
     ///
@@ -207,7 +207,7 @@ impl WorkflowProofBuilder {
         &self,
         action: &SignedAction,
         canonical: &CanonicalAction,
-        context: &VerifierContext,
+        context: &TrustedContext,
     ) -> Result<WorkflowAuthorizationArtifacts, WorkflowAssemblyError> {
         let plan = AuthorizationPlan::proof(action.envelope().proof_ref());
         let exact_plan = plan_id(&plan)?;
@@ -670,12 +670,12 @@ impl<'a> PlanBuilder<'a> {
     /// # Errors
     ///
     /// Returns a typed shape or deployment-limit failure.
-    pub fn k_of_n(
+    pub fn threshold(
         &self,
-        k: u16,
+        required: u16,
         members: Vec<AuthorizationPlan>,
     ) -> Result<AuthorizationPlan, PlanningError> {
-        self.validate(AuthorizationPlan::k_of_n(k, members)?)
+        self.validate(AuthorizationPlan::k_of_n(required, members)?)
     }
 
     fn validate(&self, plan: AuthorizationPlan) -> Result<AuthorizationPlan, PlanningError> {

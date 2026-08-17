@@ -373,6 +373,15 @@ fn response_projection(response: &ActionResponse) -> Value {
             })),
             "request_id": request_id,
         }),
+        ExchangeOutcome::Indeterminate { verdict, message } => json!({
+            "outcome": "indeterminate",
+            "message": message,
+            "verdict": verdict.as_ref().map(|summary| json!({
+                "decision": verdict_name(summary.decision()),
+                "reasons": summary.reasons(),
+            })),
+            "request_id": request_id,
+        }),
     }
 }
 

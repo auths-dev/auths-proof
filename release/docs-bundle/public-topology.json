@@ -1,0 +1,32 @@
+{
+  "schema": "auths.public-topology/1",
+  "layers": [
+    {
+      "name": "product",
+      "typescript": ["@auths-dev/sdk", "@auths-dev/sdk/identity", "@auths-dev/sdk/verify"],
+      "python": ["auths", "auths.identity", "auths.verify"]
+    },
+    {
+      "name": "vertical",
+      "typescript": ["@auths-dev/sdk/profiles"],
+      "python": ["auths.profiles"]
+    },
+    {
+      "name": "mechanism",
+      "typescript": ["@auths-dev/sdk/integrations"],
+      "python": ["auths.integrations"]
+    },
+    {
+      "name": "extension",
+      "typescript": ["@auths-dev/sdk/framework"],
+      "python": ["auths.framework"]
+    },
+    {
+      "name": "test",
+      "typescript": ["@auths-dev/sdk/testkit"],
+      "python": ["auths.testkit"]
+    }
+  ],
+  "frameworkContracts": ["atomic-reservation-store", "signer-custody"],
+  "qualifiedProfiles": ["auths.mcp/1"]
+}

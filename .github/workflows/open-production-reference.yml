@@ -95,6 +95,8 @@ jobs:
           python-version: "3.12"
       - name: Generate isolated TLS material
         run: sh demos/open-production-reference/tests/generate-local-certificates.sh
+      - name: Generate the local-fixture trusted context
+        run: sh demos/open-production-reference/tests/generate-local-context.sh
       - name: Start the reference stack
         run: docker compose -f demos/open-production-reference/compose/compose.yaml up -d --build --wait
       - name: Verify health and readiness
@@ -109,8 +111,9 @@ jobs:
           npm pack ./bindings/typescript --pack-destination "$PWD/target/open-reference-artifacts"
           python -m venv .reference-venv
           .reference-venv/bin/python -m pip install maturin==1.9.6 pytest==9.0.2 pytest-asyncio==1.3.0
-          .reference-venv/bin/maturin build --release --locked --manifest-path bindings/python/Cargo.toml --out target/open-reference-artifacts
-          cargo build --locked -p auths-node
+          .reference-venv/bin/maturin build --profile python-extension --locked --manifest-path bindings/python/Cargo.toml --out target/open-reference-artifacts
+          cargo build --locked -p auths-node \
+            --bin auths-node --bin auths-local-context --bin auths-local-authority
       - name: Run packed TypeScript client across replicas
         working-directory: target/open-reference-consumer
         env:
@@ -121,6 +124,11 @@ jobs:
           npm init --yes
           npm install ../open-reference-artifacts/auths-dev-sdk-*.tgz
           PATH="${{ github.workspace }}/target/debug:$PATH" node reference.mjs
+      - name: Capture node logs on client failure
+        if: failure()
+        run: |
+          docker compose -f demos/open-production-reference/compose/compose.yaml \
+            logs --tail 80 auths-1 auths-2 auths-3 || true
       - name: Run built Python wheel across replicas
         env:
           AUTHS_REFERENCE_ENDPOINT: https://localhost:8443

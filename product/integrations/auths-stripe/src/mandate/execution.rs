@@ -283,20 +283,20 @@ mod tests {
 mod kani_proofs {
     use super::*;
 
-    #[kani::proof]
-    fn unknown_never_releases_capability() {
-        let state = transition_payment_mandate(
-            PaymentMandateCapabilityState::Attempting,
-            PaymentMandateTransition::OutcomeBecameUnknown,
-        )
-        .unwrap();
-        assert_eq!(state, PaymentMandateCapabilityState::OutcomeUnknown);
-        assert!(state.consumes_slot());
+    fn any_state() -> PaymentMandateCapabilityState {
+        match kani::any::<u8>() % 7 {
+            0 => PaymentMandateCapabilityState::Reserved,
+            1 => PaymentMandateCapabilityState::Claimed,
+            2 => PaymentMandateCapabilityState::Attempting,
+            3 => PaymentMandateCapabilityState::Committed,
+            4 => PaymentMandateCapabilityState::Released,
+            5 => PaymentMandateCapabilityState::OutcomeUnknown,
+            _ => PaymentMandateCapabilityState::CustomerActionRequired,
+        }
     }
 
-    #[kani::proof]
-    fn only_success_commits_attempting_capability() {
-        let event = match kani::any::<u8>() % 9 {
+    fn any_event() -> PaymentMandateTransition {
+        match kani::any::<u8>() % 9 {
             0 => PaymentMandateTransition::Claim,
             1 => PaymentMandateTransition::BeginAttempt,
             2 => PaymentMandateTransition::ProviderSucceeded,
@@ -306,10 +306,66 @@ mod kani_proofs {
             6 => PaymentMandateTransition::ReconcileSucceeded,
             7 => PaymentMandateTransition::ReconcileReleased,
             _ => PaymentMandateTransition::ReconcileStillUnknown,
-        };
-        let next = transition_payment_mandate(PaymentMandateCapabilityState::Attempting, event);
-        if next == Some(PaymentMandateCapabilityState::Committed) {
-            assert_eq!(event, PaymentMandateTransition::ProviderSucceeded);
+        }
+    }
+
+    #[kani::proof]
+    fn unknown_never_releases_capability() {
+        let state = any_state();
+        let event = any_event();
+
+        // Recording ambiguity never frees the capability slot, from any state.
+        if let Some(next) =
+            transition_payment_mandate(state, PaymentMandateTransition::OutcomeBecameUnknown)
+        {
+            assert_eq!(next, PaymentMandateCapabilityState::OutcomeUnknown);
+            assert!(next.consumes_slot());
+        }
+
+        // An ambiguous capability leaves the slot-consuming set only on an
+        // explicit reconciled-release fact; nothing else may free it.
+        if let Some(next) =
+            transition_payment_mandate(PaymentMandateCapabilityState::OutcomeUnknown, event)
+            && !next.consumes_slot()
+        {
+            assert_eq!(event, PaymentMandateTransition::ReconcileReleased);
+        }
+
+        // Whole-kernel form: no state ever stops consuming its slot without a
+        // definite non-effect fact.
+        if let Some(next) = transition_payment_mandate(state, event)
+            && !next.consumes_slot()
+        {
+            assert!(matches!(
+                event,
+                PaymentMandateTransition::KnownFailureReleased
+                    | PaymentMandateTransition::ReconcileReleased
+            ));
+        }
+    }
+
+    #[kani::proof]
+    fn only_success_commits_attempting_capability() {
+        let state = any_state();
+        let event = any_event();
+        // Commitment is reachable only from an in-flight attempt via provider
+        // success, or from an ambiguous/pending capability via a reconciled
+        // success fact. Quantifying over the state as well as the event stops
+        // a new commit edge from any other state passing silently.
+        if transition_payment_mandate(state, event)
+            == Some(PaymentMandateCapabilityState::Committed)
+        {
+            assert!(matches!(
+                (state, event),
+                (
+                    PaymentMandateCapabilityState::Attempting,
+                    PaymentMandateTransition::ProviderSucceeded
+                ) | (
+                    PaymentMandateCapabilityState::OutcomeUnknown
+                        | PaymentMandateCapabilityState::CustomerActionRequired,
+                    PaymentMandateTransition::ReconcileSucceeded
+                )
+            ));
         }
     }
 }

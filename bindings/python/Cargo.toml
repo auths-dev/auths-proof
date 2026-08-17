@@ -17,6 +17,7 @@ auths-codec = { workspace = true, features = ["std"] }
 auths-custody.workspace = true
 auths-did-keri = { workspace = true, features = ["std"] }
 auths-did-key = { workspace = true, features = ["std"] }
+auths-errors = { workspace = true, features = ["std"] }
 auths-identity.workspace = true
 auths-identity-raw-key.workspace = true
 auths-lifecycle = { workspace = true, features = ["std"] }

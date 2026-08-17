@@ -4,7 +4,9 @@ use auths_model::{
     BudgetAlgebraId, BudgetCeiling, CanonicalAction, CapabilityId, MediaType, Permission,
     ProfileId, ProfileRef, ResourceId,
 };
-use auths_profile_api::{ActionProfile, ProfileContractError, ReviewDisplay};
+use auths_profile_api::{
+    ActionProfile, ProfileBudgetExpression, ProfileContractError, ReviewDisplay,
+};
 use auths_sdk::VerifiedAction;
 
 use crate::{
@@ -41,6 +43,9 @@ pub struct CreateRecordProfile;
 
 impl ActionProfile for CreateRecordProfile {
     type Command = VerifiedCreateRecordCommand;
+
+    /// `canonical_create` always declares one `numeric-ceiling-v1` unit.
+    const BUDGET_EXPRESSION: ProfileBudgetExpression = ProfileBudgetExpression::Expressible;
 
     fn canonicalize(&self, untrusted: &[u8]) -> Result<CanonicalAction, ProfileContractError> {
         let action =
@@ -85,6 +90,9 @@ pub struct ReadRecordProfile;
 
 impl ActionProfile for ReadRecordProfile {
     type Command = VerifiedReadRecordCommand;
+
+    /// `canonical_read` always declares one `numeric-ceiling-v1` unit.
+    const BUDGET_EXPRESSION: ProfileBudgetExpression = ProfileBudgetExpression::Expressible;
 
     fn canonicalize(&self, untrusted: &[u8]) -> Result<CanonicalAction, ProfileContractError> {
         let action =

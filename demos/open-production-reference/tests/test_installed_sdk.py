@@ -1,3 +1,18 @@
+"""Exercises the built Python wheel against the reference stack.
+
+The previous version called ``auths-sandbox-request`` and asserted
+``create`` returned an authority. Both are gone, and deliberately: the node
+answers ``create`` and ``delegate`` with ``core.unauthenticated-principal``
+because ``ProductionRequest.identity`` is unauthenticated bytes and there is no
+client authentication at that call site to require instead. That test asserted
+the fail-open the kernel rebuild removed.
+
+Authority originates from a trust anchor's signature and arrives inside the
+proof. ``auths-local-authority`` authors one offline against the same anchor the
+trusted context carries; the client imports it and calls ``execute``, the only
+verb the node answers.
+"""
+
 import base64
 import json
 import os
@@ -6,17 +21,32 @@ import tempfile
 
 import pytest
 
-from auths import create_auths
 from auths.profiles import (
     github_issue_address,
     opentofu_saved_plan_apply,
     postgresql_bounded_update,
 )
+from auths.service import create_service_client, import_authority
+
+
+def _decode(value: str) -> bytes:
+    return base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
+
+
+def _author(profile_id: str, body: bytes, agent: str) -> dict:
+    with tempfile.NamedTemporaryFile() as action:
+        action.write(body)
+        action.flush()
+        return json.loads(
+            subprocess.check_output(
+                ["auths-local-authority", profile_id, action.name, agent],
+                text=True,
+            )
+        )
 
 
 @pytest.mark.asyncio
 async def test_installed_python_completes_the_same_reference_flow():
-    decode = lambda value: base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
     endpoint = os.environ.get("AUTHS_REFERENCE_ENDPOINT", "https://localhost:8443")
     profiles = (
         ("opentofu", opentofu_saved_plan_apply()),
@@ -24,73 +54,63 @@ async def test_installed_python_completes_the_same_reference_flow():
         ("github", github_issue_address()),
     )
     for name, profile in profiles:
-        with tempfile.NamedTemporaryFile() as action:
-            action.write(f"exact {name} operation".encode())
-            action.flush()
-            generated = json.loads(
-                subprocess.check_output(
-                    ["auths-sandbox-request", action.name], text=True
-                )
-            )
-        human_identity = f"reference-python-{name}-human".encode()
-        agent_identity = f"reference-python-{name}-agent".encode()
-        human = create_auths(endpoint=endpoint, identity=human_identity, profile=profile)
-        authority = await human.create(decode(generated["request"]))
-        assert authority.kind == "authority"
-        delegator = create_auths(
-            endpoint=endpoint, identity=human_identity, profile=profile
+        authored = _author(
+            profile.id,
+            f"exact {name} operation".encode(),
+            f"reference-python-{name}-agent",
         )
-        delegated = await delegator.delegate(
-            authority, agent_identity, decode(generated["attenuation"])
-        )
-        assert delegated.kind == "authority"
-        agent = create_auths(endpoint=endpoint, identity=agent_identity, profile=profile)
-        completed = await agent.execute(delegated, decode(generated["action"]))
-        assert completed.kind == "completed"
-        verifier = create_auths(
-            endpoint=endpoint, identity=agent_identity, profile=profile
-        )
-        assert (await verifier.verify(completed.receipt)).kind == "verified"
-        assert (await verifier.execute(delegated, decode(generated["action"]))).kind == "denied"
 
-    with tempfile.NamedTemporaryFile() as action:
-        action.write(b"AUTHS-SANDBOX-RECOVER issue 104")
-        action.flush()
-        recovery = json.loads(
-            subprocess.check_output(
-                ["auths-sandbox-request", action.name], text=True
-            )
+        authority = import_authority(_decode(authored["proof"]))
+        assert authority.kind == "authority"
+
+        client = create_service_client(
+            endpoint=endpoint,
+            identity=f"reference-python-{name}-agent".encode(),
+            profile=profile,
         )
-    recovery_profile = github_issue_address()
-    recovery_human = create_auths(
-        endpoint=endpoint,
-        identity=b"reference-python-recovery-human",
-        profile=recovery_profile,
+        completed = await client.execute(authority, _decode(authored["action"]))
+        # Report WHY on refusal; a bare kind mismatch costs another CI round trip.
+        assert completed.kind == "completed", (
+            f"{name}: {completed.kind} {getattr(completed, 'code', '')}"
+        )
+
+        verified = await client.verify(completed.receipt)
+        assert verified.kind == "verified"
+
+        # The claim is keyed on (proof digest, action digest) and allows one
+        # effect, so replaying the identical pair is refused, not repeated.
+        replayed = await client.execute(authority, _decode(authored["action"]))
+        assert replayed.kind == "denied"
+
+
+@pytest.mark.asyncio
+async def test_installed_python_resolves_an_unknown_effect():
+    """A recoverable body leaves the outcome unknown; resuming resolves it.
+
+    ``Indeterminate`` exists precisely so a signed receipt can say the effect
+    state is unknown rather than assert a failure that may have applied.
+    """
+
+    endpoint = os.environ.get("AUTHS_REFERENCE_ENDPOINT", "https://localhost:8443")
+    profile = github_issue_address()
+    authored = _author(
+        profile.id,
+        b"AUTHS-SANDBOX-RECOVER issue 104",
+        "reference-python-recovery-agent",
     )
-    recovery_delegator = create_auths(
-        endpoint=endpoint,
-        identity=b"reference-python-recovery-human",
-        profile=recovery_profile,
-    )
-    recovery_authority = await recovery_human.create(decode(recovery["request"]))
-    recovery_delegated = await recovery_delegator.delegate(
-        recovery_authority,
-        b"reference-python-recovery-agent",
-        decode(recovery["attenuation"]),
-    )
-    recovery_agent = create_auths(
+
+    client = create_service_client(
         endpoint=endpoint,
         identity=b"reference-python-recovery-agent",
-        profile=recovery_profile,
+        profile=profile,
     )
-    unknown = await recovery_agent.execute(
-        recovery_delegated, decode(recovery["action"])
+    unknown = await client.execute(
+        import_authority(_decode(authored["proof"])),
+        _decode(authored["action"]),
     )
-    assert unknown.kind == "recoverable"
-    recovery_verifier = create_auths(
-        endpoint=endpoint,
-        identity=b"reference-python-recovery-agent",
-        profile=recovery_profile,
+    assert unknown.kind == "recoverable", (
+        f"recovery: {unknown.kind} {getattr(unknown, 'code', '')}"
     )
-    resumed = await recovery_verifier.resume(unknown.reference)
+
+    resumed = await client.resume(unknown.reference)
     assert resumed.kind == "completed"

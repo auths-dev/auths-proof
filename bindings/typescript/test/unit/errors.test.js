@@ -31,5 +31,8 @@ test("workflow and provider errors expose bounded recovery metadata", () => {
   const provider = new ProviderOperationError("unavailable", { operation: "kms-sign" });
   assert.equal(provider.family, "provider");
   assert.equal(provider.retry, "safe");
-  assert.equal(provider.effect, "none");
+  // BEHAVIOUR CHANGE (contract 4.1): the workflow layer's private effect axis
+  // (none|possible|occurred) is deleted. `none` was a second spelling of
+  // `not-applied`; the value is the same, the word is now the Rust-owned one.
+  assert.equal(provider.effect, "not-applied");
 });

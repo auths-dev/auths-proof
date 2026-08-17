@@ -21,6 +21,12 @@ seed_env = "AUTHS_LOCAL_SEED"
 otlp_endpoint = "http://otel-collector:4317"
 service_name = "auths-node"
 
+[verification]
+# Canonical TrustedContext bytes (auths_codec::encode_verifier_context).
+# Carries the trust anchors, accepted registries, status snapshots, assurance
+# policy, and verifier limits every authorization decision is made against.
+trusted_context_path = "/run/config/trusted-context.cbor"
+
 [profiles]
 opentofu_saved_plan_apply = true
 postgresql_bounded_update = true

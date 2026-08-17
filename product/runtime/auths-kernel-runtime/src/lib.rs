@@ -2,15 +2,15 @@
 
 #![forbid(unsafe_code)]
 
-use auths_model::{Audience, CanonicalAction, Challenge, DenialReason, Timestamp, VerifierContext};
+use auths_model::{Audience, CanonicalAction, Challenge, DenialReason, Timestamp, TrustedContext};
 use auths_ports::{PrincipalMethod, SignatureSuite};
 use auths_registries::ImmutableRegistries;
 use auths_verifier::{VerificationOutcome, verify};
 use std::fmt;
 
-/// Owned immutable verifier context and executable method registries.
+/// Owned immutable trusted context and executable method registries.
 pub struct AuthsKernel {
-    context_template: VerifierContext,
+    context_template: TrustedContext,
     principal_methods: Vec<Box<dyn PrincipalMethod + Send + Sync>>,
     signature_suites: Vec<Box<dyn SignatureSuite + Send + Sync>>,
 }
@@ -22,7 +22,7 @@ impl AuthsKernel {
     ///
     /// Returns a configuration error when either executable registry is empty.
     pub fn new(
-        context_template: VerifierContext,
+        context_template: TrustedContext,
         principal_methods: Vec<Box<dyn PrincipalMethod + Send + Sync>>,
         signature_suites: Vec<Box<dyn SignatureSuite + Send + Sync>>,
     ) -> Result<Self, KernelConfigurationError> {
@@ -51,7 +51,7 @@ impl AuthsKernel {
         expected_audience: Audience,
         expected_challenge: Challenge,
         evaluation_time: Timestamp,
-    ) -> Result<(VerificationOutcome, VerifierContext), DenialReason> {
+    ) -> Result<(VerificationOutcome, TrustedContext), DenialReason> {
         let context = self
             .context_template
             .for_request(expected_audience, expected_challenge, evaluation_time)
@@ -98,7 +98,7 @@ impl AuthsKernel {
 
     /// Returns the immutable context template.
     #[must_use]
-    pub const fn context_template(&self) -> &VerifierContext {
+    pub const fn context_template(&self) -> &TrustedContext {
         &self.context_template
     }
 }

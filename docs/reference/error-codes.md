@@ -18,6 +18,9 @@ Every row is generated from the Rust-owned registry. `possible` effects are neve
 | `core.observation-inconclusive` | `resume` | possible / unknown | `ResumeAndReconcile` | Available evidence cannot prove effect or non-effect for the exact request. |
 | `core.workflow-terminal` | `resume` | notapplied / never | `InspectReceipt` | The workflow has already reached an immutable terminal state. |
 | `core.internal-invariant` | `execute` | notapplied / never | `ContactSupport` | Auths rejected an impossible internal state before an effect. |
+| `core.authorization-denied` | `verify` | notapplied / never | `SatisfyCondition` | Available facts prove the supplied proof does not authorize the exact action. |
+| `core.authorization-indeterminate` | `verify` | notapplied / conditional | `SatisfyCondition` | A required authorization fact was unavailable, so no decision was reached before any effect. |
+| `core.unauthenticated-principal` | `create` | notapplied / never | `CorrectInput` | The request asserts a principal the runtime cannot authenticate, so no authority is issued. |
 | `mcp.invalid-handler-output` | `execute` | possible / unknown | `ResumeAndReconcile` | The invoked handler returned an invalid or oversized bounded result. |
 | `mcp.handler-failed` | `execute` | possible / unknown | `ResumeAndReconcile` | The invoked handler failed without conclusive no-effect evidence. |
 | `mcp.handler-timeout` | `execute` | possible / unknown | `ResumeAndReconcile` | The invoked handler did not produce conclusive effect evidence before its deadline. |

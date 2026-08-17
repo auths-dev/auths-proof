@@ -15,6 +15,7 @@ from typing import (
     runtime_checkable,
 )
 
+from ._boundary import boundary
 from ._native import (
     compact_identity_descriptor_v1,
     decode_identity_descriptor_v1,
@@ -379,6 +380,7 @@ class Ed25519SignatureSuite:
         verify_ed25519_preimage_v1(material[0].bytes, preimage, signature)
 
 
+@boundary("Auths identity packet is not decodable")
 def decode_identity(packet: bytes) -> DecodedIdentity:
     packet_bytes = bytes(packet)
     try:
@@ -407,6 +409,7 @@ def decode_identity(packet: bytes) -> DecodedIdentity:
     )
 
 
+@boundary("Auths identity descriptor is not encodable")
 def encode_identity(
     method_id: str,
     identity_id: str,
@@ -419,6 +422,7 @@ def encode_identity(
     )
 
 
+@boundary("Auths raw key identity is not encodable")
 def encode_raw_key_identity(suite_id: str, public_key: bytes) -> bytes:
     return bytes(raw_key_identity_v2(suite_id, public_key))
 

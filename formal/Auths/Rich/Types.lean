@@ -22,6 +22,8 @@ structure Vocabulary where
   StatusMethodCarrier : Type u
   AssuranceCarrier : Type u
   GrantIdCarrier : Type u
+  ExtensionIdCarrier : Type u
+  ExtensionBodyCarrier : Type u
   principalDecidableEq : DecidableEq PrincipalCarrier
   profileDecidableEq : DecidableEq ProfileCarrier
   permissionDecidableEq : DecidableEq PermissionCarrier
@@ -31,6 +33,19 @@ structure Vocabulary where
   statusMethodDecidableEq : DecidableEq StatusMethodCarrier
   assuranceDecidableEq : DecidableEq AssuranceCarrier
   grantIdDecidableEq : DecidableEq GrantIdCarrier
+  extensionIdDecidableEq : DecidableEq ExtensionIdCarrier
+  extensionBodyDecidableEq : DecidableEq ExtensionBodyCarrier
+  /-- Exact order used by Rust's derived `Ord` for extension identifiers. -/
+  extensionIdLinearOrder : LinearOrder ExtensionIdCarrier
+  /-- Exact order used by Rust's derived `Ord` for extension payload bytes. -/
+  extensionBodyLinearOrder : LinearOrder ExtensionBodyCarrier
+  /-- Size of an extension payload, in the units Rust bounds.
+
+  `CriticalExtension::new` rejects a payload longer than
+  `HARD_MAX_EXTENSION_BYTES`. Without a measure the opaque carrier cannot state
+  that bound, so a Lean inhabitant could exceed it and the claim that this type
+  is exactly the Rust-constructible image would be too strong. -/
+  extensionBodySize : ExtensionBodyCarrier → Nat
 
 structure Principal (v : Vocabulary) where
   value : v.PrincipalCarrier
@@ -58,6 +73,12 @@ structure AssurancePolicy (v : Vocabulary) where
 
 structure GrantId (v : Vocabulary) where
   value : v.GrantIdCarrier
+
+structure ExtensionId (v : Vocabulary) where
+  value : v.ExtensionIdCarrier
+
+structure ExtensionBody (v : Vocabulary) where
+  value : v.ExtensionBodyCarrier
 
 instance (v : Vocabulary) : DecidableEq (Principal v) :=
   fun left right =>
@@ -113,6 +134,18 @@ instance (v : Vocabulary) : DecidableEq (GrantId v) :=
     | isTrue equality => isTrue (by cases left; cases right; simp_all)
     | isFalse different => isFalse (by intro equality; exact different (by cases equality; rfl))
 
+instance (v : Vocabulary) : DecidableEq (ExtensionId v) :=
+  fun left right =>
+    match v.extensionIdDecidableEq left.value right.value with
+    | isTrue equality => isTrue (by cases left; cases right; simp_all)
+    | isFalse different => isFalse (by intro equality; exact different (by cases equality; rfl))
+
+instance (v : Vocabulary) : DecidableEq (ExtensionBody v) :=
+  fun left right =>
+    match v.extensionBodyDecidableEq left.value right.value with
+    | isTrue equality => isTrue (by cases left; cases right; simp_all)
+    | isFalse different => isFalse (by intro equality; exact different (by cases equality; rfl))
+
 /--
 The semantic finite-set carrier.  Rust's sorted bounded vectors are connected
 to this extensional value by the production representation bridge.
@@ -133,6 +166,131 @@ structure FreshnessLimit where
 structure BudgetCeiling (v : Vocabulary) where
   algebra : BudgetAlgebra v
   value : Nat
+
+/--
+One critical extension: an identifier and its opaque canonical payload.
+
+Mirrors `auths_model::CriticalExtension`.  The payload is an opaque carrier
+because the kernel never interprets it — a critical extension is precisely a
+constraint an unaware verifier must not ignore, so the only thing the kernel
+may do with it is compare it.
+-/
+structure CriticalExtension (v : Vocabulary) where
+  id : ExtensionId v
+  body : ExtensionBody v
+
+instance (v : Vocabulary) : DecidableEq (CriticalExtension v) :=
+  fun left right =>
+    match decEq left.id right.id, decEq left.body right.body with
+    | isTrue idEquality, isTrue bodyEquality =>
+        isTrue (by cases left; cases right; simp_all)
+    | isFalse different, _ =>
+        isFalse (by intro equality; exact different (by cases equality; rfl))
+    | _, isFalse different =>
+        isFalse (by intro equality; exact different (by cases equality; rfl))
+
+/-- Lexicographic order of Rust's derived `(ExtensionId, Vec<u8>)` order. -/
+def criticalExtensionLt {v : Vocabulary}
+    (left right : CriticalExtension v) : Prop := by
+  letI : LinearOrder v.ExtensionIdCarrier := v.extensionIdLinearOrder
+  letI : LinearOrder v.ExtensionBodyCarrier := v.extensionBodyLinearOrder
+  exact left.id.value < right.id.value ∨
+    (left.id.value = right.id.value ∧ left.body.value < right.body.value)
+
+instance {v : Vocabulary} (left right : CriticalExtension v) :
+    Decidable (criticalExtensionLt left right) := by
+  unfold criticalExtensionLt
+  letI : LinearOrder v.ExtensionIdCarrier := v.extensionIdLinearOrder
+  letI : LinearOrder v.ExtensionBodyCarrier := v.extensionBodyLinearOrder
+  infer_instance
+
+/-- Mirrors Rust `auths_model::HARD_MAX_EXTENSIONS`. -/
+def hardMaxExtensions : Nat := 32
+
+/-- Mirrors Rust `auths_model::HARD_MAX_EXTENSION_BYTES`. -/
+def hardMaxExtensionBytes : Nat := 65536
+
+/--
+A canonical critical-extension set.
+
+`CriticalExtensions::new` sorts its input, rejects a repeated identifier with
+`ModelError::DuplicateExtension`, and rejects more than
+`HARD_MAX_EXTENSIONS` entries.  Both rejections are carried here as
+constructor obligations, so a value of this type is exactly a value the Rust
+constructor would have accepted.
+
+The entries are an ordered sequence rather than a `FiniteSet` deliberately.
+`critical_extensions_equal` compares the two canonical vectors **positionally**;
+a set-valued model would identify `[a, b]` with `[b, a]` and therefore report
+attenuation on a pair the shipping kernel denies, which is the model being
+weaker than the code. Duplicate-freedom by identifier makes the sequence a
+faithful map from identifier to payload. `sorted` additionally records the
+exact order Rust establishes, so this type excludes non-constructor-reachable
+permutations rather than merely assuming canonicality in prose.
+-/
+structure CriticalExtensions (v : Vocabulary) where
+  entries : List (CriticalExtension v)
+  sorted : entries.Pairwise criticalExtensionLt
+  distinctIds : entries.Pairwise fun left right => left.id ≠ right.id
+  bounded : entries.length ≤ hardMaxExtensions
+  /-- Every payload is within `HARD_MAX_EXTENSION_BYTES`, as
+  `CriticalExtension::new` enforces. -/
+  bodiesBounded : ∀ entry ∈ entries,
+    v.extensionBodySize entry.body.value ≤ hardMaxExtensionBytes
+
+/-- Two extension sets are equal exactly when their canonical entries are. -/
+@[ext] theorem CriticalExtensions.ext {v : Vocabulary}
+    {left right : CriticalExtensions v}
+    (entries : left.entries = right.entries) : left = right := by
+  cases left
+  cases right
+  cases entries
+  rfl
+
+instance (v : Vocabulary) : DecidableEq (CriticalExtensions v) :=
+  fun left right =>
+    if entries : left.entries = right.entries then
+      isTrue (CriticalExtensions.ext entries)
+    else
+      isFalse fun equality => entries (by rw [equality])
+
+/-- The empty set, the value `CriticalExtensions::empty` constructs. -/
+def CriticalExtensions.empty (v : Vocabulary) : CriticalExtensions v where
+  entries := []
+  sorted := List.Pairwise.nil
+  distinctIds := List.Pairwise.nil
+  bounded := by simp [hardMaxExtensions]
+  bodiesBounded := by simp
+
+/-- The one-element set, the smallest thing a delegate could try to drop. -/
+def CriticalExtensions.singleton {v : Vocabulary}
+    (extension : CriticalExtension v)
+    (bodyBounded :
+      v.extensionBodySize extension.body.value ≤ hardMaxExtensionBytes) :
+    CriticalExtensions v where
+  entries := [extension]
+  sorted := by simp
+  distinctIds := by simp
+  bounded := by simp [hardMaxExtensions]
+  bodiesBounded := by simpa using bodyBounded
+
+/--
+The carrier is not a subsingleton.
+
+Every falsifiability theorem about critical extensions is universally
+quantified over a differing pair, so it would be vacuous if
+`CriticalExtensions v` had at most one inhabitant.  It does not, for every
+vocabulary that can name a single extension.
+-/
+theorem CriticalExtensions.empty_ne_singleton {v : Vocabulary}
+    (extension : CriticalExtension v)
+    (bodyBounded :
+      v.extensionBodySize extension.body.value ≤ hardMaxExtensionBytes) :
+    CriticalExtensions.empty v ≠
+      CriticalExtensions.singleton extension bodyBounded := by
+  intro equality
+  have entries := congrArg CriticalExtensions.entries equality
+  simp [CriticalExtensions.empty, CriticalExtensions.singleton] at entries
 
 inductive StatusPolicy (v : Vocabulary) where
   | expiryOnly
@@ -162,6 +320,14 @@ structure AuthorityScope (v : Vocabulary) where
   budget : Option (BudgetCeiling v)
   status : StatusPolicy v
   assurance : AssurancePolicy v
+  /--
+  The critical-extension set this authority has been pinned to, if any.
+
+  `EffectiveAuthority::from_anchor` starts at `None`: a fresh trust anchor has
+  not yet fixed a set, so its first edge may declare one.  Every accepted edge
+  stores `Some`, and from then on the set may only be preserved exactly.
+  -/
+  extensions : Option (CriticalExtensions v)
 
 structure ChainState (v : Vocabulary) where
   root : Principal v
@@ -191,6 +357,8 @@ structure Grant (v : Vocabulary) where
   parent : Option (GrantId v)
   status : StatusPolicy v
   assurance : AssurancePolicy v
+  /-- The complete canonical critical-extension set the grant declares. -/
+  extensions : CriticalExtensions v
 
 structure Action (v : Vocabulary) where
   actor : Principal v
@@ -207,8 +375,15 @@ structure EvidenceFacts (v : Vocabulary) where
   statusAge : Nat
   assurance : AssurancePolicy v
 
+/-- Trusted profile-registry classification, never an action-controlled bit. -/
+inductive BudgetExpression where
+  | expressible
+  | inexpressible
+  deriving DecidableEq, Repr
+
 structure AuthorizationFacts (v : Vocabulary) where
   action : Action v
+  budgetExpression : BudgetExpression
   evidence : EvidenceFacts v
 
 end Auths.Rich

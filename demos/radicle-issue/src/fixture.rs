@@ -11,7 +11,7 @@ use auths_model::{
     PrincipalId, PrincipalMethodId, PrincipalStatusSnapshot, ProfilePolicyId, ProofBundle,
     ProofRef, ResourceId, ResourceMatcherId, SignatureBytes, SignatureDescriptor, SignatureSuiteId,
     StatementRef, StatusPolicy, StatusSnapshotId, Timestamp, TrustAnchor, TrustAnchorId,
-    ValidityWindow, VerificationMethod, VerifierContext, VerifierLimits,
+    TrustedContext, ValidityWindow, VerificationMethod, VerifierLimits,
 };
 use auths_ports::{PrincipalMethod, SignatureSuite};
 use auths_profile_api::ActionProfile as _;
@@ -242,7 +242,7 @@ pub(crate) fn authorization_fixture_with_seeds(
         vec![ProfilePolicyId::parse(PROFILE_POLICY).unwrap()],
     )
     .unwrap();
-    let context = VerifierContext::new(
+    let context = TrustedContext::new(
         configuration,
         CompositionRequirement::exact(plan_identifier),
         vec![anchor],

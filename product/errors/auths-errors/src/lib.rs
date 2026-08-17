@@ -227,6 +227,123 @@ pub fn registry() -> impl Iterator<Item = &'static ErrorDefinition> {
         .chain(CUSTODY_ERRORS)
 }
 
+/// Registry code carried by an authorization outcome that denied the request.
+pub const AUTHORIZATION_DENIED_CODE: &str = "core.authorization-denied";
+/// Registry code carried by an authorization outcome the verifier could not decide.
+pub const AUTHORIZATION_INDETERMINATE_CODE: &str = "core.authorization-indeterminate";
+
+/// The stable registry codes for outcomes that do not carry one themselves.
+///
+/// A verifier verdict names itself with a kernel diagnostic (`permission-not-granted`)
+/// and a runtime outcome names itself with a state word (`denied`). Neither is a
+/// registry code, so something has to say which registry code the outcome
+/// carries. That answer is here, once, and every consumer — the reference
+/// runtime, and both language bindings through the generated projection — reads
+/// it rather than restating it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OutcomeCodes {
+    pub denied: &'static str,
+    pub indeterminate: &'static str,
+}
+
+#[must_use]
+pub const fn outcome_codes() -> OutcomeCodes {
+    OutcomeCodes {
+        denied: AUTHORIZATION_DENIED_CODE,
+        indeterminate: AUTHORIZATION_INDETERMINATE_CODE,
+    }
+}
+
+/// Operation reported for a code this build's registry does not contain.
+pub const UNRECOGNIZED_CODE_OPERATION: &str = "execute";
+/// Stage reported for a code this build's registry does not contain.
+pub const UNRECOGNIZED_CODE_STAGE: &str = "unrecognized-code";
+
+/// The registry's own classification of one stable code.
+///
+/// This is the single owner of the answer to "what does this code mean?".
+/// Transports and language bindings project it; they never recompute it, and
+/// they never define a fourth [`EffectState`].
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CodeClassification {
+    /// False when this build's registry does not contain the code.
+    pub known: bool,
+    pub family: ErrorFamily,
+    pub operation: &'static str,
+    pub stages: &'static [&'static str],
+    pub retry: RetryClass,
+    pub effect: EffectState,
+    pub recommended_action: RecommendedAction,
+}
+
+impl CodeClassification {
+    /// Reports the first declared stage, which is the only stage for every
+    /// single-stage definition and the default for the rest.
+    #[must_use]
+    pub fn stage(&self) -> &'static str {
+        self.stages
+            .first()
+            .copied()
+            .unwrap_or(UNRECOGNIZED_CODE_STAGE)
+    }
+}
+
+/// Classifies one stable code, failing closed for a code this build does not
+/// know.
+///
+/// An unrecognized code is reported as [`EffectState::Possible`] with
+/// [`RetryClass::Unknown`] and [`RecommendedAction::ResumeAndReconcile`]. A
+/// newer code minted by a newer Auths build therefore reaches the caller
+/// intact and is never swallowed, never downgraded to
+/// [`EffectState::NotApplied`], and never renamed to a fourth effect value.
+///
+/// When a definition permits several outcomes the projection reports the one a
+/// caller must plan for: `Possible` dominates `Applied`, which dominates
+/// `NotApplied`, because a caller who must reconcile has strictly more work
+/// than one who must not repeat, who in turn has strictly more work than one
+/// for whom nothing happened.
+#[must_use]
+pub fn classify(code: &str) -> CodeClassification {
+    let Some(definition) = registry().find(|candidate| candidate.code == code) else {
+        return CodeClassification {
+            known: false,
+            family: ErrorFamily::Runtime,
+            operation: UNRECOGNIZED_CODE_OPERATION,
+            stages: UNRECOGNIZED_CODE_STAGES,
+            retry: RetryClass::Unknown,
+            effect: EffectState::Possible,
+            recommended_action: RecommendedAction::ResumeAndReconcile,
+        };
+    };
+    let mut dominant = definition.outcomes[0];
+    for outcome in definition.outcomes {
+        if effect_rank(outcome.effect) > effect_rank(dominant.effect) {
+            dominant = *outcome;
+        }
+    }
+    CodeClassification {
+        known: true,
+        family: definition.family,
+        operation: definition.operation,
+        stages: definition.stages,
+        retry: dominant.retry,
+        effect: dominant.effect,
+        recommended_action: definition.recommended_action,
+    }
+}
+
+const UNRECOGNIZED_CODE_STAGES: &[&str] = &[UNRECOGNIZED_CODE_STAGE];
+
+const fn effect_rank(effect: EffectState) -> u8 {
+    match effect {
+        EffectState::NotApplied => 0,
+        EffectState::Applied => 1,
+        EffectState::Possible => 2,
+    }
+}
+
 /// Validates namespaces, identities, bounds, and recovery combinations.
 ///
 /// # Errors
@@ -535,6 +652,45 @@ const CORE_ERRORS: &[ErrorDefinition] = &[
         "Internal invariant failure",
         "Auths rejected an impossible internal state before an effect.",
         "core-internal-invariant",
+    ),
+    definition(
+        "core.authorization-denied",
+        ErrorFamily::Input,
+        "core",
+        "verify",
+        &["authorization"],
+        NOT_APPLIED_NEVER,
+        RecommendedAction::SatisfyCondition,
+        false,
+        "Authorization denied",
+        "Available facts prove the supplied proof does not authorize the exact action.",
+        "core-authorization-denied",
+    ),
+    definition(
+        "core.authorization-indeterminate",
+        ErrorFamily::State,
+        "core",
+        "verify",
+        &["authorization"],
+        NOT_APPLIED_CONDITIONAL,
+        RecommendedAction::SatisfyCondition,
+        false,
+        "Authorization indeterminate",
+        "A required authorization fact was unavailable, so no decision was reached before any effect.",
+        "core-authorization-indeterminate",
+    ),
+    definition(
+        "core.unauthenticated-principal",
+        ErrorFamily::Input,
+        "core",
+        "create",
+        &["authentication"],
+        NOT_APPLIED_NEVER,
+        RecommendedAction::CorrectInput,
+        false,
+        "Unauthenticated principal",
+        "The request asserts a principal the runtime cannot authenticate, so no authority is issued.",
+        "core-unauthenticated-principal",
     ),
 ];
 
@@ -986,6 +1142,73 @@ mod tests {
             ErrorEnvelope::parse(value),
             Err(ErrorContractError::UnsupportedOutcome)
         );
+    }
+
+    #[test]
+    fn classify_projects_the_registry_for_every_known_code() {
+        for definition in registry() {
+            let classification = classify(definition.code);
+            assert!(
+                classification.known,
+                "{} is in the registry",
+                definition.code
+            );
+            assert_eq!(classification.family, definition.family);
+            assert_eq!(classification.operation, definition.operation);
+            assert_eq!(classification.stages, definition.stages);
+            assert_eq!(
+                classification.recommended_action,
+                definition.recommended_action
+            );
+            assert!(
+                definition.outcomes.contains(&AllowedOutcome {
+                    retry: classification.retry,
+                    effect: classification.effect,
+                }),
+                "{} projected an outcome it does not declare",
+                definition.code
+            );
+            for outcome in definition.outcomes {
+                assert!(
+                    effect_rank(outcome.effect) <= effect_rank(classification.effect),
+                    "{} projected a less demanding effect than it permits",
+                    definition.code
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn classify_fails_closed_for_a_code_this_build_does_not_know() {
+        let classification = classify("future.not-yet-invented");
+        assert!(!classification.known);
+        assert_eq!(classification.effect, EffectState::Possible);
+        assert_eq!(classification.retry, RetryClass::Unknown);
+        assert_eq!(
+            classification.recommended_action,
+            RecommendedAction::ResumeAndReconcile
+        );
+        assert_eq!(classification.operation, UNRECOGNIZED_CODE_OPERATION);
+        assert_eq!(classification.stage(), UNRECOGNIZED_CODE_STAGE);
+    }
+
+    #[test]
+    fn classify_never_downgrades_an_unknown_code_to_not_applied() {
+        for code in [
+            "",
+            "core.",
+            "mcp.handler-failed-v2",
+            "x".repeat(200).as_str(),
+        ] {
+            let classification = classify(code);
+            if !classification.known {
+                assert_eq!(
+                    classification.effect,
+                    EffectState::Possible,
+                    "unknown code {code:?} must fail closed"
+                );
+            }
+        }
     }
 
     #[test]

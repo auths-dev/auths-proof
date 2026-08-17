@@ -4,117 +4,140 @@
     {
       "id": "validity-start-direction",
       "operator": "Reverse the inclusive lower-bound comparison.",
-      "witness": "A child beginning after its parent must remain contained."
+      "witness": "A child beginning before its parent must be rejected.",
+      "lean_declaration": "Auths.Rich.Mutations.validity_start_direction"
     },
     {
       "id": "validity-end-direction",
       "operator": "Reverse the inclusive upper-bound comparison.",
-      "witness": "A child ending before its parent must remain contained."
+      "witness": "A child ending after its parent must be rejected.",
+      "lean_declaration": "Auths.Rich.Mutations.validity_end_direction"
     },
     {
       "id": "permission-subset-direction",
       "operator": "Reverse child and parent in permission subset evaluation.",
-      "witness": "A singleton child is permitted by a strict two-element parent."
+      "witness": "A singleton child is permitted by a strict two-element parent.",
+      "lean_declaration": "Auths.Rich.Mutations.permission_subset_direction"
     },
     {
       "id": "audience-subset-direction",
       "operator": "Reverse child and parent in audience subset evaluation.",
-      "witness": "A singleton child is permitted by a strict two-element parent."
+      "witness": "A singleton child is permitted by a strict two-element parent.",
+      "lean_declaration": "Auths.Rich.Mutations.audience_subset_direction"
     },
     {
       "id": "permission-membership-decision",
       "operator": "Negate permission membership.",
-      "witness": "A permission present in the authority set must be found."
+      "witness": "A permission present in the authority set must be found.",
+      "lean_declaration": "Auths.Rich.Mutations.permission_membership_decision"
     },
     {
       "id": "audience-membership-decision",
       "operator": "Negate audience membership.",
-      "witness": "An audience present in the authority set must be found."
+      "witness": "An audience present in the authority set must be found.",
+      "lean_declaration": "Auths.Rich.Mutations.audience_membership_decision"
     },
     {
       "id": "body-digest-membership-decision",
       "operator": "Negate body-digest membership.",
-      "witness": "A digest present in an allowed-body set must be found."
+      "witness": "A digest present in an allowed-body set must be found.",
+      "lean_declaration": "Auths.Rich.Mutations.body_digest_membership_decision"
     },
     {
       "id": "body-digest-subset-direction",
       "operator": "Reverse child and parent in body-digest subset evaluation.",
-      "witness": "A singleton digest set attenuates a strict two-element parent."
+      "witness": "A singleton digest set attenuates a strict two-element parent.",
+      "lean_declaration": "Auths.Rich.Mutations.body_digest_subset_direction"
     },
     {
       "id": "action-exact-equality",
       "operator": "Accept a different digest for an exact-body constraint.",
-      "witness": "Distinct 32-byte body digests must not compare equal."
+      "witness": "Distinct 32-byte body digests must not compare equal.",
+      "lean_declaration": "Auths.Rich.Mutations.action_exact_equality"
     },
     {
       "id": "action-constructor-fallback",
       "operator": "Accept a multi-digest allowed-body set beneath an exact-body parent.",
-      "witness": "A two-digest set admits more actions than an exact constraint."
+      "witness": "A two-digest set admits more actions than an exact constraint.",
+      "lean_declaration": "Auths.Rich.Mutations.action_constructor_fallback"
     },
     {
       "id": "action-singleton-exact-rejection",
       "operator": "Reject a singleton allowed-body set beneath its equivalent exact-body parent.",
-      "witness": "Allowed({d}) and Exact(d) admit the same canonical body digest."
+      "witness": "Allowed({d}) and Exact(d) admit the same canonical body digest.",
+      "lean_declaration": "Auths.Rich.Mutations.action_singleton_exact_rejection"
     },
     {
       "id": "budget-value-direction",
       "operator": "Reverse the numeric budget ceiling comparison.",
-      "witness": "A lower child ceiling attenuates a higher parent ceiling."
+      "witness": "A child ceiling above its parent must be rejected.",
+      "lean_declaration": "Auths.Rich.Mutations.budget_value_direction"
     },
     {
       "id": "budget-algebra-equality",
       "operator": "Ignore the budget algebra identifier.",
-      "witness": "Equal numeric values from different algebras are incomparable."
+      "witness": "Equal numeric values from different algebras are incomparable.",
+      "lean_declaration": "Auths.Rich.Mutations.budget_algebra_equality"
     },
     {
       "id": "optional-budget-bounded-parent",
       "operator": "Allow an unbounded child beneath a bounded parent.",
-      "witness": "None is top and cannot attenuate Some."
+      "witness": "None is top and cannot attenuate Some.",
+      "lean_declaration": "Auths.Rich.Mutations.optional_budget_bounded_parent"
     },
     {
       "id": "optional-budget-no-request",
-      "operator": "Treat a missing action budget request as an unbounded child authority.",
-      "witness": "No requested spend is covered by every authority ceiling."
+      "operator": "Treat a missing action budget request as vacuously covered by a bounded ceiling.",
+      "witness": "An absent request states no bound, so a bounded ceiling does not cover it.",
+      "lean_declaration": "Auths.Rich.Mutations.optional_budget_no_request"
     },
     {
       "id": "status-age-direction",
       "operator": "Reverse the maximum status age comparison.",
-      "witness": "A fresher child requirement attenuates a less-fresh parent."
+      "witness": "A child allowing older status evidence than its parent must be rejected.",
+      "lean_declaration": "Auths.Rich.Mutations.status_age_direction"
     },
     {
       "id": "status-method-equality",
       "operator": "Ignore the status method identifier.",
-      "witness": "Snapshot policies from different methods are incomparable."
+      "witness": "Snapshot policies from different methods are incomparable.",
+      "lean_declaration": "Auths.Rich.Mutations.status_method_equality"
     },
     {
       "id": "profile-version-equality",
       "operator": "Ignore the profile version.",
-      "witness": "The same profile identifier at two versions is not exact."
+      "witness": "The same profile identifier at two versions is not exact.",
+      "lean_declaration": "Auths.Rich.Mutations.profile_version_equality"
     },
     {
       "id": "assurance-equality",
       "operator": "Treat distinct assurance policy identifiers as equal.",
-      "witness": "Assurance attenuation requires exact policy identity."
+      "witness": "Assurance attenuation requires exact policy identity.",
+      "lean_declaration": "Auths.Rich.Mutations.assurance_equality"
     },
     {
       "id": "critical-extension-equality",
       "operator": "Ignore changes to a critical extension payload.",
-      "witness": "Target V1 requires the complete canonical critical-extension set to remain exactly equal."
+      "witness": "Target V1 requires the complete canonical critical-extension set to remain exactly equal.",
+      "lean_declaration": "Auths.Rich.Mutations.critical_extension_equality"
     },
     {
       "id": "delegation-depth-strictness",
       "operator": "Accept equal parent and child delegation depth.",
-      "witness": "Every accepted child must strictly reduce remaining depth."
+      "witness": "Every accepted child must strictly reduce remaining depth.",
+      "lean_declaration": "Auths.Rich.Mutations.delegation_depth_strictness"
     },
     {
       "id": "principal-linkage-equality",
       "operator": "Treat distinct principals using the same DID method as equal.",
-      "witness": "Grant issuer linkage requires the complete principal identifier."
+      "witness": "Grant issuer linkage requires the complete principal identifier.",
+      "lean_declaration": "Auths.Rich.Mutations.principal_linkage_equality"
     },
     {
       "id": "grant-linkage-equality",
       "operator": "Treat any two present grant identifiers as equal.",
-      "witness": "Parent linkage requires the exact 32-byte grant identifier."
+      "witness": "Parent linkage requires the exact 32-byte grant identifier.",
+      "lean_declaration": "Auths.Rich.Mutations.grant_linkage_equality"
     }
   ]
 }

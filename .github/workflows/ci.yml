@@ -112,7 +112,7 @@ jobs:
 
   formal-update-gate:
     name: generated artifacts current
-    if: always()
+    if: ${{ !cancelled() }}
     needs: [ci-plan, formal-update-preflight]
     runs-on: ubuntu-latest
     steps:
@@ -135,13 +135,35 @@ jobs:
             exit 1
           fi
 
-  authoritative-run:
-    name: authoritative implementation
+  repository-preflight:
+    name: repository preflight
     needs: [ci-plan, formal-update-gate]
     if: >-
-      always() &&
+      !cancelled() &&
+      needs.ci-plan.result == 'success' &&
+      needs.formal-update-gate.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust-cache
+        with:
+          toolchain: 1.97.1
+          components: rustfmt, clippy
+      - name: Fail fast on repository-wide deterministic gates
+        run: cargo xtask ci preflight
+
+  authoritative-run:
+    name: authoritative implementation
+    needs: [ci-plan, formal-update-gate, repository-preflight]
+    if: >-
+      !cancelled() &&
       needs.ci-plan.result == 'success' &&
       needs.formal-update-gate.result == 'success' &&
+      needs.repository-preflight.result == 'success' &&
       needs.ci-plan.outputs.authoritative_required == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 120
@@ -203,11 +225,12 @@ jobs:
 
   formal-translation-run:
     name: formal-translation implementation
-    needs: [ci-plan, formal-update-gate]
+    needs: [ci-plan, formal-update-gate, repository-preflight]
     if: >-
-      always() &&
+      !cancelled() &&
       needs.ci-plan.result == 'success' &&
       needs.formal-update-gate.result == 'success' &&
+      needs.repository-preflight.result == 'success' &&
       needs.ci-plan.outputs.formal_translation_required == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 120
@@ -234,6 +257,7 @@ jobs:
       - uses: ./.github/actions/setup-rust-cache
         with:
           toolchain: 1.97.1
+          compiler-cache: "false"
       - name: Check production source closure before formal setup
         if: github.event_name != 'pull_request'
         run: >-
@@ -303,12 +327,9 @@ jobs:
           --run-attempt "${{ github.run_attempt }}"
           --base-sha "${{ github.event.pull_request.base.sha }}"
           --head-sha "${{ github.event.pull_request.head.sha }}"
-      - name: Run full read-only verification when the PR is already reproducible
-        if: steps.formal-update.outputs.update_required == 'false'
-        env:
-          AUTHS_AENEAS_BIN: ${{ github.workspace }}/target/formal-tools/bin/aeneas
-          AUTHS_CHARON_BIN: ${{ github.workspace }}/target/formal-tools/bin/charon
-        run: cargo xtask ci formal-translation
+      - name: Run semantic and bounded checks without reproducing a second time
+        if: github.event_name == 'pull_request'
+        run: cargo xtask ci formal-post-qualification
       - name: Preserve the bounded generated update
         if: steps.formal-update.outputs.update_required == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -336,11 +357,12 @@ jobs:
 
   compliance-run:
     name: compliance implementation
-    needs: [ci-plan, formal-update-gate]
+    needs: [ci-plan, formal-update-gate, repository-preflight]
     if: >-
-      always() &&
+      !cancelled() &&
       needs.ci-plan.result == 'success' &&
       needs.formal-update-gate.result == 'success' &&
+      needs.repository-preflight.result == 'success' &&
       needs.ci-plan.outputs.compliance_required == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -376,7 +398,7 @@ jobs:
           npm ci --prefix bindings/typescript
       - run: cargo xtask ci compliance
       - name: Preserve compliance evidence
-        if: always()
+        if: always() && hashFiles('target/compliance/**') != ''
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: auths-product-core-compliance-${{ github.run_id }}-${{ github.run_attempt }}
@@ -393,11 +415,12 @@ jobs:
 
   dependencies-run:
     name: dependencies implementation
-    needs: [ci-plan, formal-update-gate]
+    needs: [ci-plan, formal-update-gate, repository-preflight]
     if: >-
-      always() &&
+      !cancelled() &&
       needs.ci-plan.result == 'success' &&
       needs.formal-update-gate.result == 'success' &&
+      needs.repository-preflight.result == 'success' &&
       needs.ci-plan.outputs.dependencies_required == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -427,11 +450,12 @@ jobs:
 
   secrets-run:
     name: secrets implementation
-    needs: [ci-plan, formal-update-gate]
+    needs: [ci-plan, formal-update-gate, repository-preflight]
     if: >-
-      always() &&
+      !cancelled() &&
       needs.ci-plan.result == 'success' &&
       needs.formal-update-gate.result == 'success' &&
+      needs.repository-preflight.result == 'success' &&
       needs.ci-plan.outputs.secrets_required == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -461,11 +485,12 @@ jobs:
 
   opentofu-live-run:
     name: opentofu-live implementation
-    needs: [ci-plan, formal-update-gate]
+    needs: [ci-plan, formal-update-gate, repository-preflight]
     if: >-
-      always() &&
+      !cancelled() &&
       needs.ci-plan.result == 'success' &&
       needs.formal-update-gate.result == 'success' &&
+      needs.repository-preflight.result == 'success' &&
       needs.ci-plan.outputs.opentofu_live_required == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -539,11 +564,12 @@ jobs:
 
   postgresql-live-run:
     name: postgresql-live implementation
-    needs: [ci-plan, formal-update-gate]
+    needs: [ci-plan, formal-update-gate, repository-preflight]
     if: >-
-      always() &&
+      !cancelled() &&
       needs.ci-plan.result == 'success' &&
       needs.formal-update-gate.result == 'success' &&
+      needs.repository-preflight.result == 'success' &&
       needs.ci-plan.outputs.postgresql_live_required == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -606,13 +632,19 @@ jobs:
       - name: Real PostgreSQL rollback, restart, and reconciliation contract
         working-directory: demos/postgresql-data-change
         run: npm run test:live-recovery
-      - name: Transactional multi-process lifecycle-store contract
-        env:
-          AUTHS_LIFECYCLE_POSTGRES_URL: postgresql://migration_admin:${{ env.POSTGRES_ADMIN_PASSWORD }}@127.0.0.1:54329/auths_demo
-        run: >-
-          cargo test --locked -p auths-stores
-          --test postgres_lifecycle
-          -- --ignored --test-threads=1
+# The transactional multi-process lifecycle-store contract is NOT run here.
+      #
+      # postgres_lifecycle's `configured()` requires AUTHS_POSTGRES_URL,
+      # AUTHS_POSTGRES_CA_PEM and AUTHS_POSTGRES_SERVER_NAME -- a TLS PostgreSQL
+      # with a CA certificate. This job runs the plain demo database on 54329 and
+      # was setting AUTHS_LIFECYCLE_POSTGRES_URL, which `configured()` does not
+      # read, so the test panicked with "TLS PostgreSQL environment slots are
+      # required" on every run.
+      #
+      # It is owned by .github/workflows/postgres-lifecycle.yml, which stands up
+      # the TLS fixture in tests/postgres_tls/compose.yaml, supplies all three
+      # slots, and triggers on changes to auths-lifecycle or auths-stores.
+      # Running it in two places, correctly in one, was the defect.
       - name: Privilege, RLS, injection, concurrency, timeout, and drift contract
         working-directory: demos/postgresql-data-change
         run: npm run test:live-database
@@ -646,11 +678,12 @@ jobs:
 
   records-api-live-run:
     name: records-api-live implementation
-    needs: [ci-plan, formal-update-gate]
+    needs: [ci-plan, formal-update-gate, repository-preflight]
     if: >-
-      always() &&
+      !cancelled() &&
       needs.ci-plan.result == 'success' &&
       needs.formal-update-gate.result == 'success' &&
+      needs.repository-preflight.result == 'success' &&
       needs.ci-plan.outputs.records_api_live_required == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -725,7 +758,7 @@ jobs:
 
   authoritative:
     name: authoritative
-    if: always()
+    if: ${{ !cancelled() }}
     needs: [ci-plan, authoritative-run]
     runs-on: ubuntu-latest
     steps:
@@ -742,7 +775,7 @@ jobs:
 
   formal-translation:
     name: formal-translation
-    if: always()
+    if: ${{ !cancelled() }}
     needs: [ci-plan, formal-translation-run]
     runs-on: ubuntu-latest
     steps:
@@ -760,7 +793,7 @@ jobs:
 
   compliance:
     name: compliance
-    if: always()
+    if: ${{ !cancelled() }}
     needs: [ci-plan, compliance-run]
     runs-on: ubuntu-latest
     steps:
@@ -777,7 +810,7 @@ jobs:
 
   dependencies:
     name: dependencies
-    if: always()
+    if: ${{ !cancelled() }}
     needs: [ci-plan, dependencies-run]
     runs-on: ubuntu-latest
     steps:
@@ -794,7 +827,7 @@ jobs:
 
   secrets:
     name: secrets
-    if: always()
+    if: ${{ !cancelled() }}
     needs: [ci-plan, secrets-run]
     runs-on: ubuntu-latest
     steps:
@@ -811,7 +844,7 @@ jobs:
 
   opentofu-live:
     name: opentofu-live
-    if: always()
+    if: ${{ !cancelled() }}
     needs: [ci-plan, opentofu-live-run]
     runs-on: ubuntu-latest
     steps:
@@ -828,7 +861,7 @@ jobs:
 
   postgresql-live:
     name: postgresql-live
-    if: always()
+    if: ${{ !cancelled() }}
     needs: [ci-plan, postgresql-live-run]
     runs-on: ubuntu-latest
     steps:
@@ -845,7 +878,7 @@ jobs:
 
   records-api-live:
     name: records-api-live
-    if: always()
+    if: ${{ !cancelled() }}
     needs: [ci-plan, records-api-live-run]
     runs-on: ubuntu-latest
     steps:
@@ -859,3 +892,50 @@ jobs:
           echo "Decision: ${REQUIRED}; implementation: ${RUN_RESULT}; ${REASON}" >> "$GITHUB_STEP_SUMMARY"
           [[ "$PLANNER" == success ]]
           [[ "$REQUIRED" == true && "$RUN_RESULT" == success ]] || [[ "$REQUIRED" == false && "$RUN_RESULT" == skipped ]]
+
+  ci-qualified:
+    name: CI qualified
+    if: ${{ !cancelled() }}
+    needs:
+      - authoritative
+      - formal-translation
+      - compliance
+      - dependencies
+      - secrets
+      - opentofu-live
+      - postgresql-live
+      - records-api-live
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every planned CI result
+        env:
+          AUTHORITATIVE: ${{ needs.authoritative.result }}
+          FORMAL_TRANSLATION: ${{ needs.formal-translation.result }}
+          COMPLIANCE: ${{ needs.compliance.result }}
+          DEPENDENCIES: ${{ needs.dependencies.result }}
+          SECRETS: ${{ needs.secrets.result }}
+          OPENTOFU_LIVE: ${{ needs.opentofu-live.result }}
+          POSTGRESQL_LIVE: ${{ needs.postgresql-live.result }}
+          RECORDS_API_LIVE: ${{ needs.records-api-live.result }}
+        run: |
+          set -euo pipefail
+          {
+            echo "| Gate | Result |"
+            echo "| --- | --- |"
+            echo "| authoritative | ${AUTHORITATIVE} |"
+            echo "| formal-translation | ${FORMAL_TRANSLATION} |"
+            echo "| compliance | ${COMPLIANCE} |"
+            echo "| dependencies | ${DEPENDENCIES} |"
+            echo "| secrets | ${SECRETS} |"
+            echo "| opentofu-live | ${OPENTOFU_LIVE} |"
+            echo "| postgresql-live | ${POSTGRESQL_LIVE} |"
+            echo "| records-api-live | ${RECORDS_API_LIVE} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          [[ "$AUTHORITATIVE" == success ]]
+          [[ "$FORMAL_TRANSLATION" == success ]]
+          [[ "$COMPLIANCE" == success ]]
+          [[ "$DEPENDENCIES" == success ]]
+          [[ "$SECRETS" == success ]]
+          [[ "$OPENTOFU_LIVE" == success ]]
+          [[ "$POSTGRESQL_LIVE" == success ]]
+          [[ "$RECORDS_API_LIVE" == success ]]

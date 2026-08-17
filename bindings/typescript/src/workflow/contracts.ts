@@ -363,16 +363,6 @@ export interface WorkflowWasmEngine {
     rootPrincipal: string,
     verifierConfiguration: Uint8Array,
   ): Uint8Array;
-  parseHttpActionV1(input: unknown): WorkflowDomainActionFields;
-  parseGitActionV1(input: unknown): WorkflowDomainActionFields;
-  parseDeploymentActionV1(input: unknown): WorkflowDomainActionFields;
-  parseSupplyChainActionV1(input: unknown): WorkflowDomainActionFields;
-  parseEdgeActionV1(input: unknown): WorkflowDomainActionFields;
-  parseCanonicalHttpActionV1(body: Uint8Array): WorkflowDomainActionFields;
-  parseCanonicalGitActionV1(body: Uint8Array): WorkflowDomainActionFields;
-  parseCanonicalDeploymentActionV1(body: Uint8Array): WorkflowDomainActionFields;
-  parseCanonicalSupplyChainActionV1(body: Uint8Array): WorkflowDomainActionFields;
-  parseCanonicalEdgeActionV1(body: Uint8Array): WorkflowDomainActionFields;
   prepareMcpActionV1(
     service: string,
     name: string,
@@ -670,21 +660,6 @@ export interface WorkflowAuthorizationPlanSummary {
   free?(): void;
 }
 
-export interface WorkflowDomainActionFields {
-  readonly body: Uint8Array;
-  readonly mediaType: string;
-  readonly capability: string;
-  readonly resource: string;
-  readonly hasBudget: boolean;
-  readonly budgetAlgebra: string;
-  readonly budgetValue: bigint;
-  readonly reviewTitle: string;
-  readonly reviewLabels: readonly string[];
-  readonly reviewValues: readonly string[];
-  readonly normalized: unknown;
-  free?(): void;
-}
-
 export interface WorkflowMcpActionPreparation {
   readonly canonicalActionCbor: Uint8Array;
   readonly actionEnvelopeCbor: Uint8Array;
@@ -706,6 +681,12 @@ export interface WorkflowMcpSessionStep {
 export interface WorkflowMcpSessionTerminal {
   readonly kind: "completed" | "not-applied" | "exact-replay" | "conflict" | "recoverable";
   readonly executionId: string;
+  /**
+   * The stable registry code the MCP profile gave this outcome, absent only
+   * for a completed execution. Named by `McpTerminal::registry_code` in Rust;
+   * TypeScript never chooses it.
+   */
+  readonly code?: string;
   readonly outputJson?: Uint8Array;
   readonly receiptJson?: Uint8Array;
   readonly reference?: string;

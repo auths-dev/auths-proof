@@ -3,7 +3,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends python3 python3
 RUN python3 -m venv /venv && /venv/bin/pip install --no-cache-dir maturin==1.9.4
 WORKDIR /src
 COPY . .
-RUN /venv/bin/maturin build --manifest-path bindings/python/Cargo.toml --release --out /wheels
+RUN /venv/bin/maturin build --manifest-path bindings/python/Cargo.toml --profile python-extension --out /wheels
 
 FROM python:3.12-slim
 WORKDIR /app

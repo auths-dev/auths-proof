@@ -10,7 +10,9 @@ pub mod explanation;
 pub mod render;
 
 use auths_config::BoundConfiguration;
-use auths_errors::{EffectState, RecommendedAction};
+// Re-exported so operational consumers project the one Rust-owned effect
+// vocabulary instead of minting a stringly-typed shadow of it.
+pub use auths_errors::{EffectState, RecommendedAction};
 use auths_model::ProfileRef;
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -99,7 +101,7 @@ impl ReadinessReport {
         &self.config_digest_hex
     }
 
-    /// Returns the public verifier-context digest.
+    /// Returns the public trusted-context digest.
     #[must_use]
     pub fn context_digest_hex(&self) -> &str {
         &self.context_digest_hex

@@ -12,7 +12,6 @@ REQUIRED_PACKAGE_FILES = {
     "auths/_doctor.py",
     "auths/_error_registry.py",
     "auths/_native.pyi",
-    "auths/_application_profile.py",
     "auths/_approvals.py",
     "auths/_authority.py",
     "auths/_bootstrap.py",
@@ -20,7 +19,6 @@ REQUIRED_PACKAGE_FILES = {
     "auths/_custody.py",
     "auths/_development.py",
     "auths/_diagnostics.py",
-    "auths/_errors.py",
     "auths/_inspection.py",
     "auths/_lifecycle.py",
     "auths/_mcp_profile.py",
@@ -30,8 +28,10 @@ REQUIRED_PACKAGE_FILES = {
     "auths/_plan.py",
     "auths/_product.py",
     "auths/_product_errors.py",
-    "auths/_production_client.py",
+    "auths/_boundary.py",
     "auths/_receipts.py",
+    "auths/_service.py",
+    "auths/service.py",
     "auths/_trust.py",
     "auths/_workflow.py",
     "auths/framework.py",
@@ -44,6 +44,13 @@ REQUIRED_PACKAGE_FILES = {
     "auths/verify.py",
 }
 REMOVED_PUBLIC_FILES = {
+    # Superseded internals. Listed so the deletion is gated rather than
+    # remembered: `_errors.py` held a second `AuthsError` with its own effect
+    # vocabulary, and `_application_profile.py` let a Python caller define a
+    # whole vertical with canonicalization in a Python callback.
+    "auths/_application_profile.py",
+    "auths/_errors.py",
+    "auths/_production_client.py",
     "auths/approvals.py",
     "auths/authority.py",
     "auths/custody.py",

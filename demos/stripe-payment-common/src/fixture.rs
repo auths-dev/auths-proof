@@ -10,8 +10,8 @@ use auths_model::{
     GrantStatusSnapshot, MediaType, ParticipantRole, PermissionSet, PrincipalId, PrincipalMethodId,
     PrincipalStatusSnapshot, ProfilePolicyId, ProofBundle, ProofRef, ResourceId, ResourceMatcherId,
     SignatureBytes, SignatureDescriptor, SignatureSuiteId, StatementRef, StatusPolicy,
-    StatusSnapshotId, Timestamp, TrustAnchor, TrustAnchorId, ValidityWindow, VerificationMethod,
-    VerifierContext, VerifierLimits,
+    StatusSnapshotId, Timestamp, TrustAnchor, TrustAnchorId, TrustedContext, ValidityWindow,
+    VerificationMethod, VerifierLimits,
 };
 use auths_ports::{PrincipalMethod, SignatureSuite};
 use auths_raw_key::{RAW_KEY_MEDIA_TYPE, RAW_KEY_V1, RawKeyDescriptor, RawKeyMethod, RawKeyType};
@@ -234,7 +234,7 @@ pub fn authorization_fixture(
         vec![ProfilePolicyId::parse(PROFILE_POLICY).expect("static profile policy")],
     )
     .expect("static accepted registries");
-    let context = VerifierContext::new(
+    let context = TrustedContext::new(
         verifier_configuration(),
         CompositionRequirement::exact(plan_identifier),
         vec![anchor],

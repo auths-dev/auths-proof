@@ -16,7 +16,7 @@ use auths_model::{
     PermissionSet, PrincipalId, PrincipalMethodId, PrincipalStatusSnapshot, ProfilePolicyId,
     ProofBundle, ProofRef, ResourceId, ResourceMatcherId, SignatureBytes, SignatureDescriptor,
     SignatureSuiteId, StatementRef, StatusPolicy, StatusSnapshotId, Timestamp, TrustAnchor,
-    TrustAnchorId, ValidityWindow, VerificationMethod, VerifierContext, VerifierLimits,
+    TrustAnchorId, TrustedContext, ValidityWindow, VerificationMethod, VerifierLimits,
 };
 use auths_ports::{PrincipalMethod, SignatureSuite};
 use auths_profile_api::ActionProfile as _;
@@ -294,7 +294,7 @@ fn authorization_fixture(
         vec![ProfilePolicyId::parse(PROFILE_POLICY).map_err(|_| ProofError::Adapter)?],
     )
     .map_err(|_| ProofError::Adapter)?;
-    let context = VerifierContext::new(
+    let context = TrustedContext::new(
         configuration,
         CompositionRequirement::exact(plan_identifier),
         vec![anchor],

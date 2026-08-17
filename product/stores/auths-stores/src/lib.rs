@@ -41,6 +41,19 @@ struct BudgetState {
     claimed: BTreeSet<ActionId>,
 }
 
+/// Decides an action that declares no requested budget.
+///
+/// A ledger with no configured ceilings meters nothing and admits it. A ledger
+/// that was configured with ceilings cannot account for an unbudgeted action
+/// and fails closed.
+const fn unmetered_claim(no_ceilings_configured: bool) -> BudgetClaim {
+    if no_ceilings_configured {
+        BudgetClaim::Claimed
+    } else {
+        BudgetClaim::Exhausted
+    }
+}
+
 impl InMemoryBudgetLedger {
     /// Constructs a duplicate-free set of exact algebra ceilings.
     ///
@@ -75,7 +88,12 @@ impl InMemoryBudgetLedger {
 impl BudgetLedger for InMemoryBudgetLedger {
     fn claim(&self, action: ActionId, requested: Option<&BudgetCeiling>) -> BudgetClaim {
         let Some(requested) = requested else {
-            return BudgetClaim::Claimed;
+            // An action that declares no budget cannot be metered. A ledger
+            // that was configured with stateful ceilings therefore refuses it
+            // rather than passing it through un-metered: otherwise the
+            // configured ceiling is inert for exactly the actions that decline
+            // to state what they will spend.
+            return unmetered_claim(self.ceilings.is_empty());
         };
         let algebra = requested.algebra().as_str();
         let Some(ceiling) = self.ceilings.get(algebra) else {
@@ -242,7 +260,9 @@ impl PersistentBudgetLedger {
 impl BudgetLedger for PersistentBudgetLedger {
     fn claim(&self, action: ActionId, requested: Option<&BudgetCeiling>) -> BudgetClaim {
         let Some(requested) = requested else {
-            return BudgetClaim::Claimed;
+            // See `InMemoryBudgetLedger::claim`: a configured stateful ledger
+            // fails closed on an action that declares no budget.
+            return unmetered_claim(self.ceilings.is_empty());
         };
         let algebra = requested.algebra().as_str();
         let Some(ceiling) = self.ceilings.get(algebra) else {
@@ -756,6 +776,28 @@ mod tests {
             BudgetClaim::Exhausted
         );
         assert!(ledger.is_claimed(action));
+    }
+
+    /// Regression: a configured stateful ledger used to return `Claimed` for
+    /// any action that declared no requested budget, so the configured ceiling
+    /// was inert for exactly the actions that decline to state their spend.
+    #[test]
+    fn configured_ledger_refuses_an_action_without_a_requested_budget() {
+        let ledger = InMemoryBudgetLedger::new([("numeric-ceiling-v1".into(), 10)]).unwrap();
+        assert_eq!(
+            ledger.claim(ActionId::new([9; 32]), None),
+            BudgetClaim::Exhausted
+        );
+        assert!(!ledger.is_claimed(ActionId::new([9; 32])));
+    }
+
+    #[test]
+    fn unconfigured_ledger_meters_nothing_and_admits_unbudgeted_actions() {
+        let ledger = InMemoryBudgetLedger::new([]).unwrap();
+        assert_eq!(
+            ledger.claim(ActionId::new([9; 32]), None),
+            BudgetClaim::Claimed
+        );
     }
 
     #[test]

@@ -4,7 +4,7 @@ use crate::*;
 
 const INVENTORY_PATH: &str = "release/semantic-freeze.json";
 const INVENTORY_SCHEMA: &str = "auths.semantic-freeze/1";
-const FREEZE_VERSION: u64 = 110;
+const VERSIONS_PATH: &str = "release/semantic-freeze-versions.toml";
 const PUBLIC_RUST_ROOTS: [&str; 10] = [
     "auths",
     "auths-byte-channel",
@@ -91,6 +91,45 @@ struct FreezeEntry {
     sha256: String,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SemanticFreezeVersions {
+    freeze_version: u64,
+    entries: BTreeMap<String, u64>,
+}
+
+impl SemanticFreezeVersions {
+    fn entry(&self, id: &str) -> Result<u64, String> {
+        self.entries
+            .get(id)
+            .copied()
+            .ok_or_else(|| format!("semantic identity has no reviewed version: {id}"))
+    }
+
+    fn validate_exact_inventory(&self, entries: &[FreezeEntry]) -> Result<(), String> {
+        let generated = entries
+            .iter()
+            .map(|entry| entry.id.as_str())
+            .collect::<BTreeSet<_>>();
+        let configured = self
+            .entries
+            .keys()
+            .map(String::as_str)
+            .collect::<BTreeSet<_>>();
+        if generated != configured {
+            return Err(set_drift(
+                "semantic identity version inventory",
+                &generated.into_iter().map(str::to_owned).collect(),
+                &configured.into_iter().map(str::to_owned).collect(),
+            ));
+        }
+        if self.freeze_version == 0 || self.entries.values().any(|version| *version == 0) {
+            return Err("semantic identity versions must be non-zero".to_owned());
+        }
+        Ok(())
+    }
+}
+
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "kebab-case")]
 enum FreezeClassification {
@@ -161,13 +200,14 @@ pub(crate) fn semantic_freeze(update: bool) -> Result<(), String> {
 }
 
 fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
+    let versions = load_versions()?;
     let rust_surface = rust_surface()?;
     let bounded_domain_sources = bounded_domain_sources()?;
 
     let mut entries = vec![
         freeze_entry(
             "auths.core.protocol",
-            15,
+            versions.entry("auths.core.protocol")?,
             FreezeClassification::FrozenMeaning,
             &[
                 "protocol-versions",
@@ -187,7 +227,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.identity.protocol",
-            28,
+            versions.entry("auths.identity.protocol")?,
             FreezeClassification::FrozenMeaning,
             &[
                 "identity-protocol-versions",
@@ -213,7 +253,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.modular-components",
-            7,
+            versions.entry("auths.modular-components")?,
             FreezeClassification::FrozenMeaning,
             &[
                 "published-neutral-ports",
@@ -246,7 +286,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.portable-abi-bindings",
-            49,
+            versions.entry("auths.portable-abi-bindings")?,
             FreezeClassification::FrozenMeaning,
             &["portable-abi", "authoring-abi", "binding-contracts"],
             vec![
@@ -262,7 +302,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.public-sdk-contract",
-            40,
+            versions.entry("auths.product.public-sdk-contract")?,
             FreezeClassification::FrozenMeaning,
             &[
                 "rust-sdk-contract",
@@ -283,7 +323,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.mcp-closed-execution",
-            12,
+            versions.entry("auths.product.mcp-closed-execution")?,
             FreezeClassification::FrozenMeaning,
             &[
                 "profile-session",
@@ -306,7 +346,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.simplified-waist",
-            7,
+            versions.entry("auths.product.simplified-waist")?,
             FreezeClassification::FrozenMeaning,
             &[
                 "product-waist-invariants",
@@ -325,7 +365,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.facade",
-            9,
+            versions.entry("auths.product.facade")?,
             FreezeClassification::FrozenMeaning,
             &[
                 "create",
@@ -339,15 +379,15 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
                 "bindings/python/python/auths/_product.py".to_owned(),
                 "bindings/typescript/src/profiles/mcp/index.ts".to_owned(),
                 "bindings/python/python/auths/profiles/_mcp.py".to_owned(),
-                "bindings/typescript/src/production-client.ts".to_owned(),
+                "bindings/typescript/src/service.ts".to_owned(),
                 "bindings/typescript/src/profiles.ts".to_owned(),
-                "bindings/python/python/auths/_production_client.py".to_owned(),
+                "bindings/python/python/auths/_service.py".to_owned(),
                 "bindings/python/python/auths/profiles/__init__.py".to_owned(),
             ],
         )?,
         freeze_entry(
             "auths.product.development-composition",
-            7,
+            versions.entry("auths.product.development-composition")?,
             FreezeClassification::FrozenMeaning,
             &[
                 "explicit-development-mode",
@@ -365,7 +405,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.mechanism-profile-conformance",
-            4,
+            versions.entry("auths.product.mechanism-profile-conformance")?,
             FreezeClassification::FrozenMeaning,
             &[
                 "contract-inventory",
@@ -383,7 +423,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.vocabulary",
-            7,
+            versions.entry("auths.product.vocabulary")?,
             FreezeClassification::FrozenMeaning,
             &[
                 "customer-vocabulary",
@@ -404,7 +444,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.error-recovery-contract",
-            10,
+            versions.entry("auths.product.error-recovery-contract")?,
             FreezeClassification::FrozenMeaning,
             &[
                 "error-envelope",
@@ -427,7 +467,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.bounded-policy",
-            1,
+            versions.entry("auths.product.bounded-policy")?,
             FreezeClassification::FrozenMeaning,
             &[
                 "policy-semantic-ids",
@@ -441,7 +481,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.bounded-domains",
-            6,
+            versions.entry("auths.product.bounded-domains")?,
             FreezeClassification::FrozenMeaning,
             &[
                 "bounded-domain-inventory",
@@ -456,7 +496,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.lifecycle",
-            8,
+            versions.entry("auths.product.lifecycle")?,
             FreezeClassification::FrozenMeaning,
             &[
                 "reservation-state",
@@ -476,7 +516,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.receipts",
-            4,
+            versions.entry("auths.product.receipts")?,
             FreezeClassification::FrozenMeaning,
             &["receipt-schemas", "receipt-commitment-meanings"],
             vec![
@@ -486,7 +526,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.configuration-commitments",
-            1,
+            versions.entry("auths.product.configuration-commitments")?,
             FreezeClassification::FrozenMeaning,
             &[
                 "required-configuration-commitments",
@@ -499,7 +539,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.open-production-contract",
-            12,
+            versions.entry("auths.product.open-production-contract")?,
             FreezeClassification::FrozenMeaning,
             &[
                 "production-topology",
@@ -525,7 +565,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.release-assurance",
-            4,
+            versions.entry("auths.product.release-assurance")?,
             FreezeClassification::FrozenMeaning,
             &[
                 "immutable-candidate-binding",
@@ -545,7 +585,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.external-custody",
-            3,
+            versions.entry("auths.product.external-custody")?,
             FreezeClassification::FrozenMeaning,
             &[
                 "transaction-bound-signing",
@@ -568,7 +608,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.product.operations",
-            4,
+            versions.entry("auths.product.operations")?,
             FreezeClassification::FrozenMeaning,
             &[
                 "privacy-safe-events",
@@ -589,7 +629,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.release.evolution-contract",
-            12,
+            versions.entry("auths.release.evolution-contract")?,
             FreezeClassification::FrozenMeaning,
             &[
                 "version-axes",
@@ -613,7 +653,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         )?,
         freeze_entry(
             "auths.release.benchmark-contract",
-            1,
+            versions.entry("auths.release.benchmark-contract")?,
             FreezeClassification::FrozenMeaning,
             &["benchmark-definition", "accepted-baseline"],
             vec![
@@ -628,21 +668,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
     ];
 
     for (id, path) in frozen_byte_inventories()? {
-        let version = match path.as_str() {
-            "architecture/dependency-graph.json" => 26,
-            "bindings/wasm/auths-proof-wasm/identity-abi-v1.json" => 3,
-            "core/fixtures/v1/manifest.json" => 3,
-            "product/conformance/v1/simplified-product-waist.json" => 2,
-            "formal/assurance-manifest-v1.toml"
-            | "formal/qualification/aeneas/qualification.toml" => 3,
-            "formal/qualification/aeneas/generated" => 4,
-            "formal/qualification/aeneas/source-closure.json" => 12,
-            "product/fixtures/v1/errors/manifest.json" => 3,
-            "product/fixtures/v1/github/manifest.json"
-            | "product/fixtures/v1/opentofu/manifest.json" => 2,
-            "product/fixtures/v1/lifecycle/manifest.json" => 2,
-            _ => 1,
-        };
+        let version = versions.entry(&id)?;
         entries.push(freeze_entry(
             &id,
             version,
@@ -675,6 +701,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         "release/SLSA_BUILD_LEVEL_3_ASSESSMENT.md".to_owned(),
         "release/slsa-build-level-3-assessment.json".to_owned(),
         "release/RELEASE_CANDIDATE_NOTES.md".to_owned(),
+        VERSIONS_PATH.to_owned(),
         "release/release-manifest.contract-fixture.json".to_owned(),
         "release/release-manifest.schema.json".to_owned(),
         "release/release-subjects.toml".to_owned(),
@@ -695,7 +722,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
     ]);
     entries.push(freeze_entry(
         "auths.release.public-surface",
-        109,
+        versions.entry("auths.release.public-surface")?,
         FreezeClassification::ReleaseMetadata,
         &[
             "package-names",
@@ -711,9 +738,10 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
     )?);
 
     entries.sort_by(|left, right| left.id.cmp(&right.id));
+    versions.validate_exact_inventory(&entries)?;
     Ok(SemanticFreezeInventory {
         schema: INVENTORY_SCHEMA.to_owned(),
-        freeze_version: FREEZE_VERSION,
+        freeze_version: versions.freeze_version,
         public_surface: rust_surface.public,
         entries,
     })
@@ -960,12 +988,11 @@ fn selected_files(
         ));
     }
     let mut selected = Vec::new();
-    visit_files(directory, &mut |path| {
-        if predicate(path) {
-            selected.push(repository_relative(path)?);
+    for path in tracked_files_under(directory)? {
+        if predicate(&path) {
+            selected.push(repository_relative(&path)?);
         }
-        Ok(())
-    })?;
+    }
     selected.sort();
     if selected.is_empty() {
         return Err(format!(
@@ -1019,14 +1046,13 @@ fn digest_owners(owners: &[String]) -> Result<String, String> {
         if metadata.is_file() {
             files.insert(owner.clone(), read_owned_file(&path)?);
         } else if metadata.is_dir() {
-            let before = files.len();
-            visit_files(&path, &mut |file| {
-                let relative = repository_relative(file)?;
-                files.insert(relative, read_owned_file(file)?);
-                Ok(())
-            })?;
-            if files.len() == before {
+            let tracked = tracked_files_under(&path)?;
+            if tracked.is_empty() {
                 return Err(format!("semantic owner directory is empty: {owner}"));
+            }
+            for file in tracked {
+                let relative = repository_relative(&file)?;
+                files.insert(relative, read_owned_file(&file)?);
             }
         } else {
             return Err(format!(
@@ -1045,68 +1071,41 @@ fn digest_owners(owners: &[String]) -> Result<String, String> {
     Ok(hex::encode(hasher.finalize()))
 }
 
-fn visit_files(
-    directory: &Path,
-    visitor: &mut impl FnMut(&Path) -> Result<(), String>,
-) -> Result<(), String> {
-    let mut entries = fs::read_dir(directory)
-        .map_err(|error| format!("could not read {}: {error}", directory.display()))?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|error| format!("could not enumerate {}: {error}", directory.display()))?;
-    entries.sort_by_key(std::fs::DirEntry::file_name);
-    for entry in entries {
-        let path = entry.path();
+fn tracked_files_under(directory: &Path) -> Result<Vec<PathBuf>, String> {
+    tracked_files_under_in(&root(), directory)
+}
+
+fn tracked_files_under_in(repository: &Path, directory: &Path) -> Result<Vec<PathBuf>, String> {
+    let relative = repository_relative_to(repository, directory)?;
+    let output = Command::new("git")
+        .args(["ls-files", "--cached", "-z", "--", &relative])
+        .current_dir(repository)
+        .output()
+        .map_err(|error| format!("could not inspect tracked semantic owners: {error}"))?;
+    if !output.status.success() {
+        return Err("git ls-files failed while freezing semantic owners".to_owned());
+    }
+    let mut files = Vec::new();
+    for encoded in output.stdout.split(|byte| *byte == 0) {
+        if encoded.is_empty() {
+            continue;
+        }
+        let tracked = std::str::from_utf8(encoded)
+            .map_err(|_| "tracked semantic owner path is not UTF-8".to_owned())?;
+        validate_relative_path(tracked)?;
+        let path = repository.join(tracked);
         let metadata = fs::symlink_metadata(&path)
-            .map_err(|error| format!("could not inspect {}: {error}", path.display()))?;
-        if metadata.file_type().is_symlink() {
+            .map_err(|error| format!("tracked semantic owner is absent {tracked}: {error}"))?;
+        if metadata.file_type().is_symlink() || !metadata.is_file() {
             return Err(format!(
-                "semantic owner trees must not contain symlinks: {}",
-                path.display()
+                "tracked semantic owner must be a regular non-symlink file: {tracked}"
             ));
         }
-        if metadata.is_dir() {
-            if generated_owner_directory(&path) {
-                continue;
-            }
-            visit_files(&path, visitor)?;
-        } else if metadata.is_file() {
-            if generated_owner_file(&path) {
-                continue;
-            }
-            visitor(&path)?;
-        }
+        files.push(path);
     }
-    Ok(())
-}
-
-fn generated_owner_directory(path: &Path) -> bool {
-    matches!(
-        path.file_name().and_then(|name| name.to_str()),
-        Some(
-            ".git"
-                | ".lake"
-                | ".mypy_cache"
-                | ".pytest_cache"
-                | ".ruff_cache"
-                | ".venv"
-                | "__pycache__"
-                | "node_modules"
-                | "target"
-        )
-    )
-}
-
-fn generated_owner_file(path: &Path) -> bool {
-    if matches!(
-        path.file_name().and_then(|name| name.to_str()),
-        Some(".DS_Store" | ".coverage")
-    ) {
-        return true;
-    }
-    matches!(
-        path.extension().and_then(|extension| extension.to_str()),
-        Some("dll" | "dylib" | "pyc" | "pyd" | "pyo" | "so")
-    )
+    files.sort();
+    files.dedup();
+    Ok(files)
 }
 
 fn read_owned_file(path: &Path) -> Result<Vec<u8>, String> {
@@ -1119,8 +1118,12 @@ fn hash_field(hasher: &mut Sha256, bytes: &[u8]) {
 }
 
 fn repository_relative(path: &Path) -> Result<String, String> {
+    repository_relative_to(&root(), path)
+}
+
+fn repository_relative_to(repository: &Path, path: &Path) -> Result<String, String> {
     let relative = path
-        .strip_prefix(root())
+        .strip_prefix(repository)
         .map_err(|_| format!("path escapes repository: {}", path.display()))?;
     let text = relative.to_string_lossy().replace('\\', "/");
     validate_relative_path(&text)?;
@@ -1235,6 +1238,14 @@ fn load_inventory(path: &Path) -> Result<SemanticFreezeInventory, String> {
         fs::read(path).map_err(|error| format!("could not read {}: {error}", path.display()))?;
     serde_json::from_slice(&bytes)
         .map_err(|error| format!("invalid semantic freeze {}: {error}", path.display()))
+}
+
+fn load_versions() -> Result<SemanticFreezeVersions, String> {
+    let path = root().join(VERSIONS_PATH);
+    let bytes = fs::read_to_string(&path)
+        .map_err(|error| format!("could not read {}: {error}", path.display()))?;
+    toml::from_str(&bytes)
+        .map_err(|error| format!("invalid semantic versions {}: {error}", path.display()))
 }
 
 fn with_paths<const N: usize>(base: [&str; N], additions: &[String]) -> Vec<String> {
@@ -1362,12 +1373,74 @@ mod tests {
     }
 
     #[test]
-    fn generated_owner_artifacts_are_excluded() {
-        assert!(generated_owner_directory(Path::new("auths/__pycache__")));
-        assert!(generated_owner_directory(Path::new("auths/node_modules")));
-        assert!(generated_owner_file(Path::new("auths/module.pyc")));
-        assert!(generated_owner_file(Path::new("auths/_native.abi3.so")));
-        assert!(!generated_owner_directory(Path::new("auths/profiles")));
-        assert!(!generated_owner_file(Path::new("auths/verify.py")));
+    fn tracked_inventory_is_exact_and_fails_closed() {
+        fn git(repository: &Path, arguments: &[&str]) {
+            let status = Command::new("git")
+                .args(arguments)
+                .current_dir(repository)
+                .status()
+                .expect("git command starts");
+            assert!(status.success(), "git {arguments:?} failed");
+        }
+
+        fn tracked_digest(repository: &Path, directory: &Path) -> String {
+            let mut hasher = Sha256::new();
+            for path in
+                tracked_files_under_in(repository, directory).expect("tracked semantic inventory")
+            {
+                let relative = repository_relative_to(repository, &path)
+                    .expect("repository-relative tracked path");
+                hash_field(&mut hasher, relative.as_bytes());
+                hash_field(
+                    &mut hasher,
+                    &fs::read(path).expect("read tracked semantic owner"),
+                );
+            }
+            hex::encode(hasher.finalize())
+        }
+
+        let repository = tempfile::tempdir().expect("temporary repository");
+        let repository = repository.path();
+        let owner = repository.join("owner");
+        fs::create_dir_all(owner.join("generated")).expect("semantic owner directories");
+        fs::write(
+            repository.join(".gitignore"),
+            "owner/generated/\nowner/untracked.txt\n",
+        )
+        .expect("ignore rules");
+        fs::write(owner.join("tracked.txt"), b"tracked").expect("tracked owner");
+        git(repository, &["init", "--quiet"]);
+        git(repository, &["add", ".gitignore", "owner/tracked.txt"]);
+
+        let baseline = tracked_digest(repository, &owner);
+        let tracked = tracked_files_under_in(repository, &owner).expect("tracked inventory");
+        assert_eq!(tracked, vec![owner.join("tracked.txt")]);
+
+        fs::write(owner.join("generated/ignored.txt"), b"ignored").expect("ignored owner");
+        fs::write(owner.join("untracked.txt"), b"untracked").expect("untracked owner");
+        assert_eq!(tracked_digest(repository, &owner), baseline);
+
+        fs::write(owner.join("staged.txt"), b"staged").expect("staged owner");
+        git(repository, &["add", "owner/staged.txt"]);
+        assert_ne!(tracked_digest(repository, &owner), baseline);
+        git(
+            repository,
+            &["rm", "--cached", "--quiet", "owner/staged.txt"],
+        );
+        assert_eq!(tracked_digest(repository, &owner), baseline);
+
+        fs::write(owner.join("missing.txt"), b"missing").expect("missing owner");
+        git(repository, &["add", "owner/missing.txt"]);
+        fs::remove_file(owner.join("missing.txt")).expect("remove tracked owner");
+        let error = tracked_files_under_in(repository, &owner)
+            .expect_err("a tracked-but-missing owner must fail closed");
+        assert!(error.contains("tracked semantic owner is absent"));
+
+        let not_a_repository = tempfile::tempdir().expect("non-repository directory");
+        let untracked_owner = not_a_repository.path().join("owner");
+        fs::create_dir(&untracked_owner).expect("non-repository owner");
+        let error = tracked_files_under_in(not_a_repository.path(), &untracked_owner)
+            .expect_err("git inventory failure must fail closed");
+        assert!(error.contains("git ls-files failed"));
     }
 }

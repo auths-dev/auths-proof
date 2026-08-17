@@ -7,7 +7,15 @@ import type { VerifiedArtifactView } from "./authorization.js";
 import type { WorkflowWasmEngine } from "../workflow/contracts.js";
 import { loadPackagedWorkflowEngine } from "../verifier/wasm.js";
 
-export interface LinkedAttestedReceipt {
+/**
+ * A decision receipt paired with the execution receipt that links to it.
+ *
+ * There is exactly one of these types. The SDK used to declare two structurally
+ * identical ones -- `Receipt` here and `McpAttestedReceipt` in the
+ * MCP profile -- and publish both under the name `Receipt` from two entry
+ * points, so a caller holding a `Receipt` could not tell which one they had.
+ */
+export interface Receipt {
   readonly decision: AttestedApplicationReceipt;
   readonly execution: AttestedApplicationReceipt;
 }
@@ -132,7 +140,7 @@ export function attestedReceipt(value: AttestedApplicationReceipt): AttestedAppl
   });
 }
 
-export function encodeLinkedReceipt(receipt: LinkedAttestedReceipt): Uint8Array {
+export function encodeLinkedReceipt(receipt: Receipt): Uint8Array {
   const value = linkedReceipt(receipt);
   return new TextEncoder().encode(JSON.stringify({
     schema: "auths.portable-receipt/1",
@@ -141,7 +149,7 @@ export function encodeLinkedReceipt(receipt: LinkedAttestedReceipt): Uint8Array 
   }));
 }
 
-export function decodeLinkedReceipt(input: Uint8Array): LinkedAttestedReceipt {
+export function decodeLinkedReceipt(input: Uint8Array): Receipt {
   if (!(input instanceof Uint8Array) || input.length === 0 || input.length > 1024 * 1024) {
     throw new TypeError("portable Auths receipt is outside bounds");
   }
@@ -160,7 +168,7 @@ export function decodeLinkedReceipt(input: Uint8Array): LinkedAttestedReceipt {
   });
 }
 
-export async function verifyLinkedReceipt(receipt: LinkedAttestedReceipt): Promise<void> {
+export async function verifyLinkedReceipt(receipt: Receipt): Promise<void> {
   const value = linkedReceipt(receipt);
   const engine = await loadPackagedWorkflowEngine();
   verifyAttestedReceipt(engine, value.decision);
@@ -173,7 +181,7 @@ export async function verifyLinkedReceipt(receipt: LinkedAttestedReceipt): Promi
   );
 }
 
-function linkedReceipt(value: LinkedAttestedReceipt): LinkedAttestedReceipt {
+function linkedReceipt(value: Receipt): Receipt {
   if (value === null || typeof value !== "object") throw new TypeError("Auths receipt is required");
   const decision = attestedReceipt(value.decision);
   const execution = attestedReceipt(value.execution);

@@ -21,15 +21,15 @@ use auths_model::{
     ResourceId, SignatureBytes, SignatureDescriptor, SignedGrant, StatusMethodId, StatusPolicy,
     Timestamp, ValidityWindow,
 };
-use pyo3::{
-    create_exception,
-    exceptions::{PyRuntimeError, PyValueError},
-    prelude::*,
-    types::PyBytes,
-};
+use pyo3::{create_exception, exceptions::PyRuntimeError, prelude::*, types::PyBytes};
 use subtle::ConstantTimeEq as _;
 
-create_exception!(auths._native, NativeDelegationExpandedError, PyValueError);
+create_exception!(
+    auths._native,
+    NativeDelegationExpandedError,
+    crate::errors::NativeAuthsError,
+    "An attenuation refusal, carrying its registry classification."
+);
 
 const MAX_IDENTIFIER_BYTES: usize = 128;
 
@@ -350,7 +350,7 @@ fn validate_trusted_authority(
     root: PyRef<'_, PyPrincipal>,
 ) -> PyResult<()> {
     if context.inner.configuration().as_bytes() != &configuration()? {
-        return Err(PyValueError::new_err(
+        return Err(crate::errors::malformed_input(
             "trusted authority requires a different verifier configuration",
         ));
     }
@@ -360,7 +360,7 @@ fn validate_trusted_authority(
         .iter()
         .any(|anchor| anchor.principal() == &root.inner)
     {
-        return Err(PyValueError::new_err(
+        return Err(crate::errors::malformed_input(
             "trusted context does not contain the configured root",
         ));
     }
@@ -376,7 +376,7 @@ fn validate_root_authority(
     profile_version: u16,
 ) -> PyResult<PyGrantAuthority> {
     let SignedObject::Grant(grant) = &signed.inner else {
-        return Err(PyValueError::new_err(
+        return Err(crate::errors::malformed_input(
             "root authority must be a signed grant",
         ));
     };
@@ -391,7 +391,7 @@ fn validate_root_authority(
         || statement.subject() != &subject.principal
         || statement.profile() != &profile
     {
-        return Err(PyValueError::new_err(
+        return Err(crate::errors::malformed_input(
             "signed grant does not bind the trusted root, agent, and profile",
         ));
     }
@@ -411,7 +411,7 @@ fn bind_delegated_authority(
     profile_version: u16,
 ) -> PyResult<PyGrantAuthority> {
     let SignedObject::Grant(grant) = &signed.inner else {
-        return Err(PyValueError::new_err(
+        return Err(crate::errors::malformed_input(
             "delegated authority must be a signed grant",
         ));
     };
@@ -428,7 +428,7 @@ fn bind_delegated_authority(
         || statement.parent() != Some(expected_parent)
         || grant.signature().descriptor() != &issuer.descriptor
     {
-        return Err(PyValueError::new_err(
+        return Err(crate::errors::malformed_input(
             "signed child grant does not match its native delegation plan",
         ));
     }
@@ -478,9 +478,12 @@ fn plan_child_fields(
     let action_constraint = match action_mode {
         "inherit" if action_digests.is_empty() => statement.action_constraint().clone(),
         "any-body" if action_digests.is_empty() => ActionConstraint::AnyBody,
-        "exact-body" if action_digests.len() == 1 => ActionConstraint::ExactBodyDigest(
-            Digest::new(array32(&action_digests[0], "exact body digest")?),
-        ),
+        "exact-body" if action_digests.len() == 1 => {
+            let digest = action_digests
+                .first()
+                .ok_or_else(|| value_error("exact body digest is required"))?;
+            ActionConstraint::ExactBodyDigest(Digest::new(array32(digest, "exact body digest")?))
+        }
         "allowed-bodies" if !action_digests.is_empty() => {
             let values = action_digests
                 .iter()
@@ -489,7 +492,9 @@ fn plan_child_fields(
             ActionConstraint::AllowedBodyDigests(BodyDigestSet::new(values).map_err(value_error)?)
         }
         _ => {
-            return Err(PyValueError::new_err("invalid delegated action constraint"));
+            return Err(crate::errors::malformed_input(
+                "invalid delegated action constraint",
+            ));
         }
     };
     let budget_ceiling = match (budget_mode, budget) {
@@ -499,7 +504,7 @@ fn plan_child_fields(
             BudgetAlgebraId::parse(&algebra).map_err(value_error)?,
             value,
         )),
-        _ => return Err(PyValueError::new_err("invalid delegated budget")),
+        _ => return Err(crate::errors::malformed_input("invalid delegated budget")),
     };
     let status_policy = match (status_mode, status) {
         ("inherit", None) => statement.status_policy().clone(),
@@ -508,7 +513,11 @@ fn plan_child_fields(
             method: StatusMethodId::parse(&method).map_err(value_error)?,
             max_age: FreshnessLimit::new(maximum_age).map_err(value_error)?,
         },
-        _ => return Err(PyValueError::new_err("invalid delegated status policy")),
+        _ => {
+            return Err(crate::errors::malformed_input(
+                "invalid delegated status policy",
+            ));
+        }
     };
     let assurance_floor = assurance_floor.map_or_else(
         || Ok(statement.assurance_floor().clone()),
@@ -712,7 +721,7 @@ impl PySigningTransaction {
             || !constant_time_equal(&request.transaction_digest(), &response_digest)
             || !policy_references_equal(&self.policy, &policy)
         {
-            return Err(PyValueError::new_err(
+            return Err(crate::errors::malformed_input(
                 "approval response is not bound to the exact transaction",
             ));
         }
@@ -723,7 +732,7 @@ impl PySigningTransaction {
                 Ok(true)
             }
             "rejected" => Ok(false),
-            _ => Err(PyValueError::new_err("invalid approval decision")),
+            _ => Err(crate::errors::malformed_input("invalid approval decision")),
         }
     }
 
@@ -831,7 +840,7 @@ pub fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
 fn bounded_identifier(value: &str, label: &str) -> PyResult<String> {
     if value.is_empty() || value.len() > MAX_IDENTIFIER_BYTES || value.chars().any(char::is_control)
     {
-        return Err(PyValueError::new_err(format!("invalid {label}")));
+        return Err(crate::errors::malformed_input(format!("invalid {label}")));
     }
     Ok(value.to_owned())
 }
@@ -852,7 +861,10 @@ fn constant_time_equal(left: &[u8; 32], right: &[u8; 32]) -> bool {
 fn planning_error(error: PlanningError) -> PyErr {
     match error {
         PlanningError::Expanded(dimension) => {
-            PyErr::new::<NativeDelegationExpandedError, _>(authority_dimension(dimension))
+            crate::errors::structured_as::<NativeDelegationExpandedError>(
+                crate::errors::Boundary::AuthorizationDenied.code(),
+                authority_dimension(dimension),
+            )
         }
         other => value_error(other),
     }
@@ -876,5 +888,5 @@ const fn authority_dimension(value: AuthorityDimension) -> &'static str {
 fn array32(value: &[u8], label: &str) -> PyResult<[u8; 32]> {
     value
         .try_into()
-        .map_err(|_| PyValueError::new_err(format!("{label} must contain 32 bytes")))
+        .map_err(|_| crate::errors::malformed_input(format!("{label} must contain 32 bytes")))
 }

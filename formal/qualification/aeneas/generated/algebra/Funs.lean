@@ -51,4 +51,21 @@ def generated.attenuation_checks_accept
     else ok false
   else ok false
 
+/-- [auths_algebra_kernel::root_preserved]:
+    Source: 'core/crates/auths-algebra-kernel/src/lib.rs', lines 49:0-52:1
+    Visibility: public -/
+def root_preserved
+  {Identity : Type} (corecmpPartialEqInst : core.cmp.PartialEq Identity
+  Identity) (linkage : RootLinkage Identity) :
+  Result Bool
+  := do
+  if linkage.parent_delegated
+  then corecmpPartialEqInst.eq linkage.grant_issuer linkage.parent_subject
+  else
+    let b ←
+      corecmpPartialEqInst.eq linkage.parent_root linkage.parent_subject
+    if b
+    then corecmpPartialEqInst.eq linkage.grant_issuer linkage.parent_subject
+    else ok false
+
 end auths_algebra_kernel

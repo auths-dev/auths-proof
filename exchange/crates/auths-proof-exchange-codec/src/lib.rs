@@ -291,6 +291,12 @@ pub fn encode_response(message: &ActionResponse) -> Vec<u8> {
             verdict,
             message,
         } => (1, &[][..], Some(*kind), verdict.as_ref(), message.as_str()),
+        // Decision 11.8 (contract §10A / §5A.3): additive outcome code. A
+        // possibly-applied effect carries no refusal kind, because it is not a
+        // refusal, and no result, because none was observed.
+        ExchangeOutcome::Indeterminate { verdict, message } => {
+            (2, &[][..], None, verdict.as_ref(), message.as_str())
+        }
     };
 
     encoder
@@ -412,6 +418,14 @@ pub fn decode_response(input: &[u8]) -> Result<ActionResponse, CodecError> {
                 None => return Err(CodecError::Malformed),
             };
             ExchangeOutcome::refused(kind, verdict, message)?
+        }
+        2 if result.is_empty() && refusal.is_none() => {
+            let verdict = match decision {
+                Some(decision) => Some(VerdictSummary::new(decision, reasons)?),
+                None if reasons.is_empty() => None,
+                None => return Err(CodecError::Malformed),
+            };
+            ExchangeOutcome::indeterminate(verdict, message)?
         }
         _ => return Err(CodecError::Malformed),
     };
@@ -619,6 +633,67 @@ mod tests {
         );
         let encoded = encode_response(&response);
         assert_eq!(decode_response(&encoded).unwrap(), response);
+    }
+
+    /// Decision 11.8 (contract §10A / §5A.3). An unknown-effect response must
+    /// survive the wire as itself. If it decoded as a refusal the caller would
+    /// retry a possibly-applied effect, which is the exact failure the third
+    /// member exists to prevent.
+    #[test]
+    fn an_indeterminate_response_round_trips_and_never_decodes_as_a_refusal() {
+        let verdict =
+            VerdictSummary::new(VerdictDecision::Authorized, vec!["authorized".into()]).unwrap();
+        let response = ActionResponse::new(
+            None,
+            ExchangeOutcome::indeterminate(
+                Some(verdict),
+                "effect possible, reconcile before retry: provider call timed out",
+            )
+            .unwrap(),
+            ExchangeMetrics::new(12, 0),
+        );
+        let encoded = encode_response(&response);
+        let decoded = decode_response(&encoded).unwrap();
+        assert_eq!(decoded, response);
+        assert!(matches!(
+            decoded.outcome(),
+            ExchangeOutcome::Indeterminate { .. }
+        ));
+
+        // Same shape without a verdict, so the optional field is exercised.
+        let bare = ActionResponse::new(
+            None,
+            ExchangeOutcome::indeterminate(None, "unknown effect").unwrap(),
+            ExchangeMetrics::new(0, 0),
+        );
+        assert_eq!(decode_response(&encode_response(&bare)).unwrap(), bare);
+    }
+
+    /// An indeterminate response carries no refusal kind and no result. A
+    /// hand-built encoding that smuggles either in must fail closed rather than
+    /// decode into a member whose fields the encoder never wrote.
+    #[test]
+    fn an_indeterminate_response_rejects_a_refusal_kind_or_a_result() {
+        let refused = ActionResponse::new(
+            None,
+            ExchangeOutcome::refused(RefusalKind::ApplicationPolicy, None, "refused").unwrap(),
+            ExchangeMetrics::new(0, 0),
+        );
+        let mut smuggled = encode_response(&refused);
+        // Flip only the outcome code 1 -> 2, leaving the refusal kind in place.
+        let baseline = encode_response(&ActionResponse::new(
+            None,
+            ExchangeOutcome::indeterminate(None, "refused").unwrap(),
+            ExchangeMetrics::new(0, 0),
+        ));
+        let index = smuggled
+            .iter()
+            .zip(&baseline)
+            .position(|(left, right)| left != right)
+            .expect("outcome code differs");
+        assert_eq!(smuggled[index], 1);
+        smuggled[index] = 2;
+        assert!(decode_response(&smuggled).is_err());
     }
 
     #[test]

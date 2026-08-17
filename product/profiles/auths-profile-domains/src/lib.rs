@@ -7,7 +7,9 @@ use auths_model::{
     BudgetAlgebraId, BudgetCeiling, CanonicalAction, CapabilityId, MediaType, Permission,
     ProfileId, ProfileRef, ResourceId,
 };
-use auths_profile_api::{ActionProfile, ProfileContractError, ReviewDisplay};
+use auths_profile_api::{
+    ActionProfile, ProfileBudgetExpression, ProfileContractError, ReviewDisplay,
+};
 use auths_receipts::{ReceiptInspectionError, ReceiptProfileInspector, ReceiptProjection};
 use auths_verifier::VerifiedAction;
 use serde::{Serialize, de::DeserializeOwned};
@@ -16,16 +18,59 @@ use std::{collections::BTreeMap, marker::PhantomData};
 
 const MAX_ACTION_BYTES: usize = 256 * 1024;
 
+/// Budget algebra used for the deployment blast-radius ceiling.
+///
+/// This must name an algebra installed in the target V1 registry
+/// (`auths_registries::NUMERIC_CEILING_V1`); an unregistered identifier makes
+/// every ceiling comparison unresolvable and the action unauthorizable for a
+/// reason unrelated to authority.
+const BLAST_RADIUS_BUDGET_ALGEBRA: &str = "numeric-ceiling-v1";
+
 trait DomainMeaning: Clone + DeserializeOwned + Serialize {
     const PROFILE_ID: &'static str;
     const PROFILE_VERSION: u16 = 1;
     const MEDIA_TYPE: &'static str;
+    /// Must agree with [`DomainMeaning::budget`]: a domain that can return
+    /// `Some` is `Expressible`, a domain that can only ever return `None` is
+    /// `Inexpressible`. `domain_budget_declaration_matches_canonical_bytes`
+    /// proves the two agree for every shipping domain.
+    const BUDGET_EXPRESSION: ProfileBudgetExpression;
 
     fn validate(&self) -> Result<(), ProfileContractError>;
     fn permission(&self) -> Result<Permission, ProfileContractError>;
     fn display(&self) -> Vec<(String, String)>;
     fn budget(&self) -> Result<Option<BudgetCeiling>, ProfileContractError> {
         Ok(None)
+    }
+}
+
+/// Reports whether one shipped domain profile's canonical actions can express a
+/// requested budget.
+///
+/// The answer is read off each profile's own
+/// [`ActionProfile::BUDGET_EXPRESSION`], so it cannot drift from what
+/// canonicalization actually produces. Returns `None` for any profile this
+/// crate does not ship — a caller that gets `None` must keep the denying
+/// reading of an absent requested budget.
+#[must_use]
+pub fn budget_expression(profile: &ProfileRef) -> Option<ProfileBudgetExpression> {
+    match (profile.id().as_str(), profile.version()) {
+        (HttpAction::PROFILE_ID, HttpAction::PROFILE_VERSION) => {
+            Some(<HttpProfile as ActionProfile>::BUDGET_EXPRESSION)
+        }
+        (GitAction::PROFILE_ID, GitAction::PROFILE_VERSION) => {
+            Some(<GitProfile as ActionProfile>::BUDGET_EXPRESSION)
+        }
+        (DeploymentAction::PROFILE_ID, DeploymentAction::PROFILE_VERSION) => {
+            Some(<DeploymentProfile as ActionProfile>::BUDGET_EXPRESSION)
+        }
+        (SupplyChainAction::PROFILE_ID, SupplyChainAction::PROFILE_VERSION) => {
+            Some(<SupplyChainProfile as ActionProfile>::BUDGET_EXPRESSION)
+        }
+        (EdgeAction::PROFILE_ID, EdgeAction::PROFILE_VERSION) => {
+            Some(<EdgeProfile as ActionProfile>::BUDGET_EXPRESSION)
+        }
+        _ => None,
     }
 }
 
@@ -57,6 +102,8 @@ where
     T: DomainMeaning,
 {
     type Command = DomainCommand<T>;
+
+    const BUDGET_EXPRESSION: ProfileBudgetExpression = T::BUDGET_EXPRESSION;
 
     fn canonicalize(&self, untrusted: &[u8]) -> Result<CanonicalAction, ProfileContractError> {
         if untrusted.is_empty() || untrusted.len() > MAX_ACTION_BYTES {
@@ -353,6 +400,7 @@ impl HttpAction {
 impl DomainMeaning for HttpAction {
     const PROFILE_ID: &'static str = "auths.http";
     const MEDIA_TYPE: &'static str = "application/vnd.auths.http-action.v1+json";
+    const BUDGET_EXPRESSION: ProfileBudgetExpression = ProfileBudgetExpression::Inexpressible;
 
     fn validate(&self) -> Result<(), ProfileContractError> {
         exact_profile(&self.profile, self.profile_version, Self::PROFILE_ID)?;
@@ -469,6 +517,7 @@ impl GitAction {
 impl DomainMeaning for GitAction {
     const PROFILE_ID: &'static str = "auths.git";
     const MEDIA_TYPE: &'static str = "application/vnd.auths.git-action.v1+json";
+    const BUDGET_EXPRESSION: ProfileBudgetExpression = ProfileBudgetExpression::Inexpressible;
 
     fn validate(&self) -> Result<(), ProfileContractError> {
         exact_profile(&self.profile, self.profile_version, Self::PROFILE_ID)?;
@@ -612,6 +661,7 @@ impl DeploymentAction {
 impl DomainMeaning for DeploymentAction {
     const PROFILE_ID: &'static str = "auths.deploy";
     const MEDIA_TYPE: &'static str = "application/vnd.auths.deploy-action.v1+json";
+    const BUDGET_EXPRESSION: ProfileBudgetExpression = ProfileBudgetExpression::Expressible;
 
     fn validate(&self) -> Result<(), ProfileContractError> {
         exact_profile(&self.profile, self.profile_version, Self::PROFILE_ID)?;
@@ -663,7 +713,7 @@ impl DomainMeaning for DeploymentAction {
 
     fn budget(&self) -> Result<Option<BudgetCeiling>, ProfileContractError> {
         Ok(Some(BudgetCeiling::new(
-            BudgetAlgebraId::parse("deploy-blast-radius-v1")
+            BudgetAlgebraId::parse(BLAST_RADIUS_BUDGET_ALGEBRA)
                 .map_err(|_| ProfileContractError::MeaningMismatch)?,
             self.blast_radius,
         )))
@@ -724,6 +774,7 @@ impl SupplyChainAction {
 impl DomainMeaning for SupplyChainAction {
     const PROFILE_ID: &'static str = "auths.supply-chain";
     const MEDIA_TYPE: &'static str = "application/vnd.auths.supply-chain-action.v1+json";
+    const BUDGET_EXPRESSION: ProfileBudgetExpression = ProfileBudgetExpression::Inexpressible;
 
     fn validate(&self) -> Result<(), ProfileContractError> {
         exact_profile(&self.profile, self.profile_version, Self::PROFILE_ID)?;
@@ -818,6 +869,7 @@ impl EdgeAction {
 impl DomainMeaning for EdgeAction {
     const PROFILE_ID: &'static str = "auths.edge";
     const MEDIA_TYPE: &'static str = "application/vnd.auths.edge-action.v1+json";
+    const BUDGET_EXPRESSION: ProfileBudgetExpression = ProfileBudgetExpression::Inexpressible;
 
     fn validate(&self) -> Result<(), ProfileContractError> {
         exact_profile(&self.profile, self.profile_version, Self::PROFILE_ID)?;
@@ -1095,6 +1147,171 @@ mod tests {
                 .unwrap()
             );
         }
+    }
+
+    fn canonical_domain_budget_cases() -> Vec<(ProfileRef, ProfileBudgetExpression, CanonicalAction)>
+    {
+        let digest = "11".repeat(32);
+        vec![
+            (
+                profile::<HttpAction>().unwrap(),
+                <HttpProfile as ActionProfile>::BUDGET_EXPRESSION,
+                HttpProfile::default()
+                    .canonicalize(
+                        &serde_json::to_vec(&HttpAction::new(
+                            "POST".into(),
+                            "https".into(),
+                            "api.example.com".into(),
+                            "/v1/releases".into(),
+                            BTreeMap::new(),
+                            BTreeMap::new(),
+                            Some("application/json".into()),
+                            Some(digest.clone()),
+                        ))
+                        .unwrap(),
+                    )
+                    .unwrap(),
+            ),
+            (
+                profile::<GitAction>().unwrap(),
+                <GitProfile as ActionProfile>::BUDGET_EXPRESSION,
+                GitProfile::default()
+                    .canonicalize(
+                        &serde_json::to_vec(&GitAction::new(
+                            "example/repository".into(),
+                            "push".into(),
+                            "heads/main".into(),
+                            digest.clone(),
+                        ))
+                        .unwrap(),
+                    )
+                    .unwrap(),
+            ),
+            (
+                profile::<DeploymentAction>().unwrap(),
+                <DeploymentProfile as ActionProfile>::BUDGET_EXPRESSION,
+                DeploymentProfile::default()
+                    .canonicalize(
+                        &serde_json::to_vec(&DeploymentAction::new(
+                            "production".into(),
+                            "eu-west-1".into(),
+                            "deploy".into(),
+                            digest.clone(),
+                            digest.clone(),
+                            digest.clone(),
+                            "canary".into(),
+                            1_800_000_000,
+                            1_800_003_600,
+                            10,
+                        ))
+                        .unwrap(),
+                    )
+                    .unwrap(),
+            ),
+            (
+                profile::<SupplyChainAction>().unwrap(),
+                <SupplyChainProfile as ActionProfile>::BUDGET_EXPRESSION,
+                SupplyChainProfile::default()
+                    .canonicalize(
+                        &serde_json::to_vec(&SupplyChainAction::new(
+                            "attest".into(),
+                            digest.clone(),
+                            "https://slsa.dev/provenance/v1".into(),
+                            "builder://ci.example.com/runner".into(),
+                        ))
+                        .unwrap(),
+                    )
+                    .unwrap(),
+            ),
+            (
+                profile::<EdgeAction>().unwrap(),
+                <EdgeProfile as ActionProfile>::BUDGET_EXPRESSION,
+                EdgeProfile::default()
+                    .canonicalize(
+                        &serde_json::to_vec(&EdgeAction::new(
+                            "fleet-a".into(),
+                            "device-1".into(),
+                            "restart".into(),
+                            7,
+                            Some(digest.clone()),
+                        ))
+                        .unwrap(),
+                    )
+                    .unwrap(),
+            ),
+        ]
+    }
+
+    /// Every domain profile's declared budget capability must match the bytes
+    /// its canonicalizer actually produces.
+    ///
+    /// A profile that declared `Inexpressible` while emitting a requested
+    /// budget would tell a verifier its actions provably spend zero when they
+    /// do not — the one way this mechanism could become unsound. Both sides are
+    /// computed here; neither is a literal.
+    #[test]
+    fn domain_budget_declaration_matches_canonical_bytes() {
+        let cases = canonical_domain_budget_cases();
+        // Both readings must actually occur, otherwise the comparison below
+        // would pass for a table that is constant in one direction.
+        assert!(
+            cases
+                .iter()
+                .any(|(_, expression, _)| *expression == ProfileBudgetExpression::Expressible)
+                && cases
+                    .iter()
+                    .any(|(_, expression, _)| *expression
+                        == ProfileBudgetExpression::Inexpressible)
+        );
+        for (reference, declared, canonical) in cases {
+            let observed = if canonical.requested_budget().is_some() {
+                ProfileBudgetExpression::Expressible
+            } else {
+                ProfileBudgetExpression::Inexpressible
+            };
+            assert_eq!(
+                declared,
+                observed,
+                "{reference:?} declares {declared:?} but canonicalized to {:?}",
+                canonical.requested_budget()
+            );
+            assert_eq!(budget_expression(&reference), Some(declared));
+        }
+    }
+
+    /// Regression: `DeploymentAction` used to mint the unregistered algebra
+    /// `deploy-blast-radius-v1`. No verifier registry installs that algebra, so
+    /// a ceiling-bearing grant could never resolve it (denied for a reason
+    /// unrelated to authority) and a ceiling-free chain skipped the check
+    /// entirely while an integration claimed real blast radius against it.
+    #[test]
+    fn every_profile_budget_uses_a_registered_algebra() {
+        let digest = "11".repeat(32);
+        let deployment = DeploymentProfile::default()
+            .canonicalize(
+                &serde_json::to_vec(&DeploymentAction::new(
+                    "production".into(),
+                    "eu-west-1".into(),
+                    "deploy".into(),
+                    digest.clone(),
+                    digest.clone(),
+                    digest,
+                    "canary".into(),
+                    1_800_000_000,
+                    1_800_003_600,
+                    10,
+                ))
+                .unwrap(),
+            )
+            .expect("valid deployment action");
+        let budget = deployment
+            .requested_budget()
+            .expect("deployment binds a blast-radius ceiling");
+        assert_eq!(
+            budget.algebra().as_str(),
+            auths_registries::NUMERIC_CEILING_V1
+        );
+        assert_eq!(budget.value(), 10);
     }
 
     #[test]

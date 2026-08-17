@@ -7,10 +7,11 @@ pub use auths_production_client as production_client;
 
 use async_trait::async_trait;
 use auths_codec::context_digest;
+use auths_errors::EffectState;
 pub use auths_kernel_runtime::AuthsKernel;
 use auths_model::{
     ActionId, Audience, BudgetCeiling, Challenge, Digest, ReceiptId, SignatureBytes, Timestamp,
-    VerifierContext,
+    TrustedContext,
 };
 use auths_operations::{
     EventSink, NoopEventSink, OperationalEventV2, OperationalOutcome, OperationalReasonCode,
@@ -44,6 +45,10 @@ use std::{
 use subtle::ConstantTimeEq as _;
 
 const REQUEST_ID_DOMAIN: &[u8] = b"AUTHS-APPS-REQUEST\x00\x01";
+
+/// Upper bound for an adapter-supplied failure summary. Kept below the exchange
+/// refusal-message maximum so the projection can never fail.
+const MAX_FAILURE_SUMMARY_BYTES: usize = 512;
 
 /// Runtime clock effect.
 pub trait Clock: Send + Sync {
@@ -294,7 +299,7 @@ fn evaluate_kernel(
     challenge: ChallengeNonce,
     audience: &ExchangeAudience,
     now: u64,
-) -> Result<(VerificationOutcome, VerifierContext), auths_model::DenialReason> {
+) -> Result<(VerificationOutcome, TrustedContext), auths_model::DenialReason> {
     let expected_audience = Audience::parse(audience.as_str())
         .map_err(|_| auths_model::DenialReason::AudienceMismatch)?;
     kernel.verify_with_context(
@@ -368,11 +373,154 @@ impl<C> ExecutableAction<C> {
     }
 }
 
+/// Whether a failing provider call had already entered the provider.
+///
+/// This boundary is the entire safety question for a failed execution. Before
+/// entry the adapter holds proof that the exact effect was not applied. After
+/// entry it holds none: a refused connection, a timeout, and a lost response for
+/// an applied write are indistinguishable from inside the adapter.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ProviderBoundary {
+    /// The exact command provably never reached the provider.
+    BeforeEntry,
+    /// The exact command entered, or may have entered, the provider.
+    AfterEntry,
+}
+
+/// Bounded executor failure that states exactly what the adapter can prove.
+///
+/// There is deliberately no `From<String>` and no default boundary. An adapter
+/// must choose, because Auths cannot choose for it and the wrong default mints a
+/// signed proof that a real-world effect did not happen.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ToolExecutionFailure {
+    boundary: ProviderBoundary,
+    summary: String,
+}
+
+impl ToolExecutionFailure {
+    /// Declares a failure that provably occurred before provider entry.
+    ///
+    /// Use this only when the adapter can prove the exact command never reached
+    /// the provider: local validation, a policy refusal, or a connection that
+    /// was refused before any request byte was written.
+    #[must_use]
+    pub fn before_provider_entry(summary: impl AsRef<str>) -> Self {
+        Self::new(ProviderBoundary::BeforeEntry, summary)
+    }
+
+    /// Declares a failure whose exact effect may already have been applied.
+    ///
+    /// This is the correct answer for a timeout, a cancellation, a reset
+    /// connection, an unparsable provider response, and any failure the adapter
+    /// cannot place on the near side of provider entry.
+    #[must_use]
+    pub fn after_provider_entry(summary: impl AsRef<str>) -> Self {
+        Self::new(ProviderBoundary::AfterEntry, summary)
+    }
+
+    fn new(boundary: ProviderBoundary, summary: impl AsRef<str>) -> Self {
+        Self {
+            boundary,
+            summary: bounded_summary(summary.as_ref()),
+        }
+    }
+
+    /// Returns the exact provider boundary this failure crossed.
+    #[must_use]
+    pub const fn boundary(&self) -> ProviderBoundary {
+        self.boundary
+    }
+
+    /// Returns the bounded, display-safe failure summary.
+    #[must_use]
+    pub fn summary(&self) -> &str {
+        &self.summary
+    }
+
+    /// Projects the Rust-owned effect state this failure is entitled to claim.
+    #[must_use]
+    pub const fn effect(&self) -> EffectState {
+        match self.boundary {
+            ProviderBoundary::BeforeEntry => EffectState::NotApplied,
+            ProviderBoundary::AfterEntry => EffectState::Possible,
+        }
+    }
+}
+
+/// Reports whether a failed execution may be recorded as a signed receipt
+/// asserting the exact effect did not happen.
+///
+/// `ExecutionOutcome::Failed` is an assertion of non-effect, not a description
+/// of an error. Only a failure the adapter proved occurred before provider entry
+/// may be minted as one.
+const fn may_sign_non_effect_receipt(failure: &ToolExecutionFailure) -> bool {
+    matches!(failure.effect(), EffectState::NotApplied)
+}
+
+/// Selects the signed execution outcome a failed execution is entitled to
+/// record (decision 11.8, contract §10A / §5A.3).
+///
+/// This is the single place the adapter's proven provider boundary becomes a
+/// durable assertion, and it is total: `Failed` for a proven pre-entry failure,
+/// `Indeterminate` for everything else. `Succeeded` is unreachable here because
+/// the executor returned an error.
+const fn receipt_outcome_for(failure: &ToolExecutionFailure) -> ReceiptExecutionOutcome {
+    if may_sign_non_effect_receipt(failure) {
+        ReceiptExecutionOutcome::Failed
+    } else {
+        ReceiptExecutionOutcome::Indeterminate
+    }
+}
+
+/// Prefix that marks a refusal whose exact effect may already have been applied.
+pub const OUTCOME_UNKNOWN_PREFIX: &str = "effect possible, reconcile before retry: ";
+
+/// Prefixes an unknown-effect summary so the refusal message cannot be read as
+/// an assertion that nothing happened.
+fn alloc_unknown_message(summary: &str) -> String {
+    let mut message = String::with_capacity(OUTCOME_UNKNOWN_PREFIX.len() + summary.len());
+    message.push_str(OUTCOME_UNKNOWN_PREFIX);
+    message.push_str(summary);
+    message
+}
+
+/// Normalizes an adapter-supplied summary into the bounded, control-character
+/// free form the exchange refusal message requires.
+///
+/// An adapter cannot crash the service with an empty, oversized, or control
+/// character message.
+fn bounded_summary(value: &str) -> String {
+    let mut summary = String::with_capacity(value.len().min(MAX_FAILURE_SUMMARY_BYTES));
+    for character in value.chars() {
+        if character.is_control() {
+            continue;
+        }
+        if summary.len() + character.len_utf8() > MAX_FAILURE_SUMMARY_BYTES {
+            break;
+        }
+        summary.push(character);
+    }
+    if summary.is_empty() {
+        summary.push_str("provider adapter reported no summary");
+    }
+    summary
+}
+
 /// MCP executor boundary. No API accepts original request bytes.
 #[async_trait]
 pub trait McpToolExecutor: Send + Sync {
     /// Executes a command decoded from a sealed verified action.
-    async fn execute(&self, action: ExecutableAction<McpCommand>) -> Result<Vec<u8>, String>;
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`ToolExecutionFailure`] that names the provider boundary the
+    /// failure crossed. Auths signs an execution receipt asserting non-effect
+    /// only for [`ProviderBoundary::BeforeEntry`].
+    async fn execute(
+        &self,
+        action: ExecutableAction<McpCommand>,
+    ) -> Result<Vec<u8>, ToolExecutionFailure>;
 }
 
 /// Static MCP runtime configuration.
@@ -580,7 +728,7 @@ impl McpAuthorizationService {
     ///
     /// # Errors
     ///
-    /// Returns a configuration failure when the pure verifier context does
+    /// Returns a configuration failure when the pure trusted context does
     /// not require the channel-binding identifier selected by the service.
     pub fn new(
         config: McpServiceConfig,
@@ -813,17 +961,18 @@ impl ProofExchangeService for McpAuthorizationService {
                 verification_micros,
             );
         }
-        let Some(decision_receipt_id) = self.record_decision(
-            request.proof(),
-            &canonical,
-            &request_context,
-            &VerificationOutcome::Authorized(Box::new(verified.clone())),
-            now,
-        ) else {
+        // Contract §5A.4. Every refusing gate runs BEFORE the authorization
+        // receipt is signed. A durable receipt asserting `Authorized` for a
+        // request the runtime then refuses is a false audit record, and writing
+        // one per attempt hands an attacker unbounded write amplification into
+        // the receipt sink. The pure action-identifier check is hoisted above
+        // the replay claim so a verified action the runtime cannot lease does
+        // not consume the caller's challenge either.
+        let Some(action_id) = verified.action_ids().first().copied() else {
             return Self::refusal(
-                RefusalKind::ApplicationPolicy,
+                RefusalKind::AuthsVerdict,
                 None,
-                "receipt store unavailable",
+                "verified action has no action identifier",
                 verification_micros,
             );
         };
@@ -852,14 +1001,6 @@ impl ProofExchangeService for McpAuthorizationService {
                 );
             }
         }
-        let Some(action_id) = verified.action_ids().first().copied() else {
-            return Self::refusal(
-                RefusalKind::AuthsVerdict,
-                None,
-                "verified action has no action identifier",
-                verification_micros,
-            );
-        };
         match self
             .budgets
             .claim(action_id, verified.canonical_action().requested_budget())
@@ -882,6 +1023,22 @@ impl ProofExchangeService for McpAuthorizationService {
                 );
             }
         }
+        // Last refusing gate has passed. Only now is `Authorized` a claim this
+        // runtime can stand behind, so only now is it signed.
+        let Some(decision_receipt_id) = self.record_decision(
+            request.proof(),
+            &canonical,
+            &request_context,
+            &VerificationOutcome::Authorized(Box::new(verified.clone())),
+            now,
+        ) else {
+            return Self::refusal(
+                RefusalKind::ApplicationPolicy,
+                None,
+                "receipt store unavailable",
+                verification_micros,
+            );
+        };
         let lease = ExecutionLease {
             challenge: challenge.challenge(),
             action: action_id,
@@ -897,27 +1054,87 @@ impl ProofExchangeService for McpAuthorizationService {
         let execution_started = Instant::now();
         let result = match self.executor.execute(executable).await {
             Ok(result) => result,
-            Err(message) => {
+            Err(failure) => {
+                let applied_is_possible = !may_sign_non_effect_receipt(&failure);
                 self.observe(
                     OperationalStage::ProviderResult,
-                    OperationalOutcome::Failed,
-                    OperationalReasonCode::ProviderFailed,
+                    if applied_is_possible {
+                        OperationalOutcome::OutcomeUnknown
+                    } else {
+                        OperationalOutcome::Failed
+                    },
+                    if applied_is_possible {
+                        OperationalReasonCode::ProviderUnknown
+                    } else {
+                        OperationalReasonCode::ProviderFailed
+                    },
                     micros(execution_started.elapsed()),
                 );
-                let _ = self.record_execution(
+                // Decision 11.8 (contract §10A / §5A.3). The provider boundary
+                // the adapter proved is projected directly onto the signed
+                // receipt: `Failed` asserts the exact effect did not happen and
+                // is reserved for a proven pre-entry failure; everything the
+                // adapter cannot place on the near side of provider entry is
+                // recorded as `Indeterminate`. Both are durable evidence — an
+                // unknown effect is exactly the case an auditor most needs
+                // signed, so silence is not an option either.
+                let stored = self.record_execution(
                     decision_receipt_id,
                     lease_digest,
                     &verified,
-                    ReceiptExecutionOutcome::Failed,
+                    receipt_outcome_for(&failure),
                     None,
                 );
-                return Self::refusal(
-                    RefusalKind::ApplicationPolicy,
-                    Some(verdict_summary(&VerificationOutcome::Authorized(Box::new(
-                        verified,
-                    )))),
-                    &message,
-                    verification_micros,
+                let verdict = Some(verdict_summary(&VerificationOutcome::Authorized(Box::new(
+                    verified,
+                ))));
+                if !stored {
+                    // Losing the receipt does not make the effect definite.
+                    // Only a proven pre-entry failure may still be refused.
+                    let unstored = if applied_is_possible {
+                        ExchangeOutcome::indeterminate(
+                            verdict,
+                            "effect possible, reconcile before retry: receipt store unavailable",
+                        )
+                    } else {
+                        ExchangeOutcome::refused(
+                            RefusalKind::ApplicationPolicy,
+                            verdict,
+                            "receipt store unavailable",
+                        )
+                    }
+                    .expect("static runtime message is bounded");
+                    return ActionResponse::new(
+                        None,
+                        unstored,
+                        ExchangeMetrics::new(verification_micros, 0),
+                    );
+                }
+                // A refusal is read by every caller as "nothing happened", so a
+                // possibly-applied effect must never be projected as one.
+                let outcome = if applied_is_possible {
+                    ExchangeOutcome::indeterminate(
+                        verdict,
+                        alloc_unknown_message(failure.summary()),
+                    )
+                } else {
+                    ExchangeOutcome::refused(
+                        RefusalKind::ApplicationPolicy,
+                        verdict,
+                        failure.summary(),
+                    )
+                }
+                // INVARIANT: `ToolExecutionFailure` normalizes every adapter
+                // summary through `bounded_summary`, which guarantees a
+                // non-empty, control-character-free string of at most
+                // `MAX_FAILURE_SUMMARY_BYTES`, and `OUTCOME_UNKNOWN_PREFIX` is
+                // printable ASCII. Proved by
+                // `an_adapter_summary_can_never_panic_the_outcome_projection`.
+                .expect("bounded adapter summary is a valid exchange message");
+                return ActionResponse::new(
+                    None,
+                    outcome,
+                    ExchangeMetrics::new(verification_micros, 0),
                 );
             }
         };
@@ -927,6 +1144,12 @@ impl ProofExchangeService for McpAuthorizationService {
             OperationalReasonCode::None,
             micros(execution_started.elapsed()),
         );
+        // The two failures below happen AFTER the provider applied the effect.
+        // Projecting either as a refusal would tell the caller nothing happened
+        // and invite a duplicate side effect, so both are unknown-effect
+        // results even though this runtime knows the effect applied: there is
+        // no "applied but undeliverable" member, and `Indeterminate` is the
+        // only projection that does not assert a falsehood.
         if !self.record_execution(
             decision_receipt_id,
             lease_digest,
@@ -934,24 +1157,26 @@ impl ProofExchangeService for McpAuthorizationService {
             ReceiptExecutionOutcome::Succeeded,
             Some(&result),
         ) {
-            return Self::refusal(
-                RefusalKind::ApplicationPolicy,
+            return ActionResponse::new(
                 None,
-                "receipt store unavailable",
-                verification_micros,
+                ExchangeOutcome::indeterminate(
+                    None,
+                    "effect applied; receipt store unavailable, reconcile before retry",
+                )
+                .expect("static runtime message is bounded"),
+                ExchangeMetrics::new(verification_micros, 0),
             );
         }
         let execution_micros = micros(execution_started.elapsed());
         let request_id = request_id(challenge.challenge(), request.body(), request.proof());
         let outcome = ExchangeOutcome::completed(result).unwrap_or_else(|_| {
-            ExchangeOutcome::refused(
-                RefusalKind::ApplicationPolicy,
+            ExchangeOutcome::indeterminate(
                 Some(verdict_summary(&VerificationOutcome::Authorized(Box::new(
                     verified,
                 )))),
-                "tool result exceeds exchange limit",
+                "effect applied; tool result exceeds exchange limit, reconcile before retry",
             )
-            .expect("static refusal is bounded")
+            .expect("static runtime message is bounded")
         });
         ActionResponse::new(
             Some(request_id),
@@ -966,7 +1191,7 @@ impl McpAuthorizationService {
         &self,
         proof: &[u8],
         canonical_action: &auths_model::CanonicalAction,
-        context: &VerifierContext,
+        context: &TrustedContext,
         outcome: &VerificationOutcome,
         now: u64,
     ) -> Option<ReceiptId> {
@@ -1037,6 +1262,33 @@ impl McpAuthorizationService {
     }
 }
 
+/// Reports whether a transport observation authenticates the *remote peer that
+/// submitted this action*.
+///
+/// This deliberately does NOT use `PeerObservation::is_authenticated`. That
+/// predicate is satisfied by two kinds of observation this service must never
+/// accept as peer authentication:
+///
+/// * `AuthenticatedOpaque { kind, identifier }` carries no transport material
+///   this service can corroborate. Its variant and fields are public, so any
+///   caller — including an in-process channel that performed no authentication
+///   at all — can mint one and satisfy a blanket `is_authenticated()` gate.
+/// * `ServerAuthenticated` and `HttpsServerCertificate` are *client-side*
+///   observations: they record that the local side authenticated the remote
+///   SERVER. This runtime is the responder, so they say nothing about the
+///   caller submitting the action.
+///
+/// Only observations that name concrete, transport-supplied peer material are
+/// accepted. Unlisted and future observations fail closed.
+const fn peer_is_authenticated_to_this_service(peer: &PeerObservation) -> bool {
+    matches!(
+        peer,
+        PeerObservation::IrohEndpoint(_)
+            | PeerObservation::MutualTlsCertificate(_)
+            | PeerObservation::UnixPeerCredentials { .. }
+    )
+}
+
 fn channel_policy_satisfied(
     policy: ChannelBindingPolicy,
     peer: &PeerObservation,
@@ -1044,7 +1296,9 @@ fn channel_policy_satisfied(
 ) -> bool {
     match policy {
         ChannelBindingPolicy::None => true,
-        ChannelBindingPolicy::RequireAuthenticatedPeer => peer.is_authenticated(),
+        ChannelBindingPolicy::RequireAuthenticatedPeer => {
+            peer_is_authenticated_to_this_service(peer)
+        }
         ChannelBindingPolicy::RequireSignedSenderBinding => {
             matches!(peer, PeerObservation::IrohEndpoint(_))
         }
@@ -1147,7 +1401,7 @@ pub enum ServiceConfigurationError {
     InvalidExchangeLimits,
     /// Channel policy lacks required local configuration.
     InvalidChannelPolicy,
-    /// Pure verifier context and signed outer channel policy disagree.
+    /// Pure trusted context and signed outer channel policy disagree.
     InvalidKernelChannelPolicy,
 }
 
@@ -1185,4 +1439,206 @@ pub fn inspect_mcp_body(
     canonical_body: &[u8],
 ) -> Result<McpToolCall, auths_profile_mcp::ProfileError> {
     McpToolCall::from_canonical_bytes(canonical_body)
+}
+
+#[cfg(test)]
+mod channel_policy_tests {
+    use super::{ChannelBindingPolicy, PeerObservation, channel_policy_satisfied};
+
+    /// Regression for `peer-observation-fail-open`: `PeerObservation` is a
+    /// public enum with public variants, so any caller can mint an observation
+    /// that `PeerObservation::is_authenticated` reports as authenticated. The
+    /// service must not accept a free-form assertion as peer authentication.
+    #[test]
+    fn forgeable_observations_do_not_satisfy_require_authenticated_peer() {
+        let forged = PeerObservation::AuthenticatedOpaque {
+            kind: "memory-demo".into(),
+            identifier: vec![1],
+        };
+        assert!(
+            forged.is_authenticated(),
+            "guard the premise: the model still reports this as authenticated"
+        );
+        assert!(!channel_policy_satisfied(
+            ChannelBindingPolicy::RequireAuthenticatedPeer,
+            &forged,
+            None,
+        ));
+    }
+
+    #[test]
+    fn client_side_observations_do_not_authenticate_the_submitting_peer() {
+        for peer in [
+            PeerObservation::ServerAuthenticated,
+            PeerObservation::HttpsServerCertificate([3; 32]),
+        ] {
+            assert!(peer.is_authenticated());
+            assert!(
+                !channel_policy_satisfied(
+                    ChannelBindingPolicy::RequireAuthenticatedPeer,
+                    &peer,
+                    None,
+                ),
+                "{peer:?} authenticates the server, not the caller"
+            );
+        }
+    }
+
+    #[test]
+    fn unauthenticated_transports_are_refused() {
+        for peer in [
+            PeerObservation::Unauthenticated,
+            PeerObservation::TcpEndpoint("127.0.0.1:9".into()),
+            PeerObservation::FileEnvelope {
+                digest: [4; 32],
+                sequence: 7,
+            },
+        ] {
+            assert!(!channel_policy_satisfied(
+                ChannelBindingPolicy::RequireAuthenticatedPeer,
+                &peer,
+                None,
+            ));
+        }
+    }
+
+    #[test]
+    fn transport_supplied_peer_material_is_accepted() {
+        for peer in [
+            PeerObservation::IrohEndpoint([9; 32]),
+            PeerObservation::MutualTlsCertificate([9; 32]),
+            PeerObservation::UnixPeerCredentials {
+                uid: 501,
+                gid: 20,
+                pid: Some(4242),
+            },
+        ] {
+            assert!(channel_policy_satisfied(
+                ChannelBindingPolicy::RequireAuthenticatedPeer,
+                &peer,
+                None,
+            ));
+        }
+    }
+}
+
+#[cfg(test)]
+mod provider_boundary_tests {
+    use super::{
+        EffectState, MAX_FAILURE_SUMMARY_BYTES, OUTCOME_UNKNOWN_PREFIX, ProviderBoundary,
+        ReceiptExecutionOutcome, ToolExecutionFailure, alloc_unknown_message,
+        may_sign_non_effect_receipt, receipt_outcome_for,
+    };
+    use auths_proof_exchange_model::{ExchangeOutcome, RefusalKind};
+
+    /// Regression for `provider-error-asserts-non-effect`. The executor boundary
+    /// used to be `Result<Vec<u8>, String>`, so every adapter failure — including
+    /// a timeout after the provider had been entered — reached the gateway
+    /// indistinguishable from a local policy refusal and was minted as a signed
+    /// `ExecutionOutcome::Failed` receipt asserting the effect did not happen.
+    #[test]
+    fn a_failure_after_provider_entry_never_mints_a_non_effect_receipt() {
+        let failure = ToolExecutionFailure::after_provider_entry("provider call timed out");
+        assert_eq!(failure.boundary(), ProviderBoundary::AfterEntry);
+        assert_eq!(failure.effect(), EffectState::Possible);
+        assert!(
+            !may_sign_non_effect_receipt(&failure),
+            "a possibly-applied effect was about to be signed as not applied"
+        );
+    }
+
+    #[test]
+    fn only_a_proven_pre_entry_failure_mints_a_non_effect_receipt() {
+        let failure = ToolExecutionFailure::before_provider_entry("command outside local policy");
+        assert_eq!(failure.boundary(), ProviderBoundary::BeforeEntry);
+        assert_eq!(failure.effect(), EffectState::NotApplied);
+        assert!(may_sign_non_effect_receipt(&failure));
+    }
+
+    #[test]
+    fn the_two_provider_boundaries_never_collapse() {
+        let before = ToolExecutionFailure::before_provider_entry("same words");
+        let after = ToolExecutionFailure::after_provider_entry("same words");
+        assert_ne!(before, after);
+        assert_ne!(before.effect(), after.effect());
+        assert_ne!(
+            may_sign_non_effect_receipt(&before),
+            may_sign_non_effect_receipt(&after)
+        );
+    }
+
+    #[test]
+    fn an_unknown_effect_refusal_message_does_not_read_as_failure() {
+        let failure = ToolExecutionFailure::after_provider_entry("connection reset");
+        let message = alloc_unknown_message(failure.summary());
+        assert!(message.starts_with(OUTCOME_UNKNOWN_PREFIX));
+        assert!(message.contains("connection reset"));
+    }
+
+    /// The adapter-supplied summary used to flow straight into
+    /// `ExchangeOutcome::refused(..).expect("static runtime refusal is bounded")`,
+    /// so an empty, oversized, or control-character summary panicked the
+    /// authorization service. The unknown-effect branch now carries the same
+    /// obligation through `ExchangeOutcome::indeterminate`.
+    #[test]
+    fn an_adapter_summary_can_never_panic_the_outcome_projection() {
+        for raw in [
+            String::new(),
+            "\u{0}\u{7}\n\r\t".to_owned(),
+            "x".repeat(64 * 1024),
+        ] {
+            for failure in [
+                ToolExecutionFailure::before_provider_entry(&raw),
+                ToolExecutionFailure::after_provider_entry(&raw),
+            ] {
+                let possible = !may_sign_non_effect_receipt(&failure);
+                let message = if possible {
+                    alloc_unknown_message(failure.summary())
+                } else {
+                    failure.summary().to_owned()
+                };
+                assert!(!message.is_empty());
+                assert!(message.len() <= OUTCOME_UNKNOWN_PREFIX.len() + MAX_FAILURE_SUMMARY_BYTES);
+                assert!(!message.bytes().any(|byte| byte.is_ascii_control()));
+                let projected = if possible {
+                    ExchangeOutcome::indeterminate(None, message)
+                } else {
+                    ExchangeOutcome::refused(RefusalKind::ApplicationPolicy, None, message)
+                };
+                assert!(projected.is_ok());
+            }
+        }
+    }
+
+    /// The production mapping from proven provider boundary to signed receipt
+    /// outcome, exercised directly. A timeout must never mint `Failed`, and a
+    /// proven pre-entry failure must never be downgraded to `Indeterminate` —
+    /// the third variant is not a place to hide a definite answer.
+    #[test]
+    fn the_provider_boundary_selects_the_signed_receipt_outcome() {
+        assert_eq!(
+            receipt_outcome_for(&ToolExecutionFailure::after_provider_entry(
+                "provider call timed out"
+            )),
+            ReceiptExecutionOutcome::Indeterminate
+        );
+        assert_eq!(
+            receipt_outcome_for(&ToolExecutionFailure::before_provider_entry(
+                "connection refused before any request byte"
+            )),
+            ReceiptExecutionOutcome::Failed
+        );
+        // No failure of any wording may be signed as a success.
+        for summary in ["", "ok", "succeeded", "\u{0}"] {
+            for failure in [
+                ToolExecutionFailure::before_provider_entry(summary),
+                ToolExecutionFailure::after_provider_entry(summary),
+            ] {
+                assert_ne!(
+                    receipt_outcome_for(&failure),
+                    ReceiptExecutionOutcome::Succeeded
+                );
+            }
+        }
+    }
 }

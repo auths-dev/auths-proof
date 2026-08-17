@@ -246,6 +246,8 @@ type Context = {
   evidenceTypes: string[]; principalStatuses: string[]; grantStatuses: string[];
   assuranceClaims: string[]; budgetAlgebras: string[];
   resourceMatchers: string[]; extensions: string[]; profiles: Profile[]; profilePolicies: string[];
+  // Profiles whose canonical actions cannot express a requested budget.
+  budgetFreeProfiles: Profile[];
   expectedAudience: string; expectedChallenge: Uint8Array;
   evaluationTime: bigint; assuranceID: string; assurance: AssuranceRequirement[];
   principalSnapshot: Snapshot<PrincipalStatus>; grantSnapshot: Snapshot<GrantStatus>;
@@ -530,7 +532,7 @@ function context(data: Uint8Array): Context {
     composition.minimumDistinctRoots > composition.minimumAuthorizedBranches
   ) throw new Error("invalid composition requirement");
   const registries = mapAt(root, 4);
-  exactMap(registries, 13);
+  exactMap(registries, 14);
   const assurance = mapAt(root, 8);
   exactMap(assurance, 2);
   const result: Context = {
@@ -566,6 +568,7 @@ function context(data: Uint8Array): Context {
     extensions: textArray(mapAt(registries, 10)),
     profiles: array(mapAt(registries, 11)).map(profile),
     profilePolicies: textArray(mapAt(registries, 12)),
+    budgetFreeProfiles: array(mapAt(registries, 13)).map(profile),
     expectedAudience: text(mapAt(root, 5)),
     expectedChallenge: bytes(mapAt(root, 6), 32),
     evaluationTime: uint(mapAt(root, 7)),
@@ -1496,9 +1499,19 @@ function budgetAttenuates(child?: Budget, parent?: Budget): boolean {
   return parent === undefined ||
     (child !== undefined && child.algebra === parent.algebra && child.value <= parent.value);
 }
-function budgetCovers(ceiling?: Budget, requested?: Budget): boolean {
-  return requested === undefined || ceiling === undefined ||
-    (ceiling.algebra === requested.algebra && requested.value <= ceiling.value);
+// An unbounded ceiling covers everything.
+//
+// An absent request means two different things. When the action's profile is
+// able to state a budget (budgetFree false) an absent request states no bound at
+// all, so a bounded ceiling does NOT vacuously cover it. When the profile's
+// canonical body has no budget field (budgetFree true) the action provably
+// spends zero and every ceiling covers it. The denying reading is the default
+// for any profile the trusted registry selection does not declare budget-free.
+function budgetCovers(ceiling: Budget | undefined, requested: Budget | undefined,
+                      budgetFree: boolean): boolean {
+  if (ceiling === undefined) return true;
+  if (requested === undefined) return budgetFree;
+  return ceiling.algebra === requested.algebra && requested.value <= ceiling.value;
 }
 function requireBudgetAlgebra(value: Budget | undefined, contextValue: Context): void {
   if (value === undefined) return;
@@ -1562,7 +1575,7 @@ function delegate(authority: Authority, grantValue: Grant): void {
   authority.extensions = grantValue.extensions;
 }
 
-function authorize(authority: Authority, actionValue: Action): void {
+function authorize(authority: Authority, actionValue: Action, budgetFree: boolean): void {
   if (actionValue.actor !== authority.subject ||
       !equal(actionValue.terminalGrant, authority.lastGrant)) {
     throw denied("broken-grant-chain");
@@ -1581,7 +1594,9 @@ function authorize(authority: Authority, actionValue: Action): void {
   if (!constraintAllows(authority.constraint, actionValue.bodyDigest)) {
     throw denied("action-constraint-mismatch");
   }
-  if (!budgetCovers(authority.budget, actionValue.budget)) throw denied("budget-ceiling-exceeded");
+  if (!budgetCovers(authority.budget, actionValue.budget, budgetFree)) {
+    throw denied("budget-ceiling-exceeded");
+  }
 }
 
 function checkPrincipalStatus(
@@ -1741,7 +1756,7 @@ function verifyFromAnchor(
     reports.push(report(verified, index === 0 ? 0n : 1n));
     evaluateCriticalExtensions(grantValue.extensions, contextValue.extensions);
   });
-  authorize(authority, actionValue);
+  authorize(authority, actionValue, profileContains(contextValue.budgetFreeProfiles, actionValue.profile));
   const actionControl = controls.get(refKey({ kind: 1n, id: actionValue.id }));
   if (!actionControl) throw indeterminate("missing-principal-evidence");
   if (actionControl.error) throw actionControl.error;

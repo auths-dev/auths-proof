@@ -410,10 +410,17 @@ mod refinement {
                 Some(!canonical && mutant)
             }
             "optional-budget-no-request" => {
+                // Behavior change: a bounded ceiling no longer vacuously covers
+                // an action that declares no budget. The mutation this oracle
+                // must kill is therefore the restored vacuous arm — the answer
+                // the *unbounded* ceiling gives — applied to a bounded ceiling.
+                // Requiring `!canonical && mutant` keeps the oracle live in both
+                // directions: it fails if coverage returns to fail-open, and it
+                // also fails if coverage collapses to denying everything.
                 let ceiling = budget("numeric-v1", 10);
                 let canonical = optional_budget_covers(Some(&ceiling), None);
-                let mutant = optional_budget_attenuates(None, Some(&ceiling));
-                Some(canonical && !mutant)
+                let mutant = optional_budget_covers(None, None);
+                Some(!canonical && mutant)
             }
             _ => None,
         }

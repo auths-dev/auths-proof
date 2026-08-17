@@ -17,6 +17,7 @@ auths-author = { workspace = true, features = ["std"] }
 auths-codec.workspace = true
 auths-did-keri.workspace = true
 auths-did-key.workspace = true
+auths-errors = { workspace = true, features = ["std"] }
 auths-identity.workspace = true
 auths-identity-raw-key.workspace = true
 auths-model.workspace = true
@@ -33,6 +34,7 @@ auths-signature-ed25519.workspace = true
 auths-verifier.workspace = true
 ed25519-dalek.workspace = true
 hex.workspace = true
+js-sys.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_json_canonicalizer.workspace = true

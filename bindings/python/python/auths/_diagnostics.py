@@ -11,7 +11,7 @@ from ._native import (
     diagnostic_input_limits_v1,
     native_abi_version,
 )
-from ._inspection import InspectionMetrics, VerificationStage, VerdictKind
+from ._inspection import VerificationMetrics, VerificationStage, VerdictKind
 
 
 @runtime_checkable
@@ -38,7 +38,7 @@ class DiagnosticResult:
     code: str
     stage: VerificationStage
     explanation: DiagnosticExplanation
-    metrics: InspectionMetrics
+    metrics: VerificationMetrics
     required_configuration: Optional[bytes]
     local_configuration: bytes
     result_cbor: bytes
@@ -88,7 +88,7 @@ class DiagnosticVerifier:
             code=native.code,
             stage=native.stage,
             explanation=_explanation(native.kind, native.code),
-            metrics=InspectionMetrics(*native.metrics),
+            metrics=VerificationMetrics(*native.metrics),
             required_configuration=native.required_configuration,
             local_configuration=bytes(native.local_configuration),
             result_cbor=bytes(native.result_cbor),

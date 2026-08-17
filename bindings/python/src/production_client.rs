@@ -3,7 +3,7 @@ use auths_production_client::{
     RecoveryReference, decode_request, decode_response, encode_delegation_body, encode_request,
     project_sdk_event_v2,
 };
-use pyo3::{exceptions::PyValueError, prelude::*, types::PyBytes};
+use pyo3::{prelude::*, types::PyBytes};
 
 #[pyfunction]
 fn production_client_contract_version_v1() -> u16 {
@@ -37,11 +37,20 @@ fn encode_production_request_v1<'py>(
     Ok(PyBytes::new(py, &encoded))
 }
 
+/// Projects a response the service already produced.
+///
+/// A response that cannot be decoded is **not** a caller input error. The
+/// service may already have applied the effect and this client simply cannot
+/// read what it said, so the failure fails closed to `effect: "possible"`
+/// (contract 5.3). Reporting `not-applied` here would tell a caller that a
+/// possibly-committed write is safe to retry.
 #[pyfunction]
 fn decode_production_response_v1(input: &[u8]) -> PyResult<String> {
     decode_response(input)
         .and_then(|response| response.projection_json())
-        .map_err(value_error)
+        .map_err(|error| {
+            crate::errors::boundary_error(crate::errors::Boundary::Unclassified, error)
+        })
 }
 
 #[pyfunction]
@@ -67,8 +76,8 @@ fn project_sdk_event_json_v2(input: &str) -> PyResult<String> {
 }
 
 #[allow(clippy::needless_pass_by_value)]
-fn value_error(error: impl ToString) -> PyErr {
-    PyValueError::new_err(error.to_string())
+fn value_error(error: impl core::fmt::Display) -> PyErr {
+    crate::errors::malformed_input(error)
 }
 
 pub fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {

@@ -44,7 +44,7 @@ export {
   type ByteTransportFactory,
   type ConformanceCaseResult,
   type ConformanceMetadata,
-  type ConformanceReport,
+  type MechanismConformanceReport,
   type McpProviderFactory,
 } from "./conformance.js";
 export type { AtomicReservationRecord } from "../internal/mechanisms.js";
@@ -150,8 +150,15 @@ function equalBytes(left: Uint8Array, right: Uint8Array): boolean {
   return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
-/** Explicitly non-production development and test fixtures. */
-export const development = Object.freeze({
+/**
+ * Explicitly non-production test fixtures.
+ *
+ * Named `fixtures`, not `development`: `@auths-dev/sdk/integrations` already
+ * exports a `development` that opens a working local Auths, and one name
+ * meaning two unrelated things is how a caller ends up test-signing something
+ * they meant to really sign.
+ */
+export const fixtures = Object.freeze({
   async ephemeralSigner(): Promise<Signer> {
     return DevelopmentEd25519Signer.generate();
   },

@@ -6,7 +6,7 @@ const AUTHORIZED_TOKEN: unique symbol = Symbol("auths-authorized");
 const PACKAGED_VERIFIER_TOKEN: unique symbol = Symbol("auths-packaged-verifier");
 const MAX_VERIFICATION_BATCH_BYTES = 16_777_216;
 let mintVerifiedAction: (canonicalAction: Uint8Array) => VerifiedAction;
-let mintPackagedVerifier: (engine: PortableWasmEngine) => Auths;
+let mintPackagedVerifier: (engine: PortableWasmEngine) => Verifier;
 
 export type VerdictKind = "authorized" | "denied" | "indeterminate";
 export type VerificationStage =
@@ -119,7 +119,7 @@ export interface VerificationOptions {
  * output selects the authorized branch. Caller-supplied engines belong on
  * `@auths-dev/sdk/testkit`, whose results are never effect-capable.
  */
-export class Auths {
+export class Verifier {
   readonly #engine: PortableWasmEngine;
 
   private constructor(token: typeof PACKAGED_VERIFIER_TOKEN, engine: PortableWasmEngine) {
@@ -134,12 +134,12 @@ export class Auths {
   private static create(
     token: typeof PACKAGED_VERIFIER_TOKEN,
     engine: PortableWasmEngine,
-  ): Auths {
-    return new Auths(token, engine);
+  ): Verifier {
+    return new Verifier(token, engine);
   }
 
   static {
-    mintPackagedVerifier = (engine) => Auths.create(PACKAGED_VERIFIER_TOKEN, engine);
+    mintPackagedVerifier = (engine) => Verifier.create(PACKAGED_VERIFIER_TOKEN, engine);
   }
 
   verify(
@@ -271,6 +271,6 @@ function verificationResult(
  * It is intentionally absent from every published entry point, and it refuses
  * any engine that the packaged loader did not produce.
  */
-export function mintPackagedVerifierEngine(engine: PortableWasmEngine): Auths {
+export function mintPackagedVerifierEngine(engine: PortableWasmEngine): Verifier {
   return mintPackagedVerifier(engine);
 }

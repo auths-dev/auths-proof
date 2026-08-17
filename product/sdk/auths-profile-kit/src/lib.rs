@@ -125,6 +125,7 @@ mod tests {
     use auths_model::{
         CanonicalAction, CapabilityId, MediaType, Permission, ProfileId, ProfileRef, ResourceId,
     };
+    use auths_profile_api::ProfileBudgetExpression;
     use auths_verifier::VerifiedAction;
     use std::cell::Cell;
 
@@ -135,6 +136,9 @@ mod tests {
 
     impl ActionProfile for TestProfile {
         type Command = ();
+
+        // `canonicalize` always passes `None`.
+        const BUDGET_EXPRESSION: ProfileBudgetExpression = ProfileBudgetExpression::Inexpressible;
 
         fn canonicalize(&self, _untrusted: &[u8]) -> Result<CanonicalAction, ProfileContractError> {
             let call = self.calls.get();

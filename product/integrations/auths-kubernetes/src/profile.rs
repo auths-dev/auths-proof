@@ -4,7 +4,9 @@ use auths_model::{
     BudgetAlgebraId, BudgetCeiling, CanonicalAction, CapabilityId, MediaType, Permission,
     ProfileId, ProfileRef, ResourceId,
 };
-use auths_profile_api::{ActionProfile, ProfileContractError, ReviewDisplay};
+use auths_profile_api::{
+    ActionProfile, ProfileBudgetExpression, ProfileContractError, ReviewDisplay,
+};
 use auths_sdk::VerifiedAction;
 use sha2::{Digest as _, Sha256};
 
@@ -35,6 +37,9 @@ pub struct KubernetesRolloutProfile;
 
 impl ActionProfile for KubernetesRolloutProfile {
     type Command = KubernetesRolloutCommand;
+
+    /// `canonical_action` always declares one `numeric-ceiling-v1` unit.
+    const BUDGET_EXPRESSION: ProfileBudgetExpression = ProfileBudgetExpression::Expressible;
 
     fn canonicalize(&self, untrusted: &[u8]) -> Result<CanonicalAction, ProfileContractError> {
         if untrusted.is_empty() || untrusted.len() > MAX_ACTION_BYTES {

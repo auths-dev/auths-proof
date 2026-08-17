@@ -44,10 +44,38 @@ example :
       (some { algebra := "usd", value := 1#u64 }) = ok false := by
   rfl
 
+-- A bounded ceiling with no declared request is DENIED. This vector asserted
+-- `ok true` while the pinned translation was stale; the regenerated translation
+-- matches the shipping Rust.
 example :
     optional_budget_covers
-      (some { algebra := "usd", value := 1#u64 }) none = ok true := by
+      (some { algebra := "usd", value := 1#u64 }) none = ok false := by
   rfl
+
+-- Both profile-budget-expression modes, on the one input class the capability
+-- reclassifies: an absent request.
+example :
+    budget_ceiling_covers_action
+      (some { algebra := "usd", value := 1#u64 }) none
+      ProfileBudgetExpression.Expressible = ok false := by
+  rfl
+
+example :
+    budget_ceiling_covers_action
+      (some { algebra := "usd", value := 1#u64 }) none
+      ProfileBudgetExpression.Inexpressible = ok true := by
+  rfl
+
+-- A DECLARED request is deliberately not vectored here. Comparing two ceilings
+-- reaches `alloc::string::String::as_bytes`, which this translation carries as
+-- an opaque external, so the goal cannot reduce without assuming semantics for
+-- it -- exactly what these qualification cases exist to avoid. That the
+-- capability leaves a declared request alone is proved abstractly instead, by
+-- `Auths.Rich.budgetCoversAction_declared`.
+--
+-- Every vector above concerns an ABSENT request, which is the only input class
+-- profile expressibility reclassifies, and each short-circuits before any
+-- string comparison.
 
 example :
     status_policy_attenuates StatusPolicy.ExpiryOnly

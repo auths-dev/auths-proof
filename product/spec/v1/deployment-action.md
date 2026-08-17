@@ -13,7 +13,7 @@ non-canonical encodings are rejected.
 ```text
 capability = deploy/<operation>
 resource   = deploy://<environment>/<region>/artifacts/<artifact digest>
-budget     = deploy-blast-radius-v1:<blast radius>
+budget     = numeric-ceiling-v1:<blast radius>
 ```
 
 The verified decoder re-derives the exact permission and stateful budget.

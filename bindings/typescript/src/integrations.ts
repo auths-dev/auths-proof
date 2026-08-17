@@ -34,7 +34,7 @@ export interface DevelopmentAuthsOptions {
   readonly observer?: McpExecutionObserver;
 }
 
-export interface RecoverableDevelopmentAuthsOptions extends DevelopmentAuthsOptions {
+export interface RecoverableAuthsOptions extends DevelopmentAuthsOptions {
   readonly directory: string;
 }
 
@@ -117,7 +117,7 @@ export const development = Object.freeze({
     return createAuths(developmentConfiguration(options, new InMemoryMcpResources(), crypto.getRandomValues(new Uint8Array(32))));
   },
 
-  async createRecoverableAuths(options: RecoverableDevelopmentAuthsOptions): Promise<Auths> {
+  async createRecoverableAuths(options: RecoverableAuthsOptions): Promise<Auths> {
     if (typeof options.directory !== "string" || options.directory.length === 0) {
       throw new TypeError("recoverable development directory is required");
     }

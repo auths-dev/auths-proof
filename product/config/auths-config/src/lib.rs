@@ -13,7 +13,7 @@ pub use production::{
 use auths_codec::context_digest;
 use auths_model::{
     ChannelBindingId, ContextDigest, Digest, LimitKind, PROTOCOL_V1, ProfileId, ProfileRef,
-    RegistryManifestId, VerifierConfigurationId, VerifierContext,
+    RegistryManifestId, TrustedContext, VerifierConfigurationId,
 };
 use auths_proof_exchange_model::{ChannelBindingPolicy, MAX_BODY_BYTES, MAX_PROOF_BYTES};
 use serde::{Deserialize, Serialize};
@@ -256,9 +256,17 @@ impl RuntimeConfig {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum ChannelPolicyConfig {
+    /// Accepts any transport, including unauthenticated ones.
     None,
+    /// Requires the transport to supply concrete peer material for the caller
+    /// that submitted the action: an Iroh endpoint identifier, a mutual-TLS
+    /// certificate digest, or operating-system peer credentials. Observations
+    /// that only authenticate the remote *server*, and free-form opaque
+    /// assertions, are refused.
     AuthenticatedPeer,
+    /// Requires a signed sender channel binding over an Iroh endpoint.
     SignedSender,
+    /// Requires a signed recipient channel binding over an Iroh endpoint.
     SignedRecipient,
 }
 
@@ -335,7 +343,7 @@ impl CompiledConfig {
         &self.signed_channel_binding
     }
 
-    /// Binds this configuration to one immutable pure verifier context.
+    /// Binds this configuration to one immutable pure trusted context.
     ///
     /// # Errors
     ///
@@ -343,7 +351,7 @@ impl CompiledConfig {
     /// required/executed verifier configuration disagrees with the context.
     pub fn bind_context(
         &self,
-        context: &VerifierContext,
+        context: &TrustedContext,
         executed_configuration: VerifierConfigurationId,
     ) -> Result<BoundConfiguration, ConfigError> {
         if self
@@ -368,7 +376,7 @@ impl CompiledConfig {
     }
 }
 
-/// Startup-ready binding of configuration, registries, and verifier context.
+/// Startup-ready binding of configuration, registries, and trusted context.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct BoundConfiguration {
     config_digest: Digest,
@@ -386,7 +394,7 @@ impl BoundConfiguration {
         self.config_digest
     }
 
-    /// Returns the complete pure verifier-context digest.
+    /// Returns the complete pure trusted-context digest.
     #[must_use]
     pub const fn context_digest(&self) -> ContextDigest {
         self.context_digest

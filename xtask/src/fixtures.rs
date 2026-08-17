@@ -141,8 +141,8 @@ pub(crate) fn product_fixtures(update: bool) -> Result<(), String> {
 
 fn production_client_fixtures() -> Result<BTreeMap<PathBuf, Vec<u8>>, String> {
     use auths_production_client::{
-        ClientOutcomeKind, ProductVerb, ProductionRequest, ProductionResponse, QualifiedProfile,
-        RecoveryReference, RetryClass, decode_request, decode_response, encode_request,
+        ClientOutcomeKind, NextCall, ProductVerb, ProductionRequest, ProductionResponse,
+        QualifiedProfile, RecoveryReference, decode_request, decode_response, encode_request,
         encode_response,
     };
 
@@ -238,7 +238,7 @@ fn production_client_fixtures() -> Result<BTreeMap<PathBuf, Vec<u8>>, String> {
             ProductionResponse::new(
                 ClientOutcomeKind::Completed,
                 None,
-                RetryClass::Never,
+                NextCall::Never,
                 None,
                 Some(vec![8; 32]),
                 Some(vec![9; 96]),
@@ -249,7 +249,7 @@ fn production_client_fixtures() -> Result<BTreeMap<PathBuf, Vec<u8>>, String> {
             ProductionResponse::new(
                 ClientOutcomeKind::Denied,
                 Some("authority.denied".into()),
-                RetryClass::Never,
+                NextCall::Never,
                 None,
                 None,
                 None,
@@ -260,7 +260,7 @@ fn production_client_fixtures() -> Result<BTreeMap<PathBuf, Vec<u8>>, String> {
             ProductionResponse::new(
                 ClientOutcomeKind::Indeterminate,
                 Some("provider.outcome-unknown".into()),
-                RetryClass::Reconcile,
+                NextCall::Reconcile,
                 None,
                 None,
                 None,
@@ -271,7 +271,7 @@ fn production_client_fixtures() -> Result<BTreeMap<PathBuf, Vec<u8>>, String> {
             ProductionResponse::new(
                 ClientOutcomeKind::Recoverable,
                 Some("workflow.recoverable".into()),
-                RetryClass::Resume,
+                NextCall::Resume,
                 Some(reference),
                 None,
                 None,
@@ -282,7 +282,7 @@ fn production_client_fixtures() -> Result<BTreeMap<PathBuf, Vec<u8>>, String> {
             ProductionResponse::new(
                 ClientOutcomeKind::Verified,
                 None,
-                RetryClass::Never,
+                NextCall::Never,
                 None,
                 Some(vec![10; 32]),
                 None,
@@ -293,7 +293,7 @@ fn production_client_fixtures() -> Result<BTreeMap<PathBuf, Vec<u8>>, String> {
             ProductionResponse::new(
                 ClientOutcomeKind::Rejected,
                 Some("verification.rejected".into()),
-                RetryClass::Never,
+                NextCall::Never,
                 None,
                 None,
                 None,
@@ -616,7 +616,7 @@ hard_limit_source = "product/integrations/auths-records-api/src/policy.rs"
 fixture_manifest = "product/fixtures/v1/records-api/manifest.json"
 mutation_corpus = "product/fixtures/v1/records-api"
 fuzz_target = "product/policy/auths-bounded-policy/fuzz/fuzz_targets/target_bounded_policy.rs"
-kani_harnesses = "auths_bounded_policy::kernel::proof_configuration_match_total"
+kani_harnesses = "auths_bounded_policy::kernel::proofs::configuration_match_is_eligible_only_when_every_gate_matches"
 property_tests = "product/integrations/auths-records-api/src/decision.rs"
 reference_evaluator = "auths_records_api::evaluate_create"
 migration_status = "reference-only"
@@ -646,7 +646,7 @@ hard_limit_source = "product/integrations/auths-records-api/src/policy.rs"
 fixture_manifest = "product/fixtures/v1/records-api/manifest.json"
 mutation_corpus = "product/fixtures/v1/records-api"
 fuzz_target = "product/policy/auths-bounded-policy/fuzz/fuzz_targets/target_bounded_policy.rs"
-kani_harnesses = "auths_bounded_policy::kernel::proof_configuration_match_total"
+kani_harnesses = "auths_bounded_policy::kernel::proofs::configuration_match_is_eligible_only_when_every_gate_matches"
 property_tests = "product/integrations/auths-records-api/src/decision.rs"
 reference_evaluator = "auths_records_api::evaluate_read"
 migration_status = "reference-only"
@@ -676,7 +676,7 @@ hard_limit_source = "product/integrations/auths-github/src/profile.rs"
 fixture_manifest = "product/fixtures/v1/github/manifest.json"
 mutation_corpus = "product/fixtures/v1/github"
 fuzz_target = "product/policy/auths-bounded-policy/fuzz/fuzz_targets/target_bounded_policy.rs"
-kani_harnesses = "auths_bounded_policy::kernel::proof_configuration_match_total"
+kani_harnesses = "auths_bounded_policy::kernel::proofs::configuration_match_is_eligible_only_when_every_gate_matches"
 property_tests = "product/integrations/auths-github/src/containment.rs"
 reference_evaluator = "auths_github::containment::evaluate"
 migration_status = "reference-only"
@@ -706,7 +706,7 @@ hard_limit_source = "product/integrations/auths-github/src/profile.rs"
 fixture_manifest = "product/fixtures/v1/github/manifest.json"
 mutation_corpus = "product/fixtures/v1/github"
 fuzz_target = "product/policy/auths-bounded-policy/fuzz/fuzz_targets/target_bounded_policy.rs"
-kani_harnesses = "auths_bounded_policy::kernel::proof_configuration_match_total"
+kani_harnesses = "auths_bounded_policy::kernel::proofs::configuration_match_is_eligible_only_when_every_gate_matches"
 property_tests = "product/integrations/auths-github/src/containment.rs"
 reference_evaluator = "auths_github::containment::evaluate"
 migration_status = "reference-only"
@@ -736,7 +736,7 @@ hard_limit_source = "product/integrations/auths-kubernetes/src/profile.rs"
 fixture_manifest = "product/fixtures/v1/kubernetes/manifest.json"
 mutation_corpus = "product/fixtures/v1/kubernetes"
 fuzz_target = "product/policy/auths-bounded-policy/fuzz/fuzz_targets/target_bounded_policy.rs"
-kani_harnesses = "auths_bounded_policy::kernel::proof_configuration_match_total"
+kani_harnesses = "auths_bounded_policy::kernel::proofs::configuration_match_is_eligible_only_when_every_gate_matches"
 property_tests = "product/integrations/auths-kubernetes/src/decision.rs"
 reference_evaluator = "auths_kubernetes::evaluate"
 migration_status = "reference-only"
@@ -766,7 +766,7 @@ hard_limit_source = "product/integrations/auths-opentofu/src/profile.rs"
 fixture_manifest = "product/fixtures/v1/opentofu/manifest.json"
 mutation_corpus = "product/fixtures/v1/opentofu"
 fuzz_target = "product/policy/auths-bounded-policy/fuzz/fuzz_targets/target_bounded_policy.rs"
-kani_harnesses = "auths_bounded_policy::kernel::proof_configuration_match_total"
+kani_harnesses = "auths_bounded_policy::kernel::proofs::configuration_match_is_eligible_only_when_every_gate_matches"
 property_tests = "product/integrations/auths-opentofu/src/decision.rs"
 reference_evaluator = "auths_opentofu::evaluate"
 migration_status = "reference-only"
@@ -796,7 +796,7 @@ hard_limit_source = "product/integrations/auths-postgresql/src/schema.rs"
 fixture_manifest = "product/fixtures/v1/postgresql/manifest.json"
 mutation_corpus = "product/fixtures/v1/postgresql"
 fuzz_target = "product/policy/auths-bounded-policy/fuzz/fuzz_targets/target_bounded_policy.rs"
-kani_harnesses = "auths_bounded_policy::kernel::proof_configuration_match_total"
+kani_harnesses = "auths_bounded_policy::kernel::proofs::configuration_match_is_eligible_only_when_every_gate_matches"
 property_tests = "product/integrations/auths-postgresql/src/decision.rs"
 reference_evaluator = "auths_postgresql::evaluate"
 migration_status = "reference-only"
@@ -826,7 +826,7 @@ hard_limit_source = "product/integrations/auths-radicle/src/profile.rs"
 fixture_manifest = "product/fixtures/v1/radicle/manifest.json"
 mutation_corpus = "product/fixtures/v1/radicle"
 fuzz_target = "product/policy/auths-bounded-policy/fuzz/fuzz_targets/target_bounded_policy.rs"
-kani_harnesses = "auths_bounded_policy::kernel::proof_configuration_match_total"
+kani_harnesses = "auths_bounded_policy::kernel::proofs::configuration_match_is_eligible_only_when_every_gate_matches"
 property_tests = "product/integrations/auths-radicle/src/containment.rs"
 reference_evaluator = "auths_radicle::containment::evaluate"
 migration_status = "reference-only"
@@ -856,7 +856,7 @@ hard_limit_source = "product/integrations/auths-stripe/src/bounded.rs"
 fixture_manifest = "product/fixtures/v1/stripe/manifest.json"
 mutation_corpus = "product/fixtures/v1/stripe"
 fuzz_target = "product/policy/auths-bounded-policy/fuzz/fuzz_targets/target_bounded_policy.rs"
-kani_harnesses = "auths_bounded_policy::kernel::proof_configuration_match_total"
+kani_harnesses = "auths_bounded_policy::kernel::proofs::configuration_match_is_eligible_only_when_every_gate_matches"
 property_tests = "product/integrations/auths-stripe/src/bounded.rs"
 reference_evaluator = "auths_stripe::evaluate_bounded_refund"
 migration_status = "reference-only"

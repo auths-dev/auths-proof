@@ -254,6 +254,7 @@ pub(crate) fn classify_typescript_entry(entry: &str) -> &'static str {
     match entry {
         "." => "product",
         "./identity" | "./verify" => "component",
+        "./service" => "service",
         "./profiles" => "profile",
         "./integrations" => "integration",
         "./framework" => "framework",
@@ -266,6 +267,7 @@ pub(crate) fn classify_python_module(module: &str) -> &'static str {
     match module {
         "auths" => "product",
         "auths.identity" | "auths.verify" => "component",
+        "auths.service" => "service",
         "auths.profiles" => "profile",
         "auths.testkit" => "testkit",
         "auths.framework" => "framework",
@@ -378,9 +380,59 @@ mod tests {
         assert_eq!(classify_typescript_entry("."), "product");
         assert_eq!(classify_typescript_entry("./profiles"), "profile");
         assert_eq!(classify_typescript_entry("./framework"), "framework");
+        assert_eq!(classify_typescript_entry("./service"), "service");
         assert_eq!(classify_typescript_entry("./authority"), "internal-leak");
         assert_eq!(classify_python_module("auths.integrations"), "integration");
         assert_eq!(classify_python_module("auths.framework"), "framework");
+        assert_eq!(classify_python_module("auths.service"), "service");
         assert_eq!(classify_python_module("auths.authority"), "internal-leak");
+    }
+
+    /// Every layer the topology declares has an owner, in both languages.
+    ///
+    /// The gate labels an unclassified entry point `internal-leak` — "public
+    /// mechanism without a final customer owner". A layer that ships, that the
+    /// topology names, and that the classifier has never heard of is therefore
+    /// reported as a leak, and every symbol in it is slandered. This check is
+    /// what makes adding a published entry point without giving it an owner a
+    /// red test.
+    #[test]
+    fn every_declared_topology_layer_has_an_owner() {
+        let topology: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(root().join("bindings/public-topology-v1.json"))
+                .expect("public topology must be readable"),
+        )
+        .expect("public topology must be JSON");
+        let layers = topology["layers"]
+            .as_array()
+            .expect("public topology must declare layers");
+        assert!(!layers.is_empty(), "no layers: this check would be vacuous");
+        for layer in layers {
+            for entry in layer["typescript"].as_array().into_iter().flatten() {
+                let entry = entry.as_str().expect("entry point must be a string");
+                // The public API inventory spells subpaths the way package
+                // `exports` does: "." for the root, "./identity" for the rest.
+                let suffix = entry.strip_prefix("@auths-dev/sdk").unwrap_or(entry);
+                let owned = format!(".{suffix}");
+                let subpath = if suffix.is_empty() {
+                    "."
+                } else {
+                    owned.as_str()
+                };
+                assert_ne!(
+                    classify_typescript_entry(subpath),
+                    "internal-leak",
+                    "{subpath} is a declared public layer with no owner"
+                );
+            }
+            for module in layer["python"].as_array().into_iter().flatten() {
+                let module = module.as_str().expect("module must be a string");
+                assert_ne!(
+                    classify_python_module(module),
+                    "internal-leak",
+                    "{module} is a declared public layer with no owner"
+                );
+            }
+        }
     }
 }

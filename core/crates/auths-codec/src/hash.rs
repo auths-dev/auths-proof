@@ -14,7 +14,7 @@ use auths_model::{
     ActionEnvelope, ActionId, AttachmentDigest, ContextDigest, Digest, EvidenceId, EvidenceObject,
     GrantId, GrantStatement, GrantStatusId, GrantStatusStatement, PROTOCOL_V1, PlanId,
     PortableVerificationResult, PrincipalStatusId, PrincipalStatusStatement, ProofBundle,
-    SignatureDescriptor, VerificationResultDigest, VerifierContext,
+    SignatureDescriptor, TrustedContext, VerificationResultDigest,
 };
 use sha2::{Digest as _, Sha256};
 
@@ -218,12 +218,12 @@ pub fn proof_digest(bundle: &ProofBundle) -> Result<Digest, CodecError> {
     Ok(raw_sha256(&encode_bundle(bundle)?))
 }
 
-/// Derives the deterministic public verifier-context digest.
+/// Derives the deterministic public trusted-context digest.
 ///
 /// # Errors
 ///
 /// Returns [`CodecError`] if deterministic encoding of the context fails.
-pub fn context_digest(context: &VerifierContext) -> Result<ContextDigest, CodecError> {
+pub fn context_digest(context: &TrustedContext) -> Result<ContextDigest, CodecError> {
     Ok(ContextDigest::from_digest(domain_hash(
         IdentifierType::Context,
         &encode_verifier_context(context)?,

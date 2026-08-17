@@ -3,31 +3,67 @@
   "layers": [
     {
       "name": "product",
-      "typescript": ["@auths-dev/sdk", "@auths-dev/sdk/identity", "@auths-dev/sdk/verify"],
-      "python": ["auths", "auths.identity", "auths.verify"]
+      "typescript": [
+        "@auths-dev/sdk",
+        "@auths-dev/sdk/identity",
+        "@auths-dev/sdk/verify"
+      ],
+      "python": [
+        "auths",
+        "auths.identity",
+        "auths.verify"
+      ]
+    },
+    {
+      "name": "service",
+      "typescript": [
+        "@auths-dev/sdk/service"
+      ],
+      "python": [
+        "auths.service"
+      ]
     },
     {
       "name": "vertical",
-      "typescript": ["@auths-dev/sdk/profiles"],
-      "python": ["auths.profiles"]
+      "typescript": [
+        "@auths-dev/sdk/profiles"
+      ],
+      "python": [
+        "auths.profiles"
+      ]
     },
     {
       "name": "mechanism",
-      "typescript": ["@auths-dev/sdk/integrations"],
-      "python": ["auths.integrations"]
+      "typescript": [
+        "@auths-dev/sdk/integrations"
+      ],
+      "python": [
+        "auths.integrations"
+      ]
     },
     {
       "name": "extension",
-      "typescript": ["@auths-dev/sdk/framework"],
-      "python": ["auths.framework"]
+      "typescript": [
+        "@auths-dev/sdk/framework"
+      ],
+      "python": [
+        "auths.framework"
+      ]
     },
     {
       "name": "test",
-      "typescript": ["@auths-dev/sdk/testkit"],
-      "python": ["auths.testkit"]
+      "typescript": [
+        "@auths-dev/sdk/testkit"
+      ],
+      "python": [
+        "auths.testkit"
+      ]
     }
   ],
-  "frameworkContracts": ["atomic-reservation-store", "signer-custody"],
+  "frameworkContracts": [
+    "atomic-reservation-store",
+    "signer-custody"
+  ],
   "qualifiedProfiles": [
     "auths.github.issue-address/1",
     "auths.mcp/1",

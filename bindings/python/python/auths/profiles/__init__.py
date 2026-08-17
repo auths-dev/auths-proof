@@ -21,7 +21,7 @@ from ._mcp import (
     mcp,
 )
 
-ProductionProfileId = Union[
+ServiceProfileId = Union[
     Literal["auths.opentofu.saved-plan-apply/1"],
     Literal["auths.postgresql.bounded-update/1"],
     Literal["auths.github.issue-address/1"],
@@ -29,20 +29,20 @@ ProductionProfileId = Union[
 
 
 @dataclass(frozen=True)
-class ProductionProfile:
-    id: ProductionProfileId
+class ServiceProfile:
+    id: ServiceProfileId
 
 
-def opentofu_saved_plan_apply() -> ProductionProfile:
-    return ProductionProfile("auths.opentofu.saved-plan-apply/1")
+def opentofu_saved_plan_apply() -> ServiceProfile:
+    return ServiceProfile("auths.opentofu.saved-plan-apply/1")
 
 
-def postgresql_bounded_update() -> ProductionProfile:
-    return ProductionProfile("auths.postgresql.bounded-update/1")
+def postgresql_bounded_update() -> ServiceProfile:
+    return ServiceProfile("auths.postgresql.bounded-update/1")
 
 
-def github_issue_address() -> ProductionProfile:
-    return ProductionProfile("auths.github.issue-address/1")
+def github_issue_address() -> ServiceProfile:
+    return ServiceProfile("auths.github.issue-address/1")
 
 __all__ = [
     "DevelopmentMcpProvider",
@@ -60,8 +60,8 @@ __all__ = [
     "McpToolAuthority",
     "McpToolContext",
     "mcp",
-    "ProductionProfile",
-    "ProductionProfileId",
+    "ServiceProfile",
+    "ServiceProfileId",
     "github_issue_address",
     "opentofu_saved_plan_apply",
     "postgresql_bounded_update",

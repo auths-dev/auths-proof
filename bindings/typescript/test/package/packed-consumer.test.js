@@ -5,15 +5,13 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { compileConsumer, installPackedSdk } from "./helpers/packed-install.mjs";
 
-const entryPoints = [
-  "@auths-dev/sdk",
-  "@auths-dev/sdk/identity",
-  "@auths-dev/sdk/verify",
-  "@auths-dev/sdk/profiles",
-  "@auths-dev/sdk/integrations",
-  "@auths-dev/sdk/framework",
-  "@auths-dev/sdk/testkit",
-];
+import { readFile } from "node:fs/promises";
+
+// Derived from the declared topology rather than restated, so this test cannot
+// agree with the package while both disagree with what was reviewed.
+const entryPoints = JSON.parse(
+  await readFile(new URL("../../../public-topology-v1.json", import.meta.url), "utf8"),
+).layers.flatMap((layer) => layer.typescript);
 
 const removed = [
   "advanced", "approvals", "authority", "custody", "diagnostics", "inspection",
@@ -28,8 +26,11 @@ test("packed package exposes only the reviewed public topology", async () => {
       for (const entry of expected) await import(entry);
       const root = await import("@auths-dev/sdk");
       const names = Object.keys(root).sort();
+      // Runtime values only; types erase. classifyErrorCode and isProductVerb
+      // are the Rust-owned registry projection reaching a caller.
       const allowed = [
-        "AuthsError", "ExecutionReference", "approval", "createAuths", "doctor",
+        "AuthsError", "ExecutionReference", "approval", "classifyErrorCode",
+        "createAuths", "doctor", "isProductVerb",
       ];
       if (JSON.stringify(names) !== JSON.stringify(allowed)) {
         throw new Error("root drifted: " + names.join(","));
@@ -44,24 +45,31 @@ test("packed package exposes only the reviewed public topology", async () => {
       }
     `);
     await writeFile(join(directory, "consumer.ts"), `
-      import { approval, createAuths, doctor, type Auths, type AuthsErrorCode, type DoctorReport, type ProductionAuths } from "@auths-dev/sdk";
+      import { approval, createAuths, doctor, type Auths, type AuthsErrorCode, type DoctorReport, type EffectState, type Outcome, type RetryClass } from "@auths-dev/sdk";
       import { loadIdentity } from "@auths-dev/sdk/identity";
       import { inspectDecision, verifyReceipt } from "@auths-dev/sdk/verify";
-      import { githubIssueAddress, mcp, opentofuSavedPlanApply, postgresqlBoundedUpdate, type McpAction } from "@auths-dev/sdk/profiles";
+      import { createServiceClient, githubIssueAddress, opentofuSavedPlanApply, postgresqlBoundedUpdate, type NextCall, type ServiceClient } from "@auths-dev/sdk/service";
+      import { mcp, type McpAction } from "@auths-dev/sdk/profiles";
       import { development } from "@auths-dev/sdk/integrations";
       import type { AtomicReservationStore, Signer } from "@auths-dev/sdk/framework";
-      import { certifyAtomicStore } from "@auths-dev/sdk/testkit";
+      import { certifyAtomicStore, fixtures } from "@auths-dev/sdk/testkit";
       void approval; void createAuths; void doctor; void loadIdentity; void inspectDecision; void verifyReceipt;
       void githubIssueAddress; void mcp; void opentofuSavedPlanApply; void postgresqlBoundedUpdate;
-      void development; void certifyAtomicStore;
+      void development; void certifyAtomicStore; void createServiceClient; void fixtures;
       declare const auths: Auths;
-      declare const production: ProductionAuths;
+      declare const service: ServiceClient;
       declare const code: AuthsErrorCode;
       declare const action: McpAction;
       declare const store: AtomicReservationStore;
       declare const signer: Signer;
       declare const report: DoctorReport;
-      void auths; void production; void code; void action; void store; void signer; void report;
+      // The two retry questions must stay separable at the packed surface.
+      declare const retry: RetryClass;
+      declare const next: NextCall;
+      declare const effect: EffectState;
+      declare const outcome: Outcome;
+      void auths; void service; void code; void action; void store; void signer; void report;
+      void retry; void next; void effect; void outcome;
     `);
     await writeFile(join(directory, "tsconfig.json"), JSON.stringify({
       compilerOptions: {

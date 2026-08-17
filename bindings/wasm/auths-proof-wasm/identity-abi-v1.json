@@ -21,6 +21,11 @@
     "decodeSignedIdentityMessageV2",
     "verifyEd25519IdentityMessageV2"
   ],
+  "types": [
+    "IdentityFieldsV2",
+    "AuthenticatedIdentityMessageV2",
+    "SignedIdentityMessageFieldsV2"
+  ],
   "stateTransitions": [
     "bytes-to-decoded",
     "decoded-to-method-validated",

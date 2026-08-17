@@ -14,8 +14,8 @@ use auths_model::{
     PermissionSet, PortableVerificationResult, PrincipalState, PrincipalStatusSnapshot,
     PrincipalStatusStatement, ProfileRef, ProofBundle, SignatureDescriptor, SignatureEnvelope,
     SignedAction, SignedGrant, SignedGrantStatus, SignedPrincipalStatus, StatementRef,
-    StatusPolicy, StatusTrustRule, TrustAnchor, VerificationCode, VerificationDecision,
-    VerificationResources, VerificationStage, VerifierContext, VerifierLimits,
+    StatusPolicy, StatusTrustRule, TrustAnchor, TrustedContext, VerificationCode,
+    VerificationDecision, VerificationResources, VerificationStage, VerifierLimits,
 };
 use minicbor::Encoder;
 
@@ -1255,7 +1255,7 @@ fn encode_registries(
     encoder: &mut V1Encoder,
     registries: &AcceptedRegistries,
 ) -> Result<(), CodecError> {
-    map(encoder, 13)?;
+    map(encoder, 14)?;
     key(encoder, 0)?;
     bytes(encoder, registries.manifest_id().as_bytes())?;
     key(encoder, 1)?;
@@ -1289,6 +1289,11 @@ fn encode_registries(
     }
     key(encoder, 12)?;
     encode_registry_ids(encoder, registries.profile_policies(), |id| id.as_str())?;
+    key(encoder, 13)?;
+    array(encoder, registries.budget_free_profiles().len())?;
+    for profile in registries.budget_free_profiles() {
+        encode_profile_ref(encoder, profile)?;
+    }
     Ok(())
 }
 
@@ -1463,7 +1468,7 @@ fn encode_composition_requirement(
 
 fn encode_verifier_context_to(
     encoder: &mut V1Encoder,
-    context: &VerifierContext,
+    context: &TrustedContext,
 ) -> Result<(), CodecError> {
     map(encoder, 14)?;
     key(encoder, 0)?;
@@ -1502,11 +1507,11 @@ fn encode_verifier_context_to(
     Ok(())
 }
 
-/// Encodes the deterministic public verifier-context projection.
+/// Encodes the deterministic public trusted-context projection.
 ///
 /// # Errors
 ///
 /// Returns [`CodecError`] if the context exceeds a protocol encoding bound.
-pub fn encode_verifier_context(context: &VerifierContext) -> Result<Vec<u8>, CodecError> {
+pub fn encode_verifier_context(context: &TrustedContext) -> Result<Vec<u8>, CodecError> {
     finish(|encoder| encode_verifier_context_to(encoder, context))
 }

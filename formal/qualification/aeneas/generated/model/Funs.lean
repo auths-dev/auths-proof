@@ -568,21 +568,37 @@ def optional_budget_attenuates
     | some child1 => BudgetCeiling.attenuates child1 parent1
 
 /-- [auths_model::optional_budget_covers]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 929:0-937:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 937:0-946:1
     Visibility: public -/
 def optional_budget_covers
   (ceiling : Option BudgetCeiling) (requested : Option BudgetCeiling) :
   Result Bool
   := do
-  match requested with
+  match ceiling with
   | none => ok true
-  | some requested1 =>
-    match ceiling with
-    | none => ok true
-    | some ceiling1 => BudgetCeiling.covers ceiling1 requested1
+  | some ceiling1 =>
+    match requested with
+    | none => ok false
+    | some requested1 => BudgetCeiling.covers ceiling1 requested1
+
+/-- [auths_model::budget_ceiling_covers_action]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 984:0-994:1
+    Visibility: public -/
+def budget_ceiling_covers_action
+  (ceiling : Option BudgetCeiling) (requested : Option BudgetCeiling)
+  (expression : ProfileBudgetExpression) :
+  Result Bool
+  := do
+  match requested with
+  | none =>
+    match expression with
+    | ProfileBudgetExpression.Expressible =>
+      optional_budget_covers ceiling requested
+    | ProfileBudgetExpression.Inexpressible => ok true
+  | some _ => optional_budget_covers ceiling requested
 
 /-- [auths_model::status_policy_attenuates]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 989:0-1007:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1046:0-1064:1
     Visibility: public -/
 def status_policy_attenuates
   (child : StatusPolicy) (parent : StatusPolicy) : Result Bool := do
@@ -600,7 +616,7 @@ def status_policy_attenuates
       else ok false
 
 /-- [auths_model::critical_extensions_equal]: loop body 0:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1087:4-1100:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1144:4-1157:1
     Visibility: public -/
 @[rust_loop_body]
 def critical_extensions_equal_loop.body
@@ -635,7 +651,7 @@ def critical_extensions_equal_loop.body
   else ok (done true)
 
 /-- [auths_model::critical_extensions_equal]: loop 0:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1087:4-1100:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1144:4-1157:1
     Visibility: public -/
 @[rust_loop]
 def critical_extensions_equal_loop
@@ -648,7 +664,7 @@ def critical_extensions_equal_loop
     index
 
 /-- [auths_model::critical_extensions_equal]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1082:0-1100:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1139:0-1157:1
     Visibility: public -/
 def critical_extensions_equal
   (child : CriticalExtensions) (parent : CriticalExtensions) :

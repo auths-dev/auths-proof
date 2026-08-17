@@ -141,14 +141,22 @@ structure BudgetCeiling where
   algebra : BudgetAlgebraId
   value : Std.U64
 
+/-- [auths_model::ProfileBudgetExpression]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 965:0-971:1
+    Visibility: public -/
+@[discriminant isize]
+inductive ProfileBudgetExpression where
+| Expressible : ProfileBudgetExpression
+| Inexpressible : ProfileBudgetExpression
+
 /-- [auths_model::FreshnessLimit]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 941:0-941:31
+    Source: 'core/crates/auths-model/src/lib.rs', lines 998:0-998:31
     Visibility: public -/
 @[reducible]
 def FreshnessLimit := Std.U64
 
 /-- [auths_model::StatusPolicy]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 966:0-976:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1023:0-1033:1
     Visibility: public -/
 @[discriminant isize]
 inductive StatusPolicy where
@@ -156,14 +164,14 @@ inductive StatusPolicy where
 | SnapshotRequired : StatusMethodId → FreshnessLimit → StatusPolicy
 
 /-- [auths_model::CriticalExtension]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1010:0-1013:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1067:0-1070:1
     Visibility: public -/
 structure CriticalExtension where
   id : ExtensionId
   bytes : alloc.vec.Vec Std.U8
 
 /-- [auths_model::CriticalExtensions]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1041:0-1041:54
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1098:0-1098:54
     Visibility: public -/
 @[reducible]
 def CriticalExtensions := alloc.vec.Vec CriticalExtension

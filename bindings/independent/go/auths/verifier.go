@@ -1044,7 +1044,7 @@ func verifyFromAnchor(
 			return nil, err
 		}
 	}
-	if err := authority.authorizes(action); err != nil {
+	if err := authority.authorizes(action, profileContains(context.budgetFreeProfiles, action.profile)); err != nil {
 		return nil, err
 	}
 	actionControl, ok := controls[statementReference{kind: 1, id: action.id}.key()]
@@ -1148,7 +1148,7 @@ func (authority *effectiveAuthority) delegate(grant *signedGrant) error {
 	return nil
 }
 
-func (authority *effectiveAuthority) authorizes(action *signedAction) error {
+func (authority *effectiveAuthority) authorizes(action *signedAction, budgetFree bool) error {
 	if action.actor != authority.subject || !bytes.Equal(action.terminalGrant, authority.lastGrant) {
 		return denied("broken-grant-chain")
 	}
@@ -1172,7 +1172,7 @@ func (authority *effectiveAuthority) authorizes(action *signedAction) error {
 	if !constraintAllows(authority.constraint, action.bodyDigest) {
 		return denied("action-constraint-mismatch")
 	}
-	if !budgetCovers(authority.budget, action.budget) {
+	if !budgetCovers(authority.budget, action.budget, budgetFree) {
 		return denied("budget-ceiling-exceeded")
 	}
 	return nil

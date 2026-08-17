@@ -3,7 +3,6 @@ import type { AttachedAgent, Profile } from "./workflow.js";
 import {
   executeMcpClosed,
   executeMcpPlanClosed,
-  recoverMcpClosed,
   resumeMcpClosed,
   resourcesForMcpAuthority,
   type McpAction,
@@ -11,22 +10,25 @@ import {
   type McpExecutionState,
   type McpExecutionObserver,
   type McpReceiptSink,
-  type McpAttestedReceipt,
   type McpToolAuthority,
   type McpPlanClosedResult,
 } from "./profiles/mcp/index.js";
 import type { ProfilePlan } from "./plans.js";
+import {
+  classifyErrorCode,
+  type AuthsErrorCode,
+  type EffectState,
+  type RecommendedAction,
+  type RetryClass,
+} from "./product-errors.js";
+import { OUTCOME_CODES } from "./generated/error-registry.js";
 import type { ApplicationReceiptAttestor } from "./profiles/application/index.js";
 import {
   decodeLinkedReceipt,
   encodeLinkedReceipt,
   verifyLinkedReceipt,
+  type Receipt,
 } from "./internal/receipt-attestation.js";
-import {
-  createProductionAuths,
-  type ProductionAuths,
-  type ProductionAuthsOptions,
-} from "./production-client.js";
 
 const configurationResources = new WeakMap<AuthsConfiguration, InternalConfiguration>();
 const referenceResources = new WeakMap<ExecutionReference, string>();
@@ -44,7 +46,7 @@ export interface AuthsConfiguration {
   readonly diagnostics: readonly string[];
 }
 
-export type Receipt = McpAttestedReceipt;
+export type { Receipt };
 
 export interface Completed {
   readonly kind: "completed";
@@ -59,7 +61,7 @@ export interface PlanCompleted {
   readonly receipts: readonly Receipt[];
 }
 
-export interface PlanRecoveryResult {
+export interface PlanRecoveryResult extends Outcome {
   readonly kind: "recoverable" | "not-applied" | "exact-replay" | "conflict";
   readonly executionId: string;
   readonly completedResults: readonly unknown[];
@@ -67,14 +69,42 @@ export interface PlanRecoveryResult {
   readonly reference?: ExecutionReference;
 }
 
-export interface Denied {
-  readonly kind: "denied";
-  readonly code: string;
+/**
+ * The recovery contract every non-completed outcome carries.
+ *
+ * `effect` is the safety-critical field: `possible` means the real-world effect
+ * MAY have happened and this SDK cannot prove which. A caller who reads
+ * `not-applied` when the truth is `possible` will blindly retry and may repeat
+ * a payment or a database write.
+ *
+ * Every field is Rust's: `code` is named by the profile or the verdict, and the
+ * other three are `auths_errors::classify` applied to that code. Nothing here
+ * is decided in TypeScript.
+ */
+export interface Outcome {
+  readonly code: AuthsErrorCode;
+  readonly effect: EffectState;
+  readonly retry: RetryClass;
+  readonly recommendedAction: RecommendedAction;
 }
 
-export interface Indeterminate {
+export interface Denied extends Outcome {
+  readonly kind: "denied";
+}
+
+export interface Indeterminate extends Outcome {
   readonly kind: "indeterminate";
-  readonly code: string;
+}
+
+/** Projects one Rust-named code into the full Rust-owned recovery contract. */
+function outcomeFor(code: string): Outcome {
+  const classification = classifyErrorCode(code);
+  return {
+    code,
+    effect: classification.effect,
+    retry: classification.retry,
+    recommendedAction: classification.recommendedAction,
+  };
 }
 
 export class ExecutionReference {
@@ -120,7 +150,7 @@ export function decodeExecutionReference(input: Uint8Array): ExecutionReference 
 
 const REFERENCE_TOKEN = Symbol("auths-execution-reference");
 
-export interface RecoveryResult {
+export interface RecoveryResult extends Outcome {
   readonly kind: "recoverable" | "not-applied" | "exact-replay" | "conflict";
   readonly executionId: string;
   readonly reference?: ExecutionReference;
@@ -147,11 +177,6 @@ export interface Auths {
   resume(input: Readonly<{
     reference: ExecutionReference;
     provider: McpClosedProvider;
-  }>): Promise<SingleExecutionResult>;
-  recover(input: Readonly<{
-    action: McpAction;
-    provider: McpClosedProvider;
-    requestId?: string;
   }>): Promise<SingleExecutionResult>;
   delegate(input: Readonly<{
     authority: McpToolAuthority;
@@ -251,28 +276,6 @@ class AuthsFacade implements Auths {
     ));
   }
 
-  async recover(input: Readonly<{
-    action: McpAction;
-    provider: McpClosedProvider;
-    requestId?: string;
-  }>): Promise<SingleExecutionResult> {
-    this.#assertActive();
-    this.#assertProvider(input.provider);
-    return projectExecution(await recoverMcpClosed(
-      this.#resources.agent,
-      input.action,
-      {
-        provider: input.provider,
-        state: this.#resources.state,
-        receipts: this.#resources.receipts,
-        attestor: this.#resources.receiptAttestor,
-        sessionKey: this.#resources.sessionKey,
-        ...(this.#resources.observer === undefined ? {} : { observer: this.#resources.observer }),
-        ...(input.requestId === undefined ? {} : { requestId: input.requestId }),
-      },
-    ));
-  }
-
   async delegate(input: Readonly<{
     authority: McpToolAuthority;
     name?: string;
@@ -350,12 +353,16 @@ export function createAuthsConfiguration(
   return configuration;
 }
 
-export function createAuths(configuration: AuthsConfiguration): Promise<Auths>;
-export function createAuths(configuration: ProductionAuthsOptions): ProductionAuths;
-export function createAuths(
-  configuration: AuthsConfiguration | ProductionAuthsOptions,
-): Promise<Auths> | ProductionAuths {
-  if ("endpoint" in configuration) return createProductionAuths(configuration);
+/**
+ * Opens the local product facade over a configuration an integration built.
+ *
+ * This used to be an overload that chose between the local facade and the
+ * remote service client by testing whether the argument happened to have an
+ * `endpoint` property. Two unrelated products behind one name, selected by
+ * duck-typing, is not an API: the remote client is `createServiceClient` at
+ * `@auths-dev/sdk/service`, and this returns the local facade or throws.
+ */
+export function createAuths(configuration: AuthsConfiguration): Promise<Auths> {
   const resources = configurationResources.get(configuration);
   if (resources === undefined) throw new TypeError("Auths configuration was not created by an integration");
   return resources.open().then((opened) => new AuthsFacade(opened, resources.diagnostics));
@@ -383,21 +390,34 @@ function projectExecution(value: RawMcpExecution): SingleExecutionResult {
     });
   }
   if (value.kind === "denied" || value.kind === "indeterminate") {
-    return Object.freeze({ kind: value.kind, code: value.code });
+    return Object.freeze({ kind: value.kind, ...verdictOutcome(value.kind) });
   }
   if (value.kind === "recoverable") {
     return Object.freeze({
       kind: "recoverable" as const,
       executionId: value.executionId,
       reference: ExecutionReference.create(REFERENCE_TOKEN, value.executionReference),
+      ...outcomeFor(value.code),
     });
   }
-  return Object.freeze({ kind: value.kind, executionId: value.executionId });
+  return Object.freeze({ kind: value.kind, executionId: value.executionId, ...outcomeFor(value.code) });
+}
+
+/**
+ * Translates one verifier verdict into its registry code.
+ *
+ * The kernel names a denial with a diagnostic such as `permission-not-granted`,
+ * which is not a registry code and exists in no error registry. Which registry
+ * code a verdict carries is `auths_errors::outcome_codes`, generated here; the
+ * kernel diagnostic stays a diagnostic.
+ */
+function verdictOutcome(kind: "denied" | "indeterminate"): Outcome {
+  return outcomeFor(OUTCOME_CODES[kind]);
 }
 
 function projectPlanExecution(value: RawMcpPlanExecution): PlanExecutionResult {
   if ("failedIndex" in value) {
-    return Object.freeze({ kind: value.kind, code: value.result.code });
+    return Object.freeze({ kind: value.kind, ...verdictOutcome(value.kind) });
   }
   if (value.kind === "completed") {
     return Object.freeze({ kind: "completed", results: value.results, receipts: value.receipts });
@@ -407,6 +427,7 @@ function projectPlanExecution(value: RawMcpPlanExecution): PlanExecutionResult {
     executionId: value.executionId,
     completedResults: value.completedResults,
     completedReceipts: value.completedReceipts,
+    ...outcomeFor(value.code),
     ...(value.kind === "recoverable"
       ? { reference: ExecutionReference.create(REFERENCE_TOKEN, value.executionReference) }
       : {}),

@@ -324,12 +324,303 @@ pub(crate) fn formal(skip_kani: bool, update: bool) -> Result<(), String> {
 
 pub(crate) fn ci_formal_translation() -> Result<(), String> {
     formal_qualification::validate_source_closure(&root())?;
-    let (formal_root, attenuation_dimensions) = prepare_formal(true, false)?;
-    formal_qualification::qualify(&root(), &attenuation_dimensions, false)?;
+    let (formal_root, attenuation_dimensions) = prepare_formal_translation(true, false)?;
+    formal_qualification::qualify(&root(), &attenuation_dimensions, false, &|| {
+        build_and_audit_formal(&formal_root, false)
+    })?;
     run_formal_semantic_checks(&formal_root, false, false)
 }
 
-pub(crate) fn prepare_formal(
+/// Runs the expensive semantic/Kani checks after a PR's update qualification.
+/// The immediately preceding `formal qualify aeneas --update` already did two
+/// reproductions plus the Lean build/audit, so repeating qualification here
+/// would provide no independent evidence and roughly double CI time.
+pub(crate) fn ci_formal_post_qualification() -> Result<(), String> {
+    formal_qualification::validate_source_closure(&root())?;
+    let (formal_root, attenuation_dimensions) = prepare_formal_translation(true, false)?;
+    formal_qualification::validate(&root(), &attenuation_dimensions)?;
+    run_formal_semantic_checks(&formal_root, false, false)
+}
+
+/// One workspace package whose `#[kani::proof]` harnesses the formal gate runs.
+struct KaniHarnessPackage {
+    /// Cargo package name passed to `cargo kani -p`.
+    package: &'static str,
+    /// Workspace-relative source root that must contain every harness the
+    /// package owns.
+    source_root: &'static str,
+}
+
+/// Complete inventory of packages carrying Kani harnesses.
+///
+/// `kani_harness_inventory` fails the gate when any `#[kani::proof]` appears
+/// outside these roots. Before this list existed the gate ran only the two core
+/// packages, so 31 product harnesses were never executed by anything — which is
+/// the structural reason single-point harnesses could wear universally
+/// quantified names undetected. Adding a harness in a new package must extend
+/// this list, not silently skip the gate.
+const KANI_HARNESS_PACKAGES: &[KaniHarnessPackage] = &[
+    KaniHarnessPackage {
+        package: "auths-algebra-kernel",
+        source_root: "core/crates/auths-algebra-kernel",
+    },
+    KaniHarnessPackage {
+        package: "auths-model",
+        source_root: "core/crates/auths-model",
+    },
+    KaniHarnessPackage {
+        package: "auths-lifecycle",
+        source_root: "product/runtime/auths-lifecycle",
+    },
+    KaniHarnessPackage {
+        package: "auths-bounded-policy",
+        source_root: "product/policy/auths-bounded-policy",
+    },
+    KaniHarnessPackage {
+        package: "auths-stripe",
+        source_root: "product/integrations/auths-stripe",
+    },
+];
+
+/// Runs the complete harness set for every package in `KANI_HARNESS_PACKAGES`.
+///
+/// Nothing is filtered. Kani 0.67 offers only an inclusion filter
+/// (`--harness`), so excluding one slow harness would mean hand-listing every
+/// other harness name here — a list that goes stale exactly the way the phantom
+/// `kani_harnesses` citations did. The complete set is run instead.
+///
+/// MEASURED COST of the 31 product harnesses this list newly gates: ~281s of
+/// solving, of which ~235s is the single harness
+/// `connect::transfer::evaluator::proofs::basis_points_floor_never_exceeds_denominator`
+/// (symbolic 64-bit division by 10_000; kissat was tried and was slower at
+/// ~279s). Every other harness is under 0.3s. If this gate needs to get faster,
+/// make that division cheaper to reason about — do not shrink its input domain.
+fn run_kani_harnesses() -> Result<(), String> {
+    for package in KANI_HARNESS_PACKAGES.iter().map(|entry| entry.package) {
+        command_in(
+            "cargo",
+            // `-j` requires terse output; both are needed to keep the wall
+            // clock down while still running the complete set.
+            &["kani", "-p", package, "-j", "--output-format=terse"],
+            &root(),
+            None,
+        )?;
+    }
+    println!("Kani bounded harnesses:      PASS (complete set)");
+    Ok(())
+}
+
+/// Fails when a `#[kani::proof]` exists that no gated package would run.
+///
+/// This runs even under `--skip-kani`: skipping execution is a local
+/// convenience, but an unrunnable harness is a permanent evidence gap and must
+/// be reported either way.
+fn kani_harness_inventory() -> Result<(), String> {
+    let root = root();
+    let mut orphans = Vec::new();
+    let mut total = 0_usize;
+    let mut sources = Vec::new();
+    collect_rust_sources(&root, &root, &mut sources)?;
+    sources.sort();
+    for relative in sources {
+        let text = fs::read_to_string(root.join(&relative))
+            .map_err(|error| format!("could not read {}: {error}", relative.display()))?;
+        let count = text
+            .lines()
+            .filter(|line| line.trim_start().starts_with("#[kani::proof]"))
+            .count();
+        if count == 0 {
+            continue;
+        }
+        total += count;
+        let display = relative.to_string_lossy().replace('\\', "/");
+        if !KANI_HARNESS_PACKAGES
+            .iter()
+            .any(|entry| display.starts_with(&format!("{}/", entry.source_root)))
+        {
+            orphans.push(format!("{display} ({count} harnesses)"));
+        }
+    }
+    if !orphans.is_empty() {
+        return Err(format!(
+            "Kani harnesses exist that no gated package runs; add the owning package to \
+             KANI_HARNESS_PACKAGES in xtask/src/formal.rs: {}",
+            orphans.join(", ")
+        ));
+    }
+    println!("Kani harness inventory:      PASS ({total} harnesses, all gated)");
+    Ok(())
+}
+
+/// Collects workspace-relative paths of every `.rs` file outside build output.
+fn collect_rust_sources(
+    root: &Path,
+    directory: &Path,
+    found: &mut Vec<PathBuf>,
+) -> Result<(), String> {
+    let entries = fs::read_dir(directory)
+        .map_err(|error| format!("could not read {}: {error}", directory.display()))?;
+    for entry in entries {
+        let entry = entry.map_err(|error| format!("could not read a directory entry: {error}"))?;
+        let path = entry.path();
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        if name.starts_with('.') || name == "target" || name == "node_modules" {
+            continue;
+        }
+        let kind = entry
+            .file_type()
+            .map_err(|error| format!("could not stat {}: {error}", path.display()))?;
+        if kind.is_dir() {
+            collect_rust_sources(root, &path, found)?;
+        } else if kind.is_file() && path.extension().is_some_and(|value| value == "rs") {
+            let relative = path
+                .strip_prefix(root)
+                .map_err(|error| format!("path escaped the workspace root: {error}"))?;
+            found.push(relative.to_path_buf());
+        }
+    }
+    Ok(())
+}
+
+/// Prepares everything that does NOT read committed generated Lean.
+///
+/// Synchronizes the algebra contract sources, validates the pinned toolchain,
+/// and returns the attenuation dimensions. It deliberately runs neither `lake
+/// build` nor the assurance audit.
+///
+/// `formal qualify aeneas` regenerates the very Lean a build would compile, so
+/// building first makes regeneration impossible the moment a translation starts
+/// referencing a symbol its upstream crate has not exported yet: the build
+/// fails on the generated file, qualification aborts before `reproduce()`, and
+/// the upstream crate can never produce the symbol. Translation must come
+/// first; the complete build and audit still gate success, from
+/// [`build_and_audit_formal`] after synchronization.
+const MUTATION_CASE_IDS: [&str; 23] = [
+    "validity-start-direction",
+    "validity-end-direction",
+    "permission-subset-direction",
+    "audience-subset-direction",
+    "permission-membership-decision",
+    "audience-membership-decision",
+    "body-digest-membership-decision",
+    "body-digest-subset-direction",
+    "action-exact-equality",
+    "action-constructor-fallback",
+    "action-singleton-exact-rejection",
+    "budget-value-direction",
+    "budget-algebra-equality",
+    "optional-budget-bounded-parent",
+    "optional-budget-no-request",
+    "status-age-direction",
+    "status-method-equality",
+    "profile-version-equality",
+    "assurance-equality",
+    "critical-extension-equality",
+    "delegation-depth-strictness",
+    "principal-linkage-equality",
+    "grant-linkage-equality",
+];
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct MutationMatrix {
+    schema: String,
+    cases: Vec<MutationCase>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct MutationCase {
+    id: String,
+    operator: String,
+    witness: String,
+    lean_declaration: String,
+}
+
+fn expected_mutation_declaration(identifier: &str) -> String {
+    format!("Auths.Rich.Mutations.{}", identifier.replace('-', "_"))
+}
+
+/// Requires the mutation matrix to have exactly the reviewed schema and all 23
+/// compiled witnesses. Malformed JSON, omitted declarations, duplicate or
+/// unknown identifiers, and redirection to an unrelated theorem all fail
+/// closed: this artifact is executable assurance evidence, not prose.
+fn validate_mutation_witnesses(
+    artifact: &Path,
+    compiled: &BTreeMap<String, LeanAssuranceDeclaration>,
+) -> Result<(), String> {
+    if artifact.file_name().and_then(|value| value.to_str()) != Some("refinement-mutations-v1.json")
+    {
+        return Ok(());
+    }
+    let source = fs::read_to_string(artifact).map_err(|error| {
+        format!(
+            "could not read mutation matrix {}: {error}",
+            artifact.display()
+        )
+    })?;
+    validate_mutation_matrix_source(&source, compiled)
+}
+
+fn validate_mutation_matrix_source(
+    source: &str,
+    compiled: &BTreeMap<String, LeanAssuranceDeclaration>,
+) -> Result<(), String> {
+    let matrix: MutationMatrix = serde_json::from_str(source)
+        .map_err(|error| format!("invalid mutation matrix: {error}"))?;
+    if matrix.schema != "auths-proof-semantic-mutations/v1" {
+        return Err(format!(
+            "unsupported mutation matrix schema {}",
+            matrix.schema
+        ));
+    }
+    if matrix.cases.len() != MUTATION_CASE_IDS.len() {
+        return Err(format!(
+            "mutation matrix must contain exactly {} cases, found {}",
+            MUTATION_CASE_IDS.len(),
+            matrix.cases.len()
+        ));
+    }
+    let mut seen = BTreeSet::new();
+    for (index, case) in matrix.cases.iter().enumerate() {
+        let expected_id = MUTATION_CASE_IDS[index];
+        if case.id != expected_id {
+            return Err(format!(
+                "mutation case {index} must be {expected_id}, found {}",
+                case.id
+            ));
+        }
+        if !seen.insert(case.id.as_str()) {
+            return Err(format!("mutation matrix repeats case {}", case.id));
+        }
+        if case.operator.trim().is_empty() || case.witness.trim().is_empty() {
+            return Err(format!("mutation case {} is incomplete", case.id));
+        }
+        let expected = expected_mutation_declaration(&case.id);
+        if case.lean_declaration != expected {
+            return Err(format!(
+                "mutation case {} must name deterministic witness {expected}, found {}",
+                case.id, case.lean_declaration
+            ));
+        }
+        let declaration = compiled.get(&case.lean_declaration).ok_or_else(|| {
+            format!(
+                "mutation case {} names witness {}, which the assurance audit did not compile",
+                case.id, case.lean_declaration
+            )
+        })?;
+        if declaration.kind != "theorem" {
+            return Err(format!(
+                "mutation case {} witness {} compiled as {}, not theorem",
+                case.id, case.lean_declaration, declaration.kind
+            ));
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn prepare_formal_translation(
     require_kani: bool,
     update: bool,
 ) -> Result<(PathBuf, Vec<String>), String> {
@@ -337,13 +628,34 @@ pub(crate) fn prepare_formal(
     let contract = load_algebra_contract()?;
     synchronize_algebra_sources(&contract, update)?;
     validate_formal_toolchain(&formal_root, require_kani)?;
-    command_in("lake", &["build"], &formal_root, None)?;
-    formal_assurance_audit(&formal_root, update)?;
     let attenuation_dimensions = contract
         .attenuation_dimensions
         .iter()
         .map(|dimension| dimension.rust.clone())
         .collect();
+    Ok((formal_root, attenuation_dimensions))
+}
+
+/// Compiles the Lean development and runs the compiled assurance audit.
+///
+/// Separated from [`prepare_formal_translation`] so qualification can run it
+/// AFTER regenerated outputs and reviewed bridges are in place. This is the
+/// gate: qualification does not succeed without it.
+pub(crate) fn build_and_audit_formal(formal_root: &Path, update: bool) -> Result<(), String> {
+    command_in("lake", &["build"], formal_root, None)?;
+    formal_assurance_audit(formal_root, update)
+}
+
+/// Build-first preparation used by ordinary `cargo xtask formal`.
+///
+/// Unchanged behaviour: everything downstream reads committed generated Lean,
+/// so the build belongs up front. Only `formal qualify aeneas` inverts this.
+pub(crate) fn prepare_formal(
+    require_kani: bool,
+    update: bool,
+) -> Result<(PathBuf, Vec<String>), String> {
+    let (formal_root, attenuation_dimensions) = prepare_formal_translation(require_kani, update)?;
+    build_and_audit_formal(&formal_root, update)?;
     Ok((formal_root, attenuation_dimensions))
 }
 
@@ -355,17 +667,11 @@ pub(crate) fn run_formal_semantic_checks(
     synchronize_lean_vectors(formal_root, update)?;
 
     cargo(&["test", "-p", "auths-formal-refinement"])?;
+    kani_harness_inventory()?;
     if skip_kani {
         println!("Kani bounded harnesses:      SKIPPED (--skip-kani)");
     } else {
-        command_in(
-            "cargo",
-            &["kani", "-p", "auths-algebra-kernel"],
-            &root(),
-            None,
-        )?;
-        command_in("cargo", &["kani", "-p", "auths-model"], &root(), None)?;
-        println!("Kani bounded harnesses:      PASS");
+        run_kani_harnesses()?;
     }
     println!("Lean theorems:              PASS");
     println!("Generated semantic vectors: byte-stable");
@@ -435,6 +741,11 @@ pub(crate) struct FormalAssuranceManifest {
     schema: String,
     lean_toolchain: String,
     toolchain_lock_sha256: String,
+    /// Human-reviewed batch identifier for the exact compiled declaration set.
+    statement_review: String,
+    /// Digest of names, modules, kinds, statements, and transitive axioms.
+    /// Qualification never refreshes this field automatically.
+    statement_inventory_sha256: String,
     allowed_axioms: Vec<String>,
     claims: Vec<FormalAssuranceClaim>,
 }
@@ -461,8 +772,93 @@ pub(crate) struct FormalAssuranceClaim {
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct FormalEvidence {
-    kind: String,
+    kind: FormalEvidenceKind,
     artifact: String,
+    /// SHA-256 of the artifact's bytes.
+    ///
+    /// Evidence used to be EXISTENCE-CHECKED only: the audit confirmed a file
+    /// was present at the path and read nothing. An artifact could be emptied,
+    /// rewritten, or replaced wholesale and every claim citing it still passed.
+    ///
+    /// Mandatory. Update mode computes it; check mode verifies it. An evidence
+    /// entry is never permitted to exist in an unhashed intermediate state.
+    sha256: String,
+}
+
+#[derive(Clone, Copy, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+enum FormalEvidenceKind {
+    LeanProof,
+    LeanRefinement,
+    MechanicalTranslation,
+    TranslatedRust,
+    SourceClosure,
+    LeanGeneratedVectors,
+    MutationMatrix,
+    TestCorpus,
+}
+
+impl FormalEvidenceKind {
+    fn validates_path(self, path: &str) -> bool {
+        match self {
+            Self::LeanProof | Self::LeanRefinement => path.ends_with(".lean"),
+            Self::MechanicalTranslation | Self::TranslatedRust => {
+                path.starts_with("formal/qualification/aeneas/generated/")
+                    && path.ends_with(".lean")
+            }
+            Self::SourceClosure => path == "formal/qualification/aeneas/source-closure.json",
+            Self::LeanGeneratedVectors => {
+                path.starts_with("core/formal-vectors/v1/") && path.ends_with(".json")
+            }
+            Self::MutationMatrix => path == "formal/refinement-mutations-v1.json",
+            Self::TestCorpus => !path.trim().is_empty(),
+        }
+    }
+}
+
+fn validated_evidence_path(relative: &str) -> Result<PathBuf, String> {
+    let path = Path::new(relative);
+    if path.is_absolute()
+        || path
+            .components()
+            .any(|component| !matches!(component, std::path::Component::Normal(_)))
+    {
+        return Err(format!(
+            "evidence path must be a normalized workspace-relative path: {relative}"
+        ));
+    }
+    let unresolved = root().join(path);
+    let metadata = fs::symlink_metadata(&unresolved)
+        .map_err(|error| format!("could not stat evidence {}: {error}", unresolved.display()))?;
+    if !metadata.file_type().is_file() || metadata.file_type().is_symlink() {
+        return Err(format!(
+            "evidence path is not a regular non-symlink file: {relative}"
+        ));
+    }
+    let workspace = fs::canonicalize(root())
+        .map_err(|error| format!("could not resolve workspace root: {error}"))?;
+    let resolved = fs::canonicalize(&unresolved).map_err(|error| {
+        format!(
+            "could not resolve evidence {}: {error}",
+            unresolved.display()
+        )
+    })?;
+    if !resolved.starts_with(&workspace) {
+        return Err(format!("evidence path escapes workspace: {relative}"));
+    }
+    Ok(resolved)
+}
+
+fn validate_sha256(value: &str) -> Result<(), String> {
+    if value.len() == 64
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    {
+        Ok(())
+    } else {
+        Err(format!("invalid lowercase SHA-256 {value}"))
+    }
 }
 
 #[derive(Deserialize)]
@@ -476,9 +872,35 @@ pub(crate) struct LeanAssuranceAudit {
 #[serde(deny_unknown_fields)]
 pub(crate) struct LeanAssuranceDeclaration {
     name: String,
+    module: String,
     kind: String,
     statement: String,
     axioms: Vec<String>,
+}
+
+fn lean_statement_inventory_sha256(audit: &LeanAssuranceAudit) -> String {
+    let mut declarations = audit.declarations.iter().collect::<Vec<_>>();
+    declarations.sort_by(|left, right| left.name.cmp(&right.name));
+    let mut digest = Sha256::new();
+    for declaration in declarations {
+        let mut axioms = declaration.axioms.clone();
+        axioms.sort();
+        for value in [
+            declaration.name.as_str(),
+            declaration.module.as_str(),
+            declaration.kind.as_str(),
+            declaration.statement.as_str(),
+        ] {
+            digest.update(value.as_bytes());
+            digest.update([0]);
+        }
+        for axiom in axioms {
+            digest.update(axiom.as_bytes());
+            digest.update([0]);
+        }
+        digest.update([0xff]);
+    }
+    hex::encode(digest.finalize())
 }
 
 pub(crate) fn formal_assurance_audit(formal_root: &Path, update: bool) -> Result<(), String> {
@@ -530,6 +952,16 @@ pub(crate) fn formal_assurance_audit(formal_root: &Path, update: bool) -> Result
             audit.schema
         ));
     }
+    let statement_inventory_sha256 = lean_statement_inventory_sha256(&audit);
+    if manifest.statement_review.trim().is_empty() {
+        return Err("formal assurance statement review batch is empty".to_owned());
+    }
+    if manifest.statement_inventory_sha256 != statement_inventory_sha256 {
+        return Err(format!(
+            "compiled Lean statement inventory is not explicitly reviewed: manifest binds {}, compiled audit is {statement_inventory_sha256}; review the complete audit, change statement_review, and set statement_inventory_sha256 explicitly before update",
+            manifest.statement_inventory_sha256
+        ));
+    }
 
     if update {
         synchronize_formal_assurance_manifest(
@@ -555,6 +987,7 @@ pub(crate) fn formal_assurance_audit(formal_root: &Path, update: bool) -> Result
             ));
         }
     }
+    let expected_source_closure = semantic_source_closure_paths(formal_root)?;
     let mut reviewed = BTreeSet::new();
     let mut claim_ids = BTreeSet::new();
     for claim in &manifest.claims {
@@ -583,6 +1016,12 @@ pub(crate) fn formal_assurance_audit(formal_root: &Path, update: bool) -> Result
                 ));
             }
         }
+        if claim.formal_review != manifest.statement_review {
+            return Err(format!(
+                "formal claim {} review tag does not match reviewed statement batch {}",
+                claim.lean_declaration, manifest.statement_review
+            ));
+        }
         if !matches!(
             claim.claim_status.as_str(),
             "proved" | "qualified" | "assumed"
@@ -591,6 +1030,34 @@ pub(crate) fn formal_assurance_audit(formal_root: &Path, update: bool) -> Result
                 "formal claim {} has unsupported status {}",
                 claim.lean_declaration, claim.claim_status
             ));
+        }
+        if let Some(metadata) = production_refinement_metadata(&claim.lean_declaration) {
+            let expected_symbols = metadata
+                .rust_symbols
+                .iter()
+                .map(|symbol| (*symbol).to_owned())
+                .collect::<Vec<_>>();
+            let expected_residual = metadata
+                .residual_assumptions
+                .iter()
+                .map(|assumption| (*assumption).to_owned())
+                .collect::<Vec<_>>();
+            if claim.claim_status != "qualified"
+                || claim.claim_text != metadata.claim_text
+                || claim.rust_symbols != expected_symbols
+                || claim.scope != metadata.scope
+                || claim.residual_assumptions != expected_residual
+            {
+                return Err(format!(
+                    "formal claim {} production refinement metadata drifted from the executable boundary table",
+                    claim.lean_declaration
+                ));
+            }
+            validate_production_evidence(
+                &claim.lean_declaration,
+                &claim.evidence,
+                metadata.translation_evidence_kind,
+            )?;
         }
         if claim.toolchain_lock_sha256 != toolchain_lock_digest {
             return Err(format!(
@@ -604,6 +1071,12 @@ pub(crate) fn formal_assurance_audit(formal_root: &Path, update: bool) -> Result
         {
             return Err(format!(
                 "formal claim {} must declare source closure, evidence, and residual assumptions",
+                claim.lean_declaration
+            ));
+        }
+        if claim.semantic_source_closure != expected_source_closure {
+            return Err(format!(
+                "formal claim {} semantic source closure is not the Lean-resolved transitive assurance closure",
                 claim.lean_declaration
             ));
         }
@@ -622,19 +1095,53 @@ pub(crate) fn formal_assurance_audit(formal_root: &Path, update: bool) -> Result
                 ));
             }
         }
-        for item in &claim.evidence {
-            if item.kind.trim().is_empty() || item.artifact.trim().is_empty() {
-                return Err(format!(
-                    "formal claim {} contains incomplete evidence",
+        let expected_proof =
+            declaration_source_path(compiled.get(&claim.lean_declaration).ok_or_else(|| {
+                format!(
+                    "reviewed Lean declaration {} is absent from the compiled environment",
                     claim.lean_declaration
+                )
+            })?)?;
+        let primary = claim
+            .evidence
+            .iter()
+            .filter(|item| {
+                matches!(
+                    item.kind,
+                    FormalEvidenceKind::LeanProof | FormalEvidenceKind::LeanRefinement
+                )
+            })
+            .collect::<Vec<_>>();
+        if primary.len() != 1 || primary[0].artifact != expected_proof {
+            return Err(format!(
+                "formal claim {} must cite exactly its defining Lean module {expected_proof} as primary proof evidence",
+                claim.lean_declaration
+            ));
+        }
+        for item in &claim.evidence {
+            if item.artifact.trim().is_empty() || !item.kind.validates_path(&item.artifact) {
+                return Err(format!(
+                    "formal claim {} contains incomplete or kind/path-mismatched evidence {}",
+                    claim.lean_declaration, item.artifact
                 ));
             }
-            let artifact = root().join(&item.artifact);
-            if !artifact.exists() {
+            let artifact = validated_evidence_path(&item.artifact)?;
+            validate_mutation_witnesses(&artifact, &compiled)?;
+            validate_sha256(&item.sha256).map_err(|error| {
+                format!(
+                    "formal claim {} evidence {} has {error}",
+                    claim.lean_declaration, item.artifact
+                )
+            })?;
+            let bytes = fs::read(&artifact).map_err(|error| {
+                format!("could not read evidence {}: {error}", artifact.display())
+            })?;
+            let actual = hex::encode(Sha256::digest(&bytes));
+            if actual != item.sha256 {
                 return Err(format!(
-                    "formal claim {} evidence artifact does not exist: {}",
-                    claim.lean_declaration,
-                    artifact.display()
+                    "formal claim {} cites evidence {} with digest {}, \
+                     but the artifact hashes to {actual}",
+                    claim.lean_declaration, item.artifact, item.sha256
                 ));
             }
         }
@@ -712,37 +1219,7 @@ pub(crate) fn synchronize_formal_assurance_manifest(
     audit: &LeanAssuranceAudit,
     toolchain_lock_digest: &str,
 ) -> Result<(), String> {
-    let source_closure = vec![
-        "formal/Auths/Base.lean".to_owned(),
-        "formal/Auths/Authority.lean".to_owned(),
-        "formal/Auths/Attenuation.lean".to_owned(),
-        "formal/Auths/Rich/Types.lean".to_owned(),
-        "formal/Auths/Rich/Semantics.lean".to_owned(),
-        "formal/Auths/Rich/Theorems.lean".to_owned(),
-        "formal/Auths/Product/Commitment.lean".to_owned(),
-        "formal/Auths/Product/Arithmetic.lean".to_owned(),
-        "formal/Auths/Product/Eligibility.lean".to_owned(),
-        "formal/Auths/Product/Tightening.lean".to_owned(),
-        "formal/Auths/Product/Theorems.lean".to_owned(),
-        "formal/Auths/Product/Refinement.lean".to_owned(),
-        "formal/Auths/Lifecycle/Semantics.lean".to_owned(),
-        "formal/Auths/Lifecycle/Theorems.lean".to_owned(),
-        "formal/Auths/Lifecycle/Refinement.lean".to_owned(),
-        "formal/Auths/Refinement/Production.lean".to_owned(),
-        "formal/Auths/Composition.lean".to_owned(),
-        "formal/Auths/Diversity.lean".to_owned(),
-        "formal/Auths/Generated/Algebra.lean".to_owned(),
-        "formal/Auths/Theorems.lean".to_owned(),
-        "formal/qualification/aeneas/generated/authority/Funs.lean".to_owned(),
-        "formal/qualification/aeneas/generated/authority/Types.lean".to_owned(),
-        "formal/qualification/aeneas/generated/bounded_policy/Funs.lean".to_owned(),
-        "formal/qualification/aeneas/generated/bounded_policy/Types.lean".to_owned(),
-        "formal/qualification/aeneas/generated/lifecycle/Funs.lean".to_owned(),
-        "formal/qualification/aeneas/generated/lifecycle/Types.lean".to_owned(),
-        "formal/qualification/aeneas/generated/model/Funs.lean".to_owned(),
-        "formal/qualification/aeneas/generated/model/Types.lean".to_owned(),
-        "formal/algebra-contract-v1.toml".to_owned(),
-    ];
+    let source_closure = semantic_source_closure_paths(formal_root)?;
     let source_closure_digest = semantic_source_closure_digest(&source_closure)?;
     let mut rich_index = manifest
         .claims
@@ -787,14 +1264,9 @@ pub(crate) fn synchronize_formal_assurance_manifest(
                 semantic_source_closure: Vec::new(),
                 semantic_source_closure_sha256: String::new(),
                 evidence: vec![FormalEvidence {
-                    kind: "lean-proof".to_owned(),
-                    artifact: if is_lifecycle {
-                        "formal/Auths/Lifecycle/Theorems.lean".to_owned()
-                    } else if is_product {
-                        "formal/Auths/Product/Theorems.lean".to_owned()
-                    } else {
-                        "formal/Auths/Rich/Theorems.lean".to_owned()
-                    },
+                    kind: FormalEvidenceKind::LeanProof,
+                    artifact: declaration_source_path(declaration)?,
+                    sha256: String::new(),
                 }],
                 scope: if is_lifecycle {
                     "Pure V1 lifecycle transitions, capacity conservation, replay, configuration gates, credential ordering, provider entry, and reconciliation.".to_owned()
@@ -811,6 +1283,26 @@ pub(crate) fn synchronize_formal_assurance_manifest(
             }
         };
         claim.lean_statement_sha256 = statement_digest;
+        claim.formal_review.clone_from(&manifest.statement_review);
+        let proof_kind = if declaration.module.contains(".Refinement") {
+            FormalEvidenceKind::LeanRefinement
+        } else {
+            FormalEvidenceKind::LeanProof
+        };
+        claim.evidence.retain(|item| {
+            !matches!(
+                item.kind,
+                FormalEvidenceKind::LeanProof | FormalEvidenceKind::LeanRefinement
+            )
+        });
+        claim.evidence.insert(
+            0,
+            FormalEvidence {
+                kind: proof_kind,
+                artifact: declaration_source_path(declaration)?,
+                sha256: String::new(),
+            },
+        );
         claim.semantic_source_closure.clone_from(&source_closure);
         claim
             .semantic_source_closure_sha256
@@ -823,8 +1315,9 @@ pub(crate) fn synchronize_formal_assurance_manifest(
             );
             claim.rust_symbols = vec![rust_symbol.to_owned()];
             claim.evidence = vec![FormalEvidence {
-                kind: "lean-refinement".to_owned(),
+                kind: FormalEvidenceKind::LeanRefinement,
                 artifact: "formal/Auths/Lifecycle/Refinement.lean".to_owned(),
+                sha256: String::new(),
             }];
             claim.scope = format!(
                 "The pinned Charon/Aeneas translation of `{rust_symbol}` is extensionally equivalent to the corresponding rich Lean V1 lifecycle semantics."
@@ -833,15 +1326,64 @@ pub(crate) fn synchronize_formal_assurance_manifest(
                 "Lean's kernel, the pinned Rust/Charon/Aeneas/Lean toolchain, the qualified translation boundary, the listed foundational axioms, and the theorem premises are trusted.".to_owned(),
             ];
         }
+        if let Some(metadata) = production_refinement_metadata(&declaration.name) {
+            claim.claim_text = metadata.claim_text.to_owned();
+            claim.claim_status = "qualified".to_owned();
+            claim.rust_symbols = metadata
+                .rust_symbols
+                .iter()
+                .map(|symbol| (*symbol).to_owned())
+                .collect();
+            claim.scope = metadata.scope.to_owned();
+            claim.residual_assumptions = metadata
+                .residual_assumptions
+                .iter()
+                .map(|assumption| (*assumption).to_owned())
+                .collect();
+            claim.evidence.retain(|item| {
+                !matches!(
+                    item.kind,
+                    FormalEvidenceKind::SourceClosure
+                        | FormalEvidenceKind::MechanicalTranslation
+                        | FormalEvidenceKind::TranslatedRust
+                )
+            });
+            claim.evidence.push(FormalEvidence {
+                kind: metadata.translation_evidence_kind,
+                artifact: "formal/qualification/aeneas/generated/authority/Funs.lean".to_owned(),
+                sha256: String::new(),
+            });
+            claim.evidence.push(FormalEvidence {
+                kind: FormalEvidenceKind::SourceClosure,
+                artifact: "formal/qualification/aeneas/source-closure.json".to_owned(),
+                sha256: String::new(),
+            });
+        }
         claims.push(claim);
     }
     if !existing.is_empty() {
-        println!(
-            "Formal assurance update:    removed {} declarations absent from compiled inventory",
-            existing.len()
-        );
+        return Err(format!(
+            "formal assurance update refuses to auto-retire reviewed declarations absent from the compiled inventory: {:?}; remove each claim explicitly in the reviewed change",
+            existing.keys().collect::<Vec<_>>()
+        ));
     }
     manifest.claims = claims;
+    // Refresh every evidence digest before rendering.
+    //
+    // Some cited artifacts are REGENERATED by the same command that validates
+    // them -- `source-closure.json` most obviously -- so a digest recorded
+    // before regeneration is stale by construction. Recomputing here is what
+    // makes the binding maintainable rather than a standing false alarm; the
+    // non-update path still verifies and refuses a mismatch.
+    for claim in &mut manifest.claims {
+        for item in &mut claim.evidence {
+            let artifact = validated_evidence_path(&item.artifact)?;
+            let bytes = fs::read(&artifact).map_err(|error| {
+                format!("could not read evidence {}: {error}", artifact.display())
+            })?;
+            item.sha256 = hex::encode(Sha256::digest(&bytes));
+        }
+    }
     let rendered = toml::to_string_pretty(manifest)
         .map_err(|error| format!("could not render formal assurance manifest: {error}"))?;
     fs::write(manifest_path, format!("{}\n", rendered.trim_end()))
@@ -850,8 +1392,152 @@ pub(crate) fn synchronize_formal_assurance_manifest(
         "Formal assurance update:    {} compiled claims synchronized",
         manifest.claims.len()
     );
-    let _ = formal_root;
     Ok(())
+}
+
+fn declaration_source_path(declaration: &LeanAssuranceDeclaration) -> Result<String, String> {
+    if declaration.module.trim().is_empty()
+        || !declaration.module.split('.').all(|part| {
+            !part.is_empty()
+                && part
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+        })
+    {
+        return Err(format!(
+            "compiled Lean declaration {} has invalid defining module {}",
+            declaration.name, declaration.module
+        ));
+    }
+    let path = format!("formal/{}.lean", declaration.module.replace('.', "/"));
+    if !root().join(&path).is_file() {
+        return Err(format!(
+            "compiled Lean declaration {} defining module is not a repository file: {path}",
+            declaration.name
+        ));
+    }
+    Ok(path)
+}
+
+/// Computes the repository-local transitive Lean import closure from the exact
+/// module compiled by the assurance audit. This replaces a hand-maintained list
+/// which had omitted mutation proofs and reviewed/generated external bridges.
+fn semantic_source_closure_paths(formal_root: &Path) -> Result<Vec<String>, String> {
+    validate_lake_dependency_worktrees(formal_root)?;
+    let workspace_root = root();
+    let mut pending = vec![formal_root.join("Auths/AssuranceAudit.lean")];
+    let mut visited = BTreeSet::new();
+    while let Some(path) = pending.pop() {
+        let path = fs::canonicalize(&path).map_err(|error| {
+            format!("could not resolve Lean source {}: {error}", path.display())
+        })?;
+        let relative = path
+            .strip_prefix(&workspace_root)
+            .map_err(|error| format!("Lean source escaped workspace: {error}"))?
+            .to_string_lossy()
+            .replace('\\', "/");
+        if !visited.insert(relative) {
+            continue;
+        }
+        let formal_relative = path
+            .strip_prefix(formal_root)
+            .map_err(|error| format!("Lean source escaped formal root: {error}"))?
+            .to_string_lossy()
+            .into_owned();
+        let dependencies = command_output_in(
+            "lake",
+            &["env", "lean", "--src-deps", formal_relative.as_str()],
+            formal_root,
+            None,
+        )?;
+        for dependency in dependencies.lines().filter(|line| !line.trim().is_empty()) {
+            let candidate = PathBuf::from(dependency.trim());
+            let candidate = if candidate.is_absolute() {
+                candidate
+            } else {
+                formal_root.join(candidate)
+            };
+            let Ok(candidate) = fs::canonicalize(candidate) else {
+                continue;
+            };
+            if is_repository_lean_dependency(formal_root, &candidate) {
+                pending.push(candidate);
+            }
+        }
+    }
+    for relative in [
+        "formal/algebra-contract-v1.toml",
+        "formal/lakefile.toml",
+        "formal/lake-manifest.json",
+        "formal/lean-toolchain",
+    ] {
+        let path = workspace_root.join(relative);
+        let metadata = fs::symlink_metadata(&path)
+            .map_err(|error| format!("could not stat Lean closure input {relative}: {error}"))?;
+        if !metadata.file_type().is_file() || metadata.file_type().is_symlink() {
+            return Err(format!(
+                "Lean closure input is not a regular non-symlink file: {relative}"
+            ));
+        }
+        visited.insert(relative.to_owned());
+    }
+    Ok(visited.into_iter().collect())
+}
+
+fn validate_lake_dependency_worktrees(formal_root: &Path) -> Result<(), String> {
+    let manifest_path = formal_root.join("lake-manifest.json");
+    let manifest: Value = serde_json::from_slice(
+        &fs::read(&manifest_path)
+            .map_err(|error| format!("could not read {}: {error}", manifest_path.display()))?,
+    )
+    .map_err(|error| format!("invalid {}: {error}", manifest_path.display()))?;
+    let packages_dir = manifest["packagesDir"]
+        .as_str()
+        .ok_or("Lake manifest omits packagesDir")?;
+    let packages = manifest["packages"]
+        .as_array()
+        .ok_or("Lake manifest omits packages")?;
+    for package in packages {
+        if package["type"].as_str() != Some("git") {
+            continue;
+        }
+        let name = package["name"]
+            .as_str()
+            .ok_or("Lake git package omits name")?;
+        let expected_rev = package["rev"]
+            .as_str()
+            .ok_or_else(|| format!("Lake git package {name} omits rev"))?;
+        let directory = formal_root.join(packages_dir).join(name);
+        let head = command_output_in("git", &["rev-parse", "HEAD"], &directory, None)?;
+        let status = command_output_in("git", &["status", "--porcelain=v1"], &directory, None)?;
+        validate_lake_package_state(name, expected_rev, head.trim(), status.trim())?;
+    }
+    Ok(())
+}
+
+fn validate_lake_package_state(
+    name: &str,
+    expected_rev: &str,
+    head: &str,
+    status: &str,
+) -> Result<(), String> {
+    if head != expected_rev {
+        return Err(format!(
+            "Lake dependency {name} is at {head}, expected manifest rev {expected_rev}"
+        ));
+    }
+    if !status.is_empty() {
+        return Err(format!(
+            "Lake dependency {name} has local modifications; assurance refuses a dirty proof dependency"
+        ));
+    }
+    Ok(())
+}
+
+fn is_repository_lean_dependency(formal_root: &Path, candidate: &Path) -> bool {
+    candidate.starts_with(formal_root)
+        && !candidate.starts_with(formal_root.join(".lake"))
+        && candidate.extension().is_some_and(|ext| ext == "lean")
 }
 
 fn lifecycle_refinement_metadata(declaration: &str) -> Option<(&'static str, &'static str)> {
@@ -876,6 +1562,134 @@ fn lifecycle_refinement_metadata(declaration: &str) -> Option<(&'static str, &'s
             "auths_lifecycle::kernel::replay_code",
             "replay classification",
         )),
+        _ => None,
+    }
+}
+
+struct ProductionRefinementMetadata {
+    claim_text: &'static str,
+    rust_symbols: &'static [&'static str],
+    scope: &'static str,
+    residual_assumptions: &'static [&'static str],
+    translation_evidence_kind: FormalEvidenceKind,
+}
+
+fn validate_production_evidence(
+    declaration: &str,
+    evidence: &[FormalEvidence],
+    translation_kind: FormalEvidenceKind,
+) -> Result<(), String> {
+    let source_closure = evidence
+        .iter()
+        .filter(|item| item.kind == FormalEvidenceKind::SourceClosure)
+        .collect::<Vec<_>>();
+    let translation = evidence
+        .iter()
+        .filter(|item| {
+            matches!(
+                item.kind,
+                FormalEvidenceKind::MechanicalTranslation | FormalEvidenceKind::TranslatedRust
+            )
+        })
+        .collect::<Vec<_>>();
+    if source_closure.len() != 1
+        || source_closure[0].artifact != "formal/qualification/aeneas/source-closure.json"
+        || translation.len() != 1
+        || translation[0].kind != translation_kind
+        || translation[0].artifact != "formal/qualification/aeneas/generated/authority/Funs.lean"
+    {
+        return Err(format!(
+            "formal claim {declaration} must bind exactly one production source closure and one generated authority translation"
+        ));
+    }
+    Ok(())
+}
+
+fn production_refinement_metadata(declaration: &str) -> Option<ProductionRefinementMetadata> {
+    const COMMON: &str = "Lean's kernel, the pinned Rust/Charon/Aeneas/Lean toolchain, the reviewed transparent external bridges, the listed foundational axioms, and the theorem's explicit representation-validity premises are trusted.";
+    match declaration {
+        "Auths.Refinement.translated_rust_refines_rich_spec" => {
+            Some(ProductionRefinementMetadata {
+                claim_text: "The mechanically translated production author-scope evaluator returns exactly the rich target-V1 decision and first failing authority dimension.",
+                rust_symbols: &[
+                    "auths_authority::evaluate_author_scope_view",
+                    "auths_model::profile_ref_equal",
+                    "auths_model::permission_set_is_subset",
+                    "auths_model::validity_window_contains",
+                    "auths_model::audience_set_is_subset",
+                    "auths_model::action_constraint_attenuates",
+                    "auths_model::optional_budget_attenuates",
+                    "auths_model::status_policy_attenuates",
+                    "auths_model::assurance_policy_id_equal",
+                    "auths_model::critical_extensions_equal",
+                ],
+                scope: "The exact translated pre-signing scope evaluator over validated bounded views, including all ten scope/depth dimensions and ordered diagnostics.",
+                residual_assumptions: &[
+                    COMMON,
+                    "Canonical decoding and cryptographic authenticity precede this pure evaluator and are outside this theorem.",
+                ],
+                translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+            })
+        }
+        "Auths.Refinement.translated_coverage_refines_rich_spec" => {
+            Some(ProductionRefinementMetadata {
+                claim_text: "The mechanically translated terminal-coverage evaluator returns exactly the rich ordered decision for the supplied trusted budget-expression context.",
+                rust_symbols: &[
+                    "auths_authority::evaluate_action_coverage_view",
+                    "auths_authority::root_linkage",
+                    "auths_authority::selected_profile_attenuates",
+                    "auths_algebra_kernel::root_preserved",
+                    "auths_model::principal_id_equal",
+                    "auths_model::optional_grant_id_equal",
+                    "auths_model::profile_ref_equal",
+                    "auths_model::profile_slice_contains",
+                    "auths_model::permission_set_contains",
+                    "auths_model::validity_window_contains",
+                    "auths_model::audience_set_contains",
+                    "auths_model::action_constraint_allows",
+                    "auths_model::budget_ceiling_covers_action",
+                    "auths_model::optional_budget_covers",
+                ],
+                scope: "The crate-private raw translated evaluator over validated authority/action views. The public EffectiveAuthority::authorizes boundary resolves budget expressibility from AcceptedRegistries and the exact action profile before calling it.",
+                residual_assumptions: &[
+                    COMMON,
+                    "The AcceptedRegistries lookup-to-kernel composition is enforced by the Rust public API and adversarial tests; the registry collection's provenance and canonical decoding are outside this translated raw-view theorem.",
+                ],
+                translation_evidence_kind: FormalEvidenceKind::TranslatedRust,
+            })
+        }
+        "Auths.Refinement.translated_delegation_refines_rich_spec" => {
+            Some(ProductionRefinementMetadata {
+                claim_text: "The mechanically translated delegation evaluator returns exactly the rich linkage, eleven-dimension attenuation decision, diagnostic, and accepted transition.",
+                rust_symbols: &[
+                    "auths_authority::evaluate_grant_view",
+                    "auths_authority::root_linkage",
+                    "auths_authority::depth_decreases",
+                    "auths_authority::selected_profile_attenuates",
+                    "auths_authority::extensions_attenuate",
+                    "auths_algebra_kernel::root_preserved",
+                    "auths_algebra_kernel::generated::attenuation_checks_accept",
+                    "auths_model::principal_id_equal",
+                    "auths_model::optional_grant_id_equal",
+                    "auths_model::profile_ref_equal",
+                    "auths_model::profile_slice_contains",
+                    "auths_model::permission_set_is_subset",
+                    "auths_model::validity_window_contains",
+                    "auths_model::audience_set_is_subset",
+                    "auths_model::action_constraint_attenuates",
+                    "auths_model::optional_budget_attenuates",
+                    "auths_model::status_policy_attenuates",
+                    "auths_model::assurance_policy_id_equal",
+                    "auths_model::critical_extensions_equal",
+                ],
+                scope: "The crate-private raw evaluator over validated parent/grant views, including root linkage, strict depth, every attenuation dimension, and the unique accepted transition.",
+                residual_assumptions: &[
+                    COMMON,
+                    "A present last-grant marker is representation data, not ancestry proof. Shipping Rust seals raw views; historical provenance is stated separately by Lean's AnchoredChain theorem from a fresh anchor through accepted transitions.",
+                ],
+                translation_evidence_kind: FormalEvidenceKind::TranslatedRust,
+            })
+        }
         _ => None,
     }
 }
@@ -908,6 +1722,308 @@ pub(crate) fn semantic_source_closure_digest(paths: &[String]) -> Result<String,
 }
 
 pub(crate) fn formal_qualify_aeneas(update: bool) -> Result<(), String> {
-    let (_, attenuation_dimensions) = prepare_formal(false, update)?;
-    formal_qualification::qualify(&root(), &attenuation_dimensions, update)
+    // TRANSLATION-FIRST. See `prepare_formal_translation` for why building here
+    // would make regeneration impossible. `phase_ordering` in the tests below
+    // locks this against reintroduction.
+    let (formal_root, attenuation_dimensions) = prepare_formal_translation(false, update)?;
+    formal_qualification::qualify(&root(), &attenuation_dimensions, update, &|| {
+        build_and_audit_formal(&formal_root, update)
+    })
+}
+
+#[cfg(test)]
+mod phase_ordering {
+    use super::*;
+
+    fn compiled_mutations() -> BTreeMap<String, LeanAssuranceDeclaration> {
+        MUTATION_CASE_IDS
+            .iter()
+            .map(|identifier| {
+                let name = expected_mutation_declaration(identifier);
+                (
+                    name.clone(),
+                    LeanAssuranceDeclaration {
+                        name,
+                        module: "Auths.Rich.Mutations".to_owned(),
+                        kind: "theorem".to_owned(),
+                        statement: "True".to_owned(),
+                        axioms: Vec::new(),
+                    },
+                )
+            })
+            .collect()
+    }
+
+    fn mutation_matrix_json() -> Value {
+        serde_json::json!({
+            "schema": "auths-proof-semantic-mutations/v1",
+            "cases": MUTATION_CASE_IDS.iter().map(|identifier| serde_json::json!({
+                "id": identifier,
+                "operator": "mutate",
+                "witness": "compiled counterexample",
+                "lean_declaration": expected_mutation_declaration(identifier),
+            })).collect::<Vec<_>>()
+        })
+    }
+
+    /// `formal qualify aeneas` must never compile Lean before it reproduces the
+    /// translations.
+    ///
+    /// This is not a style preference. Qualification REGENERATES the Lean a
+    /// build would compile. Building first deadlocks the moment a translation
+    /// starts referencing a symbol its upstream crate has not exported yet: the
+    /// build fails on the generated file, qualification aborts before
+    /// `reproduce()`, and the upstream crate can never produce the symbol. That
+    /// is exactly how the tree wedged while closing the authority dependency
+    /// closure, and a comment would not have prevented it.
+    ///
+    /// Asserted structurally against the source, because the property is "which
+    /// function is called first" and no type expresses it.
+    #[test]
+    fn qualify_aeneas_prepares_translation_without_building() {
+        let source = include_str!("formal.rs");
+        let body = source
+            .split_once("pub(crate) fn formal_qualify_aeneas(")
+            .expect("formal_qualify_aeneas is defined")
+            .1;
+        let body = body.split_once("\n}\n").expect("function body ends").0;
+
+        assert!(
+            body.contains("prepare_formal_translation("),
+            "formal_qualify_aeneas must prepare via prepare_formal_translation"
+        );
+        assert!(
+            !body.contains("prepare_formal("),
+            "formal_qualify_aeneas must NOT call build-first prepare_formal; \
+             it would compile committed Lean before regenerating it"
+        );
+        assert!(
+            body.contains("build_and_audit_formal("),
+            "formal_qualify_aeneas must still pass the compiled gate to qualify"
+        );
+    }
+
+    /// The compiled gate must remain qualification's success condition.
+    #[test]
+    fn qualification_still_requires_the_compiled_gate() {
+        let qualification = include_str!("formal_qualification.rs");
+        let body = qualification
+            .split_once("pub(crate) fn qualify(")
+            .expect("qualify is defined")
+            .1;
+        let call = body.find("build_and_audit()").expect(
+            "qualify must invoke the compiled gate; without it qualification \
+             could report success on Lean that never compiled",
+        );
+        let synchronize = body
+            .find("synchronize_reviewed_bridges(")
+            .expect("qualify synchronizes reviewed bridges");
+        assert!(
+            call > synchronize,
+            "the compiled gate must run AFTER bridges are synchronized"
+        );
+        let evidence = body
+            .find("write_evidence(")
+            .expect("qualify writes evidence");
+        assert!(
+            call < evidence,
+            "the compiled gate must run BEFORE qualification evidence is written"
+        );
+    }
+
+    #[test]
+    fn production_refinement_metadata_cannot_retain_stale_boundaries() {
+        let coverage = production_refinement_metadata(
+            "Auths.Refinement.translated_coverage_refines_rich_spec",
+        )
+        .expect("coverage metadata");
+        for required in [
+            "auths_authority::root_linkage",
+            "auths_algebra_kernel::root_preserved",
+            "auths_model::budget_ceiling_covers_action",
+        ] {
+            assert!(coverage.rust_symbols.contains(&required));
+        }
+        let delegation = production_refinement_metadata(
+            "Auths.Refinement.translated_delegation_refines_rich_spec",
+        )
+        .expect("delegation metadata");
+        for required in [
+            "auths_authority::depth_decreases",
+            "auths_authority::extensions_attenuate",
+            "auths_model::critical_extensions_equal",
+        ] {
+            assert!(delegation.rust_symbols.contains(&required));
+        }
+        assert!(
+            !delegation
+                .residual_assumptions
+                .join(" ")
+                .contains("occur in the caller")
+        );
+
+        let translated = FormalEvidence {
+            kind: FormalEvidenceKind::TranslatedRust,
+            artifact: "formal/qualification/aeneas/generated/authority/Funs.lean".to_owned(),
+            sha256: "a".repeat(64),
+        };
+        for declaration in [
+            "Auths.Refinement.translated_coverage_refines_rich_spec",
+            "Auths.Refinement.translated_delegation_refines_rich_spec",
+        ] {
+            assert!(
+                validate_production_evidence(
+                    declaration,
+                    std::slice::from_ref(&translated),
+                    FormalEvidenceKind::TranslatedRust,
+                )
+                .is_err(),
+                "qualified production claim without source closure must fail"
+            );
+        }
+        let complete = vec![
+            translated,
+            FormalEvidence {
+                kind: FormalEvidenceKind::SourceClosure,
+                artifact: "formal/qualification/aeneas/source-closure.json".to_owned(),
+                sha256: "b".repeat(64),
+            },
+        ];
+        validate_production_evidence(
+            "Auths.Refinement.translated_coverage_refines_rich_spec",
+            &complete,
+            FormalEvidenceKind::TranslatedRust,
+        )
+        .expect("complete production evidence");
+    }
+
+    #[test]
+    fn post_qualification_gate_never_reproduces_or_rebuilds_lean() {
+        let source = include_str!("formal.rs");
+        let body = source
+            .split_once("pub(crate) fn ci_formal_post_qualification(")
+            .expect("post qualification function")
+            .1
+            .split_once("\n}\n")
+            .expect("function body")
+            .0;
+        assert!(!body.contains("qualify("));
+        assert!(!body.contains("build_and_audit_formal("));
+        assert!(!body.contains("prepare_formal("));
+        assert!(body.contains("run_formal_semantic_checks("));
+    }
+
+    #[test]
+    fn mutation_matrix_is_strict_and_deterministically_bound() {
+        let compiled = compiled_mutations();
+        let valid = mutation_matrix_json();
+        validate_mutation_matrix_source(&valid.to_string(), &compiled).expect("complete matrix");
+        assert!(validate_mutation_matrix_source("not json", &compiled).is_err());
+
+        let mut short = valid.clone();
+        short["cases"].as_array_mut().expect("cases").pop();
+        assert!(validate_mutation_matrix_source(&short.to_string(), &compiled).is_err());
+
+        let mut reordered = valid.clone();
+        reordered["cases"].as_array_mut().expect("cases").swap(0, 1);
+        assert!(validate_mutation_matrix_source(&reordered.to_string(), &compiled).is_err());
+
+        let mut redirected = valid.clone();
+        redirected["cases"][0]["lean_declaration"] =
+            Value::String("Auths.Rich.window_contained_refl".to_owned());
+        assert!(validate_mutation_matrix_source(&redirected.to_string(), &compiled).is_err());
+
+        let mut missing = valid;
+        missing["cases"][0]
+            .as_object_mut()
+            .expect("case")
+            .remove("lean_declaration");
+        assert!(validate_mutation_matrix_source(&missing.to_string(), &compiled).is_err());
+    }
+
+    #[test]
+    fn evidence_digest_and_path_validation_fail_closed() {
+        let missing_digest = "kind = \"lean-proof\"\nartifact = \"formal/Auths.lean\"\n";
+        assert!(toml::from_str::<FormalEvidence>(missing_digest).is_err());
+        assert!(validate_sha256(&"a".repeat(64)).is_ok());
+        assert!(validate_sha256(&"A".repeat(64)).is_err());
+        assert!(validate_sha256("abcd").is_err());
+        assert!(validated_evidence_path("../outside").is_err());
+        assert!(validated_evidence_path("formal").is_err());
+        assert!(validated_evidence_path("formal/does-not-exist").is_err());
+    }
+
+    #[test]
+    fn statement_review_digest_changes_on_semantic_weakening() {
+        let audit = |statement: &str| LeanAssuranceAudit {
+            schema: "auths-proof-lean-assurance-audit/v1".to_owned(),
+            declarations: vec![LeanAssuranceDeclaration {
+                name: "Fixture.boundary".to_owned(),
+                module: "Fixture".to_owned(),
+                kind: "theorem".to_owned(),
+                statement: statement.to_owned(),
+                axioms: Vec::new(),
+            }],
+        };
+        let strong = lean_statement_inventory_sha256(&audit("StrongBoundary input"));
+        let weakened = lean_statement_inventory_sha256(&audit("True"));
+        assert_ne!(strong, weakened);
+
+        let source = include_str!("formal.rs");
+        let synchronizer = source
+            .split_once("pub(crate) fn synchronize_formal_assurance_manifest(")
+            .expect("manifest synchronizer")
+            .1
+            .split_once("\n}\n")
+            .expect("synchronizer body")
+            .0;
+        assert!(
+            !synchronizer.contains("statement_inventory_sha256 ="),
+            "ordinary update must never auto-accept a new statement inventory"
+        );
+    }
+
+    #[test]
+    fn semantic_closure_includes_repository_imports_but_excludes_lake_packages() {
+        let formal_root = root().join("formal");
+        assert!(is_repository_lean_dependency(
+            &formal_root,
+            &formal_root.join("Auths/Backdoor.lean")
+        ));
+        assert!(is_repository_lean_dependency(
+            &formal_root,
+            &formal_root.join("qualification/aeneas/generated/authority/Funs.lean")
+        ));
+        assert!(!is_repository_lean_dependency(
+            &formal_root,
+            &formal_root.join(".lake/packages/aeneas/Aeneas.lean")
+        ));
+    }
+
+    #[test]
+    fn lake_dependency_state_rejects_wrong_revision_and_dirty_worktree() {
+        validate_lake_package_state("mathlib", "abc", "abc", "").expect("exact clean dependency");
+        assert!(validate_lake_package_state("mathlib", "abc", "def", "").is_err());
+        assert!(validate_lake_package_state("mathlib", "abc", "abc", " M Mathlib.lean").is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn evidence_symlinks_are_refused() {
+        let link = root().join(format!(
+            "target/evidence-symlink-test-{}",
+            std::process::id()
+        ));
+        if let Some(parent) = link.parent() {
+            fs::create_dir_all(parent).expect("target directory");
+        }
+        let _ = fs::remove_file(&link);
+        std::os::unix::fs::symlink(root().join("formal/Auths.lean"), &link).expect("test symlink");
+        let relative = link
+            .strip_prefix(root())
+            .expect("relative")
+            .to_string_lossy();
+        assert!(validated_evidence_path(&relative).is_err());
+        fs::remove_file(&link).expect("remove test symlink");
+    }
 }

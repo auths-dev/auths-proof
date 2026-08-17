@@ -73,8 +73,9 @@ provider errors or credential material.
 - `denied`: the request definitely lacks authority and must not be retried;
 - `indeterminate`: the runtime could not safely decide; use its retry class;
 - `recoverable`: use only the returned opaque reference with `resume`;
-- `verified`: the supplied authority or receipt is valid under the runtime's
-  trusted context; and
+- `verified`: the supplied authority satisfies the runtime's trusted context,
+  or the receipt is canonical and authentic under that runtime's receipt key;
+  and
 - `rejected`: verification definitely failed.
 
 See [production failures and recovery](recipes/06_PRODUCTION_FAILURES.md) for

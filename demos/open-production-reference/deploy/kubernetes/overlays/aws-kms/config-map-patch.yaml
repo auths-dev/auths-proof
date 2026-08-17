@@ -25,6 +25,8 @@ data:
     [telemetry]
     otlp_endpoint = "http://otel-collector.observability.svc:4317"
     service_name = "auths-node"
+    [verification]
+    trusted_context_path = "/run/config/trusted-context.cbor"
     [profiles]
     opentofu_saved_plan_apply = true
     postgresql_bounded_update = true

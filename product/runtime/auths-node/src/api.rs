@@ -256,12 +256,12 @@ async fn production_call(
 ) -> Response {
     let started = Instant::now();
     if !state.accepting.load(Ordering::Acquire) {
-        let response = failure_response(RuntimeFailure::Unavailable);
+        let response = failure_response(expected_verb, RuntimeFailure::Unavailable);
         record_operation(state, expected_verb, &response, started);
         return encoded_response(&response);
     }
     if !content_type_is_exact(headers, PRODUCTION_CLIENT_CONTENT_TYPE) {
-        let response = failure_response(RuntimeFailure::Malformed);
+        let response = failure_response(expected_verb, RuntimeFailure::Malformed);
         record_operation(state, expected_verb, &response, started);
         return encoded_response(&response);
     }
@@ -273,7 +273,7 @@ async fn production_call(
             request
         }
         _ => {
-            let response = failure_response(RuntimeFailure::Malformed);
+            let response = failure_response(expected_verb, RuntimeFailure::Malformed);
             record_operation(state, expected_verb, &response, started);
             return encoded_response(&response);
         }
@@ -281,7 +281,7 @@ async fn production_call(
     let runtime = Arc::clone(&state.runtime);
     let response = call_runtime(move || runtime.handle(request))
         .await
-        .unwrap_or_else(failure_response);
+        .unwrap_or_else(|error| failure_response(expected_verb, error));
     record_operation(state, expected_verb, &response, started);
     encoded_response(&response)
 }
@@ -417,12 +417,21 @@ fn valid_receipt_id(value: &str) -> bool {
 
 fn status_for(error: RuntimeFailure) -> StatusCode {
     match error {
-        RuntimeFailure::Denied | RuntimeFailure::DisclosureDenied => StatusCode::FORBIDDEN,
-        RuntimeFailure::UnknownWorkflow | RuntimeFailure::UnknownReceipt => StatusCode::NOT_FOUND,
+        RuntimeFailure::AuthorizationDenied(_)
+        | RuntimeFailure::DisclosureDenied
+        | RuntimeFailure::ReplayBudgetExhausted
+        | RuntimeFailure::UnauthenticatedPrincipal => StatusCode::FORBIDDEN,
+        RuntimeFailure::UnknownReference => StatusCode::NOT_FOUND,
         RuntimeFailure::Malformed | RuntimeFailure::ProfileDisabled => StatusCode::BAD_REQUEST,
-        RuntimeFailure::Indeterminate | RuntimeFailure::Unavailable => {
+        RuntimeFailure::StateConflict => StatusCode::CONFLICT,
+        RuntimeFailure::AuthorizationIndeterminate(_) | RuntimeFailure::Unavailable => {
             StatusCode::SERVICE_UNAVAILABLE
         }
+        // Deliberately not 503: proxies and clients treat 503 as a safe
+        // automatic retry, which is the exact behaviour an outcome-unknown
+        // provider result must not invite. The body carries the registry code
+        // and the reconcile retry class.
+        RuntimeFailure::ProviderOutcomeUnknown => StatusCode::INTERNAL_SERVER_ERROR,
     }
 }
 
@@ -431,12 +440,7 @@ fn json_error(status: StatusCode, error: RuntimeFailure) -> Response {
         status,
         axum::Json(ApiError {
             code: error.code(),
-            retry: match error.retry() {
-                auths_production_client::RetryClass::Never => "never",
-                auths_production_client::RetryClass::Backoff => "backoff",
-                auths_production_client::RetryClass::Resume => "resume",
-                auths_production_client::RetryClass::Reconcile => "reconcile",
-            },
+            retry: error.retry().as_str(),
         }),
     )
         .into_response()
@@ -458,7 +462,7 @@ mod tests {
             ProductionResponse::new(
                 auths_production_client::ClientOutcomeKind::Completed,
                 None,
-                auths_production_client::RetryClass::Never,
+                auths_production_client::NextCall::Never,
                 None,
                 Some(request.body().unwrap_or_default().to_vec()),
                 Some(vec![1]),
@@ -474,8 +478,8 @@ mod tests {
                 reference: reference.as_str().into(),
                 profile: QualifiedProfile::GitHubIssueAddress.as_str().into(),
                 state: "outcome-unknown".into(),
-                effect: "unknown".into(),
-                retry: "resume".into(),
+                effect: auths_operations::EffectState::Possible,
+                retry: auths_production_client::NextCall::Resume,
                 updated_at: 1,
                 receipt_id: None,
             })
@@ -485,7 +489,7 @@ mod tests {
             Ok(ReceiptSummary {
                 receipt_id: receipt_id.into(),
                 profile: QualifiedProfile::GitHubIssueAddress.as_str().into(),
-                outcome: "succeeded".into(),
+                effect: auths_operations::EffectState::Applied,
                 completed_at: 1,
                 disclosure: "summary",
             })
@@ -533,6 +537,9 @@ seed_env = "AUTHS_LOCAL_SEED"
 otlp_endpoint = "http://otel:4317"
 service_name = "auths-node"
 
+[verification]
+trusted_context_path = "/run/config/trusted-context.cbor"
+
 [profiles]
 opentofu_saved_plan_apply = true
 postgresql_bounded_update = true
@@ -577,6 +584,46 @@ sandbox_providers = true
             decode_response(&bytes).unwrap().code(),
             Some("core.malformed-input")
         );
+    }
+
+    #[tokio::test]
+    async fn verify_route_parse_failures_are_rejected_not_denied() {
+        let router = app(
+            &config(),
+            Arc::new(Runtime),
+            Arc::new(AtomicBool::new(true)),
+        );
+        let missing_content_type = router
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("POST")
+                    .uri("/v1/authority/verify")
+                    .body(axum::body::Body::from(vec![0x80]))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let malformed_cbor = router
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("POST")
+                    .uri("/v1/authority/verify")
+                    .header(header::CONTENT_TYPE, PRODUCTION_CLIENT_CONTENT_TYPE)
+                    .body(axum::body::Body::from(vec![0xff]))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        for response in [missing_content_type, malformed_cbor] {
+            let bytes = axum::body::to_bytes(response.into_body(), 1024)
+                .await
+                .unwrap();
+            assert_eq!(
+                decode_response(&bytes).unwrap().kind(),
+                ClientOutcomeKind::Rejected
+            );
+        }
     }
 
     #[tokio::test]

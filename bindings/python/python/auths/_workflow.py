@@ -20,7 +20,6 @@ from typing import (
     cast,
     runtime_checkable,
     TYPE_CHECKING,
-    overload,
 )
 
 if TYPE_CHECKING:
@@ -30,13 +29,6 @@ if TYPE_CHECKING:
         McpAuthorizationResult,
         McpPlan,
         McpPlanAuthorizationResult,
-    )
-    from ._application_profile import (
-        ApplicationAction,
-        ApplicationPlan,
-        ApplicationPlanResult,
-        ApplicationRequest,
-        ApplicationResult,
     )
 
 from ._native import (
@@ -55,7 +47,7 @@ from ._native import (
     validate_root_authority,
     validate_trusted_authority,
 )
-from ._errors import (
+from ._product_errors import (
     AuthsError,
     AuthsWorkflowError,
     ProviderFailureKind,
@@ -65,8 +57,36 @@ from ._observability import AuthsEvent, Telemetry
 
 SignerLifecycle = Literal["durable", "ephemeral"]
 SigningObjectKind = Literal["grant", "action", "principal-status", "grant-status"]
+APPROVAL_MODES: Tuple[str, ...] = (
+    "none",
+    "grant-only",
+    "risk-based",
+    "every-action",
+    "plan-once",
+    "headless",
+    "custom",
+)
+"""Every approval mode, in one place.
+
+`headless` is the agent case -- an actor with no human at the keyboard -- and
+was accepted by `_validate_approval` while being unnameable through
+`ApprovalMode`, so the product's headline use case could not be typed.
+
+There is no Rust owner for this set: `ApprovalPolicyCommitment::commit` takes
+the mode as `&str` and `grep -r headless core/ product/` returns nothing. Until
+Rust owns it, `test_approval_mode_vocabulary.py` proves the declared type and
+the runtime validator admit exactly this tuple, so the list cannot be restated
+twice inside Python.
+"""
+
 ApprovalMode = Literal[
-    "none", "grant-only", "risk-based", "every-action", "plan-once", "custom"
+    "none",
+    "grant-only",
+    "risk-based",
+    "every-action",
+    "plan-once",
+    "headless",
+    "custom",
 ]
 ApprovalDecision = Literal["approved", "rejected"]
 
@@ -1176,79 +1196,30 @@ class AttachedAgent:
             if not transferred:
                 await _close_signer(signer)
 
-    @overload
     async def authorize(
         self,
         action: McpAction,
         *,
         request: Optional[AuthorizationRequest] = None,
-    ) -> McpAuthorizationResult: ...
+    ) -> McpAuthorizationResult:
+        from .profiles._mcp import McpAction as _McpAction, _authorize_mcp
 
-    @overload
-    async def authorize(
-        self,
-        action: ApplicationAction[Any],
-        *,
-        request: Optional[ApplicationRequest] = None,
-    ) -> ApplicationResult[Any]: ...
+        if type(action) is not _McpAction:
+            raise TypeError("action must belong to a qualified Auths profile")
+        return await _authorize_mcp(self, action, request)
 
-    async def authorize(
-        self, action: object, *, request: Optional[object] = None
-    ) -> object:
-        from .profiles._mcp import McpAction, _authorize_mcp
-        from ._application_profile import ApplicationAction, _authorize_application
-
-        if type(action) is McpAction:
-            return await _authorize_mcp(self, action, cast(Any, request))
-        if type(action) is ApplicationAction:
-            return await _authorize_application(
-                self, cast(Any, action), cast(Any, request)
-            )
-        raise TypeError("action must belong to a maintained Auths profile")
-
-    @overload
     async def authorize_plan(
         self,
         plan: McpPlan,
         *,
         approval_provider: Optional[ApprovalProvider] = None,
         requests: Optional[Sequence[AuthorizationRequest]] = None,
-    ) -> McpPlanAuthorizationResult: ...
+    ) -> McpPlanAuthorizationResult:
+        from .profiles._mcp import McpPlan as _McpPlan, _authorize_mcp_plan
 
-    @overload
-    async def authorize_plan(
-        self,
-        plan: ApplicationPlan[Any],
-        *,
-        approval_provider: Optional[ApprovalProvider] = None,
-        requests: Optional[Sequence[ApplicationRequest]] = None,
-    ) -> ApplicationPlanResult[Any]: ...
-
-    async def authorize_plan(
-        self,
-        plan: object,
-        *,
-        approval_provider: Optional[ApprovalProvider] = None,
-        requests: Optional[Sequence[object]] = None,
-    ) -> object:
-        from .profiles._mcp import McpPlan, _authorize_mcp_plan
-        from ._application_profile import ApplicationPlan, _authorize_application_plan
-
-        if type(plan) is McpPlan:
-            return await _authorize_mcp_plan(
-                self,
-                plan,
-                approval_provider,
-                cast(Any, requests),
-            )
-        if type(plan) is ApplicationPlan:
-            return await _authorize_application_plan(
-                self,
-                cast(Any, plan),
-                approval_provider,
-                cast(Any, requests),
-            )
-        raise TypeError("plan must belong to a maintained Auths profile")
+        if type(plan) is not _McpPlan:
+            raise TypeError("plan must belong to a qualified Auths profile")
+        return await _authorize_mcp_plan(self, plan, approval_provider, requests)
 
     async def aclose(self) -> None:
         if not await self._close(suppress_errors=False):
@@ -1485,15 +1456,7 @@ def _validate_approval(approval: ApprovalConfiguration) -> None:
         raise TypeError("approval policy is invalid")
     if type(approval.policy.reference) is not ApprovalPolicyReference:
         raise TypeError("approval policy reference is invalid")
-    if approval.policy.mode not in (
-        "none",
-        "grant-only",
-        "risk-based",
-        "every-action",
-        "plan-once",
-        "headless",
-        "custom",
-    ):
+    if approval.policy.mode not in APPROVAL_MODES:
         raise TypeError("approval mode is invalid")
     committed, _ = _approval_commitment(
         approval.policy.reference.policy_id,
@@ -1740,6 +1703,7 @@ def _bounded_u64(value: object, label: str) -> int:
 
 
 __all__ = [
+    "APPROVAL_MODES",
     "ActionConstraintSummary",
     "AgentIdentity",
     "AllowedBodies",

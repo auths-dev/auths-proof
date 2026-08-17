@@ -21,14 +21,14 @@ use auths_model::{
     PrincipalStatusSnapshot, PrincipalStatusStatement, ProfileId, ProfileRef, ProofRef, PurposeId,
     ResourceId, SignatureBytes, SignatureDescriptor, SignatureSuiteId, SignedAction, SignedGrant,
     SignedGrantStatus, SignedPrincipalStatus, StatusMethodId, StatusPolicy, StatusSnapshotId,
-    StatusTrustRule, Timestamp, TrustAnchor, TrustAnchorId, ValidityWindow, VerificationMethod,
-    VerifierConfigurationId, VerifierContext, VerifierLimits,
+    StatusTrustRule, Timestamp, TrustAnchor, TrustAnchorId, TrustedContext, ValidityWindow,
+    VerificationMethod, VerifierConfigurationId, VerifierLimits,
 };
 use auths_ports::{PrincipalMethod, SignatureSuite};
 use auths_profile_api::ActionProfile;
 use auths_profile_mcp::{McpProfile, McpToolCall};
 use pyo3::{
-    exceptions::{PyRuntimeError, PyTypeError, PyValueError},
+    exceptions::{PyRuntimeError, PyTypeError},
     prelude::*,
     types::PyBytes,
 };
@@ -628,7 +628,7 @@ impl PyAuthorizationPlanBuilder {
         members: Vec<Py<PyAuthorizationPlan>>,
     ) -> PyResult<PyAuthorizationPlan> {
         build_plan(py, members, |builder, values| {
-            builder.k_of_n(required, values)
+            builder.threshold(required, values)
         })
     }
 }
@@ -694,11 +694,13 @@ fn prepare_mcp_action(
     let Value::Object(arguments) =
         serde_json::from_slice::<Value>(arguments_json).map_err(value_error)?
     else {
-        return Err(PyValueError::new_err("MCP arguments must be a JSON object"));
+        return Err(crate::errors::malformed_input(
+            "MCP arguments must be a JSON object",
+        ));
     };
     let canonical_arguments = serde_json_canonicalizer::to_vec(&arguments).map_err(value_error)?;
     if canonical_arguments != arguments_json {
-        return Err(PyValueError::new_err(
+        return Err(crate::errors::malformed_input(
             "MCP arguments must use canonical JSON encoding",
         ));
     }
@@ -920,7 +922,7 @@ fn status_snapshot(
             .map_err(value_error)?,
         ),
         _ => {
-            return Err(PyValueError::new_err(
+            return Err(crate::errors::malformed_input(
                 "status kind must be principal or grant",
             ));
         }
@@ -930,7 +932,7 @@ fn status_snapshot(
 
 #[pyclass(name = "TrustedContext", frozen, module = "auths._native")]
 pub struct PyTrustedContext {
-    pub(crate) inner: VerifierContext,
+    pub(crate) inner: TrustedContext,
 }
 
 #[pymethods]
@@ -987,14 +989,14 @@ fn compile_trusted_context(
         minimum_distinct_roots,
     )
     .map_err(value_error)?;
-    let anchors = anchors
+    let anchors: Vec<auths_model::TrustAnchor> = anchors
         .iter()
         .map(|anchor| anchor.borrow(py).inner.clone())
         .collect();
     let mut builder = auths_sdk::TrustedContextBuilder::new(
         VerifierConfigurationId::new(array32(configuration, "configuration")?),
         composition,
-        anchors,
+        anchors.clone(),
         assurance_policy.inner.clone(),
     )
     .map_err(value_error)?;
@@ -1019,6 +1021,20 @@ fn compile_trusted_context(
                 return Err(PyTypeError::new_err(
                     "grant_status must contain a grant snapshot",
                 ));
+            }
+        }
+    }
+    // A profile's ability to express a requested budget is a structural fact
+    // about its canonical body, so it is read from the Rust profile
+    // implementations this binding ships rather than accepted from Python. A
+    // profile this binding does not implement stays undeclared, which keeps the
+    // denying reading of an absent requested budget.
+    for anchor in &anchors {
+        for profile in anchor.profiles() {
+            if shipped_budget_expression(profile)
+                == auths_model::ProfileBudgetExpression::Inexpressible
+            {
+                builder = builder.declare_budget_free_profile(profile.clone());
             }
         }
     }
@@ -1139,7 +1155,11 @@ fn parse_signed(kind: &str, value: &[u8]) -> PyResult<PySignedObject> {
         "grant-status" => SignedObject::GrantStatus(
             auths_codec::decode_signed_grant_status(value, &limits).map_err(value_error)?,
         ),
-        _ => return Err(PyValueError::new_err("unsupported signed object kind")),
+        _ => {
+            return Err(crate::errors::malformed_input(
+                "unsupported signed object kind",
+            ));
+        }
     };
     Ok(PySignedObject { inner })
 }
@@ -1160,7 +1180,11 @@ fn parse_unsigned(kind: &str, value: &[u8]) -> PyResult<PyUnsignedObject> {
         "grant-status" => UnsignedObject::GrantStatus(
             auths_codec::decode_grant_status_statement(value, &limits).map_err(value_error)?,
         ),
-        _ => return Err(PyValueError::new_err("unsupported unsigned object kind")),
+        _ => {
+            return Err(crate::errors::malformed_input(
+                "unsupported unsigned object kind",
+            ));
+        }
     };
     Ok(PyUnsignedObject { inner })
 }
@@ -1357,7 +1381,9 @@ fn principal_state(value: &str) -> PyResult<PrincipalState> {
         "active" => Ok(PrincipalState::Active),
         "revoked" => Ok(PrincipalState::Revoked),
         "superseded" => Ok(PrincipalState::Superseded),
-        _ => Err(PyValueError::new_err("invalid principal status state")),
+        _ => Err(crate::errors::malformed_input(
+            "invalid principal status state",
+        )),
     }
 }
 
@@ -1366,7 +1392,7 @@ fn grant_state(value: &str) -> PyResult<GrantState> {
         "active" => Ok(GrantState::Active),
         "revoked" => Ok(GrantState::Revoked),
         "superseded" => Ok(GrantState::Superseded),
-        _ => Err(PyValueError::new_err("invalid grant status state")),
+        _ => Err(crate::errors::malformed_input("invalid grant status state")),
     }
 }
 
@@ -1431,7 +1457,9 @@ fn participant_role(value: &str) -> PyResult<ParticipantRole> {
         "intermediate" => Ok(ParticipantRole::Intermediate),
         "actor" => Ok(ParticipantRole::Actor),
         "external-issuer" => Ok(ParticipantRole::ExternalIssuer),
-        _ => Err(PyValueError::new_err("invalid assurance participant role")),
+        _ => Err(crate::errors::malformed_input(
+            "invalid assurance participant role",
+        )),
     }
 }
 
@@ -1439,7 +1467,9 @@ fn assurance_quantifier(value: &str) -> PyResult<AssuranceQuantifier> {
     match value {
         "any" => Ok(AssuranceQuantifier::Any),
         "every" => Ok(AssuranceQuantifier::Every),
-        _ => Err(PyValueError::new_err("invalid assurance quantifier")),
+        _ => Err(crate::errors::malformed_input(
+            "invalid assurance quantifier",
+        )),
     }
 }
 
@@ -1459,9 +1489,23 @@ pub(crate) fn configuration() -> PyResult<[u8; 32]> {
 fn array32(value: &[u8], label: &str) -> PyResult<[u8; 32]> {
     value
         .try_into()
-        .map_err(|_| PyValueError::new_err(format!("{label} must contain 32 bytes")))
+        .map_err(|_| crate::errors::malformed_input(format!("{label} must contain 32 bytes")))
 }
 
 pub(crate) fn value_error(error: impl std::fmt::Display) -> PyErr {
-    PyValueError::new_err(error.to_string())
+    crate::errors::malformed_input(error)
+}
+
+/// Resolves an accepted profile's budget-expression capability from the Rust
+/// profile implementations this binding ships.
+///
+/// Returns the default, `Expressible`, for any profile this binding does not
+/// implement: an undeclared profile must keep the denying reading of an absent
+/// requested budget.
+fn shipped_budget_expression(
+    profile: &auths_model::ProfileRef,
+) -> auths_model::ProfileBudgetExpression {
+    auths_profile_mcp::budget_expression(profile)
+        .or_else(|| auths_profile_domains::budget_expression(profile))
+        .unwrap_or_default()
 }

@@ -329,6 +329,75 @@ ERROR_REGISTRY: Final[dict[str, Any]] = json.loads(r'''{
       "fixtureId": "core-internal-invariant"
     },
     {
+      "code": "core.authorization-denied",
+      "family": "input",
+      "owner": "core",
+      "ownerVersion": 1,
+      "operation": "verify",
+      "stages": [
+        "authorization"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "satisfy-condition",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "Authorization denied",
+      "explanation": "Available facts prove the supplied proof does not authorize the exact action.",
+      "fixtureId": "core-authorization-denied"
+    },
+    {
+      "code": "core.authorization-indeterminate",
+      "family": "state",
+      "owner": "core",
+      "ownerVersion": 1,
+      "operation": "verify",
+      "stages": [
+        "authorization"
+      ],
+      "outcomes": [
+        {
+          "retry": "conditional",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "satisfy-condition",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "Authorization indeterminate",
+      "explanation": "A required authorization fact was unavailable, so no decision was reached before any effect.",
+      "fixtureId": "core-authorization-indeterminate"
+    },
+    {
+      "code": "core.unauthenticated-principal",
+      "family": "input",
+      "owner": "core",
+      "ownerVersion": 1,
+      "operation": "create",
+      "stages": [
+        "authentication"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "correct-input",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "Unauthenticated principal",
+      "explanation": "The request asserts a principal the runtime cannot authenticate, so no authority is issued.",
+      "fixtureId": "core-unauthenticated-principal"
+    },
+    {
       "code": "mcp.invalid-handler-output",
       "family": "profile",
       "owner": "mcp",
@@ -1042,5 +1111,28 @@ ERROR_REGISTRY: Final[dict[str, Any]] = json.loads(r'''{
       "fixtureId": "custody-lifecycle-not-permitted"
     }
   ]
+}
+''')
+
+# `auths_errors::classify` applied to a code this build's registry does not
+# contain. A binding projects this; it never recomputes it.
+UNRECOGNIZED_CODE: Final[dict[str, Any]] = json.loads(r'''{
+  "known": false,
+  "family": "runtime",
+  "operation": "execute",
+  "stages": [
+    "unrecognized-code"
+  ],
+  "retry": "unknown",
+  "effect": "possible",
+  "recommendedAction": "resume-and-reconcile"
+}
+''')
+
+# `auths_errors::outcome_codes` -- the registry code an authorization verdict
+# carries.
+OUTCOME_CODES: Final[dict[str, Any]] = json.loads(r'''{
+  "denied": "core.authorization-denied",
+  "indeterminate": "core.authorization-indeterminate"
 }
 ''')

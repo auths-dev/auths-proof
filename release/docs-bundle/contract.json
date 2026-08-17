@@ -1,0 +1,478 @@
+{
+  "schema": "auths.docs.contract/1",
+  "version": 1,
+  "sourceCommit": null,
+  "semanticFreezeSha256": "75e787e3f1412e63301761ae3503339b493e1f5fdb2441fede9599a6a9da89a3",
+  "operations": [
+    {
+      "id": "auths.operation.create/1",
+      "verb": "create",
+      "summary": "Create bounded authority for an exact outcome.",
+      "status": "stable"
+    },
+    {
+      "id": "auths.operation.delegate/1",
+      "verb": "delegate",
+      "summary": "Pass on authority without making it broader.",
+      "status": "stable"
+    },
+    {
+      "id": "auths.operation.execute/1",
+      "verb": "execute",
+      "summary": "Authorize and perform a sealed effect.",
+      "status": "stable"
+    },
+    {
+      "id": "auths.operation.resume/1",
+      "verb": "resume",
+      "summary": "Continue an interrupted effect without losing its safety boundary.",
+      "status": "stable"
+    },
+    {
+      "id": "auths.operation.verify/1",
+      "verb": "verify",
+      "summary": "Verify authority or a receipt without performing an effect.",
+      "status": "stable"
+    }
+  ],
+  "pages": [
+    {
+      "id": "auths.page.architecture.system-map/1",
+      "path": "/architecture/system-map/",
+      "kind": "architecture",
+      "title": "System map"
+    },
+    {
+      "id": "auths.page.home/1",
+      "path": "/",
+      "kind": "landing",
+      "title": "Auths documentation"
+    },
+    {
+      "id": "auths.page.reference.runtime-api/1",
+      "path": "/reference/runtime-api/",
+      "kind": "runtime-api-reference",
+      "title": "Runtime API reference"
+    },
+    {
+      "id": "auths.page.reference.sdk/1",
+      "path": "/reference/sdk/",
+      "kind": "sdk-reference",
+      "title": "SDK reference",
+      "operations": [
+        "auths.operation.create/1",
+        "auths.operation.delegate/1",
+        "auths.operation.execute/1",
+        "auths.operation.resume/1",
+        "auths.operation.verify/1"
+      ]
+    },
+    {
+      "id": "auths.page.start.delegate-agent/1",
+      "path": "/start/delegate-to-an-agent/",
+      "kind": "guide",
+      "title": "Delegate to an agent",
+      "operations": [
+        "auths.operation.delegate/1"
+      ],
+      "scenarios": [
+        "auths.scenario.delegation/1"
+      ]
+    },
+    {
+      "id": "auths.page.start.rest-effect/1",
+      "path": "/start/protect-a-rest-effect/",
+      "kind": "guide",
+      "title": "Protect a REST effect",
+      "operations": [
+        "auths.operation.create/1",
+        "auths.operation.execute/1"
+      ],
+      "scenarios": [
+        "auths.scenario.rest-effect/1"
+      ]
+    },
+    {
+      "id": "auths.page.start.verify-receipt/1",
+      "path": "/start/verify-a-receipt/",
+      "kind": "guide",
+      "title": "Verify a receipt",
+      "operations": [
+        "auths.operation.verify/1"
+      ],
+      "scenarios": [
+        "auths.scenario.receipt-verification/1"
+      ]
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "auths.scenario.agent-delegation/1",
+      "summary": "Delegate one agent action and reject authority widening.",
+      "languages": [
+        "rust",
+        "typescript",
+        "python"
+      ]
+    },
+    {
+      "id": "auths.scenario.approved-plan/1",
+      "summary": "Execute one exact approved plan and reject member substitution.",
+      "languages": [
+        "rust",
+        "typescript",
+        "python"
+      ]
+    },
+    {
+      "id": "auths.scenario.delegation/1",
+      "summary": "Delegate narrower authority and reject widening.",
+      "languages": [
+        "rust",
+        "typescript",
+        "python"
+      ]
+    },
+    {
+      "id": "auths.scenario.identity-swap/1",
+      "summary": "Run one workflow across two signature suites and reject a mislabelled suite.",
+      "languages": [
+        "rust",
+        "typescript",
+        "python"
+      ]
+    },
+    {
+      "id": "auths.scenario.local-rest-effect/1",
+      "summary": "Complete one exact local REST-shaped effect and reject mutated bytes.",
+      "languages": [
+        "rust",
+        "typescript",
+        "python"
+      ]
+    },
+    {
+      "id": "auths.scenario.offline-verification/1",
+      "summary": "Verify authority and a receipt offline and reject the wrong context.",
+      "languages": [
+        "rust",
+        "typescript",
+        "python"
+      ]
+    },
+    {
+      "id": "auths.scenario.receipt-verification/1",
+      "summary": "Verify an execution receipt without performing an effect.",
+      "languages": [
+        "rust",
+        "typescript",
+        "python"
+      ]
+    },
+    {
+      "id": "auths.scenario.recovery/1",
+      "summary": "Resume one recoverable execution and prohibit a fresh retry.",
+      "languages": [
+        "rust",
+        "typescript",
+        "python"
+      ]
+    },
+    {
+      "id": "auths.scenario.rest-effect/1",
+      "summary": "Authorize one bounded REST effect and return a receipt.",
+      "languages": [
+        "rust",
+        "typescript",
+        "python"
+      ]
+    },
+    {
+      "id": "auths.scenario.runtime-effect/1",
+      "summary": "Complete one runtime effect and deny exact replay.",
+      "languages": [
+        "rust",
+        "typescript",
+        "python"
+      ]
+    }
+  ],
+  "projections": [
+    {
+      "operation": "auths.operation.create/1",
+      "language": "rust",
+      "package": "auths-author",
+      "entrypoint": "auths_author",
+      "symbol": "prepare_grant",
+      "support": "supported"
+    },
+    {
+      "operation": "auths.operation.create/1",
+      "language": "typescript",
+      "package": "@auths-dev/sdk",
+      "entrypoint": "./integrations",
+      "symbol": "development.createAuths",
+      "support": "supported"
+    },
+    {
+      "operation": "auths.operation.create/1",
+      "language": "python",
+      "package": "auths",
+      "entrypoint": "auths.integrations",
+      "symbol": "development.create_auths",
+      "support": "supported"
+    },
+    {
+      "operation": "auths.operation.delegate/1",
+      "language": "rust",
+      "package": "auths-author",
+      "entrypoint": "auths_author",
+      "symbol": "plan_child_grant",
+      "support": "supported"
+    },
+    {
+      "operation": "auths.operation.delegate/1",
+      "language": "typescript",
+      "package": "@auths-dev/sdk",
+      "entrypoint": ".",
+      "symbol": "Auths.delegate",
+      "support": "supported"
+    },
+    {
+      "operation": "auths.operation.delegate/1",
+      "language": "python",
+      "package": "auths",
+      "entrypoint": "auths",
+      "symbol": "Auths.delegate",
+      "support": "supported"
+    },
+    {
+      "operation": "auths.operation.execute/1",
+      "language": "rust",
+      "package": "auths-runtime",
+      "entrypoint": "auths_runtime::McpAuthorizationService",
+      "symbol": "ProofExchangeService::submit_action",
+      "support": "supported"
+    },
+    {
+      "operation": "auths.operation.execute/1",
+      "language": "typescript",
+      "package": "@auths-dev/sdk",
+      "entrypoint": ".",
+      "symbol": "Auths.execute",
+      "support": "supported"
+    },
+    {
+      "operation": "auths.operation.execute/1",
+      "language": "python",
+      "package": "auths",
+      "entrypoint": "auths",
+      "symbol": "Auths.execute",
+      "support": "supported"
+    },
+    {
+      "operation": "auths.operation.resume/1",
+      "language": "rust",
+      "package": "auths-profile-mcp",
+      "entrypoint": "auths_profile_mcp::McpSession",
+      "symbol": "McpSession::resume",
+      "support": "supported"
+    },
+    {
+      "operation": "auths.operation.resume/1",
+      "language": "typescript",
+      "package": "@auths-dev/sdk",
+      "entrypoint": ".",
+      "symbol": "Auths.resume",
+      "support": "supported"
+    },
+    {
+      "operation": "auths.operation.resume/1",
+      "language": "python",
+      "package": "auths",
+      "entrypoint": "auths",
+      "symbol": "Auths.resume",
+      "support": "supported"
+    },
+    {
+      "operation": "auths.operation.verify/1",
+      "language": "rust",
+      "package": "auths-sdk",
+      "entrypoint": "auths_sdk::Verifier",
+      "symbol": "Verifier::verify",
+      "support": "supported"
+    },
+    {
+      "operation": "auths.operation.verify/1",
+      "language": "typescript",
+      "package": "@auths-dev/sdk",
+      "entrypoint": "./verify",
+      "symbol": "loadVerifier",
+      "support": "supported"
+    },
+    {
+      "operation": "auths.operation.verify/1",
+      "language": "python",
+      "package": "auths",
+      "entrypoint": "auths.verify",
+      "symbol": "verify",
+      "support": "supported"
+    }
+  ],
+  "runtimeFacts": {
+    "schema": "auths.runtime-docs-facts/1",
+    "provenance": {
+      "kind": "compiled-registry",
+      "subject": "auths.product.runtime-endpoints/1",
+      "owner": "product/runtime/auths-runtime/src/docs.rs"
+    },
+    "endpoints": [
+      {
+        "id": "auths.endpoint.health/1",
+        "operation": null,
+        "page": "auths.page.reference.runtime-api/1",
+        "class": "health",
+        "method": "GET",
+        "path": "/v1/health",
+        "maxBodyBytes": 0,
+        "outcomes": [
+          "completed"
+        ],
+        "scenario": null,
+        "trust": {
+          "productionTlsRequired": true,
+          "nativeParseRequired": false,
+          "transportIsNotAuthority": true,
+          "disclosureRequired": false
+        }
+      },
+      {
+        "id": "auths.endpoint.version/1",
+        "operation": null,
+        "page": "auths.page.reference.runtime-api/1",
+        "class": "version",
+        "method": "GET",
+        "path": "/v1/version",
+        "maxBodyBytes": 0,
+        "outcomes": [
+          "completed"
+        ],
+        "scenario": null,
+        "trust": {
+          "productionTlsRequired": true,
+          "nativeParseRequired": false,
+          "transportIsNotAuthority": true,
+          "disclosureRequired": false
+        }
+      },
+      {
+        "id": "auths.endpoint.authorities/1",
+        "operation": "auths.operation.create/1",
+        "page": "auths.page.reference.runtime-api/1",
+        "class": "authority",
+        "method": "POST",
+        "path": "/v1/authorities",
+        "maxBodyBytes": 65536,
+        "outcomes": [
+          "completed",
+          "denied",
+          "indeterminate"
+        ],
+        "scenario": "auths.scenario.rest-effect/1",
+        "trust": {
+          "productionTlsRequired": true,
+          "nativeParseRequired": true,
+          "transportIsNotAuthority": true,
+          "disclosureRequired": false
+        }
+      },
+      {
+        "id": "auths.endpoint.executions/1",
+        "operation": "auths.operation.execute/1",
+        "page": "auths.page.reference.runtime-api/1",
+        "class": "profile-execution",
+        "method": "POST",
+        "path": "/v1/executions",
+        "maxBodyBytes": 262144,
+        "outcomes": [
+          "completed",
+          "denied",
+          "indeterminate",
+          "recoverable"
+        ],
+        "scenario": "auths.scenario.rest-effect/1",
+        "trust": {
+          "productionTlsRequired": true,
+          "nativeParseRequired": true,
+          "transportIsNotAuthority": true,
+          "disclosureRequired": false
+        }
+      },
+      {
+        "id": "auths.endpoint.execution-resume/1",
+        "operation": "auths.operation.resume/1",
+        "page": "auths.page.reference.runtime-api/1",
+        "class": "workflow-recovery",
+        "method": "POST",
+        "path": "/v1/executions/{execution_id}/resume",
+        "maxBodyBytes": 65536,
+        "outcomes": [
+          "completed",
+          "denied",
+          "indeterminate",
+          "recoverable",
+          "not-found"
+        ],
+        "scenario": "auths.scenario.rest-effect/1",
+        "trust": {
+          "productionTlsRequired": true,
+          "nativeParseRequired": true,
+          "transportIsNotAuthority": true,
+          "disclosureRequired": false
+        }
+      },
+      {
+        "id": "auths.endpoint.receipt-summary/1",
+        "operation": "auths.operation.verify/1",
+        "page": "auths.page.reference.runtime-api/1",
+        "class": "receipt-summary",
+        "method": "GET",
+        "path": "/v1/receipts/{receipt_id}",
+        "maxBodyBytes": 0,
+        "outcomes": [
+          "completed",
+          "not-found"
+        ],
+        "scenario": "auths.scenario.receipt-verification/1",
+        "trust": {
+          "productionTlsRequired": true,
+          "nativeParseRequired": false,
+          "transportIsNotAuthority": true,
+          "disclosureRequired": false
+        }
+      },
+      {
+        "id": "auths.endpoint.receipt-disclosure/1",
+        "operation": "auths.operation.verify/1",
+        "page": "auths.page.reference.runtime-api/1",
+        "class": "receipt-disclosure",
+        "method": "POST",
+        "path": "/v1/receipts/{receipt_id}/disclosures",
+        "maxBodyBytes": 65536,
+        "outcomes": [
+          "completed",
+          "denied",
+          "not-found"
+        ],
+        "scenario": "auths.scenario.receipt-verification/1",
+        "trust": {
+          "productionTlsRequired": true,
+          "nativeParseRequired": true,
+          "transportIsNotAuthority": true,
+          "disclosureRequired": true
+        }
+      }
+    ]
+  },
+  "digest": "14b2d4439129915287da91cf3d57783fef00766c00606e63f95e270ca8a342e3"
+}

@@ -4,7 +4,7 @@ use auths_identity::{
 };
 use auths_identity_raw_key::RawKeyIdentityMethod;
 use auths_signature_ed25519::Ed25519Verifier;
-use pyo3::{exceptions::PyValueError, prelude::*, types::PyBytes};
+use pyo3::{prelude::*, types::PyBytes};
 
 #[pyclass(name = "IdentityProjection", frozen, module = "auths._native")]
 pub struct PyIdentityProjection {
@@ -146,7 +146,9 @@ fn compact_identity_descriptor_v1<'py>(
     let identity = match IdentityPacket::decode(packet).map_err(value_error)? {
         IdentityPacket::PublicIdentity(value) => value,
         IdentityPacket::SignedMessage(_) => {
-            return Err(PyValueError::new_err("expected a public identity packet"));
+            return Err(crate::errors::malformed_input(
+                "expected a public identity packet",
+            ));
         }
     };
     let encoded = identity
@@ -311,5 +313,5 @@ pub fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
 }
 
 fn value_error(error: impl std::fmt::Display) -> PyErr {
-    PyValueError::new_err(error.to_string())
+    crate::errors::malformed_input(error)
 }

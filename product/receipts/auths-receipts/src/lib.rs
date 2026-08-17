@@ -13,8 +13,8 @@ pub use disclosure::{
 
 use auths_model::{
     CanonicalAction, ContextDigest, Digest, PROTOCOL_V1, PrincipalId, ProfileRef, ReceiptId,
-    SignatureBytes, SignatureSuiteId, StatusSnapshotId, Timestamp, VerificationMethod,
-    VerifierContext,
+    SignatureBytes, SignatureSuiteId, StatusSnapshotId, Timestamp, TrustedContext,
+    VerificationMethod,
 };
 use auths_ports::{SignatureInput, SignatureSuite};
 use minicbor::{Decoder, Encoder, data::Type};
@@ -74,7 +74,7 @@ impl PreparedReceipt {
 pub fn prepare_decision_receipt(
     authority_commitment: Digest,
     action: &CanonicalAction,
-    context: &VerifierContext,
+    context: &TrustedContext,
     decision: DecisionClass,
     reasons: Vec<String>,
     decided_at: Timestamp,
@@ -251,7 +251,7 @@ impl DecisionReceipt {
         self.action_digest
     }
 
-    /// Returns the public verifier-context digest.
+    /// Returns the public trusted-context digest.
     #[must_use]
     pub const fn context_digest(&self) -> ContextDigest {
         self.context_digest
@@ -295,12 +295,35 @@ impl DecisionReceipt {
 }
 
 /// Execution outcome recorded separately from authority validity.
+///
+/// The three variants are the receipt projection of the error model's effect
+/// axis (`auths_errors::EffectState`), and the mapping is total:
+///
+/// | `ExecutionOutcome` | `EffectState` | The receipt asserts |
+/// | --- | --- | --- |
+/// | [`Self::Succeeded`] | `applied` | the exact effect happened |
+/// | [`Self::Failed`] | `not-applied` | the exact effect did **not** happen |
+/// | [`Self::Indeterminate`] | `possible` | the enforcement point cannot prove either |
+///
+/// `Failed` is an assertion of non-effect, not a description of an error. An
+/// enforcement point that cannot place a failure before provider entry must
+/// record [`Self::Indeterminate`]; recording `Failed` there signs a false
+/// non-effect proof. The name matches [`DecisionClass::Indeterminate`], which
+/// this crate already uses for the same "a required fact is unavailable"
+/// meaning, rather than mirroring the error model's `Possible`, so one receipt
+/// does not carry two vocabularies for one epistemic state.
+///
+/// `Indeterminate` is not a terminal answer. It is a durable, signed
+/// instruction to reconcile with the provider before retrying.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ExecutionOutcome {
-    /// Command completed successfully.
+    /// Command completed successfully; the exact effect was applied.
     Succeeded,
-    /// Authorized command failed during execution.
+    /// Authorized command provably failed before the effect could apply.
     Failed,
+    /// The exact effect may or may not have been applied and the enforcement
+    /// point cannot prove which. Reconcile before retrying.
+    Indeterminate,
 }
 
 /// Canonical execution record.
@@ -633,6 +656,9 @@ pub fn encode_execution(receipt: &ExecutionReceipt) -> Result<Vec<u8>, ReceiptEr
         .u8(match receipt.outcome {
             ExecutionOutcome::Succeeded => 0,
             ExecutionOutcome::Failed => 1,
+            // Decision 11.8 (contract §10A / §5A.3): additive tag. Existing
+            // `Succeeded`/`Failed` receipts keep their exact signed bytes.
+            ExecutionOutcome::Indeterminate => 2,
         })
         .map_err(|_| ReceiptError::Malformed)?;
     key(&mut encoder, 5)?;
@@ -900,6 +926,7 @@ pub fn decode_execution(input: &[u8]) -> Result<ExecutionReceipt, ReceiptError> 
     let outcome = match decoder.u8().map_err(|_| ReceiptError::Malformed)? {
         0 => ExecutionOutcome::Succeeded,
         1 => ExecutionOutcome::Failed,
+        2 => ExecutionOutcome::Indeterminate,
         _ => return Err(ReceiptError::Malformed),
     };
     key_decode(&mut decoder, 5)?;
@@ -1702,6 +1729,77 @@ mod tests {
             verify_execution_bytes(&encoded, ReceiptId::new([0; 32])),
             Err(ReceiptError::DigestMismatch)
         );
+    }
+
+    /// Decision 11.8 (contract §10A / §5A.3). The third outcome must be a
+    /// first-class signed value: it round-trips, it is canonical, and it binds
+    /// a distinct receipt identifier from the same receipt recorded as
+    /// `Failed`. Without the last property an auditor could not tell a proven
+    /// non-effect from an unknown one.
+    #[test]
+    fn the_indeterminate_outcome_is_a_distinct_canonical_signed_value() {
+        let decision = decision_receipt_id(&receipt()).unwrap();
+        let of = |outcome| {
+            ExecutionReceipt::new(
+                decision,
+                Digest::new([6; 32]),
+                Digest::new([7; 32]),
+                outcome,
+                None,
+                Timestamp::new(11),
+            )
+        };
+        let unknown = of(ExecutionOutcome::Indeterminate);
+        let encoded = encode_execution(&unknown).unwrap();
+        assert_eq!(decode_execution(&encoded).unwrap(), unknown);
+        let id = execution_receipt_id(&unknown).unwrap();
+        assert_eq!(verify_execution_bytes(&encoded, id).unwrap(), unknown);
+
+        for other in [ExecutionOutcome::Succeeded, ExecutionOutcome::Failed] {
+            assert_ne!(encode_execution(&of(other)).unwrap(), encoded);
+            assert_ne!(execution_receipt_id(&of(other)).unwrap(), id);
+        }
+    }
+
+    /// The three outcomes occupy wire tags 0, 1, and 2 and nothing else. This
+    /// pins both halves: the additive tag assignment (so existing `Succeeded`
+    /// and `Failed` receipts keep byte-identical signed bytes), and the
+    /// fail-closed rejection of any fourth tag a future or hostile encoder
+    /// might emit.
+    #[test]
+    fn execution_outcome_wire_tags_are_exactly_zero_one_two() {
+        let decision = decision_receipt_id(&receipt()).unwrap();
+        let build = |outcome| {
+            encode_execution(&ExecutionReceipt::new(
+                decision,
+                Digest::new([6; 32]),
+                Digest::new([7; 32]),
+                outcome,
+                None,
+                Timestamp::new(11),
+            ))
+            .unwrap()
+        };
+        let succeeded = build(ExecutionOutcome::Succeeded);
+        // Key 4 is the outcome; the encodings differ in exactly that one byte.
+        let tag_index = succeeded
+            .iter()
+            .zip(build(ExecutionOutcome::Failed))
+            .position(|(left, right)| *left != right)
+            .expect("outcome byte");
+        assert_eq!(succeeded[tag_index], 0);
+        assert_eq!(build(ExecutionOutcome::Failed)[tag_index], 1);
+        assert_eq!(build(ExecutionOutcome::Indeterminate)[tag_index], 2);
+
+        for unassigned in [3_u8, 4, 255] {
+            let mut hostile = succeeded.clone();
+            hostile[tag_index] = unassigned;
+            assert_eq!(
+                decode_execution(&hostile),
+                Err(ReceiptError::Malformed),
+                "wire tag {unassigned} must fail closed"
+            );
+        }
     }
 
     #[test]

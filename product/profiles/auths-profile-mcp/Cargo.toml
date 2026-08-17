@@ -21,5 +21,11 @@ serde_json.workspace = true
 serde_json_canonicalizer.workspace = true
 sha2.workspace = true
 
+[dev-dependencies]
+# Test-only: proves every code this profile names is in the Rust registry and
+# carries the effect the profile claims. Not a production edge -- the profile
+# names codes, the registry defines them.
+auths-errors.workspace = true
+
 [lints]
 workspace = true

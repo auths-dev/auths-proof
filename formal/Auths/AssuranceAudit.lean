@@ -24,10 +24,15 @@ private def auditDeclaration
       throwError
         "assurance inventory names missing declaration '{declarationName}'"
   | some info =>
+      let moduleName :=
+        match environment.getModuleIdxFor? declarationName with
+        | some index => environment.header.moduleNames[index.toNat]!
+        | none => environment.header.mainModule
       (liftTermElabM <| Meta.ppExpr info.type) >>= fun statementFormat =>
       collectAxioms declarationName >>= fun axioms =>
       pure <| declarations.push <| Json.mkObj [
         ("name", declarationName.toString),
+        ("module", moduleName.toString),
         ("kind", declarationKind info),
         ("statement", statementFormat.pretty 120),
         ("axioms", Json.arr <| axioms.qsort Name.lt |>.map (toJson ·.toString))

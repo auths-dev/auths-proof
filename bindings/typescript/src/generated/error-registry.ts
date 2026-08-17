@@ -324,6 +324,75 @@ export const ERROR_REGISTRY = {
       "fixtureId": "core-internal-invariant"
     },
     {
+      "code": "core.authorization-denied",
+      "family": "input",
+      "owner": "core",
+      "ownerVersion": 1,
+      "operation": "verify",
+      "stages": [
+        "authorization"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "satisfy-condition",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "Authorization denied",
+      "explanation": "Available facts prove the supplied proof does not authorize the exact action.",
+      "fixtureId": "core-authorization-denied"
+    },
+    {
+      "code": "core.authorization-indeterminate",
+      "family": "state",
+      "owner": "core",
+      "ownerVersion": 1,
+      "operation": "verify",
+      "stages": [
+        "authorization"
+      ],
+      "outcomes": [
+        {
+          "retry": "conditional",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "satisfy-condition",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "Authorization indeterminate",
+      "explanation": "A required authorization fact was unavailable, so no decision was reached before any effect.",
+      "fixtureId": "core-authorization-indeterminate"
+    },
+    {
+      "code": "core.unauthenticated-principal",
+      "family": "input",
+      "owner": "core",
+      "ownerVersion": 1,
+      "operation": "create",
+      "stages": [
+        "authentication"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "correct-input",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "Unauthenticated principal",
+      "explanation": "The request asserts a principal the runtime cannot authenticate, so no authority is issued.",
+      "fixtureId": "core-unauthenticated-principal"
+    },
+    {
       "code": "mcp.invalid-handler-output",
       "family": "profile",
       "owner": "mcp",
@@ -1037,4 +1106,31 @@ export const ERROR_REGISTRY = {
       "fixtureId": "custody-lifecycle-not-permitted"
     }
   ]
+} as const;
+
+/**
+ * `auths_errors::classify` applied to a code this build's registry does not
+ * contain. A binding projects this; it never recomputes it and never invents a
+ * fourth effect state.
+ */
+export const UNRECOGNIZED_CODE = {
+  "known": false,
+  "family": "runtime",
+  "operation": "execute",
+  "stages": [
+    "unrecognized-code"
+  ],
+  "retry": "unknown",
+  "effect": "possible",
+  "recommendedAction": "resume-and-reconcile"
+} as const;
+
+/**
+ * `auths_errors::outcome_codes` -- the registry code an authorization verdict
+ * carries. A verdict names itself with a kernel diagnostic, not a registry
+ * code; this is the Rust-owned translation.
+ */
+export const OUTCOME_CODES = {
+  "denied": "core.authorization-denied",
+  "indeterminate": "core.authorization-indeterminate"
 } as const;

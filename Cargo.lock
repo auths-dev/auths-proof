@@ -452,15 +452,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "auths-deployment"
-version = "1.0.0-rc.1"
-dependencies = [
- "auths-enforcement",
- "auths-sdk",
- "thiserror 2.0.19",
-]
-
-[[package]]
 name = "auths-did-keri"
 version = "1.0.0-rc.1"
 dependencies = [
@@ -848,9 +839,25 @@ dependencies = [
 name = "auths-node"
 version = "1.0.0-rc.1"
 dependencies = [
+ "auths-author",
+ "auths-codec",
+ "auths-did-keri",
+ "auths-did-key",
+ "auths-did-web",
+ "auths-errors",
+ "auths-hsm-attested",
+ "auths-model",
  "auths-operations",
  "auths-operations-otel",
+ "auths-ports",
  "auths-production-client",
+ "auths-raw-key",
+ "auths-registries",
+ "auths-signature",
+ "auths-spiffe-x509",
+ "auths-testkit",
+ "auths-verifier",
+ "auths-webauthn",
  "axum",
  "base64ct",
  "ed25519-dalek 2.2.0",
@@ -1024,6 +1031,7 @@ dependencies = [
  "auths-model",
  "auths-profile-api",
  "auths-receipts",
+ "auths-registries",
  "auths-verifier",
  "hex",
  "serde",
@@ -1052,6 +1060,7 @@ name = "auths-profile-mcp"
 version = "1.0.0-rc.1"
 dependencies = [
  "auths-codec",
+ "auths-errors",
  "auths-model",
  "auths-profile-api",
  "auths-verifier",
@@ -1248,6 +1257,7 @@ dependencies = [
  "auths-custody",
  "auths-did-keri",
  "auths-did-key",
+ "auths-errors",
  "auths-identity",
  "auths-identity-raw-key",
  "auths-lifecycle",
@@ -1282,6 +1292,7 @@ dependencies = [
  "auths-codec",
  "auths-did-keri",
  "auths-did-key",
+ "auths-errors",
  "auths-identity",
  "auths-identity-raw-key",
  "auths-model",
@@ -1299,6 +1310,7 @@ dependencies = [
  "auths-verifier",
  "ed25519-dalek 2.2.0",
  "hex",
+ "js-sys",
  "serde",
  "serde-wasm-bindgen",
  "serde_json",

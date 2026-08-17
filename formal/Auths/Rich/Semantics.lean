@@ -25,12 +25,21 @@ instance {v : Vocabulary}
     Decidable (budgetLe child parent) := by
   cases child <;> cases parent <;> simp [budgetLe] <;> infer_instance
 
+/--
+Terminal budget coverage.
+
+An absent ceiling is the unbounded top scope, so it covers every request.  An
+absent *request* under a present ceiling is **not** covered: an action that
+declares no bound on what it may spend is exactly the authority the ceiling
+exists to deny.  This mirrors `auths_model::optional_budget_covers`, the
+`auths-verifier` guard, Go `budgetCovers`, and TypeScript `budgetCovers`.
+-/
 def budgetCovers {v : Vocabulary}
     (ceiling requested : Option (BudgetCeiling v)) : Prop :=
-  match requested, ceiling with
+  match ceiling, requested with
   | none, _ => True
-  | some _, none => True
-  | some requested, some ceiling =>
+  | some _, none => False
+  | some ceiling, some requested =>
       requested.algebra = ceiling.algebra ∧
         requested.value ≤ ceiling.value
 
@@ -39,6 +48,106 @@ instance {v : Vocabulary}
     Decidable (budgetCovers ceiling requested) := by
   cases ceiling <;> cases requested <;>
     simp [budgetCovers] <;> infer_instance
+
+/--
+Terminal budget coverage including profile expressibility.
+
+The capability only ever reclassifies an ABSENT request:
+
+* inexpressible profile, absent request -- the action provably spends zero, and
+  zero is within every ceiling including an absent one;
+* expressible profile, absent request, present ceiling -- denied, because an
+  action that could have stated a bound and did not states no bound at all;
+* declared request -- ordinary ceiling comparison, expressibility irrelevant;
+* absent ceiling -- covered, nothing is bounded.
+
+Mirrors `auths_model::budget_ceiling_covers_action`.
+-/
+def budgetCoversAction {v : Vocabulary}
+    (ceiling requested : Option (BudgetCeiling v))
+    (expression : BudgetExpression) : Prop :=
+  match requested, expression with
+  | none, BudgetExpression.inexpressible => True
+  | _, _ => budgetCovers ceiling requested
+
+instance {v : Vocabulary}
+    (ceiling requested : Option (BudgetCeiling v)) (expression : BudgetExpression) :
+    Decidable (budgetCoversAction ceiling requested expression) := by
+  cases requested <;> cases expression
+  · exact inferInstanceAs (Decidable (budgetCovers _ _))
+  · exact inferInstanceAs (Decidable True)
+  · exact inferInstanceAs (Decidable (budgetCovers _ _))
+  · exact inferInstanceAs (Decidable (budgetCovers _ _))
+
+/-- Inexpressible profile with no request spends zero: always covered. -/
+@[simp] theorem budgetCoversAction_inexpressible_absent {v : Vocabulary}
+    (ceiling : Option (BudgetCeiling v)) :
+    budgetCoversAction ceiling none BudgetExpression.inexpressible := by
+  simp [budgetCoversAction]
+
+/-- Expressible profile with no request and a bounded ceiling: denied. -/
+@[simp] theorem budgetCoversAction_expressible_absent_bounded {v : Vocabulary}
+    (ceiling : BudgetCeiling v) :
+    ¬ budgetCoversAction (some ceiling) none BudgetExpression.expressible := by
+  simp [budgetCoversAction, budgetCovers]
+
+/-- An absent ceiling bounds nothing, whatever the profile can express. -/
+@[simp] theorem budgetCoversAction_absent_ceiling {v : Vocabulary}
+    (requested : Option (BudgetCeiling v)) (expression : BudgetExpression) :
+    budgetCoversAction none requested expression := by
+  cases requested <;> cases expression <;> simp [budgetCoversAction, budgetCovers]
+
+/--
+An expressible profile adds nothing: the capability only ever reclassifies an
+absent request, and an expressible profile never does. This is what keeps every
+existing coverage theorem true unchanged.
+-/
+@[simp] theorem budgetCoversAction_expressible {v : Vocabulary}
+    (ceiling requested : Option (BudgetCeiling v)) :
+    budgetCoversAction ceiling requested BudgetExpression.expressible =
+      budgetCovers ceiling requested := by
+  cases requested <;> rfl
+
+/-- A declared request is compared against the ceiling, expressibility aside. -/
+theorem budgetCoversAction_declared {v : Vocabulary}
+    (ceiling : Option (BudgetCeiling v)) (requested : BudgetCeiling v)
+    (expression : BudgetExpression) :
+    budgetCoversAction ceiling (some requested) expression =
+      budgetCovers ceiling (some requested) := by
+  cases expression <;> rfl
+
+/--
+The critical-extension delegation relation.
+
+This is the one dimension where delegation must **preserve**, not narrow.  A
+critical extension is a constraint an unaware verifier is forbidden to ignore
+(the X.509 / JWT sense).  If a delegate could drop one, the mechanism would be
+worthless: attach a constraint at the root and the first delegation strips it.
+Equality is the point, and it is what
+`auths_model::critical_extensions_equal` computes.
+
+A parent that has not pinned a set yet (`none`, the state of
+`EffectiveAuthority::from_anchor`) admits any set, matching
+`match parent.extensions { Some(parent) => .., None => true }` in
+`auths_authority::evaluate_grant_view`.  A child that drops back to `none`
+under a parent that has pinned one is rejected — that is precisely the
+strip-the-constraint move.
+-/
+def extensionsLe {v : Vocabulary}
+    (child parent : Option (CriticalExtensions v)) : Prop :=
+  match child, parent with
+  | _, none => True
+  | none, some _ => False
+  | some child, some parent => child = parent
+
+instance {v : Vocabulary}
+    (child parent : Option (CriticalExtensions v)) :
+    Decidable (extensionsLe child parent) :=
+  match child, parent with
+  | _, none => isTrue trivial
+  | none, some _ => isFalse fun absurdity => absurdity
+  | some child, some parent =>
+      if equality : child = parent then isTrue equality else isFalse equality
 
 def statusLe {v : Vocabulary}
     (child parent : StatusPolicy v) : Prop :=
@@ -127,7 +236,8 @@ def structuralScopeLe {v : Vocabulary}
   actionConstraintLe child.actionConstraint parent.actionConstraint ∧
   budgetLe child.budget parent.budget ∧
   statusLe child.status parent.status ∧
-  child.assurance = parent.assurance
+  child.assurance = parent.assurance ∧
+  extensionsLe child.extensions parent.extensions
 
 instance {v : Vocabulary} (child parent : AuthorityScope v) :
     Decidable (structuralScopeLe child parent) := by
@@ -135,13 +245,14 @@ instance {v : Vocabulary} (child parent : AuthorityScope v) :
   infer_instance
 
 def actionCovers {v : Vocabulary}
-    (scope : AuthorityScope v) (action : Action v) : Prop :=
+    (scope : AuthorityScope v) (action : Action v)
+    (expression : BudgetExpression) : Prop :=
   profileAllows scope.profileScope action.profile ∧
   action.permission ∈ scope.permissions ∧
   windowContained action.validity scope.validity ∧
   action.audience ∈ scope.audiences ∧
   actionConstraintAllows scope.actionConstraint action.bodyDigest ∧
-  budgetCovers scope.budget action.requestedBudget
+  budgetCoversAction scope.budget action.requestedBudget expression
 
 def statusSatisfied {v : Vocabulary}
     (policy : StatusPolicy v) (facts : EvidenceFacts v) : Prop :=
@@ -160,7 +271,7 @@ def evidenceRequirementsSatisfied {v : Vocabulary}
 
 def admits {v : Vocabulary}
     (scope : AuthorityScope v) (facts : AuthorizationFacts v) : Prop :=
-  actionCovers scope facts.action ∧
+  actionCovers scope facts.action facts.budgetExpression ∧
   evidenceRequirementsSatisfied scope facts.evidence
 
 /-- Extensional semantic containment of complete authorization facts. -/
@@ -168,30 +279,109 @@ def semanticAttenuates {v : Vocabulary}
     (child parent : AuthorityScope v) : Prop :=
   ∀ facts, admits child facts → admits parent facts
 
+/--
+The representation-level root marker consumed by the translated raw kernel.
+
+`lastGrant.isSome` is not historical proof by itself. Genuine ancestry is the
+`AnchoredChain trusted` relation below: it starts from a root explicitly
+selected by the caller's trusted context, with `root = subject` and no prior
+grant, then contains only accepted edges. Shipping Rust makes raw state views
+crate-private and constructs them only from `EffectiveAuthority`, while this
+predicate keeps the translated evaluator exact over its representation.
+-/
+def rooted {v : Vocabulary} (state : ChainState v) : Prop :=
+  state.lastGrant.isSome = true ∨ state.root = state.subject
+
+instance {v : Vocabulary} (state : ChainState v) : Decidable (rooted state) := by
+  unfold rooted
+  infer_instance
+
+/--
+The trust-root dimension of the generated attenuation contract: this edge
+continues the chain rooted at `parent.root`.
+
+Two independent facts are required and neither implies the other — the parent
+must be rooted, and the edge must be issued by the parent's own subject.
+-/
+def rootPreserved {v : Vocabulary}
+    (parent : ChainState v) (grant : Grant v) : Prop :=
+  rooted parent ∧ grant.issuer = parent.subject
+
+instance {v : Vocabulary} (parent : ChainState v) (grant : Grant v) :
+    Decidable (rootPreserved parent grant) := by
+  unfold rootPreserved
+  infer_instance
+
 def linked {v : Vocabulary}
     (parent : ChainState v) (grant : Grant v) : Prop :=
-  grant.issuer = parent.subject ∧ grant.parent = parent.lastGrant
+  rootPreserved parent grant ∧ grant.parent = parent.lastGrant
 
 instance {v : Vocabulary} (parent : ChainState v) (grant : Grant v) :
     Decidable (linked parent grant) := by
   unfold linked
   infer_instance
 
+/--
+Every scope dimension a delegation must attenuate, ONE NAMED FIELD EACH.
+
+This was a nine-way anonymous conjunction. Two things follow from naming the
+fields that did not follow from nesting them.
+
+A caller reaches a dimension by NAME rather than by counting `.2`s, so a proof
+cannot silently address the wrong one; the old form produced expressions like
+`accepted.2.2.2.2.2.2.2.2` whose meaning depended on position.
+
+More importantly, adding a tenth dimension now forces every constructor and
+every pattern match to mention it. The eleventh attenuation dimension was once
+reported as `extensionsAttenuate := true` and nobody noticed, because nothing
+in the shape of the definition required it to be addressed. A structure
+requires it.
+-/
+structure GrantScopeChecks {v : Vocabulary}
+    (parent : AuthorityScope v) (grant : Grant v) : Prop where
+  profile : profileAllows parent.profileScope grant.profile
+  permissions : grant.permissions ⊆ parent.permissions
+  validity : windowContained grant.validity parent.validity
+  audiences : grant.audiences ⊆ parent.audiences
+  actionConstraint :
+    actionConstraintLe grant.actionConstraint parent.actionConstraint
+  budget : budgetLe grant.budget parent.budget
+  status : statusLe grant.status parent.status
+  assurance : grant.assurance = parent.assurance
+  extensions : extensionsLe (some grant.extensions) parent.extensions
+
+/-- The named structure spelled as the conjunction, for rewriting. -/
+theorem GrantScopeChecks.iff_conjunction {v : Vocabulary}
+    (parent : AuthorityScope v) (grant : Grant v) :
+    GrantScopeChecks parent grant ↔
+      (profileAllows parent.profileScope grant.profile ∧
+        grant.permissions ⊆ parent.permissions ∧
+        windowContained grant.validity parent.validity ∧
+        grant.audiences ⊆ parent.audiences ∧
+        actionConstraintLe grant.actionConstraint parent.actionConstraint ∧
+        budgetLe grant.budget parent.budget ∧
+        statusLe grant.status parent.status ∧
+        grant.assurance = parent.assurance ∧
+        extensionsLe (some grant.extensions) parent.extensions) := by
+  constructor
+  · intro checks
+    exact ⟨checks.profile, checks.permissions, checks.validity,
+      checks.audiences, checks.actionConstraint, checks.budget, checks.status,
+      checks.assurance, checks.extensions⟩
+  · rintro ⟨profile, permissions, validity, audiences, actionConstraint,
+      budget, status, assurance, extensions⟩
+    exact ⟨profile, permissions, validity, audiences, actionConstraint,
+      budget, status, assurance, extensions⟩
+
+/-- The named structure, as the predicate the rest of the development uses. -/
 def grantScopeChecks {v : Vocabulary}
     (parent : AuthorityScope v) (grant : Grant v) : Prop :=
-  profileAllows parent.profileScope grant.profile ∧
-  grant.permissions ⊆ parent.permissions ∧
-  windowContained grant.validity parent.validity ∧
-  grant.audiences ⊆ parent.audiences ∧
-  actionConstraintLe grant.actionConstraint parent.actionConstraint ∧
-  budgetLe grant.budget parent.budget ∧
-  statusLe grant.status parent.status ∧
-  grant.assurance = parent.assurance
+  GrantScopeChecks parent grant
 
 instance {v : Vocabulary} (parent : AuthorityScope v) (grant : Grant v) :
     Decidable (grantScopeChecks parent grant) := by
   unfold grantScopeChecks
-  infer_instance
+  exact decidable_of_iff _ (GrantScopeChecks.iff_conjunction parent grant).symm
 
 def scopeDepthChecks {v : Vocabulary}
     (parent : ChainState v) (grant : Grant v) : Prop :=
@@ -239,6 +429,7 @@ def acceptedScope {v : Vocabulary}
   budget := grant.budget
   status := grant.status
   assurance := grant.assurance
+  extensions := some grant.extensions
 
 def acceptedNextState {v : Vocabulary}
     (parent : ChainState v) (grantId : GrantId v) (grant : Grant v)
@@ -249,6 +440,63 @@ def acceptedNextState {v : Vocabulary}
   scope := acceptedScope parent.scope grant checks.2.2
   remainingDepth := grant.remainingDepth
   lastGrant := some grantId
+
+/--
+Genuine ancestry: this state was reached from its own root by real delegations.
+
+`rooted` is a LOCAL test. It accepts `lastGrant.isSome`, which says a grant was
+recorded, not that the chain descends from `root`. A state with a mismatched
+root and subject and any present marker satisfies it, which is why the raw views
+are sealed in `auths-authority` -- sealing makes such a state unreachable from
+outside the crate without making `rooted` true.
+
+This predicate is what `rooted` approximates. It is inductive, so a state has it
+only by construction: either it is an origin, where root and subject coincide
+and nothing has been delegated yet, or it extends a state that already had it
+by an edge the scope and depth dimensions accept.
+
+Nothing decides it -- ancestry is history, not a property of the current record
+-- so it appears as a hypothesis rather than a check.
+-/
+inductive ReachableFromRoot {v : Vocabulary} : ChainState v → Prop where
+  | origin (state : ChainState v)
+      (anchored : state.root = state.subject)
+      (undelegated : state.lastGrant = none) :
+      ReachableFromRoot state
+  | delegated {parent : ChainState v} (grantId : GrantId v) (grant : Grant v)
+      (reachable : ReachableFromRoot parent)
+      (issued : grant.issuer = parent.subject)
+      (checks : scopeDepthChecks parent grant) :
+      ReachableFromRoot (acceptedNextState parent grantId grant checks)
+
+/-- An origin state is rooted, so the approximation holds where it starts. -/
+theorem rooted_of_origin {v : Vocabulary} (state : ChainState v)
+    (anchored : state.root = state.subject) (undelegated : state.lastGrant = none) :
+    rooted state := by
+  exact Or.inr anchored
+
+/-- Accepting a delegation preserves reachability, by construction. -/
+theorem reachable_accepted {v : Vocabulary}
+    {parent : ChainState v} (grantId : GrantId v) (grant : Grant v)
+    (reachable : ReachableFromRoot parent)
+    (issued : grant.issuer = parent.subject)
+    (checks : scopeDepthChecks parent grant) :
+    ReachableFromRoot (acceptedNextState parent grantId grant checks) :=
+  ReachableFromRoot.delegated grantId grant reachable issued checks
+
+/--
+Reachability implies `rooted`, but NOT the converse.
+
+This is the exact statement of what the local test buys: every genuinely rooted
+chain passes it, so the kernel never rejects a real chain, while a state that
+merely carries a present marker can pass it without being reachable. That gap
+is closed by construction -- sealing the raw views -- not by the predicate.
+-/
+theorem rooted_of_reachable {v : Vocabulary} {state : ChainState v}
+    (reachable : ReachableFromRoot state) : rooted state := by
+  induction reachable with
+  | origin state anchored _ => exact Or.inr anchored
+  | delegated _ _ _ _ _ _ => exact Or.inl rfl
 
 def delegates {v : Vocabulary}
     (parent : ChainState v) (grantId : GrantId v) (grant : Grant v)
@@ -268,6 +516,15 @@ inductive DelegationChain {v : Vocabulary} :
       (edge : delegates parent grantId grant child)
       (tail : DelegationChain child rest) :
       DelegationChain parent (child :: rest)
+
+/-- A delegation history rooted in an identity selected by explicit context. -/
+structure AnchoredChain {v : Vocabulary}
+    (trusted : FiniteSet (Principal v))
+    (start : ChainState v) (rest : List (ChainState v)) : Prop where
+  rootTrusted : start.root ∈ trusted
+  rootIsSubject : start.root = start.subject
+  noPriorGrant : start.lastGrant = none
+  chain : DelegationChain start rest
 
 inductive DelegationDiagnostic where
   | brokenGrantChain
@@ -299,6 +556,7 @@ inductive AuthorDiagnostic where
   | delegationDepth
   | status
   | assurance
+  | extensions
   deriving DecidableEq, Repr
 
 inductive AuthorDecision where
@@ -328,6 +586,8 @@ def evaluateAuthorScope {v : Vocabulary}
     .denied .status
   else if child.assurance ≠ parent.assurance then
     .denied .assurance
+  else if ¬ extensionsLe child.extensions parent.extensions then
+    .denied .extensions
   else
     .accepted
 
@@ -345,10 +605,20 @@ inductive CoverageDecision where
   | denied (reason : CoverageDiagnostic)
   deriving DecidableEq, Repr
 
-/-- First-failure order used by the shipping terminal-coverage API. -/
+/--
+Ordered terminal coverage. First-failure order, as the shipping API.
+
+`expression` is TRUSTED PROFILE-REGISTRY CONTEXT: whether the action's profile
+can state a budget at all. It is not read from the action, so an action cannot
+declare itself inexpressible to escape a ceiling. It only ever reclassifies an
+absent request; see `budgetCoversAction`.
+-/
 def evaluateCoverage {v : Vocabulary}
-    (authority : ChainState v) (action : Action v) : CoverageDecision :=
-  if action.actor = authority.subject ∧
+    (authority : ChainState v) (action : Action v)
+    (expression : BudgetExpression) :
+    CoverageDecision :=
+  if rooted authority ∧
+      action.actor = authority.subject ∧
       action.terminalGrant = authority.lastGrant ∧
       profileAllows authority.scope.profileScope action.profile then
     if action.permission ∉ authority.scope.permissions then
@@ -359,7 +629,8 @@ def evaluateCoverage {v : Vocabulary}
       .denied .audienceMismatch
     else if ¬ actionConstraintAllows authority.scope.actionConstraint action.bodyDigest then
       .denied .actionConstraintMismatch
-    else if ¬ budgetCovers authority.scope.budget action.requestedBudget then
+    else if ¬ budgetCoversAction authority.scope.budget action.requestedBudget
+        expression then
       .denied .budgetCeilingExceeded
     else
       .authorized
@@ -367,15 +638,86 @@ def evaluateCoverage {v : Vocabulary}
     .denied .brokenGrantChain
 
 def terminalCovers {v : Vocabulary}
-    (authority : ChainState v) (action : Action v) : Prop :=
+    (authority : ChainState v) (action : Action v)
+    (expression : BudgetExpression) : Prop :=
+  rooted authority ∧
   action.actor = authority.subject ∧
   action.terminalGrant = authority.lastGrant ∧
-  actionCovers authority.scope action
+  actionCovers authority.scope action expression
 
-def delegationProjection {v : Vocabulary}
+/-- Trusted, effect-free resolution of budget expressibility by exact profile. -/
+abbrev BudgetExpressionRegistry (v : Vocabulary) :=
+  Profile v → BudgetExpression
+
+def evaluateCoverageWithRegistry {v : Vocabulary}
+    (authority : ChainState v) (action : Action v)
+    (registry : BudgetExpressionRegistry v) : CoverageDecision :=
+  evaluateCoverage authority action (registry action.profile)
+
+def terminalCoversWithRegistry {v : Vocabulary}
+    (authority : ChainState v) (action : Action v)
+    (registry : BudgetExpressionRegistry v) : Prop :=
+  terminalCovers authority action (registry action.profile)
+
+/--
+A projection carrying a proof that every field IS its semantic decision.
+
+`Auths.Generated.AttenuationProjection` is eleven unconstrained `Bool`s, so
+`extensionsAttenuate := true` is expressible. That is not hypothetical: the
+eleventh dimension shipped as a literal `true` and the exactness theorems were
+what eventually caught it. They catch a bad projection AFTER it exists.
+
+This type makes a forged projection unconstructible at the rich semantic
+boundary. The generated raw carrier remains public for generated code and
+vector transport, but it cannot be passed to `certifiedAccepts`. Each field
+below pins one dimension to the `decide` of its rich relation, so a literal
+cannot be supplied without a proof that the literal equals the semantic answer
+-- and no such proof exists for a wrong literal.
+
+Adding a twelfth dimension adds a twelfth obligation here, which no existing
+constructor satisfies, so the compiler demands it be addressed.
+-/
+structure CertifiedProjection {v : Vocabulary}
+    (parent : ChainState v) (grant : Grant v) where
+  value : Auths.Generated.AttenuationProjection
+  rootExact : value.rootPreserved = decide (rootPreserved parent grant)
+  depthExact :
+    value.depthDecreases =
+      decide (0 < parent.remainingDepth ∧
+        grant.remainingDepth < parent.remainingDepth)
+  profileExact :
+    value.profileAttenuates =
+      decide (profileAllows parent.scope.profileScope grant.profile)
+  permissionsExact :
+    value.permissionsAttenuate =
+      decide (grant.permissions ⊆ parent.scope.permissions)
+  validityExact :
+    value.validityAttenuates =
+      decide (windowContained grant.validity parent.scope.validity)
+  audiencesExact :
+    value.audiencesAttenuate =
+      decide (grant.audiences ⊆ parent.scope.audiences)
+  actionConstraintExact :
+    value.actionConstraintAttenuates =
+      decide (actionConstraintLe grant.actionConstraint
+        parent.scope.actionConstraint)
+  budgetExact :
+    value.budgetAttenuates =
+      decide (budgetLe grant.budget parent.scope.budget)
+  statusExact :
+    value.statusAttenuates =
+      decide (statusLe grant.status parent.scope.status)
+  assuranceExact :
+    value.assuranceAttenuates =
+      decide (grant.assurance = parent.scope.assurance)
+  extensionsExact :
+    value.extensionsAttenuate =
+      decide (extensionsLe (some grant.extensions) parent.scope.extensions)
+
+private def rawDelegationProjection {v : Vocabulary}
     (parent : ChainState v) (grant : Grant v) :
     Auths.Generated.AttenuationProjection where
-  rootPreserved := true
+  rootPreserved := decide (rootPreserved parent grant)
   depthDecreases :=
     decide (0 < parent.remainingDepth ∧
       grant.remainingDepth < parent.remainingDepth)
@@ -396,6 +738,58 @@ def delegationProjection {v : Vocabulary}
     decide (statusLe grant.status parent.scope.status)
   assuranceAttenuates :=
     decide (grant.assurance = parent.scope.assurance)
-  extensionsAttenuate := true
+  extensionsAttenuate :=
+    decide (extensionsLe (some grant.extensions) parent.scope.extensions)
+
+/--
+The only projection derived from a semantic parent/grant is proof-carrying. A
+field mutation fails here at the certificate constructor before it can reach
+any rich acceptance theorem. Raw generated/vector APIs remain explicitly
+outside this semantic boundary.
+-/
+def delegationProjection {v : Vocabulary}
+    (parent : ChainState v) (grant : Grant v) :
+    CertifiedProjection parent grant where
+  value := rawDelegationProjection parent grant
+  rootExact := rfl
+  depthExact := rfl
+  profileExact := rfl
+  permissionsExact := rfl
+  validityExact := rfl
+  audiencesExact := rfl
+  actionConstraintExact := rfl
+  budgetExact := rfl
+  statusExact := rfl
+  assuranceExact := rfl
+  extensionsExact := rfl
+
+/-- Rich acceptance consumes only a projection certified for these inputs. -/
+def certifiedAccepts {v : Vocabulary} {parent : ChainState v} {grant : Grant v}
+    (projection : CertifiedProjection parent grant) : Bool :=
+  Auths.Generated.attenuationAccepts projection.value
+
+
+/--
+No certified projection can report a dimension the semantics deny.
+
+This is what the type buys. `extensionsAttenuate := true` beneath a parent that
+denies it is not merely detected, it cannot be constructed.
+-/
+theorem CertifiedProjection.extensions_not_forgeable {v : Vocabulary}
+    {parent : ChainState v} {grant : Grant v}
+    (certified : CertifiedProjection parent grant)
+    (denied : ¬ extensionsLe (some grant.extensions) parent.scope.extensions) :
+    certified.value.extensionsAttenuate = false := by
+  rw [certified.extensionsExact]
+  exact decide_eq_false denied
+
+/-- The same for the trust root, the dimension no other can rescue. -/
+theorem CertifiedProjection.root_not_forgeable {v : Vocabulary}
+    {parent : ChainState v} {grant : Grant v}
+    (certified : CertifiedProjection parent grant)
+    (denied : ¬ rootPreserved parent grant) :
+    certified.value.rootPreserved = false := by
+  rw [certified.rootExact]
+  exact decide_eq_false denied
 
 end Auths.Rich

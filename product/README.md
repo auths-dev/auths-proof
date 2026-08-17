@@ -49,7 +49,6 @@ the release-candidate publication set):
   facade selected for the first public Rust surface;
 - `auths-enforcement`: HTTP, gRPC, CI, MCP, and service-local enforcement
   entry points;
-- `auths-deployment`: replay- and blast-radius-safe deployment execution;
 - `auths-profile-kit`: deterministic fixtures and hostile-input scaffolding;
 - `@auths-dev/sdk`: precompiled WASM with an idiomatic TypeScript API;
 - `auths`: stable-ABI Python wheels;

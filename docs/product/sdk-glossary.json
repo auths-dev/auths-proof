@@ -20,6 +20,7 @@
   "ownerConcepts": {
     "product": "protected action workflow",
     "component": "independently adoptable identity or verification",
+    "service": "remote Auths service client",
     "profile": "qualified effect-domain action family",
     "integration": "cross-domain mechanism or composition",
     "framework": "custom vertical construction",
@@ -30,7 +31,7 @@
     {
       "concept": "create",
       "typescript": "createAuths",
-      "python": "Auths"
+      "python": "create_auths"
     },
     {
       "concept": "delegate",

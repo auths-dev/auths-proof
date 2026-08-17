@@ -24,10 +24,10 @@ use auths_composition::{
 use auths_model::{
     ActionId, AssuranceSatisfaction, CanonicalAction, ContextDigest, DenialReason, Digest,
     EvidenceObject, GrantId, GrantStatusId, ParticipantAssurance, ParticipantRole, PlanId,
-    PortableVerificationResult, PrincipalId, PrincipalStatusId, ProofBundle, ProofRef, Requirement,
-    SignatureEnvelope, SignedAction, SignedGrant, StatementRef, StatusPolicy, Timestamp,
-    TrustAnchor, VerificationCode, VerificationDecision, VerificationResources, VerificationStage,
-    VerifierConfigurationId, VerifierContext,
+    PortableVerificationResult, PrincipalId, PrincipalStatusId, ProfileBudgetExpression,
+    ProofBundle, ProofRef, Requirement, SignatureEnvelope, SignedAction, SignedGrant, StatementRef,
+    StatusPolicy, Timestamp, TrustAnchor, TrustedContext, VerificationCode, VerificationDecision,
+    VerificationResources, VerificationStage, VerifierConfigurationId,
 };
 use auths_ports::{
     ControlEvidence, ControlPurpose, PrincipalControlError, PrincipalControlInput, ProfileDecision,
@@ -345,7 +345,7 @@ impl VerifiedAction {
         self.proof_digest
     }
 
-    /// Returns the public verifier-context digest.
+    /// Returns the public trusted-context digest.
     #[must_use]
     pub const fn context_digest(&self) -> ContextDigest {
         self.context_digest
@@ -393,7 +393,7 @@ impl VerifiedAction {
 pub fn verify(
     proof_bytes: &[u8],
     canonical_action: &CanonicalAction,
-    context: &VerifierContext,
+    context: &TrustedContext,
     registries: &ImmutableRegistries<'_>,
 ) -> VerificationOutcome {
     verify_internal(
@@ -416,7 +416,7 @@ pub fn verify(
 pub fn verify_explained(
     proof_bytes: &[u8],
     canonical_action: &CanonicalAction,
-    context: &VerifierContext,
+    context: &TrustedContext,
     registries: &ImmutableRegistries<'_>,
 ) -> Result<ExplainedVerification, TraceError> {
     let mut trace = TraceCollector::collect(trace::HARD_MAX_TRACE_EVENTS)?;
@@ -516,7 +516,7 @@ fn failure_fact_kind(failure: VerificationFailure) -> FactKind {
 }
 
 fn record_configuration_facts(
-    context: &VerifierContext,
+    context: &TrustedContext,
     registries: &ImmutableRegistries<'_>,
     trace: &mut TraceCollector,
 ) -> (Option<u32>, Option<u32>) {
@@ -579,7 +579,7 @@ fn record_failure(
 fn verify_internal(
     proof_bytes: &[u8],
     canonical_action: &CanonicalAction,
-    context: &VerifierContext,
+    context: &TrustedContext,
     registries: &ImmutableRegistries<'_>,
     trace: &mut TraceCollector,
 ) -> VerificationOutcome {
@@ -971,7 +971,7 @@ pub fn verify_v1_sealed(
 pub fn verify_portable(
     proof_bytes: &[u8],
     canonical_action: &CanonicalAction,
-    context: &VerifierContext,
+    context: &TrustedContext,
     registries: &ImmutableRegistries<'_>,
 ) -> PortableVerificationResult {
     verify_portable_sealed(proof_bytes, canonical_action, context, registries).0
@@ -981,7 +981,7 @@ pub fn verify_portable(
 fn verify_portable_sealed(
     proof_bytes: &[u8],
     canonical_action: &CanonicalAction,
-    context: &VerifierContext,
+    context: &TrustedContext,
     registries: &ImmutableRegistries<'_>,
 ) -> (PortableVerificationResult, Option<Box<VerifiedAction>>) {
     let action_bytes = encode_canonical_action(canonical_action).unwrap_or_default();
@@ -1229,7 +1229,7 @@ fn finalize_portable(result: PortableVerificationResult) -> PortableVerification
 /// or over-limit bytes.
 pub fn decode_proof(
     proof_bytes: &[u8],
-    context: &VerifierContext,
+    context: &TrustedContext,
 ) -> Result<DecodedProof, VerificationFailure> {
     let bundle = decode_bundle(proof_bytes, context.limits()).map_err(codec_failure)?;
     let digest = proof_digest(&bundle).map_err(codec_failure)?;
@@ -1247,7 +1247,7 @@ pub fn decode_proof(
 /// ambiguous, or unused critical references.
 pub fn resolve_proof(
     decoded: DecodedProof,
-    context: &VerifierContext,
+    context: &TrustedContext,
 ) -> Result<ResolvedProof, VerificationFailure> {
     let bundle = decoded.bundle();
     let computed_plan_id = plan_id(bundle.plan()).map_err(codec_failure)?;
@@ -1350,7 +1350,7 @@ pub fn resolve_proof(
 }
 
 fn require_expected_plan(
-    context: &VerifierContext,
+    context: &TrustedContext,
     actual: PlanId,
 ) -> Result<(), VerificationFailure> {
     if context
@@ -1375,7 +1375,7 @@ fn require_expected_plan(
 /// before the configured maximum can be exceeded.
 pub fn verify_principal_control(
     resolved: ResolvedProof,
-    context: &VerifierContext,
+    context: &TrustedContext,
     registries: &ImmutableRegistries<'_>,
 ) -> Result<ControlVerifiedProof, VerificationFailure> {
     if context.accepted_registries().manifest_id() != registries.manifest_id() {
@@ -1481,7 +1481,7 @@ pub fn verify_principal_control(
 
 fn verify_status_controls(
     bundle: &ProofBundle,
-    context: &VerifierContext,
+    context: &TrustedContext,
     registries: &ImmutableRegistries<'_>,
     meter: &mut WorkMeter,
     controls: &mut Vec<VerifiedControl>,
@@ -1536,7 +1536,7 @@ fn verify_status_controls(
 pub fn verify_authority(
     controlled: ControlVerifiedProof,
     canonical_action: &CanonicalAction,
-    context: &VerifierContext,
+    context: &TrustedContext,
     registries: &ImmutableRegistries<'_>,
 ) -> Result<VerifiedAuthority, VerificationFailure> {
     let mut meter = WorkMeter::from_used(context.limits().max_work_units(), controlled.work_units);
@@ -1554,7 +1554,7 @@ pub fn verify_authority(
 fn verify_authority_measured(
     controlled: ControlVerifiedProof,
     canonical_action: &CanonicalAction,
-    context: &VerifierContext,
+    context: &TrustedContext,
     registries: &ImmutableRegistries<'_>,
     meter: &mut WorkMeter,
     diagnostics: &mut AuthorityDiagnostics,
@@ -1681,7 +1681,7 @@ fn codec_failure(error: CodecError) -> VerificationFailure {
 }
 
 fn principal_status_records(
-    context: &VerifierContext,
+    context: &TrustedContext,
 ) -> Result<Vec<PrincipalStatusId>, VerificationFailure> {
     let mut values = Vec::new();
     for status in context.principal_status_snapshot().statements() {
@@ -1695,7 +1695,7 @@ fn principal_status_records(
 }
 
 fn grant_status_records(
-    context: &VerifierContext,
+    context: &TrustedContext,
 ) -> Result<Vec<GrantStatusId>, VerificationFailure> {
     let mut values = Vec::new();
     for status in context.grant_status_snapshot().statements() {
@@ -1763,7 +1763,7 @@ fn reject_duplicate_attachments(bundle: &ProofBundle) -> Result<(), Verification
 
 fn validate_carried_status(
     bundle: &ProofBundle,
-    context: &VerifierContext,
+    context: &TrustedContext,
 ) -> Result<(), VerificationFailure> {
     if bundle.principal_status().iter().any(|carried| {
         context
@@ -1815,7 +1815,7 @@ fn verify_signed(
     purpose: ControlPurpose,
     asserted_signing_time: Timestamp,
     bundle: &ProofBundle,
-    context: &VerifierContext,
+    context: &TrustedContext,
     registries: &ImmutableRegistries<'_>,
     meter: &mut WorkMeter,
 ) -> Result<VerifiedControl, VerificationFailure> {
@@ -1950,7 +1950,7 @@ fn signature_failure(_error: SignatureError) -> VerificationFailure {
 fn validate_action_binding(
     controlled: &ControlVerifiedProof,
     canonical: &CanonicalAction,
-    context: &VerifierContext,
+    context: &TrustedContext,
     registries: &ImmutableRegistries<'_>,
     meter: &mut WorkMeter,
 ) -> Result<(), VerificationFailure> {
@@ -2031,7 +2031,7 @@ fn validate_action_binding(
 fn validate_attachments(
     bundle: &ProofBundle,
     canonical: &CanonicalAction,
-    context: &VerifierContext,
+    context: &TrustedContext,
 ) -> Result<(), VerificationFailure> {
     let descriptors = bundle
         .actions()
@@ -2131,7 +2131,7 @@ fn same_shared_action(
 fn verify_branch(
     controlled: &ControlVerifiedProof,
     proof_ref: ProofRef,
-    context: &VerifierContext,
+    context: &TrustedContext,
     registries: &ImmutableRegistries<'_>,
     meter: &mut WorkMeter,
 ) -> Result<
@@ -2193,7 +2193,7 @@ fn verify_branch_from_anchor(
     chain: &[&SignedGrant],
     root_control: (&PrincipalId, &ControlEvidence),
     anchor: &TrustAnchor,
-    context: &VerifierContext,
+    context: &TrustedContext,
     registries: &ImmutableRegistries<'_>,
     meter: &mut WorkMeter,
 ) -> Result<(Vec<ParticipantAssurance>, Vec<AssuranceSatisfaction>), VerificationFailure> {
@@ -2248,7 +2248,7 @@ fn verify_branch_from_anchor(
         evaluate_extensions(grant.statement().extensions(), context, registries, meter)?;
     }
     authority
-        .authorizes(action.envelope())
+        .authorizes(action.envelope(), context.accepted_registries())
         .map_err(VerificationFailure::Denied)?;
     let action_control = control_for(controlled, StatementRef::Action(action_id))?;
     reports.push(participant_report(
@@ -2343,7 +2343,7 @@ fn participant_report(
 
 fn evaluate_extensions(
     extensions: &auths_model::CriticalExtensions,
-    context: &VerifierContext,
+    context: &TrustedContext,
     registries: &ImmutableRegistries<'_>,
     meter: &mut WorkMeter,
 ) -> Result<(), VerificationFailure> {
@@ -2373,7 +2373,7 @@ fn check_principal_status(
     controlled: &ControlVerifiedProof,
     policy: &StatusPolicy,
     principal: &PrincipalId,
-    context: &VerifierContext,
+    context: &TrustedContext,
     registries: &ImmutableRegistries<'_>,
     meter: &mut WorkMeter,
 ) -> Result<(), VerificationFailure> {
@@ -2412,7 +2412,7 @@ fn check_grant_status(
     controlled: &ControlVerifiedProof,
     policy: &StatusPolicy,
     grant_id: GrantId,
-    context: &VerifierContext,
+    context: &TrustedContext,
     registries: &ImmutableRegistries<'_>,
     meter: &mut WorkMeter,
 ) -> Result<(), VerificationFailure> {
@@ -2477,7 +2477,7 @@ fn validate_resource_constraints(
     anchor: &TrustAnchor,
     chain: &[&SignedGrant],
     action: &SignedAction,
-    context: &VerifierContext,
+    context: &TrustedContext,
     registries: &ImmutableRegistries<'_>,
     meter: &mut WorkMeter,
 ) -> Result<(), VerificationFailure> {
@@ -2512,7 +2512,7 @@ fn validate_budget_constraints(
     anchor: &TrustAnchor,
     chain: &[&SignedGrant],
     action: &SignedAction,
-    context: &VerifierContext,
+    context: &TrustedContext,
     registries: &ImmutableRegistries<'_>,
     meter: &mut WorkMeter,
 ) -> Result<(), VerificationFailure> {
@@ -2540,7 +2540,24 @@ fn validate_budget_constraints(
         }
         parent = child;
     }
-    if let (Some(ceiling), Some(requested)) = (parent, action.envelope().requested_budget()) {
+    if let Some(ceiling) = parent {
+        // A bounded terminal authority requires a bounded request *when the
+        // action's profile is able to state one*. An action of a profile that
+        // could have declared a budget and did not states no bound at all, so
+        // there is nothing for the ceiling to bound and it is denied. An action
+        // of a profile whose canonical body has no budget field provably spends
+        // zero, and zero is within every ceiling.
+        let expression = context
+            .accepted_registries()
+            .profile_budget_expression(action.envelope().profile());
+        let Some(requested) = action.envelope().requested_budget() else {
+            return match expression {
+                ProfileBudgetExpression::Inexpressible => Ok(()),
+                ProfileBudgetExpression::Expressible => Err(VerificationFailure::Denied(
+                    DenialReason::BudgetCeilingExceeded,
+                )),
+            };
+        };
         let algebra = registries
             .budget_algebra(context.accepted_registries(), ceiling.algebra())
             .ok_or(VerificationFailure::Indeterminate(
@@ -2561,7 +2578,7 @@ fn validate_budget_constraints(
 
 fn validate_assurance_claims(
     reports: &[ParticipantAssurance],
-    context: &VerifierContext,
+    context: &TrustedContext,
     registries: &ImmutableRegistries<'_>,
     meter: &mut WorkMeter,
 ) -> Result<(), VerificationFailure> {
@@ -2596,13 +2613,13 @@ mod tests {
     use auths_model::{
         AcceptedRegistries, AssuranceClaimId, AssurancePolicy, AssurancePolicyId,
         AssuranceQuantifier, AssuranceRequirement, Audience, AudienceSet, AuthorizationPlan,
-        BundleHeader, CapabilityId, Challenge, ChannelBindingId, CompositionRequirement,
-        ControlBinding, CriticalExtensions, EvidenceId, EvidenceTypeId, GrantStatusSnapshot,
-        MediaType, ParticipantRole, Permission, PermissionSet, PrincipalMethodId,
-        PrincipalStatusSnapshot, ProfileId, ProfilePolicyId, ProfileRef, RegistryManifestId,
-        ResourceId, SignatureBytes, SignatureDescriptor, SignatureSuiteId, SignedAction,
-        StatusSnapshotId, Timestamp, TrustAnchorId, ValidityWindow, VerificationMethod,
-        VerifierLimits,
+        BudgetCeiling, BundleHeader, CapabilityId, Challenge, ChannelBindingId,
+        CompositionRequirement, ControlBinding, CriticalExtensions, EvidenceId, EvidenceTypeId,
+        GrantStatusSnapshot, MediaType, ParticipantRole, Permission, PermissionSet,
+        PrincipalMethodId, PrincipalStatusSnapshot, ProfileId, ProfilePolicyId, ProfileRef,
+        RegistryManifestId, ResourceId, SignatureBytes, SignatureDescriptor, SignatureSuiteId,
+        SignedAction, StatusSnapshotId, Timestamp, TrustAnchorId, ValidityWindow,
+        VerificationMethod, VerifierLimits,
     };
     use auths_raw_key::{
         RAW_KEY_MEDIA_TYPE, RAW_KEY_V1, RawKeyDescriptor, RawKeyMethod, RawKeyType,
@@ -2644,11 +2661,27 @@ mod tests {
     struct Fixture {
         bytes: Vec<u8>,
         canonical: CanonicalAction,
-        context: VerifierContext,
+        context: TrustedContext,
+        action: SignedAction,
+    }
+
+    fn target_fixture(mutate_signature: bool) -> Fixture {
+        target_fixture_with_budget(mutate_signature, None, None)
+    }
+
+    fn numeric_ceiling(value: u64) -> BudgetCeiling {
+        BudgetCeiling::new(
+            auths_model::BudgetAlgebraId::parse("numeric-ceiling-v1").unwrap(),
+            value,
+        )
     }
 
     #[allow(clippy::too_many_lines)]
-    fn target_fixture(mutate_signature: bool) -> Fixture {
+    fn target_fixture_with_budget(
+        mutate_signature: bool,
+        anchor_ceiling: Option<BudgetCeiling>,
+        requested_budget: Option<BudgetCeiling>,
+    ) -> Fixture {
         let signing_key = SigningKey::from_bytes(&[11; 32]);
         let descriptor = RawKeyDescriptor::new(
             RawKeyType::Ed25519,
@@ -2667,7 +2700,7 @@ mod tests {
             MediaType::parse("application/vnd.auths.mcp-call.v1+cbor").unwrap(),
             body.clone(),
             permission.clone(),
-            None,
+            requested_budget.clone(),
         )
         .unwrap();
         let proof_ref = ProofRef::new([1; 32]);
@@ -2680,7 +2713,7 @@ mod tests {
             canonical.media_type().clone(),
             body_digest(&body),
             permission.clone(),
-            None,
+            requested_budget,
             Audience::parse("mcp://reports").unwrap(),
             challenge,
             ValidityWindow::new(Timestamp::new(10), Timestamp::new(20)).unwrap(),
@@ -2730,7 +2763,7 @@ mod tests {
         let bundle = ProofBundle::new(
             BundleHeader::v1(),
             Vec::new(),
-            vec![signed_action],
+            vec![signed_action.clone()],
             plan,
             vec![evidence],
             vec![ControlBinding::new(statement, vec![evidence_identifier]).unwrap()],
@@ -2774,7 +2807,7 @@ mod tests {
             ],
             Vec::new(),
             vec![auths_model::ResourceMatcherId::parse("uri-namespace-v1").unwrap()],
-            Vec::new(),
+            vec![auths_model::BudgetAlgebraId::parse("numeric-ceiling-v1").unwrap()],
             Vec::new(),
             vec![profile.clone()],
             vec![ProfilePolicyId::parse("exact-v1").unwrap()],
@@ -2789,7 +2822,7 @@ mod tests {
             vec![ResourceId::parse("mcp://reports").unwrap()],
             AudienceSet::new(vec![Audience::parse("mcp://reports").unwrap()]).unwrap(),
             ValidityWindow::new(Timestamp::new(0), Timestamp::new(100)).unwrap(),
-            None,
+            anchor_ceiling,
             4,
             policy_id,
             StatusPolicy::ExpiryOnly,
@@ -2802,7 +2835,7 @@ mod tests {
         let configuration = ImmutableRegistries::new(&methods, &suites)
             .unwrap()
             .configuration_id();
-        let context = VerifierContext::new(
+        let context = TrustedContext::new(
             configuration,
             CompositionRequirement::exact(computed_plan),
             vec![anchor],
@@ -2837,6 +2870,7 @@ mod tests {
             bytes: encode_bundle(&bundle).unwrap(),
             canonical,
             context,
+            action: signed_action,
         }
     }
 
@@ -2859,6 +2893,251 @@ mod tests {
         };
         assert_eq!(action.canonical_action(), &fixture.canonical);
         assert_eq!(action.authorized_branches(), &[ProofRef::new([1; 32])]);
+    }
+
+    fn verify_budget_fixture(
+        anchor_ceiling: Option<BudgetCeiling>,
+        requested_budget: Option<BudgetCeiling>,
+    ) -> VerificationOutcome {
+        let fixture = target_fixture_with_budget(false, anchor_ceiling, requested_budget);
+        let method = RawKeyMethod::new().unwrap();
+        let suite = Ed25519Suite::new().unwrap();
+        let methods: [&dyn auths_ports::PrincipalMethod; 1] = [&method];
+        let suites: [&dyn auths_ports::SignatureSuite; 1] = [&suite];
+        let registries = ImmutableRegistries::new(&methods, &suites).unwrap();
+        verify(
+            &fixture.bytes,
+            &fixture.canonical,
+            &fixture.context,
+            &registries,
+        )
+    }
+
+    /// Regression: a bounded authority used to be satisfied by an action that
+    /// declared no budget at all, because the terminal coverage check was
+    /// gated on `(Some(ceiling), Some(requested))`. An unbounded request under
+    /// a bounded ceiling now denies.
+    #[test]
+    fn bounded_ceiling_denies_an_action_that_requests_no_budget() {
+        assert_eq!(
+            verify_budget_fixture(Some(numeric_ceiling(10_000)), None),
+            VerificationOutcome::Denied(DenialReason::BudgetCeilingExceeded)
+        );
+    }
+
+    #[test]
+    fn bounded_ceiling_authorizes_a_request_within_the_ceiling() {
+        let outcome =
+            verify_budget_fixture(Some(numeric_ceiling(10_000)), Some(numeric_ceiling(10_000)));
+        assert!(
+            matches!(outcome, VerificationOutcome::Authorized(_)),
+            "expected an in-ceiling request to authorize: {outcome:?}"
+        );
+    }
+
+    #[test]
+    fn bounded_ceiling_denies_a_request_over_the_ceiling() {
+        assert_eq!(
+            verify_budget_fixture(Some(numeric_ceiling(10_000)), Some(numeric_ceiling(10_001))),
+            VerificationOutcome::Denied(DenialReason::BudgetCeilingExceeded)
+        );
+    }
+
+    /// The denial above must not depend on statement order inside
+    /// [`verify_authority_and_assurance`].
+    ///
+    /// `validate_budget_constraints` runs at the top of that function, before
+    /// `EffectiveAuthority::authorizes`. It is deliberately kept — it is the
+    /// only thing that resolves the ceiling's algebra against the accepted
+    /// registries (yielding `Indeterminate(UnsupportedBudgetAlgebra)` for an
+    /// algebra the verifier does not implement) and the only thing that meters
+    /// the comparison's work. But it must never be the *sole* reason a bounded
+    /// ceiling denies an absent request, or a kernel regression would be
+    /// invisible here. This drives the authority kernel with that guard
+    /// bypassed entirely.
+    #[test]
+    fn the_authority_kernel_denies_an_absent_request_without_the_verifier_guard() {
+        let fixture = target_fixture_with_budget(false, Some(numeric_ceiling(10_000)), None);
+        let anchor = fixture
+            .context
+            .trust_anchors()
+            .first()
+            .expect("fixture anchor");
+        let authority = EffectiveAuthority::from_anchor(anchor);
+        assert_eq!(
+            authority.authorizes(
+                fixture.action.envelope(),
+                fixture.context.accepted_registries()
+            ),
+            Err(DenialReason::BudgetCeilingExceeded),
+            "the kernel alone must deny; the Wave 1 guard is defense in depth"
+        );
+
+        // The same kernel, same guard-free path, still authorizes a request
+        // that is inside the ceiling: this is not a blanket budget denial.
+        let inside = target_fixture_with_budget(
+            false,
+            Some(numeric_ceiling(10_000)),
+            Some(numeric_ceiling(10_000)),
+        );
+        let inside_anchor = inside
+            .context
+            .trust_anchors()
+            .first()
+            .expect("fixture anchor");
+        assert_eq!(
+            EffectiveAuthority::from_anchor(inside_anchor).authorizes(
+                inside.action.envelope(),
+                inside.context.accepted_registries()
+            ),
+            Ok(())
+        );
+    }
+
+    /// Evidence that `validate_budget_constraints` is not a duplicate of the
+    /// kernel and must be kept.
+    ///
+    /// The kernel compares algebra *identifiers* bytewise and then applies the
+    /// numeric `<=` unconditionally. It has no notion of "this verifier does
+    /// not implement that algebra". Only the verifier guard resolves the
+    /// ceiling's algebra against the accepted registries, so only it can fail
+    /// closed with `Indeterminate(UnsupportedBudgetAlgebra)`. Delete the guard
+    /// and this case silently becomes a numeric comparison the verifier is not
+    /// entitled to make.
+    #[test]
+    fn only_the_verifier_guard_can_reject_an_unimplemented_budget_algebra() {
+        let unknown = BudgetCeiling::new(
+            auths_model::BudgetAlgebraId::parse("credits-v1").unwrap(),
+            10_000,
+        );
+        let inside = BudgetCeiling::new(
+            auths_model::BudgetAlgebraId::parse("credits-v1").unwrap(),
+            5_000,
+        );
+        let fixture = target_fixture_with_budget(false, Some(unknown), Some(inside));
+
+        // The kernel alone authorizes: same algebra id, 5_000 <= 10_000.
+        let anchor = fixture
+            .context
+            .trust_anchors()
+            .first()
+            .expect("fixture anchor");
+        assert_eq!(
+            EffectiveAuthority::from_anchor(anchor).authorizes(
+                fixture.action.envelope(),
+                fixture.context.accepted_registries()
+            ),
+            Ok(())
+        );
+
+        // The full verifier refuses to decide, because it cannot evaluate that
+        // algebra. This is the capability the guard uniquely provides.
+        let method = RawKeyMethod::new().unwrap();
+        let suite = Ed25519Suite::new().unwrap();
+        let methods: [&dyn auths_ports::PrincipalMethod; 1] = [&method];
+        let suites: [&dyn auths_ports::SignatureSuite; 1] = [&suite];
+        let registries = ImmutableRegistries::new(&methods, &suites).unwrap();
+        assert_eq!(
+            verify(
+                &fixture.bytes,
+                &fixture.canonical,
+                &fixture.context,
+                &registries,
+            ),
+            VerificationOutcome::Indeterminate(Requirement::UnsupportedBudgetAlgebra)
+        );
+    }
+
+    /// Rebuilds a context that declares exactly the given profiles budget-free.
+    ///
+    /// Everything else — anchors, registries, policies, limits — is carried
+    /// across unchanged, so a verdict that differs between the original and the
+    /// rebuilt context can only be caused by this one declaration.
+    fn declaring_budget_free(
+        context: &TrustedContext,
+        profiles: Vec<ProfileRef>,
+    ) -> TrustedContext {
+        TrustedContext::new(
+            context.configuration(),
+            context.composition(),
+            context.trust_anchors().to_vec(),
+            context
+                .accepted_registries()
+                .clone()
+                .with_budget_free_profiles(profiles)
+                .expect("budget-free declaration"),
+            context.expected_audience().clone(),
+            context.expected_challenge(),
+            context.evaluation_time(),
+            context.assurance_policy().clone(),
+            context.principal_status_snapshot().clone(),
+            context.grant_status_snapshot().clone(),
+            context.resource_matcher().clone(),
+            context.profile_policy().clone(),
+            context.channel_policy().clone(),
+            context.limits().clone(),
+        )
+        .expect("rebuilt context")
+    }
+
+    /// The v1.0 blocker: a profile whose canonical body has no budget field is
+    /// unusable under any bounded grant chain unless the verifier is told so.
+    ///
+    /// `bounded_ceiling_denies_an_action_that_requests_no_budget` above proves
+    /// the denial for a profile that *can* express a budget, and must stay
+    /// green. This drives byte-identical proof material through a context that
+    /// differs in exactly one declaration, and the verdict flips.
+    #[test]
+    fn a_budget_free_profile_authorizes_under_a_bounded_ceiling() {
+        let fixture = target_fixture_with_budget(false, Some(numeric_ceiling(10_000)), None);
+        let method = RawKeyMethod::new().unwrap();
+        let suite = Ed25519Suite::new().unwrap();
+        let methods: [&dyn auths_ports::PrincipalMethod; 1] = [&method];
+        let suites: [&dyn auths_ports::SignatureSuite; 1] = [&suite];
+        let registries = ImmutableRegistries::new(&methods, &suites).unwrap();
+
+        // Undeclared: the action states no bound at all, so it is denied.
+        assert_eq!(
+            verify(
+                &fixture.bytes,
+                &fixture.canonical,
+                &fixture.context,
+                &registries,
+            ),
+            VerificationOutcome::Denied(DenialReason::BudgetCeilingExceeded)
+        );
+
+        // Declared budget-free: the same action provably spends zero.
+        let declared = declaring_budget_free(
+            &fixture.context,
+            vec![fixture.action.envelope().profile().clone()],
+        );
+        let outcome = verify(&fixture.bytes, &fixture.canonical, &declared, &registries);
+        assert!(
+            matches!(outcome, VerificationOutcome::Authorized(_)),
+            "a budget-free profile spends zero, which every ceiling covers: {outcome:?}"
+        );
+
+        // The kernel must reach the same answer with the verifier's own
+        // `validate_budget_constraints` guard bypassed, so correctness cannot
+        // rest on which of the two runs first.
+        let anchor = declared.trust_anchors().first().expect("fixture anchor");
+        assert_eq!(
+            EffectiveAuthority::from_anchor(anchor)
+                .authorizes(fixture.action.envelope(), declared.accepted_registries()),
+            Ok(())
+        );
+    }
+
+    /// An unbounded authority is still the top scope: it does not require the
+    /// action to declare a budget.
+    #[test]
+    fn unbounded_authority_still_authorizes_an_action_without_a_budget() {
+        let outcome = verify_budget_fixture(None, None);
+        assert!(
+            matches!(outcome, VerificationOutcome::Authorized(_)),
+            "expected an unbounded authority to authorize: {outcome:?}"
+        );
     }
 
     #[test]

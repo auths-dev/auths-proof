@@ -5,7 +5,7 @@ use auths_lifecycle::{
         exclusive_capacity_available, replay_code, transition_code,
     },
 };
-use pyo3::{exceptions::PyValueError, prelude::*};
+use pyo3::prelude::*;
 
 #[pyfunction]
 #[allow(clippy::fn_params_excessive_bools, clippy::too_many_arguments)]
@@ -80,7 +80,7 @@ fn runtime_execution_state_v1(outcome: &str) -> PyResult<&'static str> {
     match outcome {
         "succeeded" => Ok("committed"),
         "cancelled" | "outcome-unknown" => Ok("outcome-unknown"),
-        _ => Err(PyValueError::new_err(
+        _ => Err(crate::errors::malformed_input(
             "unsupported observed execution outcome",
         )),
     }
@@ -92,7 +92,7 @@ fn runtime_application_execution_state_v1(outcome: &str) -> PyResult<&'static st
         "succeeded" => Ok("committed"),
         "failed" | "cancelled" => Ok("released"),
         "outcome-unknown" => Ok("outcome-unknown"),
-        _ => Err(PyValueError::new_err(
+        _ => Err(crate::errors::malformed_input(
             "unsupported application execution outcome",
         )),
     }
@@ -109,7 +109,7 @@ fn parse_state(value: &str) -> PyResult<LifecycleState> {
         "outcome-unknown" => Ok(LifecycleState::OutcomeUnknown),
         "reconciled-committed" => Ok(LifecycleState::ReconciledCommitted),
         "reconciled-released" => Ok(LifecycleState::ReconciledReleased),
-        _ => Err(PyValueError::new_err("unsupported runtime state")),
+        _ => Err(crate::errors::malformed_input("unsupported runtime state")),
     }
 }
 
@@ -141,7 +141,9 @@ fn parse_operation(value: &str) -> PyResult<OperationCode> {
         "reconcile-effect" => Ok(OperationCode::ReconcileEffect),
         "reconcile-non-effect" => Ok(OperationCode::ReconcileNonEffect),
         "reconcile-inconclusive" => Ok(OperationCode::ReconcileInconclusive),
-        _ => Err(PyValueError::new_err("unsupported runtime operation")),
+        _ => Err(crate::errors::malformed_input(
+            "unsupported runtime operation",
+        )),
     }
 }
 

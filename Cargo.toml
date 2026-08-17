@@ -55,7 +55,6 @@ members = [
     "product/policy/auths-bounded-policy",
     "product/policy/auths-bounded-policy/fuzz",
     "product/integrations/auths-enforcement",
-    "product/integrations/auths-deployment",
     "product/integrations/auths-evidence-assemblers",
     "product/integrations/auths-custody",
     "product/integrations/auths-custody-aws-kms",
@@ -187,7 +186,6 @@ auths-profile-kit = { version = "1.0.0-rc.1", path = "product/sdk/auths-profile-
 auths-errors = { version = "1.0.0-rc.1", path = "product/errors/auths-errors", default-features = false }
 auths-bounded-policy = { version = "1.0.0-rc.1", path = "product/policy/auths-bounded-policy", default-features = false }
 auths-enforcement = { version = "1.0.0-rc.1", path = "product/integrations/auths-enforcement" }
-auths-deployment = { version = "1.0.0-rc.1", path = "product/integrations/auths-deployment" }
 auths-resolver-did-web = { version = "1.0.0-rc.1", path = "product/integrations/auths-resolver-did-web" }
 auths-evidence-assemblers = { version = "1.0.0-rc.1", path = "product/integrations/auths-evidence-assemblers" }
 auths-custody = { version = "1.0.0-rc.1", path = "product/integrations/auths-custody" }
@@ -282,3 +280,12 @@ pedantic = "deny"
 lto = "thin"
 codegen-units = 1
 panic = "abort"
+
+# The CPython extension module. `panic = "abort"` is correct for the standalone
+# binaries and wrong for an extension: a panic there aborts the host
+# interpreter instead of raising (measured: exit status 134), so pyo3's
+# catch_unwind never runs. `bindings/python/build.rs` refuses to compile the
+# extension under an aborting strategy.
+[profile.python-extension]
+inherits = "release"
+panic = "unwind"

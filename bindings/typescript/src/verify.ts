@@ -1,6 +1,6 @@
 /** Deterministic, effect-free verification over the packaged Rust/WASM engine. */
 export {
-  Auths as Verifier,
+  Verifier,
   VerifiedAction,
   loadVerifier,
   type AuthorizedResult,
@@ -19,11 +19,12 @@ export {
   ImmutableArtifactCache,
   type ImmutableArtifactCacheOptions,
 } from "./verifier/cache.js";
+// The `Receipt` TYPE is exported once, from the root, which is where `execute`
+// hands a caller one. This subpath owns the operations on it.
 export {
   decodeLinkedReceipt as decodeReceipt,
   encodeLinkedReceipt as encodeReceipt,
   verifyLinkedReceipt as verifyReceipt,
-  type LinkedAttestedReceipt as Receipt,
 } from "./internal/receipt-attestation.js";
 export {
   inspectDecision,

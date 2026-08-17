@@ -103,7 +103,7 @@ pub struct ProofAuthorization {
     pub authorized: Authorized<GitHubCommand>,
     /// Exact proof commitment.
     pub proof_digest: DigestHex,
-    /// Trusted verifier-context commitment.
+    /// Trusted-context commitment.
     pub context_digest: DigestHex,
 }
 

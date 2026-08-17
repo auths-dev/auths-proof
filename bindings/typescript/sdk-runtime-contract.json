@@ -8,6 +8,7 @@
     ".",
     "./identity",
     "./verify",
+    "./service",
     "./profiles",
     "./integrations",
     "./framework",
@@ -16,11 +17,9 @@
   "requiredWasmExports": [
     "authoringAbiVersionV1",
     "identityAbiVersionV1",
-    "encodeIdentityDescriptorV1",
-    "decodeIdentityDescriptorV1",
-    "identityDescriptorSigningPreimageV1",
     "verifyV1",
-    "verifyBatchV1"
+    "verifyBatchV1",
+    "productionTransportFailureV1"
   ],
   "profiles": {
     "auths.mcp": 1
@@ -30,9 +29,6 @@
     "authority.plans",
     "diagnostics.doctor",
     "identity.compact-v2",
-    "identity.descriptor-v1",
-    "identity.registry-v1",
-    "identity.resolution",
     "inspection.safe-projection",
     "runtime.closed-execution",
     "verification.batch-v1",

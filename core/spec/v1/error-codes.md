@@ -29,7 +29,7 @@ verifier retains three diagnostic classes.
 | `delegation-expanded` | authority | A child widened an authority dimension |
 | `permission-not-granted` | authority | Terminal authority lacks the exact permission |
 | `action-constraint-mismatch` | authority | Body digest is outside the granted constraint |
-| `budget-ceiling-exceeded` | authority | Requested budget exceeds or mismatches the signed ceiling |
+| `budget-ceiling-exceeded` | authority | Requested budget exceeds or mismatches the signed ceiling, or the action declares no budget under a bounded ceiling |
 | `composition-requirement-not-met` | authority | Authorized branches do not satisfy the trusted expected plan, quorum, actor-diversity, or root-diversity obligation |
 | `plan-action-mismatch` | action | Branches bind different action meaning or plan |
 | `action-body-mismatch` | action | Canonical body digest differs |

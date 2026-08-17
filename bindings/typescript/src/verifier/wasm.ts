@@ -1,6 +1,7 @@
 import type { WorkflowWasmEngine } from "../workflow.js";
 import type { PortableWasmEngine } from "./result.js";
 import { registerPackagedEngine } from "./packaged-registry.js";
+import { guardWasmBoundary } from "../internal/wasm-boundary.js";
 
 export type PackagedWorkflowEngine = WorkflowWasmEngine & PortableWasmEngine;
 
@@ -39,6 +40,7 @@ async function loadPackagedWorkflowEngineOnce(): Promise<PackagedWorkflowEngine>
     typeof untyped.productionClientContractVersionV1 !== "function" ||
     typeof untyped.encodeProductionRequestV1 !== "function" ||
     typeof untyped.decodeProductionResponseV1 !== "function" ||
+    typeof untyped.productionTransportFailureV1 !== "function" ||
     typeof untyped.decodeProductionRequestV1 !== "function" ||
     typeof untyped.encodeProductionDelegationV1 !== "function" ||
     typeof untyped.projectSdkEventV2 !== "function" ||
@@ -54,16 +56,6 @@ async function loadPackagedWorkflowEngineOnce(): Promise<PackagedWorkflowEngine>
     typeof loaded.compileTrustedContextV1 !== "function" ||
     typeof loaded.configurationV1 !== "function" ||
     typeof loaded.validateTrustedContextV1 !== "function" ||
-    typeof loaded.parseHttpActionV1 !== "function" ||
-    typeof loaded.parseGitActionV1 !== "function" ||
-    typeof loaded.parseDeploymentActionV1 !== "function" ||
-    typeof loaded.parseSupplyChainActionV1 !== "function" ||
-    typeof loaded.parseEdgeActionV1 !== "function" ||
-    typeof loaded.parseCanonicalHttpActionV1 !== "function" ||
-    typeof loaded.parseCanonicalGitActionV1 !== "function" ||
-    typeof loaded.parseCanonicalDeploymentActionV1 !== "function" ||
-    typeof loaded.parseCanonicalSupplyChainActionV1 !== "function" ||
-    typeof loaded.parseCanonicalEdgeActionV1 !== "function" ||
     typeof loaded.prepareMcpActionV1 !== "function" ||
     typeof loaded.canonicalizeMcpPlanMemberV1 !== "function" ||
     typeof loaded.beginMcpExecutionV1 !== "function" ||
@@ -104,5 +96,8 @@ async function loadPackagedWorkflowEngineOnce(): Promise<PackagedWorkflowEngine>
   ) {
     throw new TypeError("Auths WASM module omitted workflow authoring exports");
   }
-  return registerPackagedEngine(loaded);
+  // Registered AFTER guarding so the guarded namespace is the only engine
+  // object any consumer ever holds: `isPackagedEngine` compares identity, and
+  // an unguarded engine must not be able to satisfy it.
+  return registerPackagedEngine(guardWasmBoundary(loaded));
 }

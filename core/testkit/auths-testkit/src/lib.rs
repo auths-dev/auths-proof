@@ -30,8 +30,8 @@ use auths_model::{
     PurposeId, RegistryManifestId, Requirement, ResourceId, ResourceMatcherId, SignatureBytes,
     SignatureDescriptor, SignatureEnvelope, SignatureSuiteId, SignedAction, SignedGrant,
     SignedGrantStatus, SignedPrincipalStatus, StatementRef, StatusMethodId, StatusPolicy,
-    StatusSnapshotId, Timestamp, TrustAnchor, TrustAnchorId, ValidityWindow, VerificationMethod,
-    VerifierConfigurationId, VerifierContext, VerifierLimits,
+    StatusSnapshotId, Timestamp, TrustAnchor, TrustAnchorId, TrustedContext, ValidityWindow,
+    VerificationMethod, VerifierConfigurationId, VerifierLimits,
 };
 use auths_multikey::{Multikey, MultikeyType};
 use auths_raw_key::{RAW_KEY_MEDIA_TYPE, RAW_KEY_V1, RawKeyDescriptor, RawKeyType};
@@ -754,7 +754,35 @@ fn anchor(identity: &Identity, depth: u16) -> TrustAnchor {
     anchor_with_status(identity, depth, StatusPolicy::ExpiryOnly)
 }
 
-fn context(identities: &[Identity], anchors: Vec<TrustAnchor>) -> VerifierContext {
+/// Rebuilds a context that declares exactly the given profiles budget-free.
+///
+/// Every other field is carried across unchanged, so a fixture pair built from
+/// the same proof bytes differs in exactly this one declaration.
+fn declaring_budget_free(source: &TrustedContext, budget_free: Vec<ProfileRef>) -> TrustedContext {
+    TrustedContext::new(
+        source.configuration(),
+        source.composition(),
+        source.trust_anchors().to_vec(),
+        source
+            .accepted_registries()
+            .clone()
+            .with_budget_free_profiles(budget_free)
+            .expect("budget-free declaration"),
+        source.expected_audience().clone(),
+        source.expected_challenge(),
+        source.evaluation_time(),
+        source.assurance_policy().clone(),
+        source.principal_status_snapshot().clone(),
+        source.grant_status_snapshot().clone(),
+        source.resource_matcher().clone(),
+        source.profile_policy().clone(),
+        source.channel_policy().clone(),
+        source.limits().clone(),
+    )
+    .expect("context")
+}
+
+fn context(identities: &[Identity], anchors: Vec<TrustAnchor>) -> TrustedContext {
     context_with_assurance(identities, anchors, assurance_policy(identities))
 }
 
@@ -762,8 +790,8 @@ fn context_with_assurance(
     identities: &[Identity],
     anchors: Vec<TrustAnchor>,
     assurance: AssurancePolicy,
-) -> VerifierContext {
-    VerifierContext::new(
+) -> TrustedContext {
+    TrustedContext::new(
         corpus_configuration_id(),
         CompositionRequirement::new(None, 1, 1, 1).expect("baseline composition"),
         anchors,
@@ -896,7 +924,7 @@ fn fixture(
     name: &'static str,
     class: &'static str,
     bundle: &ProofBundle,
-    context: &VerifierContext,
+    context: &TrustedContext,
     canonical_action: CanonicalAction,
     expected: Expected,
 ) -> CorpusFixture {
@@ -2282,7 +2310,7 @@ fn status_fixture(name: &'static str, variation: StatusVariation) -> CorpusFixtu
     } else {
         StatusPolicy::ExpiryOnly
     };
-    let verifier_context = VerifierContext::new(
+    let verifier_context = TrustedContext::new(
         corpus_configuration_id(),
         CompositionRequirement::new(None, 1, 1, 1).expect("baseline composition"),
         vec![anchor_with_status(&identities[0], 1, anchor_policy)],
@@ -2451,7 +2479,7 @@ fn principal_status_selection_fixture(
     let status = signed_principal_status(issuer, statement);
     let status_id = principal_status_id(status.statement()).expect("status ID");
     let action_id = action_id(action.envelope()).expect("action ID");
-    let context = VerifierContext::new(
+    let context = TrustedContext::new(
         corpus_configuration_id(),
         CompositionRequirement::new(None, 1, 1, 1).expect("baseline composition"),
         vec![anchor_with_status(&root, 1, required_status(METHOD))],
@@ -2525,6 +2553,12 @@ enum ActionVariation {
     Permission,
     Constraint,
     Budget,
+    BudgetAbsent,
+    /// Byte-identical to [`ActionVariation::BudgetAbsent`] except that the
+    /// verifier context declares the action's profile unable to express a
+    /// requested budget. The absent request is then a provable zero spend, so
+    /// the same bounded ceiling authorizes instead of denying.
+    BudgetAbsentBudgetFreeProfile,
     Validity,
     Actor,
     UnsupportedProfile,
@@ -2556,10 +2590,13 @@ fn action_authority_fixture(name: &'static str, variation: ActionVariation) -> C
     } else {
         BODY.to_vec()
     };
-    let action_budget = if matches!(variation, ActionVariation::Budget) {
-        11
-    } else {
-        5
+    // `BudgetAbsent` declares no budget at all while the terminal grant still
+    // carries a bounded ceiling. A bounded ceiling with nothing to compare
+    // against is not vacuously satisfied; the verifier must deny.
+    let action_budget = match variation {
+        ActionVariation::Budget => Some(11),
+        ActionVariation::BudgetAbsent | ActionVariation::BudgetAbsentBudgetFreeProfile => None,
+        _ => Some(5),
     };
     let action_profile = if matches!(variation, ActionVariation::UnsupportedProfile) {
         ProfileRef::new(ProfileId::parse("auths.unknown").expect("profile"), 1)
@@ -2572,10 +2609,12 @@ fn action_authority_fixture(name: &'static str, variation: ActionVariation) -> C
         MediaType::parse("application/vnd.auths.mcp-call.v1+cbor").expect("media type"),
         action_body,
         action_permission.clone(),
-        Some(BudgetCeiling::new(
-            BudgetAlgebraId::parse("numeric-ceiling-v1").expect("budget algebra"),
-            action_budget,
-        )),
+        action_budget.map(|value| {
+            BudgetCeiling::new(
+                BudgetAlgebraId::parse("numeric-ceiling-v1").expect("budget algebra"),
+                value,
+            )
+        }),
     )
     .expect("canonical action");
     let proof_ref = ProofRef::new([0xa1; 32]);
@@ -2658,6 +2697,11 @@ fn action_authority_fixture(name: &'static str, variation: ActionVariation) -> C
         .expect("action binding"),
     ];
     let verifier_context = context(&identities, vec![anchor(&root, 1)]);
+    let verifier_context = if matches!(variation, ActionVariation::BudgetAbsentBudgetFreeProfile) {
+        declaring_budget_free(&verifier_context, vec![profile()])
+    } else {
+        verifier_context
+    };
     let bundle = ProofBundle::new(
         BundleHeader::v1(),
         vec![grant],
@@ -2672,9 +2716,12 @@ fn action_authority_fixture(name: &'static str, variation: ActionVariation) -> C
     )
     .expect("action authority proof");
     let expected = match variation {
+        ActionVariation::BudgetAbsentBudgetFreeProfile => Expected::Authorized,
         ActionVariation::Permission => Expected::Denied(DenialReason::PermissionNotGranted),
         ActionVariation::Constraint => Expected::Denied(DenialReason::ActionConstraintMismatch),
-        ActionVariation::Budget => Expected::Denied(DenialReason::BudgetCeilingExceeded),
+        ActionVariation::Budget | ActionVariation::BudgetAbsent => {
+            Expected::Denied(DenialReason::BudgetCeilingExceeded)
+        }
         ActionVariation::Validity => Expected::Denied(DenialReason::ActionOutsideValidity),
         ActionVariation::Actor => Expected::Denied(DenialReason::BrokenGrantChain),
         ActionVariation::UnsupportedProfile => {
@@ -2685,14 +2732,12 @@ fn action_authority_fixture(name: &'static str, variation: ActionVariation) -> C
         }
         ActionVariation::Channel => Expected::Denied(DenialReason::LocalPolicyDenied),
     };
-    fixture(
-        name,
-        "denied",
-        &bundle,
-        &verifier_context,
-        canonical,
-        expected,
-    )
+    let class = if matches!(expected, Expected::Authorized) {
+        "valid"
+    } else {
+        "denied"
+    };
+    fixture(name, class, &bundle, &verifier_context, canonical, expected)
 }
 
 macro_rules! action_fixture {
@@ -2727,6 +2772,24 @@ action_fixture!(
     action_budget_exceeded,
     "action-budget-exceeded",
     Budget
+);
+action_fixture!(
+    /// Signed action declares no budget while terminal authority is bounded.
+    action_budget_absent,
+    "action-budget-absent",
+    BudgetAbsent
+);
+action_fixture!(
+    /// Signed action declares no budget while terminal authority is bounded,
+    /// and the verifier context declares that profile unable to express one.
+    ///
+    /// This is the authorizing mirror of `action-budget-absent`: identical
+    /// proof bytes, one differing declaration in the trusted context, opposite
+    /// verdict. Without both fixtures the branch is only exercised on one side
+    /// and independent implementations can disagree unnoticed.
+    action_budget_absent_budget_free_profile,
+    "action-budget-absent-budget-free-profile",
+    BudgetAbsentBudgetFreeProfile
 );
 action_fixture!(
     /// Signed action validity exceeds the grant window.
@@ -3256,7 +3319,7 @@ fn replace_context(
     expected: Expected,
 ) -> CorpusFixture {
     let context = decode_context(&fixture);
-    let limited = VerifierContext::new(
+    let limited = TrustedContext::new(
         context.configuration(),
         context.composition(),
         context.trust_anchors().to_vec(),
@@ -3763,7 +3826,7 @@ pub fn verifier_configuration_mismatch() -> CorpusFixture {
     fixture
 }
 
-fn decode_context(fixture: &CorpusFixture) -> VerifierContext {
+fn decode_context(fixture: &CorpusFixture) -> TrustedContext {
     auths_codec::decode_verifier_context(fixture.context_bytes())
         .expect("repository-owned canonical context")
 }
@@ -3795,13 +3858,13 @@ fn accepted_from(
 }
 
 fn context_replacement(
-    source: &VerifierContext,
+    source: &TrustedContext,
     anchors: Vec<TrustAnchor>,
     accepted: AcceptedRegistries,
     resource_matcher: ResourceMatcherId,
     profile_policy: ProfilePolicyId,
-) -> VerifierContext {
-    VerifierContext::new(
+) -> TrustedContext {
+    TrustedContext::new(
         source.configuration(),
         source.composition(),
         anchors,
@@ -3822,7 +3885,7 @@ fn context_replacement(
 
 fn registry_semantics_fixture(
     name: &'static str,
-    mutate: impl FnOnce(&VerifierContext) -> VerifierContext,
+    mutate: impl FnOnce(&TrustedContext) -> TrustedContext,
     expected: Expected,
 ) -> CorpusFixture {
     let mut fixture = raw_key_chain();
@@ -4660,6 +4723,8 @@ pub fn corpus() -> Vec<CorpusFixture> {
         action_permission_not_granted(),
         action_constraint_mismatch(),
         action_budget_exceeded(),
+        action_budget_absent(),
+        action_budget_absent_budget_free_profile(),
         action_validity_expanded(),
         action_actor_mismatch(),
         unsupported_action_profile(),

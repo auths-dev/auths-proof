@@ -29,8 +29,8 @@ from ._product import (
     Auths,
     AuthsConfiguration,
     _AuthsResources,
-    _create_auths,
     _create_auths_configuration,
+    create_auths,
 )
 from ._bootstrap import prepare_raw_key_authority
 from .profiles._mcp import (
@@ -137,12 +137,6 @@ class _MemoryMcpResources(McpExecutionStore, McpReceiptSink):
                 return bytes(recovery.record_json)
         return None
 
-    async def load_pending(self, execution_id: str) -> Optional[McpRecoveryCheckpoint]:
-        existing = self._executions.get(execution_id)
-        if existing is None or existing[0] == "completed" or existing[1] is None:
-            return None
-        return _copy_recovery(existing[1])
-
     async def clear_pending(self, execution_id: str) -> None:
         if execution_id not in self._executions:
             raise ValueError("invalid development completion transition")
@@ -233,24 +227,6 @@ class _FileMcpResources(McpExecutionStore, McpReceiptSink):
         except FileNotFoundError:
             return None
 
-    async def load_pending(self, execution_id: str) -> Optional[McpRecoveryCheckpoint]:
-        try:
-            stage, reference = _parse_execution_record(
-                await asyncio.to_thread(
-                    self._path("execution", execution_id).read_bytes
-                )
-            )
-            if stage == "completed" or reference is None:
-                return None
-            record_json = await asyncio.to_thread(
-                self._path(
-                    "recovery", hashlib.sha256(reference.encode()).hexdigest()
-                ).read_bytes
-            )
-            return McpRecoveryCheckpoint(execution_id, reference, record_json)
-        except FileNotFoundError:
-            return None
-
     async def clear_pending(self, execution_id: str) -> None:
         path = self._path("execution", execution_id)
         stage, reference = _parse_execution_record(
@@ -309,7 +285,7 @@ class _PendingAuths(Awaitable[Auths]):
 
     async def _open(self) -> Auths:
         if self._auths is None:
-            self._auths = await _create_auths(self._configuration)
+            self._auths = await create_auths(self._configuration)
         return self._auths
 
     async def __aenter__(self) -> Auths:

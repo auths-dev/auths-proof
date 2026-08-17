@@ -8,7 +8,7 @@ use auths_model::{
     ChannelBindingId, CompositionRequirement, EvidenceTypeId, ExtensionId, GrantStatusSnapshot,
     PrincipalMethodId, PrincipalStatusSnapshot, ProfilePolicyId, ProfileRef, ResourceMatcherId,
     SignatureSuiteId, StatusMethodId, StatusPolicy, StatusSnapshotId, Timestamp, TrustAnchor,
-    VerifierConfigurationId, VerifierContext, VerifierLimits,
+    TrustedContext, VerifierConfigurationId, VerifierLimits,
 };
 use auths_profile_api::{ActionProfile, ProfileContractError};
 use auths_verifier::VerificationOutcome;
@@ -23,8 +23,6 @@ pub use auths_custody as custody;
 pub use auths_errors as errors;
 /// Canonical protocol model used by explicit advanced configuration.
 pub use auths_model as model;
-/// Re-exported closed deployment action and profile.
-pub use auths_profile_domains::{DeploymentAction, DomainCommand, DomainProfile};
 /// Re-exported MCP profile for the shortest supported reference integration.
 pub use auths_profile_mcp::{McpCommand, McpProfile, McpToolCall};
 /// Sealed verifier output constructible only by the protocol kernel.
@@ -88,6 +86,7 @@ pub struct TrustedContextBuilder {
     signature_suites: BTreeSet<SignatureSuiteId>,
     evidence_types: BTreeSet<EvidenceTypeId>,
     critical_extensions: BTreeSet<ExtensionId>,
+    budget_free_profiles: BTreeSet<ProfileRef>,
 }
 
 impl TrustedContextBuilder {
@@ -95,7 +94,7 @@ impl TrustedContextBuilder {
     ///
     /// Mandatory V1 signature suites and self-describing evidence identifiers
     /// are accepted by default. Every value remains encoded into the returned
-    /// [`VerifierContext`].
+    /// [`TrustedContext`].
     ///
     /// # Errors
     ///
@@ -133,6 +132,7 @@ impl TrustedContextBuilder {
             signature_suites,
             evidence_types,
             critical_extensions: BTreeSet::new(),
+            budget_free_profiles: BTreeSet::new(),
         })
     }
 
@@ -178,13 +178,28 @@ impl TrustedContextBuilder {
         self
     }
 
-    /// Compiles one immutable verifier-context template.
+    /// Declares one profile whose canonical actions cannot express a requested
+    /// budget, so an action of that profile provably spends zero.
+    ///
+    /// The value must come from the profile's own
+    /// `ActionProfile::BUDGET_EXPRESSION`; this builder cannot see profile
+    /// implementations. A profile that is never declared keeps the denying
+    /// reading of an absent request under a bounded ceiling. A declaration for
+    /// a profile no trust anchor accepts is dropped rather than rejected, since
+    /// the builder derives its accepted-profile set from the anchors.
+    #[must_use]
+    pub fn declare_budget_free_profile(mut self, profile: ProfileRef) -> Self {
+        self.budget_free_profiles.insert(profile);
+        self
+    }
+
+    /// Compiles one immutable trusted-context template.
     ///
     /// # Errors
     ///
     /// Returns a typed model failure if roots, profiles, status policy,
     /// registries, or limits disagree.
-    pub fn build(self) -> Result<VerifierContext, SdkError> {
+    pub fn build(self) -> Result<TrustedContext, SdkError> {
         let principal_methods: BTreeSet<PrincipalMethodId> = self
             .trust_anchors
             .iter()
@@ -211,6 +226,12 @@ impl TrustedContextBuilder {
             .iter()
             .map(|requirement| requirement.claim_kind().clone())
             .collect();
+        let budget_free_profiles: Vec<ProfileRef> = self
+            .budget_free_profiles
+            .iter()
+            .filter(|profile| profiles.contains(*profile))
+            .cloned()
+            .collect();
         let accepted = AcceptedRegistries::new(
             auths_registries::TARGET_V1_REGISTRY_MANIFEST,
             principal_methods.into_iter().collect(),
@@ -229,8 +250,9 @@ impl TrustedContextBuilder {
             self.critical_extensions.into_iter().collect(),
             profiles.into_iter().collect(),
             vec![ProfilePolicyId::parse(auths_registries::EXACT_PROFILE_V1)?],
-        )?;
-        Ok(VerifierContext::new(
+        )?
+        .with_budget_free_profiles(budget_free_profiles)?;
+        Ok(TrustedContext::new(
             self.configuration,
             self.composition,
             self.trust_anchors,
@@ -271,7 +293,7 @@ impl Verifier {
     ///
     /// Returns a typed error only if a compiled identifier or immutable
     /// kernel configuration is invalid.
-    pub fn self_contained(context: VerifierContext) -> Result<Self, SdkError> {
+    pub fn self_contained(context: TrustedContext) -> Result<Self, SdkError> {
         let methods: Vec<Box<dyn auths_ports::PrincipalMethod + Send + Sync>> = vec![
             Box::new(auths_raw_key::RawKeyMethod::new()?),
             Box::new(auths_did_key::DidKeyMethod::new()?),

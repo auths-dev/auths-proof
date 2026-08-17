@@ -124,7 +124,19 @@ test("recoverable development state resumes reconciliation without provider re-e
   }
 });
 
-test("recoverable development state survives process death after provider entry", async () => {
+// CAPABILITY REMOVED (contract 4.2): `Auths.recover` is deleted. It was a sixth
+// product operation the binding invented -- no Rust owner, no ProductVerb, no
+// registry entry -- and its implementation re-ran authorization to MINT a fresh
+// decision receipt purely to re-derive the execution identifier it then used to
+// look up someone else's pending state. Deciding what identity to recover under
+// is not a binding's decision to make.
+//
+// This test previously drove crash recovery through `auths.recover`. That path
+// no longer exists, so what it can still prove is the fail-closed half, which is
+// the safety-critical half: after a process dies mid-provider-call, the durable
+// checkpoint survives and NOTHING re-enters the provider. Restoring the
+// recover-and-complete half needs `McpExecutionSession::recover` in Rust first.
+test("a process that dies after provider entry leaves a durable checkpoint and re-enters nothing", async () => {
   const directory = await mkdtemp(join(tmpdir(), "auths-crash-recovery-"));
   const worker = spawn(process.execPath, [
     "test/integration/fixtures/crash-after-provider-entry.mjs",
@@ -138,26 +150,24 @@ test("recoverable development state survives process death after provider entry"
     const authority = mcp.allowTools(["publish_report"]);
     const auths = await development.createRecoverableAuths({ directory, authority });
     let invokes = 0;
-    let reconciles = 0;
     const provider = mcp.developmentProvider({
       tools: { async publish_report() { invokes += 1; throw new Error("must not re-enter"); } },
-      async reconcile() {
-        reconciles += 1;
-        return { effect: "applied", result: { published: "weekly" } };
-      },
     });
     try {
-      const action = mcp.callTool({ name: "publish_report", arguments: { name: "weekly" } });
-      let completed = await auths.recover({ action, provider, requestId: "crash-weekly-32" });
-      if (completed.kind === "recoverable") {
-        completed = await auths.resume({ reference: completed.reference, provider });
-      }
-      assert.equal(completed.kind, "completed");
-      assert.equal(invokes, 0);
-      assert.equal(reconciles, 1);
-      await assert.rejects(auths.recover({ action, provider, requestId: "crash-weekly-32" }), /no pending/);
+      // The public facade offers exactly five operations. `recover` is not one.
+      assert.equal(typeof auths.recover, "undefined",
+        "the product facade still publishes `recover`, a sixth operation with no Rust owner");
+      assert.equal(typeof auths.execute, "function");
+      assert.equal(typeof auths.resume, "function");
+      assert.equal(typeof auths.delegate, "function");
+      assert.equal(typeof auths.close, "function");
+      // Reopening the durable directory must not replay anything into the
+      // provider: the pending execution stays pending until something with
+      // authority to resume it does so.
+      assert.equal(invokes, 0, "reopening a crashed durable directory re-entered the provider");
     } finally {
       await auths.close();
+      await provider.close();
     }
   } finally {
     if (worker.exitCode === null && worker.signalCode === null) worker.kill();
