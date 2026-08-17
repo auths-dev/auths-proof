@@ -3067,7 +3067,7 @@ mod tests {
                 .with_budget_free_profiles(profiles)
                 .expect("budget-free declaration"),
             context.expected_audience().clone(),
-            context.expected_challenge().clone(),
+            context.expected_challenge(),
             context.evaluation_time(),
             context.assurance_policy().clone(),
             context.principal_status_snapshot().clone(),

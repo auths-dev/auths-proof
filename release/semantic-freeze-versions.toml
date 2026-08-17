@@ -1,4 +1,4 @@
-freeze_version = 132
+freeze_version = 133
 
 # Semantic identity counters live outside the xtask source tree deliberately.
 # The formal source closure binds xtask's executable code, while the semantic
@@ -6,7 +6,7 @@ freeze_version = 132
 # made the two generated artifacts hash each other and therefore unable to
 # converge. This file is a reviewed release input, never an automatic output.
 [entries]
-"auths.core.protocol" = 17
+"auths.core.protocol" = 18
 "auths.frozen-bytes/architecture/dependency-graph.json" = 29
 "auths.frozen-bytes/bindings/wasm/auths-proof-wasm/identity-abi-v1.json" = 4
 "auths.frozen-bytes/bounded-domains.toml" = 1
@@ -61,11 +61,11 @@ freeze_version = 132
 "auths.product.mechanism-profile-conformance" = 5
 "auths.product.open-production-contract" = 13
 "auths.product.operations" = 5
-"auths.product.public-sdk-contract" = 44
+"auths.product.public-sdk-contract" = 45
 "auths.product.receipts" = 5
 "auths.product.release-assurance" = 4
 "auths.product.simplified-waist" = 8
 "auths.product.vocabulary" = 9
 "auths.release.benchmark-contract" = 1
 "auths.release.evolution-contract" = 18
-"auths.release.public-surface" = 131
+"auths.release.public-surface" = 132

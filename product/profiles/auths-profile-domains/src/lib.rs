@@ -1149,17 +1149,10 @@ mod tests {
         }
     }
 
-    /// Every domain profile's declared budget capability must match the bytes
-    /// its canonicalizer actually produces.
-    ///
-    /// A profile that declared `Inexpressible` while emitting a requested
-    /// budget would tell a verifier its actions provably spend zero when they
-    /// do not — the one way this mechanism could become unsound. Both sides are
-    /// computed here; neither is a literal.
-    #[test]
-    fn domain_budget_declaration_matches_canonical_bytes() {
+    fn canonical_domain_budget_cases() -> Vec<(ProfileRef, ProfileBudgetExpression, CanonicalAction)>
+    {
         let digest = "11".repeat(32);
-        let cases: Vec<(ProfileRef, ProfileBudgetExpression, CanonicalAction)> = vec![
+        vec![
             (
                 profile::<HttpAction>().unwrap(),
                 <HttpProfile as ActionProfile>::BUDGET_EXPRESSION,
@@ -1246,7 +1239,19 @@ mod tests {
                     )
                     .unwrap(),
             ),
-        ];
+        ]
+    }
+
+    /// Every domain profile's declared budget capability must match the bytes
+    /// its canonicalizer actually produces.
+    ///
+    /// A profile that declared `Inexpressible` while emitting a requested
+    /// budget would tell a verifier its actions provably spend zero when they
+    /// do not — the one way this mechanism could become unsound. Both sides are
+    /// computed here; neither is a literal.
+    #[test]
+    fn domain_budget_declaration_matches_canonical_bytes() {
+        let cases = canonical_domain_budget_cases();
         // Both readings must actually occur, otherwise the comparison below
         // would pass for a table that is constant in one direction.
         assert!(
