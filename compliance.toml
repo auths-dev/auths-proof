@@ -452,12 +452,15 @@ principal_families = ["raw-key-v1"]
 signature_families = ["ed25519-v1"]
 profiles = ["auths.github.issue-address.branch-publish/1", "auths.github.issue-address.pull-request-open-draft/1"]
 transports = ["git-bundle", "https", "github-rest"]
-configuration_inputs = ["executed-verifier-configuration", "github-app-installation", "repository-automation-policy", "required-verifier-configuration"]
-security_state = ["branch-exclusive-lifecycle", "domain-recovery-record", "expiring-session", "pull-request-exclusive-lifecycle", "receipt-sink"]
+configuration_inputs = ["agent-task-boundary", "executed-verifier-configuration", "github-app-installation", "repository-automation-policy", "required-verifier-configuration"]
+security_state = ["branch-exclusive-lifecycle", "bounded-candidate-upload", "domain-recovery-record", "expiring-session", "pull-request-exclusive-lifecycle", "receipt-sink"]
 
 [packages.auths-github-demo.claims]
 demo-conformance-fixture = ["demos/github-issue/src/tests.rs#exact_flow_uses_real_auths_kernel_and_replay_mutates_nothing"]
 runtime-enforcement-boundary = [
+    "demos/github-issue/src/app.rs#every_task_widening_is_rejected_before_session_creation",
+    "demos/github-issue/src/app.rs#candidate_api_is_closed_over_fixture_or_bounded_bundle_shapes",
+    "demos/github-issue/src/app.rs#unexpected_direct_push_acceptance_is_a_zero_effect_denial",
     "demos/github-issue/src/tests.rs#required_and_executed_configuration_mismatch_is_visible_and_never_gets_a_credential",
     "demos/github-issue/src/tests.rs#every_negative_demo_variant_is_a_native_denial_before_credentials",
 ]

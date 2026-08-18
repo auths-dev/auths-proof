@@ -35,6 +35,7 @@ REQUIRED_PACKAGE_FILES = {
     "auths/_trust.py",
     "auths/_workflow.py",
     "auths/framework.py",
+    "auths/_github_agent.py",
     "auths/identity.py",
     "auths/integrations.py",
     "auths/profiles/__init__.py",

@@ -1,6 +1,7 @@
-const API_BASE =
-  window.AUTHS_GITHUB_API_BASE ||
-  "https://auths-issue-workflow.fly.dev";
+// Production should serve the browser and native API from one origin. A
+// deployment that deliberately splits them may set this before loading this
+// module and must allow the exact origin in its Content Security Policy.
+const API_BASE = window.AUTHS_GITHUB_API_BASE || window.location.origin;
 const REQUEST_TIMEOUT_MS = 20_000;
 const EXECUTION_TIMEOUT_MS = 120_000;
 
@@ -10,7 +11,6 @@ const previews = {
     kind: "authorized",
     code: "authorized",
     stage: "auths-kernel",
-    credential: "after claim",
     detail: "Every bound fact matches. Inspection can proceed, then the executor may publish one branch and one draft PR.",
   },
   "prohibited-path": {
@@ -18,7 +18,6 @@ const previews = {
     kind: "denied",
     code: "path-explicitly-denied",
     stage: "candidate-inspection",
-    credential: "NO WRITE",
     detail: "The candidate changes .github/**, which the signed workflow grant explicitly denies.",
   },
   "candidate-changed": {
@@ -26,7 +25,6 @@ const previews = {
     kind: "denied",
     code: "candidate-bundle-malformed",
     stage: "candidate-inspection",
-    credential: "NO WRITE",
     detail: "The submitted candidate SHA does not identify the commit in the inspected Git bundle.",
   },
   "repository-changed": {
@@ -34,7 +32,6 @@ const previews = {
     kind: "denied",
     code: "repository-mismatch",
     stage: "github-evidence",
-    credential: "NO WRITE",
     detail: "Fresh GitHub evidence does not identify the immutable repository in the workflow grant.",
   },
   "issue-changed": {
@@ -42,7 +39,6 @@ const previews = {
     kind: "denied",
     code: "issue-mismatch",
     stage: "github-evidence",
-    credential: "NO WRITE",
     detail: "Fresh GitHub evidence does not identify the issue in the workflow grant.",
   },
   "base-advanced": {
@@ -50,7 +46,6 @@ const previews = {
     kind: "denied",
     code: "base-revision-mismatch",
     stage: "github-evidence",
-    credential: "NO WRITE",
     detail: "The base ref no longer points to the commit named by the workflow grant.",
   },
   "malformed-bundle": {
@@ -58,7 +53,6 @@ const previews = {
     kind: "denied",
     code: "candidate-bundle-malformed",
     stage: "candidate-inspection",
-    credential: "NO WRITE",
     detail: "The fixed 17-byte regression bundle is rejected as malformed before GitHub evidence or credentials.",
   },
 };
@@ -85,6 +79,7 @@ const elements = {
   issue: document.querySelector("#issue"),
   base: document.querySelector("#base"),
   target: document.querySelector("#target"),
+  agentPrincipal: document.querySelector("#agent-principal"),
   requiredConfig: document.querySelector("#required-config"),
   executedConfig: document.querySelector("#executed-config"),
   configLink: document.querySelector("#config-link"),
@@ -105,6 +100,7 @@ const elements = {
 let selected = "exact";
 let sessionId = null;
 let sessionReady = false;
+let guidedPreview = false;
 let inspected = false;
 let completed = false;
 
@@ -139,6 +135,18 @@ async function initialize() {
     ]);
     const session = await request("/v1/demo/sessions", {
       method: "POST",
+      body: {
+        repository: scenario.repository,
+        issueNumber: scenario.issue_number,
+        baseRef: scenario.base_ref,
+        baseRevision: scenario.base_revision,
+        allowedPaths: scenario.allowed_paths,
+        protectedPaths: scenario.denied_paths,
+        expiresInSeconds: 15 * 60,
+        branchBudget: 1,
+        draftPullRequestBudget: 1,
+        agentLabel: "credential-less-demo-agent",
+      },
       timeout: REQUEST_TIMEOUT_MS,
     });
     sessionId = session.session_id;
@@ -148,6 +156,8 @@ async function initialize() {
     elements.base.textContent = short(session.base_revision);
     elements.base.title = session.base_revision;
     elements.target.textContent = session.target_ref;
+    elements.agentPrincipal.textContent = short(session.agent_principal, 16);
+    elements.agentPrincipal.title = session.agent_principal;
     elements.requiredConfig.textContent = short(session.required_configuration, 16);
     elements.requiredConfig.title = session.required_configuration;
     elements.executedConfig.textContent = short(session.executed_configuration, 16);
@@ -164,19 +174,22 @@ async function initialize() {
     applyPreview(selected);
   } catch (error) {
     sessionReady = false;
-    elements.nativeState.textContent = "unavailable";
+    guidedPreview = true;
+    elements.nativeState.textContent = "preview only";
     elements.nativeDot.dataset.state = "failed";
     elements.githubState.textContent = "not checked";
-    setService("failed", "native service unavailable", false);
-    elements.verdict.textContent = "UNAVAILABLE";
-    elements.verdict.dataset.kind = "denied";
-    elements.verdictDetail.textContent =
-      `The browser could not create a native session: ${error.message}. Retry by reloading this page.`;
-    elements.inspect.disabled = true;
+    elements.release.textContent = "guided preview · no live execution";
+    setService("preview", "guided preview — service offline", false);
+    elements.liveState.title = `Native service unavailable: ${error.message}`;
+    applyPreview(selected);
   }
 }
 
 async function inspectCandidate() {
+  if (guidedPreview) {
+    renderGuidedPreview(selected);
+    return;
+  }
   if (!sessionReady || !sessionId) {
     elements.verdictDetail.textContent = "The native session is not ready. Reload the page to retry.";
     return;
@@ -187,7 +200,7 @@ async function inspectCandidate() {
   try {
     const response = await request(`/v1/demo/sessions/${sessionId}/candidate`, {
       method: "POST",
-      body: { experiment: selected },
+      body: { kind: "fixture", experiment: selected },
       timeout: EXECUTION_TIMEOUT_MS,
     });
     const candidate = response.candidate;
@@ -200,7 +213,7 @@ async function inspectCandidate() {
     elements.changedPath.textContent = path;
     elements.changedPath.title = path;
     elements.directPush.textContent =
-      candidate.direct_push?.result === "authentication-rejected"
+      candidate.direct_push?.result === "refused-without-credential"
         ? "REJECTED — no credential"
         : candidate.direct_push?.result || "not attempted";
     updateTimeline(
@@ -314,6 +327,15 @@ function renderOutcome(response, replay) {
     updateTimeline("branch", "Published", "done");
   }
   if (response.execution?.pull_request === "opened") {
+    const pullRequestUrl = safeExternalUrl(response.execution.pull_request_url);
+    if (!pullRequestUrl) {
+      elements.verdict.textContent = "CHECK REQUIRED";
+      elements.verdict.dataset.kind = "denied";
+      elements.verdictDetail.textContent =
+        "The executor reported a pull request without a valid HTTPS result URL.";
+      updateTimeline("pull-request", "Invalid result URL", "denied");
+      return;
+    }
     updateTimeline("pull-request", "Draft opened", "done");
     completed = true;
     elements.replay.hidden = false;
@@ -321,7 +343,7 @@ function renderOutcome(response, replay) {
     elements.publishedRef.textContent = response.execution.branch_ref;
     elements.publishedSha.textContent = short(response.execution.branch_revision, 13);
     elements.publishedSha.title = response.execution.branch_revision;
-    elements.pullRequestLink.href = response.execution.pull_request_url;
+    elements.pullRequestLink.href = pullRequestUrl;
     elements.pullRequestLink.textContent =
       `Open draft PR #${response.execution.pull_request_number} ↗`;
     elements.githubState.textContent = "PR confirmed";
@@ -342,22 +364,61 @@ async function loadReceipts() {
 
 function applyPreview(variant) {
   const preview = previews[variant];
-  elements.verdict.textContent = preview.verdict;
+  elements.verdict.textContent = `EXPECTED ${preview.verdict}`;
   elements.verdict.dataset.kind = preview.kind;
-  elements.verdictDetail.textContent = preview.detail;
+  elements.verdictDetail.textContent =
+    `Expected boundary: ${preview.detail} No Auths decision or GitHub action has run.`;
   elements.decisionCode.textContent = preview.code;
   elements.decisionStage.textContent = preview.stage;
-  elements.credentialRequested.textContent = preview.credential;
+  elements.credentialRequested.textContent = "not requested";
   elements.mutationCount.textContent = "0";
-  elements.inspect.textContent = "Inspect candidate";
-  elements.inspect.disabled = !sessionReady;
+  elements.inspect.textContent = guidedPreview
+    ? "Explain selected case"
+    : "Inspect candidate";
+  elements.inspect.disabled = !(sessionReady || guidedPreview);
   elements.execute.disabled = true;
   elements.execute.textContent =
     variant === "exact" ? "Publish through Auths" : "Submit denied case";
   elements.actionTitle.textContent =
-    variant === "exact" ? "Inspect the exact candidate." : "Inspect the changed candidate.";
+    guidedPreview
+      ? "Explore this boundary without pretending it ran."
+      : variant === "exact"
+        ? "Inspect the exact candidate."
+        : "Inspect the changed candidate.";
   elements.actionCopy.textContent =
-    "The executor parses the bounded Git bundle without checking out or running candidate code.";
+    guidedPreview
+      ? "The live executor is offline. The explanation remains interactive, but execution and receipts stay disabled until a native session exists."
+      : "The executor parses the bounded Git bundle without checking out or running candidate code.";
+}
+
+function renderGuidedPreview(variant) {
+  const preview = previews[variant];
+  const changedPath = {
+    exact: "demo/runs/** (permitted example)",
+    "prohibited-path": ".github/** (denied example)",
+    "candidate-changed": "declared SHA ≠ bundle commit",
+    "repository-changed": "repository identity mismatch",
+    "issue-changed": "issue identity mismatch",
+    "base-advanced": "base revision mismatch",
+    "malformed-bundle": "17-byte invalid bundle",
+  }[variant];
+
+  elements.candidateSha.textContent = "not inspected — preview only";
+  elements.changedPath.textContent = changedPath;
+  elements.changedPath.title = changedPath;
+  elements.directPush.textContent = "not attempted — preview only";
+  elements.verdict.textContent = `EXPECTED ${preview.verdict}`;
+  elements.verdictDetail.textContent =
+    `${preview.detail} This explains the selected boundary; it is not a recorded Auths decision.`;
+  elements.credentialRequested.textContent = "not requested";
+  updateTimeline("candidate", "Explained only", null);
+  updateTimeline("authorized", "Not run", null);
+  updateTimeline("branch", "Not attempted", null);
+  updateTimeline("pull-request", "Not attempted", null);
+  updateTimeline("replay", "Not available", null);
+  elements.actionTitle.textContent = "Connect the native service to execute it.";
+  elements.actionCopy.textContent =
+    "A real run must inspect server-owned evidence, return a native decision, and produce signed receipts. Preview mode never fabricates those facts.";
 }
 
 function resetExecution() {
@@ -365,6 +426,7 @@ function resetExecution() {
   elements.changedPath.textContent = "—";
   elements.directPush.textContent = "not attempted";
   elements.githubResult.hidden = true;
+  elements.pullRequestLink.removeAttribute("href");
   elements.replay.hidden = true;
   elements.receiptCount.textContent = "0";
   elements.receiptJson.textContent = "Run the workflow to load receipts.";
@@ -387,6 +449,7 @@ function setService(kind, label, ready) {
   elements.serviceState.textContent = label;
   elements.liveState.classList.toggle("ready", ready);
   elements.liveState.classList.toggle("failed", kind === "failed");
+  elements.liveState.classList.toggle("preview", kind === "preview");
 }
 
 function setBusy(button, busy, label) {
@@ -425,4 +488,15 @@ async function request(path, options = {}) {
 function short(value, length = 12) {
   if (!value) return "—";
   return value.length > length ? `${value.slice(0, length)}…` : value;
+}
+
+function safeExternalUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && !url.username && !url.password
+      ? url.href
+      : null;
+  } catch {
+    return null;
+  }
 }

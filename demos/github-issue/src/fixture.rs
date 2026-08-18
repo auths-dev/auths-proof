@@ -47,6 +47,16 @@ impl EphemeralAuthsAuthorizer {
             agent: agent_seed,
         }
     }
+
+    /// Returns the concrete principal receiving the session authority.
+    ///
+    /// # Errors
+    ///
+    /// Returns an adapter failure if the generated Ed25519 key cannot form a
+    /// raw-key principal.
+    pub fn agent_principal(&self) -> Result<PrincipalId, ProofError> {
+        Ok(Identity::new(self.agent)?.principal)
+    }
 }
 
 impl ExactActionAuthorizer for EphemeralAuthsAuthorizer {

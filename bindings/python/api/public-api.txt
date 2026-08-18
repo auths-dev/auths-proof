@@ -83,6 +83,16 @@ verify_receipt
 AuthsError
 AuthsErrorCode
 EffectState
+GitHubAgentBoundary
+GitHubAgentClient
+GitHubAgentError
+GitHubAgentOutcome
+GitHubAgentSession
+GitHubAgentTask
+GitHubCandidateFile
+GitHubCandidateInspection
+GitHubDenialFixture
+GitHubVerifiedReceipts
 NextCall
 ProductVerb
 RecommendedAction
@@ -103,6 +113,7 @@ ServiceTransportRequest
 ServiceTransportResponse
 ServiceVerificationResult
 ServiceVerified
+create_github_agent_client
 create_service_client
 import_authority
 

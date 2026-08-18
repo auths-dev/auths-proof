@@ -592,6 +592,7 @@ dependencies = [
  "auths-signature",
  "auths-stores",
  "axum",
+ "base64ct",
  "ed25519-dalek 2.2.0",
  "getrandom 0.3.4",
  "hex",

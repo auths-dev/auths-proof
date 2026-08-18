@@ -17,6 +17,19 @@ from ._product_errors import (
     RecommendedAction,
     RetryClass,
 )
+from ._github_agent import (
+    GitHubAgentBoundary,
+    GitHubAgentClient,
+    GitHubAgentError,
+    GitHubAgentOutcome,
+    GitHubAgentSession,
+    GitHubAgentTask,
+    GitHubCandidateFile,
+    GitHubCandidateInspection,
+    GitHubDenialFixture,
+    GitHubVerifiedReceipts,
+    create_github_agent_client,
+)
 from ._service import (
     NextCall,
     ServiceAuthority,
@@ -43,6 +56,16 @@ __all__ = [
     "AuthsError",
     "AuthsErrorCode",
     "EffectState",
+    "GitHubAgentBoundary",
+    "GitHubAgentClient",
+    "GitHubAgentError",
+    "GitHubAgentOutcome",
+    "GitHubAgentSession",
+    "GitHubAgentTask",
+    "GitHubCandidateFile",
+    "GitHubCandidateInspection",
+    "GitHubDenialFixture",
+    "GitHubVerifiedReceipts",
     "NextCall",
     "ProductVerb",
     "RecommendedAction",
@@ -65,4 +88,5 @@ __all__ = [
     "ServiceVerificationResult",
     "ServiceVerified",
     "create_service_client",
+    "create_github_agent_client",
 ]

@@ -1,5 +1,5 @@
 # Installed @auths-dev/sdk public API v1
-# declaration-sha256 507c68077876e8b7453f1116df41503e86e769e2dd4f95b6771236271e7cda93
+# declaration-sha256 c1e7d86abaae84d40ed20e7936c6529692e8c7c6fa6c073e7485d9c4d257e203
 .	Actor	type
 .	approval	value
 .	ApprovalPolicy	type
@@ -86,8 +86,20 @@
 ./verify	VerifiedOpaqueReceipt	type
 ./verify	Verifier	value+type
 ./verify	verifyReceipt	value
+./service	createGitHubAgentClient	value
 ./service	createServiceClient	value
+./service	GitHubAgentBoundary	type
+./service	GitHubAgentClient	type
+./service	GitHubAgentClientOptions	type
+./service	GitHubAgentError	value+type
+./service	GitHubAgentOutcome	type
+./service	GitHubAgentSession	type
+./service	GitHubAgentTask	type
+./service	GitHubCandidateFile	type
+./service	GitHubCandidateInspection	type
+./service	GitHubDenialFixture	type
 ./service	githubIssueAddress	value
+./service	GitHubVerifiedReceipts	type
 ./service	importAuthority	value
 ./service	NextCall	type
 ./service	opentofuSavedPlanApply	value

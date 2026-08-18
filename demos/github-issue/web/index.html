@@ -34,7 +34,7 @@
       <section class="hero">
         <div class="shell hero-grid">
           <div>
-            <p class="eyebrow"><i aria-hidden="true"></i> Auths × GitHub, live</p>
+            <p class="eyebrow"><i aria-hidden="true"></i> Auths × GitHub, inspectable</p>
             <h1>Approve one patch. <em>Publish only that patch.</em></h1>
           </div>
           <div class="hero-copy">
@@ -73,7 +73,8 @@
               <h2 id="controls-title">Change one fact.</h2>
               <p class="controls-intro">
                 Each case uses a server-owned candidate. Select a case to see
-                the expected decision, then inspect the actual Git bundle.
+                the expected boundary. With the native service connected, you
+                can inspect the actual Git bundle and execute the exact action.
               </p>
 
               <div class="variant-list" id="variant-list">
@@ -116,14 +117,14 @@
                 <div><dt>Allowed</dt><dd><code>demo/runs/**</code></dd></div>
                 <div><dt>Denied</dt><dd><code>.github/**</code></dd></div>
                 <div><dt>Budget</dt><dd>1 branch · 1 draft PR</dd></div>
-                <div><dt>Agent token</dt><dd class="safe">NONE</dd></div>
+                <div><dt>Agent</dt><dd><code id="agent-principal">—</code> · credential <span class="safe">NONE</span></dd></div>
               </dl>
             </section>
 
             <article class="result" aria-labelledby="result-title">
               <header class="result-header">
                 <div>
-                  <span class="micro">02 · Live authorization result</span>
+                  <span class="micro">02 · Authorization boundary</span>
                   <strong id="result-title">AUTH-V1 / GITHUB</strong>
                 </div>
                 <span class="live-state" id="live-state"><i aria-hidden="true"></i><b id="service-state">starting</b></span>
@@ -203,7 +204,7 @@
                   <h3>One draft pull request is open.</h3>
                   <p><code id="published-ref">—</code> points to <code id="published-sha">—</code>.</p>
                 </div>
-                <a id="pull-request-link" href="#" target="_blank" rel="noreferrer">
+                <a id="pull-request-link" target="_blank" rel="noreferrer">
                   Open the real draft PR ↗
                 </a>
               </section>

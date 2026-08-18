@@ -59,6 +59,8 @@ test("packed contents carry the published artifacts and no source or tests", asy
     "dist/index.js",
     "dist/index.d.ts",
     "dist/framework.js",
+    "dist/github-agent.js",
+    "dist/github-agent.d.ts",
     "dist/doctor-cli.js",
     "dist/doctor.js",
     "dist/identity.js",
@@ -106,6 +108,19 @@ test("identity entry point has no higher-layer imports", async () => {
     source,
     /from\s+["'].\/(?:approvals|plans|profiles|workflow|verifier)\b/,
   );
+});
+
+test("launch examples stay typed and make live GitHub mutation explicitly opt-in", async () => {
+  const examples = [
+    new URL("../../../../demos/github-issue/examples/typescript/agent.mjs", import.meta.url),
+    new URL("../../../../demos/github-issue/examples/python/agent.py", import.meta.url),
+  ];
+  const forbiddenProtocolMechanics = /(?:authorityBytes|actionBytes|proofBytes|Uint8Array|canonical(?:ize|Bytes)|cbor)/iu;
+  for (const example of examples) {
+    const source = await readFile(example, "utf8");
+    assert.match(source, /AUTHS_GITHUB_LIVE/);
+    assert.doesNotMatch(source, forbiddenProtocolMechanics);
+  }
 });
 
 test("identity and verification dependency closures exclude effect workflow code", async () => {

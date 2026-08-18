@@ -399,6 +399,7 @@ impl Fixture {
             self.base.clone(),
             self.configuration.clone(),
             NOW,
+            15 * 60,
         )
         .unwrap();
         ExecuteWorkflowRequest {
@@ -428,6 +429,7 @@ impl Fixture {
             self.base.clone(),
             self.configuration.clone(),
             NOW,
+            15 * 60,
         )
         .unwrap();
         ExecuteWorkflowRequest {
