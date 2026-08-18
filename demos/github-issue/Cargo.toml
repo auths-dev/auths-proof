@@ -22,6 +22,7 @@ auths-sdk.workspace = true
 auths-signature.workspace = true
 auths-stores.workspace = true
 axum.workspace = true
+base64ct.workspace = true
 ed25519-dalek.workspace = true
 getrandom.workspace = true
 hex.workspace = true

@@ -105,7 +105,7 @@ pub fn verifier_configuration(
     .map_err(|_| ScenarioError)
 }
 
-/// Builds one fifteen-minute workflow grant from the current exact base.
+/// Builds one bounded workflow grant from the current exact base.
 pub fn workflow_grant(
     workflow_id: WorkflowId,
     repository: auths_github::RepositoryResource,
@@ -114,6 +114,7 @@ pub fn workflow_grant(
     base_revision: GitOid,
     configuration: VerifierConfiguration,
     now: u64,
+    expires_in_seconds: u64,
 ) -> Result<WorkflowGrant, ScenarioError> {
     WorkflowGrant::new(WorkflowGrantInput {
         workflow_id,
@@ -126,7 +127,7 @@ pub fn workflow_grant(
         publication_policy: PublicationPolicy::one_draft_pull_request(),
         executor_audience: configuration.executor_audience().clone(),
         issued_at: now,
-        expires_at: now + 15 * 60,
+        expires_at: now.checked_add(expires_in_seconds).ok_or(ScenarioError)?,
         required_configuration: configuration,
     })
     .map_err(|_| ScenarioError)

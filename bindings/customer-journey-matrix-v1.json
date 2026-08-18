@@ -7,9 +7,9 @@
     "enforcement": "baseline",
     "baseline": {
       "typescriptEntryPoints": 8,
-      "typescriptPublicSymbols": 191,
+      "typescriptPublicSymbols": 203,
       "pythonModules": 8,
-      "pythonPublicSymbols": 169,
+      "pythonPublicSymbols": 180,
       "maintainedTypescriptRecipes": 5,
       "maintainedPythonRecipes": 5
     },
@@ -469,6 +469,54 @@
           "recoverable",
           "verified",
           "rejected"
+        ],
+        "consumerRequiresRust": false
+      }
+    },
+    {
+      "id": "github-agent-one-issue-one-draft-pr",
+      "rust": "product/integrations/auths-github/src/service.rs",
+      "typescript": "bindings/typescript/test/unit/github-agent.test.js",
+      "python": "bindings/python/tests/test_github_agent.py",
+      "experience": {
+        "targetJourney": "delegate-one-bounded-github-issue-task-and-open-one-draft-pull-request",
+        "imports": [
+          "service"
+        ],
+        "securityNouns": [
+          "Authority",
+          "Action",
+          "Receipt"
+        ],
+        "domainConcepts": [
+          "GitHub issue",
+          "candidate bundle"
+        ],
+        "setupDecisions": [
+          "operator endpoint"
+        ],
+        "apiMechanics": [
+          "discover boundary",
+          "delegate",
+          "inspect candidate",
+          "execute",
+          "reconcile",
+          "verify receipts"
+        ],
+        "requiredApplicationComponents": [
+          "candidate bundle path",
+          "candidate revision",
+          "operator endpoint"
+        ],
+        "executableStatements": 20,
+        "applicationOrchestratedSecurityTransitions": 0,
+        "terminalOutcomes": [
+          "completed",
+          "denied",
+          "indeterminate",
+          "replayed",
+          "reconciled",
+          "verified"
         ],
         "consumerRequiresRust": false
       }

@@ -1,6 +1,4 @@
-const API_BASE =
-  window.AUTHS_GITHUB_API_BASE ||
-  "https://auths-issue-workflow.fly.dev";
+const API_BASE = window.AUTHS_GITHUB_API_BASE || window.location.origin;
 const REQUEST_TIMEOUT_MS = 20_000;
 const RECEIPT_PATH = /^\/receipts\/(?:demo-)?([0-9a-f]{32})\/?$/;
 

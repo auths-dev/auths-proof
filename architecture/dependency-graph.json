@@ -3209,6 +3209,20 @@
     {
       "source": "auths-github-demo",
       "source_layer": "demos",
+      "target": "base64ct",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc"
+      ]
+    },
+    {
+      "source": "auths-github-demo",
+      "source_layer": "demos",
       "target": "ed25519-dalek",
       "target_layer": null,
       "scope": "external",

@@ -28,6 +28,7 @@
       "versioned adapter conformance and an exact runtime contract",
       "bounded auths doctor diagnostics for runtime and configuration readiness",
       "idempotent closed runtime with reconciliation and durable reference state",
+      "typed GitHub issue-agent task, candidate-file, denial, replay, reconciliation and receipt flow",
       "exact purpose-labelled root, identity, verify, service, profiles, integrations, framework, and testkit entry points"
     ],
     "excluded": [

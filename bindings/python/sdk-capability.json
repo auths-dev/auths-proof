@@ -45,7 +45,8 @@
       "purpose-labelled root, identity, verify, profiles, integrations, framework and testkit modules",
       "shared Rust, TypeScript and Python customer-journey projections",
       "strict mypy and Pyright consumer contracts",
-      "installed abi3 wheel qualification on Linux, macOS and Windows for every CPython 3.9 through 3.14 minor"
+      "installed abi3 wheel qualification on Linux, macOS and Windows for every CPython 3.9 through 3.14 minor",
+      "typed GitHub issue-agent task, candidate-file, denial, replay, reconciliation and receipt flow"
     ],
     "excluded": [
       "promoted full workflow SDK release claim",

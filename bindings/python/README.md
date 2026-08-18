@@ -40,21 +40,27 @@ async with development.create_auths(
 ## Use a production runtime
 
 ```python
-from auths import create_auths
-from auths.profiles import github_issue_address
+from auths.service import GitHubAgentTask, create_github_agent_client
 
-auths = create_auths(
-    endpoint="https://auths.example.com",
-    identity=public_identity_bytes,
-    profile=github_issue_address(),
-)
-authority = await auths.create(authority_request_bytes)
-if authority.kind != "authority":
-    raise RuntimeError(authority.code)
-result = await auths.execute(authority, action_bytes)
-if result.kind == "recoverable":
-    await auths.resume(result.reference)
+auths = create_github_agent_client(endpoint="https://executor.example")
+boundary = await auths.boundary()
+task = await auths.delegate(GitHubAgentTask(
+    repository=boundary.repository,
+    issue_number=boundary.issue_number,
+    base_ref=boundary.base_ref,
+    base_revision=boundary.base_revision,
+    allowed_paths=boundary.allowed_paths,
+    protected_paths=boundary.protected_paths,
+    expires_in_seconds=boundary.maximum_expiry_seconds,
+    branch_budget=1,
+    draft_pull_request_budget=1,
+    agent_label="issue-agent",
+))
 ```
+
+Continue with a candidate bundle file using the maintained
+[GitHub quickstart](../../docs/product/PRODUCTION_SDK_QUICKSTART.md). No
+protocol bytes or GitHub credential enter application code.
 
 ## Public modules
 
@@ -65,6 +71,7 @@ One wheel provides the same progressive topology as TypeScript:
 | `auths` | create, delegate, execute, resume, product results and errors |
 | `auths.identity` | standalone identity decoding and authentication |
 | `auths.verify` | effect-free proof, decision and receipt verification |
+| `auths.service` | generic five-verb operator-runtime transport |
 | `auths.profiles` | qualified MCP, OpenTofu, PostgreSQL and GitHub effect domains |
 | `auths.integrations` | maintained compositions and mechanism adapters |
 | `auths.framework` | proven signer and atomic-reservation contracts |
@@ -94,11 +101,11 @@ idempotent and close owned signers and native sessions.
 
 ## Production boundary
 
-The development composition uses ephemeral keys and in-memory state. The root
-production client talks to an HTTPS operator runtime through a bounded,
-Rust-owned binary contract. Provider credentials remain behind the profile
-gateway and are acquired only after Auths has authorized and durably reserved
-the exact action.
+The development composition uses ephemeral keys and in-memory state. The
+generic remote client and the profile-specific GitHub launch path live at
+`auths.service`. Provider credentials remain behind
+the Rust profile gateway and are acquired only after Auths has authorized and
+durably claimed the exact action.
 
 Supported Python, platform, ABI and semantic-subject claims are recorded in
 `sdk-runtime-contract.json`. Public API and wheel-content snapshots reject

@@ -116,6 +116,27 @@ This package is reusable product code. The demo crate supplies its concrete conf
 
 ## End-to-end execution
 
+The launch API uses schema `auths-github-agent/v1`. TypeScript and Python
+clients first read the operator-approved boundary, then repeat that boundary in
+an explicit task request. The native service requires exact equality for
+repository, issue, current base revision, path policy, and the one-branch plus
+one-draft-PR budget. It accepts expiry only inside the one-to-fifteen-minute
+window. This makes the SDK request an acknowledgement of the configured
+boundary, not a way to widen it.
+
+The candidate endpoint accepts either a named repository-owned adversarial
+fixture or a bounded base64url transport of an agent-produced Git bundle plus
+its declared base and candidate revisions. Base64url is transport only: the
+existing Rust `GitCandidateInspector` remains the sole parser and semantic
+owner. The API body is capped at three MiB and the decoded bundle remains
+subject to the stricter candidate policy.
+
+After inspection the service probes a direct push with every credential source
+cleared. Anything other than a refusal closes the candidate as
+`credential-boundary-failed`; execution then returns a zero-credential,
+zero-mutation denial without entering the executor. This makes an ambient Git
+credential a visible deployment failure instead of an accidental bypass.
+
 ### 1. Session and human constraints
 
 The browser creates a 15-minute session. The native service reads the current `main` revision from GitHub and builds a `WorkflowGrant` that binds:
@@ -138,7 +159,7 @@ The browser displays both the required configuration digest and the configuratio
 
 `GitCandidateInspector` parses the bundle without checking out or executing candidate code. It confirms ancestry, commit count, object types, paths, modes, byte limits, tree digest, bundle digest, and declared candidate revision. The malformed experiment uses a fixed 17-byte regression seed.
 
-The demo also performs a credential-disabled dry-run push. Its expected result is authentication rejection, proving that the candidate-building agent boundary does not possess the GitHub credential.
+The demo also performs a credential-disabled dry-run push. Its expected result is `refused-without-credential`; unexpected success closes execution. The cleared process environment—not a guess about GitHub's particular error response—proves that the candidate-building agent boundary does not possess the GitHub credential.
 
 ### 3. Fresh GitHub evidence
 

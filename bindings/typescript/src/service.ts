@@ -576,6 +576,21 @@ function normalizeContentType(value: string): string {
   return value.split(";", 1)[0]?.trim().toLowerCase() ?? "";
 }
 
+export {
+  GitHubAgentError,
+  createGitHubAgentClient,
+  type GitHubAgentBoundary,
+  type GitHubAgentClient,
+  type GitHubAgentClientOptions,
+  type GitHubAgentOutcome,
+  type GitHubAgentSession,
+  type GitHubAgentTask,
+  type GitHubCandidateFile,
+  type GitHubCandidateInspection,
+  type GitHubDenialFixture,
+  type GitHubVerifiedReceipts,
+} from "./github-agent.js";
+
 async function readBoundedBody(response: Response): Promise<Uint8Array> {
   if (response.body === null) return new Uint8Array();
   const reader = response.body.getReader();

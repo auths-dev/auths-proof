@@ -1,4 +1,4 @@
-freeze_version = 136
+freeze_version = 141
 
 # Semantic identity counters live outside the xtask source tree deliberately.
 # The formal source closure binds xtask's executable code, while the semantic
@@ -7,7 +7,7 @@ freeze_version = 136
 # converge. This file is a reviewed release input, never an automatic output.
 [entries]
 "auths.core.protocol" = 18
-"auths.frozen-bytes/architecture/dependency-graph.json" = 29
+"auths.frozen-bytes/architecture/dependency-graph.json" = 30
 "auths.frozen-bytes/bindings/wasm/auths-proof-wasm/identity-abi-v1.json" = 4
 "auths.frozen-bytes/bounded-domains.toml" = 1
 "auths.frozen-bytes/core/conformance/v1/manifest.json" = 1
@@ -46,26 +46,26 @@ freeze_version = 136
 "auths.frozen-bytes/product/integrations/auths-stripe/fixtures/subscription-create/v1/manifest.sha256.json" = 1
 "auths.frozen-bytes/product/integrations/auths-stripe/fixtures/subscription-modify/v1/manifest.sha256.json" = 1
 "auths.frozen-bytes/product/integrations/auths-stripe/fixtures/v1/manifest.sha256.json" = 1
-"auths.identity.protocol" = 31
+"auths.identity.protocol" = 36
 "auths.modular-components" = 8
-"auths.portable-abi-bindings" = 56
+"auths.portable-abi-bindings" = 61
 "auths.product.bounded-domains" = 7
 "auths.product.bounded-policy" = 2
 "auths.product.configuration-commitments" = 1
 "auths.product.development-composition" = 9
 "auths.product.error-recovery-contract" = 11
 "auths.product.external-custody" = 3
-"auths.product.facade" = 11
+"auths.product.facade" = 12
 "auths.product.lifecycle" = 10
 "auths.product.mcp-closed-execution" = 15
 "auths.product.mechanism-profile-conformance" = 5
 "auths.product.open-production-contract" = 13
 "auths.product.operations" = 5
-"auths.product.public-sdk-contract" = 45
+"auths.product.public-sdk-contract" = 48
 "auths.product.receipts" = 5
 "auths.product.release-assurance" = 4
 "auths.product.simplified-waist" = 8
-"auths.product.vocabulary" = 9
+"auths.product.vocabulary" = 10
 "auths.release.benchmark-contract" = 1
-"auths.release.evolution-contract" = 19
-"auths.release.public-surface" = 135
+"auths.release.evolution-contract" = 24
+"auths.release.public-surface" = 140

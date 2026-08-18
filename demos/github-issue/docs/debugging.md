@@ -2,13 +2,18 @@
 
 This document records operational lessons from deploying the GitHub issue workflow demo to Vercel, Fly.io, and GitHub. It intentionally contains no secrets or private key material.
 
-## Production endpoints
+## Deployment endpoints
 
-- Frontend: `https://auths-github-demo.vercel.app`
-- Native API: `https://auths-issue-workflow.fly.dev`
-- Health check: `https://auths-issue-workflow.fly.dev/healthz`
+Endpoint names are deployment configuration, not source-code defaults. The
+browser now uses its own origin for the native API unless
+`window.AUTHS_GITHUB_API_BASE` is deliberately set before `app.js` loads. This
+prevents a retired service hostname from disabling every meaningful control.
 
-Treat these names as coordinated configuration. The Vercel Content Security Policy, Fly CORS origin, and pull-request receipt base URL all contain exact origins.
+Prefer serving the frontend and API from one origin. If they are split, treat
+the frontend origin, API origin, Content Security Policy, native CORS allowlist,
+and pull-request receipt base URL as one reviewed configuration change. A
+frontend deployment is not live merely because its static document loads: its
+health route and session-creation route must succeed from the browser.
 
 ## Vercel
 
@@ -48,17 +53,10 @@ Relative paths such as `./styles.css` would resolve beneath `/receipts/`.
 
 ### CSP and CORS must agree
 
-The frontend Content Security Policy allows connections to:
-
-```text
-https://auths-issue-workflow.fly.dev
-```
-
-The native service allows the origin:
-
-```text
-https://auths-github-demo.vercel.app
-```
+The checked-in frontend Content Security Policy allows same-origin connections
+only. A deliberately split deployment must replace that policy with the exact
+native API origin and configure the native service with the exact frontend
+origin.
 
 If the frontend loads but every API request fails, inspect both:
 
@@ -156,10 +154,10 @@ Deploy from the monorepo root:
 fly deploy --config demos/github-issue/fly.toml --remote-only
 ```
 
-Verify:
+Verify the configured service origin:
 
 ```sh
-curl -fsS https://auths-issue-workflow.fly.dev/healthz
+curl -fsS https://<configured-native-service>/healthz
 ```
 
 Expected fields include:
@@ -330,4 +328,3 @@ Then validate production:
 6. The literal receipt link in the PR opens directly.
 7. The receipt page reports verified signatures and all expected envelopes.
 8. The receipt page still works after a Fly restart.
-
