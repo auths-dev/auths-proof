@@ -43,7 +43,7 @@
         {
           "caseId": "preflight",
           "intentId": "primary",
-          "stimulus": "canonical",
+          "stimulus": "redaction-plan",
           "role": "preflight",
           "group": 1,
           "topology": "serial",
@@ -55,7 +55,7 @@
         {
           "caseId": "effect",
           "intentId": "primary",
-          "stimulus": "canonical",
+          "stimulus": "redaction-apply",
           "role": "effect",
           "group": 1,
           "topology": "serial",
@@ -178,7 +178,7 @@
         {
           "caseId": "preflight",
           "intentId": "primary",
-          "stimulus": "canonical",
+          "stimulus": "protected-plan",
           "role": "preflight",
           "group": 1,
           "topology": "serial",
@@ -190,7 +190,7 @@
         {
           "caseId": "effect",
           "intentId": "primary",
-          "stimulus": "canonical",
+          "stimulus": "protected-apply",
           "role": "effect",
           "group": 1,
           "topology": "serial",

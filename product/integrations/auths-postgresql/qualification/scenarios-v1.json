@@ -43,7 +43,7 @@
         {
           "caseId": "preflight",
           "intentId": "primary",
-          "stimulus": "canonical",
+          "stimulus": "preflight-evidence",
           "role": "preflight",
           "group": 1,
           "topology": "serial",
@@ -55,7 +55,7 @@
         {
           "caseId": "effect",
           "intentId": "primary",
-          "stimulus": "canonical",
+          "stimulus": "preflight-handoff",
           "role": "effect",
           "group": 1,
           "topology": "serial",
@@ -267,7 +267,7 @@
         {
           "caseId": "preflight",
           "intentId": "primary",
-          "stimulus": "canonical",
+          "stimulus": "serializable-preflight",
           "role": "preflight",
           "group": 1,
           "topology": "serial",
@@ -279,7 +279,7 @@
         {
           "caseId": "effect",
           "intentId": "primary",
-          "stimulus": "canonical",
+          "stimulus": "serializable-effect",
           "role": "effect",
           "group": 1,
           "topology": "serial",
@@ -336,7 +336,7 @@
         {
           "caseId": "preflight",
           "intentId": "primary",
-          "stimulus": "canonical",
+          "stimulus": "redaction-preflight",
           "role": "preflight",
           "group": 1,
           "topology": "serial",
@@ -348,7 +348,7 @@
         {
           "caseId": "effect",
           "intentId": "primary",
-          "stimulus": "canonical",
+          "stimulus": "redaction-effect",
           "role": "effect",
           "group": 1,
           "topology": "serial",

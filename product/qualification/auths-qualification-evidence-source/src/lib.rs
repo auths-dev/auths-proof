@@ -47,8 +47,8 @@ use auths_profile_kit::{
     QualificationEvidenceSourceTrustRegistry, QualificationFailpoint,
     QualificationJournalDecisionContext, QualificationJournalDecisionContextRecord,
     QualificationJournalState, QualificationReceiptExecutionOutcome,
-    QualificationSupervisorPhaseRequestV1, qualification_event_marker_sha256,
-    qualification_pre_admission_attempt_count,
+    QualificationScenarioHookStage, QualificationSupervisorPhaseRequestV1,
+    qualification_event_marker_sha256, qualification_pre_admission_attempt_count,
 };
 #[cfg(any(target_os = "linux", test))]
 use auths_profile_kit::{
@@ -2236,7 +2236,18 @@ fn handle_provider_proxy_connection(
         }
         checkpoint.peer.verify_unchanged()?;
     }
-    let response = execute_provider_proxy_call(&request, transport_root, &credential, deadline)?;
+    let mut response =
+        execute_provider_proxy_call(&request, transport_root, &credential, deadline)?;
+    if request.kind() == QualificationProviderCallKind::Execute
+        && matches!(response, QualificationProviderCallResponse::Success(_))
+        && phase_has_hook(
+            phase,
+            QualificationScenarioHookStage::AfterProviderBeforeResponse,
+            "suppress-first-response",
+        )?
+    {
+        response = QualificationProviderCallResponse::PostEntryTimeout;
+    }
     if matches!(
         response,
         QualificationProviderCallResponse::PreEntry(_)
@@ -2302,6 +2313,23 @@ fn handle_provider_proxy_connection(
         return Ok(());
     }
     peer.verify_unchanged()
+}
+
+#[cfg(target_os = "linux")]
+fn phase_has_hook(
+    phase: &QualificationEvidencePhasePlanV1,
+    stage: QualificationScenarioHookStage,
+    hook: &str,
+) -> Result<bool, String> {
+    let route = QualificationRoute::for_profile(&phase.profile)?;
+    let program = route.scenario_program(&phase.scenario_id)?;
+    if program.sha256().map_err(string_error)? != phase.scenario_program_sha256 {
+        return Err("ProviderProxy scenario program differs from the immutable phase".into());
+    }
+    Ok(program
+        .hooks()
+        .iter()
+        .any(|candidate| candidate.stage() == stage && candidate.hook() == hook))
 }
 
 #[cfg(target_os = "linux")]

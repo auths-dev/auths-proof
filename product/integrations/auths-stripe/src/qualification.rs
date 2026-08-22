@@ -488,22 +488,32 @@ async fn stripe_setup(
             "provider-denial" => setup_amount.saturating_add(1),
             _ => setup_amount,
         };
-        let vector = serde_json_canonicalizer::to_vec(&serde_json::json!({
-            "amount": amount,
-            "currency": "usd",
-            "paymentIntent": intent.id,
-        }))
-        .map_err(|_| QualificationHarnessError::Onboarding)?;
         let scenario_program = qualification_scenario_program(scenario_id)?;
-        let input_base64url = Base64UrlUnpadded::encode_string(&vector);
         let cases = scenario_program
             .cases()
             .iter()
-            .map(|case| auths_profile_kit::QualificationSetupCaseV1 {
-                case_id: case.case_id().into(),
-                input_base64url: input_base64url.clone(),
+            .map(|case| {
+                let case_amount = match case.stimulus() {
+                    "maximum-refund" => 100_000_000,
+                    "maximum-plus-one-refund" => 100_000_001,
+                    "final-capacity-refund"
+                    | "account-equality"
+                    | "redaction-audit"
+                    | "canonical" => amount,
+                    _ => amount,
+                };
+                let vector = serde_json_canonicalizer::to_vec(&serde_json::json!({
+                    "amount": case_amount,
+                    "currency": "usd",
+                    "paymentIntent": intent.id,
+                }))
+                .map_err(|_| QualificationHarnessError::Onboarding)?;
+                Ok(auths_profile_kit::QualificationSetupCaseV1 {
+                    case_id: case.case_id().into(),
+                    input_base64url: Base64UrlUnpadded::encode_string(&vector),
+                })
             })
-            .collect();
+            .collect::<Result<Vec<_>, QualificationHarnessError>>()?;
         vectors.push(auths_profile_kit::QualificationSetupVectorV1 {
             id: scenario_id.clone(),
             scenario_program,
@@ -682,15 +692,30 @@ impl QualificationProtectedObserver for StripeQualificationAdapter {
     fn validate_domain_scenario(
         &self,
         program: &QualificationScenarioProgramV1,
-        _operations: &[auths_profile_kit::QualificationRedactedOperation],
-        _truths: &[QualificationProviderTruth],
+        operations: &[auths_profile_kit::QualificationRedactedOperation],
+        truths: &[QualificationProviderTruth],
     ) -> Result<(), QualificationHarnessError> {
         if !metadata().scenarios.contains(&program.id()) {
-            Ok(())
-        } else {
-            Err(QualificationHarnessError::PrerequisiteUnavailable(
+            return Ok(());
+        }
+        match program.id() {
+            "stripe-account-equality" => validate_single_applied_refund_truth(truths, None, true),
+            "stripe-redaction" => validate_single_applied_refund_truth(truths, None, true),
+            "stripe-refund-boundary" => {
+                validate_single_applied_refund_truth(truths, Some(100_000_000), true)?;
+                validate_case_attempt_roster(program, operations)
+            }
+            "stripe-aggregate-budget" => {
+                validate_single_applied_refund_truth(truths, Some(2_000), true)?;
+                validate_case_attempt_roster(program, operations)
+            }
+            "stripe-timeout-after-write" => {
+                validate_single_applied_refund_truth(truths, None, true)?;
+                validate_reconciled_effect(operations)
+            }
+            _ => Err(QualificationHarnessError::PrerequisiteUnavailable(
                 "Stripe scenario predicate is not implemented",
-            ))
+            )),
         }
     }
 
@@ -721,6 +746,76 @@ impl QualificationProtectedObserver for StripeQualificationAdapter {
 pub struct StripeProtectedObserverEnvironment {
     credential: Zeroizing<Vec<u8>>,
     reference: QualificationRunReference,
+}
+
+fn validate_single_applied_refund_truth(
+    truths: &[QualificationProviderTruth],
+    amount: Option<u64>,
+    require_account: bool,
+) -> Result<(), QualificationHarnessError> {
+    const ACCOUNT_SHA256: &str = "43aec9c80a97eb14b852a1a541f81c85eff70c52cadc91963be5ec07b3900730";
+    let [truth] = truths else {
+        return Err(QualificationHarnessError::ProviderTruth);
+    };
+    let facts: StripeProviderTruthFacts = serde_json::from_slice(&truth.domain_facts)
+        .map_err(|_| QualificationHarnessError::ProviderTruth)?;
+    let canonical = serde_json_canonicalizer::to_vec(&facts)
+        .map_err(|_| QualificationHarnessError::ProviderTruth)?;
+    if canonical != truth.domain_facts
+        || truth.effect != QualificationEffect::Applied
+        || truth.provider_calls != 1
+        || !facts.applied
+        || facts
+            .refund_sha256
+            .as_deref()
+            .is_none_or(|value| value.len() != 64)
+        || facts.payment_intent_sha256.len() != 64
+        || facts.currency != "usd"
+        || amount.is_some_and(|expected| facts.amount != expected)
+        || (require_account && facts.account_sha256 != ACCOUNT_SHA256)
+    {
+        return Err(QualificationHarnessError::ProviderTruth);
+    }
+    Ok(())
+}
+
+fn validate_case_attempt_roster(
+    program: &QualificationScenarioProgramV1,
+    operations: &[auths_profile_kit::QualificationRedactedOperation],
+) -> Result<(), QualificationHarnessError> {
+    let attempts = operations
+        .iter()
+        .flat_map(|operation| operation.attempts.iter())
+        .map(|attempt| attempt.case_id.as_str())
+        .collect::<std::collections::BTreeSet<_>>();
+    if attempts.len() != program.cases().len()
+        || program
+            .cases()
+            .iter()
+            .any(|case| !attempts.contains(case.case_id()))
+    {
+        return Err(QualificationHarnessError::ProviderTruth);
+    }
+    Ok(())
+}
+
+fn validate_reconciled_effect(
+    operations: &[auths_profile_kit::QualificationRedactedOperation],
+) -> Result<(), QualificationHarnessError> {
+    let [operation] = operations else {
+        return Err(QualificationHarnessError::ProviderTruth);
+    };
+    let [instance] = operation.instances.as_slice() else {
+        return Err(QualificationHarnessError::ProviderTruth);
+    };
+    if operation.role != QualificationOperationRole::Effect
+        || instance.effect != QualificationEffect::Applied
+        || !instance.reconciled
+        || instance.counters.provider_calls != 1
+    {
+        return Err(QualificationHarnessError::ProviderTruth);
+    }
+    Ok(())
 }
 
 #[derive(Deserialize)]
@@ -964,6 +1059,29 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    fn applied_truth(amount: u64) -> QualificationProviderTruth {
+        let facts = StripeProviderTruthFacts {
+            account_sha256: "43aec9c80a97eb14b852a1a541f81c85eff70c52cadc91963be5ec07b3900730"
+                .into(),
+            payment_intent_sha256: "11".repeat(32),
+            refund_sha256: Some("22".repeat(32)),
+            amount,
+            currency: "usd".into(),
+            applied: true,
+        };
+        let domain_facts = serde_json_canonicalizer::to_vec(&facts).unwrap();
+        QualificationProviderTruth {
+            operation_id: "operation".into(),
+            provider_run_id: "provider".into(),
+            effect: QualificationEffect::Applied,
+            provider_calls: 1,
+            commitment: Sha256::digest(&domain_facts).into(),
+            domain_facts,
+            provider_version: "2026-02-25.clover".into(),
+            provider_artifact_sha256: "33".repeat(32),
+        }
+    }
+
     #[test]
     fn provider_truth_is_commitment_only_and_effect_exact() {
         let facts = json!({
@@ -989,5 +1107,35 @@ mod tests {
             .is_err()
         );
         assert!(validate_provider_truth_facts(&bytes, QualificationEffect::Applied).is_err());
+    }
+
+    #[test]
+    fn executable_stripe_programs_bind_distinct_case_stimuli_and_truth() {
+        let boundary = qualification_scenario_program("stripe-refund-boundary").unwrap();
+        assert_eq!(boundary.cases()[0].stimulus(), "maximum-refund");
+        assert_eq!(boundary.cases()[1].stimulus(), "maximum-plus-one-refund");
+        validate_single_applied_refund_truth(
+            &[applied_truth(100_000_000)],
+            Some(100_000_000),
+            true,
+        )
+        .unwrap();
+        assert!(
+            validate_single_applied_refund_truth(
+                &[applied_truth(100_000_001)],
+                Some(100_000_000),
+                true,
+            )
+            .is_err()
+        );
+
+        let aggregate = qualification_scenario_program("stripe-aggregate-budget").unwrap();
+        assert!(
+            aggregate
+                .cases()
+                .iter()
+                .all(|case| case.stimulus() == "final-capacity-refund")
+        );
+        validate_single_applied_refund_truth(&[applied_truth(2_000)], Some(2_000), true).unwrap();
     }
 }

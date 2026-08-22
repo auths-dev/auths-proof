@@ -832,15 +832,25 @@ impl QualificationProtectedObserver for PostgresqlQualificationAdapter {
     fn validate_domain_scenario(
         &self,
         program: &QualificationScenarioProgramV1,
-        _operations: &[auths_profile_kit::QualificationRedactedOperation],
-        _truths: &[QualificationProviderTruth],
+        operations: &[auths_profile_kit::QualificationRedactedOperation],
+        truths: &[QualificationProviderTruth],
     ) -> Result<(), QualificationHarnessError> {
         if !metadata().scenarios.contains(&program.id()) {
-            Ok(())
-        } else {
-            Err(QualificationHarnessError::PrerequisiteUnavailable(
+            return Ok(());
+        }
+        match program.id() {
+            "postgresql-preflight"
+            | "postgresql-serializable-update"
+            | "postgresql-value-redaction" => {
+                validate_successful_postgresql_pair(operations, truths)
+            }
+            "postgresql-response-loss" => {
+                validate_successful_postgresql_pair(operations, truths)?;
+                validate_reconciled_postgresql_effect(operations)
+            }
+            _ => Err(QualificationHarnessError::PrerequisiteUnavailable(
                 "PostgreSQL scenario predicate is not implemented",
-            ))
+            )),
         }
     }
 
@@ -877,6 +887,89 @@ pub struct PostgresqlProtectedObserverEnvironment {
     reference: QualificationRunReference,
     provider_version: &'static str,
     provider_artifact_sha256: &'static str,
+}
+
+fn validate_successful_postgresql_pair(
+    operations: &[auths_profile_kit::QualificationRedactedOperation],
+    truths: &[QualificationProviderTruth],
+) -> Result<(), QualificationHarnessError> {
+    let [preflight, effect] = operations else {
+        return Err(QualificationHarnessError::ProviderTruth);
+    };
+    if preflight.role != QualificationOperationRole::Preflight
+        || effect.role != QualificationOperationRole::Effect
+        || preflight.instances.len() != 1
+        || effect.instances.len() != 1
+        || truths.len() != 2
+    {
+        return Err(QualificationHarnessError::ProviderTruth);
+    }
+    let preflight_instance = &preflight.instances[0];
+    let effect_instance = &effect.instances[0];
+    let preflight_truth = truths
+        .iter()
+        .find(|truth| truth.operation_id == preflight_instance.operation_id)
+        .ok_or(QualificationHarnessError::ProviderTruth)?;
+    let effect_truth = truths
+        .iter()
+        .find(|truth| truth.operation_id == effect_instance.operation_id)
+        .ok_or(QualificationHarnessError::ProviderTruth)?;
+    let preflight_facts: PostgresqlProviderTruthFacts =
+        serde_json::from_slice(&preflight_truth.domain_facts)
+            .map_err(|_| QualificationHarnessError::ProviderTruth)?;
+    let effect_facts: PostgresqlProviderTruthFacts =
+        serde_json::from_slice(&effect_truth.domain_facts)
+            .map_err(|_| QualificationHarnessError::ProviderTruth)?;
+    if serde_json_canonicalizer::to_vec(&preflight_facts)
+        .map_err(|_| QualificationHarnessError::ProviderTruth)?
+        != preflight_truth.domain_facts
+        || serde_json_canonicalizer::to_vec(&effect_facts)
+            .map_err(|_| QualificationHarnessError::ProviderTruth)?
+            != effect_truth.domain_facts
+        || preflight_truth.effect != QualificationEffect::NotApplied
+        || preflight_facts.applied
+        || preflight_facts.transaction_sha256.is_some()
+        || !preflight_facts.rows.is_empty()
+        || effect_truth.effect != QualificationEffect::Applied
+        || !effect_facts.applied
+        || effect_facts
+            .transaction_sha256
+            .as_deref()
+            .is_none_or(|value| !digest(value))
+        || effect_facts.rows.is_empty()
+        || effect_facts
+            .rows
+            .iter()
+            .any(|row| row.after_version != row.before_version.saturating_add(1))
+        || preflight_facts.server_identity_sha256 != effect_facts.server_identity_sha256
+        || preflight_facts.database_sha256 != effect_facts.database_sha256
+        || preflight_facts.ledger_operation_sha256
+            != hex::encode(Sha256::digest(preflight_instance.operation_id.as_bytes()))
+        || effect_facts.ledger_operation_sha256
+            != hex::encode(Sha256::digest(effect_instance.operation_id.as_bytes()))
+    {
+        return Err(QualificationHarnessError::ProviderTruth);
+    }
+    Ok(())
+}
+
+fn validate_reconciled_postgresql_effect(
+    operations: &[auths_profile_kit::QualificationRedactedOperation],
+) -> Result<(), QualificationHarnessError> {
+    let effect = operations
+        .iter()
+        .find(|operation| operation.role == QualificationOperationRole::Effect)
+        .ok_or(QualificationHarnessError::ProviderTruth)?;
+    let [instance] = effect.instances.as_slice() else {
+        return Err(QualificationHarnessError::ProviderTruth);
+    };
+    if !instance.reconciled
+        || instance.effect != QualificationEffect::Applied
+        || instance.counters.provider_calls != 1
+    {
+        return Err(QualificationHarnessError::ProviderTruth);
+    }
+    Ok(())
 }
 
 fn provider_identity(
