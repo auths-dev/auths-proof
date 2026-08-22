@@ -1,19 +1,54 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://auths.dev/spec/v1/profile-qualification-scenarios.schema.json",
-  "title": "Auths profile qualification scenario roster v1",
+  "title": "Auths executable profile qualification scenario programs v2",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "domain", "scenarios"],
+  "required": ["schema", "domain", "programs"],
   "properties": {
-    "schema": {"const": "auths.profile-qualification-scenarios/1"},
+    "schema": {"const": "auths.profile-qualification-scenarios/2"},
     "domain": {"type": "string", "pattern": "^(common|[a-z][a-z0-9-]{0,63})$"},
-    "scenarios": {
+    "programs": {
       "type": "array",
       "minItems": 1,
       "maxItems": 256,
-      "uniqueItems": true,
-      "items": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"}
+      "items": {"$ref": "#/$defs/program"}
+    }
+  },
+  "$defs": {
+    "token": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"},
+    "program": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "cases", "hooks"],
+      "properties": {
+        "id": {"$ref": "#/$defs/token"},
+        "cases": {"type": "array", "minItems": 1, "maxItems": 32, "items": {"$ref": "#/$defs/case"}},
+        "hooks": {"type": "array", "maxItems": 16, "items": {"$ref": "#/$defs/hook"}}
+      }
+    },
+    "case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["caseId", "role", "group", "topology", "expectedOutcome", "expectedEffect", "expectedProviderCalls"],
+      "properties": {
+        "caseId": {"$ref": "#/$defs/token"},
+        "role": {"enum": ["preflight", "effect"]},
+        "group": {"type": "integer", "minimum": 1, "maximum": 255},
+        "topology": {"enum": ["serial", "parallel"]},
+        "expectedOutcome": {"enum": ["denied", "unavailable", "completed", "partial", "not-applied", "recovery-required", "conflict"]},
+        "expectedEffect": {"enum": ["applied", "not-applied", "possible"]},
+        "expectedProviderCalls": {"type": "integer", "minimum": 0, "maximum": 1}
+      }
+    },
+    "hook": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stage", "hook"],
+      "properties": {
+        "stage": {"enum": ["setup", "before-call", "before-provider", "after-provider-before-response", "before-observer", "state-file-corruption"]},
+        "hook": {"$ref": "#/$defs/token"}
+      }
     }
   }
 }

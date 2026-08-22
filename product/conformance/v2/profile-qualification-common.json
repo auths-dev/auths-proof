@@ -1,30 +1,462 @@
 {
-  "schema": "auths.profile-qualification-scenarios/1",
+  "schema": "auths.profile-qualification-scenarios/2",
   "domain": "common",
-  "scenarios": [
-    "boundary-plus-one",
-    "changed-input-conflict",
-    "configuration-mismatch",
-    "connection-substitution",
-    "crash-after-command",
-    "crash-after-decision",
-    "crash-after-entry-marker",
-    "crash-after-execution-receipt",
-    "crash-after-lease",
-    "crash-after-observation",
-    "crash-after-provider-result",
-    "crash-after-request-write",
-    "crash-after-reread",
-    "crash-after-reservation",
-    "crash-after-terminal",
-    "crash-before-decision",
-    "exact-boundary",
-    "happy-path",
-    "malformed-input",
-    "principal-substitution",
-    "provider-denial",
-    "quota-final-capacity",
-    "replay",
-    "stale-evidence"
+  "programs": [
+    {
+      "id": "boundary-plus-one",
+      "cases": [
+        {
+          "caseId": "rejected",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectedOutcome": "unavailable",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        }
+      ],
+      "hooks": []
+    },
+    {
+      "id": "changed-input-conflict",
+      "cases": [
+        {
+          "caseId": "primary",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        },
+        {
+          "caseId": "changed-input",
+          "role": "effect",
+          "group": 2,
+          "topology": "serial",
+          "expectedOutcome": "conflict",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 0
+        }
+      ],
+      "hooks": []
+    },
+    {
+      "id": "configuration-mismatch",
+      "cases": [
+        {
+          "caseId": "rejected",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectedOutcome": "unavailable",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        }
+      ],
+      "hooks": []
+    },
+    {
+      "id": "connection-substitution",
+      "cases": [
+        {
+          "caseId": "rejected",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectedOutcome": "unavailable",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        }
+      ],
+      "hooks": []
+    },
+    {
+      "id": "crash-after-command",
+      "cases": [
+        {
+          "caseId": "primary",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": [
+        {
+          "stage": "before-call",
+          "hook": "crash-after-command"
+        }
+      ]
+    },
+    {
+      "id": "crash-after-decision",
+      "cases": [
+        {
+          "caseId": "primary",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": [
+        {
+          "stage": "before-call",
+          "hook": "crash-after-decision"
+        }
+      ]
+    },
+    {
+      "id": "crash-after-entry-marker",
+      "cases": [
+        {
+          "caseId": "primary",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": [
+        {
+          "stage": "before-call",
+          "hook": "crash-after-entry-marker"
+        }
+      ]
+    },
+    {
+      "id": "crash-after-execution-receipt",
+      "cases": [
+        {
+          "caseId": "primary",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": [
+        {
+          "stage": "before-call",
+          "hook": "crash-after-execution-receipt"
+        }
+      ]
+    },
+    {
+      "id": "crash-after-lease",
+      "cases": [
+        {
+          "caseId": "primary",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": [
+        {
+          "stage": "before-call",
+          "hook": "crash-after-lease"
+        }
+      ]
+    },
+    {
+      "id": "crash-after-observation",
+      "cases": [
+        {
+          "caseId": "primary",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": [
+        {
+          "stage": "before-call",
+          "hook": "crash-after-observation"
+        }
+      ]
+    },
+    {
+      "id": "crash-after-provider-result",
+      "cases": [
+        {
+          "caseId": "primary",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": [
+        {
+          "stage": "before-call",
+          "hook": "crash-after-provider-result"
+        }
+      ]
+    },
+    {
+      "id": "crash-after-request-write",
+      "cases": [
+        {
+          "caseId": "primary",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": [
+        {
+          "stage": "before-call",
+          "hook": "crash-after-request-write"
+        }
+      ]
+    },
+    {
+      "id": "crash-after-reread",
+      "cases": [
+        {
+          "caseId": "primary",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": [
+        {
+          "stage": "before-call",
+          "hook": "crash-after-reread"
+        }
+      ]
+    },
+    {
+      "id": "crash-after-reservation",
+      "cases": [
+        {
+          "caseId": "primary",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": [
+        {
+          "stage": "before-call",
+          "hook": "crash-after-reservation"
+        }
+      ]
+    },
+    {
+      "id": "crash-after-terminal",
+      "cases": [
+        {
+          "caseId": "primary",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": [
+        {
+          "stage": "before-call",
+          "hook": "crash-after-terminal"
+        }
+      ]
+    },
+    {
+      "id": "crash-before-decision",
+      "cases": [
+        {
+          "caseId": "primary",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": [
+        {
+          "stage": "before-call",
+          "hook": "crash-before-decision"
+        }
+      ]
+    },
+    {
+      "id": "exact-boundary",
+      "cases": [
+        {
+          "caseId": "primary",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": []
+    },
+    {
+      "id": "happy-path",
+      "cases": [
+        {
+          "caseId": "primary",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": []
+    },
+    {
+      "id": "malformed-input",
+      "cases": [
+        {
+          "caseId": "rejected",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectedOutcome": "unavailable",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        }
+      ],
+      "hooks": []
+    },
+    {
+      "id": "principal-substitution",
+      "cases": [
+        {
+          "caseId": "rejected",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectedOutcome": "unavailable",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        }
+      ],
+      "hooks": []
+    },
+    {
+      "id": "provider-denial",
+      "cases": [
+        {
+          "caseId": "denied",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectedOutcome": "denied",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        }
+      ],
+      "hooks": []
+    },
+    {
+      "id": "quota-final-capacity",
+      "cases": [
+        {
+          "caseId": "contender-a",
+          "role": "effect",
+          "group": 1,
+          "topology": "parallel",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        },
+        {
+          "caseId": "contender-b",
+          "role": "effect",
+          "group": 1,
+          "topology": "parallel",
+          "expectedOutcome": "unavailable",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        }
+      ],
+      "hooks": []
+    },
+    {
+      "id": "replay",
+      "cases": [
+        {
+          "caseId": "fresh",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        },
+        {
+          "caseId": "replay",
+          "role": "effect",
+          "group": 2,
+          "topology": "serial",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 0
+        }
+      ],
+      "hooks": []
+    },
+    {
+      "id": "stale-evidence",
+      "cases": [
+        {
+          "caseId": "fresh-edge",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        },
+        {
+          "caseId": "stale",
+          "role": "effect",
+          "group": 2,
+          "topology": "serial",
+          "expectedOutcome": "unavailable",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        }
+      ],
+      "hooks": []
+    }
   ]
 }

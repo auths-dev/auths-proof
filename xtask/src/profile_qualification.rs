@@ -957,6 +957,8 @@ fn build_ledger_plan(
     let workload_id_sha256 = required_sha256_env("AUTHS_QUALIFICATION_WORKLOAD_ID_SHA256")?;
     let mut phases = Vec::new();
     for scenario_id in &provider_run.scenario_ids {
+        let scenario_program_sha256 =
+            scenario_program_sha256_at(&repository, &context, &candidate_revision, scenario_id)?;
         let operations = operation_plans
             .get(scenario_id)
             .ok_or_else(|| "provider row scenario has no reviewed operation plan".to_owned())?;
@@ -980,6 +982,7 @@ fn build_ledger_plan(
                 profile: operation.profile.clone(),
                 failpoint: expected_failpoint(scenario_id),
                 operation_plan_sha256: operation_plan_sha256.clone(),
+                scenario_program_sha256: scenario_program_sha256.clone(),
                 credential_requirement: auths_profile_kit::QualificationCredentialRequirementV1 {
                     workload_id_sha256: workload_id_sha256.clone(),
                     provider_kind: connection.provider_kind().to_owned(),
@@ -4049,6 +4052,8 @@ impl ProcessProtectedPhaseRuntime {
         if now < plan.started_at_unix_seconds || now >= plan.deadline_at_unix_seconds {
             return Err("protected phase plan is outside its immutable run interval".into());
         }
+        let domain_context =
+            load_domain_from_git(context.repository, context.domain, &plan.candidate_revision)?;
         for scenario in context.scenario_ids {
             let operations = context
                 .operation_plans
@@ -4063,7 +4068,20 @@ impl ProcessProtectedPhaseRuntime {
                         phase.scenario_id == *scenario && phase.phase_index == phase_index
                     })
                     .ok_or_else(|| "protected phase is absent from the ledger plan".to_owned())?;
-                if phase.role != operation.role || phase.profile != operation.profile {
+                let operation_plan_sha256 = hex::encode(Sha256::digest(
+                    serde_json_canonicalizer::to_vec(operations).map_err(string_error)?,
+                ));
+                let scenario_program_sha256 = scenario_program_sha256_at(
+                    context.repository,
+                    &domain_context,
+                    &plan.candidate_revision,
+                    scenario,
+                )?;
+                if phase.role != operation.role
+                    || phase.profile != operation.profile
+                    || phase.operation_plan_sha256 != operation_plan_sha256
+                    || phase.scenario_program_sha256 != scenario_program_sha256
+                {
                     return Err("protected phase differs from its reviewed operation plan".into());
                 }
             }
@@ -4275,6 +4293,8 @@ impl ProtectedPhaseRuntime for ProcessProtectedPhaseRuntime {
             .find(|phase| phase.scenario_id == vector.id && phase.phase_index == phase_index)
             .ok_or_else(|| "protected controller phase is absent".to_owned())?;
         if vector.failpoint != phase.failpoint
+            || vector.scenario_program.sha256().map_err(string_error)?
+                != phase.scenario_program_sha256
             || phase.role != planned.role
             || phase.profile != planned.profile
         {
@@ -4453,7 +4473,7 @@ impl ProtectedPhaseRuntime for ProcessProtectedPhaseRuntime {
                 absolute_path_string(&client_result_socket)?,
             )
             .map_err(string_error)?
-            .with_reviewed_phase(vector.id.clone(), phase_index)
+            .with_reviewed_phase(vector.scenario_program.clone(), phase_index)
             .map_err(string_error)?
             .with_installed_client(
                 QualificationInstalledClient::new(
@@ -6009,6 +6029,7 @@ fn read_protected_common_phase_evidence(
         || value.failpoint != commitment.failpoint
         || value.operation_plan_sha256 != operation_plan_sha256
         || value.operation_plan_sha256 != commitment.operation_plan_sha256
+        || value.scenario_program_sha256 != commitment.scenario_program_sha256
         || value.ledger_id != ledger.ledger_id()
         || value.session_nonce_sha256 != ledger.session_nonce_sha256()
         || value.supervisor_generation == 0
@@ -6247,9 +6268,9 @@ fn validate_adapter_metadata(
         || metadata.protected_environment != environment
         || metadata.scenarios
             != domain_scenarios
-                .scenarios()
+                .programs()
                 .iter()
-                .map(String::as_str)
+                .map(auths_profile_kit::QualificationScenarioProgramV1::id)
                 .collect::<Vec<_>>()
     {
         return Err("qualification adapter metadata differs from its reviewed manifest".into());
@@ -10531,6 +10552,39 @@ fn scenario_roster_at(
     )
 }
 
+fn scenario_program_sha256_at(
+    repository: &Path,
+    context: &DomainContext,
+    revision: &str,
+    scenario_id: &str,
+) -> Result<String, String> {
+    let domain_path = format!(
+        "product/integrations/auths-{}/{}",
+        context.package.domain().id(),
+        context.package.qualification().domain_scenarios()
+    );
+    let common = QualificationScenarioManifest::from_json(&git_blob(
+        repository,
+        revision,
+        "product/conformance/v2/profile-qualification-common.json",
+        262_144,
+    )?)
+    .map_err(string_error)?;
+    let domain = QualificationScenarioManifest::from_json(&git_blob(
+        repository,
+        revision,
+        &domain_path,
+        262_144,
+    )?)
+    .map_err(string_error)?;
+    domain
+        .program(scenario_id)
+        .or_else(|| common.program(scenario_id))
+        .ok_or_else(|| "qualification scenario has no executable program".to_owned())?
+        .sha256()
+        .map_err(string_error)
+}
+
 fn scenario_roster_bytes(
     common: &[u8],
     domain: &[u8],
@@ -10542,9 +10596,9 @@ fn scenario_roster_bytes(
         return Err("qualification scenario manifest domain is invalid".into());
     }
     if !common
-        .scenarios()
+        .programs()
         .iter()
-        .map(String::as_str)
+        .map(auths_profile_kit::QualificationScenarioProgramV1::id)
         .eq(COMMON_QUALIFICATION_SCENARIO_IDS.iter().copied())
     {
         return Err(
@@ -10555,9 +10609,9 @@ fn scenario_roster_bytes(
         context.package.domain().id(),
     )?;
     if !domain
-        .scenarios()
+        .programs()
         .iter()
-        .map(String::as_str)
+        .map(auths_profile_kit::QualificationScenarioProgramV1::id)
         .eq(expected_domain.iter().copied())
     {
         return Err(
@@ -10573,8 +10627,17 @@ fn scenario_roster_bytes(
             "protected crash-scenario roster is absent from the common scenario roster".into(),
         );
     }
-    let mut values = common.scenarios().to_vec();
-    values.extend(domain.scenarios().iter().cloned());
+    let mut values = common
+        .programs()
+        .iter()
+        .map(|program| program.id().to_owned())
+        .collect::<Vec<_>>();
+    values.extend(
+        domain
+            .programs()
+            .iter()
+            .map(|program| program.id().to_owned()),
+    );
     values.sort();
     if values.windows(2).any(|pair| pair[0] == pair[1]) {
         return Err("qualification scenario IDs overlap".into());
@@ -11017,8 +11080,8 @@ fn load_requirements(
             || !sorted_unique_tokens(&requirement.live_scenario_ids)
             || requirement.live_scenario_ids.iter().any(|scenario| {
                 domain_scenarios
-                    .scenarios()
-                    .binary_search(scenario)
+                    .programs()
+                    .binary_search_by(|program| program.id().cmp(scenario))
                     .is_err()
             })
             || requirement.crash_point_ids.len() > QUALIFICATION_FAILPOINT_IDS.len()
@@ -11059,7 +11122,12 @@ fn load_requirements(
 
     if covered_requirement_ids != expected_requirement_ids
         || covered_profiles != family.iter().cloned().collect()
-        || covered_scenarios != domain_scenarios.scenarios().iter().cloned().collect()
+        || covered_scenarios
+            != domain_scenarios
+                .programs()
+                .iter()
+                .map(|program| program.id().to_owned())
+                .collect()
         || covered_failpoints
             != failpoint_coverage
                 .boundaries

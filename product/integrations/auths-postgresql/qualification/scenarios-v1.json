@@ -1,16 +1,303 @@
 {
-  "schema": "auths.profile-qualification-scenarios/1",
+  "schema": "auths.profile-qualification-scenarios/2",
   "domain": "postgresql",
-  "scenarios": [
-    "postgresql-later-drift",
-    "postgresql-preflight",
-    "postgresql-response-loss",
-    "postgresql-rls-policy",
-    "postgresql-role-equality",
-    "postgresql-row-boundary",
-    "postgresql-row-drift",
-    "postgresql-serializable-update",
-    "postgresql-transaction-kill",
-    "postgresql-value-redaction"
+  "programs": [
+    {
+      "id": "postgresql-later-drift",
+      "cases": [
+        {
+          "caseId": "preflight",
+          "role": "preflight",
+          "group": 1,
+          "topology": "serial",
+          "expectedOutcome": "completed",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        },
+        {
+          "caseId": "effect",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": [
+        {
+          "stage": "before-observer",
+          "hook": "advance-row-after-ledger"
+        }
+      ]
+    },
+    {
+      "id": "postgresql-preflight",
+      "cases": [
+        {
+          "caseId": "preflight",
+          "role": "preflight",
+          "group": 1,
+          "topology": "serial",
+          "expectedOutcome": "completed",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        },
+        {
+          "caseId": "effect",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": []
+    },
+    {
+      "id": "postgresql-response-loss",
+      "cases": [
+        {
+          "caseId": "preflight",
+          "role": "preflight",
+          "group": 1,
+          "topology": "serial",
+          "expectedOutcome": "completed",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        },
+        {
+          "caseId": "effect",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": [
+        {
+          "stage": "after-provider-before-response",
+          "hook": "suppress-first-response"
+        }
+      ]
+    },
+    {
+      "id": "postgresql-rls-policy",
+      "cases": [
+        {
+          "caseId": "preflight",
+          "role": "preflight",
+          "group": 1,
+          "topology": "serial",
+          "expectedOutcome": "completed",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        },
+        {
+          "caseId": "effect",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": [
+        {
+          "stage": "setup",
+          "hook": "exercise-rls-policy-variants"
+        }
+      ]
+    },
+    {
+      "id": "postgresql-role-equality",
+      "cases": [
+        {
+          "caseId": "preflight",
+          "role": "preflight",
+          "group": 1,
+          "topology": "serial",
+          "expectedOutcome": "completed",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        },
+        {
+          "caseId": "effect",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": [
+        {
+          "stage": "setup",
+          "hook": "exercise-role-trust-variants"
+        }
+      ]
+    },
+    {
+      "id": "postgresql-row-boundary",
+      "cases": [
+        {
+          "caseId": "preflight-maximum",
+          "role": "preflight",
+          "group": 1,
+          "topology": "serial",
+          "expectedOutcome": "completed",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        },
+        {
+          "caseId": "effect-maximum",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        },
+        {
+          "caseId": "preflight-plus-one",
+          "role": "preflight",
+          "group": 2,
+          "topology": "serial",
+          "expectedOutcome": "denied",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        },
+        {
+          "caseId": "effect-plus-one",
+          "role": "effect",
+          "group": 2,
+          "topology": "serial",
+          "expectedOutcome": "unavailable",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        }
+      ],
+      "hooks": []
+    },
+    {
+      "id": "postgresql-row-drift",
+      "cases": [
+        {
+          "caseId": "preflight",
+          "role": "preflight",
+          "group": 1,
+          "topology": "serial",
+          "expectedOutcome": "completed",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        },
+        {
+          "caseId": "effect",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": [
+        {
+          "stage": "before-provider",
+          "hook": "advance-row-before-effect"
+        }
+      ]
+    },
+    {
+      "id": "postgresql-serializable-update",
+      "cases": [
+        {
+          "caseId": "preflight",
+          "role": "preflight",
+          "group": 1,
+          "topology": "serial",
+          "expectedOutcome": "completed",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        },
+        {
+          "caseId": "effect",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": []
+    },
+    {
+      "id": "postgresql-transaction-kill",
+      "cases": [
+        {
+          "caseId": "preflight",
+          "role": "preflight",
+          "group": 1,
+          "topology": "serial",
+          "expectedOutcome": "completed",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        },
+        {
+          "caseId": "effect",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": [
+        {
+          "stage": "before-provider",
+          "hook": "kill-precommit"
+        },
+        {
+          "stage": "after-provider-before-response",
+          "hook": "kill-postcommit"
+        }
+      ]
+    },
+    {
+      "id": "postgresql-value-redaction",
+      "cases": [
+        {
+          "caseId": "preflight",
+          "role": "preflight",
+          "group": 1,
+          "topology": "serial",
+          "expectedOutcome": "completed",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        },
+        {
+          "caseId": "effect",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": [
+        {
+          "stage": "before-observer",
+          "hook": "verify-redaction"
+        }
+      ]
+    }
   ]
 }

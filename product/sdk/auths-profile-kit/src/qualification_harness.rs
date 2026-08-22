@@ -106,7 +106,7 @@ impl QualificationFailpoint {
 }
 
 /// Closed effect truth used by common and domain qualification reports.
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum QualificationEffect {
     /// Independent evidence proves the provider effect did not happen.
@@ -335,6 +335,8 @@ pub struct QualificationSetupHandoffV1 {
 pub struct QualificationSetupVectorV1 {
     /// Stable scenario ID from the reviewed matrix.
     pub id: String,
+    /// Exact executable scenario program committed by the ledger plan.
+    pub scenario_program: crate::QualificationScenarioProgramV1,
     /// Base64url-without-padding encoding of the bounded public SDK input.
     pub input_base64url: String,
     /// Optional closed crash boundary fixed by the reviewed scenario ID.
@@ -481,6 +483,8 @@ pub struct QualificationAdapterMetadata {
 pub struct QualificationVector {
     /// Stable common or domain scenario ID.
     pub id: String,
+    /// Exact reviewed executable scenario program.
+    pub scenario_program: crate::QualificationScenarioProgramV1,
     /// Opaque bounded domain input interpreted only by the static adapter.
     pub input: Vec<u8>,
     /// Optional closed crash boundary selected by the common supervisor.
@@ -663,6 +667,7 @@ pub struct QualificationCommonPhaseEvidence {
     pub profile: String,
     pub failpoint: Option<QualificationFailpoint>,
     pub operation_plan_sha256: String,
+    pub scenario_program_sha256: String,
     pub ledger_id: String,
     pub session_nonce_sha256: String,
     pub supervisor_generation: u32,
@@ -781,7 +786,7 @@ pub fn qualification_pre_admission_attempt_count(scenario_id: &str) -> Option<us
 pub struct QualificationPhaseClient {
     agent_socket: String,
     result_socket: String,
-    scenario_id: Option<String>,
+    scenario_program: Option<crate::QualificationScenarioProgramV1>,
     phase_index: Option<u8>,
     installed: Option<QualificationInstalledClient>,
 }
@@ -841,7 +846,7 @@ impl QualificationPhaseClient {
         Ok(Self {
             agent_socket,
             result_socket,
-            scenario_id: None,
+            scenario_program: None,
             phase_index: None,
             installed: None,
         })
@@ -852,13 +857,16 @@ impl QualificationPhaseClient {
     /// is common harness policy and cannot be selected by a domain adapter.
     pub fn with_reviewed_phase(
         mut self,
-        scenario_id: String,
+        scenario_program: crate::QualificationScenarioProgramV1,
         phase_index: u8,
     ) -> Result<Self, QualificationHarnessError> {
-        if !lower_token(&scenario_id) || !(1..=8).contains(&phase_index) {
+        if !lower_token(scenario_program.id())
+            || scenario_program.sha256().is_err()
+            || !(1..=8).contains(&phase_index)
+        {
             return Err(QualificationHarnessError::InvalidPhaseClient);
         }
-        self.scenario_id = Some(scenario_id);
+        self.scenario_program = Some(scenario_program);
         self.phase_index = Some(phase_index);
         Ok(self)
     }
@@ -898,7 +906,7 @@ impl QualificationPhaseClient {
             .installed
             .as_ref()
             .ok_or(QualificationHarnessError::InvalidPhaseClient)?;
-        if self.scenario_id.is_none() || self.phase_index.is_none() {
+        if self.scenario_program.is_none() || self.phase_index.is_none() {
             return Err(QualificationHarnessError::InvalidPhaseClient);
         }
         installed.invoke(self, connection_alias, canonical_input)
@@ -978,6 +986,15 @@ impl QualificationInstalledClient {
             .phase_index
             .ok_or(QualificationHarnessError::InvalidPhaseClient)?
             .to_string();
+        let scenario_program = phase
+            .scenario_program
+            .as_ref()
+            .ok_or(QualificationHarnessError::InvalidPhaseClient)?;
+        let scenario_program_json = String::from_utf8(
+            serde_json_canonicalizer::to_vec(scenario_program)
+                .map_err(|_| QualificationHarnessError::InvalidPhaseClient)?,
+        )
+        .map_err(|_| QualificationHarnessError::InvalidPhaseClient)?;
         let mut child = std::process::Command::new(&self.python)
             .args([
                 "-I",
@@ -991,11 +1008,9 @@ impl QualificationInstalledClient {
                 &self.input_type,
                 phase.agent_socket(),
                 connection_alias,
-                phase
-                    .scenario_id
-                    .as_deref()
-                    .ok_or(QualificationHarnessError::InvalidPhaseClient)?,
+                scenario_program.id(),
                 &phase_index,
+                &scenario_program_json,
             ])
             .current_dir(&self.working_directory)
             .env_clear()
@@ -1136,8 +1151,11 @@ const INSTALLED_QUALIFICATION_CLIENT: &str = r#"
 import asyncio, copy, dataclasses, importlib, json, sys
 from auths._cbor import encode as encode_cbor
 
-source, module_name, client_name, group_name, method_name, input_name, socket, connection, scenario, phase_index = sys.argv[1:]
+source, module_name, client_name, group_name, method_name, input_name, socket, connection, scenario, phase_index, program_json = sys.argv[1:]
 phase_index = int(phase_index)
+program = json.loads(program_json)
+if program.get("id") != scenario or not isinstance(program.get("cases"), list):
+    raise ValueError("installed-client scenario program differs from selected scenario")
 sys.path.insert(0, source)
 import auths
 module = importlib.import_module(module_name)
@@ -1435,12 +1453,108 @@ pub trait QualificationProtectedObserver {
         claims: &[QualificationCommonReceiptClaims],
     ) -> Result<(), QualificationHarnessError>;
 
+    /// Exact-validates one executable scenario program after all common and
+    /// independently observed provider facts have been authenticated.
+    fn validate_scenario_program(
+        &self,
+        environment: &Self::Environment,
+        program: &crate::QualificationScenarioProgramV1,
+        operations: &[QualificationRedactedOperation],
+        truths: &[QualificationProviderTruth],
+    ) -> Result<(), QualificationHarnessError>;
+
     /// Destroys every provider resource and credential, proving cleanup.
     fn cleanup(
         &self,
         context: &QualificationRunContext,
         reference: Option<&QualificationRunReference>,
     ) -> Result<QualificationCleanupEvidence, QualificationHarnessError>;
+}
+
+/// Validates the provider-independent projection of one executable scenario.
+/// Domain adapters call this first, then enforce their hook-specific facts.
+pub fn validate_scenario_program_projection(
+    program: &crate::QualificationScenarioProgramV1,
+    operations: &[QualificationRedactedOperation],
+    truths: &[QualificationProviderTruth],
+) -> Result<(), QualificationHarnessError> {
+    if operations.is_empty()
+        || operations.len() > 8
+        || truths.is_empty()
+        || truths.len() > 32
+        || truths
+            .windows(2)
+            .any(|pair| pair[0].operation_id >= pair[1].operation_id)
+    {
+        return Err(QualificationHarnessError::ProviderTruth);
+    }
+    let mut projected_provider_calls = 0_u32;
+    for operation in operations {
+        operation.validate()?;
+        let cases = program
+            .cases()
+            .iter()
+            .filter(|case| case.role() == operation.role)
+            .collect::<Vec<_>>();
+        if cases.is_empty() {
+            return Err(QualificationHarnessError::ProviderTruth);
+        }
+        let expected_outcomes = cases
+            .iter()
+            .map(|case| case.expected_outcome())
+            .collect::<Vec<_>>();
+        let actual_outcomes = operation
+            .attempts
+            .iter()
+            .map(|attempt| attempt.outcome)
+            .collect::<Vec<_>>();
+        let crash_program = program.id().starts_with("crash-");
+        if !crash_program && actual_outcomes != expected_outcomes {
+            return Err(QualificationHarnessError::ProviderTruth);
+        }
+        let expected_effects = cases
+            .iter()
+            .map(|case| case.expected_effect())
+            .collect::<std::collections::BTreeSet<_>>();
+        let actual_effects = operation
+            .instances
+            .iter()
+            .map(|instance| instance.effect)
+            .collect::<std::collections::BTreeSet<_>>();
+        if expected_effects != actual_effects {
+            return Err(QualificationHarnessError::ProviderTruth);
+        }
+        let expected_calls = cases.iter().try_fold(0_u32, |total, case| {
+            total.checked_add(case.expected_provider_calls())
+        });
+        let actual_calls = operation
+            .instances
+            .iter()
+            .try_fold(0_u32, |total, instance| {
+                total.checked_add(instance.counters.provider_calls)
+            });
+        if expected_calls.is_none() || expected_calls != actual_calls {
+            return Err(QualificationHarnessError::ProviderTruth);
+        }
+        projected_provider_calls = projected_provider_calls
+            .checked_add(actual_calls.unwrap_or_default())
+            .ok_or(QualificationHarnessError::ProviderTruth)?;
+    }
+    let truth_calls = truths.iter().try_fold(0_u32, |total, truth| {
+        total.checked_add(truth.provider_calls)
+    });
+    if truth_calls != Some(projected_provider_calls)
+        || truths.iter().any(|truth| {
+            operations.iter().all(|operation| {
+                operation.instances.iter().all(|instance| {
+                    instance.operation_id != truth.operation_id || instance.effect != truth.effect
+                })
+            })
+        })
+    {
+        return Err(QualificationHarnessError::ProviderTruth);
+    }
+    Ok(())
 }
 
 impl QualificationAdapterMetadata {
@@ -1474,7 +1588,11 @@ impl QualificationAdapterMetadata {
 impl QualificationVector {
     /// Validates one domain vector before application or provider I/O.
     pub fn validate(&self) -> Result<(), QualificationHarnessError> {
-        if !registered_token(&self.id) || self.input.len() > MAX_VECTOR_BYTES {
+        if !registered_token(&self.id)
+            || self.scenario_program.id() != self.id
+            || self.scenario_program.sha256().is_err()
+            || self.input.len() > MAX_VECTOR_BYTES
+        {
             return Err(QualificationHarnessError::Limit);
         }
         Ok(())
@@ -1518,6 +1636,7 @@ impl QualificationSetupVectorV1 {
         }
         let vector = QualificationVector {
             id: self.id.clone(),
+            scenario_program: self.scenario_program.clone(),
             input,
             failpoint: self.failpoint,
         };
@@ -2241,6 +2360,12 @@ mod tests {
 
     #[test]
     fn phase_client_requires_one_absolute_sibling_socket_pair() {
+        let common = crate::QualificationScenarioManifest::from_json(include_bytes!(
+            "../../../conformance/v2/profile-qualification-common.json"
+        ))
+        .unwrap();
+        let conflict = common.program("changed-input-conflict").unwrap().clone();
+        let happy = common.program("happy-path").unwrap().clone();
         let client = QualificationPhaseClient::new(
             "/run/auths/phase/client.sock".into(),
             "/run/auths/phase/result.sock".into(),
@@ -2248,21 +2373,17 @@ mod tests {
         .unwrap();
         assert_eq!(client.agent_socket(), "/run/auths/phase/client.sock");
         assert_eq!(client.result_socket(), "/run/auths/phase/result.sock");
-        let reviewed = client
-            .clone()
-            .with_reviewed_phase("changed-input-conflict".into(), 2)
-            .unwrap();
+        let reviewed = client.clone().with_reviewed_phase(conflict, 2).unwrap();
         assert_eq!(
-            reviewed.scenario_id.as_deref(),
+            reviewed
+                .scenario_program
+                .as_ref()
+                .map(crate::QualificationScenarioProgramV1::id),
             Some("changed-input-conflict")
         );
         assert_eq!(reviewed.phase_index, Some(2));
         assert_eq!(
-            client.clone().with_reviewed_phase("UPPER".into(), 1),
-            Err(QualificationHarnessError::InvalidPhaseClient)
-        );
-        assert_eq!(
-            client.with_reviewed_phase("happy-path".into(), 0),
+            client.with_reviewed_phase(happy, 0),
             Err(QualificationHarnessError::InvalidPhaseClient)
         );
         assert_eq!(

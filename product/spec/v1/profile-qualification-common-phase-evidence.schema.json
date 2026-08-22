@@ -4,7 +4,7 @@
   "x-auths-semanticValidator": "profile-qualification-common-phase-evidence/1",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "repositoryId", "workflowRunId", "workflowRunAttempt", "candidateRevision", "domain", "target", "protectedEnvironment", "providerRunId", "scenarioId", "phaseIndex", "role", "profile", "failpoint", "operationPlanSha256", "ledgerId", "sessionNonceSha256", "supervisorGeneration", "firstEventSequence", "lastEventSequence", "instances", "attempts"],
+  "required": ["schema", "repositoryId", "workflowRunId", "workflowRunAttempt", "candidateRevision", "domain", "target", "protectedEnvironment", "providerRunId", "scenarioId", "phaseIndex", "role", "profile", "failpoint", "operationPlanSha256", "scenarioProgramSha256", "ledgerId", "sessionNonceSha256", "supervisorGeneration", "firstEventSequence", "lastEventSequence", "instances", "attempts"],
   "properties": {
     "schema": {"const": "auths.profile-qualification-common-phase-evidence/1"},
     "repositoryId": {"$ref": "profile-qualification.schema.json#/$defs/decimal32"},
@@ -21,6 +21,7 @@
     "profile": {"$ref": "profile-qualification.schema.json#/$defs/semanticSubject"},
     "failpoint": {"$ref": "profile-qualification-report-common.schema.json#/$defs/nullableFailpoint"},
     "operationPlanSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "scenarioProgramSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
     "ledgerId": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
     "sessionNonceSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
     "supervisorGeneration": {"type": "integer", "minimum": 1, "maximum": 4294967295},

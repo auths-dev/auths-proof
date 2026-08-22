@@ -1,14 +1,274 @@
 {
-  "schema": "auths.profile-qualification-scenarios/1",
+  "schema": "auths.profile-qualification-scenarios/2",
   "domain": "stripe",
-  "scenarios": [
-    "stripe-account-equality",
-    "stripe-aggregate-budget",
-    "stripe-api-version",
-    "stripe-existing-refund",
-    "stripe-redaction",
-    "stripe-refund-boundary",
-    "stripe-refundable-drift",
-    "stripe-timeout-after-write"
+  "programs": [
+    {
+      "id": "stripe-account-equality",
+      "cases": [
+        {
+          "caseId": "primary",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": [
+        {
+          "stage": "setup",
+          "hook": "bind-account"
+        }
+      ]
+    },
+    {
+      "id": "stripe-aggregate-budget",
+      "cases": [
+        {
+          "caseId": "contender-a",
+          "role": "effect",
+          "group": 1,
+          "topology": "parallel",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        },
+        {
+          "caseId": "contender-b",
+          "role": "effect",
+          "group": 1,
+          "topology": "parallel",
+          "expectedOutcome": "unavailable",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        }
+      ],
+      "hooks": []
+    },
+    {
+      "id": "stripe-api-version",
+      "cases": [
+        {
+          "caseId": "primary",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": [
+        {
+          "stage": "before-provider",
+          "hook": "verify-api-version"
+        }
+      ]
+    },
+    {
+      "id": "stripe-command-bound-reread",
+      "cases": [
+        {
+          "caseId": "primary",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": [
+        {
+          "stage": "before-provider",
+          "hook": "command-bound-reread"
+        }
+      ]
+    },
+    {
+      "id": "stripe-evidence-read-count",
+      "cases": [
+        {
+          "caseId": "primary",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": [
+        {
+          "stage": "before-observer",
+          "hook": "verify-evidence-read-count"
+        }
+      ]
+    },
+    {
+      "id": "stripe-existing-refund",
+      "cases": [
+        {
+          "caseId": "primary",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": [
+        {
+          "stage": "setup",
+          "hook": "create-unrelated-refund"
+        },
+        {
+          "stage": "after-provider-before-response",
+          "hook": "force-reconcile"
+        }
+      ]
+    },
+    {
+      "id": "stripe-preparation-evidence-lease",
+      "cases": [
+        {
+          "caseId": "unauthorized",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectedOutcome": "unavailable",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        },
+        {
+          "caseId": "expired",
+          "role": "effect",
+          "group": 2,
+          "topology": "serial",
+          "expectedOutcome": "unavailable",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        },
+        {
+          "caseId": "cross-binding",
+          "role": "effect",
+          "group": 3,
+          "topology": "serial",
+          "expectedOutcome": "conflict",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        },
+        {
+          "caseId": "fresh",
+          "role": "effect",
+          "group": 4,
+          "topology": "serial",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        },
+        {
+          "caseId": "exact-replay",
+          "role": "effect",
+          "group": 5,
+          "topology": "serial",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 0
+        }
+      ],
+      "hooks": [
+        {
+          "stage": "before-call",
+          "hook": "exercise-preparation-lease"
+        }
+      ]
+    },
+    {
+      "id": "stripe-redaction",
+      "cases": [
+        {
+          "caseId": "primary",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": [
+        {
+          "stage": "before-observer",
+          "hook": "verify-redaction"
+        }
+      ]
+    },
+    {
+      "id": "stripe-refund-boundary",
+      "cases": [
+        {
+          "caseId": "maximum",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        },
+        {
+          "caseId": "maximum-plus-one",
+          "role": "effect",
+          "group": 2,
+          "topology": "serial",
+          "expectedOutcome": "denied",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        }
+      ],
+      "hooks": []
+    },
+    {
+      "id": "stripe-refundable-drift",
+      "cases": [
+        {
+          "caseId": "primary",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": [
+        {
+          "stage": "before-provider",
+          "hook": "reduce-refundable-amount"
+        }
+      ]
+    },
+    {
+      "id": "stripe-timeout-after-write",
+      "cases": [
+        {
+          "caseId": "primary",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": [
+        {
+          "stage": "after-provider-before-response",
+          "hook": "suppress-first-response"
+        }
+      ]
+    }
   ]
 }

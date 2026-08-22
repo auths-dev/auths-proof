@@ -6,6 +6,9 @@
 #![allow(clippy::case_sensitive_file_extension_comparisons)]
 
 use crate::manifest::{lower_token, safe_path, semantic_id};
+use crate::qualification_harness::{
+    QualificationEffect, QualificationOperationRole, QualificationOutcomeKind,
+};
 use base64ct::{Base64UrlUnpadded, Encoding as _};
 use ed25519_dalek::{Signature, Signer as _, SigningKey, VerifyingKey};
 use serde::{Deserialize, Serialize};
@@ -361,7 +364,60 @@ pub struct QualificationScenario {
 pub struct QualificationScenarioManifest {
     schema: String,
     domain: String,
-    scenarios: Vec<String>,
+    programs: Vec<QualificationScenarioProgramV1>,
+}
+
+/// One immutable executable qualification scenario contract.
+///
+/// Common orchestration owns only the closed case topology and hook schedule;
+/// provider meaning remains in the generated static domain adapter.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct QualificationScenarioProgramV1 {
+    id: String,
+    cases: Vec<QualificationScenarioCaseV1>,
+    hooks: Vec<QualificationScenarioHookV1>,
+}
+
+/// One installed-client case in an executable scenario program.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct QualificationScenarioCaseV1 {
+    case_id: String,
+    role: QualificationOperationRole,
+    group: u8,
+    topology: QualificationScenarioTopology,
+    expected_outcome: QualificationOutcomeKind,
+    expected_effect: QualificationEffect,
+    expected_provider_calls: u32,
+}
+
+/// Closed execution topology for cases in the same group.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum QualificationScenarioTopology {
+    Serial,
+    Parallel,
+}
+
+/// Closed protected hook stages. The domain-owned hook token fixes meaning.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct QualificationScenarioHookV1 {
+    stage: QualificationScenarioHookStage,
+    hook: String,
+}
+
+/// Protected owners at which a reviewed domain hook may execute.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum QualificationScenarioHookStage {
+    Setup,
+    BeforeCall,
+    BeforeProvider,
+    AfterProviderBeforeResponse,
+    BeforeObserver,
+    StateFileCorruption,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -1594,21 +1650,21 @@ impl QualificationScenarioManifest {
         }
         let manifest: Self =
             serde_json::from_slice(bytes).map_err(|_| QualificationError::Malformed)?;
-        if manifest.schema != "auths.profile-qualification-scenarios/1"
+        if manifest.schema != "auths.profile-qualification-scenarios/2"
             || (manifest.domain != "common" && !lower_token(&manifest.domain))
-            || manifest.scenarios.is_empty()
-            || manifest.scenarios.len() > 256
+            || manifest.programs.is_empty()
+            || manifest.programs.len() > 256
         {
             return Err(QualificationError::InvalidScenarios);
         }
         let mut previous: Option<&str> = None;
-        for scenario in &manifest.scenarios {
-            if !registered_token(scenario)
-                || previous.is_some_and(|value| value >= scenario.as_str())
+        for program in &manifest.programs {
+            if program.validate().is_err()
+                || previous.is_some_and(|value| value >= program.id.as_str())
             {
                 return Err(QualificationError::InvalidScenarios);
             }
-            previous = Some(scenario);
+            previous = Some(&program.id);
         }
         Ok(manifest)
     }
@@ -1621,9 +1677,182 @@ impl QualificationScenarioManifest {
 
     /// Returns the byte-sorted scenario IDs.
     #[must_use]
-    pub fn scenarios(&self) -> &[String] {
-        &self.scenarios
+    pub fn programs(&self) -> &[QualificationScenarioProgramV1] {
+        &self.programs
     }
+
+    /// Looks up one exact executable scenario contract.
+    #[must_use]
+    pub fn program(&self, id: &str) -> Option<&QualificationScenarioProgramV1> {
+        self.programs
+            .binary_search_by(|program| program.id.as_str().cmp(id))
+            .ok()
+            .map(|index| &self.programs[index])
+    }
+}
+
+/// Resolves one domain or common executable scenario and returns its exact
+/// canonical commitment. Domain programs cannot shadow common IDs.
+pub fn qualification_scenario_program_sha256(
+    common_bytes: &[u8],
+    domain_bytes: &[u8],
+    expected_domain: &str,
+    scenario_id: &str,
+) -> Result<String, QualificationError> {
+    qualification_scenario_program(common_bytes, domain_bytes, expected_domain, scenario_id)?
+        .sha256()
+}
+
+/// Resolves and clones one exact executable scenario program.
+pub fn qualification_scenario_program(
+    common_bytes: &[u8],
+    domain_bytes: &[u8],
+    expected_domain: &str,
+    scenario_id: &str,
+) -> Result<QualificationScenarioProgramV1, QualificationError> {
+    let common = QualificationScenarioManifest::from_json(common_bytes)?;
+    let domain = QualificationScenarioManifest::from_json(domain_bytes)?;
+    if common.domain != "common"
+        || domain.domain != expected_domain
+        || !lower_token(expected_domain)
+        || common
+            .programs
+            .iter()
+            .any(|program| domain.program(&program.id).is_some())
+    {
+        return Err(QualificationError::InvalidScenarios);
+    }
+    Ok(domain
+        .program(scenario_id)
+        .or_else(|| common.program(scenario_id))
+        .ok_or(QualificationError::InvalidScenarios)?
+        .clone())
+}
+
+impl QualificationScenarioProgramV1 {
+    fn validate(&self) -> Result<(), QualificationError> {
+        if !registered_token(&self.id)
+            || self.cases.is_empty()
+            || self.cases.len() > 32
+            || self.hooks.len() > 16
+            || !self.cases.windows(2).all(|pair| {
+                (pair[0].group, pair[0].role, pair[0].case_id.as_str())
+                    < (pair[1].group, pair[1].role, pair[1].case_id.as_str())
+            })
+            || self.cases.iter().any(|case| {
+                !registered_token(&case.case_id)
+                    || case.group == 0
+                    || case.expected_provider_calls > 1
+            })
+            || !self
+                .hooks
+                .windows(2)
+                .all(|pair| hook_order(&pair[0]) < hook_order(&pair[1]))
+            || self.hooks.iter().any(|hook| !registered_token(&hook.hook))
+        {
+            return Err(QualificationError::InvalidScenarios);
+        }
+        for group in self.cases.iter().map(|case| case.group) {
+            let mut cases = self.cases.iter().filter(|case| case.group == group);
+            let Some(first) = cases.next() else {
+                return Err(QualificationError::InvalidScenarios);
+            };
+            if cases.any(|case| case.topology != first.topology)
+                || (first.topology == QualificationScenarioTopology::Parallel
+                    && self.cases.iter().filter(|case| case.group == group).count() < 2)
+            {
+                return Err(QualificationError::InvalidScenarios);
+            }
+        }
+        Ok(())
+    }
+
+    /// Stable scenario ID.
+    #[must_use]
+    pub fn id(&self) -> &str {
+        &self.id
+    }
+
+    /// Ordered installed-client case roster.
+    #[must_use]
+    pub fn cases(&self) -> &[QualificationScenarioCaseV1] {
+        &self.cases
+    }
+
+    /// Ordered protected hook schedule.
+    #[must_use]
+    pub fn hooks(&self) -> &[QualificationScenarioHookV1] {
+        &self.hooks
+    }
+
+    /// SHA-256 of this exact canonical executable contract.
+    pub fn sha256(&self) -> Result<String, QualificationError> {
+        self.validate()?;
+        let canonical =
+            serde_json_canonicalizer::to_vec(self).map_err(|_| QualificationError::Malformed)?;
+        Ok(hex::encode(Sha256::digest(canonical)))
+    }
+}
+
+impl QualificationScenarioCaseV1 {
+    #[must_use]
+    pub fn case_id(&self) -> &str {
+        &self.case_id
+    }
+
+    #[must_use]
+    pub const fn role(&self) -> QualificationOperationRole {
+        self.role
+    }
+
+    #[must_use]
+    pub const fn group(&self) -> u8 {
+        self.group
+    }
+
+    #[must_use]
+    pub const fn topology(&self) -> QualificationScenarioTopology {
+        self.topology
+    }
+
+    #[must_use]
+    pub const fn expected_outcome(&self) -> QualificationOutcomeKind {
+        self.expected_outcome
+    }
+
+    #[must_use]
+    pub const fn expected_effect(&self) -> QualificationEffect {
+        self.expected_effect
+    }
+
+    #[must_use]
+    pub const fn expected_provider_calls(&self) -> u32 {
+        self.expected_provider_calls
+    }
+}
+
+impl QualificationScenarioHookV1 {
+    #[must_use]
+    pub const fn stage(&self) -> QualificationScenarioHookStage {
+        self.stage
+    }
+
+    #[must_use]
+    pub fn hook(&self) -> &str {
+        &self.hook
+    }
+}
+
+fn hook_order(hook: &QualificationScenarioHookV1) -> (u8, &str) {
+    let stage = match hook.stage {
+        QualificationScenarioHookStage::Setup => 0,
+        QualificationScenarioHookStage::BeforeCall => 1,
+        QualificationScenarioHookStage::BeforeProvider => 2,
+        QualificationScenarioHookStage::AfterProviderBeforeResponse => 3,
+        QualificationScenarioHookStage::BeforeObserver => 4,
+        QualificationScenarioHookStage::StateFileCorruption => 5,
+    };
+    (stage, hook.hook.as_str())
 }
 
 impl QualificationReceiptVerification {

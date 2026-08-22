@@ -388,6 +388,14 @@ Repository-controlled work implemented in the current tree:
 
 Repository-controlled work still required for completion:
 
+- bind every domain scenario to one protected immutable stimulus and an exact
+  domain-owned outcome predicate; swapped, omitted, or happy-path-substituted
+  scenario semantics must fail final verification;
+- route every OpenTofu subprocess through the reviewed Linux namespace,
+  filesystem, egress, seccomp, cgroup, pinned-executable, and process-tree
+  cleanup policy, with hostile escape and timeout tests;
+- compile and exercise a generated fourth provider through the full
+  qualification lifecycle, not merely the scaffold/roster projection;
 - run the provider-free denied-phase Linux integration through final staging,
   assembly, sealing, and fresh attestation verification;
 - add Linux process tests for all twelve crash boundaries, including

@@ -559,6 +559,7 @@ fn stage_common_phases(arguments: &[String]) -> Result<(), String> {
             profile: phase.profile.clone(),
             failpoint: phase.failpoint,
             operation_plan_sha256: phase.operation_plan_sha256.clone(),
+            scenario_program_sha256: phase.scenario_program_sha256.clone(),
             ledger_id: plan.ledger_id.clone(),
             session_nonce_sha256: plan.session_nonce_sha256.clone(),
             supervisor_generation,
@@ -3069,6 +3070,7 @@ fn assemble_ledger(arguments: &[String]) -> Result<(), String> {
             || projection.operation_plan_sha256 != phase.operation_plan_sha256
             || projection.ledger_id != plan.ledger_id
             || projection.session_nonce_sha256 != plan.session_nonce_sha256
+            || projection.scenario_program_sha256 != phase.scenario_program_sha256
             || projection.first_event_sequence != first_sequence
             || projection.last_event_sequence != last_sequence
             || projection.attempts.is_empty()
@@ -3093,6 +3095,7 @@ fn assemble_ledger(arguments: &[String]) -> Result<(), String> {
             profile: phase.profile.clone(),
             failpoint: phase.failpoint,
             operation_plan_sha256: phase.operation_plan_sha256.clone(),
+            scenario_program_sha256: phase.scenario_program_sha256.clone(),
             credential_requirement: phase.credential_requirement.clone(),
             common_phase_evidence_sha256: hex::encode(Sha256::digest(&phase_bytes)),
             first_event_sequence: first_sequence,

@@ -1809,6 +1809,7 @@ mod linux {
                 role: self.policy.phase.role,
                 profile: self.policy.phase.profile.clone(),
                 operation_plan_sha256: self.policy.phase.operation_plan_sha256.clone(),
+                scenario_program_sha256: self.policy.phase.scenario_program_sha256.clone(),
                 failpoint: self.policy.phase.failpoint,
                 supervisor_controller_uid: self.policy.plan.supervisor_controller_uid,
                 supervisor_source_uid: supervisor_uid,

@@ -22,11 +22,13 @@ pub use qualification::{
     QualificationObservationRecord, QualificationObserverTrustRegistry, QualificationProfile,
     QualificationProposal, QualificationProtectedObservation, QualificationProviderCallCount,
     QualificationProviderRun, QualificationRecord, QualificationReleaseBuild,
-    QualificationReleaseBuildArtifact, QualificationScenario, QualificationScenarioManifest,
-    QualificationTarget, QualificationTrustIdentity, QualificationTrustKey,
-    QualificationTrustRegistry, QualificationVerifiedRecordBinding, VerifiedQualification,
-    VerifiedQualificationObservation, validate_qualification_key_separation,
-    validate_qualification_trust_separation,
+    QualificationReleaseBuildArtifact, QualificationScenario, QualificationScenarioCaseV1,
+    QualificationScenarioHookStage, QualificationScenarioHookV1, QualificationScenarioManifest,
+    QualificationScenarioProgramV1, QualificationScenarioTopology, QualificationTarget,
+    QualificationTrustIdentity, QualificationTrustKey, QualificationTrustRegistry,
+    QualificationVerifiedRecordBinding, VerifiedQualification, VerifiedQualificationObservation,
+    qualification_scenario_program, qualification_scenario_program_sha256,
+    validate_qualification_key_separation, validate_qualification_trust_separation,
 };
 pub use qualification_harness::{
     QualificationAdapterMetadata, QualificationAttemptKind, QualificationCandidateCollectionV1,
@@ -42,7 +44,7 @@ pub use qualification_harness::{
     QualificationReceiptState, QualificationRedactedAttempt, QualificationRedactedOperation,
     QualificationRedactedOperationInstance, QualificationRunContext, QualificationRunReference,
     QualificationSetupHandoffV1, QualificationSetupVectorV1, QualificationVector,
-    qualification_pre_admission_attempt_count,
+    qualification_pre_admission_attempt_count, validate_scenario_program_projection,
 };
 pub use qualification_ledger::{
     QualificationAdmissionFaultV1, QualificationAgentTrust, QualificationClientBridgeBindingV1,

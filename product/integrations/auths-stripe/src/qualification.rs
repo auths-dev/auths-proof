@@ -12,8 +12,9 @@ use auths_profile_kit::{
     QualificationCommonReceiptClaims, QualificationEffect, QualificationHarnessError,
     QualificationOperationRole, QualificationPhaseClient, QualificationProtectedObserver,
     QualificationProtectedSetup, QualificationProtectedSetupInput, QualificationProviderTruth,
-    QualificationRunContext, QualificationRunReference, QualificationSetupHandoffV1,
-    QualificationTarget, QualificationVector,
+    QualificationRunContext, QualificationRunReference, QualificationScenarioProgramV1,
+    QualificationSetupHandoffV1, QualificationTarget, QualificationVector,
+    qualification_scenario_program,
 };
 use auths_profile_runtime::{ProfileReceiptInspection, ProfileRuntimeError};
 use auths_stores::JournalRecordV1;
@@ -159,7 +160,7 @@ pub fn qualification_requirement_ids() -> &'static [&'static str] {
 /// SHA-256 of the exact canonical v1 requirement inventory bytes.
 #[must_use]
 pub const fn qualification_requirements_sha256() -> &'static str {
-    "e3940fc87de1da106916614c91c0609656acf8db29a2f0dd2b25cd6bb2b44748"
+    "3b7ed3724993ce56813aa547b530dfeeea616a1ffae005b1d7b06d0f25278082"
 }
 
 /// Exact public receipt-claim roster required by the v1 Stripe family.
@@ -310,12 +311,25 @@ const SCENARIOS: &[&str] = &[
     "stripe-account-equality",
     "stripe-aggregate-budget",
     "stripe-api-version",
+    "stripe-command-bound-reread",
+    "stripe-evidence-read-count",
     "stripe-existing-refund",
+    "stripe-preparation-evidence-lease",
     "stripe-redaction",
     "stripe-refund-boundary",
     "stripe-refundable-drift",
     "stripe-timeout-after-write",
 ];
+
+fn scenario_program(id: &str) -> Result<QualificationScenarioProgramV1, QualificationHarnessError> {
+    qualification_scenario_program(
+        include_bytes!("../../../conformance/v2/profile-qualification-common.json"),
+        include_bytes!("../qualification/scenarios-v1.json"),
+        "stripe",
+        id,
+    )
+    .map_err(|_| QualificationHarnessError::InvalidMetadata)
+}
 
 #[must_use]
 pub const fn qualification_domain_scenario_ids() -> &'static [&'static str] {
@@ -480,6 +494,7 @@ async fn stripe_setup(
         .map_err(|_| QualificationHarnessError::Onboarding)?;
         vectors.push(auths_profile_kit::QualificationSetupVectorV1 {
             id: scenario_id.clone(),
+            scenario_program: scenario_program(scenario_id)?,
             input_base64url: Base64UrlUnpadded::encode_string(&vector),
             failpoint: scenario_id
                 .strip_prefix("crash-")
@@ -650,6 +665,16 @@ impl QualificationProtectedObserver for StripeQualificationAdapter {
             return Err(QualificationHarnessError::Receipt);
         }
         Ok(())
+    }
+
+    fn validate_scenario_program(
+        &self,
+        _environment: &StripeProtectedObserverEnvironment,
+        program: &QualificationScenarioProgramV1,
+        operations: &[auths_profile_kit::QualificationRedactedOperation],
+        truths: &[QualificationProviderTruth],
+    ) -> Result<(), QualificationHarnessError> {
+        auths_profile_kit::validate_scenario_program_projection(program, operations, truths)
     }
 
     fn cleanup(

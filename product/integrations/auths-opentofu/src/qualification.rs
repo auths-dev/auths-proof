@@ -8,8 +8,9 @@ use auths_profile_kit::{
     QualificationCommonReceiptClaims, QualificationEffect, QualificationHarnessError,
     QualificationOperationRole, QualificationPhaseClient, QualificationProtectedObserver,
     QualificationProtectedSetup, QualificationProtectedSetupInput, QualificationProviderTruth,
-    QualificationRunContext, QualificationRunReference, QualificationSetupHandoffV1,
-    QualificationTarget, QualificationVector, qualification_pre_admission_attempt_count,
+    QualificationRunContext, QualificationRunReference, QualificationScenarioProgramV1,
+    QualificationSetupHandoffV1, QualificationTarget, QualificationVector,
+    qualification_pre_admission_attempt_count, qualification_scenario_program,
 };
 use auths_profile_runtime::{ProfileReceiptInspection, ProfileRuntimeError};
 use auths_stores::JournalRecordV1;
@@ -517,6 +518,16 @@ pub const fn qualification_domain_scenario_ids() -> &'static [&'static str] {
     SCENARIOS
 }
 
+fn scenario_program(id: &str) -> Result<QualificationScenarioProgramV1, QualificationHarnessError> {
+    qualification_scenario_program(
+        include_bytes!("../../../conformance/v2/profile-qualification-common.json"),
+        include_bytes!("../qualification/scenarios-v1.json"),
+        "opentofu",
+        id,
+    )
+    .map_err(|_| QualificationHarnessError::InvalidMetadata)
+}
+
 /// Qualification-only OpenTofu adapter over the installed generated client.
 pub struct OpentofuQualificationAdapter;
 
@@ -688,6 +699,7 @@ impl QualificationProtectedSetup for OpentofuQualificationAdapter {
                 .map_err(|_| QualificationHarnessError::Onboarding)?;
             vectors.push(auths_profile_kit::QualificationSetupVectorV1 {
                 id: scenario_id.clone(),
+                scenario_program: scenario_program(scenario_id)?,
                 input_base64url: Base64UrlUnpadded::encode_string(&bytes),
                 failpoint: scenario_id
                     .strip_prefix("crash-")
@@ -931,6 +943,16 @@ impl QualificationProtectedObserver for OpentofuQualificationAdapter {
             return Err(QualificationHarnessError::Receipt);
         }
         Ok(())
+    }
+
+    fn validate_scenario_program(
+        &self,
+        _environment: &OpentofuProtectedObserverEnvironment,
+        program: &QualificationScenarioProgramV1,
+        operations: &[auths_profile_kit::QualificationRedactedOperation],
+        truths: &[QualificationProviderTruth],
+    ) -> Result<(), QualificationHarnessError> {
+        auths_profile_kit::validate_scenario_program_projection(program, operations, truths)
     }
 
     fn cleanup(

@@ -842,6 +842,7 @@ pub struct QualificationJournalDecisionContextRecord {
     pub role: QualificationOperationRole,
     pub profile: String,
     pub operation_plan_sha256: String,
+    pub scenario_program_sha256: String,
     pub failpoint: Option<QualificationFailpoint>,
     pub supervisor_controller_uid: u32,
     pub supervisor_source_uid: u32,
@@ -957,6 +958,7 @@ impl QualificationCrashPhaseContextV1 {
             || !(1..=8).contains(&self.phase.phase_index)
             || !semantic_profile(&self.phase.profile)
             || !digest(&self.phase.operation_plan_sha256)
+            || !digest(&self.phase.scenario_program_sha256)
             || !self.phase.credential_requirement.valid()
             || self.supervisor_source_uid == 0
             || self.agent_uid == 0
@@ -983,6 +985,7 @@ impl QualificationCrashPhaseContextV1 {
             && self.phase.role == context.role
             && self.phase.profile == context.profile
             && self.phase.operation_plan_sha256 == context.operation_plan_sha256
+            && self.phase.scenario_program_sha256 == context.scenario_program_sha256
             && self.phase.failpoint == context.failpoint
             && self.supervisor_source_uid == context.supervisor_source_uid
             && self.agent_uid == context.agent_uid
@@ -1123,6 +1126,7 @@ pub struct QualificationEvidencePhaseCommitment {
     pub profile: String,
     pub failpoint: Option<QualificationFailpoint>,
     pub operation_plan_sha256: String,
+    pub scenario_program_sha256: String,
     pub credential_requirement: QualificationCredentialRequirementV1,
     pub common_phase_evidence_sha256: String,
     pub first_event_sequence: u32,
@@ -1165,6 +1169,7 @@ pub struct QualificationEvidencePhasePlanV1 {
     pub profile: String,
     pub failpoint: Option<QualificationFailpoint>,
     pub operation_plan_sha256: String,
+    pub scenario_program_sha256: String,
     pub credential_requirement: QualificationCredentialRequirementV1,
 }
 
@@ -1182,6 +1187,7 @@ pub fn qualification_supervisor_phase_context_sha256(
         || !(1..=8).contains(&phase.phase_index)
         || !semantic_profile(&phase.profile)
         || !digest(&phase.operation_plan_sha256)
+        || !digest(&phase.scenario_program_sha256)
         || !phase.credential_requirement.valid()
     {
         return Err(QualificationEvidenceLedgerError::InvalidPhase);
@@ -1585,6 +1591,7 @@ impl QualificationEvidenceLedgerRecord {
                     profile: phase.profile.clone(),
                     failpoint: phase.failpoint,
                     operation_plan_sha256: phase.operation_plan_sha256.clone(),
+                    scenario_program_sha256: phase.scenario_program_sha256.clone(),
                     credential_requirement: phase.credential_requirement.clone(),
                 })
                 .collect(),
@@ -1677,6 +1684,7 @@ pub fn qualification_common_phase_matches_ledger(
         || phase.profile != commitment.profile
         || phase.failpoint != commitment.failpoint
         || phase.operation_plan_sha256 != commitment.operation_plan_sha256
+        || phase.scenario_program_sha256 != commitment.scenario_program_sha256
         || phase.first_event_sequence != commitment.first_event_sequence
         || phase.last_event_sequence != commitment.last_event_sequence
         || phase.supervisor_generation == 0
@@ -2478,6 +2486,7 @@ impl QualificationEvidenceLedgerPlanV1 {
                     || !(1..=8).contains(&phase.phase_index)
                     || !semantic_profile(&phase.profile)
                     || !digest(&phase.operation_plan_sha256)
+                    || !digest(&phase.scenario_program_sha256)
                     || !phase.credential_requirement.valid()
             })
             || self.phases.windows(2).any(|pair| {
@@ -2507,6 +2516,7 @@ impl QualificationEvidenceLedgerPlanV1 {
                     "credentialRequirement": phase.credential_requirement,
                     "failpoint": phase.failpoint,
                     "operationPlanSha256": phase.operation_plan_sha256,
+                    "scenarioProgramSha256": phase.scenario_program_sha256,
                     "phaseIndex": phase.phase_index,
                     "profile": phase.profile,
                     "role": phase.role,
@@ -2579,6 +2589,7 @@ impl QualificationEvidenceLedgerPlanV1 {
                     && phase.role == context.role
                     && phase.profile == context.profile
                     && phase.operation_plan_sha256 == context.operation_plan_sha256
+                    && phase.scenario_program_sha256 == context.scenario_program_sha256
                     && phase.failpoint == context.failpoint
             }))
     }
@@ -3065,6 +3076,7 @@ impl QualificationJournalDecisionContextRecord {
             || !(1..=8).contains(&self.phase_index)
             || !semantic_profile(&self.profile)
             || !digest(&self.operation_plan_sha256)
+            || !digest(&self.scenario_program_sha256)
             || self.supervisor_controller_uid == u32::MAX
             || self.supervisor_source_uid == 0
             || self.supervisor_source_uid == u32::MAX
@@ -5005,6 +5017,7 @@ fn validate_phases(
             || phase.phase_index > 8
             || !semantic_profile(&phase.profile)
             || !digest(&phase.operation_plan_sha256)
+            || !digest(&phase.scenario_program_sha256)
             || !phase.credential_requirement.valid()
             || !digest(&phase.common_phase_evidence_sha256)
             || phase.first_event_sequence != next_sequence
@@ -6218,6 +6231,7 @@ mod tests {
                 profile: "auths.stripe.refund/1".into(),
                 failpoint: None,
                 operation_plan_sha256: "5".repeat(64),
+                scenario_program_sha256: "7".repeat(64),
                 credential_requirement: credential_requirement(),
                 common_phase_evidence_sha256: "6".repeat(64),
                 first_event_sequence: 1,
@@ -6344,6 +6358,7 @@ mod tests {
             profile: "auths.stripe.refund/1".into(),
             failpoint: None,
             operation_plan_sha256: "5".repeat(64),
+            scenario_program_sha256: "7".repeat(64),
             ledger_id: ledger.ledger_id.clone(),
             session_nonce_sha256: ledger.session_nonce_sha256.clone(),
             supervisor_generation: 1,
@@ -6738,6 +6753,7 @@ mod tests {
             role: QualificationOperationRole::Effect,
             profile: "auths.stripe.refund/1".into(),
             operation_plan_sha256: "1".repeat(64),
+            scenario_program_sha256: "2".repeat(64),
             failpoint: Some(QualificationFailpoint::AfterDecision),
             supervisor_controller_uid: 1000,
             supervisor_source_uid: 1001,
@@ -6792,6 +6808,7 @@ mod tests {
                 profile: context.profile,
                 failpoint: context.failpoint,
                 operation_plan_sha256: context.operation_plan_sha256,
+                scenario_program_sha256: context.scenario_program_sha256,
                 credential_requirement: credential_requirement(),
             },
             supervisor_source_uid: context.supervisor_source_uid,
@@ -7554,6 +7571,7 @@ mod tests {
             profile: "auths.stripe.refund/1".into(),
             failpoint: None,
             operation_plan_sha256: "1".repeat(64),
+            scenario_program_sha256: "3".repeat(64),
             credential_requirement: credential_requirement(),
         };
         let first = qualification_supervisor_phase_context_sha256(&phase, &"2".repeat(64)).unwrap();
