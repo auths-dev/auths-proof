@@ -1347,7 +1347,8 @@ mod tests {
         let previous = test_inventory(1, 1, digest('a'));
         let proposed = test_inventory(2, 1, digest('d'));
         let error = validate_evolution(&previous, &proposed).expect_err("drift must fail");
-        assert!(error.contains("changed under frozen identity version 1"));
+        assert!(error.contains("auths.test.meaning@1"));
+        assert!(error.contains("changed without new versions"));
     }
 
     #[test]
@@ -1356,7 +1357,8 @@ mod tests {
         let mut proposed = test_inventory(2, 1, digest('a'));
         proposed.entries[1].sha256 = digest('d');
         let error = validate_evolution(&previous, &proposed).expect_err("drift must fail");
-        assert!(error.contains("auths.test.bytes changed under frozen identity version 1"));
+        assert!(error.contains("auths.test.bytes@1"));
+        assert!(error.contains("changed without new versions"));
     }
 
     #[test]

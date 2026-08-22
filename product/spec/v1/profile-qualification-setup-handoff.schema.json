@@ -38,7 +38,7 @@
     "runReference": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["schema", "domain", "target", "candidateRevision", "repositoryId", "runId", "runAttempt", "providerRunId", "providerNamespace", "connectionAliasSha256", "resourceReferences", "connectionGenerations"],
+      "required": ["schema", "domain", "target", "candidateRevision", "repositoryId", "runId", "runAttempt", "providerRunId", "providerNamespace", "providerDestinationSha256", "connectionAliasSha256", "resourceReferences", "connectionGenerations"],
       "properties": {
         "schema": {"const": "auths.profile-qualification-run-reference/1"},
         "domain": {"$ref": "profile-qualification.schema.json#/$defs/domain"},
@@ -49,8 +49,9 @@
         "runAttempt": {"type": "integer", "minimum": 1, "maximum": 4294967295},
         "providerRunId": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
         "providerNamespace": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+        "providerDestinationSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
         "connectionAliasSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
-        "resourceReferences": {"type": "array", "maxItems": 128, "uniqueItems": true, "items": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"}},
+        "resourceReferences": {"type": "array", "minItems": 1, "maxItems": 128, "uniqueItems": true, "x-auths-byteSorted": true, "items": {"type": "string", "maxLength": 128, "pattern": "^[a-z][a-z0-9-]*-sha256:[0-9a-f]{64}$"}},
         "connectionGenerations": {"type": "array", "minItems": 1, "maxItems": 32, "uniqueItems": true, "items": {"$ref": "profile-qualification.schema.json#/$defs/decimalToken"}}
       }
     },

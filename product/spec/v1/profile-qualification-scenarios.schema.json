@@ -38,7 +38,7 @@
         "role": {"enum": ["preflight", "effect"]},
         "group": {"type": "integer", "minimum": 1, "maximum": 255},
         "topology": {"enum": ["serial", "parallel"]},
-        "expectation": {"enum": ["exact", "failpoint"]},
+        "expectation": {"enum": ["exact", "group-multiset", "failpoint"]},
         "expectedOutcome": {"enum": ["denied", "unavailable", "completed", "partial", "not-applied", "recovery-required", "conflict"]},
         "expectedEffect": {"enum": ["applied", "not-applied", "possible"]},
         "expectedProviderCalls": {"type": "integer", "minimum": 0, "maximum": 1}

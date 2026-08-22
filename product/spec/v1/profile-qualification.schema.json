@@ -64,14 +64,14 @@
         "workflowPath": {"const": ".github/workflows/release-builder.yml"}, "workflowRevision": {"$ref": "#/$defs/revision"},
         "runId": {"$ref": "#/$defs/decimal32"}, "runAttempt": {"type": "integer", "minimum": 1, "maximum": 4294967295}, "runLabel": {"const": "official"},
         "qualificationSurfaceSha256": {"$ref": "#/$defs/digest"},
-        "artifacts": {"type": "array", "minItems": 9, "maxItems": 9, "uniqueItems": true, "x-auths-byteSortedBy": "role", "items": {"$ref": "#/$defs/releaseBuildArtifact"}}
+        "artifacts": {"type": "array", "minItems": 7, "maxItems": 70, "uniqueItems": true, "x-auths-byteSortedBy": "role", "items": {"$ref": "#/$defs/releaseBuildArtifact"}}
       }
     },
     "releaseBuildArtifact": {
       "type": "object", "additionalProperties": false,
       "required": ["role", "artifactId", "uploadedArchiveSha256", "memberPath", "memberSha256", "bytes"],
       "properties": {
-        "role": {"enum": ["production-agent", "python-native", "python-profile-opentofu", "python-profile-postgresql", "python-profile-stripe", "python-wheel", "qualification-agent", "typescript-native", "typescript-package"]},
+        "role": {"type": "string", "minLength": 1, "maxLength": 79, "pattern": "^(production-agent|python-native|python-wheel|qualification-agent|typescript-native|typescript-package|python-profile-[a-z][a-z0-9-]{0,63})$"},
         "artifactId": {"$ref": "#/$defs/decimal32"}, "uploadedArchiveSha256": {"$ref": "#/$defs/digest"},
         "memberPath": {"type": "string", "minLength": 1, "maxLength": 512, "pattern": "^[A-Za-z0-9._:-]+(?:/[A-Za-z0-9._:-]+)*$"},
         "memberSha256": {"$ref": "#/$defs/digest"}, "bytes": {"type": "integer", "minimum": 1, "maximum": 536870912}
@@ -80,7 +80,7 @@
     "candidateArtifact": {
       "type": "object", "additionalProperties": false,
       "required": ["role", "memberSha256", "bytes"],
-      "properties": {"role": {"enum": ["production-agent", "python-native", "python-profile-opentofu", "python-profile-postgresql", "python-profile-stripe", "python-wheel", "qualification-agent", "typescript-native", "typescript-package"]}, "memberSha256": {"$ref": "#/$defs/digest"}, "bytes": {"type": "integer", "minimum": 1, "maximum": 536870912}}
+      "properties": {"role": {"type": "string", "minLength": 1, "maxLength": 79, "pattern": "^(production-agent|python-native|python-wheel|qualification-agent|typescript-native|typescript-package|python-profile-[a-z][a-z0-9-]{0,63})$"}, "memberSha256": {"$ref": "#/$defs/digest"}, "bytes": {"type": "integer", "minimum": 1, "maximum": 536870912}}
     },
     "artifact": {
       "type": "object", "additionalProperties": false,
@@ -93,8 +93,8 @@
       }
     },
     "providerRun": {
-      "type": "object", "additionalProperties": false, "required": ["id", "providerVersion", "providerArtifactSha256", "scenarioSetSha256", "status"],
-      "properties": {"id": {"$ref": "#/$defs/registeredToken"}, "providerVersion": {"$ref": "#/$defs/toolchainValue"}, "providerArtifactSha256": {"$ref": "#/$defs/digest"}, "scenarioSetSha256": {"$ref": "#/$defs/digest"}, "status": {"const": "passed"}}
+      "type": "object", "additionalProperties": false, "required": ["id", "providerVersion", "providerArtifactSha256", "scenarioSetSha256", "runtimeCleanupSha256", "status"],
+      "properties": {"id": {"$ref": "#/$defs/registeredToken"}, "providerVersion": {"$ref": "#/$defs/toolchainValue"}, "providerArtifactSha256": {"$ref": "#/$defs/digest"}, "scenarioSetSha256": {"$ref": "#/$defs/digest"}, "runtimeCleanupSha256": {"$ref": "#/$defs/digest"}, "status": {"const": "passed"}}
     },
     "protectedObservation": {"type": "object", "additionalProperties": false, "required": ["schema", "keyId", "sha256"], "properties": {"schema": {"const": "auths.profile-qualification-observation/1"}, "keyId": {"$ref": "#/$defs/registeredToken"}, "sha256": {"$ref": "#/$defs/digest"}}},
     "scenario": {

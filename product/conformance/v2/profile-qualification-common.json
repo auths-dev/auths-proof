@@ -510,7 +510,7 @@
           "role": "effect",
           "group": 1,
           "topology": "parallel",
-          "expectation": "exact",
+          "expectation": "group-multiset",
           "expectedOutcome": "completed",
           "expectedEffect": "applied",
           "expectedProviderCalls": 1
@@ -522,7 +522,7 @@
           "role": "effect",
           "group": 1,
           "topology": "parallel",
-          "expectation": "exact",
+          "expectation": "group-multiset",
           "expectedOutcome": "unavailable",
           "expectedEffect": "not-applied",
           "expectedProviderCalls": 0

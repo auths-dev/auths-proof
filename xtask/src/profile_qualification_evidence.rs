@@ -453,6 +453,8 @@ fn validate_closed_layout<'a>(paths: impl Iterator<Item = &'a str>) -> Result<()
     let mut common_phases = BTreeMap::<&str, BTreeSet<(&str, u8)>>::new();
     let mut receipts = 0_usize;
     let mut inspections = 0_usize;
+    let mut runtime_cleanup = BTreeSet::<&str>::new();
+    let mut provider_cleanup = BTreeSet::<&str>::new();
     let mut ledgers = BTreeMap::<
         &str,
         (
@@ -523,6 +525,24 @@ fn validate_closed_layout<'a>(paths: impl Iterator<Item = &'a str>) -> Result<()
             inspections += 1;
             continue;
         }
+        if let Some(provider_run) = path
+            .strip_prefix("runtime-cleanup/")
+            .and_then(|value| value.strip_suffix(".json"))
+        {
+            if !registered_token(provider_run) || !runtime_cleanup.insert(provider_run) {
+                return Err("qualification runtime-cleanup path is invalid".into());
+            }
+            continue;
+        }
+        if let Some(provider_run) = path
+            .strip_prefix("provider-cleanup/")
+            .and_then(|value| value.strip_suffix(".json"))
+        {
+            if !registered_token(provider_run) || !provider_cleanup.insert(provider_run) {
+                return Err("qualification provider-cleanup path is invalid".into());
+            }
+            continue;
+        }
         if let Some(value) = path.strip_prefix("ledger/") {
             let components = value.split('/').collect::<Vec<_>>();
             let Some(provider_run_id) = components.first().copied() else {
@@ -537,6 +557,8 @@ fn validate_closed_layout<'a>(paths: impl Iterator<Item = &'a str>) -> Result<()
                     _,
                     file @ ("evidence-ledger-trust.json"
                     | "evidence-source-trust.json"
+                    | "cleanup-reference.json"
+                    | "ledger-plan.json"
                     | "ledger.json"),
                 ] => {
                     entry.0.insert(file);
@@ -596,6 +618,8 @@ fn validate_closed_layout<'a>(paths: impl Iterator<Item = &'a str>) -> Result<()
         || receipts == 0
         || inspections == 0
         || ledgers.is_empty()
+        || runtime_cleanup != ledgers.keys().copied().collect::<BTreeSet<_>>()
+        || provider_cleanup != ledgers.keys().copied().collect::<BTreeSet<_>>()
         || common_phases.keys().copied().collect::<BTreeSet<_>>()
             != ledgers.keys().copied().collect::<BTreeSet<_>>()
         || common_phases.values().any(BTreeSet::is_empty)
@@ -605,8 +629,10 @@ fn validate_closed_layout<'a>(paths: impl Iterator<Item = &'a str>) -> Result<()
         );
     }
     let exact_ledger_files = BTreeSet::from([
+        "cleanup-reference.json",
         "evidence-ledger-trust.json",
         "evidence-source-trust.json",
+        "ledger-plan.json",
         "ledger.json",
     ]);
     for (provider_run_id, (files, records, contexts, snapshots, acknowledgements, crash_actions)) in
@@ -1017,14 +1043,20 @@ mod tests {
         fs::write(root.join("receipts/op-1/0.cbor"), b"x").unwrap();
         fs::create_dir_all(root.join("receipt-inspection")).unwrap();
         fs::write(root.join("receipt-inspection/op-1.json"), b"{}").unwrap();
+        fs::create_dir_all(root.join("runtime-cleanup")).unwrap();
+        fs::write(root.join("runtime-cleanup/provider-run.json"), b"{}").unwrap();
+        fs::create_dir_all(root.join("provider-cleanup")).unwrap();
+        fs::write(root.join("provider-cleanup/provider-run.json"), b"{}").unwrap();
         let common_phase = root.join("common-phases/provider-run/happy-path");
         fs::create_dir_all(&common_phase).unwrap();
         fs::write(common_phase.join("1.json"), b"{}").unwrap();
         let ledger = root.join("ledger/provider-run");
         fs::create_dir_all(&ledger).unwrap();
         for file in [
+            "cleanup-reference.json",
             "evidence-ledger-trust.json",
             "evidence-source-trust.json",
+            "ledger-plan.json",
             "ledger.json",
         ] {
             fs::write(ledger.join(file), b"{}").unwrap();
@@ -1080,6 +1112,27 @@ mod tests {
         fs::create_dir_all(source.path().join("__pycache__")).unwrap();
         fs::write(source.path().join("__pycache__/cached.pyc"), b"x").unwrap();
         let output = tempfile::tempdir().unwrap().path().join("evidence.tar.zst");
+        assert!(pack_final_evidence(source.path(), &output).is_err());
+    }
+
+    #[test]
+    fn requires_one_runtime_cleanup_marker_per_ledger_row() {
+        let source = tempfile::tempdir().unwrap();
+        seed_source(source.path());
+        fs::remove_file(source.path().join("runtime-cleanup/provider-run.json")).unwrap();
+        let output = tempfile::tempdir().unwrap().path().join("evidence.tar.zst");
+        assert!(pack_final_evidence(source.path(), &output).is_err());
+
+        fs::write(
+            source.path().join("runtime-cleanup/provider-run.json"),
+            b"{}",
+        )
+        .unwrap();
+        fs::write(
+            source.path().join("runtime-cleanup/foreign-row.json"),
+            b"{}",
+        )
+        .unwrap();
         assert!(pack_final_evidence(source.path(), &output).is_err());
     }
 

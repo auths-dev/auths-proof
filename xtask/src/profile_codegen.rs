@@ -892,7 +892,7 @@ fn qualification_adapter_scaffold(arguments: &NewProfileArguments) -> Result<Str
     Ok(format!(
         "//! Qualification-only adapter scaffold. Every method remains fail-closed until live closure.\n\n\
 use auths_connections::{{ProviderCredentialLease, QualificationProviderCallKind}};\n\
-use auths_profile_kit::{{QualificationAdapterMetadata, QualificationCleanupEvidence, QualificationCollectedOperation, QualificationCollectionAdapter, QualificationCommonOperationInstanceEvidence, QualificationCommonReceiptClaims, QualificationEffect, QualificationHarnessError, QualificationOperationRole, QualificationPhaseClient, QualificationProfileStateFactV1, QualificationProtectedObserver, QualificationProtectedSetup, QualificationProtectedSetupInput, QualificationProviderTruth, QualificationRedactedOperation, QualificationRunContext, QualificationRunReference, QualificationScenarioProgramV1, QualificationSetupHandoffV1, QualificationTarget, QualificationVector}};\n\
+use auths_profile_kit::{{QualificationAdapterMetadata, QualificationCollectedOperation, QualificationCollectionAdapter, QualificationCommonOperationInstanceEvidence, QualificationCommonReceiptClaims, QualificationEffect, QualificationHarnessError, QualificationOperationRole, QualificationPhaseClient, QualificationProfileStateFactV1, QualificationProtectedObserver, QualificationProtectedSetup, QualificationProtectedSetupInput, QualificationProviderCleanupObservation, QualificationProviderTruth, QualificationRedactedOperation, QualificationRunContext, QualificationRunReference, QualificationScenarioProgramV1, QualificationSetupHandoffV1, QualificationTarget, QualificationVector}};\n\
 use auths_profile_runtime::{{ProfileReceiptInspection, ProfileRuntimeError}};\n\
 use auths_stores::JournalRecordV1;\n\
 use std::{{path::Path, time::Instant}};\n\n\
@@ -901,13 +901,15 @@ pub fn qualification_requirement_ids() -> &'static [&'static str] {{ &[{requirem
 pub const fn qualification_requirements_sha256() -> &'static str {{ {requirements_sha256:?} }}\n\n\
 pub fn qualification_domain_scenario_ids() -> &'static [&'static str] {{ &[{scenario:?}] }}\n\n\
 pub fn qualification_scenario_program(_id: &str) -> Result<QualificationScenarioProgramV1, QualificationHarnessError> {{ Err(unavailable()) }}\n\n\
+pub fn qualification_effect_case_inputs(_profile: &str, _value: &[u8]) -> Result<Option<(Vec<u8>, Vec<u8>)>, QualificationHarnessError> {{ Ok(None) }}\n\n\
+pub fn qualification_effect_fallback_case_json(_profile: &str, _scenario_id: &str, _stimulus: &str) -> Result<Option<Vec<u8>>, QualificationHarnessError> {{ Ok(None) }}\n\n\
 pub fn qualification_receipt_claim_ids() -> &'static [&'static str] {{ &[{receipt_claim:?}] }}\n\n\
 pub fn qualification_provider_truth_fields() -> &'static [&'static str] {{ &[\"implemented\", \"schema\"] }}\n\n\
 pub fn qualification_forbidden_evidence_fields() -> &'static [&'static str] {{ &[] }}\n\n\
 pub fn qualification_redaction_prefixes() -> &'static [&'static str] {{ &[] }}\n\n\
 #[allow(clippy::too_many_arguments)]\n\
-pub async fn dispatch_provider_transport(_profile: &str, _scenario_id: &str, _kind: QualificationProviderCallKind, _command: &[u8], _profile_state: &[u8], _credential: &ProviderCredentialLease, _configuration: Option<&[u8]>, _transport_root: &Path, _operation_id: &str, _now_unix_seconds: u64, _deadline: Instant) -> Result<Option<Vec<u8>>, ProfileRuntimeError> {{ Err(ProfileRuntimeError::Invalid) }}\n\n\
-pub async fn observe_provider_truth(_record: &JournalRecordV1, _credential: &[u8], _observer_root: &Path, _now_unix_seconds: u64) -> Result<(QualificationEffect, Vec<u8>), ProfileRuntimeError> {{ Err(ProfileRuntimeError::Invalid) }}\n\n\
+pub async fn dispatch_provider_transport(_profile: &str, _scenario_id: &str, _case_id: &str, _kind: QualificationProviderCallKind, _command: &[u8], _profile_state: &[u8], _credential: &ProviderCredentialLease, _configuration: Option<&[u8]>, _transport_root: &Path, _operation_id: &str, _now_unix_seconds: u64, _deadline: Instant) -> Result<Option<Vec<u8>>, ProfileRuntimeError> {{ Err(ProfileRuntimeError::Invalid) }}\n\n\
+pub async fn observe_provider_truth(_scenario_id: &str, _record: &JournalRecordV1, _credential: &[u8], _observer_root: &Path, _now_unix_seconds: u64) -> Result<(QualificationEffect, Vec<u8>), ProfileRuntimeError> {{ Err(ProfileRuntimeError::Invalid) }}\n\n\
 pub fn inspect_receipt_claims(_profile: &str, _inspection: ProfileReceiptInspection<'_>) -> Result<(), ProfileRuntimeError> {{ Err(ProfileRuntimeError::Invalid) }}\n\n\
 pub fn inspect_profile_state(_profile: &str, _journal: &[JournalRecordV1], _store_bytes: &[u8]) -> Result<Vec<QualificationProfileStateFactV1>, ProfileRuntimeError> {{ Err(ProfileRuntimeError::Invalid) }}\n\n\
 pub fn qualification_provider_matrix_rows() -> &'static [(&'static str, &'static str, &'static str, &'static str, &'static str)] {{ &[({provider_run:?}, {provider:?}, \"unimplemented\", \"0000000000000000000000000000000000000000000000000000000000000000\", \"linux-x86_64\")] }}\n\n\
@@ -924,12 +926,14 @@ impl QualificationProtectedSetup for {adapter} {{\n\
 }}\n\n\
 impl QualificationProtectedObserver for {adapter} {{\n\
     type Environment = ();\n\
+    type CleanupEnvironment = ();\n\
     fn metadata(&self) -> QualificationAdapterMetadata {{ metadata() }}\n\
     fn open(&self, _context: &QualificationRunContext, _reference: Option<&QualificationRunReference>) -> Result<(), QualificationHarnessError> {{ Err(unavailable()) }}\n\
     fn provider_truth(&self, _environment: &(), _scenario_id: &str, _phase: &QualificationCollectedOperation, _instance: &QualificationCommonOperationInstanceEvidence, _in_row_domain_facts: &[u8]) -> Result<QualificationProviderTruth, QualificationHarnessError> {{ Err(unavailable()) }}\n\
     fn validate_receipt_payload(&self, _environment: &(), _phase: &QualificationCollectedOperation, _instance: &QualificationCommonOperationInstanceEvidence, _truth: &QualificationProviderTruth, _claims: &[QualificationCommonReceiptClaims]) -> Result<(), QualificationHarnessError> {{ Err(unavailable()) }}\n\
     fn validate_domain_scenario(&self, _program: &QualificationScenarioProgramV1, _operations: &[QualificationRedactedOperation], _truths: &[QualificationProviderTruth]) -> Result<(), QualificationHarnessError> {{ Err(unavailable()) }}\n\
-    fn cleanup(&self, _context: &QualificationRunContext, _reference: Option<&QualificationRunReference>) -> Result<QualificationCleanupEvidence, QualificationHarnessError> {{ Err(unavailable()) }}\n\
+    fn open_cleanup(&self, _context: &QualificationRunContext) -> Result<(), QualificationHarnessError> {{ Err(unavailable()) }}\n\
+    fn cleanup(&self, _environment: &(), _context: &QualificationRunContext) -> Result<QualificationProviderCleanupObservation, QualificationHarnessError> {{ Err(unavailable()) }}\n\
 }}\n\n\
 pub fn validate_provider_truth_facts(_bytes: &[u8], _effect: QualificationEffect) -> Result<(), QualificationHarnessError> {{ Err(unavailable()) }}\n\n\
 pub fn validate_provider_matrix_contract(bytes: &[u8], provider_version: &str, provider_artifact_sha256: &str) -> Result<(), QualificationHarnessError> {{\n\
@@ -1182,6 +1186,12 @@ fn register_new_domain(repository: &Path, arguments: &NewProfileArguments) -> Re
 
     let node_manifest = repository.join("product/runtime/auths-node/Cargo.toml");
     let node = fs::read_to_string(&node_manifest).map_err(|error| error.to_string())?;
+    let node = insert_toml_array_value(
+        &node,
+        "[features]",
+        "qualification-failpoints",
+        &format!("{rust_package}/qualification"),
+    )?;
     let node = insert_toml_entry(
         &node,
         "[dependencies]",
@@ -1189,6 +1199,17 @@ fn register_new_domain(repository: &Path, arguments: &NewProfileArguments) -> Re
         &format!("{rust_package}.workspace = true"),
     )?;
     fs::write(node_manifest, node).map_err(|error| error.to_string())?;
+
+    let source_manifest =
+        repository.join("product/qualification/auths-qualification-evidence-source/Cargo.toml");
+    let source = fs::read_to_string(&source_manifest).map_err(|error| error.to_string())?;
+    let source = insert_toml_entry(
+        &source,
+        "[target.'cfg(target_os = \"linux\")'.dependencies]",
+        &rust_package,
+        &format!("{rust_package} = {{ workspace = true, features = [\"qualification\"] }}"),
+    )?;
+    fs::write(source_manifest, source).map_err(|error| error.to_string())?;
 
     let xtask_manifest = repository.join("xtask/Cargo.toml");
     let xtask = fs::read_to_string(&xtask_manifest).map_err(|error| error.to_string())?;
@@ -1261,6 +1282,64 @@ fn insert_toml_entry(
     output.push_str(&contents[..end]);
     output.push_str(&insertion);
     output.push_str(&contents[end..]);
+    Ok(output)
+}
+
+fn insert_toml_array_value(
+    contents: &str,
+    section: &str,
+    key: &str,
+    value: &str,
+) -> Result<String, String> {
+    let section_start = contents
+        .find(section)
+        .ok_or_else(|| format!("TOML section is missing: {section}"))?;
+    let section_body = section_start + section.len();
+    let section_end = contents[section_body..]
+        .find("\n[")
+        .map_or(contents.len(), |offset| section_body + offset);
+    let key_start = contents[section_body..section_end]
+        .find(&format!("\n{key} = ["))
+        .map(|offset| section_body + offset + 1)
+        .ok_or_else(|| format!("TOML array is missing: {key}"))?;
+    let array_start = contents[key_start..section_end]
+        .find('[')
+        .map(|offset| key_start + offset + 1)
+        .ok_or_else(|| format!("TOML array is malformed: {key}"))?;
+    let array_end = contents[array_start..section_end]
+        .find(']')
+        .map(|offset| array_start + offset)
+        .ok_or_else(|| format!("TOML array is unterminated: {key}"))?;
+    let mut values = contents[array_start..array_end]
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .map(|line| {
+            line.strip_suffix(',')
+                .and_then(|line| line.strip_prefix('"'))
+                .and_then(|line| line.strip_suffix('"'))
+                .map(str::to_owned)
+                .ok_or_else(|| format!("TOML array entry is malformed: {key}"))
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+    if values.iter().any(|existing| existing == value) {
+        return Err(format!("TOML array entry already exists: {value}"));
+    }
+    values.push(value.to_owned());
+    values.sort();
+    values.dedup();
+    let replacement = format!(
+        "\n{}\n",
+        values
+            .iter()
+            .map(|value| format!("    \"{value}\","))
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+    let mut output = String::with_capacity(contents.len() + value.len() + 8);
+    output.push_str(&contents[..array_start]);
+    output.push_str(&replacement);
+    output.push_str(&contents[array_end..]);
     Ok(output)
 }
 
@@ -1361,6 +1440,10 @@ fn generate_at(
     outputs.insert(
         "product/qualification/auths-qualification-evidence-source/src/generated/qualification_routes.rs".into(),
         rustfmt_generated(render_qualification_source_routes(repository, &roster)?)?,
+    );
+    outputs.insert(
+        "product/sdk/auths-profile-kit/src/generated_qualification_roster.rs".into(),
+        rustfmt_generated(render_qualification_release_artifact_roles(&roster)?)?,
     );
     let mut stale = Vec::new();
     for (path, contents) in outputs {
@@ -2203,6 +2286,33 @@ pub(crate) fn run_protected_cleanup(context: CleanupAdapterContext<'_>) -> Resul
     Ok(output)
 }
 
+fn render_qualification_release_artifact_roles(roster: &ProfileRoster) -> Result<String, String> {
+    let mut roles = vec!["production-agent".to_owned(), "python-native".to_owned()];
+    roles.extend(
+        roster
+            .packages()
+            .iter()
+            .map(|package| format!("python-profile-{}", package.domain())),
+    );
+    roles.extend([
+        "python-wheel".to_owned(),
+        "qualification-agent".to_owned(),
+        "typescript-native".to_owned(),
+        "typescript-package".to_owned(),
+    ]);
+    roles.sort();
+    let mut output = String::from(
+        "// generated by auths-profile-generator/1 from the closed profile roster.\n\n\
+/// Byte-sorted release artifact roles derived from the closed profile roster.\n\
+pub const QUALIFICATION_RELEASE_ARTIFACT_ROLES: &[&str] = &[\n",
+    );
+    for role in roles {
+        writeln!(output, "    {role:?},").map_err(|error| error.to_string())?;
+    }
+    output.push_str("];\n");
+    Ok(output)
+}
+
 fn render_qualification_source_routes(
     repository: &Path,
     roster: &ProfileRoster,
@@ -2247,22 +2357,44 @@ pub(crate) enum QualificationRoute {\n",
         .map_err(|error| error.to_string())?;
     }
     output.push_str("        }\n    }\n\n");
-    output.push_str("    #[allow(clippy::too_many_arguments)]\n    pub(crate) async fn dispatch_provider_transport(\n        self,\n        profile: &str,\n        scenario_id: &str,\n        kind: QualificationProviderCallKind,\n        command: &[u8],\n        profile_state: &[u8],\n        credential: &ProviderCredentialLease,\n        configuration: Option<&[u8]>,\n        transport_root: &Path,\n        operation_id: &str,\n        now_unix_seconds: u64,\n        deadline: std::time::Instant,\n    ) -> Result<Option<Vec<u8>>, ProfileRuntimeError> {\n        match self {\n");
+    output.push_str("    pub(crate) fn qualification_effect_case_inputs(\n        self,\n        profile: &str,\n        value: &[u8],\n    ) -> Result<Option<(Vec<u8>, Vec<u8>)>, QualificationHarnessError> {\n        match self {\n");
     for entry in roster.packages() {
         let crate_name = entry.rust_package().replace('-', "_");
         writeln!(
             output,
-            "            Self::{} => {crate_name}::qualification::dispatch_provider_transport(profile, scenario_id, kind, command, profile_state, credential, configuration, transport_root, operation_id, now_unix_seconds, deadline).await,",
+            "            Self::{} => {crate_name}::qualification::qualification_effect_case_inputs(profile, value),",
             pascal(entry.domain())
         )
         .map_err(|error| error.to_string())?;
     }
-    output.push_str("        }\n    }\n\n    pub(crate) async fn observe_provider_truth(\n        self,\n        record: &JournalRecordV1,\n        credential: &[u8],\n        observer_root: &Path,\n        now_unix_seconds: u64,\n    ) -> Result<(QualificationEffect, Vec<u8>), ProfileRuntimeError> {\n        match self {\n");
+    output.push_str("        }\n    }\n\n");
+    output.push_str("    pub(crate) fn qualification_effect_fallback_case_json(\n        self,\n        profile: &str,\n        scenario_id: &str,\n        stimulus: &str,\n    ) -> Result<Option<Vec<u8>>, QualificationHarnessError> {\n        match self {\n");
     for entry in roster.packages() {
         let crate_name = entry.rust_package().replace('-', "_");
         writeln!(
             output,
-            "            Self::{} => {crate_name}::qualification::observe_provider_truth(record, credential, observer_root, now_unix_seconds).await,",
+            "            Self::{} => {crate_name}::qualification::qualification_effect_fallback_case_json(profile, scenario_id, stimulus),",
+            pascal(entry.domain())
+        )
+        .map_err(|error| error.to_string())?;
+    }
+    output.push_str("        }\n    }\n\n");
+    output.push_str("    #[allow(clippy::too_many_arguments)]\n    pub(crate) async fn dispatch_provider_transport(\n        self,\n        profile: &str,\n        scenario_id: &str,\n        case_id: &str,\n        kind: QualificationProviderCallKind,\n        command: &[u8],\n        profile_state: &[u8],\n        credential: &ProviderCredentialLease,\n        configuration: Option<&[u8]>,\n        transport_root: &Path,\n        operation_id: &str,\n        now_unix_seconds: u64,\n        deadline: std::time::Instant,\n    ) -> Result<Option<Vec<u8>>, ProfileRuntimeError> {\n        match self {\n");
+    for entry in roster.packages() {
+        let crate_name = entry.rust_package().replace('-', "_");
+        writeln!(
+            output,
+            "            Self::{} => {crate_name}::qualification::dispatch_provider_transport(profile, scenario_id, case_id, kind, command, profile_state, credential, configuration, transport_root, operation_id, now_unix_seconds, deadline).await,",
+            pascal(entry.domain())
+        )
+        .map_err(|error| error.to_string())?;
+    }
+    output.push_str("        }\n    }\n\n    pub(crate) async fn observe_provider_truth(\n        self,\n        scenario_id: &str,\n        record: &JournalRecordV1,\n        credential: &[u8],\n        observer_root: &Path,\n        now_unix_seconds: u64,\n    ) -> Result<(QualificationEffect, Vec<u8>), ProfileRuntimeError> {\n        match self {\n");
+    for entry in roster.packages() {
+        let crate_name = entry.rust_package().replace('-', "_");
+        writeln!(
+            output,
+            "            Self::{} => {crate_name}::qualification::observe_provider_truth(scenario_id, record, credential, observer_root, now_unix_seconds).await,",
             pascal(entry.domain()),
         )
         .map_err(|error| error.to_string())?;
@@ -4559,6 +4691,7 @@ mod tests {
             ".github/workflows",
             "bindings/typescript/src",
             "product/runtime/auths-node",
+            "product/qualification/auths-qualification-evidence-source",
             "product/integrations/auths-stripe/api",
             "product/conformance/v2",
             "product/sdk/auths-profile-kit/src",
@@ -4578,7 +4711,12 @@ mod tests {
         .unwrap();
         fs::write(
             repository.join("product/runtime/auths-node/Cargo.toml"),
-            "[package]\nname = \"auths-node\"\n\n[dependencies]\nauths-stripe.workspace = true\n",
+            "[package]\nname = \"auths-node\"\n\n[features]\nqualification-failpoints = [\n    \"auths-stripe/qualification\",\n]\n\n[dependencies]\nauths-stripe.workspace = true\n",
+        )
+        .unwrap();
+        fs::write(
+            repository.join("product/qualification/auths-qualification-evidence-source/Cargo.toml"),
+            "[package]\nname = \"auths-qualification-evidence-source\"\n\n[target.'cfg(target_os = \"linux\")'.dependencies]\nauths-stripe = { workspace = true, features = [\"qualification\"] }\n",
         )
         .unwrap();
         fs::write(
@@ -4697,11 +4835,40 @@ mod tests {
                 .unwrap()
                 .contains("product/integrations/auths-mailbox")
         );
-        assert!(
-            fs::read_to_string(repository.join("product/runtime/auths-node/Cargo.toml"))
-                .unwrap()
-                .contains("auths-mailbox.workspace = true")
+        let node: toml::Value = toml::from_str(
+            &fs::read_to_string(repository.join("product/runtime/auths-node/Cargo.toml")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            node["dependencies"]["auths-mailbox"]["workspace"].as_bool(),
+            Some(true)
         );
+        assert!(
+            node["features"]["qualification-failpoints"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|value| value.as_str() == Some("auths-mailbox/qualification"))
+        );
+        let evidence_source: toml::Value = toml::from_str(
+            &fs::read_to_string(
+                repository
+                    .join("product/qualification/auths-qualification-evidence-source/Cargo.toml"),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let mailbox = &evidence_source["target"]["cfg(target_os = \"linux\")"]["dependencies"]["auths-mailbox"];
+        assert_eq!(mailbox["workspace"].as_bool(), Some(true));
+        assert_eq!(
+            mailbox["features"].as_array().unwrap(),
+            &[toml::Value::String("qualification".to_owned())]
+        );
+        let release_roles = fs::read_to_string(
+            repository.join("product/sdk/auths-profile-kit/src/generated_qualification_roster.rs"),
+        )
+        .unwrap();
+        assert!(release_roles.contains("python-profile-mailbox"));
         assert!(
             fs::read_to_string(repository.join("docs/architecture/profiles/mailbox.md"))
                 .unwrap()
@@ -4712,6 +4879,8 @@ mod tests {
         )
         .unwrap();
         for required in [
+            "pub fn qualification_effect_case_inputs",
+            "pub fn qualification_effect_fallback_case_json",
             "pub async fn dispatch_provider_transport",
             "pub async fn observe_provider_truth",
             "pub fn inspect_receipt_claims",

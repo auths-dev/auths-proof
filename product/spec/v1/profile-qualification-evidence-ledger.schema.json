@@ -21,7 +21,7 @@
   "$defs": {
     "record": {
       "type": "object", "additionalProperties": false,
-      "required": ["schema", "repositoryId", "workflowPath", "workflowRevision", "candidateRevision", "attesterRevision", "runId", "runAttempt", "domain", "target", "protectedEnvironment", "providerRunId", "ledgerId", "sessionNonceSha256", "supervisorControllerUid", "supervisorControllerArtifactSha256", "ledgerAppenderArtifactSha256", "agentUid", "agentGid", "agentExecutableSha256", "recoveryKeyId", "recoveryPublicKeyBase64url", "phaseCommitments", "events", "startedAtUnixSeconds", "deadlineAtUnixSeconds", "completedAtUnixSeconds"],
+      "required": ["schema", "repositoryId", "workflowPath", "workflowRevision", "candidateRevision", "attesterRevision", "runId", "runAttempt", "domain", "target", "protectedEnvironment", "providerRunId", "ledgerId", "sessionNonceSha256", "setupHandoffSha256", "cleanupReferenceSha256", "supervisorControllerUid", "supervisorControllerArtifactSha256", "ledgerAppenderArtifactSha256", "agentUid", "agentGid", "agentExecutableSha256", "recoveryKeyId", "recoveryPublicKeyBase64url", "phaseCommitments", "events", "startedAtUnixSeconds", "deadlineAtUnixSeconds", "completedAtUnixSeconds"],
       "properties": {
         "schema": {"const": "auths.profile-qualification-evidence-ledger-record/1"},
         "repositoryId": {"$ref": "profile-qualification.schema.json#/$defs/decimal32"},
@@ -37,6 +37,8 @@
         "providerRunId": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
         "ledgerId": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
         "sessionNonceSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "setupHandoffSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "cleanupReferenceSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
         "supervisorControllerUid": {"type": "integer", "minimum": 1, "maximum": 4294967294},
         "supervisorControllerArtifactSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
         "ledgerAppenderArtifactSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},

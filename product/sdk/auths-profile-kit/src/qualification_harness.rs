@@ -9,6 +9,7 @@
 
 use crate::qualification::QualificationTarget;
 use base64ct::{Base64UrlUnpadded, Encoding as _};
+use minicbor::{Decoder, Encoder, data::Type};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest as _, Sha256};
 use thiserror::Error;
@@ -17,6 +18,305 @@ const MAX_SCENARIOS: usize = 256;
 const MAX_VECTOR_BYTES: usize = 16_777_216;
 const MAX_RECEIPTS: usize = 16;
 const MAX_RUN_REFERENCES: usize = 64;
+
+/// Encodes one protected canonical-JSON case input exactly as the generated
+/// Python and TypeScript SDKs encode their restricted profile input value.
+pub fn qualification_profile_input_cbor(json: &[u8]) -> Result<Vec<u8>, QualificationHarnessError> {
+    let value: serde_json::Value =
+        serde_json::from_slice(json).map_err(|_| QualificationHarnessError::InvalidSetupHandoff)?;
+    if serde_json_canonicalizer::to_vec(&value)
+        .map_err(|_| QualificationHarnessError::InvalidSetupHandoff)?
+        != json
+    {
+        return Err(QualificationHarnessError::InvalidSetupHandoff);
+    }
+    encode_profile_input_value(&value)
+}
+
+/// Returns the exact profile-input bytes sent for one reviewed case stimulus.
+pub fn qualification_case_profile_input_cbor(
+    stimulus: &str,
+    canonical_json: &[u8],
+) -> Result<Vec<u8>, QualificationHarnessError> {
+    let mut value: serde_json::Value = serde_json::from_slice(canonical_json)
+        .map_err(|_| QualificationHarnessError::InvalidSetupHandoff)?;
+    if serde_json_canonicalizer::to_vec(&value)
+        .map_err(|_| QualificationHarnessError::InvalidSetupHandoff)?
+        != canonical_json
+    {
+        return Err(QualificationHarnessError::InvalidSetupHandoff);
+    }
+    match stimulus {
+        "noncanonical-integer" => {
+            let canonical = encode_profile_input_value(&value)?;
+            let Some(length) = canonical
+                .first()
+                .copied()
+                .filter(|byte| (0xa0..=0xb7).contains(byte))
+                .map(|byte| byte - 0xa0)
+            else {
+                return Err(QualificationHarnessError::InvalidSetupHandoff);
+            };
+            let mut hostile = Vec::with_capacity(canonical.len() + 1);
+            hostile.extend_from_slice(&[0xb8, length]);
+            hostile.extend_from_slice(&canonical[1..]);
+            Ok(hostile)
+        }
+        "duplicate-field" => encode_profile_input_with_duplicate_field(&value),
+        "missing-field" => {
+            let object = value
+                .as_object_mut()
+                .ok_or(QualificationHarnessError::InvalidSetupHandoff)?;
+            let key = object
+                .keys()
+                .next()
+                .cloned()
+                .ok_or(QualificationHarnessError::InvalidSetupHandoff)?;
+            object.remove(&key);
+            encode_profile_input_value(&value)
+        }
+        "unknown-field" => {
+            value
+                .as_object_mut()
+                .ok_or(QualificationHarnessError::InvalidSetupHandoff)?
+                .insert("__unknown".into(), serde_json::Value::from(1));
+            encode_profile_input_value(&value)
+        }
+        _ => encode_profile_input_value(&value),
+    }
+}
+
+fn encode_profile_input_with_duplicate_field(
+    value: &serde_json::Value,
+) -> Result<Vec<u8>, QualificationHarnessError> {
+    let values = value
+        .as_object()
+        .ok_or(QualificationHarnessError::InvalidSetupHandoff)?;
+    let mut fields = values
+        .iter()
+        .map(|(key, value)| {
+            Ok((
+                encode_profile_input_value(&serde_json::Value::String(key.clone()))?,
+                encode_profile_input_value(value)?,
+            ))
+        })
+        .collect::<Result<Vec<_>, QualificationHarnessError>>()?;
+    fields.sort_by(|left, right| left.0.cmp(&right.0));
+    let first = fields
+        .first()
+        .cloned()
+        .ok_or(QualificationHarnessError::InvalidSetupHandoff)?;
+    let mut bytes = Vec::new();
+    Encoder::new(&mut bytes)
+        .map((fields.len() + 1) as u64)
+        .map_err(|_| QualificationHarnessError::InvalidSetupHandoff)?;
+    bytes.extend_from_slice(&first.0);
+    bytes.extend_from_slice(&first.1);
+    for (key, value) in fields {
+        bytes.extend_from_slice(&key);
+        bytes.extend_from_slice(&value);
+    }
+    Ok(bytes)
+}
+
+/// Applies the common `changed-input` stimulus to exact canonical SDK CBOR.
+pub fn qualification_changed_profile_input_cbor(
+    cbor: &[u8],
+) -> Result<Vec<u8>, QualificationHarnessError> {
+    let mut decoder = Decoder::new(cbor);
+    let mut remaining_nodes = 65_536_usize;
+    let mut value = decode_profile_input_value(&mut decoder, 0, &mut remaining_nodes)?;
+    if decoder.position() != cbor.len() || encode_profile_input_value(&value)? != cbor {
+        return Err(QualificationHarnessError::InvalidSetupHandoff);
+    }
+    let object = value
+        .as_object_mut()
+        .ok_or(QualificationHarnessError::InvalidSetupHandoff)?;
+    let mut changed = false;
+    for key in [
+        "paymentIntent",
+        "tenantKey",
+        "workspace",
+        "preparedUpdate",
+        "preparedPlan",
+    ] {
+        if let Some(serde_json::Value::String(text)) = object.get_mut(key)
+            && !text.is_empty()
+        {
+            text.push('x');
+            changed = true;
+            break;
+        }
+    }
+    if !changed
+        && let Some(serde_json::Value::String(text)) = object
+            .get_mut("assignments")
+            .and_then(serde_json::Value::as_array_mut)
+            .and_then(|items| items.first_mut())
+            .and_then(serde_json::Value::as_object_mut)
+            .and_then(|assignment| assignment.get_mut("value"))
+    {
+        text.push('x');
+        changed = true;
+    }
+    if !changed {
+        let amount = object
+            .get("amount")
+            .and_then(serde_json::Value::as_u64)
+            .filter(|amount| *amount > 0)
+            .ok_or(QualificationHarnessError::InvalidSetupHandoff)?;
+        object.insert(
+            "amount".into(),
+            serde_json::Value::from(
+                amount
+                    .checked_add(1)
+                    .ok_or(QualificationHarnessError::InvalidSetupHandoff)?,
+            ),
+        );
+    }
+    encode_profile_input_value(&value)
+}
+
+fn encode_profile_input_value(
+    value: &serde_json::Value,
+) -> Result<Vec<u8>, QualificationHarnessError> {
+    let mut bytes = Vec::new();
+    match value {
+        serde_json::Value::Null => {
+            Encoder::new(&mut bytes)
+                .null()
+                .map_err(|_| QualificationHarnessError::InvalidSetupHandoff)?;
+        }
+        serde_json::Value::Bool(value) => {
+            Encoder::new(&mut bytes)
+                .bool(*value)
+                .map_err(|_| QualificationHarnessError::InvalidSetupHandoff)?;
+        }
+        serde_json::Value::Number(value) => {
+            Encoder::new(&mut bytes)
+                .u64(
+                    value
+                        .as_u64()
+                        .ok_or(QualificationHarnessError::InvalidSetupHandoff)?,
+                )
+                .map_err(|_| QualificationHarnessError::InvalidSetupHandoff)?;
+        }
+        serde_json::Value::String(value) => {
+            Encoder::new(&mut bytes)
+                .str(value)
+                .map_err(|_| QualificationHarnessError::InvalidSetupHandoff)?;
+        }
+        serde_json::Value::Array(values) => {
+            Encoder::new(&mut bytes)
+                .array(values.len() as u64)
+                .map_err(|_| QualificationHarnessError::InvalidSetupHandoff)?;
+            for value in values {
+                bytes.extend_from_slice(&encode_profile_input_value(value)?);
+            }
+        }
+        serde_json::Value::Object(values) => {
+            let mut fields = values
+                .iter()
+                .map(|(key, value)| {
+                    Ok((
+                        encode_profile_input_value(&serde_json::Value::String(key.clone()))?,
+                        encode_profile_input_value(value)?,
+                    ))
+                })
+                .collect::<Result<Vec<_>, QualificationHarnessError>>()?;
+            fields.sort_by(|left, right| left.0.cmp(&right.0));
+            Encoder::new(&mut bytes)
+                .map(fields.len() as u64)
+                .map_err(|_| QualificationHarnessError::InvalidSetupHandoff)?;
+            for (key, value) in fields {
+                bytes.extend_from_slice(&key);
+                bytes.extend_from_slice(&value);
+            }
+        }
+    }
+    Ok(bytes)
+}
+
+fn decode_profile_input_value(
+    decoder: &mut Decoder<'_>,
+    depth: u8,
+    remaining_nodes: &mut usize,
+) -> Result<serde_json::Value, QualificationHarnessError> {
+    if depth > 64 || *remaining_nodes == 0 {
+        return Err(QualificationHarnessError::Limit);
+    }
+    *remaining_nodes -= 1;
+    match decoder
+        .datatype()
+        .map_err(|_| QualificationHarnessError::InvalidSetupHandoff)?
+    {
+        Type::Null => {
+            decoder
+                .null()
+                .map_err(|_| QualificationHarnessError::InvalidSetupHandoff)?;
+            Ok(serde_json::Value::Null)
+        }
+        Type::Bool => decoder
+            .bool()
+            .map(serde_json::Value::Bool)
+            .map_err(|_| QualificationHarnessError::InvalidSetupHandoff),
+        Type::U8 | Type::U16 | Type::U32 | Type::U64 => decoder
+            .u64()
+            .map(serde_json::Value::from)
+            .map_err(|_| QualificationHarnessError::InvalidSetupHandoff),
+        Type::String => decoder
+            .str()
+            .map(|value| serde_json::Value::String(value.to_owned()))
+            .map_err(|_| QualificationHarnessError::InvalidSetupHandoff),
+        Type::Array => {
+            let length = decoder
+                .array()
+                .map_err(|_| QualificationHarnessError::InvalidSetupHandoff)?
+                .ok_or(QualificationHarnessError::InvalidSetupHandoff)?;
+            let length = usize::try_from(length).map_err(|_| QualificationHarnessError::Limit)?;
+            if length > *remaining_nodes || length > MAX_VECTOR_BYTES {
+                return Err(QualificationHarnessError::Limit);
+            }
+            let mut values = Vec::with_capacity(length);
+            for _ in 0..length {
+                values.push(decode_profile_input_value(
+                    decoder,
+                    depth + 1,
+                    remaining_nodes,
+                )?);
+            }
+            Ok(serde_json::Value::Array(values))
+        }
+        Type::Map => {
+            let length = decoder
+                .map()
+                .map_err(|_| QualificationHarnessError::InvalidSetupHandoff)?
+                .ok_or(QualificationHarnessError::InvalidSetupHandoff)?;
+            let length = usize::try_from(length).map_err(|_| QualificationHarnessError::Limit)?;
+            if length > *remaining_nodes || length > MAX_VECTOR_BYTES {
+                return Err(QualificationHarnessError::Limit);
+            }
+            let mut values = serde_json::Map::new();
+            for _ in 0..length {
+                let key = decoder
+                    .str()
+                    .map_err(|_| QualificationHarnessError::InvalidSetupHandoff)?
+                    .to_owned();
+                if values
+                    .insert(
+                        key,
+                        decode_profile_input_value(decoder, depth + 1, remaining_nodes)?,
+                    )
+                    .is_some()
+                {
+                    return Err(QualificationHarnessError::InvalidSetupHandoff);
+                }
+            }
+            Ok(serde_json::Value::Object(values))
+        }
+        _ => Err(QualificationHarnessError::InvalidSetupHandoff),
+    }
+}
 
 /// Closed crash boundaries exercised by the external qualification supervisor.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
@@ -298,9 +598,12 @@ pub struct QualificationRunReference {
     pub provider_run_id: String,
     /// Run-owned provider namespace, safe to disclose to protected jobs.
     pub provider_namespace: String,
+    /// Domain-owned commitment to the exact provider account/database/backend.
+    pub provider_destination_sha256: String,
     /// SHA-256 commitment to the onboarded connection alias.
     pub connection_alias_sha256: String,
-    /// Byte-sorted provider resource identifiers or commitments.
+    /// Byte-sorted typed SHA-256 commitments. Raw provider identifiers must
+    /// never cross the protected setup boundary.
     pub resource_references: Vec<String>,
     /// Byte-sorted connection generations used by this run.
     pub connection_generations: Vec<String>,
@@ -462,13 +765,139 @@ pub enum QualificationCompletion {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct QualificationCleanupEvidence {
     /// Every run-scoped provider resource was destroyed.
-    pub provider_resources_destroyed: bool,
+    provider_resources_destroyed: bool,
     /// The run-scoped Auths connection was disabled or removed.
-    pub connection_disabled: bool,
+    connection_disabled: bool,
     /// All run-scoped provider credentials were revoked or rotated.
-    pub credentials_revoked: bool,
+    credentials_revoked: bool,
     /// Residual run-scoped provider resources after cleanup.
+    residual_resource_count: u32,
+}
+
+/// Provider-owned cleanup measurements. The negative reauthentication fact is
+/// limited to the exact provider-issued run credential. It cannot assert Auths
+/// connection-store removal or broker capability destruction; the protected
+/// common cleanup verifier derives those separate facts from root-runtime and
+/// source-authenticated broker evidence.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct QualificationProviderCleanupEvidence {
+    /// Commitment to the provider destination authenticated before cleanup.
+    pub provider_destination_sha256: String,
+    /// Commitment to the exact run-owned provider namespace.
+    pub provider_namespace_sha256: String,
+    /// Canonical commitment to the complete protected setup resource roster.
+    pub resource_roster_sha256: String,
+    /// Number of resources in that immutable setup roster.
+    pub expected_resource_count: u32,
+    /// Run-scoped provider resources observed before destructive cleanup.
+    pub discovered_resource_count: u32,
+    /// Exact setup resources already absent when this idempotent attempt began.
+    pub already_absent_resource_count: u32,
+    /// Run-scoped provider resources whose destruction was independently confirmed.
+    pub destroyed_resource_count: u32,
+    /// Run-scoped provider resources observed after destructive cleanup.
     pub residual_resource_count: u32,
+    /// Exact setup-roster resources independently confirmed absent afterward.
+    pub confirmed_absent_resource_count: u32,
+    /// The revoked run-scoped provider credential no longer authenticates.
+    pub credential_reauthentication_denied: bool,
+}
+
+/// Provider-owned cleanup measurements taken without accepting a setup or
+/// collection reference as destructive authority. Shared protected code binds
+/// these measurements to the authenticated cleanup reference afterward.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct QualificationProviderCleanupObservation {
+    pub provider_destination_sha256: String,
+    pub provider_namespace_sha256: String,
+    /// Exact byte-sorted commitment roster observed before this attempt.
+    pub discovered_resource_commitments: Vec<String>,
+    /// Exact byte-sorted commitment roster destroyed by this attempt.
+    pub destroyed_resource_commitments: Vec<String>,
+    /// Exact byte-sorted commitment roster still present after cleanup.
+    pub residual_resource_commitments: Vec<String>,
+    pub credential_reauthentication_denied: bool,
+}
+
+/// Root-owned post-reap cleanup measurements for one provider row.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct QualificationRuntimeCleanupEvidence {
+    /// Remaining entries in the exact run-scoped connection store.
+    pub connection_store_residual_count: u32,
+    /// Remaining entries in the exact run-scoped credential store.
+    pub credential_store_residual_count: u32,
+    /// Remaining retained row processes after exact reap.
+    pub retained_process_count: u32,
+    /// Remaining delegated-cgroup processes after exact reap.
+    pub delegated_cgroup_process_count: u32,
+}
+
+/// Root-owned immutable post-reap cleanup marker for one provider row.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct QualificationRuntimeCleanupObservationV1 {
+    /// Fixed schema identity.
+    pub schema: String,
+    pub repository_id: String,
+    pub candidate_revision: String,
+    pub run_id: String,
+    pub run_attempt: u32,
+    pub domain: String,
+    pub target: QualificationTarget,
+    pub provider_run_id: String,
+    /// Canonical immutable ledger-plan commitment.
+    pub ledger_plan_sha256: String,
+    /// Exact protected setup handoff committed by that plan.
+    pub setup_handoff_sha256: String,
+    /// Pre-delete runtime root filesystem identity.
+    pub runtime_device: u64,
+    pub runtime_inode: u64,
+    /// Pre-delete policy root filesystem identity.
+    pub policy_device: u64,
+    pub policy_inode: u64,
+    /// Commitment to the exact delegated cgroup path.
+    pub cgroup_path_sha256: String,
+    /// Commitments to the fixed broker store paths removed with the row.
+    pub connection_store_path_sha256: String,
+    pub credential_store_path_sha256: String,
+    /// Independently measured post-teardown state.
+    pub evidence: QualificationRuntimeCleanupEvidence,
+    pub completed_at_unix_seconds: u64,
+}
+
+/// Source-authenticated broker lease closure measurements for one provider row.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct QualificationBrokerCleanupEvidence {
+    /// Successful run-scoped lease grants.
+    pub succeeded_lease_count: u32,
+    /// Exact matching run-scoped lease closures.
+    pub closed_lease_count: u32,
+    /// Successful leases without exactly one matching close event.
+    pub unmatched_lease_count: u32,
+}
+
+/// Redacted cleanup binding derived from the protected setup handoff. This is
+/// safe to retain in final evidence because it contains only fixed run identity
+/// and commitments, never scenario inputs or raw provider identifiers.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct QualificationCleanupReferenceV1 {
+    pub schema: String,
+    pub run_context: QualificationRunContext,
+    pub domain: String,
+    pub setup_handoff_sha256: String,
+    pub provider_destination_sha256: String,
+    pub connection_alias_sha256: String,
+    pub provider_namespace_sha256: String,
+    /// Safe typed commitments to every exact cleanup obligation. Raw provider
+    /// identifiers remain confined to the protected setup handoff.
+    pub resource_commitments: Vec<String>,
+    pub resource_roster_sha256: String,
+    pub resource_count: u32,
 }
 
 /// Static metadata implemented by every domain qualification adapter.
@@ -1061,7 +1490,13 @@ impl QualificationInstalledClient {
                 {
                     return Err(QualificationHarnessError::Invocation);
                 }
-                Ok(serde_json::json!({"caseId": case.case_id, "input": value}))
+                let profile_input =
+                    qualification_case_profile_input_cbor(program_case.stimulus(), &case.input)?;
+                Ok(serde_json::json!({
+                    "caseId": case.case_id,
+                    "input": value,
+                    "profileInputBase64url": Base64UrlUnpadded::encode_string(&profile_input),
+                }))
             })
             .collect::<Result<Vec<_>, QualificationHarnessError>>()?;
         let canonical_input = serde_json_canonicalizer::to_vec(&serde_json::json!({
@@ -1251,7 +1686,7 @@ fn public_class_name(value: &str) -> bool {
 }
 
 const INSTALLED_QUALIFICATION_CLIENT: &str = r#"
-import asyncio, copy, dataclasses, importlib, json, sys
+import asyncio, base64, copy, dataclasses, importlib, json, sys
 from auths._cbor import encode as encode_cbor
 
 source, module_name, client_name, group_name, method_name, input_name, socket, connection, scenario, phase_index, role, program_json = sys.argv[1:]
@@ -1323,25 +1758,6 @@ def stable_completed_value(outcome):
     stable["auths"].pop("completion", None)
     return stable
 
-def conflict_input(request):
-    changed = copy.deepcopy(request)
-    for key in ("paymentIntent", "tenantKey", "workspace", "preparedUpdate", "preparedPlan"):
-        value = changed.get(key)
-        if isinstance(value, str) and value:
-            changed[key] = value + "x"
-            return changed
-    assignments = changed.get("assignments")
-    if isinstance(assignments, list) and assignments and isinstance(assignments[0], dict):
-        value = assignments[0].get("value")
-        if isinstance(value, str):
-            assignments[0]["value"] = value + "x"
-            return changed
-    amount = changed.get("amount")
-    if isinstance(amount, int) and amount > 0:
-        changed["amount"] = amount + 1
-        return changed
-    raise ValueError("installed-client scenario has no safe conflict mutation")
-
 async def main():
     raw = sys.stdin.buffer.read(16_777_217)
     if not raw or len(raw) > 16_777_216:
@@ -1365,9 +1781,10 @@ async def main():
         or len(supplied) != len(selected)
         or any(
             not isinstance(item, dict)
-            or set(item) != {"caseId", "input"}
+            or set(item) != {"caseId", "input", "profileInputBase64url"}
             or item["caseId"] != case["caseId"]
             or not isinstance(item["input"], dict)
+            or not isinstance(item["profileInputBase64url"], str)
             for item, case in zip(supplied, selected)
         )
     ):
@@ -1389,30 +1806,16 @@ async def main():
                 **kwargs,
                 options=auths.OperationOptions(idempotency_key=key),
             )
-        async def invoke_case(case, request):
+        async def invoke_case(case, item):
+            request = item["input"]
+            encoded = base64.urlsafe_b64decode(
+                item["profileInputBase64url"] + "=" * (-len(item["profileInputBase64url"]) % 4)
+            )
             intent = "aq:" + scenario + ":" + str(phase_index) + ":" + case["intentId"]
             stimulus = case["stimulus"]
-            if stimulus == "changed-input":
-                request = conflict_input(request)
-            if stimulus == "noncanonical-integer":
-                encoded = b"\x18\x00"
-            elif stimulus == "duplicate-field":
-                encoded = b"\xa2\x61x\x01\x61x\x02"
-            elif stimulus == "missing-field":
-                if not request:
-                    raise ValueError("missing-field stimulus has no record field")
-                hostile = copy.deepcopy(request)
-                hostile.pop(sorted(hostile)[0])
-                encoded = encode_cbor(hostile)
-            elif stimulus == "unknown-field":
-                hostile = copy.deepcopy(request)
-                hostile["__unknown"] = 1
-                encoded = encode_cbor(hostile)
-            elif stimulus == "encoded-canonical":
-                encoded = encode_cbor(request)
-            else:
-                encoded = None
-            if encoded is None:
+            if stimulus not in ("noncanonical-integer", "duplicate-field", "missing-field", "unknown-field", "encoded-canonical"):
+                if encode_cbor(request) != encoded:
+                    raise ValueError("installed-client typed input differs from protected profile bytes")
                 return await invoke(request, intent)
             return await bound_profile._qualification_invoke_encoded_outcome(
                 encoded,
@@ -1430,20 +1833,38 @@ async def main():
             group_inputs = supplied[offset:end]
             if group_cases[0]["topology"] == "parallel":
                 outcomes = await asyncio.gather(*(
-                    invoke_case(case, item["input"])
+                    invoke_case(case, item)
                     for case, item in zip(group_cases, group_inputs)
                 ))
+                if not prerequisite:
+                    expected = sorted(
+                        case["expectedOutcome"]
+                        for case in group_cases
+                        if case["expectation"] == "group-multiset"
+                    )
+                    actual = sorted(
+                        outcome.kind
+                        for case, outcome in zip(group_cases, outcomes)
+                        if case["expectation"] == "group-multiset"
+                    )
+                    if actual != expected:
+                        raise ValueError("installed-client parallel outcomes differ from reviewed multiset")
             else:
                 outcomes = []
                 for case, item in zip(group_cases, group_inputs):
-                    outcomes.append(await invoke_case(case, item["input"]))
+                    outcomes.append(await invoke_case(case, item))
             results.extend(zip(group_cases, outcomes))
             offset = end
 
     first_by_intent = {}
     response_cases = []
     for case, outcome in results:
-        if not prerequisite and case["expectation"] == "exact" and outcome.kind != case["expectedOutcome"]:
+        if (
+            not prerequisite
+            and case["topology"] == "serial"
+            and case["expectation"] == "exact"
+            and outcome.kind != case["expectedOutcome"]
+        ):
             raise ValueError("installed-client case outcome differs from reviewed program")
         prior = first_by_intent.get(case["intentId"])
         if prior is not None and outcome.kind in ("completed", "conflict"):
@@ -1529,6 +1950,9 @@ pub trait QualificationProtectedSetup {
 pub trait QualificationProtectedObserver {
     /// Protected domain environment reconstructed independently of candidate code.
     type Environment;
+    /// Provider-specific environment reconstructed from the isolated cleanup
+    /// credential without relying on candidate or collection state.
+    type CleanupEnvironment;
 
     /// Returns immutable adapter metadata.
     fn metadata(&self) -> QualificationAdapterMetadata;
@@ -1571,12 +1995,21 @@ pub trait QualificationProtectedObserver {
         truths: &[QualificationProviderTruth],
     ) -> Result<(), QualificationHarnessError>;
 
-    /// Destroys every provider resource and credential, proving cleanup.
-    fn cleanup(
+    /// Opens the deterministic run-owned provider cleanup boundary. This must
+    /// remain usable when setup or collection failed before publishing a handoff.
+    fn open_cleanup(
         &self,
         context: &QualificationRunContext,
-        reference: Option<&QualificationRunReference>,
-    ) -> Result<QualificationCleanupEvidence, QualificationHarnessError>;
+    ) -> Result<Self::CleanupEnvironment, QualificationHarnessError>;
+
+    /// Measures provider cleanup through the isolated provider cleanup
+    /// environment. Common connection-store and broker-credential cleanup are
+    /// deliberately outside the provider adapter's authority.
+    fn cleanup(
+        &self,
+        environment: &Self::CleanupEnvironment,
+        context: &QualificationRunContext,
+    ) -> Result<QualificationProviderCleanupObservation, QualificationHarnessError>;
 }
 
 /// Validates the provider-independent projection of one executable scenario.
@@ -1610,27 +2043,58 @@ pub fn validate_scenario_program_projection(
             continue;
         }
         matched_roles.insert(operation.role);
-        let exact_expectation = cases
+        let failpoint_expectation = cases
             .iter()
-            .all(|case| case.expectation() == crate::QualificationScenarioExpectation::Exact);
-        if exact_expectation == failpoint.is_some() {
+            .all(|case| case.expectation() == crate::QualificationScenarioExpectation::Failpoint);
+        if failpoint_expectation != failpoint.is_some() {
             return Err(QualificationHarnessError::ProviderTruth);
         }
-        if exact_expectation {
-            if operation.attempts.len() != cases.len() {
-                return Err(QualificationHarnessError::ProviderTruth);
-            }
-            let attempts = operation
+        if !failpoint_expectation {
+            let case_ids = cases
+                .iter()
+                .map(|case| case.case_id())
+                .collect::<std::collections::BTreeSet<_>>();
+            if operation
                 .attempts
                 .iter()
-                .map(|attempt| (attempt.case_id.as_str(), attempt))
-                .collect::<std::collections::BTreeMap<_, _>>();
-            if attempts.len() != cases.len()
-                || cases
-                    .iter()
-                    .any(|case| !attempts.contains_key(case.case_id()))
+                .any(|attempt| !case_ids.contains(attempt.case_id.as_str()))
             {
                 return Err(QualificationHarnessError::ProviderTruth);
+            }
+            let mut attempts = std::collections::BTreeMap::new();
+            for case in &cases {
+                let case_attempts = operation
+                    .attempts
+                    .iter()
+                    .filter(|attempt| attempt.case_id == case.case_id())
+                    .collect::<Vec<_>>();
+                let owners = case_attempts
+                    .iter()
+                    .copied()
+                    .filter(|attempt| {
+                        !matches!(
+                            attempt.kind,
+                            QualificationAttemptKind::Recover | QualificationAttemptKind::Status
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                let [owner] = owners.as_slice() else {
+                    return Err(QualificationHarnessError::ProviderTruth);
+                };
+                if case_attempts.iter().any(|attempt| {
+                    (matches!(
+                        attempt.kind,
+                        QualificationAttemptKind::Recover | QualificationAttemptKind::Status
+                    ) && (attempt.sequence <= owner.sequence
+                        || attempt.operation_id != owner.operation_id))
+                }) {
+                    return Err(QualificationHarnessError::ProviderTruth);
+                }
+                let terminal = case_attempts
+                    .into_iter()
+                    .max_by_key(|attempt| attempt.sequence)
+                    .ok_or(QualificationHarnessError::ProviderTruth)?;
+                attempts.insert(case.case_id(), (*owner, terminal));
             }
             let mut provider_call_owners = std::collections::BTreeSet::new();
             let mut offset = 0_usize;
@@ -1659,41 +2123,67 @@ pub fn validate_scenario_program_projection(
                 if topology == crate::QualificationScenarioTopology::Parallel {
                     let last_request = group_attempts
                         .iter()
-                        .map(|attempt| attempt.request_event_sequence)
+                        .map(|(owner, _)| owner.request_event_sequence)
                         .max()
                         .ok_or(QualificationHarnessError::ProviderTruth)?;
                     let first_terminal = group_attempts
                         .iter()
-                        .map(|attempt| attempt.terminal_event_sequence)
+                        .map(|(owner, _)| owner.terminal_event_sequence)
                         .min()
                         .ok_or(QualificationHarnessError::ProviderTruth)?;
                     if last_request >= first_terminal {
                         return Err(QualificationHarnessError::ProviderTruth);
                     }
-                }
-                for (case, attempt) in cases[offset..end].iter().zip(group_attempts) {
-                    let (effect, provider_calls) = attempt.operation_id.as_deref().map_or(
-                        Ok((QualificationEffect::NotApplied, 0)),
-                        |operation_id| {
-                            let instance = operation
-                                .instances
-                                .iter()
-                                .find(|instance| instance.operation_id == operation_id)
-                                .ok_or(QualificationHarnessError::ProviderTruth)?;
-                            let provider_calls = if provider_call_owners.insert(operation_id) {
-                                instance.counters.provider_calls
-                            } else {
-                                0
-                            };
-                            Ok((instance.effect, provider_calls))
-                        },
-                    )?;
-                    if attempt.outcome != case.expected_outcome()
-                        || effect != case.expected_effect()
-                        || provider_calls != case.expected_provider_calls()
+                    if group_attempts
+                        .iter()
+                        .map(|(owner, _)| owner.preparation_input_sha256.as_deref())
+                        .collect::<std::collections::BTreeSet<_>>()
+                        .len()
+                        != 1
                     {
                         return Err(QualificationHarnessError::ProviderTruth);
                     }
+                }
+                let mut actual = group_attempts
+                    .into_iter()
+                    .map(|(_, attempt)| {
+                        let (effect, provider_calls) = attempt.operation_id.as_deref().map_or(
+                            Ok((QualificationEffect::NotApplied, 0)),
+                            |operation_id| {
+                                let instance = operation
+                                    .instances
+                                    .iter()
+                                    .find(|instance| instance.operation_id == operation_id)
+                                    .ok_or(QualificationHarnessError::ProviderTruth)?;
+                                let provider_calls = if provider_call_owners.insert(operation_id) {
+                                    instance.counters.provider_calls
+                                } else {
+                                    0
+                                };
+                                Ok((instance.effect, provider_calls))
+                            },
+                        )?;
+                        Ok((attempt.outcome, effect, provider_calls))
+                    })
+                    .collect::<Result<Vec<_>, QualificationHarnessError>>()?;
+                let mut expected = cases[offset..end]
+                    .iter()
+                    .map(|case| {
+                        (
+                            case.expected_outcome(),
+                            case.expected_effect(),
+                            case.expected_provider_calls(),
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                if cases[offset].expectation()
+                    == crate::QualificationScenarioExpectation::GroupMultiset
+                {
+                    actual.sort_unstable();
+                    expected.sort_unstable();
+                }
+                if actual != expected {
+                    return Err(QualificationHarnessError::ProviderTruth);
                 }
                 offset = end;
             }
@@ -1904,10 +2394,11 @@ impl QualificationRunReference {
             || self.run_attempt == 0
             || !registered_token(&self.provider_run_id)
             || !registered_token(&self.provider_namespace)
+            || !digest(&self.provider_destination_sha256)
             || !digest(&self.connection_alias_sha256)
             || self.resource_references.is_empty()
             || self.resource_references.len() > MAX_RUN_REFERENCES
-            || !sorted_unique_registered(&self.resource_references)
+            || !sorted_unique_resource_commitments(&self.resource_references)
             || self.connection_generations.is_empty()
             || self.connection_generations.len() > MAX_RUN_REFERENCES
             || !sorted_unique_decimal(&self.connection_generations)
@@ -2007,6 +2498,31 @@ impl QualificationRedactedOperationInstance {
 }
 
 impl QualificationCleanupEvidence {
+    /// Derives the public cleanup verdict from independently owned facts.
+    pub fn try_from_observations(
+        provider: &QualificationProviderCleanupEvidence,
+        runtime: &QualificationRuntimeCleanupEvidence,
+        broker: &QualificationBrokerCleanupEvidence,
+    ) -> Result<Self, QualificationHarnessError> {
+        provider.validate()?;
+        if !provider.credential_reauthentication_denied
+            || runtime.connection_store_residual_count != 0
+            || runtime.credential_store_residual_count != 0
+            || runtime.retained_process_count != 0
+            || runtime.delegated_cgroup_process_count != 0
+            || broker.succeeded_lease_count != broker.closed_lease_count
+            || broker.unmatched_lease_count != 0
+        {
+            return Err(QualificationHarnessError::Cleanup);
+        }
+        Ok(Self {
+            provider_resources_destroyed: true,
+            connection_disabled: true,
+            credentials_revoked: true,
+            residual_resource_count: provider.residual_resource_count,
+        })
+    }
+
     /// Requires complete cleanup; partial or inconclusive cleanup cannot sign.
     pub fn validate(&self) -> Result<(), QualificationHarnessError> {
         if self.provider_resources_destroyed
@@ -2018,6 +2534,206 @@ impl QualificationCleanupEvidence {
         } else {
             Err(QualificationHarnessError::Cleanup)
         }
+    }
+
+    #[must_use]
+    pub const fn provider_resources_destroyed(&self) -> bool {
+        self.provider_resources_destroyed
+    }
+
+    #[must_use]
+    pub const fn connection_disabled(&self) -> bool {
+        self.connection_disabled
+    }
+
+    #[must_use]
+    pub const fn credentials_revoked(&self) -> bool {
+        self.credentials_revoked
+    }
+
+    #[must_use]
+    pub const fn residual_resource_count(&self) -> u32 {
+        self.residual_resource_count
+    }
+}
+
+impl QualificationProviderCleanupEvidence {
+    /// Combines provider measurements with the immutable protected cleanup
+    /// expectation after destructive cleanup has completed. This keeps the
+    /// reference out of the adapter's destructive-selection authority while
+    /// allowing an idempotent retry to account for resources already absent.
+    pub fn try_from_provider_observation(
+        observation: &QualificationProviderCleanupObservation,
+        reference: &QualificationCleanupReferenceV1,
+    ) -> Result<Self, QualificationHarnessError> {
+        observation.validate()?;
+        reference.validate()?;
+        if observation.provider_destination_sha256 != reference.provider_destination_sha256
+            || observation.provider_namespace_sha256 != reference.provider_namespace_sha256
+            || observation
+                .discovered_resource_commitments
+                .iter()
+                .any(|commitment| !reference.resource_commitments.contains(commitment))
+        {
+            return Err(QualificationHarnessError::Cleanup);
+        }
+        let discovered_resource_count =
+            u32::try_from(observation.discovered_resource_commitments.len())
+                .map_err(|_| QualificationHarnessError::Cleanup)?;
+        let already_absent_resource_count = reference.resource_count - discovered_resource_count;
+        let evidence = Self {
+            provider_destination_sha256: observation.provider_destination_sha256.clone(),
+            provider_namespace_sha256: observation.provider_namespace_sha256.clone(),
+            resource_roster_sha256: reference.resource_roster_sha256.clone(),
+            expected_resource_count: reference.resource_count,
+            discovered_resource_count,
+            already_absent_resource_count,
+            destroyed_resource_count: u32::try_from(
+                observation.destroyed_resource_commitments.len(),
+            )
+            .map_err(|_| QualificationHarnessError::Cleanup)?,
+            residual_resource_count: u32::try_from(observation.residual_resource_commitments.len())
+                .map_err(|_| QualificationHarnessError::Cleanup)?,
+            confirmed_absent_resource_count: reference.resource_count,
+            credential_reauthentication_denied: observation.credential_reauthentication_denied,
+        };
+        evidence.validate()?;
+        Ok(evidence)
+    }
+
+    /// Requires a complete, measured provider after-state.
+    pub fn validate(&self) -> Result<(), QualificationHarnessError> {
+        if digest(&self.provider_destination_sha256)
+            && digest(&self.provider_namespace_sha256)
+            && digest(&self.resource_roster_sha256)
+            && self.expected_resource_count > 0
+            && self
+                .discovered_resource_count
+                .checked_add(self.already_absent_resource_count)
+                == Some(self.expected_resource_count)
+            && self.destroyed_resource_count == self.discovered_resource_count
+            && self.residual_resource_count == 0
+            && self.confirmed_absent_resource_count == self.expected_resource_count
+            && self.credential_reauthentication_denied
+        {
+            Ok(())
+        } else {
+            Err(QualificationHarnessError::Cleanup)
+        }
+    }
+}
+
+impl QualificationProviderCleanupObservation {
+    /// Requires a complete provider-owned destructive attempt and after-state.
+    pub fn validate(&self) -> Result<(), QualificationHarnessError> {
+        if digest(&self.provider_destination_sha256)
+            && digest(&self.provider_namespace_sha256)
+            && sorted_unique_resource_commitments(&self.discovered_resource_commitments)
+            && self.destroyed_resource_commitments == self.discovered_resource_commitments
+            && self.residual_resource_commitments.is_empty()
+            && self.credential_reauthentication_denied
+        {
+            Ok(())
+        } else {
+            Err(QualificationHarnessError::Cleanup)
+        }
+    }
+}
+
+impl QualificationRuntimeCleanupObservationV1 {
+    /// Exact-binds one root marker to its immutable provider-row plan.
+    pub fn validate(
+        &self,
+        plan: &crate::QualificationEvidenceLedgerPlanV1,
+        ledger_plan_sha256: &str,
+    ) -> Result<(), QualificationHarnessError> {
+        if self.schema != "auths.qualification-runtime-cleanup-observation/1"
+            || !digest(ledger_plan_sha256)
+            || self.repository_id != plan.repository_id
+            || self.candidate_revision != plan.candidate_revision
+            || self.run_id != plan.run_id
+            || self.run_attempt != plan.run_attempt
+            || self.domain != plan.domain
+            || self.target != plan.target
+            || self.provider_run_id != plan.provider_run_id
+            || self.ledger_plan_sha256 != ledger_plan_sha256
+            || self.setup_handoff_sha256 != plan.setup_handoff_sha256
+            || self.runtime_device == 0
+            || self.runtime_inode == 0
+            || self.policy_device == 0
+            || self.policy_inode == 0
+            || !digest(&self.cgroup_path_sha256)
+            || !digest(&self.connection_store_path_sha256)
+            || !digest(&self.credential_store_path_sha256)
+            || self.completed_at_unix_seconds < plan.started_at_unix_seconds
+            || self.evidence.connection_store_residual_count != 0
+            || self.evidence.credential_store_residual_count != 0
+            || self.evidence.retained_process_count != 0
+            || self.evidence.delegated_cgroup_process_count != 0
+        {
+            return Err(QualificationHarnessError::Cleanup);
+        }
+        Ok(())
+    }
+}
+
+impl QualificationCleanupReferenceV1 {
+    pub fn from_handoff(
+        handoff: &QualificationSetupHandoffV1,
+        setup_handoff_bytes: &[u8],
+    ) -> Result<Self, QualificationHarnessError> {
+        handoff.validate()?;
+        if serde_json_canonicalizer::to_vec(handoff)
+            .map_err(|_| QualificationHarnessError::InvalidSetupHandoff)?
+            != setup_handoff_bytes
+        {
+            return Err(QualificationHarnessError::InvalidSetupHandoff);
+        }
+        let value = Self {
+            schema: "auths.profile-qualification-cleanup-reference/1".into(),
+            run_context: handoff.run_context.clone(),
+            domain: handoff.domain.clone(),
+            setup_handoff_sha256: hex::encode(Sha256::digest(setup_handoff_bytes)),
+            provider_destination_sha256: handoff.run_reference.provider_destination_sha256.clone(),
+            connection_alias_sha256: handoff.run_reference.connection_alias_sha256.clone(),
+            provider_namespace_sha256: hex::encode(Sha256::digest(
+                handoff.run_reference.provider_namespace.as_bytes(),
+            )),
+            resource_commitments: handoff.run_reference.resource_references.clone(),
+            resource_roster_sha256: hex::encode(Sha256::digest(
+                serde_json_canonicalizer::to_vec(&handoff.run_reference.resource_references)
+                    .map_err(|_| QualificationHarnessError::InvalidSetupHandoff)?,
+            )),
+            resource_count: u32::try_from(handoff.run_reference.resource_references.len())
+                .map_err(|_| QualificationHarnessError::InvalidSetupHandoff)?,
+        };
+        value.validate()?;
+        Ok(value)
+    }
+
+    pub fn validate(&self) -> Result<(), QualificationHarnessError> {
+        if self.schema != "auths.profile-qualification-cleanup-reference/1"
+            || self.run_context.validate().is_err()
+            || !lower_token(&self.domain)
+            || !digest(&self.setup_handoff_sha256)
+            || !digest(&self.provider_destination_sha256)
+            || !digest(&self.connection_alias_sha256)
+            || !digest(&self.provider_namespace_sha256)
+            || !sorted_unique_resource_commitments(&self.resource_commitments)
+            || !digest(&self.resource_roster_sha256)
+            || self.resource_count == 0
+            || usize::try_from(self.resource_count).ok() != Some(self.resource_commitments.len())
+            || hex::encode(Sha256::digest(
+                serde_json_canonicalizer::to_vec(&self.resource_commitments)
+                    .map_err(|_| QualificationHarnessError::Cleanup)?,
+            )) != self.resource_roster_sha256
+            || usize::try_from(self.resource_count)
+                .ok()
+                .is_none_or(|count| count > MAX_RUN_REFERENCES)
+        {
+            return Err(QualificationHarnessError::Cleanup);
+        }
+        Ok(())
     }
 }
 
@@ -2123,11 +2839,12 @@ impl QualificationRedactedOperation {
                 attempt.principal_sha256 != instance.principal_sha256
                     || attempt.configuration_sha256.as_deref()
                         != Some(instance.configuration_sha256.as_str())
-                    || attempt.connection_alias_sha256 != instance.connection_alias_sha256
-                    || attempt.connection_generation.as_deref()
-                        != Some(instance.connection_generation.as_str())
-                    || attempt.requested_scope_sha256 != instance.credential_scope_sha256
-                    || attempt.idempotency_sha256 != instance.idempotency_sha256
+                    || (is_preparation_attempt(attempt.kind)
+                        && (attempt.connection_alias_sha256 != instance.connection_alias_sha256
+                            || attempt.connection_generation.as_deref()
+                                != Some(instance.connection_generation.as_str())
+                            || attempt.requested_scope_sha256 != instance.credential_scope_sha256
+                            || attempt.idempotency_sha256 != instance.idempotency_sha256))
                     || (is_preparation_attempt(attempt.kind)
                         && attempt.preparation_input_sha256.is_none())
                     || (attempt.kind == QualificationAttemptKind::Conflict
@@ -2482,8 +3199,18 @@ fn decimal_token(value: &str) -> bool {
         && (value == "0" || !value.starts_with('0'))
 }
 
-fn sorted_unique_registered(values: &[String]) -> bool {
-    values.iter().all(|value| registered_token(value))
+fn resource_commitment(value: &str) -> bool {
+    let Some((kind, digest_value)) = value.split_once(':') else {
+        return false;
+    };
+    let Some(kind) = kind.strip_suffix("-sha256") else {
+        return false;
+    };
+    lower_token(kind) && digest(digest_value) && value.len() <= 128
+}
+
+fn sorted_unique_resource_commitments(values: &[String]) -> bool {
+    values.iter().all(|value| resource_commitment(value))
         && values.windows(2).all(|pair| pair[0] < pair[1])
 }
 
@@ -2496,14 +3223,163 @@ fn sorted_unique_decimal(values: &[String]) -> bool {
 mod tests {
     use super::*;
 
+    #[test]
+    fn protected_json_uses_the_generated_sdk_canonical_cbor_contract() {
+        let encoded = qualification_profile_input_cbor(
+            br#"{"amount":7,"currency":"usd","paymentIntent":"pi_1"}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            hex::encode(&encoded),
+            "a366616d6f756e74076863757272656e6379637573646d7061796d656e74496e74656e746470695f31"
+        );
+        let primary =
+            qualification_profile_input_cbor(br#"{"preparedUpdate":"capability"}"#).unwrap();
+        let changed = qualification_changed_profile_input_cbor(&primary).unwrap();
+        assert_eq!(
+            changed,
+            qualification_profile_input_cbor(br#"{"preparedUpdate":"capabilityx"}"#,).unwrap()
+        );
+        assert!(qualification_profile_input_cbor(br#"{"amount":-1}"#).is_err());
+        assert!(
+            qualification_changed_profile_input_cbor(&changed).is_ok_and(|twice| twice != primary)
+        );
+        for stimulus in ["noncanonical-integer", "duplicate-field"] {
+            let hostile = qualification_case_profile_input_cbor(
+                stimulus,
+                br#"{"amount":7,"currency":"usd","paymentIntent":"pi_1"}"#,
+            )
+            .unwrap();
+            assert!(qualification_changed_profile_input_cbor(&hostile).is_err());
+            assert_ne!(hostile, encoded);
+        }
+    }
+
     fn parallel_program() -> crate::QualificationScenarioProgramV1 {
         crate::qualification_scenario_program(
-            br#"{"schema":"auths.profile-qualification-scenarios/2","domain":"common","programs":[{"id":"parallel-test","cases":[{"caseId":"a","intentId":"a","stimulus":"canonical","role":"effect","group":1,"topology":"parallel","expectation":"exact","expectedOutcome":"denied","expectedEffect":"not-applied","expectedProviderCalls":0},{"caseId":"b","intentId":"b","stimulus":"canonical","role":"effect","group":1,"topology":"parallel","expectation":"exact","expectedOutcome":"unavailable","expectedEffect":"not-applied","expectedProviderCalls":0}],"hooks":[]}]}"#,
+            br#"{"schema":"auths.profile-qualification-scenarios/2","domain":"common","programs":[{"id":"parallel-test","cases":[{"caseId":"a","intentId":"a","stimulus":"canonical","role":"effect","group":1,"topology":"parallel","expectation":"group-multiset","expectedOutcome":"denied","expectedEffect":"not-applied","expectedProviderCalls":0},{"caseId":"b","intentId":"b","stimulus":"canonical","role":"effect","group":1,"topology":"parallel","expectation":"group-multiset","expectedOutcome":"unavailable","expectedEffect":"not-applied","expectedProviderCalls":0}],"hooks":[]}]}"#,
             br#"{"schema":"auths.profile-qualification-scenarios/2","domain":"test","programs":[{"id":"domain-placeholder","cases":[{"caseId":"primary","intentId":"primary","stimulus":"canonical","role":"effect","group":1,"topology":"serial","expectation":"exact","expectedOutcome":"denied","expectedEffect":"not-applied","expectedProviderCalls":0}],"hooks":[]}]}"#,
             "test",
             "parallel-test",
         )
         .unwrap()
+    }
+
+    #[test]
+    fn cleanup_reference_is_a_canonical_redacted_handoff_commitment() {
+        let run_context = QualificationRunContext {
+            repository_id: "123".into(),
+            candidate_revision: "1".repeat(40),
+            target: QualificationTarget::LinuxX86_64,
+            protected_environment: "qualification-test".into(),
+            run_id: "456".into(),
+            run_attempt: 2,
+            provider_run_id: "provider-run".into(),
+        };
+        let connection_alias = "connection-one";
+        let handoff = QualificationSetupHandoffV1 {
+            schema: "auths.profile-qualification-setup-handoff/1".into(),
+            run_context: run_context.clone(),
+            domain: "test".into(),
+            connection_alias: connection_alias.into(),
+            run_reference: QualificationRunReference {
+                schema: "auths.profile-qualification-run-reference/1".into(),
+                domain: "test".into(),
+                target: QualificationTarget::LinuxX86_64,
+                candidate_revision: run_context.candidate_revision.clone(),
+                repository_id: run_context.repository_id.clone(),
+                run_id: run_context.run_id.clone(),
+                run_attempt: run_context.run_attempt,
+                provider_run_id: run_context.provider_run_id.clone(),
+                provider_namespace: "namespace-one".into(),
+                provider_destination_sha256: "2".repeat(64),
+                connection_alias_sha256: hex::encode(Sha256::digest(connection_alias.as_bytes())),
+                resource_references: vec![format!("resource-sha256:{}", "3".repeat(64))],
+                connection_generations: vec!["1".into()],
+            },
+            vectors: vec![QualificationSetupVectorV1 {
+                id: "parallel-test".into(),
+                scenario_program: parallel_program(),
+                cases: vec![
+                    QualificationSetupCaseV1 {
+                        case_id: "a".into(),
+                        input_base64url: Base64UrlUnpadded::encode_string(
+                            b"provider-input-sentinel-a",
+                        ),
+                    },
+                    QualificationSetupCaseV1 {
+                        case_id: "b".into(),
+                        input_base64url: Base64UrlUnpadded::encode_string(
+                            b"provider-input-sentinel-b",
+                        ),
+                    },
+                ],
+                failpoint: None,
+            }],
+        };
+        handoff.validate().unwrap();
+        let mut raw_resource = handoff.clone();
+        raw_resource.run_reference.resource_references = vec!["pi_123".into()];
+        assert!(raw_resource.validate().is_err());
+        let mut malformed_commitment = handoff.clone();
+        malformed_commitment.run_reference.resource_references =
+            vec!["pi-sha256:not-a-digest".into()];
+        assert!(malformed_commitment.validate().is_err());
+        let handoff_bytes = serde_json_canonicalizer::to_vec(&handoff).unwrap();
+        let reference =
+            QualificationCleanupReferenceV1::from_handoff(&handoff, &handoff_bytes).unwrap();
+        assert_eq!(reference.run_context, run_context);
+        assert_eq!(reference.resource_count, 1);
+        assert_eq!(
+            reference.resource_commitments,
+            handoff.run_reference.resource_references
+        );
+        assert_eq!(
+            reference.setup_handoff_sha256,
+            hex::encode(Sha256::digest(&handoff_bytes))
+        );
+        assert_eq!(
+            reference.connection_alias_sha256,
+            handoff.run_reference.connection_alias_sha256
+        );
+        let reference_bytes = serde_json_canonicalizer::to_vec(&reference).unwrap();
+        for forbidden in [
+            connection_alias.as_bytes(),
+            b"namespace-one",
+            b"provider-input-sentinel-a",
+            handoff.vectors[0].cases[0].input_base64url.as_bytes(),
+        ] {
+            assert!(
+                !reference_bytes
+                    .windows(forbidden.len())
+                    .any(|window| window == forbidden)
+            );
+        }
+        let mut changed = handoff_bytes;
+        changed.push(b'\n');
+        assert!(QualificationCleanupReferenceV1::from_handoff(&handoff, &changed).is_err());
+    }
+
+    #[test]
+    fn parallel_program_rejects_duplicate_logical_intents() {
+        assert!(
+            crate::qualification_scenario_program(
+                br#"{"schema":"auths.profile-qualification-scenarios/2","domain":"common","programs":[{"id":"parallel-test","cases":[{"caseId":"a","intentId":"shared","stimulus":"canonical","role":"effect","group":1,"topology":"parallel","expectation":"group-multiset","expectedOutcome":"denied","expectedEffect":"not-applied","expectedProviderCalls":0},{"caseId":"b","intentId":"shared","stimulus":"canonical","role":"effect","group":1,"topology":"parallel","expectation":"group-multiset","expectedOutcome":"unavailable","expectedEffect":"not-applied","expectedProviderCalls":0}],"hooks":[]}]}"#,
+                br#"{"schema":"auths.profile-qualification-scenarios/2","domain":"test","programs":[{"id":"domain-placeholder","cases":[{"caseId":"primary","intentId":"primary","stimulus":"canonical","role":"effect","group":1,"topology":"serial","expectation":"exact","expectedOutcome":"denied","expectedEffect":"not-applied","expectedProviderCalls":0}],"hooks":[]}]}"#,
+                "test",
+                "parallel-test",
+            )
+            .is_err()
+        );
+        assert!(
+            crate::qualification_scenario_program(
+                br#"{"schema":"auths.profile-qualification-scenarios/2","domain":"common","programs":[{"id":"parallel-test","cases":[{"caseId":"a","intentId":"a","stimulus":"canonical","role":"effect","group":1,"topology":"parallel","expectation":"exact","expectedOutcome":"denied","expectedEffect":"not-applied","expectedProviderCalls":0},{"caseId":"b","intentId":"b","stimulus":"canonical","role":"effect","group":1,"topology":"parallel","expectation":"exact","expectedOutcome":"unavailable","expectedEffect":"not-applied","expectedProviderCalls":0}],"hooks":[]}]}"#,
+                br#"{"schema":"auths.profile-qualification-scenarios/2","domain":"test","programs":[{"id":"domain-placeholder","cases":[{"caseId":"primary","intentId":"primary","stimulus":"canonical","role":"effect","group":1,"topology":"serial","expectation":"exact","expectedOutcome":"denied","expectedEffect":"not-applied","expectedProviderCalls":0}],"hooks":[]}]}"#,
+                "test",
+                "parallel-test",
+            )
+            .is_err()
+        );
     }
 
     fn hooked_program(cases: &str, hooks: &str) -> crate::QualificationScenarioProgramV1 {
@@ -2547,6 +3423,104 @@ mod tests {
         }
     }
 
+    fn connected_not_applied_instance() -> QualificationRedactedOperationInstance {
+        QualificationRedactedOperationInstance {
+            operation_id: "operation-1".into(),
+            connection_generation: "1".into(),
+            principal_sha256: "1".repeat(64),
+            connection_alias_sha256: Some("2".repeat(64)),
+            connection_id_sha256: Some("3".repeat(64)),
+            connection_descriptor_sha256: Some("4".repeat(64)),
+            connection_account_sha256: Some("5".repeat(64)),
+            credential_scope_sha256: Some("6".repeat(64)),
+            canonical_input_sha256: "7".repeat(64),
+            idempotency_sha256: Some("8".repeat(64)),
+            canonical_action_sha256: "9".repeat(64),
+            receipt_action_sha256: "a".repeat(64),
+            receipt_context_sha256: "b".repeat(64),
+            authority_sha256: "c".repeat(64),
+            configuration_sha256: "d".repeat(64),
+            runtime_contract_sha256: "e".repeat(64),
+            preparation_sha256: "f".repeat(64),
+            decision_class: QualificationReceiptDecisionClass::Authorized,
+            reconciled: false,
+            effect: QualificationEffect::NotApplied,
+            counters: QualificationCounters::default(),
+            provider_truth_sha256: "0".repeat(64),
+            sealed_command_sha256: None,
+            provider_result_sha256: None,
+            execution_result_sha256: None,
+        }
+    }
+
+    #[test]
+    fn common_recover_is_a_bounded_continuation_of_one_reviewed_case() {
+        let program = hooked_program(
+            r#"[{"caseId":"primary","intentId":"primary","stimulus":"canonical","role":"effect","group":1,"topology":"serial","expectation":"exact","expectedOutcome":"not-applied","expectedEffect":"not-applied","expectedProviderCalls":0}]"#,
+            "[]",
+        );
+        let instance = connected_not_applied_instance();
+        let mut owner = operation_free_attempt();
+        owner.operation_id = Some(instance.operation_id.clone());
+        owner.outcome = QualificationOutcomeKind::RecoveryRequired;
+        owner.recovery_id = Some("recovery-1".into());
+        owner.error_code = Some("auths.test.recovery-required".into());
+        owner.issue_metadata_sha256 = Some("1".repeat(64));
+        owner.principal_sha256 = instance.principal_sha256.clone();
+        owner.connection_alias_sha256 = instance.connection_alias_sha256.clone();
+        owner.connection_generation = Some(instance.connection_generation.clone());
+        owner.requested_scope_sha256 = instance.credential_scope_sha256.clone();
+        owner.configuration_sha256 = Some(instance.configuration_sha256.clone());
+        owner.idempotency_sha256 = instance.idempotency_sha256.clone();
+        owner.preparation_input_sha256 = Some(instance.canonical_input_sha256.clone());
+        let mut recovery = owner.clone();
+        recovery.sequence = 2;
+        recovery.kind = QualificationAttemptKind::Recover;
+        recovery.request_id = "request-2".into();
+        recovery.request_event_sequence = 4;
+        recovery.terminal_event_sequence = 5;
+        recovery.outcome = QualificationOutcomeKind::NotApplied;
+        recovery.completion = Some(QualificationCompletion::Fresh);
+        recovery.recovery_id = None;
+        recovery.idempotency_sha256 = None;
+        recovery.preparation_input_sha256 = None;
+        recovery.connection_alias_sha256 = None;
+        recovery.connection_generation = None;
+        recovery.requested_scope_sha256 = None;
+        recovery.result_sha256 = "2".repeat(64);
+        let operation = QualificationRedactedOperation {
+            role: QualificationOperationRole::Effect,
+            profile: "auths.test.effect/1".into(),
+            instances: vec![instance.clone()],
+            attempts: vec![owner, recovery],
+        };
+        let truth = QualificationProviderTruth {
+            operation_id: instance.operation_id,
+            provider_run_id: "run-1".into(),
+            effect: QualificationEffect::NotApplied,
+            provider_calls: 0,
+            commitment: [0; 32],
+            domain_facts: Vec::new(),
+            provider_version: "1".into(),
+            provider_artifact_sha256: "0".repeat(64),
+        };
+        assert!(operation.validate().is_ok());
+        assert!(
+            validate_scenario_program_projection(
+                &program,
+                None,
+                &[operation.clone()],
+                &[truth.clone()]
+            )
+            .is_ok()
+        );
+        let mut foreign = operation;
+        foreign.attempts[1].case_id = "foreign".into();
+        assert!(
+            validate_scenario_program_projection(&program, None, &[foreign], &[truth]).is_err()
+        );
+    }
+
     #[test]
     fn case_projection_binds_identity_and_parallel_overlap() {
         let program = parallel_program();
@@ -2579,7 +3553,7 @@ mod tests {
         let mut swapped = operation;
         swapped.attempts[0].case_id = "b".into();
         swapped.attempts[1].case_id = "a".into();
-        assert!(validate_scenario_program_projection(&program, None, &[swapped], &[]).is_err());
+        assert!(validate_scenario_program_projection(&program, None, &[swapped], &[]).is_ok());
     }
 
     #[test]
@@ -2604,6 +3578,34 @@ mod tests {
         assert!(
             ambiguous
                 .unique_hook_for_role(
+                    QualificationOperationRole::Effect,
+                    crate::QualificationScenarioHookStage::AfterProviderBeforeResponse,
+                    "suppress-first-response",
+                )
+                .is_err()
+        );
+        assert_eq!(
+            ambiguous.hook_for_case(
+                "a",
+                QualificationOperationRole::Effect,
+                crate::QualificationScenarioHookStage::AfterProviderBeforeResponse,
+                "suppress-first-response",
+            ),
+            Ok(true)
+        );
+        assert_eq!(
+            ambiguous.hook_for_case(
+                "b",
+                QualificationOperationRole::Effect,
+                crate::QualificationScenarioHookStage::AfterProviderBeforeResponse,
+                "suppress-first-response",
+            ),
+            Ok(false)
+        );
+        assert!(
+            ambiguous
+                .hook_for_case(
+                    "missing",
                     QualificationOperationRole::Effect,
                     crate::QualificationScenarioHookStage::AfterProviderBeforeResponse,
                     "suppress-first-response",
@@ -2791,5 +3793,204 @@ mod tests {
             false,
             false,
         ));
+    }
+
+    #[test]
+    fn cleanup_verdict_requires_all_three_independent_owners() {
+        let provider = QualificationProviderCleanupEvidence {
+            provider_destination_sha256: "a".repeat(64),
+            provider_namespace_sha256: "b".repeat(64),
+            resource_roster_sha256: "c".repeat(64),
+            expected_resource_count: 3,
+            discovered_resource_count: 3,
+            already_absent_resource_count: 0,
+            destroyed_resource_count: 3,
+            residual_resource_count: 0,
+            confirmed_absent_resource_count: 3,
+            credential_reauthentication_denied: true,
+        };
+        let runtime = QualificationRuntimeCleanupEvidence {
+            connection_store_residual_count: 0,
+            credential_store_residual_count: 0,
+            retained_process_count: 0,
+            delegated_cgroup_process_count: 0,
+        };
+        let broker = QualificationBrokerCleanupEvidence {
+            succeeded_lease_count: 2,
+            closed_lease_count: 2,
+            unmatched_lease_count: 0,
+        };
+        let cleanup =
+            QualificationCleanupEvidence::try_from_observations(&provider, &runtime, &broker)
+                .unwrap();
+        cleanup.validate().unwrap();
+
+        let retry_after_provider_deletion = QualificationProviderCleanupEvidence {
+            discovered_resource_count: 0,
+            already_absent_resource_count: 3,
+            destroyed_resource_count: 0,
+            ..provider.clone()
+        };
+        QualificationCleanupEvidence::try_from_observations(
+            &retry_after_provider_deletion,
+            &runtime,
+            &broker,
+        )
+        .unwrap();
+
+        let mut live_process = runtime.clone();
+        live_process.retained_process_count = 1;
+        assert!(
+            QualificationCleanupEvidence::try_from_observations(&provider, &live_process, &broker,)
+                .is_err()
+        );
+
+        let mut unmatched = broker.clone();
+        unmatched.closed_lease_count = 1;
+        assert!(
+            QualificationCleanupEvidence::try_from_observations(&provider, &runtime, &unmatched,)
+                .is_err()
+        );
+
+        let mut credential_still_works = provider;
+        credential_still_works.credential_reauthentication_denied = false;
+        assert!(
+            QualificationCleanupEvidence::try_from_observations(
+                &credential_still_works,
+                &runtime,
+                &broker,
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn provider_cleanup_observation_is_bound_after_teardown_and_supports_retry() {
+        let resource_commitments = vec![
+            format!("resource-sha256:{}", "1".repeat(64)),
+            format!("resource-sha256:{}", "2".repeat(64)),
+            format!("resource-sha256:{}", "3".repeat(64)),
+        ];
+        let reference = QualificationCleanupReferenceV1 {
+            schema: "auths.profile-qualification-cleanup-reference/1".into(),
+            run_context: QualificationRunContext {
+                repository_id: "123".into(),
+                candidate_revision: "d".repeat(40),
+                target: QualificationTarget::LinuxX86_64,
+                protected_environment: "qualification-test".into(),
+                run_id: "456".into(),
+                run_attempt: 1,
+                provider_run_id: "provider-row".into(),
+            },
+            domain: "test".into(),
+            setup_handoff_sha256: "a".repeat(64),
+            provider_destination_sha256: "b".repeat(64),
+            connection_alias_sha256: "c".repeat(64),
+            provider_namespace_sha256: "d".repeat(64),
+            resource_roster_sha256: hex::encode(Sha256::digest(
+                serde_json_canonicalizer::to_vec(&resource_commitments).unwrap(),
+            )),
+            resource_commitments: resource_commitments.clone(),
+            resource_count: 3,
+        };
+        let first = QualificationProviderCleanupObservation {
+            provider_destination_sha256: reference.provider_destination_sha256.clone(),
+            provider_namespace_sha256: reference.provider_namespace_sha256.clone(),
+            discovered_resource_commitments: resource_commitments.clone(),
+            destroyed_resource_commitments: resource_commitments.clone(),
+            residual_resource_commitments: vec![],
+            credential_reauthentication_denied: true,
+        };
+        let evidence =
+            QualificationProviderCleanupEvidence::try_from_provider_observation(&first, &reference)
+                .unwrap();
+        assert_eq!(evidence.already_absent_resource_count, 0);
+
+        let retry = QualificationProviderCleanupObservation {
+            discovered_resource_commitments: vec![],
+            destroyed_resource_commitments: vec![],
+            ..first.clone()
+        };
+        let evidence =
+            QualificationProviderCleanupEvidence::try_from_provider_observation(&retry, &reference)
+                .unwrap();
+        assert_eq!(evidence.already_absent_resource_count, 3);
+        assert_eq!(evidence.confirmed_absent_resource_count, 3);
+
+        let partial_retry = QualificationProviderCleanupObservation {
+            discovered_resource_commitments: resource_commitments[1..].to_vec(),
+            destroyed_resource_commitments: resource_commitments[1..].to_vec(),
+            ..first.clone()
+        };
+        let evidence = QualificationProviderCleanupEvidence::try_from_provider_observation(
+            &partial_retry,
+            &reference,
+        )
+        .unwrap();
+        assert_eq!(evidence.discovered_resource_count, 2);
+        assert_eq!(evidence.already_absent_resource_count, 1);
+
+        let wrong_destination = QualificationProviderCleanupObservation {
+            provider_destination_sha256: "f".repeat(64),
+            ..first.clone()
+        };
+        assert!(
+            QualificationProviderCleanupEvidence::try_from_provider_observation(
+                &wrong_destination,
+                &reference,
+            )
+            .is_err()
+        );
+        let substituted = QualificationProviderCleanupObservation {
+            discovered_resource_commitments: vec![format!("resource-sha256:{}", "f".repeat(64))],
+            destroyed_resource_commitments: vec![format!("resource-sha256:{}", "f".repeat(64))],
+            ..first.clone()
+        };
+        assert!(
+            QualificationProviderCleanupEvidence::try_from_provider_observation(
+                &substituted,
+                &reference,
+            )
+            .is_err()
+        );
+        let reordered = QualificationProviderCleanupObservation {
+            discovered_resource_commitments: resource_commitments.iter().rev().cloned().collect(),
+            destroyed_resource_commitments: resource_commitments.iter().rev().cloned().collect(),
+            ..first.clone()
+        };
+        assert!(
+            QualificationProviderCleanupEvidence::try_from_provider_observation(
+                &reordered, &reference,
+            )
+            .is_err()
+        );
+        let duplicated = QualificationProviderCleanupObservation {
+            discovered_resource_commitments: vec![
+                resource_commitments[0].clone(),
+                resource_commitments[0].clone(),
+            ],
+            destroyed_resource_commitments: vec![
+                resource_commitments[0].clone(),
+                resource_commitments[0].clone(),
+            ],
+            ..first.clone()
+        };
+        assert!(
+            QualificationProviderCleanupEvidence::try_from_provider_observation(
+                &duplicated,
+                &reference,
+            )
+            .is_err()
+        );
+        let residual = QualificationProviderCleanupObservation {
+            residual_resource_commitments: vec![resource_commitments[0].clone()],
+            ..first
+        };
+        assert!(
+            QualificationProviderCleanupEvidence::try_from_provider_observation(
+                &residual, &reference,
+            )
+            .is_err()
+        );
     }
 }

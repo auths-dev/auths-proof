@@ -47,8 +47,10 @@ use auths_profile_kit::{
     QualificationEvidenceSourceTrustRegistry, QualificationFailpoint,
     QualificationJournalDecisionContext, QualificationJournalDecisionContextRecord,
     QualificationJournalState, QualificationReceiptExecutionOutcome,
-    QualificationScenarioHookStage, QualificationSupervisorPhaseRequestV1,
-    qualification_event_marker_sha256, qualification_pre_admission_attempt_count,
+    QualificationScenarioHookStage, QualificationSetupHandoffV1,
+    QualificationSupervisorPhaseRequestV1, qualification_case_profile_input_cbor,
+    qualification_changed_profile_input_cbor, qualification_event_marker_sha256,
+    qualification_pre_admission_attempt_count, qualification_profile_input_cbor,
 };
 #[cfg(any(target_os = "linux", test))]
 use auths_profile_kit::{
@@ -229,6 +231,8 @@ pub fn qualification_source_process_executable_sha256() -> Result<String, String
 
 #[cfg(target_os = "linux")]
 const MAX_TRUST_BYTES: u64 = 262_144;
+#[cfg(target_os = "linux")]
+const MAX_SETUP_HANDOFF_BYTES: u64 = 67_108_864;
 #[cfg(target_os = "linux")]
 const MAX_SEED_BYTES: u64 = 128;
 #[cfg(any(target_os = "linux", test))]
@@ -1433,38 +1437,45 @@ fn run_client_proxy_ordinary_row(arguments: &[String]) -> Result<(), String> {
             "--sequencer-socket",
             "--ledger-plan",
             "--source-trust",
+            "--setup-handoff",
         ],
         typed_source_usage,
     )?;
     let plan = ordinary_row_plan(&values)?;
     let runtime_root = Path::new(value_for(&values, "--runtime-root", typed_source_usage)?);
+    let row_bindings = Arc::new(Mutex::new(ClientProxyRowBindings::default()));
     for phase in ordinary_row_phases(&plan) {
         let root = ordinary_row_phase_root(runtime_root, phase)?;
-        run_client_proxy_reader(&[
-            "serve-reader-session".into(),
-            "--client-socket".into(),
-            path_text(&root.join("client-proxy/client.sock"))?,
-            "--result-socket".into(),
-            path_text(&root.join("client-proxy/result.sock"))?,
-            "--control-socket".into(),
-            path_text(&root.join("client-proxy/control.sock"))?,
-            "--agent-socket".into(),
-            path_text(&root.join("agent/agent.sock"))?,
-            "--signer-socket".into(),
-            row_value(&values, "--signer-socket")?,
-            "--sequencer-socket".into(),
-            row_value(&values, "--sequencer-socket")?,
-            "--ledger-plan".into(),
-            row_value(&values, "--ledger-plan")?,
-            "--source-trust".into(),
-            row_value(&values, "--source-trust")?,
-            "--scenario".into(),
-            phase.scenario_id.clone(),
-            "--phase-index".into(),
-            phase.phase_index.to_string(),
-            "--supervisor-generation".into(),
-            "1".into(),
-        ])?;
+        run_client_proxy_reader_with_bindings(
+            &[
+                "serve-reader-session".into(),
+                "--client-socket".into(),
+                path_text(&root.join("client-proxy/client.sock"))?,
+                "--result-socket".into(),
+                path_text(&root.join("client-proxy/result.sock"))?,
+                "--control-socket".into(),
+                path_text(&root.join("client-proxy/control.sock"))?,
+                "--agent-socket".into(),
+                path_text(&root.join("agent/agent.sock"))?,
+                "--signer-socket".into(),
+                row_value(&values, "--signer-socket")?,
+                "--sequencer-socket".into(),
+                row_value(&values, "--sequencer-socket")?,
+                "--ledger-plan".into(),
+                row_value(&values, "--ledger-plan")?,
+                "--source-trust".into(),
+                row_value(&values, "--source-trust")?,
+                "--setup-handoff".into(),
+                row_value(&values, "--setup-handoff")?,
+                "--scenario".into(),
+                phase.scenario_id.clone(),
+                "--phase-index".into(),
+                phase.phase_index.to_string(),
+                "--supervisor-generation".into(),
+                "1".into(),
+            ],
+            Arc::clone(&row_bindings),
+        )?;
     }
     complete_typed_source_row(QualificationEvidenceSource::ClientProxy, &values, &plan)
 }
@@ -2072,7 +2083,7 @@ fn authorize_provider_proxy_request(
     phase: &QualificationEvidencePhasePlanV1,
     request: &QualificationProviderCallRequest,
     deadline: Instant,
-) -> Result<(), String> {
+) -> Result<String, String> {
     let authorization = authorization
         .as_mut()
         .ok_or_else(|| "ProviderProxy journal authorization channel is absent".to_owned())?;
@@ -2124,7 +2135,47 @@ fn authorize_provider_proxy_request(
     {
         return Err("ProviderProxy request differs from the pinned durable authorization".into());
     }
-    Ok(())
+    reviewed_provider_case(phase, record)
+}
+
+#[cfg(target_os = "linux")]
+fn reviewed_provider_case(
+    phase: &QualificationEvidencePhasePlanV1,
+    record: &JournalRecordV1,
+) -> Result<String, String> {
+    let idempotency = record.binding().idempotency_commitment().ok_or_else(|| {
+        "ProviderProxy durable operation omits its reviewed case intent".to_owned()
+    })?;
+    let route = QualificationRoute::for_profile(&phase.profile)?;
+    let program = route.scenario_program(&phase.scenario_id)?;
+    if program.sha256().map_err(string_error)? != phase.scenario_program_sha256 {
+        return Err("ProviderProxy scenario program differs from the immutable phase".into());
+    }
+    let mut matching = program
+        .cases()
+        .iter()
+        .filter(|case| case.role() == phase.role)
+        // A durable provider-entry record belongs to the one reviewed case
+        // that owns the provider call for this logical intent. Later replay
+        // cases intentionally reuse the same idempotency commitment but must
+        // never create or claim another provider boundary.
+        .filter(|case| case.expected_provider_calls() > 0)
+        .filter(|case| {
+            let intent = format!(
+                "aq:{}:{}:{}",
+                phase.scenario_id,
+                phase.phase_index,
+                case.intent_id()
+            );
+            &local_idempotency_commitment(&intent) == idempotency
+        });
+    let case = matching
+        .next()
+        .ok_or_else(|| "ProviderProxy operation does not match a reviewed case".to_owned())?;
+    if matching.next().is_some() {
+        return Err("ProviderProxy operation ambiguously matches multiple reviewed cases".into());
+    }
+    Ok(case.case_id().to_owned())
 }
 
 #[cfg(target_os = "linux")]
@@ -2188,7 +2239,7 @@ fn handle_provider_proxy_connection(
     if calls.len() >= 16 {
         return Err("ProviderProxy retained call bound is exhausted".into());
     }
-    authorize_provider_proxy_request(authorization, plan, phase, &request, deadline)?;
+    let case_id = authorize_provider_proxy_request(authorization, plan, phase, &request, deadline)?;
     // The credential is redeemed before the request is accepted by the
     // transport owner, so a failed redemption cannot be misreported as a
     // provider write.  Once the source event below is durably acknowledged,
@@ -2239,18 +2290,21 @@ fn handle_provider_proxy_connection(
     let mut response = execute_provider_proxy_call(
         &request,
         &phase.scenario_id,
+        &case_id,
         transport_root,
         &credential,
         deadline,
     )?;
     if request.kind() == QualificationProviderCallKind::Execute
         && matches!(response, QualificationProviderCallResponse::Success(_))
-        && (phase_has_hook(
+        && (phase_case_has_hook(
             phase,
+            &case_id,
             QualificationScenarioHookStage::AfterProviderBeforeResponse,
             "suppress-first-response",
-        )? || phase_has_hook(
+        )? || phase_case_has_hook(
             phase,
+            &case_id,
             QualificationScenarioHookStage::AfterProviderBeforeResponse,
             "force-reconcile",
         )?)
@@ -2325,8 +2379,9 @@ fn handle_provider_proxy_connection(
 }
 
 #[cfg(target_os = "linux")]
-fn phase_has_hook(
+fn phase_case_has_hook(
     phase: &QualificationEvidencePhasePlanV1,
+    case_id: &str,
     stage: QualificationScenarioHookStage,
     hook: &str,
 ) -> Result<bool, String> {
@@ -2336,7 +2391,7 @@ fn phase_has_hook(
         return Err("ProviderProxy scenario program differs from the immutable phase".into());
     }
     program
-        .unique_hook_for_role(phase.role, stage, hook)
+        .hook_for_case(case_id, phase.role, stage, hook)
         .map_err(string_error)
 }
 
@@ -2506,6 +2561,7 @@ fn redeem_provider_proxy_credential(
 fn execute_provider_proxy_call(
     request: &QualificationProviderCallRequest,
     scenario_id: &str,
+    case_id: &str,
     transport_root: &Path,
     credential: &ProviderCredentialLease,
     deadline: Instant,
@@ -2522,6 +2578,7 @@ fn execute_provider_proxy_call(
         route.dispatch_provider_transport(
             &profile,
             scenario_id,
+            case_id,
             request.kind(),
             request.command(),
             request.profile_state(),
@@ -4360,6 +4417,7 @@ fn run_provider_observer_reader_with_credential(
                 &runtime,
                 deadline,
                 observe_profile_provider_truth(
+                    &phase.scenario_id,
                     &phase.profile,
                     &record,
                     credential,
@@ -4456,6 +4514,7 @@ fn run_provider_observer_reader_with_credential(
 
 #[cfg(target_os = "linux")]
 async fn observe_profile_provider_truth(
+    scenario_id: &str,
     profile: &str,
     record: &JournalRecordV1,
     credential: &[u8],
@@ -4463,7 +4522,13 @@ async fn observe_profile_provider_truth(
     now_unix_seconds: u64,
 ) -> Result<(QualificationEffect, Vec<u8>), String> {
     let result = QualificationRoute::for_profile(profile)?
-        .observe_provider_truth(record, credential, observer_root, now_unix_seconds)
+        .observe_provider_truth(
+            scenario_id,
+            record,
+            credential,
+            observer_root,
+            now_unix_seconds,
+        )
         .await;
     result.map_err(|error| format!("protected provider observation failed: {error:?}"))
 }
@@ -5157,12 +5222,14 @@ struct ClientAttemptState {
     principal_sha256: String,
     idempotency_sha256: Option<String>,
     preparation_input_sha256: Option<String>,
+    changed_preparation_input_sha256: Option<String>,
     recovery_request_sha256: Option<String>,
     transports_in_flight: u16,
     tail: ClientTransportTail,
     journal_projection_kinds: Vec<QualificationEvidenceEventKind>,
     projected_outcome: Option<ClientOutcomeProjection>,
     last_result: Option<ClientResultCommitment>,
+    pending_effect_inputs: Option<(String, EffectCaseInputCommitments)>,
 }
 
 #[cfg(target_os = "linux")]
@@ -5218,11 +5285,26 @@ struct ClientProxyState {
 }
 
 #[cfg(target_os = "linux")]
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct EffectCaseInputCommitments {
+    primary_sha256: String,
+    changed_sha256: String,
+}
+
+#[cfg(target_os = "linux")]
+#[derive(Default)]
+struct ClientProxyRowBindings {
+    effect_inputs: BTreeMap<(String, String), EffectCaseInputCommitments>,
+}
+
+#[cfg(target_os = "linux")]
 struct ClientProxyShared {
     plan: QualificationEvidenceLedgerPlanV1,
     phase: auths_profile_kit::QualificationEvidencePhasePlanV1,
     supervisor_generation: u32,
     agent_socket: PathBuf,
+    case_input_sha256: BTreeMap<String, String>,
+    row_bindings: Arc<Mutex<ClientProxyRowBindings>>,
     appender: Mutex<FixedSourceAppendSession>,
     state: Mutex<ClientProxyState>,
     in_flight: Arc<AtomicUsize>,
@@ -5241,6 +5323,7 @@ struct ClientTransportGuard<'a> {
 struct ClientExchangeBinding {
     request_id: String,
     expected_operation_id: Option<String>,
+    reviewed_case_id: Option<String>,
     projection_route: Option<ClientProjectionRoute>,
 }
 
@@ -5316,6 +5399,55 @@ impl ClientTransportGuard<'_> {
         let operation_id = outcome
             .and_then(|outcome| outcome.operation_id())
             .map(|operation| operation.as_str().to_owned());
+        let pending_effect_inputs = if self.shared.phase.role
+            == auths_profile_kit::QualificationOperationRole::Preflight
+        {
+            // Only a successfully completed preflight can mint the prepared
+            // capability consumed by the paired effect phase. Other terminal
+            // outcomes project canonical issue bytes, which must never be
+            // interpreted as a provider capability.
+            let projected = match outcome {
+                Some(auths_production_client::LocalOperationOutcome::Completed {
+                    value, ..
+                }) => Some(value.as_slice()),
+                _ => None,
+            };
+            let derived = projected
+                .map(|value| {
+                    QualificationRoute::for_profile(&self.shared.phase.profile)?
+                        .qualification_effect_case_inputs(&self.shared.phase.profile, value)
+                        .map_err(string_error)
+                })
+                .transpose()?
+                .flatten();
+            derived
+                .map(|(primary, changed)| {
+                    let program = QualificationRoute::for_profile(&self.shared.phase.profile)?
+                        .scenario_program(&self.shared.phase.scenario_id)?;
+                    let intent = program
+                        .cases()
+                        .iter()
+                        .find(|case| case.case_id() == attempt.case_id)
+                        .map(|case| case.intent_id().to_owned())
+                        .ok_or_else(|| {
+                            "ClientProxy preflight result has no reviewed case intent".to_owned()
+                        })?;
+                    Ok::<_, String>((
+                        intent,
+                        EffectCaseInputCommitments {
+                            primary_sha256: hex::encode(local_preparation_input_commitment(
+                                &primary,
+                            )),
+                            changed_sha256: hex::encode(local_preparation_input_commitment(
+                                &changed,
+                            )),
+                        },
+                    ))
+                })
+                .transpose()?
+        } else {
+            None
+        };
         if let Some(operation_id) = operation_id.as_deref() {
             if state.operations.len() >= 1_024 && !state.operations.contains_key(operation_id) {
                 return Err("ClientProxy operation state exceeds its hard bound".into());
@@ -5340,15 +5472,46 @@ impl ClientTransportGuard<'_> {
         if let Some(projected_outcome) = projected_outcome {
             attempt.projected_outcome = Some(projected_outcome);
         }
+        if pending_effect_inputs.is_some() {
+            attempt.pending_effect_inputs = pending_effect_inputs;
+        }
         if let Some(operation_id) = operation_id {
-            state
-                .operations
-                .entry(operation_id)
-                .or_insert_with(|| self.request_id.clone());
+            if let Some(expected_operation_id) = self.expected_operation_id.as_deref() {
+                if operation_id != expected_operation_id
+                    || !state.operations.contains_key(expected_operation_id)
+                {
+                    return Err("ClientProxy continuation lost its reviewed operation owner".into());
+                }
+            } else if let Some(owner) = state.operations.get(&operation_id) {
+                if owner != &self.request_id {
+                    let owner_idempotency = state
+                        .attempts
+                        .get(owner)
+                        .and_then(|attempt| attempt.idempotency_sha256.as_deref());
+                    let current_idempotency = state
+                        .attempts
+                        .get(&self.request_id)
+                        .and_then(|attempt| attempt.idempotency_sha256.as_deref());
+                    if !same_reviewed_idempotent_intent(owner_idempotency, current_idempotency) {
+                        return Err(
+                            "ClientProxy operation identity was returned for another intent".into(),
+                        );
+                    }
+                }
+            } else {
+                state
+                    .operations
+                    .insert(operation_id, self.request_id.clone());
+            }
         }
         self.finished = true;
         Ok(())
     }
+}
+
+#[cfg(any(target_os = "linux", test))]
+fn same_reviewed_idempotent_intent(owner: Option<&str>, current: Option<&str>) -> bool {
+    matches!((owner, current), (Some(owner), Some(current)) if owner == current)
 }
 
 #[cfg(target_os = "linux")]
@@ -5524,6 +5687,17 @@ impl Drop for ClientTransportGuard<'_> {
 
 #[cfg(target_os = "linux")]
 fn run_client_proxy_reader(arguments: &[String]) -> Result<(), String> {
+    run_client_proxy_reader_with_bindings(
+        arguments,
+        Arc::new(Mutex::new(ClientProxyRowBindings::default())),
+    )
+}
+
+#[cfg(target_os = "linux")]
+fn run_client_proxy_reader_with_bindings(
+    arguments: &[String],
+    row_bindings: Arc<Mutex<ClientProxyRowBindings>>,
+) -> Result<(), String> {
     let values = exact_flag_values_for(
         arguments,
         "serve-reader-session",
@@ -5536,6 +5710,7 @@ fn run_client_proxy_reader(arguments: &[String]) -> Result<(), String> {
             "--sequencer-socket",
             "--ledger-plan",
             "--source-trust",
+            "--setup-handoff",
             "--scenario",
             "--phase-index",
             "--supervisor-generation",
@@ -5565,6 +5740,55 @@ fn run_client_proxy_reader(arguments: &[String]) -> Result<(), String> {
         .find(|phase| phase.scenario_id == scenario && phase.phase_index == phase_index)
         .cloned()
         .ok_or_else(|| "ClientProxy phase is absent from the immutable ledger plan".to_owned())?;
+    let setup_bytes = read_bounded(
+        Path::new(value_for(&values, "--setup-handoff", typed_source_usage)?),
+        MAX_SETUP_HANDOFF_BYTES,
+        true,
+    )?;
+    let setup: QualificationSetupHandoffV1 =
+        serde_json::from_slice(&setup_bytes).map_err(string_error)?;
+    if hex::encode(Sha256::digest(&setup_bytes)) != plan.setup_handoff_sha256
+        || serde_json_canonicalizer::to_vec(&setup).map_err(string_error)? != setup_bytes
+        || setup.validate().is_err()
+        || setup.run_context.repository_id != plan.repository_id
+        || setup.run_context.candidate_revision != plan.candidate_revision
+        || setup.run_context.target != plan.target
+        || setup.run_context.protected_environment != plan.protected_environment
+        || setup.run_context.run_id != plan.run_id
+        || setup.run_context.run_attempt != plan.run_attempt
+        || setup.run_context.provider_run_id != plan.provider_run_id
+        || setup.domain != plan.domain
+    {
+        return Err("ClientProxy setup handoff differs from immutable ledger policy".into());
+    }
+    let setup_vector = setup
+        .vectors
+        .iter()
+        .find(|vector| vector.id == phase.scenario_id)
+        .ok_or_else(|| "ClientProxy phase has no protected setup vector".to_owned())?;
+    if setup_vector
+        .scenario_program
+        .sha256()
+        .map_err(string_error)?
+        != phase.scenario_program_sha256
+    {
+        return Err("ClientProxy setup program differs from immutable phase".into());
+    }
+    let case_input_sha256 = setup_vector
+        .cases
+        .iter()
+        .zip(setup_vector.scenario_program.cases())
+        .map(|(case, program_case)| {
+            let input = base64ct::Base64UrlUnpadded::decode_vec(&case.input_base64url)
+                .map_err(string_error)?;
+            let input = qualification_case_profile_input_cbor(program_case.stimulus(), &input)
+                .map_err(string_error)?;
+            Ok((
+                case.case_id.clone(),
+                hex::encode(local_preparation_input_commitment(&input)),
+            ))
+        })
+        .collect::<Result<BTreeMap<_, _>, String>>()?;
     let supervisor_generation = value_for(&values, "--supervisor-generation", typed_source_usage)?
         .parse::<u32>()
         .map_err(string_error)?;
@@ -5635,6 +5859,8 @@ fn run_client_proxy_reader(arguments: &[String]) -> Result<(), String> {
         phase,
         supervisor_generation,
         agent_socket: PathBuf::from(value_for(&values, "--agent-socket", typed_source_usage)?),
+        case_input_sha256,
+        row_bindings,
         appender: Mutex::new(appender),
         state: Mutex::new(ClientProxyState {
             sessions: BTreeMap::new(),
@@ -5668,6 +5894,14 @@ fn run_client_proxy_reader(arguments: &[String]) -> Result<(), String> {
                 deadline,
                 "ClientProxy",
             )?;
+            if shared.phase.role == auths_profile_kit::QualificationOperationRole::Effect {
+                shared
+                    .row_bindings
+                    .lock()
+                    .map_err(string_error)?
+                    .effect_inputs
+                    .retain(|(scenario, _), _| scenario != &shared.phase.scenario_id);
+            }
             return Ok(());
         }
         let mut accepted = false;
@@ -5762,10 +5996,21 @@ fn relay_client_proxy_connection(
         })
         .transpose()?;
 
-    if let (Some(session), Some(facts)) = (
-        session.as_ref(),
-        client_request_facts(&request, &shared.phase.profile)?,
-    ) {
+    let facts = client_request_facts(&request, &shared.phase.profile)?;
+    let exchange_binding = if session.is_some() {
+        client_exchange_request_id(
+            &request,
+            &shared.phase.profile,
+            session.as_ref().map(|session| session.principal.as_str()),
+            &shared.plan,
+            &shared.state,
+            deadline,
+        )?
+    } else {
+        None
+    };
+
+    if let (Some(session), Some(facts)) = (session.as_ref(), facts) {
         let mut state = shared.state.lock().map_err(string_error)?;
         if state.attempts.len() >= 1_024 {
             return Err("ClientProxy attempt state exceeds its hard bound".into());
@@ -5773,7 +6018,17 @@ fn relay_client_proxy_connection(
         if !state.attempts.contains_key(&facts.request_id) {
             let attempt_sequence = u16::try_from(state.attempts.len() + 1)
                 .map_err(|_| "ClientProxy attempt sequence exceeds its hard bound".to_owned())?;
-            let case_id = reviewed_client_case(shared, &facts, &state)?;
+            let case_id = reviewed_client_case(
+                shared,
+                &facts,
+                exchange_binding
+                    .as_ref()
+                    .and_then(|binding| binding.expected_operation_id.as_deref()),
+                exchange_binding
+                    .as_ref()
+                    .and_then(|binding| binding.reviewed_case_id.as_deref()),
+                &state,
+            )?;
             let principal_sha256 = session.principal_sha256.clone();
             let record = client_proxy_record(
                 shared,
@@ -5801,12 +6056,14 @@ fn relay_client_proxy_connection(
                     principal_sha256,
                     idempotency_sha256: facts.idempotency_sha256,
                     preparation_input_sha256: facts.preparation_input_sha256,
+                    changed_preparation_input_sha256: facts.changed_preparation_input_sha256,
                     recovery_request_sha256: facts.recovery_request_sha256,
                     transports_in_flight: 0,
                     tail: ClientTransportTail::Intermediate,
                     journal_projection_kinds: Vec::new(),
                     projected_outcome: None,
                     last_result: None,
+                    pending_effect_inputs: None,
                 },
             );
         } else {
@@ -5818,6 +6075,8 @@ fn relay_client_proxy_connection(
                 || attempt.principal_sha256 != session.principal_sha256
                 || attempt.idempotency_sha256 != facts.idempotency_sha256
                 || attempt.preparation_input_sha256 != facts.preparation_input_sha256
+                || attempt.changed_preparation_input_sha256
+                    != facts.changed_preparation_input_sha256
                 || attempt.recovery_request_sha256 != facts.recovery_request_sha256
             {
                 return Err("ClientProxy request changed its durable ingress commitments".into());
@@ -5826,39 +6085,31 @@ fn relay_client_proxy_connection(
     }
 
     let transport = if session.is_some() {
-        client_exchange_request_id(
-            &request,
-            &shared.phase.profile,
-            session.as_ref().map(|session| session.principal.as_str()),
-            &shared.plan,
-            &shared.state,
-            deadline,
-        )?
-        .map(|binding| {
-            let mut state = shared.state.lock().map_err(string_error)?;
-            let attempt = state
-                .attempts
-                .get_mut(&binding.request_id)
-                .ok_or_else(|| "ClientProxy exchange has no durably observed request".to_owned())?;
-            if attempt.process != client_process {
-                return Err("ClientProxy exchange moved to another SDK process".into());
-            }
-            if attempt.last_result.is_some() {
-                return Err("ClientProxy request continued after its terminal result".into());
-            }
-            attempt.transports_in_flight = attempt
-                .transports_in_flight
-                .checked_add(1)
-                .ok_or_else(|| "ClientProxy transport concurrency exceeded its bound".to_owned())?;
-            Ok::<ClientTransportGuard<'_>, String>(ClientTransportGuard {
-                shared,
-                request_id: binding.request_id,
-                expected_operation_id: binding.expected_operation_id,
-                projection_route: binding.projection_route,
-                finished: false,
+        exchange_binding
+            .map(|binding| {
+                let mut state = shared.state.lock().map_err(string_error)?;
+                let attempt = state.attempts.get_mut(&binding.request_id).ok_or_else(|| {
+                    "ClientProxy exchange has no durably observed request".to_owned()
+                })?;
+                if attempt.process != client_process {
+                    return Err("ClientProxy exchange moved to another SDK process".into());
+                }
+                if attempt.last_result.is_some() {
+                    return Err("ClientProxy request continued after its terminal result".into());
+                }
+                attempt.transports_in_flight =
+                    attempt.transports_in_flight.checked_add(1).ok_or_else(|| {
+                        "ClientProxy transport concurrency exceeded its bound".to_owned()
+                    })?;
+                Ok::<ClientTransportGuard<'_>, String>(ClientTransportGuard {
+                    shared,
+                    request_id: binding.request_id,
+                    expected_operation_id: binding.expected_operation_id,
+                    projection_route: binding.projection_route,
+                    finished: false,
+                })
             })
-        })
-        .transpose()?
+            .transpose()?
     } else {
         None
     };
@@ -6168,6 +6419,7 @@ fn client_exchange_request_id(
                 Some(ClientExchangeBinding {
                     request_id: request.preparation().request_id().to_base64url(),
                     expected_operation_id: None,
+                    reviewed_case_id: None,
                     projection_route: Some(ClientProjectionRoute::ReplayCandidate),
                 })
             })
@@ -6179,6 +6431,7 @@ fn client_exchange_request_id(
                 Some(ClientExchangeBinding {
                     request_id: request.request_id().to_base64url(),
                     expected_operation_id: None,
+                    reviewed_case_id: None,
                     projection_route: Some(ClientProjectionRoute::ReplayCandidate),
                 })
             })
@@ -6203,9 +6456,26 @@ fn client_exchange_request_id(
         {
             return Err("ClientProxy recovery handle differs from its immutable phase".into());
         }
+        let reviewed_case_id = {
+            let state = state.lock().map_err(string_error)?;
+            let owner_request_id = state
+                .operations
+                .get(binding.operation.as_str())
+                .ok_or_else(|| {
+                    "ClientProxy recovery used an unknown reviewed operation".to_owned()
+                })?;
+            state
+                .attempts
+                .get(owner_request_id)
+                .map(|attempt| attempt.case_id.clone())
+                .ok_or_else(|| {
+                    "ClientProxy recovery operation lost its reviewed case owner".to_owned()
+                })?
+        };
         return Ok(Some(ClientExchangeBinding {
             request_id: request.request_id().to_base64url(),
             expected_operation_id: Some(binding.operation.as_str().to_owned()),
+            reviewed_case_id: Some(reviewed_case_id),
             projection_route: Some(ClientProjectionRoute::Recovery),
         }));
     }
@@ -6252,6 +6522,7 @@ fn client_exchange_request_id(
     Ok(Some(ClientExchangeBinding {
         request_id: mapped_request_id,
         expected_operation_id: Some(operation_id.to_owned()),
+        reviewed_case_id: None,
         projection_route: match action {
             ClientOperationAction::Status => Some(ClientProjectionRoute::Status),
             ClientOperationAction::Recover => Some(ClientProjectionRoute::Recovery),
@@ -6457,8 +6728,28 @@ fn accept_client_result_handoff(
                 retry,
                 deadline,
             )?;
+        let pending_effect_inputs = attempt.pending_effect_inputs.clone();
         attempt.last_result = Some(commitment);
         drop(state);
+        if let Some((intent, commitments)) = pending_effect_inputs {
+            let key = (shared.phase.scenario_id.clone(), intent);
+            let mut bindings = shared.row_bindings.lock().map_err(string_error)?;
+            if let Some(existing) = bindings.effect_inputs.get(&key) {
+                if existing != &commitments {
+                    return Err(
+                        "ClientProxy preflight capability changed after durable acknowledgement"
+                            .into(),
+                    );
+                }
+            } else {
+                if bindings.effect_inputs.len() >= 512 {
+                    return Err(
+                        "ClientProxy cross-phase capability roster exceeds its bound".into(),
+                    );
+                }
+                bindings.effect_inputs.insert(key, commitments);
+            }
+        }
         if peer.verify_unchanged().is_err() {
             return Ok(());
         }
@@ -6597,6 +6888,7 @@ struct ClientRequestFacts {
     request_input_sha256: String,
     idempotency_sha256: Option<String>,
     preparation_input_sha256: Option<String>,
+    changed_preparation_input_sha256: Option<String>,
     recovery_request_sha256: Option<String>,
 }
 
@@ -6604,12 +6896,10 @@ struct ClientRequestFacts {
 fn reviewed_client_case(
     shared: &ClientProxyShared,
     facts: &ClientRequestFacts,
+    expected_operation_id: Option<&str>,
+    reviewed_case_id: Option<&str>,
     state: &ClientProxyState,
 ) -> Result<String, String> {
-    let idempotency_sha256 = facts
-        .idempotency_sha256
-        .as_deref()
-        .ok_or_else(|| "ClientProxy new request omits its reviewed case intent".to_owned())?;
     let route = QualificationRoute::for_profile(&shared.phase.profile)?;
     let program = route.scenario_program(&shared.phase.scenario_id)?;
     if program.sha256().map_err(string_error)? != shared.phase.scenario_program_sha256 {
@@ -6630,11 +6920,53 @@ fn reviewed_client_case(
     } else {
         role_cases
     };
+    if facts.recovery_request_sha256.is_some() {
+        expected_operation_id
+            .ok_or_else(|| "ClientProxy recovery has no verified operation binding".to_owned())?;
+        let reviewed_case_id = reviewed_case_id
+            .ok_or_else(|| "ClientProxy recovery has no reviewed operation owner".to_owned())?;
+        return role_cases
+            .iter()
+            .find(|case| case.case_id() == reviewed_case_id)
+            .map(|case| case.case_id().to_owned())
+            .ok_or_else(|| "ClientProxy recovery owner is outside its immutable phase".to_owned());
+    }
+    let idempotency_sha256 = facts
+        .idempotency_sha256
+        .as_deref()
+        .ok_or_else(|| "ClientProxy new request omits its reviewed case intent".to_owned())?;
     let used = state
         .attempts
         .values()
         .map(|attempt| attempt.case_id.as_str())
         .collect::<std::collections::BTreeSet<_>>();
+    let setup_input_authoritative = shared.plan.domain == "stripe"
+        || shared.phase.role == auths_profile_kit::QualificationOperationRole::Preflight;
+    let effect_bindings = shared
+        .row_bindings
+        .lock()
+        .map_err(string_error)?
+        .effect_inputs
+        .clone();
+    let fallback_inputs = role_cases
+        .iter()
+        .map(|case| {
+            let commitment = route
+                .qualification_effect_fallback_case_json(
+                    &shared.phase.profile,
+                    &shared.phase.scenario_id,
+                    case.stimulus(),
+                )
+                .map_err(string_error)?
+                .map(|bytes| {
+                    qualification_case_profile_input_cbor(case.stimulus(), &bytes)
+                        .map(|encoded| hex::encode(local_preparation_input_commitment(&encoded)))
+                        .map_err(string_error)
+                })
+                .transpose()?;
+            Ok((case.case_id(), commitment))
+        })
+        .collect::<Result<BTreeMap<_, _>, String>>()?;
     role_cases
         .into_iter()
         .find(|case| {
@@ -6644,7 +6976,38 @@ fn reviewed_client_case(
                 shared.phase.phase_index,
                 case.intent_id()
             );
-            hex::encode(local_idempotency_commitment(&intent)) == idempotency_sha256
+            let same_intent =
+                hex::encode(local_idempotency_commitment(&intent)) == idempotency_sha256;
+            let exact_setup_input = facts.preparation_input_sha256.as_deref()
+                == shared
+                    .case_input_sha256
+                    .get(case.case_id())
+                    .map(String::as_str);
+            let derived_input = effect_bindings
+                .get(&(
+                    shared.phase.scenario_id.clone(),
+                    case.intent_id().to_owned(),
+                ))
+                .map(|commitments| {
+                    if case.stimulus() == "changed-input" {
+                        commitments.changed_sha256.as_str()
+                    } else {
+                        commitments.primary_sha256.as_str()
+                    }
+                });
+            let exact_derived_input = facts.preparation_input_sha256.as_deref() == derived_input;
+            let fallback_input = fallback_inputs
+                .get(case.case_id())
+                .and_then(Option::as_deref);
+            let exact_fallback_input = facts.preparation_input_sha256.as_deref() == fallback_input;
+            same_intent
+                && if setup_input_authoritative {
+                    exact_setup_input
+                } else if fallback_input.is_some() {
+                    exact_fallback_input
+                } else {
+                    exact_derived_input
+                }
                 && !used.contains(case.case_id())
         })
         .map(|case| case.case_id().to_owned())
@@ -6680,6 +7043,9 @@ fn client_request_facts(
             preparation_input_sha256: Some(hex::encode(local_preparation_input_commitment(
                 preparation.profile_input(),
             ))),
+            changed_preparation_input_sha256: changed_preparation_input_sha256(
+                preparation.profile_input(),
+            ),
             recovery_request_sha256: None,
         }));
     }
@@ -6690,10 +7056,17 @@ fn client_request_facts(
             request_input_sha256: hex::encode(local_request_commitment(request.body())),
             idempotency_sha256: None,
             preparation_input_sha256: None,
+            changed_preparation_input_sha256: None,
             recovery_request_sha256: Some(hex::encode(local_request_commitment(request.body()))),
         }));
     }
     Ok(None)
+}
+
+#[cfg(target_os = "linux")]
+fn changed_preparation_input_sha256(input: &[u8]) -> Option<String> {
+    let bytes = qualification_changed_profile_input_cbor(input).ok()?;
+    Some(hex::encode(local_preparation_input_commitment(&bytes)))
 }
 
 #[cfg(target_os = "linux")]
@@ -9460,7 +9833,7 @@ fn journal_reader_usage() -> String {
 
 #[cfg(target_os = "linux")]
 fn typed_source_usage() -> String {
-    "usage: qualification-source-<fixed-role> serve-session --socket <row-scoped-protected-unix-socket> --source-trust <registry> --ledger-plan <owner-only-canonical-plan> | qualification-source-client-proxy serve-ordinary-row-session --runtime-root <protected-row-root> --signer-socket <row-signer-socket> --sequencer-socket <protected-append-socket> --ledger-plan <plan> --source-trust <registry> | qualification-source-credential-broker initialize-stores --agent-config <protected-config> --connection-store <new-broker-owned-public-store> --credential-store <new-broker-owned-secret-store> --ledger-plan <plan> --source-trust <registry> | qualification-source-credential-broker serve-ordinary-row-session --runtime-root <protected-row-root> --signer-socket <row-signer-socket> --sequencer-socket <protected-append-socket> --ledger-plan <plan> --source-trust <registry> --connection-store <broker-owned-public-store> --credential-store <broker-owned-secret-store> | qualification-source-profile-state-reader serve-ordinary-row-session --runtime-root <protected-row-root> --signer-socket <row-signer-socket> --sequencer-socket <protected-append-socket> --ledger-plan <plan> --source-trust <registry> | qualification-source-receipt-verifier serve-ordinary-row-session --runtime-root <protected-row-root> --signer-socket <row-signer-socket> --sequencer-socket <protected-append-socket> --ledger-plan <plan> --source-trust <registry> --receipt-trust <anchors>; CredentialBroker initialization receives one bounded canonical descriptor-and-credential document only on stdin, creates both owner-only stores, and never exposes the secret store to the candidate; single-phase serve-reader-session commands remain available only for crash orchestration; the immutable plan fixes the run, phase roster, exercised agent, source context, workload commitment, connection requirement, and key interval; protected source trust uniquely selects the current key and fixes the signer and reader identities; a row reader ends its signer through the isolated authenticated row-complete frame; ClientProxy alone owns the real SDK socket, CredentialBroker alone owns the real credential store, ProfileStateReader accepts only controller-transferred pinned journal and profile-store descriptors, and ReceiptVerifier accepts only the controller-transferred pinned journal descriptor; deterministic retained intents resume before an absent event is appended, so durable prefixes are restart-safe".into()
+    "usage: qualification-source-<fixed-role> serve-session --socket <row-scoped-protected-unix-socket> --source-trust <registry> --ledger-plan <owner-only-canonical-plan> | qualification-source-client-proxy serve-ordinary-row-session --runtime-root <protected-row-root> --signer-socket <row-signer-socket> --sequencer-socket <protected-append-socket> --ledger-plan <plan> --source-trust <registry> --setup-handoff <owner-only-canonical-setup-handoff> | qualification-source-credential-broker initialize-stores --agent-config <protected-config> --connection-store <new-broker-owned-public-store> --credential-store <new-broker-owned-secret-store> --ledger-plan <plan> --source-trust <registry> | qualification-source-credential-broker serve-ordinary-row-session --runtime-root <protected-row-root> --signer-socket <row-signer-socket> --sequencer-socket <protected-append-socket> --ledger-plan <plan> --source-trust <registry> --connection-store <broker-owned-public-store> --credential-store <broker-owned-secret-store> | qualification-source-profile-state-reader serve-ordinary-row-session --runtime-root <protected-row-root> --signer-socket <row-signer-socket> --sequencer-socket <protected-append-socket> --ledger-plan <plan> --source-trust <registry> | qualification-source-receipt-verifier serve-ordinary-row-session --runtime-root <protected-row-root> --signer-socket <row-signer-socket> --sequencer-socket <protected-append-socket> --ledger-plan <plan> --source-trust <registry> --receipt-trust <anchors>; CredentialBroker initialization receives one bounded canonical descriptor-and-credential document only on stdin, creates both owner-only stores, and never exposes the secret store to the candidate; single-phase serve-reader-session commands remain available only for crash orchestration; the immutable plan fixes the run, phase roster, exercised agent, source context, workload commitment, connection requirement, and key interval; protected source trust uniquely selects the current key and fixes the signer and reader identities; a row reader ends its signer through the isolated authenticated row-complete frame; ClientProxy alone owns the real SDK socket and its protected setup handoff, CredentialBroker alone owns the real credential store, ProfileStateReader accepts only controller-transferred pinned journal and profile-store descriptors, and ReceiptVerifier accepts only the controller-transferred pinned journal descriptor; deterministic retained intents resume before an absent event is appended, so durable prefixes are restart-safe".into()
 }
 
 #[cfg(any(target_os = "linux", test))]
@@ -9480,6 +9853,41 @@ mod tests {
         fs::{self, OpenOptions},
         os::unix::fs::{OpenOptionsExt as _, PermissionsExt as _, symlink},
     };
+
+    #[test]
+    fn operation_reuse_requires_the_same_nonempty_idempotent_intent() {
+        assert!(same_reviewed_idempotent_intent(
+            Some("reviewed-intent"),
+            Some("reviewed-intent")
+        ));
+        assert!(!same_reviewed_idempotent_intent(
+            Some("reviewed-intent"),
+            Some("other-intent")
+        ));
+        assert!(!same_reviewed_idempotent_intent(
+            Some("reviewed-intent"),
+            None
+        ));
+        assert!(!same_reviewed_idempotent_intent(None, None));
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn changed_case_commitment_is_directional_and_canonical() {
+        let primary =
+            qualification_profile_input_cbor(br#"{"preparedUpdate":"capability"}"#).unwrap();
+        let changed =
+            qualification_profile_input_cbor(br#"{"preparedUpdate":"capabilityx"}"#).unwrap();
+        let expected = hex::encode(local_preparation_input_commitment(&changed));
+        assert_eq!(
+            changed_preparation_input_sha256(&primary).as_deref(),
+            Some(expected.as_str())
+        );
+        assert_ne!(
+            changed_preparation_input_sha256(&changed),
+            Some(hex::encode(local_preparation_input_commitment(&primary)))
+        );
+    }
 
     #[test]
     fn credential_lease_identity_binds_the_complete_canonical_request() {

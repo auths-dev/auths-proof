@@ -29,6 +29,7 @@ jobs:
       DOMAIN: ${{ inputs.domain }}
       AGENT_GID: ${{ vars.AUTHS_QUALIFICATION_AGENT_GID }}
       COMMON_ROOT: ${{ github.workspace }}/target/qualification-common-evidence/${{ inputs.domain }}/${{ inputs.target }}
+      CLEANUP_EVIDENCE_ROOT: /var/lib/auths-qualification-runtime-cleanup/${{ github.repository_id }}-${{ github.run_id }}-${{ github.run_attempt }}/${{ inputs.domain }}/${{ inputs.target }}
     outputs:
       artifact_id: ${{ steps.upload.outputs.artifact-id }}
       artifact_digest: ${{ steps.upload.outputs.artifact-digest }}
@@ -140,6 +141,102 @@ jobs:
           OFFICIAL_RELEASE_BUILD_ARTIFACT_ID: ${{ inputs.release_build_artifact_id }}
           OFFICIAL_RELEASE_BUILD_ARTIFACT_DIGEST: ${{ inputs.release_build_artifact_digest }}
         run: attester-tools/xtask profile qualification validate-workflow-inputs
+      - name: Stage the exercised-agent configuration and preliminary public receipt anchors
+        shell: bash
+        env:
+          AGENT_CONFIG_BASE64URL: ${{ vars.AUTHS_QUALIFICATION_AGENT_CONFIG_BASE64URL }}
+          DOMAIN: ${{ inputs.domain }}
+          TARGET: ${{ inputs.target }}
+          RECEIPT_TRUST_SHA256: ${{ vars.AUTHS_QUALIFICATION_RECEIPT_TRUST_ANCHOR_SHA256 }}
+        run: |
+          set -euo pipefail
+          common_root="$GITHUB_WORKSPACE/target/qualification-common-evidence/$DOMAIN/$TARGET"
+          config_root="$RUNNER_TEMP/qualification-agent-config/$DOMAIN/$TARGET"
+          install -d -m 0700 "$config_root" "$common_root/anchor-snapshots"
+          printf '%s' "$AGENT_CONFIG_BASE64URL" | env -i \
+            "$GITHUB_WORKSPACE/attester-tools/auths-qualification-supervisor" \
+            export-receipt-anchors \
+            --config-output "$config_root/agent.toml" \
+            --anchors-output "$common_root/anchor-snapshots/receipt-trust-anchors.json" \
+            --expected-sha256 "$RECEIPT_TRUST_SHA256"
+      - name: Refuse invalid static ledger policy before provider setup
+        shell: bash
+        env:
+          DOMAIN: ${{ inputs.domain }}
+          TARGET: ${{ inputs.target }}
+          PROTECTED_ENVIRONMENT: ${{ inputs.protected_environment }}
+          CANDIDATE_REVISION: ${{ inputs.candidate_revision }}
+          ATTESTER_REVISION: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_REVISION }}
+          SUPERVISOR_CONTROLLER_SHA256: ${{ steps.tools.outputs.crash_controller_sha256 }}
+          LEDGER_APPENDER_SHA256: ${{ steps.tools.outputs.ledger_appender_sha256 }}
+          AGENT_UID: ${{ vars.AUTHS_QUALIFICATION_AGENT_UID }}
+          AGENT_GID: ${{ vars.AUTHS_QUALIFICATION_AGENT_GID }}
+          WORKLOAD_ID_SHA256: ${{ vars.AUTHS_QUALIFICATION_WORKLOAD_ID_SHA256 }}
+          RECOVERY_KEY_ID: ${{ vars.AUTHS_QUALIFICATION_RECOVERY_KEY_ID }}
+          RECOVERY_PUBLIC_KEY_BASE64URL: ${{ vars.AUTHS_QUALIFICATION_RECOVERY_PUBLIC_KEY_BASE64URL }}
+        run: |
+          set -euo pipefail
+          receipt_trust="$GITHUB_WORKSPACE/target/qualification-common-evidence/$DOMAIN/$TARGET/anchor-snapshots/receipt-trust-anchors.json"
+          while read -r provider_run; do
+            env -i \
+              AUTHS_XTASK_REPOSITORY_ROOT="$GITHUB_WORKSPACE" \
+              QUALIFICATION_CANDIDATE_REVISION="$CANDIDATE_REVISION" \
+              AUTHS_QUALIFICATION_WORKFLOW_REVISION="$GITHUB_WORKFLOW_SHA" \
+              AUTHS_QUALIFICATION_ATTESTER_REVISION="$ATTESTER_REVISION" \
+              AUTHS_QUALIFICATION_SUPERVISOR_CONTROLLER_SHA256="$SUPERVISOR_CONTROLLER_SHA256" \
+              AUTHS_QUALIFICATION_LEDGER_APPENDER_SHA256="$LEDGER_APPENDER_SHA256" \
+              AUTHS_QUALIFICATION_AGENT_UID="$AGENT_UID" \
+              AUTHS_QUALIFICATION_AGENT_GID="$AGENT_GID" \
+              AUTHS_QUALIFICATION_WORKLOAD_ID_SHA256="$WORKLOAD_ID_SHA256" \
+              AUTHS_QUALIFICATION_RECOVERY_KEY_ID="$RECOVERY_KEY_ID" \
+              AUTHS_QUALIFICATION_RECOVERY_PUBLIC_KEY_BASE64URL="$RECOVERY_PUBLIC_KEY_BASE64URL" \
+              AUTHS_QUALIFICATION_RELEASE_BUILD_BINDING="$GITHUB_WORKSPACE/verified-release-build/verified-release-build.json" \
+              GITHUB_REPOSITORY_ID="$GITHUB_REPOSITORY_ID" \
+              GITHUB_RUN_ID="$GITHUB_RUN_ID" \
+              GITHUB_RUN_ATTEMPT="$GITHUB_RUN_ATTEMPT" \
+              "$GITHUB_WORKSPACE/attester-tools/xtask" \
+              profile qualification preflight-ledger-policy \
+              --domain "$DOMAIN" \
+              --target "$TARGET" \
+              --environment "$PROTECTED_ENVIRONMENT" \
+              --provider-run "$provider_run" \
+              --receipt-trust "$receipt_trust" \
+              --attester-repository "$GITHUB_WORKSPACE/trusted-attester"
+          done < <(jq -r '.runs[].id' \
+            "product/integrations/auths-$DOMAIN/qualification/provider-matrix-v1.json")
+      - name: Create live provider resources and protected setup handoffs
+        shell: bash
+        env:
+          DOMAIN: ${{ inputs.domain }}
+          TARGET: ${{ inputs.target }}
+          PROTECTED_ENVIRONMENT: ${{ inputs.protected_environment }}
+          SETUP_CREDENTIAL: ${{ secrets.QUALIFICATION_SETUP_CREDENTIAL }}
+          CONNECTION_DESCRIPTOR_BASE64URL: ${{ vars.AUTHS_QUALIFICATION_CONNECTION_DESCRIPTOR_BASE64URL }}
+          WORKLOAD_ID_SHA256: ${{ vars.AUTHS_QUALIFICATION_WORKLOAD_ID_SHA256 }}
+        run: |
+          set -euo pipefail
+          config="$RUNNER_TEMP/qualification-agent-config/$DOMAIN/$TARGET/agent.toml"
+          while read -r provider_run; do
+            printf '%s' "$SETUP_CREDENTIAL" | env -i \
+              AUTHS_XTASK_REPOSITORY_ROOT="$GITHUB_WORKSPACE" \
+              AUTHS_QUALIFICATION_CONNECTION_DESCRIPTOR_BASE64URL="$CONNECTION_DESCRIPTOR_BASE64URL" \
+              AUTHS_QUALIFICATION_WORKLOAD_ID_SHA256="$WORKLOAD_ID_SHA256" \
+              QUALIFICATION_SETUP_CREDENTIAL=stdin-only \
+              QUALIFICATION_CANDIDATE_REVISION="${{ inputs.candidate_revision }}" \
+              GITHUB_ACTIONS=true \
+              GITHUB_REPOSITORY_ID="$GITHUB_REPOSITORY_ID" \
+              GITHUB_RUN_ID="$GITHUB_RUN_ID" \
+              GITHUB_RUN_ATTEMPT="$GITHUB_RUN_ATTEMPT" \
+              "$GITHUB_WORKSPACE/attester-tools/xtask" \
+              profile qualification setup-row \
+              --domain "$DOMAIN" \
+              --target "$TARGET" \
+              --environment "$PROTECTED_ENVIRONMENT" \
+              --provider-run "$provider_run" \
+              --agent-config "$config" \
+              --output "target/qualification-setup/$DOMAIN/$TARGET/$provider_run/setup-handoff.json"
+          done < <(jq -r '.runs[].id' \
+            "product/integrations/auths-$DOMAIN/qualification/provider-matrix-v1.json")
       - name: Mint protected provider-row ledger plans
         shell: bash
         env:
@@ -180,6 +277,7 @@ jobs:
               --target "$TARGET" \
               --environment "$PROTECTED_ENVIRONMENT" \
               --provider-run "$provider_run" \
+              --setup-handoff "target/qualification-setup/$DOMAIN/$TARGET/$provider_run/setup-handoff.json" \
               --output "target/qualification-common-evidence/$DOMAIN/$TARGET/ledger/$provider_run/ledger-plan.json"
           done < <(jq -r '.runs[].id' "product/integrations/auths-$DOMAIN/qualification/provider-matrix-v1.json")
       - name: Initialize every protected provider-row ledger namespace
@@ -200,25 +298,7 @@ jobs:
               --source-trust "$source_trust" \
               --ledger-trust "$ledger_trust"
           done < <(jq -r '.runs[].id' "product/integrations/auths-$DOMAIN/qualification/provider-matrix-v1.json")
-      - name: Stage the exercised-agent configuration and preliminary public receipt anchors
-        shell: bash
-        env:
-          AGENT_CONFIG_BASE64URL: ${{ vars.AUTHS_QUALIFICATION_AGENT_CONFIG_BASE64URL }}
-          DOMAIN: ${{ inputs.domain }}
-          TARGET: ${{ inputs.target }}
-          RECEIPT_TRUST_SHA256: ${{ vars.AUTHS_QUALIFICATION_RECEIPT_TRUST_ANCHOR_SHA256 }}
-        run: |
-          set -euo pipefail
-          common_root="$GITHUB_WORKSPACE/target/qualification-common-evidence/$DOMAIN/$TARGET"
-          config_root="$RUNNER_TEMP/qualification-agent-config/$DOMAIN/$TARGET"
-          install -d -m 0700 "$config_root" "$common_root/anchor-snapshots"
-          printf '%s' "$AGENT_CONFIG_BASE64URL" | env -i \
-            "$GITHUB_WORKSPACE/attester-tools/auths-qualification-supervisor" \
-            export-receipt-anchors \
-            --config-output "$config_root/agent.toml" \
-            --anchors-output "$common_root/anchor-snapshots/receipt-trust-anchors.json" \
-            --expected-sha256 "$RECEIPT_TRUST_SHA256"
-      - name: Refuse non-separated qualification signing identities before provider setup
+      - name: Recheck qualification signing identity separation after plan mint
         shell: bash
         env:
           DOMAIN: ${{ inputs.domain }}
@@ -232,42 +312,10 @@ jobs:
               "$GITHUB_WORKSPACE/attester-tools/xtask" \
               profile qualification preflight-key-separation \
               --ledger-plan "$common_root/ledger/$provider_run/ledger-plan.json" \
-              --receipt-trust "$receipt_trust"
+              --receipt-trust "$receipt_trust" \
+              --attester-repository "$GITHUB_WORKSPACE/trusted-attester"
           done < <(jq -r '.runs[].id' \
             "$GITHUB_WORKSPACE/product/integrations/auths-$DOMAIN/qualification/provider-matrix-v1.json")
-      - name: Create live provider resources and protected setup handoffs
-        shell: bash
-        env:
-          DOMAIN: ${{ inputs.domain }}
-          TARGET: ${{ inputs.target }}
-          PROTECTED_ENVIRONMENT: ${{ inputs.protected_environment }}
-          SETUP_CREDENTIAL: ${{ secrets.QUALIFICATION_SETUP_CREDENTIAL }}
-          CONNECTION_DESCRIPTOR_BASE64URL: ${{ vars.AUTHS_QUALIFICATION_CONNECTION_DESCRIPTOR_BASE64URL }}
-          WORKLOAD_ID_SHA256: ${{ vars.AUTHS_QUALIFICATION_WORKLOAD_ID_SHA256 }}
-        run: |
-          set -euo pipefail
-          config="$RUNNER_TEMP/qualification-agent-config/$DOMAIN/$TARGET/agent.toml"
-          while read -r provider_run; do
-            printf '%s' "$SETUP_CREDENTIAL" | env -i \
-              AUTHS_XTASK_REPOSITORY_ROOT="$GITHUB_WORKSPACE" \
-              AUTHS_QUALIFICATION_CONNECTION_DESCRIPTOR_BASE64URL="$CONNECTION_DESCRIPTOR_BASE64URL" \
-              AUTHS_QUALIFICATION_WORKLOAD_ID_SHA256="$WORKLOAD_ID_SHA256" \
-              QUALIFICATION_SETUP_CREDENTIAL=stdin-only \
-              QUALIFICATION_CANDIDATE_REVISION="${{ inputs.candidate_revision }}" \
-              GITHUB_ACTIONS=true \
-              GITHUB_REPOSITORY_ID="$GITHUB_REPOSITORY_ID" \
-              GITHUB_RUN_ID="$GITHUB_RUN_ID" \
-              GITHUB_RUN_ATTEMPT="$GITHUB_RUN_ATTEMPT" \
-              "$GITHUB_WORKSPACE/attester-tools/xtask" \
-              profile qualification setup-row \
-              --domain "$DOMAIN" \
-              --target "$TARGET" \
-              --environment "$PROTECTED_ENVIRONMENT" \
-              --provider-run "$provider_run" \
-              --agent-config "$config" \
-              --output "target/qualification-setup/$DOMAIN/$TARGET/$provider_run/setup-handoff.json"
-          done < <(jq -r '.runs[].id' \
-            "product/integrations/auths-$DOMAIN/qualification/provider-matrix-v1.json")
       - name: Prepare fixed-identity row topology and CredentialBroker stores
         shell: bash
         env:
@@ -299,6 +347,9 @@ jobs:
           broker_uid="$(jq -er --arg domain "$DOMAIN" --argjson now "$now" \
             '[.keys[] | select(.source == "credential-broker" and (.allowedDomains | index($domain)) != null and .notBeforeUnixSeconds <= $now and (.notAfterUnixSeconds == 0 or $now < .notAfterUnixSeconds))] | if length == 1 then .[0].readerUid else error("current CredentialBroker reader is not unique") end' \
             "$source_trust")"
+          client_proxy_uid="$(jq -er --arg domain "$DOMAIN" --argjson now "$now" \
+            '[.keys[] | select(.source == "client-proxy" and (.allowedDomains | index($domain)) != null and .notBeforeUnixSeconds <= $now and (.notAfterUnixSeconds == 0 or $now < .notAfterUnixSeconds))] | if length == 1 then .[0].readerUid else error("current ClientProxy reader is not unique") end' \
+            "$source_trust")"
           while read -r provider_run; do
             row="$common_root/ledger/$provider_run"
             runtime="$runtime_parent/$provider_run"
@@ -315,6 +366,9 @@ jobs:
               --receipt-trust "$policy/receipt-trust.json" \
               --runtime-root "$runtime" \
               --cgroup-root "$cgroup"
+            sudo install -o "$client_proxy_uid" -g "$AGENT_GID" -m 0600 \
+              "$GITHUB_WORKSPACE/target/qualification-setup/$DOMAIN/$TARGET/$provider_run/setup-handoff.json" \
+              "$runtime/client-proxy-reader/setup-handoff.json"
             sudo install -o "$broker_uid" -g "$AGENT_GID" -m 0600 \
               "$config" "$runtime/credential-broker-reader/agent.toml"
             [[ -n "$CONNECTION_DESCRIPTOR_BASE64URL" \
@@ -507,6 +561,12 @@ jobs:
               --output "$row/ledger.json" \
               --key-id "$LEDGER_KEY_ID"
           done < <(jq -r '.runs[].id' "product/integrations/auths-$DOMAIN/qualification/provider-matrix-v1.json")
+      - name: Stop, reap, and measure exact retained row state
+        if: always()
+        shell: bash
+        env:
+          AGENT_CONFIG: ${{ runner.temp }}/qualification-agent-config/${{ inputs.domain }}/${{ inputs.target }}/agent.toml
+        run: sudo --preserve-env=TOOLS,MATRIX,RUNTIME_ROOT,POLICY_ROOT,CGROUP_ROOT_PREFIX,PROTECTED_BIN_ROOT,AGENT_CONFIG,SOURCE_TRUST,DOMAIN,AGENT_GID,COMMON_ROOT,CLEANUP_EVIDENCE_ROOT bash trusted-attester/.github/scripts/qualification-row-services.sh stop
       - name: Finalize the canonical secret-free candidate proposal
         shell: bash
         env:
@@ -545,13 +605,14 @@ jobs:
             --collections "target/qualification-candidate/$DOMAIN/$TARGET" \
             --common-evidence "target/qualification-common-evidence/$DOMAIN/$TARGET" \
             --release-build verified-release-build/projection/release-build.json \
+            --runtime-cleanup "$CLEANUP_EVIDENCE_ROOT" \
             --output proposal.json
-      - name: Stop exact retained row processes
-        if: always()
-        shell: bash
-        env:
-          AGENT_CONFIG: ${{ runner.temp }}/qualification-agent-config/${{ inputs.domain }}/${{ inputs.target }}/agent.toml
-        run: sudo --preserve-env=TOOLS,MATRIX,RUNTIME_ROOT,POLICY_ROOT,CGROUP_ROOT_PREFIX,PROTECTED_BIN_ROOT,AGENT_CONFIG,SOURCE_TRUST,DOMAIN,AGENT_GID,COMMON_ROOT bash trusted-attester/.github/scripts/qualification-row-services.sh stop
+          install -d -m 0700 "target/qualification-common-evidence/$DOMAIN/$TARGET/runtime-cleanup"
+          while read -r provider_run; do
+            install -m 0444 -- "$CLEANUP_EVIDENCE_ROOT/$provider_run.json" \
+              "target/qualification-common-evidence/$DOMAIN/$TARGET/runtime-cleanup/$provider_run.json"
+          done < <(jq -r '.runs[].id' \
+            "product/integrations/auths-$DOMAIN/qualification/provider-matrix-v1.json")
       - name: Upload collection and verified release handoff
         id: upload
         if: always()
@@ -750,7 +811,12 @@ jobs:
           cd candidate
           status=0
           while read -r provider_run; do
-            timeout --signal=TERM --kill-after=5s 600s ../attester-tools/xtask profile qualification cleanup --domain "$DOMAIN" --target "$TARGET" --run-context "../protected-context/$DOMAIN/$TARGET/$provider_run.json" --output "$QUALIFICATION_PROTECTED_OUTPUT_ROOT/$DOMAIN/$TARGET/$provider_run" || status=1
+            cleanup_reference="../collected/target/qualification-common-evidence/$DOMAIN/$TARGET/ledger/$provider_run/cleanup-reference.json"
+            reference_args=()
+            if [[ -f "$cleanup_reference" ]]; then
+              reference_args=(--cleanup-reference "$cleanup_reference")
+            fi
+            timeout --signal=TERM --kill-after=5s 600s ../attester-tools/xtask profile qualification cleanup --domain "$DOMAIN" --target "$TARGET" --run-context "../protected-context/$DOMAIN/$TARGET/$provider_run.json" "${reference_args[@]}" --output "$QUALIFICATION_PROTECTED_OUTPUT_ROOT/$DOMAIN/$TARGET/$provider_run" || status=1
           done < <(jq -r '.runs[].id' "product/integrations/auths-$DOMAIN/qualification/provider-matrix-v1.json")
           exit "$status"
       - name: Aggregate the exact protected provider-row roster
@@ -760,6 +826,7 @@ jobs:
           PROTECTED_ENVIRONMENT: ${{ inputs.protected_environment }}
           RECEIPT_TRUST_SHA256: ${{ vars.AUTHS_QUALIFICATION_RECEIPT_TRUST_ANCHOR_SHA256 }}
           TARGET: ${{ inputs.target }}
+          ATTESTER_REPOSITORY: ${{ github.workspace }}/trusted-attester
         run: |
           set -euo pipefail
           cd candidate
@@ -769,12 +836,14 @@ jobs:
             GITHUB_RUN_ID="$GITHUB_RUN_ID" \
             GITHUB_RUN_ATTEMPT="$GITHUB_RUN_ATTEMPT" \
             QUALIFICATION_PROTECTED_ENVIRONMENT="$PROTECTED_ENVIRONMENT" \
+            AUTHS_QUALIFICATION_ATTESTER_REPOSITORY="$ATTESTER_REPOSITORY" \
             AUTHS_QUALIFICATION_RECEIPT_TRUST_ANCHOR_SHA256="$RECEIPT_TRUST_SHA256" \
             ../attester-tools/xtask profile qualification observe \
             --proposal ../collected/proposal.json \
             --collections "../collected/target/qualification-candidate/$DOMAIN/$TARGET" \
             --common-evidence "../protected-output/$DOMAIN/$TARGET" \
             --receipt-trust "../collected/target/qualification-common-evidence/$DOMAIN/$TARGET/anchor-snapshots/receipt-trust-anchors.json" \
+            --supplemental-common "../collected/target/qualification-common-evidence/$DOMAIN/$TARGET" \
             --output ../protected-output/aggregate
       - name: Assemble and independently scan the exact pre-sign evidence tree
         shell: bash

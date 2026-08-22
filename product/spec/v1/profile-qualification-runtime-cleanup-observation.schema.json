@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://auths.dev/spec/v1/profile-qualification-runtime-cleanup-observation.schema.json",
+  "title": "Auths root-owned qualification runtime cleanup observation v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "repositoryId", "candidateRevision", "runId", "runAttempt", "domain", "target", "providerRunId", "ledgerPlanSha256", "setupHandoffSha256", "runtimeDevice", "runtimeInode", "policyDevice", "policyInode", "cgroupPathSha256", "connectionStorePathSha256", "credentialStorePathSha256", "evidence", "completedAtUnixSeconds"],
+  "properties": {
+    "schema": {"const": "auths.qualification-runtime-cleanup-observation/1"},
+    "repositoryId": {"$ref": "profile-qualification.schema.json#/$defs/decimal32"},
+    "candidateRevision": {"$ref": "profile-qualification.schema.json#/$defs/revision"},
+    "runId": {"$ref": "profile-qualification.schema.json#/$defs/decimal32"},
+    "runAttempt": {"type": "integer", "minimum": 1, "maximum": 4294967295},
+    "domain": {"$ref": "profile-qualification.schema.json#/$defs/domain"},
+    "target": {"$ref": "profile-qualification.schema.json#/$defs/target"},
+    "providerRunId": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+    "ledgerPlanSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "setupHandoffSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "runtimeDevice": {"type": "integer", "minimum": 1, "maximum": 18446744073709551615},
+    "runtimeInode": {"type": "integer", "minimum": 1, "maximum": 18446744073709551615},
+    "policyDevice": {"type": "integer", "minimum": 1, "maximum": 18446744073709551615},
+    "policyInode": {"type": "integer", "minimum": 1, "maximum": 18446744073709551615},
+    "cgroupPathSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "connectionStorePathSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "credentialStorePathSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "evidence": {"$ref": "#/$defs/evidence"},
+    "completedAtUnixSeconds": {"type": "integer", "minimum": 1, "maximum": 18446744073709551615}
+  },
+  "$defs": {
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["connectionStoreResidualCount", "credentialStoreResidualCount", "retainedProcessCount", "delegatedCgroupProcessCount"],
+      "properties": {
+        "connectionStoreResidualCount": {"type": "integer", "minimum": 0, "maximum": 4294967295},
+        "credentialStoreResidualCount": {"type": "integer", "minimum": 0, "maximum": 4294967295},
+        "retainedProcessCount": {"type": "integer", "minimum": 0, "maximum": 4294967295},
+        "delegatedCgroupProcessCount": {"type": "integer", "minimum": 0, "maximum": 4294967295}
+      }
+    }
+  },
+  "x-auths-semanticValidator": "profile-qualification-runtime-cleanup-observation/1"
+}

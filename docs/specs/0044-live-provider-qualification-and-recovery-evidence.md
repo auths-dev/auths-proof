@@ -840,14 +840,17 @@ pre-import production agent proves route omission and failpoint absence; after
 import the final production agent is deterministically
 rebuilt from the same candidate/toolchain with only the allowlisted generated
 qualification projection changed, and its final digest is recorded in release
-evidence. For v1 the role set is exactly the nine rows shown. The attester
+evidence. The attester
 recomputes `qualificationSurfaceSha256` from the protected build graph, closed
 feature difference, generated route projection, and production-binary absence
 tests; it proves the qualification agent and pre-import production agent come
 from the same candidate/toolchain and differ only by the reviewed harness,
-failpoint, and qualification-route surface. A candidate provenance report is a
-mismatch oracle only. Protected-revision code reads the immutable candidate
-Cargo manifests and generated launch projection directly, requires the exact
+failpoint, and qualification-route surface. The nine JSON rows above are the
+current three-domain example; the normative role roster is the byte-sorted six
+fixed runtime roles plus exactly one `python-profile-{domain}` role for every
+registered profile package, with 7 through 70 total rows. A candidate
+provenance report is a mismatch oracle only. Protected-revision code reads the
+immutable candidate Cargo manifests and generated launch projection directly, requires the exact
 qualification feature edges and the byte-sorted unqualified five-profile
 roster. The shipping `auths` target is an explicit production-only wrapper
 whose unconditional compile-time assertions reject the credential-broker,
@@ -916,16 +919,18 @@ attester revision MUST:
    values;
 3. read the exact immutable candidate Git tree and independently recompute the
    semantic closure, package manifest, profile runtime, error registry,
-   toolchain, generated-package identities, exact nine-role release-build
-   artifact roster, and closed production/qualification-agent surface;
+   toolchain, generated-package identities, exact generated release-build
+   artifact roster (the six fixed runtime roles plus one role per registered
+   profile package), and closed production/qualification-agent surface;
 4. download the exact uploaded artifact by immutable ID, verify the hosted
    archive digest and byte bound, and safely extract it without symlinks, hard
    links, special files, path escapes, duplicate paths, decompression bombs, or
-   files exceeding declared bounds; separately query GitHub for every
-   release-build artifact by immutable ID, verify the pinned authoritative
-   build workflow and candidate revision, archive/member digests and lengths,
-   and exact equality to the bytes consumed by collection and installed
-   verification;
+   files exceeding declared bounds; separately query GitHub for the one
+   aggregate release-member artifact by immutable ID and run attempt, verify
+   the pinned authoritative build workflow and candidate revision, require
+   every `releaseBuild.artifacts` row to bind that same hosted archive, then
+   verify each role/member digest and length and exact equality to the bytes
+   consumed by collection and installed verification;
 5. verify the retained source-trust snapshot against the protected registry
    digest; verify every retained typed source record signature, run/session
    context, role, executable identity, validity interval, and payload; verify
@@ -1015,7 +1020,7 @@ secretScan
 ```
 
 The nested shapes, ordering, and bounds are the corresponding final-record
-shapes in section 9.2. `candidateArtifacts` is the exact nine-role stable
+shapes in section 9.2. `candidateArtifacts` is the exact generated stable
 role/digest/length projection of `releaseBuild.artifacts`; it contains no
 workflow or hosted artifact authority. Provider-run and scenario statuses
 remain untrusted candidate claims. The proposal contains no `qualificationId`,
@@ -1060,6 +1065,8 @@ The archive has this closed required layout:
 manifest.json
 ledger/<provider-run-id>/evidence-ledger-trust.json
 ledger/<provider-run-id>/evidence-source-trust.json
+ledger/<provider-run-id>/cleanup-reference.json
+ledger/<provider-run-id>/ledger-plan.json
 ledger/<provider-run-id>/ledger.json
 ledger/<provider-run-id>/source-records/<source-role>/<canonical-sequence>.json
 ledger/<provider-run-id>/supervisor-contexts/<registered-operation-id>.json
@@ -1069,6 +1076,8 @@ ledger/<provider-run-id>/crash-action-contexts/<registered-operation-id>/failpoi
 ledger/<provider-run-id>/crash-action-contexts/<registered-operation-id>/process-killed.json
 ledger/<provider-run-id>/crash-action-contexts/<registered-operation-id>/process-restarted.json
 common-phases/<provider-run-id>/<registered-scenario-id>/<canonical-phase-index>.json
+runtime-cleanup/<provider-run-id>.json
+provider-cleanup/<provider-run-id>.json
 reports/cleanup.json
 reports/counters.json
 reports/gitleaks.json
@@ -1094,6 +1103,17 @@ derived from the signed ledger roster. Each file digest is the corresponding
 `commonPhaseEvidenceSha256`, and the observer and final attester independently
 rerun the shared event-to-attempt/instance/receipt/counter reconciliation over
 those exact bytes.
+
+Each ledger row also contains exactly one canonical redacted cleanup reference.
+The immutable ledger plan commits its digest and the signed ledger record
+reproduces that exact plan. The cleanup reference commits the protected setup
+handoff, provider destination, connection alias, provider namespace, and exact
+cleanup-resource roster without retaining scenario inputs or raw provider
+identifiers. `runtime-cleanup/` and `provider-cleanup/` contain exactly one
+canonical observation for every ledger row. Final verification re-derives the
+aggregate cleanup report from those observations and the source-authenticated
+credential-lease lifecycle; it does not trust cleanup booleans authored by a
+candidate or adapter.
 
 `manifest.json` has schema `auths.profile-qualification-evidence-manifest/1`.
 It lists every other archive member exactly once as `{path, bytes, sha256}` in
@@ -2435,7 +2455,7 @@ oversized files, dirty semantic closure, and trailing JSON data.
 preliminary evidence. The remaining phase commands are workflow-internal trust
 boundaries, not compatibility aliases for a combined runner. `collect` is
 provider-row scoped. `build-proposal` exact-joins every collected row, signed
-common ledger, candidate fact, and verified nine-role release member without a
+common ledger, candidate fact, and verified generated-roster release member without a
 signing key. `observe-row` performs one independently credentialed provider
 observation. `cleanup` is independently callable under `if: always()` for
 every row even when collection or observation failed. Only after all rows and
@@ -3035,8 +3055,9 @@ no-follow, regular-file, owner/link/mode, size, and replacement checks. Parse
 closed typed reports and cross-link every binding, operation, attempt,
 provider row, counter, truth commitment, receipt, cleanup row, and digest.
 Reconstruct candidate facts only from immutable Git objects. Query GitHub for
-and verify the exact authoritative release-build workflow/run and six immutable
-artifact rows, then recompute toolchains, packages, the closed production/
+and verify the exact authoritative release-build workflow/run and its one
+immutable aggregate member artifact, then exact-project every generated role
+row from that archive and recompute toolchains, packages, the closed production/
 qualification-agent surface, provider matrix/artifacts/scenario sets, semantic
 closure, and native receipt claims. Independently run pinned Gitleaks 8.28.0 and the
 typed forbidden-field scanner over extracted evidence. Split no-secret

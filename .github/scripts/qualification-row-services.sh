@@ -283,7 +283,8 @@ start_readers() {
       --signer-socket "$runtime/client-proxy-signer/source.sock" \
       --sequencer-socket "$runtime/sequencer.sock" \
       --ledger-plan "$runtime/client-proxy-reader/ledger-plan.json" \
-      --source-trust "$runtime/client-proxy-reader/source-trust.json"
+      --source-trust "$runtime/client-proxy-reader/source-trust.json" \
+      --setup-handoff "$runtime/client-proxy-reader/setup-handoff.json"
 
     uid="$(policy_value credential-broker readerUid)"
     binary="$(source_binary credential-broker)"
@@ -371,6 +372,7 @@ stop_all() {
   config_sha256="$(sha256sum "$AGENT_CONFIG" | awk '{print $1}')"
   [[ "$launcher_sha256" =~ ^[0-9a-f]{64}$ && "$config_sha256" =~ ^[0-9a-f]{64}$ ]] \
     || die "protected install source digests are invalid"
+  install -d -o root -g root -m 0700 -- "$CLEANUP_EVIDENCE_ROOT"
   while read -r row; do
     current_agent_sha256="$(jq -er '.agentExecutableSha256' "$POLICY_ROOT/$row/ledger-plan.json")"
     [[ "$current_agent_sha256" =~ ^[0-9a-f]{64}$ ]] || die "row agent digest is invalid"
@@ -436,6 +438,12 @@ stop_all() {
   done < <(row_ids)
   (( status == 0 )) || return "$status"
 
+  "$TOOLS/auths-qualification-supervisor" cleanup-protected-install \
+    --root "$PROTECTED_BIN_ROOT" \
+    --agent-sha256 "$agent_sha256" \
+    --launcher-sha256 "$launcher_sha256" \
+    --config-sha256 "$config_sha256"
+
   while read -r row; do
     runtime="$(row_runtime "$row")"
     policy="$POLICY_ROOT/$row"
@@ -445,17 +453,15 @@ stop_all() {
       --plan "$plan" \
       --runtime-root "$runtime" \
       --policy-root "$policy" \
-      --cgroup-root "$cgroup" || status=1
+      --cgroup-root "$cgroup" \
+      --cleanup-evidence-root "$CLEANUP_EVIDENCE_ROOT" || status=1
   done < <(row_ids)
   (( status == 0 )) || return "$status"
+  chmod 0444 -- "$CLEANUP_EVIDENCE_ROOT"/*.json
+  chmod 0555 -- "$CLEANUP_EVIDENCE_ROOT"
   [[ -d "$RUNTIME_ROOT" && ! -L "$RUNTIME_ROOT" ]] || die "runtime parent changed before cleanup"
   [[ -d "$POLICY_ROOT" && ! -L "$POLICY_ROOT" ]] || die "policy parent changed before cleanup"
   rmdir -- "$RUNTIME_ROOT" "$POLICY_ROOT"
-  "$TOOLS/auths-qualification-supervisor" cleanup-protected-install \
-    --root "$PROTECTED_BIN_ROOT" \
-    --agent-sha256 "$agent_sha256" \
-    --launcher-sha256 "$launcher_sha256" \
-    --config-sha256 "$config_sha256"
 }
 
 materialize_agent_key() {
@@ -524,6 +530,7 @@ case "$COMMAND" in
     : "${CGROUP_ROOT_PREFIX:?CGROUP_ROOT_PREFIX is required}"
     : "${PROTECTED_BIN_ROOT:?PROTECTED_BIN_ROOT is required}"
     : "${AGENT_CONFIG:?AGENT_CONFIG is required}"
+    : "${CLEANUP_EVIDENCE_ROOT:?CLEANUP_EVIDENCE_ROOT is required}"
     require_file "$AGENT_CONFIG"
     stop_all
     ;;

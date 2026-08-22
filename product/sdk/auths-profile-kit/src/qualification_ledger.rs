@@ -1234,6 +1234,8 @@ pub struct QualificationEvidenceLedgerPlanV1 {
     pub provider_run_id: String,
     pub ledger_id: String,
     pub session_nonce_sha256: String,
+    pub setup_handoff_sha256: String,
+    pub cleanup_reference_sha256: String,
     /// Protected no-secret controller identity allowed to request phase
     /// boundary signatures from the Supervisor source.
     pub supervisor_controller_uid: u32,
@@ -1273,6 +1275,9 @@ pub struct QualificationEvidenceLedgerRecord {
     pub provider_run_id: String,
     pub ledger_id: String,
     pub session_nonce_sha256: String,
+    /// SHA-256 of the canonical protected setup handoff consumed by ClientProxy.
+    pub setup_handoff_sha256: String,
+    pub cleanup_reference_sha256: String,
     pub supervisor_controller_uid: u32,
     pub supervisor_controller_artifact_sha256: String,
     pub ledger_appender_artifact_sha256: String,
@@ -1349,6 +1354,13 @@ impl QualificationEvidenceLedgerRecord {
             || !registered_token(&self.provider_run_id)
             || !registered_token(&self.ledger_id)
             || !digest(&self.session_nonce_sha256)
+            || !digest(&self.setup_handoff_sha256)
+            || !digest(&self.cleanup_reference_sha256)
+            || self.setup_handoff_sha256.bytes().all(|byte| byte == b'0')
+                != self
+                    .cleanup_reference_sha256
+                    .bytes()
+                    .all(|byte| byte == b'0')
             || self.supervisor_controller_uid == 0
             || self.supervisor_controller_uid == u32::MAX
             || !digest(&self.supervisor_controller_artifact_sha256)
@@ -1573,6 +1585,8 @@ impl QualificationEvidenceLedgerRecord {
             provider_run_id: self.provider_run_id.clone(),
             ledger_id: self.ledger_id.clone(),
             session_nonce_sha256: self.session_nonce_sha256.clone(),
+            setup_handoff_sha256: self.setup_handoff_sha256.clone(),
+            cleanup_reference_sha256: self.cleanup_reference_sha256.clone(),
             supervisor_controller_uid: self.supervisor_controller_uid,
             supervisor_controller_artifact_sha256: self
                 .supervisor_controller_artifact_sha256
@@ -2468,6 +2482,13 @@ impl QualificationEvidenceLedgerPlanV1 {
             || !registered_token(&self.provider_run_id)
             || !registered_token(&self.ledger_id)
             || !digest(&self.session_nonce_sha256)
+            || !digest(&self.setup_handoff_sha256)
+            || !digest(&self.cleanup_reference_sha256)
+            || self.setup_handoff_sha256.bytes().all(|byte| byte == b'0')
+                != self
+                    .cleanup_reference_sha256
+                    .bytes()
+                    .all(|byte| byte == b'0')
             || self.supervisor_controller_uid == 0
             || self.supervisor_controller_uid == u32::MAX
             || !digest(&self.supervisor_controller_artifact_sha256)
@@ -3027,6 +3048,34 @@ impl QualificationEvidenceLedgerTrustRegistry {
         self.keys
             .iter()
             .map(|key| QualificationTrustIdentity::new(&key.key_id, &key.public_key_base64url))
+    }
+
+    /// Selects the one ledger key eligible for an entire protected run.
+    /// Pre-provision policy uses this before any external provider resource is
+    /// created, while final verification selects the same interval-bound key.
+    pub fn current_key_id(
+        &self,
+        domain: &str,
+        started_at: u64,
+        completed_at: u64,
+        now: u64,
+    ) -> Result<&str, QualificationEvidenceLedgerError> {
+        let mut matched = self.keys.iter().filter(|key| {
+            key.allowed_domains
+                .binary_search_by(|allowed| allowed.as_str().cmp(domain))
+                .is_ok()
+                && [started_at, completed_at, now].into_iter().all(|at| {
+                    at >= key.not_before_unix_seconds
+                        && (key.not_after_unix_seconds == 0 || at <= key.not_after_unix_seconds)
+                })
+        });
+        let key = matched
+            .next()
+            .ok_or(QualificationEvidenceLedgerError::InvalidSourceTrust)?;
+        if matched.next().is_some() {
+            return Err(QualificationEvidenceLedgerError::InvalidSourceTrust);
+        }
+        Ok(&key.key_id)
     }
 
     fn find(
@@ -6155,6 +6204,27 @@ mod tests {
         }
     }
 
+    #[test]
+    fn ledger_preflight_selects_one_key_for_the_complete_interval() {
+        let registry = ledger_registry(Base64UrlUnpadded::encode_string(&[7_u8; 32]));
+        assert_eq!(
+            registry
+                .current_key_id("stripe", NOW - 10, NOW + 10, NOW)
+                .unwrap(),
+            "ledger-test"
+        );
+        assert!(
+            registry
+                .current_key_id("postgresql", NOW - 10, NOW + 10, NOW)
+                .is_err()
+        );
+        assert!(
+            registry
+                .current_key_id("stripe", NOW - 10, NOW + 101, NOW)
+                .is_err()
+        );
+    }
+
     fn signed_event(
         sequence: u32,
         previous: String,
@@ -6226,6 +6296,8 @@ mod tests {
             provider_run_id: "stripe-live".into(),
             ledger_id: "ledger-test".into(),
             session_nonce_sha256: "4".repeat(64),
+            setup_handoff_sha256: "8".repeat(64),
+            cleanup_reference_sha256: "9".repeat(64),
             supervisor_controller_uid: 1000,
             supervisor_controller_artifact_sha256: "5".repeat(64),
             ledger_appender_artifact_sha256: "7".repeat(64),
@@ -6949,6 +7021,8 @@ mod tests {
             provider_run_id: context_record.provider_run_id.clone(),
             ledger_id: context_record.ledger_id.clone(),
             session_nonce_sha256: context_record.session_nonce_sha256.clone(),
+            setup_handoff_sha256: "8".repeat(64),
+            cleanup_reference_sha256: "9".repeat(64),
             supervisor_controller_uid: 1000,
             supervisor_controller_artifact_sha256: "5".repeat(64),
             ledger_appender_artifact_sha256: "7".repeat(64),

@@ -7,14 +7,15 @@
 use auths_connections::{ProviderCredentialLease, QualificationProviderCallKind};
 use auths_profile_kit::QualificationProfileStateFactV1;
 use auths_profile_kit::{
-    QualificationAdapterMetadata, QualificationCleanupEvidence, QualificationCollectedOperation,
-    QualificationCollectionAdapter, QualificationCommonOperationInstanceEvidence,
-    QualificationCommonReceiptClaims, QualificationEffect, QualificationHarnessError,
-    QualificationOperationRole, QualificationPhaseClient, QualificationProtectedObserver,
-    QualificationProtectedSetup, QualificationProtectedSetupInput, QualificationProviderTruth,
-    QualificationRunContext, QualificationRunReference, QualificationScenarioHookStage,
-    QualificationScenarioProgramV1, QualificationSetupHandoffV1, QualificationTarget,
-    QualificationVector, qualification_scenario_program as resolve_qualification_scenario_program,
+    QualificationAdapterMetadata, QualificationCollectedOperation, QualificationCollectionAdapter,
+    QualificationCommonOperationInstanceEvidence, QualificationCommonReceiptClaims,
+    QualificationEffect, QualificationHarnessError, QualificationOperationRole,
+    QualificationPhaseClient, QualificationProtectedObserver, QualificationProtectedSetup,
+    QualificationProtectedSetupInput, QualificationProviderCleanupObservation,
+    QualificationProviderTruth, QualificationRunContext, QualificationRunReference,
+    QualificationScenarioHookStage, QualificationScenarioProgramV1, QualificationSetupHandoffV1,
+    QualificationTarget, QualificationVector,
+    qualification_scenario_program as resolve_qualification_scenario_program,
 };
 use auths_profile_runtime::{ProfileReceiptInspection, ProfileRuntimeError};
 use auths_stores::JournalRecordV1;
@@ -23,6 +24,26 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest as _, Sha256};
 use std::time::{Duration, Instant};
 use zeroize::Zeroizing;
+
+/// Stripe has no paired preflight capability to carry between phases.
+pub fn qualification_effect_case_inputs(
+    _profile: &str,
+    _value: &[u8],
+) -> Result<Option<(Vec<u8>, Vec<u8>)>, QualificationHarnessError> {
+    Ok(None)
+}
+
+/// Stripe has no paired preflight capability or fallback effect input.
+pub fn qualification_effect_fallback_case_json(
+    profile: &str,
+    _scenario_id: &str,
+    _stimulus: &str,
+) -> Result<Option<Vec<u8>>, QualificationHarnessError> {
+    if profile != "auths.stripe.refund/1" {
+        return Err(QualificationHarnessError::Invocation);
+    }
+    Ok(None)
+}
 
 /// Runs the production profile receipt inspector through the qualification-only static port.
 pub fn inspect_receipt_claims(
@@ -78,6 +99,7 @@ pub async fn reconcile_provider_transport(
 pub async fn dispatch_provider_transport(
     profile: &str,
     scenario_id: &str,
+    case_id: &str,
     kind: QualificationProviderCallKind,
     command: &[u8],
     profile_state: &[u8],
@@ -95,7 +117,8 @@ pub async fn dispatch_provider_transport(
         qualification_scenario_program(scenario_id).map_err(|_| ProfileRuntimeError::Invalid)?;
     if kind == QualificationProviderCallKind::Execute
         && program
-            .unique_hook_for_role(
+            .hook_for_case(
+                case_id,
                 QualificationOperationRole::Effect,
                 QualificationScenarioHookStage::BeforeProvider,
                 "reduce-refundable-amount",
@@ -106,7 +129,8 @@ pub async fn dispatch_provider_transport(
     }
     if kind == QualificationProviderCallKind::Execute
         && program
-            .unique_hook_for_role(
+            .hook_for_case(
+                case_id,
                 QualificationOperationRole::Effect,
                 QualificationScenarioHookStage::BeforeProvider,
                 "create-unrelated-refund",
@@ -130,6 +154,7 @@ pub async fn dispatch_provider_transport(
 /// Independently reads the exact refund outcome with the protected runtime-read
 /// credential and returns only the closed effect plus canonical redacted facts.
 pub async fn observe_provider_truth(
+    _scenario_id: &str,
     record: &JournalRecordV1,
     credential: &[u8],
     _observer_root: &std::path::Path,
@@ -524,16 +549,7 @@ async fn stripe_setup(
             .cases()
             .iter()
             .map(|case| {
-                let case_amount = match case.stimulus() {
-                    "maximum-refund" => 100_000_000,
-                    "maximum-plus-one-refund" => 100_000_001,
-                    "final-capacity-refund"
-                    | "account-equality"
-                    | "redaction-audit"
-                    | "canonical" => amount,
-                    "unrelated-refund" => amount.saturating_sub(1),
-                    _ => amount,
-                };
+                let case_amount = stripe_case_amount(case.stimulus(), amount)?;
                 let vector = serde_json_canonicalizer::to_vec(&serde_json::json!({
                     "amount": case_amount,
                     "currency": "usd",
@@ -570,6 +586,7 @@ async fn stripe_setup(
         run_attempt: input.run_context.run_attempt,
         provider_run_id: input.run_context.provider_run_id.clone(),
         provider_namespace,
+        provider_destination_sha256: ACCOUNT_SHA256.into(),
         connection_alias_sha256: hex::encode(Sha256::digest(input.connection_alias.as_bytes())),
         resource_references: resources,
         connection_generations: vec!["1".into()],
@@ -584,6 +601,27 @@ async fn stripe_setup(
     };
     handoff.validate()?;
     Ok(handoff)
+}
+
+fn stripe_case_amount(stimulus: &str, amount: u64) -> Result<u64, QualificationHarnessError> {
+    match stimulus {
+        "maximum-refund" => Ok(100_000_000),
+        "maximum-plus-one-refund" => Ok(100_000_001),
+        "unrelated-refund" => Ok(amount.saturating_sub(1)),
+        "changed-input" => Ok(amount.saturating_add(1)),
+        "final-capacity-refund"
+        | "account-equality"
+        | "redaction-audit"
+        | "canonical"
+        | "duplicate-field"
+        | "encoded-canonical"
+        | "missing-field"
+        | "noncanonical-integer"
+        | "replay"
+        | "stale-evidence"
+        | "unknown-field" => Ok(amount),
+        _ => Err(QualificationHarnessError::Onboarding),
+    }
 }
 
 impl QualificationCollectionAdapter for StripeQualificationAdapter {
@@ -630,6 +668,7 @@ impl QualificationCollectionAdapter for StripeQualificationAdapter {
 
 impl QualificationProtectedObserver for StripeQualificationAdapter {
     type Environment = StripeProtectedObserverEnvironment;
+    type CleanupEnvironment = ();
 
     fn metadata(&self) -> QualificationAdapterMetadata {
         metadata()
@@ -732,7 +771,8 @@ impl QualificationProtectedObserver for StripeQualificationAdapter {
         }
         match program.id() {
             "stripe-account-equality" => validate_single_applied_refund_truth(truths, None, true),
-            "stripe-redaction" => validate_single_applied_refund_truth(truths, None, true),
+            "stripe-api-version" => validate_stripe_api_version(truths),
+            "stripe-redaction" => validate_stripe_redaction(truths),
             "stripe-refund-boundary" => {
                 validate_single_applied_refund_truth(truths, Some(100_000_000), true)?;
                 validate_case_attempt_roster(program, operations)
@@ -747,33 +787,35 @@ impl QualificationProtectedObserver for StripeQualificationAdapter {
             }
             "stripe-refundable-drift" => validate_stripe_refundable_drift(operations, truths),
             "stripe-existing-refund" => validate_stripe_existing_refund(operations, truths),
+            "stripe-command-bound-reread" => {
+                validate_stripe_command_bound_reread(operations, truths)
+            }
             _ => Err(QualificationHarnessError::PrerequisiteUnavailable(
                 "Stripe scenario predicate is not implemented",
             )),
         }
     }
 
+    fn open_cleanup(
+        &self,
+        _context: &QualificationRunContext,
+    ) -> Result<Self::CleanupEnvironment, QualificationHarnessError> {
+        Err(QualificationHarnessError::PrerequisiteUnavailable(
+            "Stripe cleanup requires a deletable run-scoped account and negative credential re-authentication",
+        ))
+    }
+
     fn cleanup(
         &self,
+        _environment: &Self::CleanupEnvironment,
         context: &QualificationRunContext,
-        _reference: Option<&QualificationRunReference>,
-    ) -> Result<QualificationCleanupEvidence, QualificationHarnessError> {
-        let credential = protected_credential("QUALIFICATION_CLEANUP_CREDENTIAL")?;
-        let namespace = format!(
-            "aq-{}-{}-{}",
-            context.run_id, context.run_attempt, context.provider_run_id
-        );
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .map_err(|_| QualificationHarnessError::Cleanup)?;
-        runtime.block_on(stripe_cleanup_namespace(&namespace, &credential))?;
-        Ok(QualificationCleanupEvidence {
-            provider_resources_destroyed: true,
-            connection_disabled: true,
-            credentials_revoked: true,
-            residual_resource_count: 0,
-        })
+    ) -> Result<QualificationProviderCleanupObservation, QualificationHarnessError> {
+        if context.protected_environment != "qualification-stripe" {
+            return Err(QualificationHarnessError::Cleanup);
+        }
+        Err(QualificationHarnessError::PrerequisiteUnavailable(
+            "Stripe cleanup requires a deletable run-scoped account and negative credential re-authentication",
+        ))
     }
 }
 
@@ -892,6 +934,55 @@ fn validate_stripe_existing_refund(
         .map_err(|_| QualificationHarnessError::ProviderTruth)?;
     if facts.unrelated_refund_count != 1 || facts.competing_refund_count != 0 {
         return Err(QualificationHarnessError::ProviderTruth);
+    }
+    Ok(())
+}
+
+fn validate_stripe_command_bound_reread(
+    operations: &[auths_profile_kit::QualificationRedactedOperation],
+    truths: &[QualificationProviderTruth],
+) -> Result<(), QualificationHarnessError> {
+    validate_single_applied_refund_truth(truths, None, true)?;
+    let [operation] = operations else {
+        return Err(QualificationHarnessError::ProviderTruth);
+    };
+    let [instance] = operation.instances.as_slice() else {
+        return Err(QualificationHarnessError::ProviderTruth);
+    };
+    if operation.role != QualificationOperationRole::Effect
+        || instance.operation_id != truths[0].operation_id
+        || instance.counters.connection_rereads != 1
+        || instance.counters.credential_lease_attempts != 1
+        || instance.counters.credential_leases != 1
+        || instance.counters.provider_entry_markers != 1
+        || instance.counters.provider_calls != 1
+    {
+        return Err(QualificationHarnessError::ProviderTruth);
+    }
+    Ok(())
+}
+
+fn validate_stripe_api_version(
+    truths: &[QualificationProviderTruth],
+) -> Result<(), QualificationHarnessError> {
+    validate_single_applied_refund_truth(truths, None, true)?;
+    if truths[0].provider_version != "2026-02-25.clover" {
+        return Err(QualificationHarnessError::ProviderTruth);
+    }
+    Ok(())
+}
+
+fn validate_stripe_redaction(
+    truths: &[QualificationProviderTruth],
+) -> Result<(), QualificationHarnessError> {
+    validate_single_applied_refund_truth(truths, None, true)?;
+    if qualification_redaction_prefixes().iter().any(|prefix| {
+        truths[0]
+            .domain_facts
+            .windows(prefix.len())
+            .any(|window| window == prefix.as_bytes())
+    }) {
+        return Err(QualificationHarnessError::Redaction);
     }
     Ok(())
 }
@@ -1055,84 +1146,6 @@ async fn stripe_observe_by_namespace(
     ))
 }
 
-async fn stripe_cleanup_namespace(
-    namespace: &str,
-    credential: &[u8],
-) -> Result<(), QualificationHarnessError> {
-    let credential =
-        std::str::from_utf8(credential).map_err(|_| QualificationHarnessError::Cleanup)?;
-    if !credential.starts_with("rk_test_") && !credential.starts_with("sk_test_") {
-        return Err(QualificationHarnessError::Cleanup);
-    }
-    let client = reqwest::Client::builder()
-        .redirect(reqwest::redirect::Policy::none())
-        .timeout(Duration::from_secs(30))
-        .build()
-        .map_err(|_| QualificationHarnessError::Cleanup)?;
-    let query = format!("metadata['auths_qualification_namespace']:'{namespace}'");
-    let response = client
-        .get("https://api.stripe.com/v1/payment_intents/search")
-        .bearer_auth(credential)
-        .header("Stripe-Version", "2026-02-25.clover")
-        .query(&[("query", query.as_str()), ("limit", "100")])
-        .send()
-        .await
-        .map_err(|_| QualificationHarnessError::Cleanup)?;
-    if !response.status().is_success() {
-        return Err(QualificationHarnessError::Cleanup);
-    }
-    let bytes = response
-        .bytes()
-        .await
-        .map_err(|_| QualificationHarnessError::Cleanup)?;
-    let intents: StripeSearchList<StripeObservedPaymentIntent> =
-        serde_json::from_slice(&bytes).map_err(|_| QualificationHarnessError::Cleanup)?;
-    if intents.has_more {
-        return Err(QualificationHarnessError::Cleanup);
-    }
-    for intent in intents.data {
-        let url = format!("https://api.stripe.com/v1/payment_intents/{}", intent.id);
-        let response = client
-            .post(url)
-            .bearer_auth(credential)
-            .header("Stripe-Version", "2026-02-25.clover")
-            .form(&[
-                ("metadata[auths_qualification_namespace]", ""),
-                ("metadata[auths_qualification_scenario]", ""),
-            ])
-            .send()
-            .await
-            .map_err(|_| QualificationHarnessError::Cleanup)?;
-        if !response.status().is_success() {
-            return Err(QualificationHarnessError::Cleanup);
-        }
-    }
-    let response = client
-        .get("https://api.stripe.com/v1/payment_intents/search")
-        .bearer_auth(credential)
-        .header("Stripe-Version", "2026-02-25.clover")
-        .query(&[("query", query.as_str()), ("limit", "100")])
-        .send()
-        .await
-        .map_err(|_| QualificationHarnessError::Cleanup)?;
-    if !response.status().is_success() {
-        return Err(QualificationHarnessError::Cleanup);
-    }
-    let bytes = response
-        .bytes()
-        .await
-        .map_err(|_| QualificationHarnessError::Cleanup)?;
-    if bytes.len() > 4_194_304 {
-        return Err(QualificationHarnessError::Limit);
-    }
-    let remaining: StripeSearchList<StripeObservedPaymentIntent> =
-        serde_json::from_slice(&bytes).map_err(|_| QualificationHarnessError::Cleanup)?;
-    if remaining.has_more || !remaining.data.is_empty() {
-        return Err(QualificationHarnessError::Cleanup);
-    }
-    Ok(())
-}
-
 fn protected_credential(name: &str) -> Result<Zeroizing<Vec<u8>>, QualificationHarnessError> {
     let encoded = std::env::var(name).map_err(|_| QualificationHarnessError::ProviderTruth)?;
     if encoded.is_empty() || encoded.len() > 174_764 || encoded.contains('=') {
@@ -1243,5 +1256,30 @@ mod tests {
                 .all(|case| case.stimulus() == "final-capacity-refund")
         );
         validate_single_applied_refund_truth(&[applied_truth(2_000)], Some(2_000), true).unwrap();
+
+        let lease = qualification_scenario_program("stripe-preparation-evidence-lease").unwrap();
+        let fresh = lease
+            .cases()
+            .iter()
+            .find(|case| case.case_id() == "fresh")
+            .unwrap();
+        let replay = lease
+            .cases()
+            .iter()
+            .find(|case| case.case_id() == "exact-replay")
+            .unwrap();
+        assert_eq!(fresh.intent_id(), replay.intent_id());
+        assert_eq!(fresh.expected_provider_calls(), 1);
+        assert_eq!(replay.expected_provider_calls(), 0);
+    }
+
+    #[test]
+    fn every_reviewed_stripe_stimulus_has_one_fail_closed_setup_mapping() {
+        for scenario in SCENARIOS {
+            for case in qualification_scenario_program(scenario).unwrap().cases() {
+                stripe_case_amount(case.stimulus(), 2_000).unwrap();
+            }
+        }
+        assert!(stripe_case_amount("misspelled-stimulus", 2_000).is_err());
     }
 }

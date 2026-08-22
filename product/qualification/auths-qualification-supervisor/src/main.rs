@@ -21,6 +21,10 @@ use auths_profile_kit::{
     qualification_pre_admission_attempt_count,
 };
 #[cfg(target_os = "linux")]
+use auths_profile_kit::{
+    QualificationRuntimeCleanupEvidence, QualificationRuntimeCleanupObservationV1,
+};
+#[cfg(target_os = "linux")]
 use auths_qualification_evidence_source::{
     QualificationSourceSessionPeer, read_source_session_frame_before,
     write_source_session_frame_before,
@@ -1367,6 +1371,8 @@ fn cleanup_row_runtime(arguments: &[String]) -> Result<(), String> {
         policy_root,
         cgroup_flag,
         cgroup_root,
+        cleanup_evidence_flag,
+        cleanup_evidence_root,
     ] = arguments
     else {
         return Err(usage());
@@ -1376,6 +1382,7 @@ fn cleanup_row_runtime(arguments: &[String]) -> Result<(), String> {
         || runtime_flag != "--runtime-root"
         || policy_flag != "--policy-root"
         || cgroup_flag != "--cgroup-root"
+        || cleanup_evidence_flag != "--cleanup-evidence-root"
         || rustix::process::geteuid().as_raw() != 0
     {
         return Err(usage());
@@ -1385,7 +1392,10 @@ fn cleanup_row_runtime(arguments: &[String]) -> Result<(), String> {
     let runtime_root = Path::new(runtime_root);
     let policy_root = Path::new(policy_root);
     let cgroup_root = Path::new(cgroup_root);
+    let cleanup_evidence_root = Path::new(cleanup_evidence_root);
     if runtime_root == policy_root
+        || runtime_root == cleanup_evidence_root
+        || policy_root == cleanup_evidence_root
         || !cgroup_root.starts_with("/sys/fs/cgroup")
         || cgroup_root == Path::new("/sys/fs/cgroup")
     {
@@ -1414,10 +1424,17 @@ fn cleanup_row_runtime(arguments: &[String]) -> Result<(), String> {
         return Err("row policy contains a different immutable ledger plan".into());
     }
 
+    let (_, _, cleanup_evidence) = open_exact_cleanup_root(cleanup_evidence_root, 0, 0, 0o700)?;
+    let runtime_identity = runtime.metadata().map_err(string_error)?;
+    let policy_identity = policy.metadata().map_err(string_error)?;
+    validate_broker_store_before_cleanup(&runtime, runtime_identity.dev(), &plan)?;
+    if live_retained_process_count(&runtime, runtime_identity.dev())? != 0 {
+        return Err("row cleanup refuses to remove a runtime with a live retained process".into());
+    }
+
     cleanup_exact_cgroup(cgroup_root, plan.supervisor_controller_uid, plan.agent_gid)?;
 
     let mut remaining = 65_536_usize;
-    let runtime_identity = runtime.metadata().map_err(string_error)?;
     remove_bounded_tree_contents(&runtime, runtime_identity.dev(), 0, &mut remaining)?;
     verify_cleanup_root_name(&runtime_parent, &runtime_name, &runtime)?;
     drop(runtime);
@@ -1425,13 +1442,223 @@ fn cleanup_row_runtime(arguments: &[String]) -> Result<(), String> {
     runtime_parent.sync_all().map_err(string_error)?;
 
     let mut remaining = 4_096_usize;
-    let policy_identity = policy.metadata().map_err(string_error)?;
     remove_bounded_tree_contents(&policy, policy_identity.dev(), 0, &mut remaining)?;
     verify_cleanup_root_name(&policy_parent, &policy_name, &policy)?;
     drop(policy);
     unlinkat(&policy_parent, policy_name.as_str(), AtFlags::REMOVEDIR).map_err(string_error)?;
     policy_parent.sync_all().map_err(string_error)?;
+    let completed_at_unix_seconds = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(string_error)?
+        .as_secs();
+    let observation = QualificationRuntimeCleanupObservationV1 {
+        schema: "auths.qualification-runtime-cleanup-observation/1".into(),
+        repository_id: plan.repository_id.clone(),
+        candidate_revision: plan.candidate_revision.clone(),
+        run_id: plan.run_id.clone(),
+        run_attempt: plan.run_attempt,
+        domain: plan.domain.clone(),
+        target: plan.target,
+        provider_run_id: plan.provider_run_id.clone(),
+        ledger_plan_sha256: hex::encode(Sha256::digest(&plan_bytes)),
+        setup_handoff_sha256: plan.setup_handoff_sha256.clone(),
+        runtime_device: runtime_identity.dev(),
+        runtime_inode: runtime_identity.ino(),
+        policy_device: policy_identity.dev(),
+        policy_inode: policy_identity.ino(),
+        cgroup_path_sha256: cleanup_path_sha256(cgroup_root)?,
+        connection_store_path_sha256: cleanup_path_sha256(
+            &runtime_root.join("credential-broker-store/connections.cbor"),
+        )?,
+        credential_store_path_sha256: cleanup_path_sha256(
+            &runtime_root.join("credential-broker-store/credentials.cbor"),
+        )?,
+        evidence: QualificationRuntimeCleanupEvidence {
+            connection_store_residual_count: 0,
+            credential_store_residual_count: 0,
+            retained_process_count: 0,
+            delegated_cgroup_process_count: 0,
+        },
+        completed_at_unix_seconds,
+    };
+    let plan_sha256 = hex::encode(Sha256::digest(&plan_bytes));
+    observation
+        .validate(&plan, &plan_sha256)
+        .map_err(string_error)?;
+    let marker = serde_json_canonicalizer::to_vec(&observation).map_err(string_error)?;
+    write_atomic_new_at_or_verify(
+        &cleanup_evidence,
+        &format!("{}.json", plan.provider_run_id),
+        &marker,
+        262_144,
+    )
+}
+
+#[cfg(target_os = "linux")]
+fn cleanup_path_sha256(path: &Path) -> Result<String, String> {
+    let value = path
+        .to_str()
+        .filter(|value| value.starts_with('/') && !value.contains("/../") && !value.contains("/./"))
+        .ok_or_else(|| "cleanup evidence path is not normalized UTF-8".to_owned())?;
+    Ok(hex::encode(Sha256::digest(value.as_bytes())))
+}
+
+#[cfg(target_os = "linux")]
+fn validate_broker_store_before_cleanup(
+    runtime: &File,
+    runtime_device: u64,
+    plan: &QualificationEvidenceLedgerPlanV1,
+) -> Result<(), String> {
+    let store = File::from(
+        openat(
+            runtime,
+            "credential-broker-store",
+            OFlags::RDONLY | OFlags::DIRECTORY | OFlags::CLOEXEC | OFlags::NOFOLLOW,
+            Mode::empty(),
+        )
+        .map_err(string_error)?,
+    );
+    let directory = store.metadata().map_err(string_error)?;
+    if !directory.file_type().is_dir()
+        || directory.dev() != runtime_device
+        || directory.uid() == 0
+        || directory.gid() != plan.agent_gid
+        || directory.mode() & 0o777 != 0o700
+    {
+        return Err("credential-broker store directory differs from protected policy".into());
+    }
+    for name in ["connections.cbor", "credentials.cbor"] {
+        let file = File::from(
+            openat(
+                &store,
+                name,
+                OFlags::RDONLY | OFlags::CLOEXEC | OFlags::NOFOLLOW | OFlags::NONBLOCK,
+                Mode::empty(),
+            )
+            .map_err(string_error)?,
+        );
+        let metadata = file.metadata().map_err(string_error)?;
+        let named = statat(&store, name, AtFlags::SYMLINK_NOFOLLOW).map_err(string_error)?;
+        if !metadata.file_type().is_file()
+            || metadata.dev() != runtime_device
+            || metadata.nlink() != 1
+            || metadata.uid() != directory.uid()
+            || metadata.gid() != plan.agent_gid
+            || metadata.mode() & 0o777 != 0o600
+            || metadata.len() == 0
+            || metadata.len() > 4_194_304
+            || FileType::from_raw_mode(named.st_mode) != FileType::RegularFile
+            || named.st_dev != metadata.dev()
+            || named.st_ino != metadata.ino()
+            || named.st_nlink != 1
+        {
+            return Err("credential-broker store member differs from protected policy".into());
+        }
+    }
     Ok(())
+}
+
+#[cfg(target_os = "linux")]
+fn live_retained_process_count(runtime: &File, runtime_device: u64) -> Result<u32, String> {
+    let pids = File::from(
+        openat(
+            runtime,
+            "pids",
+            OFlags::RDONLY | OFlags::DIRECTORY | OFlags::CLOEXEC | OFlags::NOFOLLOW,
+            Mode::empty(),
+        )
+        .map_err(string_error)?,
+    );
+    let metadata = pids.metadata().map_err(string_error)?;
+    if !metadata.file_type().is_dir()
+        || metadata.dev() != runtime_device
+        || metadata.uid() != 0
+        || metadata.gid() != 0
+        || metadata.mode() & 0o777 != 0o700
+    {
+        return Err("retained-process directory differs from protected policy".into());
+    }
+    let names = directory_names(&pids, 64)?;
+    let mut count = 0_u32;
+    for name in names.iter().filter(|name| name.ends_with(".pid")) {
+        let stem = name
+            .strip_suffix(".pid")
+            .ok_or_else(|| "retained-process name is invalid".to_owned())?;
+        let pid = read_cleanup_small_file(&pids, name, 0, 0)?
+            .trim()
+            .parse::<u32>()
+            .map_err(string_error)?;
+        let starttime = read_cleanup_small_file(&pids, &format!("{stem}.starttime"), 0, 0)?
+            .trim()
+            .parse::<u64>()
+            .map_err(string_error)?;
+        match fs::read_to_string(format!("/proc/{pid}/stat")) {
+            Ok(stat) => {
+                let close = stat
+                    .rfind(')')
+                    .ok_or_else(|| "retained process stat is malformed".to_owned())?;
+                let actual = stat[close + 1..]
+                    .split_whitespace()
+                    .nth(19)
+                    .ok_or_else(|| "retained process stat omits starttime".to_owned())?
+                    .parse::<u64>()
+                    .map_err(string_error)?;
+                if actual == starttime {
+                    count = count
+                        .checked_add(1)
+                        .ok_or_else(|| "retained process count overflow".to_owned())?;
+                }
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(string_error(error)),
+        }
+    }
+    Ok(count)
+}
+
+#[cfg(target_os = "linux")]
+fn read_cleanup_small_file(
+    directory: &File,
+    name: &str,
+    expected_uid: u32,
+    expected_gid: u32,
+) -> Result<String, String> {
+    let mut file = File::from(
+        openat(
+            directory,
+            name,
+            OFlags::RDONLY | OFlags::CLOEXEC | OFlags::NOFOLLOW | OFlags::NONBLOCK,
+            Mode::empty(),
+        )
+        .map_err(string_error)?,
+    );
+    let before = file.metadata().map_err(string_error)?;
+    if !before.file_type().is_file()
+        || before.nlink() != 1
+        || before.uid() != expected_uid
+        || before.gid() != expected_gid
+        || before.mode() & 0o022 != 0
+        || before.len() == 0
+        || before.len() > 64
+    {
+        return Err("retained-process identity member is invalid".into());
+    }
+    let mut bytes = Vec::new();
+    file.read_to_end(&mut bytes).map_err(string_error)?;
+    let after = file.metadata().map_err(string_error)?;
+    let named = statat(directory, name, AtFlags::SYMLINK_NOFOLLOW).map_err(string_error)?;
+    if before.dev() != after.dev()
+        || before.ino() != after.ino()
+        || before.len() != after.len()
+        || before.mtime() != after.mtime()
+        || before.ctime() != after.ctime()
+        || named.st_dev != after.dev()
+        || named.st_ino != after.ino()
+        || named.st_nlink != 1
+    {
+        return Err("retained-process identity member changed while read".into());
+    }
+    String::from_utf8(bytes).map_err(string_error)
 }
 
 #[cfg(target_os = "linux")]
@@ -1726,7 +1953,8 @@ fn cleanup_exact_cgroup(path: &Path, uid: u32, gid: u32) -> Result<(), String> {
     drop(reader);
     verify_cleanup_root_name(&parent, &name, &directory)?;
     drop(directory);
-    unlinkat(&parent, name.as_str(), AtFlags::REMOVEDIR).map_err(string_error)
+    unlinkat(&parent, name.as_str(), AtFlags::REMOVEDIR).map_err(string_error)?;
+    parent.sync_all().map_err(string_error)
 }
 
 #[cfg(target_os = "linux")]
@@ -3126,6 +3354,8 @@ fn assemble_ledger(arguments: &[String]) -> Result<(), String> {
         provider_run_id: plan.provider_run_id,
         ledger_id: plan.ledger_id,
         session_nonce_sha256: plan.session_nonce_sha256,
+        setup_handoff_sha256: plan.setup_handoff_sha256,
+        cleanup_reference_sha256: plan.cleanup_reference_sha256,
         supervisor_controller_uid: plan.supervisor_controller_uid,
         supervisor_controller_artifact_sha256: plan.supervisor_controller_artifact_sha256,
         ledger_appender_artifact_sha256: plan.ledger_appender_artifact_sha256,
@@ -3844,7 +4074,7 @@ fn write_new(path: &Path, bytes: &[u8]) -> Result<(), String> {
 }
 
 fn usage() -> String {
-    "usage: auths-qualification-supervisor <export-receipt-anchors --config-output <new-config> --anchors-output <new-anchors> --expected-sha256 <digest>|initialize-ledger --plan <canonical-plan> --common-root <owner-only-common-root> --source-trust <registry> --ledger-trust <registry>|prepare-row-runtime --plan <canonical-plan> --source-trust <registry> --receipt-trust <anchors> --runtime-root <new-runtime-root> --cgroup-root <new-delegated-cgroup-root>|cleanup-row-runtime --plan <canonical-plan> --runtime-root <prepared-row-runtime> --policy-root <root-owned-row-policy> --cgroup-root <delegated-cgroup-root>|cleanup-protected-install --root <protected-install-root> --agent-sha256 <digest> --launcher-sha256 <digest> --config-sha256 <digest>|materialize-agent-signing-key --role <decision|execution|recovery> --plan <canonical-plan> --config <public-agent-config> --runtime-root <prepared-row-runtime>|serve-append-session --plan <canonical-plan> --common-root <owner-only-common-root> --source-trust <registry> --socket <new-protected-unix-socket>|stage-common-phases --plan <canonical-plan> --candidate-collection <canonical-collection> --common-root <owner-only-common-root> --source-trust <registry> --receipt-trust <anchors>|build-event-index --plan <canonical-plan> --common-root <owner-only-common-root> --source-trust <registry>|assemble-ledger --plan <canonical-plan> --event-index <canonical-index> --common-root <owner-only-common-root> --source-trust <registry> --output <new-record>|seal-ledger --record <canonical-record> --source-trust <registry> --ledger-trust <registry> --output <new-path> --key-id <id>>; prepare-row-runtime is the root-only exact UID/GID topology and role-policy snapshot materializer and accepts no seed; cleanup-row-runtime removes only the exact plan-bound runtime, policy, and empty delegated cgroup through retained no-follow descriptors; cleanup-protected-install removes only the reviewed root-owned agent, launcher, and public configuration; materialize-agent-signing-key consumes exactly one base64url seed on stdin and writes only its fixed scenario-state handles; serve-append-session is the sole source-event writer and owns the provider-row lock while an authenticated reader obtains each signature; export-receipt-anchors reads one base64url public agent configuration from stdin, and seal-ledger reads its one seed from stdin".into()
+    "usage: auths-qualification-supervisor <export-receipt-anchors --config-output <new-config> --anchors-output <new-anchors> --expected-sha256 <digest>|initialize-ledger --plan <canonical-plan> --common-root <owner-only-common-root> --source-trust <registry> --ledger-trust <registry>|prepare-row-runtime --plan <canonical-plan> --source-trust <registry> --receipt-trust <anchors> --runtime-root <new-runtime-root> --cgroup-root <new-delegated-cgroup-root>|cleanup-row-runtime --plan <canonical-plan> --runtime-root <prepared-row-runtime> --policy-root <root-owned-row-policy> --cgroup-root <delegated-cgroup-root> --cleanup-evidence-root <root-owned-evidence-root>|cleanup-protected-install --root <protected-install-root> --agent-sha256 <digest> --launcher-sha256 <digest> --config-sha256 <digest>|materialize-agent-signing-key --role <decision|execution|recovery> --plan <canonical-plan> --config <public-agent-config> --runtime-root <prepared-row-runtime>|serve-append-session --plan <canonical-plan> --common-root <owner-only-common-root> --source-trust <registry> --socket <new-protected-unix-socket>|stage-common-phases --plan <canonical-plan> --candidate-collection <canonical-collection> --common-root <owner-only-common-root> --source-trust <registry> --receipt-trust <anchors>|build-event-index --plan <canonical-plan> --common-root <owner-only-common-root> --source-trust <registry>|assemble-ledger --plan <canonical-plan> --event-index <canonical-index> --common-root <owner-only-common-root> --source-trust <registry> --output <new-record>|seal-ledger --record <canonical-record> --source-trust <registry> --ledger-trust <registry> --output <new-path> --key-id <id>>; prepare-row-runtime is the root-only exact UID/GID topology and role-policy snapshot materializer and accepts no seed; cleanup-row-runtime removes only the exact plan-bound runtime, policy, and empty delegated cgroup through retained no-follow descriptors, then writes one root-owned plan-bound cleanup observation; cleanup-protected-install removes only the reviewed root-owned agent, launcher, and public configuration; materialize-agent-signing-key consumes exactly one base64url seed on stdin and writes only its fixed scenario-state handles; serve-append-session is the sole source-event writer and owns the provider-row lock while an authenticated reader obtains each signature; export-receipt-anchors reads one base64url public agent configuration from stdin, and seal-ledger reads its one seed from stdin".into()
 }
 
 fn lower_hex_64(value: &str) -> bool {
@@ -4067,6 +4297,8 @@ mod tests {
             provider_run_id: "provider-run".into(),
             ledger_id: "ledger-run".into(),
             session_nonce_sha256: "4".repeat(64),
+            setup_handoff_sha256: "8".repeat(64),
+            cleanup_reference_sha256: "9".repeat(64),
             supervisor_controller_uid: 1000,
             supervisor_controller_artifact_sha256: "5".repeat(64),
             ledger_appender_artifact_sha256: "7".repeat(64),

@@ -16,6 +16,8 @@ use sha2::{Digest as _, Sha256};
 use std::collections::BTreeSet;
 use thiserror::Error;
 
+use crate::QUALIFICATION_RELEASE_ARTIFACT_ROLES;
+
 const MAX_TRUST_REGISTRY_BYTES: usize = 65_536;
 const MAX_RECORD_BYTES: usize = 262_144;
 const MAX_PROPOSAL_BYTES: usize = 262_144;
@@ -27,18 +29,6 @@ const MAX_ARTIFACT_BYTES: u64 = 536_870_912;
 const MAX_QUALIFICATION_SECONDS: u64 = 21_600;
 const SIGNATURE_DOMAIN: &[u8] = b"auths.profile-qualification-attestation/1";
 const OBSERVATION_SIGNATURE_DOMAIN: &[u8] = b"auths.profile-qualification-observation/1";
-const RELEASE_BUILD_ARTIFACT_ROLES: [&str; 9] = [
-    "production-agent",
-    "python-native",
-    "python-profile-opentofu",
-    "python-profile-postgresql",
-    "python-profile-stripe",
-    "python-wheel",
-    "qualification-agent",
-    "typescript-native",
-    "typescript-package",
-];
-
 /// Closed build targets that may receive live-provider qualification.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 pub enum QualificationTarget {
@@ -335,6 +325,7 @@ pub struct QualificationProviderRun {
     provider_version: String,
     provider_artifact_sha256: String,
     scenario_set_sha256: String,
+    runtime_cleanup_sha256: String,
     status: String,
 }
 
@@ -409,6 +400,9 @@ pub enum QualificationScenarioTopology {
 pub enum QualificationScenarioExpectation {
     /// The scenario program fixes the exact public outcome/effect/call tuple.
     Exact,
+    /// A same-stimulus parallel group fixes the tuple multiset, not which
+    /// concurrently admitted contender wins the provider-owned race.
+    GroupMultiset,
     /// The reviewed failpoint contract fixes the terminal tuple instead.
     Failpoint,
 }
@@ -1441,12 +1435,16 @@ impl QualificationReleaseBuild {
             || self.run_attempt == 0
             || self.run_label != "official"
             || !digest(&self.qualification_surface_sha256)
-            || self.artifacts.len() != RELEASE_BUILD_ARTIFACT_ROLES.len()
+            || self.artifacts.len() != QUALIFICATION_RELEASE_ARTIFACT_ROLES.len()
         {
             return Err(QualificationError::InvalidReleaseBuild);
         }
         let mut paths = std::collections::BTreeSet::new();
-        for (artifact, expected_role) in self.artifacts.iter().zip(RELEASE_BUILD_ARTIFACT_ROLES) {
+        for (artifact, expected_role) in self
+            .artifacts
+            .iter()
+            .zip(QUALIFICATION_RELEASE_ARTIFACT_ROLES.iter().copied())
+        {
             if artifact.role != expected_role
                 || !decimal_token(&artifact.artifact_id, 32)
                 || !digest(&artifact.uploaded_archive_sha256)
@@ -1584,6 +1582,7 @@ impl QualificationProviderRun {
             && printable(&self.provider_version, 128)
             && digest(&self.provider_artifact_sha256)
             && digest(&self.scenario_set_sha256)
+            && digest(&self.runtime_cleanup_sha256)
             && self.status == "passed"
         {
             Ok(())
@@ -1614,6 +1613,12 @@ impl QualificationProviderRun {
     #[must_use]
     pub fn scenario_set_sha256(&self) -> &str {
         &self.scenario_set_sha256
+    }
+
+    /// Returns the root-owned post-reap cleanup observation digest.
+    #[must_use]
+    pub fn runtime_cleanup_sha256(&self) -> &str {
+        &self.runtime_cleanup_sha256
     }
 }
 
@@ -1760,10 +1765,10 @@ impl QualificationScenarioProgramV1 {
                     || case.group == 0
                     || case.expected_provider_calls > 1
             })
-            || self
-                .cases
-                .windows(2)
-                .any(|pair| pair[0].expectation != pair[1].expectation)
+            || self.cases.iter().any(|case| {
+                (case.expectation == QualificationScenarioExpectation::Failpoint)
+                    != (self.cases[0].expectation == QualificationScenarioExpectation::Failpoint)
+            })
             || !self
                 .hooks
                 .windows(2)
@@ -1776,14 +1781,41 @@ impl QualificationScenarioProgramV1 {
         {
             return Err(QualificationError::InvalidScenarios);
         }
-        for group in self.cases.iter().map(|case| case.group) {
-            let mut cases = self.cases.iter().filter(|case| case.group == group);
+        for group in self
+            .cases
+            .iter()
+            .map(|case| case.group)
+            .collect::<std::collections::BTreeSet<_>>()
+        {
+            let group_cases = self
+                .cases
+                .iter()
+                .filter(|case| case.group == group)
+                .collect::<Vec<_>>();
+            let mut cases = group_cases.iter().copied();
             let Some(first) = cases.next() else {
                 return Err(QualificationError::InvalidScenarios);
             };
-            if cases.any(|case| case.topology != first.topology)
-                || (first.topology == QualificationScenarioTopology::Parallel
-                    && self.cases.iter().filter(|case| case.group == group).count() < 2)
+            if cases.any(|case| {
+                case.topology != first.topology || case.expectation != first.expectation
+            }) || (first.topology == QualificationScenarioTopology::Parallel
+                && (group_cases.len() < 2
+                    || first.expectation != QualificationScenarioExpectation::GroupMultiset
+                    || group_cases
+                        .iter()
+                        .any(|case| case.role != first.role || case.stimulus != first.stimulus)
+                    || self
+                        .hooks
+                        .iter()
+                        .any(|hook| group_cases.iter().any(|case| case.case_id == hook.case_id))
+                    || group_cases
+                        .iter()
+                        .map(|case| case.intent_id.as_str())
+                        .collect::<std::collections::BTreeSet<_>>()
+                        .len()
+                        != group_cases.len()))
+                || (first.topology == QualificationScenarioTopology::Serial
+                    && first.expectation == QualificationScenarioExpectation::GroupMultiset)
             {
                 return Err(QualificationError::InvalidScenarios);
             }
@@ -1843,6 +1875,46 @@ impl QualificationScenarioProgramV1 {
             })
             .count();
         if matching > 0 && (cases.len() != 1 || matching != 1) {
+            return Err(QualificationError::InvalidScenarios);
+        }
+        Ok(matching == 1)
+    }
+
+    /// Selects one protected hook after the protected owner authenticates the
+    /// exact reviewed case from a store-owned request commitment.
+    pub fn hooks_for_case_stage(
+        &self,
+        case_id: &str,
+        role: QualificationOperationRole,
+        stage: QualificationScenarioHookStage,
+    ) -> Result<Vec<&QualificationScenarioHookV1>, QualificationError> {
+        self.validate()?;
+        let case = self
+            .cases
+            .iter()
+            .find(|candidate| candidate.case_id == case_id && candidate.role == role)
+            .ok_or(QualificationError::InvalidScenarios)?;
+        Ok(self
+            .hooks
+            .iter()
+            .filter(|candidate| candidate.case_id == case.case_id && candidate.stage == stage)
+            .collect())
+    }
+
+    /// Selects one named hook through the closed case/stage selector.
+    pub fn hook_for_case(
+        &self,
+        case_id: &str,
+        role: QualificationOperationRole,
+        stage: QualificationScenarioHookStage,
+        hook: &str,
+    ) -> Result<bool, QualificationError> {
+        let matching = self
+            .hooks_for_case_stage(case_id, role, stage)?
+            .into_iter()
+            .filter(|candidate| candidate.hook == hook)
+            .count();
+        if matching > 1 {
             return Err(QualificationError::InvalidScenarios);
         }
         Ok(matching == 1)
@@ -2553,10 +2625,10 @@ fn validate_provider_runs(runs: &[QualificationProviderRun]) -> Result<(), Quali
 fn validate_candidate_artifacts(
     artifacts: &[QualificationCandidateArtifact],
 ) -> Result<(), QualificationError> {
-    if artifacts.len() != RELEASE_BUILD_ARTIFACT_ROLES.len()
+    if artifacts.len() != QUALIFICATION_RELEASE_ARTIFACT_ROLES.len()
         || artifacts
             .iter()
-            .zip(RELEASE_BUILD_ARTIFACT_ROLES)
+            .zip(QUALIFICATION_RELEASE_ARTIFACT_ROLES.iter().copied())
             .any(|(artifact, expected_role)| {
                 artifact.role != expected_role
                     || !digest(&artifact.member_sha256)
@@ -2837,6 +2909,122 @@ mod tests {
     use super::*;
     use serde_json::{Value, json};
 
+    fn scenario_case(
+        case_id: &str,
+        intent_id: &str,
+        group: u8,
+        topology: QualificationScenarioTopology,
+        expectation: QualificationScenarioExpectation,
+    ) -> QualificationScenarioCaseV1 {
+        QualificationScenarioCaseV1 {
+            case_id: case_id.to_owned(),
+            intent_id: intent_id.to_owned(),
+            stimulus: "canonical".to_owned(),
+            role: QualificationOperationRole::Effect,
+            group,
+            topology,
+            expectation,
+            expected_outcome: QualificationOutcomeKind::Completed,
+            expected_effect: QualificationEffect::Applied,
+            expected_provider_calls: 1,
+        }
+    }
+
+    #[test]
+    fn scenario_expectations_are_uniform_per_group() {
+        let program = QualificationScenarioProgramV1 {
+            id: "mixed-topology".to_owned(),
+            cases: vec![
+                scenario_case(
+                    "serial",
+                    "serial-intent",
+                    1,
+                    QualificationScenarioTopology::Serial,
+                    QualificationScenarioExpectation::Exact,
+                ),
+                scenario_case(
+                    "parallel-a",
+                    "parallel-intent-a",
+                    2,
+                    QualificationScenarioTopology::Parallel,
+                    QualificationScenarioExpectation::GroupMultiset,
+                ),
+                scenario_case(
+                    "parallel-b",
+                    "parallel-intent-b",
+                    2,
+                    QualificationScenarioTopology::Parallel,
+                    QualificationScenarioExpectation::GroupMultiset,
+                ),
+            ],
+            hooks: Vec::new(),
+        };
+        assert_eq!(program.validate(), Ok(()));
+
+        let mut mixed_group = program;
+        mixed_group.cases[2].expectation = QualificationScenarioExpectation::Exact;
+        assert_eq!(
+            mixed_group.validate(),
+            Err(QualificationError::InvalidScenarios)
+        );
+    }
+
+    #[test]
+    fn protected_hook_selector_binds_exact_case_role_and_stage() {
+        let program = QualificationScenarioProgramV1 {
+            id: "hooked-case".to_owned(),
+            cases: vec![scenario_case(
+                "primary",
+                "primary-intent",
+                1,
+                QualificationScenarioTopology::Serial,
+                QualificationScenarioExpectation::Exact,
+            )],
+            hooks: vec![QualificationScenarioHookV1 {
+                case_id: "primary".to_owned(),
+                stage: QualificationScenarioHookStage::BeforeProvider,
+                hook: "advance-provider-state".to_owned(),
+            }],
+        };
+        let selected = program
+            .hooks_for_case_stage(
+                "primary",
+                QualificationOperationRole::Effect,
+                QualificationScenarioHookStage::BeforeProvider,
+            )
+            .unwrap();
+        assert_eq!(selected.len(), 1);
+        assert_eq!(selected[0].hook(), "advance-provider-state");
+        assert!(
+            program
+                .hooks_for_case_stage(
+                    "primary",
+                    QualificationOperationRole::Preflight,
+                    QualificationScenarioHookStage::BeforeProvider,
+                )
+                .is_err()
+        );
+        assert!(
+            program
+                .hooks_for_case_stage(
+                    "missing",
+                    QualificationOperationRole::Effect,
+                    QualificationScenarioHookStage::BeforeProvider,
+                )
+                .is_err()
+        );
+        assert!(
+            program
+                .hooks_for_case_stage(
+                    "primary",
+                    QualificationOperationRole::Effect,
+                    QualificationScenarioHookStage::BeforeObserver,
+                )
+                .unwrap()
+                .is_empty()
+        );
+    }
+
     fn record_value() -> Value {
         json!({
             "schema":"auths.profile-qualification/1",
@@ -2868,7 +3056,7 @@ mod tests {
                 {"role":"typescript-package","artifactId":"108","uploadedArchiveSha256":"3232323232323232323232323232323232323232323232323232323232323232","memberPath":"typescript/auths.tgz","memberSha256":"3333333333333333333333333333333333333333333333333333333333333333","bytes":1}
             ]},
             "artifact":{"evidenceTarSha256":"6666666666666666666666666666666666666666666666666666666666666666","evidenceTarBytes":1,"retentionDays":90,"createdAtUnixSeconds":100,"expiresAtUnixSeconds":7776100,"redactionReportSha256":"7777777777777777777777777777777777777777777777777777777777777777","storageProvider":"github-actions","artifactId":"123","uploadedArchiveSha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
-            "providerRuns":[{"id":"stripe-test","providerVersion":"2026-08-18","providerArtifactSha256":"abababababababababababababababababababababababababababababababab","scenarioSetSha256":"acacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacac","status":"passed"}],
+            "providerRuns":[{"id":"stripe-test","providerVersion":"2026-08-18","providerArtifactSha256":"abababababababababababababababababababababababababababababababab","scenarioSetSha256":"acacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacac","runtimeCleanupSha256":"adadadadadadadadadadadadadadadadadadadadadadadadadadadadadadadad","status":"passed"}],
             "protectedObservation":{"schema":"auths.profile-qualification-observation/1","keyId":"stripe-observer","sha256":"adadadadadadadadadadadadadadadadadadadadadadadadadadadadadadadad"},
             "scenarios":[{"id":"happy-path","status":"passed","assertions":1,"reportSha256":"8888888888888888888888888888888888888888888888888888888888888888","providerRunIds":["stripe-test"]}],
             "receiptVerification":{"rust":"passed","python":"passed","typescript":"passed","portableReceiptSchema":"auths.portable-receipt/1","receiptTrustAnchorSha256":"8989898989898989898989898989898989898989898989898989898989898989","decisionVerificationMethod":"did:key:decision","executionVerificationMethod":"did:key:execution"},
@@ -2909,7 +3097,7 @@ mod tests {
             "domain":"stripe",
             "target":"linux-x86_64",
             "profiles":[{"id":"auths.stripe.refund","version":1}],
-            "providerRuns":[{"id":"stripe-test","providerVersion":"2026-08-18","providerArtifactSha256":"abababababababababababababababababababababababababababababababab","scenarioSetSha256":"acacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacac","status":"passed"}],
+            "providerRuns":[{"id":"stripe-test","providerVersion":"2026-08-18","providerArtifactSha256":"abababababababababababababababababababababababababababababababab","scenarioSetSha256":"acacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacac","runtimeCleanupSha256":"adadadadadadadadadadadadadadadadadadadadadadadadadadadadadadadad","status":"passed"}],
             "releaseBuildSha256":"6060606060606060606060606060606060606060606060606060606060606060",
             "attesterToolsSha256":"6666666666666666666666666666666666666666666666666666666666666666",
             "ledgers":[{"providerRunId":"stripe-test","ledgerSha256":"6767676767676767676767676767676767676767676767676767676767676767","sealerKeyId":"stripe-ledger","sourceTrustSha256":"6868686868686868686868686868686868686868686868686868686868686868","ledgerTrustSha256":"6969696969696969696969696969696969696969696969696969696969696969"}],
@@ -3044,7 +3232,7 @@ mod tests {
     }
 
     #[test]
-    fn release_build_requires_the_exact_nine_role_roster() {
+    fn release_build_requires_the_generated_exact_role_roster() {
         let mut value = record_value();
         value["releaseBuild"]["artifacts"]
             .as_array_mut()

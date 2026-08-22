@@ -2,21 +2,21 @@ use crate::prelude::*;
 use crate::root;
 use auths_config::{AgentConfig, AgentPlatform, ReceiptSigningRole};
 use auths_profile_kit::{
-    ProfileApi, ProfilePackage, ProfileQualification, ProfileRoster, QualificationAttestation,
-    QualificationCollectedScenario, QualificationCollectionAdapter,
-    QualificationCommonPhaseEvidence, QualificationCrashActionContextV1,
-    QualificationDecisionSnapshotV1, QualificationDurableDecisionAckV1,
-    QualificationEvidenceLedger, QualificationEvidenceLedgerPlanV1,
-    QualificationEvidenceLedgerRecord, QualificationEvidenceLedgerTrustRegistry,
-    QualificationEvidenceSource, QualificationEvidenceSourceTrustRegistry, QualificationIndex,
-    QualificationInstalledClient, QualificationJournalDecisionContext, QualificationObservation,
-    QualificationObservationRecord, QualificationObserverTrustRegistry, QualificationPhaseClient,
-    QualificationProtectedObserver, QualificationProtectedSetupInput, QualificationRecord,
-    QualificationReleaseBuild, QualificationRunReference, QualificationScenarioManifest,
-    QualificationSetupHandoffV1, QualificationTarget, QualificationTrustIdentity,
-    QualificationTrustRegistry, QualificationVerifiedRecordBinding,
-    qualification_state_directory_commitment, validate_qualification_key_separation,
-    validate_qualification_trust_separation,
+    ProfileApi, ProfilePackage, ProfileQualification, ProfileRoster,
+    QUALIFICATION_RELEASE_ARTIFACT_ROLES, QualificationAttestation, QualificationCollectedScenario,
+    QualificationCollectionAdapter, QualificationCommonPhaseEvidence,
+    QualificationCrashActionContextV1, QualificationDecisionSnapshotV1,
+    QualificationDurableDecisionAckV1, QualificationEvidenceLedger,
+    QualificationEvidenceLedgerPlanV1, QualificationEvidenceLedgerRecord,
+    QualificationEvidenceLedgerTrustRegistry, QualificationEvidenceSource,
+    QualificationEvidenceSourceTrustRegistry, QualificationIndex, QualificationInstalledClient,
+    QualificationJournalDecisionContext, QualificationObservation, QualificationObservationRecord,
+    QualificationObserverTrustRegistry, QualificationPhaseClient, QualificationProtectedObserver,
+    QualificationProtectedSetupInput, QualificationRecord, QualificationReleaseBuild,
+    QualificationRunReference, QualificationScenarioManifest, QualificationSetupHandoffV1,
+    QualificationTarget, QualificationTrustIdentity, QualificationTrustRegistry,
+    QualificationVerifiedRecordBinding, qualification_state_directory_commitment,
+    validate_qualification_key_separation, validate_qualification_trust_separation,
 };
 use auths_receipts::{
     ReceiptTrustAnchor, ReceiptTrustAnchorRole, ReceiptTrustAnchors, decode_receipt_trust_anchors,
@@ -36,6 +36,10 @@ const EVIDENCE_LEDGER_TRUST_PATH: &str = "release/qualification/v1/evidence-ledg
 const INDEX_PATH: &str = "release/qualification/v1/index.json";
 const CLOSURE_MANIFEST_PATH: &str = "release/qualification/v1/closure-manifest.json";
 const IMPORT_TRANSACTION_PATH: &str = "release/qualification/v1/import-transaction.json";
+const QUALIFICATION_LEDGER_DURATION_SECONDS: u64 = 21_600;
+// The live collection job is bounded to six hours. Before provisioning, trust
+// must already cover that entire setup budget plus the later six-hour ledger.
+const QUALIFICATION_PREPROVISION_SETUP_BUDGET_SECONDS: u64 = 21_600;
 const PROTECTED_CLOSURE_MANIFEST: &[u8] =
     include_bytes!("../../release/qualification/v1/closure-manifest.json");
 const QUALIFICATION_FAILPOINT_IDS: [&str; 12] = [
@@ -209,7 +213,7 @@ struct ProtectedCleanupProviderRun {
     run_id: String,
     run_attempt: u32,
     provider_run_id: String,
-    evidence: auths_profile_kit::QualificationCleanupEvidence,
+    observation: auths_profile_kit::QualificationProviderCleanupObservation,
     completed_at_unix_seconds: u64,
 }
 
@@ -435,17 +439,6 @@ const RELEASE_QUALIFICATION_PROFILES: [(&str, &str); 5] = [
     ("auths.postgresql.update-preflight/1", "postgresql"),
     ("auths.stripe.refund/1", "stripe"),
 ];
-const VERIFIED_RELEASE_ARTIFACT_ROLES: [&str; 9] = [
-    "production-agent",
-    "python-native",
-    "python-profile-opentofu",
-    "python-profile-postgresql",
-    "python-profile-stripe",
-    "python-wheel",
-    "qualification-agent",
-    "typescript-native",
-    "typescript-package",
-];
 
 pub(crate) fn profile_qualification_command(arguments: &[String]) -> Result<(), String> {
     let Some(command) = arguments.first().map(String::as_str) else {
@@ -474,6 +467,7 @@ pub(crate) fn profile_qualification_command(arguments: &[String]) -> Result<(), 
         "release-check" if arguments.len() == 1 => qualification_release_check(&root()),
         "validate-workflow-inputs" => validate_workflow_inputs(&root()),
         "preflight-key-separation" => preflight_key_separation_arguments(&arguments[1..]),
+        "preflight-ledger-policy" => preflight_ledger_policy_arguments(&arguments[1..]),
         "setup-row" => setup_arguments(&arguments[1..]),
         "verify-uploaded" => verify_uploaded_arguments(&arguments[1..]),
         "installed-verify" => installed_verify_arguments(&arguments[1..]),
@@ -492,7 +486,7 @@ pub(crate) fn profile_qualification_command(arguments: &[String]) -> Result<(), 
 }
 
 fn usage() -> String {
-    "usage: cargo xtask profile qualification <closure --domain <domain>|status [--domain <domain>]|build-ledger-plan --domain <domain> --target <target> --environment <token> --provider-run <id> --output <path>|build-cleanup-contexts --domain <domain> --target <target> --environment <token> --output <directory>|setup-row --domain <domain> --target <target> --environment <token> --provider-run <id> --agent-config <path> --output <path>|build-proposal --domain <domain> --target <target> --collections <directory> --common-evidence <directory> --release-build <path> --output <path>|installed-verify --proposal <path> --packages <directory> --output <path>|assemble-evidence --proposal <path> --aggregate <directory> --installed <path> --supplemental <directory> --output <directory>|build-observation-record --proposal <path> --evidence <directory> --release-build <path> --output <path>|package-observation --proposal <path> --observation <signed-observation> --cleanup <cleanup-report> --output <directory>|collect --domain <domain> --target <target> --environment <token> --provider-run <id> --setup-handoff <path> --output <directory>|observe --proposal <path> --collections <directory> --common-evidence <directory> --receipt-trust <path> --output <directory>|observe-row --domain <domain> --target <target> --environment <token> --provider-run <id> --candidate-evidence <path> --common-evidence <path> --output <directory>|cleanup --domain <domain> --target <target> --run-context <path> --output <path>|preflight-key-separation --ledger-plan <path> --receipt-trust <path>|verify-uploaded --artifact <directory> --output <verified-record>|verify --attestation <path>|import --attestation <path>|check [--domain <domain>|--all]|release-check|validate-workflow-inputs>".into()
+    "usage: cargo xtask profile qualification <closure --domain <domain>|status [--domain <domain>]|preflight-ledger-policy --domain <domain> --target <target> --environment <token> --provider-run <id> --receipt-trust <path> --attester-repository <path>|build-ledger-plan --domain <domain> --target <target> --environment <token> --provider-run <id> --setup-handoff <path> --output <path>|build-cleanup-contexts --domain <domain> --target <target> --environment <token> --output <directory>|setup-row --domain <domain> --target <target> --environment <token> --provider-run <id> --agent-config <path> --output <path>|build-proposal --domain <domain> --target <target> --collections <directory> --common-evidence <directory> --release-build <path> --runtime-cleanup <directory> --output <path>|installed-verify --proposal <path> --packages <directory> --output <path>|assemble-evidence --proposal <path> --aggregate <directory> --installed <path> --supplemental <directory> --output <directory>|build-observation-record --proposal <path> --evidence <directory> --release-build <path> --output <path>|package-observation --proposal <path> --observation <signed-observation> --cleanup <cleanup-report> --output <directory>|collect --domain <domain> --target <target> --environment <token> --provider-run <id> --setup-handoff <path> --output <directory>|observe --proposal <path> --collections <directory> --common-evidence <directory> --receipt-trust <path> --supplemental-common <directory> --output <directory>|observe-row --domain <domain> --target <target> --environment <token> --provider-run <id> --candidate-evidence <path> --common-evidence <path> --output <directory>|cleanup --domain <domain> --target <target> --run-context <path> [--cleanup-reference <path>] --output <path>|preflight-key-separation --ledger-plan <path> --receipt-trust <path> --attester-repository <path>|verify-uploaded --artifact <directory> --output <verified-record>|verify --attestation <path>|import --attestation <path>|check [--domain <domain>|--all]|release-check|validate-workflow-inputs>".into()
 }
 
 fn setup_arguments(arguments: &[String]) -> Result<(), String> {
@@ -703,7 +697,10 @@ fn unique_default_connection_alias(
 }
 
 fn preflight_key_separation_arguments(arguments: &[String]) -> Result<(), String> {
-    if arguments.len() != 4 || arguments[0] != "--ledger-plan" || arguments[2] != "--receipt-trust"
+    if arguments.len() != 6
+        || arguments[0] != "--ledger-plan"
+        || arguments[2] != "--receipt-trust"
+        || arguments[4] != "--attester-repository"
     {
         return Err(usage());
     }
@@ -714,15 +711,12 @@ fn preflight_key_separation_arguments(arguments: &[String]) -> Result<(), String
     )?)
     .map_err(string_error)?;
     let anchors = read_bounded(Path::new(&arguments[3]), 262_144)?;
-    let attestation = load_trust_registry(&repository)?;
-    let observer = load_observer_trust_registry(&repository)?;
-    validate_complete_qualification_key_separation(
+    validate_protected_attester_policy(
         &repository,
-        &attestation,
-        &observer,
+        Path::new(&arguments[5]),
         &anchors,
-        &plan.recovery_key_id,
-        &plan.recovery_public_key_base64url,
+        &plan,
+        plan.deadline_at_unix_seconds,
     )
 }
 
@@ -764,11 +758,12 @@ fn installed_verify_arguments(arguments: &[String]) -> Result<(), String> {
 }
 
 fn build_ledger_plan_arguments(arguments: &[String]) -> Result<(), String> {
-    const FLAGS: [&str; 5] = [
+    const FLAGS: [&str; 6] = [
         "--domain",
         "--target",
         "--environment",
         "--provider-run",
+        "--setup-handoff",
         "--output",
     ];
     if arguments.len() != FLAGS.len() * 2
@@ -784,7 +779,39 @@ fn build_ledger_plan_arguments(arguments: &[String]) -> Result<(), String> {
         QualificationTarget::parse(&arguments[3]).map_err(string_error)?,
         &arguments[5],
         &arguments[7],
-        Path::new(&arguments[9]),
+        Some(Path::new(&arguments[9])),
+        Some(Path::new(&arguments[11])),
+        None,
+        None,
+    )
+}
+
+fn preflight_ledger_policy_arguments(arguments: &[String]) -> Result<(), String> {
+    const FLAGS: [&str; 6] = [
+        "--domain",
+        "--target",
+        "--environment",
+        "--provider-run",
+        "--receipt-trust",
+        "--attester-repository",
+    ];
+    if arguments.len() != FLAGS.len() * 2
+        || arguments
+            .chunks_exact(2)
+            .zip(FLAGS)
+            .any(|(pair, flag)| pair[0] != flag || pair[1].is_empty())
+    {
+        return Err(usage());
+    }
+    build_ledger_plan(
+        &arguments[1],
+        QualificationTarget::parse(&arguments[3]).map_err(string_error)?,
+        &arguments[5],
+        &arguments[7],
+        None,
+        None,
+        Some(Path::new(&arguments[9])),
+        Some(Path::new(&arguments[11])),
     )
 }
 
@@ -807,13 +834,14 @@ fn build_cleanup_contexts_arguments(arguments: &[String]) -> Result<(), String> 
 }
 
 fn build_proposal_arguments(arguments: &[String]) -> Result<(), String> {
-    if arguments.len() != 12
+    if arguments.len() != 14
         || arguments[0] != "--domain"
         || arguments[2] != "--target"
         || arguments[4] != "--collections"
         || arguments[6] != "--common-evidence"
         || arguments[8] != "--release-build"
-        || arguments[10] != "--output"
+        || arguments[10] != "--runtime-cleanup"
+        || arguments[12] != "--output"
         || arguments.iter().skip(1).step_by(2).any(String::is_empty)
     {
         return Err(usage());
@@ -825,11 +853,12 @@ fn build_proposal_arguments(arguments: &[String]) -> Result<(), String> {
         Path::new(&arguments[7]),
         Path::new(&arguments[9]),
         Path::new(&arguments[11]),
+        Path::new(&arguments[13]),
     )
 }
 
 fn assemble_evidence_arguments(arguments: &[String]) -> Result<(), String> {
-    if arguments.len() != 10
+    if arguments.len() != 12
         || arguments[0] != "--proposal"
         || arguments[2] != "--aggregate"
         || arguments[4] != "--installed"
@@ -885,12 +914,13 @@ fn package_observation_arguments(arguments: &[String]) -> Result<(), String> {
 }
 
 fn aggregate_observation_arguments(arguments: &[String]) -> Result<(), String> {
-    if arguments.len() != 10
+    if arguments.len() != 12
         || arguments[0] != "--proposal"
         || arguments[2] != "--collections"
         || arguments[4] != "--common-evidence"
         || arguments[6] != "--receipt-trust"
-        || arguments[8] != "--output"
+        || arguments[8] != "--supplemental-common"
+        || arguments[10] != "--output"
         || arguments.iter().skip(1).step_by(2).any(String::is_empty)
     {
         return Err(usage());
@@ -901,6 +931,7 @@ fn aggregate_observation_arguments(arguments: &[String]) -> Result<(), String> {
         Path::new(&arguments[5]),
         Path::new(&arguments[7]),
         Path::new(&arguments[9]),
+        Path::new(&arguments[11]),
     )
 }
 
@@ -958,11 +989,19 @@ fn build_ledger_plan(
     target: QualificationTarget,
     environment: &str,
     provider_run_id: &str,
-    output: &Path,
+    setup_handoff: Option<&Path>,
+    output: Option<&Path>,
+    preflight_receipt_trust: Option<&Path>,
+    preflight_attester_repository: Option<&Path>,
 ) -> Result<(), String> {
     reject_secret_bearing_environment()?;
     let repository = root();
     let candidate_revision = required_env("QUALIFICATION_CANDIDATE_REVISION")?;
+    let repository_id = required_env("GITHUB_REPOSITORY_ID")?;
+    let run_id = required_env("GITHUB_RUN_ID")?;
+    let run_attempt = required_env("GITHUB_RUN_ATTEMPT")?
+        .parse::<u32>()
+        .map_err(string_error)?;
     if !lower_hex(&candidate_revision, 40) || git_revision(&repository)? != candidate_revision {
         return Err("ledger plan candidate checkout differs from protected policy".into());
     }
@@ -982,6 +1021,43 @@ fn build_ledger_plan(
         .ok_or_else(|| {
             "qualification provider run is not an exact checked matrix row".to_owned()
         })?;
+    let (setup_handoff_sha256, cleanup_reference_bytes) = if let Some(setup_handoff) = setup_handoff
+    {
+        let setup_bytes = read_bounded(setup_handoff, MAX_CANDIDATE_COLLECTION_BYTES)?;
+        let setup: QualificationSetupHandoffV1 =
+            serde_json::from_slice(&setup_bytes).map_err(string_error)?;
+        if serde_json_canonicalizer::to_vec(&setup).map_err(string_error)? != setup_bytes
+            || setup.validate().is_err()
+            || setup.domain != domain
+            || setup.run_context.repository_id != repository_id
+            || setup.run_context.candidate_revision != candidate_revision
+            || setup.run_context.target != target
+            || setup.run_context.protected_environment != environment
+            || setup.run_context.provider_run_id != provider_run_id
+            || setup.run_context.run_id != run_id
+            || setup.run_context.run_attempt != run_attempt
+            || setup
+                .vectors
+                .iter()
+                .map(|vector| &vector.id)
+                .ne(provider_run.scenario_ids.iter())
+        {
+            return Err("ledger plan setup handoff differs from protected policy".into());
+        }
+        let cleanup_reference =
+            auths_profile_kit::QualificationCleanupReferenceV1::from_handoff(&setup, &setup_bytes)
+                .map_err(string_error)?;
+        (
+            hex::encode(Sha256::digest(&setup_bytes)),
+            Some(serde_json_canonicalizer::to_vec(&cleanup_reference).map_err(string_error)?),
+        )
+    } else {
+        ("0".repeat(64), None)
+    };
+    let cleanup_reference_sha256 = cleanup_reference_bytes.as_ref().map_or_else(
+        || "0".repeat(64),
+        |bytes| hex::encode(Sha256::digest(bytes)),
+    );
     let operation_plans = load_operation_plans_at(&repository, &context, &candidate_revision)?;
     let connection = context
         .package
@@ -1041,7 +1117,7 @@ fn build_ledger_plan(
         .map_err(string_error)?
         .as_secs();
     let deadline_at_unix_seconds = started_at_unix_seconds
-        .checked_add(21_600)
+        .checked_add(QUALIFICATION_LEDGER_DURATION_SECONDS)
         .ok_or_else(|| "qualification ledger deadline overflowed".to_owned())?;
     let mut ledger_random = [0_u8; 16];
     let mut session_random = [0_u8; 32];
@@ -1076,21 +1152,21 @@ fn build_ledger_plan(
         .ok_or_else(|| "verified release binding omits the qualification agent".to_owned())?;
     let plan = auths_profile_kit::QualificationEvidenceLedgerPlanV1 {
         schema: "auths.profile-qualification-evidence-ledger-plan/1".into(),
-        repository_id: required_env("GITHUB_REPOSITORY_ID")?,
+        repository_id,
         workflow_path: format!(".github/workflows/profile-qualification-{domain}.yml"),
         workflow_revision: required_env("AUTHS_QUALIFICATION_WORKFLOW_REVISION")?,
         candidate_revision,
         attester_revision: required_env("AUTHS_QUALIFICATION_ATTESTER_REVISION")?,
-        run_id: required_env("GITHUB_RUN_ID")?,
-        run_attempt: required_env("GITHUB_RUN_ATTEMPT")?
-            .parse::<u32>()
-            .map_err(string_error)?,
+        run_id,
+        run_attempt,
         domain: domain.into(),
         target,
         protected_environment: environment.into(),
         provider_run_id: provider_run_id.into(),
         ledger_id,
         session_nonce_sha256,
+        setup_handoff_sha256,
+        cleanup_reference_sha256,
         supervisor_controller_uid: rustix::process::geteuid().as_raw(),
         supervisor_controller_artifact_sha256: required_sha256_env(
             "AUTHS_QUALIFICATION_SUPERVISOR_CONTROLLER_SHA256",
@@ -1110,6 +1186,26 @@ fn build_ledger_plan(
         deadline_at_unix_seconds,
     };
     plan.validate().map_err(string_error)?;
+    if let Some(receipt_trust) = preflight_receipt_trust {
+        let attester_repository = preflight_attester_repository.ok_or_else(|| {
+            "preflight ledger policy omitted the protected attester repository".to_owned()
+        })?;
+        let anchors = read_bounded(receipt_trust, 262_144)?;
+        let required_key_deadline_at_unix_seconds = plan
+            .deadline_at_unix_seconds
+            .checked_add(QUALIFICATION_PREPROVISION_SETUP_BUDGET_SECONDS)
+            .ok_or_else(|| "qualification pre-provision trust deadline overflowed".to_owned())?;
+        validate_protected_attester_policy(
+            &repository,
+            attester_repository,
+            &anchors,
+            &plan,
+            required_key_deadline_at_unix_seconds,
+        )?;
+    }
+    let Some(output) = output else {
+        return Ok(());
+    };
     let relative_directory = PathBuf::from("target")
         .join("qualification-common-evidence")
         .join(domain)
@@ -1122,7 +1218,15 @@ fn build_ledger_plan(
     let bytes = serde_json_canonicalizer::to_vec(&plan).map_err(string_error)?;
     auths_profile_kit::QualificationEvidenceLedgerPlanV1::from_json(&bytes)
         .map_err(string_error)?;
-    write_new_owner_only_at(&directory, Path::new("ledger-plan.json"), &bytes)
+    write_new_owner_only_at(&directory, Path::new("ledger-plan.json"), &bytes)?;
+    if let Some(cleanup_reference_bytes) = cleanup_reference_bytes {
+        write_new_owner_only_at(
+            &directory,
+            Path::new("cleanup-reference.json"),
+            &cleanup_reference_bytes,
+        )?;
+    }
+    Ok(())
 }
 
 fn build_cleanup_contexts(
@@ -1176,6 +1280,7 @@ fn build_candidate_proposal(
     collections: &Path,
     common_evidence: &Path,
     release_build_path: &Path,
+    runtime_cleanup: &Path,
     output: &Path,
 ) -> Result<(), String> {
     reject_secret_bearing_environment()?;
@@ -1491,11 +1596,31 @@ fn build_candidate_proposal(
         .runs
         .iter()
         .map(|run| {
+            let plan_bytes = read_bounded(
+                &common_evidence
+                    .join("ledger")
+                    .join(&run.id)
+                    .join("ledger-plan.json"),
+                262_144,
+            )?;
+            let plan = auths_profile_kit::QualificationEvidenceLedgerPlanV1::from_json(&plan_bytes)
+                .map_err(string_error)?;
+            let cleanup_bytes =
+                read_bounded(&runtime_cleanup.join(format!("{}.json", run.id)), 262_144)?;
+            let cleanup: auths_profile_kit::QualificationRuntimeCleanupObservationV1 =
+                serde_json::from_slice(&cleanup_bytes).map_err(string_error)?;
+            if serde_json_canonicalizer::to_vec(&cleanup).map_err(string_error)? != cleanup_bytes {
+                return Err("runtime cleanup observation is not canonical".into());
+            }
+            cleanup
+                .validate(&plan, &hex::encode(Sha256::digest(&plan_bytes)))
+                .map_err(string_error)?;
             Ok(json!({
                 "id":run.id,
                 "providerVersion":run.provider_version,
                 "providerArtifactSha256":run.provider_artifact_sha256,
                 "scenarioSetSha256":scenario_set_sha256_values(&run.id, &scenarios)?,
+                "runtimeCleanupSha256":hex::encode(Sha256::digest(&cleanup_bytes)),
                 "status":"passed",
             }))
         })
@@ -1609,14 +1734,14 @@ fn installed_verify(proposal_path: &Path, packages: &Path, output: &Path) -> Res
     let proposal = auths_profile_kit::QualificationProposal::from_json(&proposal_bytes)
         .map_err(string_error)?;
     validate_installed_package_directory(packages)?;
-    let package_paths = VERIFIED_RELEASE_ARTIFACT_ROLES
+    let package_paths = QUALIFICATION_RELEASE_ARTIFACT_ROLES
         .iter()
         .map(|role| packages.join(role).join(installed_member_name(role)))
         .collect::<Vec<_>>();
     for ((artifact, role), path) in proposal
         .candidate_artifacts()
         .iter()
-        .zip(VERIFIED_RELEASE_ARTIFACT_ROLES)
+        .zip(QUALIFICATION_RELEASE_ARTIFACT_ROLES.iter().copied())
         .zip(&package_paths)
     {
         let (bytes, digest) =
@@ -1648,7 +1773,7 @@ fn installed_verify(proposal_path: &Path, packages: &Path, output: &Path) -> Res
         &format!("Python {python_pin}"),
         "Python",
     )?;
-    let package_paths = VERIFIED_RELEASE_ARTIFACT_ROLES
+    let package_paths = QUALIFICATION_RELEASE_ARTIFACT_ROLES
         .iter()
         .copied()
         .zip(package_paths)
@@ -1766,6 +1891,11 @@ fn assemble_observation_evidence(
         .iter()
         .map(|scenario| format!("reports/scenarios/{}.json", scenario.id()))
         .collect::<BTreeSet<_>>();
+    let expected_provider_cleanup = proposal
+        .provider_runs()
+        .iter()
+        .map(|run| format!("provider-cleanup/{}.json", run.id()))
+        .collect::<BTreeSet<_>>();
     let fixed_aggregate = BTreeSet::from([
         "reports/cleanup.json".to_owned(),
         "reports/counters.json".to_owned(),
@@ -1777,6 +1907,7 @@ fn assemble_observation_evidence(
     let expected_aggregate = fixed_aggregate
         .union(&expected_scenarios)
         .cloned()
+        .chain(expected_provider_cleanup)
         .collect::<BTreeSet<_>>();
     if aggregate_names != expected_aggregate {
         return Err("aggregate evidence does not have the exact report roster".into());
@@ -1804,9 +1935,15 @@ fn assemble_observation_evidence(
         "reports/receipts-rust.json".to_owned(),
         "reports/receipts-typescript.json".to_owned(),
     ]);
+    let expected_runtime_cleanup = proposal
+        .provider_runs()
+        .iter()
+        .map(|run| format!("runtime-cleanup/{}.json", run.id()))
+        .collect::<BTreeSet<_>>();
     let supplemental_files = collect_relative_regular_files(supplemental, 4_000)?;
     if supplemental_files.iter().any(|relative| {
         !fixed_supplemental.contains(relative)
+            && !expected_runtime_cleanup.contains(relative)
             && !relative.starts_with("ledger/")
             && !relative.starts_with("receipts/")
             && !relative.starts_with("receipt-inspection/")
@@ -1814,6 +1951,9 @@ fn assemble_observation_evidence(
     }) || fixed_supplemental
         .iter()
         .any(|required| !supplemental_files.contains(required))
+        || expected_runtime_cleanup
+            .iter()
+            .any(|required| !supplemental_files.contains(required))
     {
         return Err("supplemental evidence has a missing or undeclared member".into());
     }
@@ -1832,6 +1972,8 @@ fn assemble_observation_evidence(
             }
         } else if let Some(destination) = common_phase_archive_path(&relative) {
             copy_private_evidence_member_as(supplemental, &relative, &output, &destination)?;
+        } else if is_ledger_staging_only_member(&relative) {
+            continue;
         } else {
             copy_private_evidence_member(supplemental, &relative, &output)?;
         }
@@ -1891,16 +2033,6 @@ fn scan_evidence_directory(
     domain_fields: &[&str],
     redaction_prefixes: &[&str],
 ) -> Result<(), String> {
-    const FORBIDDEN_FIELDS: [&str; 8] = [
-        "authorization",
-        "credential",
-        "password",
-        "privateKey",
-        "recoveryHandle",
-        "resourceReferences",
-        "secret",
-        "seed",
-    ];
     const FORBIDDEN_CONTENT: [&[u8]; 3] = [b"-----BEGIN PRIVATE KEY-----", b"github_pat_", b"ghp_"];
     for relative in collect_relative_regular_files(evidence, 4_091)? {
         let bytes = read_bounded(&evidence.join(&relative), 16_777_216)?;
@@ -1914,15 +2046,34 @@ fn scan_evidence_directory(
             ));
         }
         if relative.ends_with(".json") {
-            let value: Value = serde_json::from_slice(&bytes).map_err(string_error)?;
-            if json_has_forbidden_field(&value, &FORBIDDEN_FIELDS)
-                || json_has_forbidden_field(&value, domain_fields)
-            {
-                return Err(format!(
-                    "qualification evidence contains a forbidden typed field: {relative}"
-                ));
-            }
+            validate_typed_evidence_json(&relative, &bytes, domain_fields)?;
         }
+    }
+    Ok(())
+}
+
+fn validate_typed_evidence_json(
+    path: &str,
+    bytes: &[u8],
+    domain_fields: &[&str],
+) -> Result<(), String> {
+    const FORBIDDEN_FIELDS: [&str; 8] = [
+        "authorization",
+        "credential",
+        "password",
+        "privateKey",
+        "recoveryHandle",
+        "resourceReferences",
+        "secret",
+        "seed",
+    ];
+    let value: Value = serde_json::from_slice(bytes).map_err(string_error)?;
+    if json_has_forbidden_field(&value, &FORBIDDEN_FIELDS)
+        || json_has_forbidden_field(&value, domain_fields)
+    {
+        return Err(format!(
+            "qualification evidence contains a forbidden typed field: {path}"
+        ));
     }
     Ok(())
 }
@@ -1964,6 +2115,15 @@ fn copy_private_evidence_member_as(
     )
     .map_err(string_error)?;
     atomic_write_new_owner_only(&destination, &bytes)
+}
+
+fn is_ledger_staging_only_member(relative: &str) -> bool {
+    let components = relative.split('/').collect::<Vec<_>>();
+    matches!(
+        components.as_slice(),
+        ["ledger", provider_run, ".ledger.lock" | "event-index.json" | "finalization.json" | "ledger-record.json"]
+            if registered_token(provider_run)
+    )
 }
 
 fn common_phase_archive_path(relative: &str) -> Option<String> {
@@ -2094,6 +2254,18 @@ fn build_observation_record(
     let cleanup_bytes = read_observation_report(evidence, "cleanup.json", 262_144)?;
     let cleanup: CleanupReport = parse_canonical(&cleanup_bytes)?;
     cleanup.validate(&expected)?;
+    verify_retained_cleanup_evidence(
+        &proposal,
+        &cleanup,
+        now_unix_seconds()?,
+        |relative, maximum| {
+            crate::profile_qualification_evidence::read_untrusted_regular(
+                &evidence.join(relative),
+                maximum,
+            )
+            .map(|(bytes, _)| bytes)
+        },
+    )?;
     let installed: InstalledPackagesReport = parse_canonical(&read_observation_report(
         evidence,
         "installed-packages.json",
@@ -2182,6 +2354,7 @@ fn build_observation_record(
             "providerVersion":observed.0,
             "providerArtifactSha256":observed.1,
             "scenarioSetSha256":committed,
+            "runtimeCleanupSha256":run.runtime_cleanup_sha256(),
             "status":"passed",
         }));
     }
@@ -2671,6 +2844,7 @@ fn aggregate_observation_reports(
     collections: &Path,
     common_evidence: &Path,
     receipt_trust_path: &Path,
+    supplemental_common: &Path,
     output: &Path,
 ) -> Result<(), String> {
     reject_secret_bearing_environment()?;
@@ -2693,11 +2867,30 @@ fn aggregate_observation_reports(
     {
         return Err("receipt trust-anchor snapshot differs from protected policy".into());
     }
+    let attester_repository =
+        PathBuf::from(required_env("AUTHS_QUALIFICATION_ATTESTER_REPOSITORY")?);
+    let source_trust_bytes = read_bounded(
+        &attester_repository.join("release/qualification/v1/evidence-source-trust-keys.json"),
+        262_144,
+    )?;
+    let ledger_trust_bytes = read_bounded(
+        &attester_repository.join("release/qualification/v1/evidence-ledger-trust-keys.json"),
+        262_144,
+    )?;
+    let source_trust =
+        auths_profile_kit::QualificationEvidenceSourceTrustRegistry::from_json(&source_trust_bytes)
+            .map_err(string_error)?;
+    let ledger_trust =
+        auths_profile_kit::QualificationEvidenceLedgerTrustRegistry::from_json(&ledger_trust_bytes)
+            .map_err(string_error)?;
 
     struct RunReports {
         collection: CandidateCollection,
         observed: ProtectedObservedProviderRun,
         cleanup: ProtectedCleanupProviderRun,
+        provider_cleanup_evidence: auths_profile_kit::QualificationProviderCleanupEvidence,
+        runtime_cleanup: auths_profile_kit::QualificationRuntimeCleanupObservationV1,
+        broker_cleanup: auths_profile_kit::QualificationBrokerCleanupEvidence,
     }
     let mut runs = Vec::with_capacity(matrix.runs.len());
     for matrix_run in &matrix.runs {
@@ -2719,11 +2912,79 @@ fn aggregate_observation_reports(
         )?;
         let cleanup: ProtectedCleanupProviderRun =
             serde_json::from_slice(&cleanup_bytes).map_err(string_error)?;
+        let runtime_cleanup_bytes = read_bounded(
+            &supplemental_common
+                .join("runtime-cleanup")
+                .join(format!("{}.json", matrix_run.id)),
+            262_144,
+        )?;
+        let runtime_cleanup: auths_profile_kit::QualificationRuntimeCleanupObservationV1 =
+            serde_json::from_slice(&runtime_cleanup_bytes).map_err(string_error)?;
+        let plan_bytes = read_bounded(
+            &supplemental_common
+                .join("ledger")
+                .join(&matrix_run.id)
+                .join("ledger-plan.json"),
+            262_144,
+        )?;
+        let plan = auths_profile_kit::QualificationEvidenceLedgerPlanV1::from_json(&plan_bytes)
+            .map_err(string_error)?;
+        let cleanup_reference_bytes = read_bounded(
+            &supplemental_common
+                .join("ledger")
+                .join(&matrix_run.id)
+                .join("cleanup-reference.json"),
+            262_144,
+        )?;
+        let cleanup_reference: auths_profile_kit::QualificationCleanupReferenceV1 =
+            serde_json::from_slice(&cleanup_reference_bytes).map_err(string_error)?;
+        cleanup_reference.validate().map_err(string_error)?;
+        let provider_cleanup_evidence =
+            auths_profile_kit::QualificationProviderCleanupEvidence::try_from_provider_observation(
+                &cleanup.observation,
+                &cleanup_reference,
+            )
+            .map_err(string_error)?;
+        runtime_cleanup
+            .validate(&plan, &hex::encode(Sha256::digest(&plan_bytes)))
+            .map_err(string_error)?;
+        let proposed_run = proposal
+            .provider_runs()
+            .iter()
+            .find(|run| run.id() == matrix_run.id)
+            .ok_or_else(|| "runtime cleanup provider row is absent from proposal".to_owned())?;
+        let ledger_bytes = read_bounded(
+            &supplemental_common
+                .join("ledger")
+                .join(&matrix_run.id)
+                .join("ledger.json"),
+            67_108_864,
+        )?;
+        let ledger = auths_profile_kit::QualificationEvidenceLedger::verify_json(
+            &ledger_bytes,
+            &source_trust,
+            &ledger_trust,
+            now_unix_seconds()?,
+        )
+        .map_err(string_error)?;
+        let broker_cleanup = broker_cleanup_evidence(
+            ledger.record(),
+            &collection.run_reference.connection_alias_sha256,
+        )?;
         if collection.validate().is_err()
             || serde_json_canonicalizer::to_vec(&collection).map_err(string_error)?
                 != collection_bytes
             || serde_json_canonicalizer::to_vec(&observed).map_err(string_error)? != observed_bytes
             || serde_json_canonicalizer::to_vec(&cleanup).map_err(string_error)? != cleanup_bytes
+            || serde_json_canonicalizer::to_vec(&runtime_cleanup).map_err(string_error)?
+                != runtime_cleanup_bytes
+            || serde_json_canonicalizer::to_vec(&cleanup_reference).map_err(string_error)?
+                != cleanup_reference_bytes
+            || plan.cleanup_reference_sha256
+                != hex::encode(Sha256::digest(&cleanup_reference_bytes))
+            || cleanup_reference.setup_handoff_sha256 != plan.setup_handoff_sha256
+            || proposed_run.runtime_cleanup_sha256()
+                != hex::encode(Sha256::digest(&runtime_cleanup_bytes))
             || collection.schema != "auths.profile-qualification-candidate-collection/1"
             || observed.schema != "auths.profile-qualification-observed-provider-run/1"
             || cleanup.schema != "auths.profile-qualification-cleanup-provider-run/1"
@@ -2734,6 +2995,16 @@ fn aggregate_observation_reports(
             ));
         }
         collection.run_reference.validate().map_err(string_error)?;
+        let expected_namespace_sha256 = hex::encode(Sha256::digest(
+            collection.run_reference.provider_namespace.as_bytes(),
+        ));
+        let expected_resource_roster_sha256 = hex::encode(Sha256::digest(
+            serde_json_canonicalizer::to_vec(&collection.run_reference.resource_references)
+                .map_err(string_error)?,
+        ));
+        let expected_resource_count =
+            u32::try_from(collection.run_reference.resource_references.len())
+                .map_err(string_error)?;
         if collection.run_reference != observed.run_reference
             || collection.run_reference.provider_run_id != matrix_run.id
             || collection.run_reference.domain != proposal.domain()
@@ -2746,13 +3017,27 @@ fn aggregate_observation_reports(
             || cleanup.run_attempt != collection.run_reference.run_attempt
             || cleanup.provider_run_id != collection.run_reference.provider_run_id
             || cleanup.protected_environment != required_env("QUALIFICATION_PROTECTED_ENVIRONMENT")?
+            || cleanup.observation.provider_destination_sha256
+                != collection.run_reference.provider_destination_sha256
+            || cleanup.observation.provider_namespace_sha256 != expected_namespace_sha256
+            || cleanup_reference.resource_roster_sha256 != expected_resource_roster_sha256
+            || cleanup_reference.resource_count != expected_resource_count
+            || cleanup_reference.resource_commitments
+                != collection.run_reference.resource_references
+            || ledger.record().repository_id != collection.run_reference.repository_id
+            || ledger.record().candidate_revision != collection.run_reference.candidate_revision
+            || ledger.record().run_id != collection.run_reference.run_id
+            || ledger.record().run_attempt != collection.run_reference.run_attempt
+            || ledger.record().domain != collection.run_reference.domain
+            || ledger.record().target != collection.run_reference.target
+            || ledger.record().provider_run_id != collection.run_reference.provider_run_id
         {
             return Err(format!(
                 "provider row reports disagree on protected identity: {}",
                 matrix_run.id
             ));
         }
-        cleanup.evidence.validate().map_err(string_error)?;
+        cleanup.observation.validate().map_err(string_error)?;
         if collection.scenarios.len() != matrix_run.scenario_ids.len()
             || collection
                 .scenarios
@@ -2848,6 +3133,9 @@ fn aggregate_observation_reports(
             collection,
             observed,
             cleanup,
+            provider_cleanup_evidence,
+            runtime_cleanup,
+            broker_cleanup,
         });
     }
 
@@ -3068,14 +3356,39 @@ fn aggregate_observation_reports(
         .map(|run| run.cleanup.completed_at_unix_seconds)
         .max()
         .ok_or_else(|| "cleanup report roster is empty".to_owned())?;
+    let cleanup_rows = runs
+        .iter()
+        .map(|run| {
+            auths_profile_kit::QualificationCleanupEvidence::try_from_observations(
+                &run.provider_cleanup_evidence,
+                &run.runtime_cleanup.evidence,
+                &run.broker_cleanup,
+            )
+            .map_err(string_error)
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+    let provider_resources_destroyed = cleanup_rows
+        .iter()
+        .all(auths_profile_kit::QualificationCleanupEvidence::provider_resources_destroyed);
+    let connection_disabled = cleanup_rows
+        .iter()
+        .all(auths_profile_kit::QualificationCleanupEvidence::connection_disabled);
+    let credentials_revoked = cleanup_rows
+        .iter()
+        .all(auths_profile_kit::QualificationCleanupEvidence::credentials_revoked);
+    let residual_resource_count = cleanup_rows.iter().try_fold(0_u32, |total, cleanup| {
+        total
+            .checked_add(cleanup.residual_resource_count())
+            .ok_or_else(|| "aggregate cleanup residual count overflow".to_owned())
+    })?;
     let cleanup = json!({
         "schema":"auths.profile-qualification-cleanup-report/1",
         "binding":binding,
         "status":"passed",
-        "providerResourcesDestroyed":true,
-        "connectionDisabled":true,
-        "credentialsRevoked":true,
-        "residualResourceCount":0,
+        "providerResourcesDestroyed":provider_resources_destroyed,
+        "connectionDisabled":connection_disabled,
+        "credentialsRevoked":credentials_revoked,
+        "residualResourceCount":residual_resource_count,
         "completedAtUnixSeconds":completed_at,
     });
     let expected = expected_binding_from_value(&binding, &proposal)?;
@@ -3091,6 +3404,24 @@ fn aggregate_observation_reports(
     let parsed_cleanup: crate::profile_qualification_reports::CleanupReport =
         crate::profile_qualification_reports::parse_canonical(&cleanup_bytes)?;
     parsed_cleanup.validate(&expected)?;
+    verify_retained_cleanup_evidence(
+        &proposal,
+        &parsed_cleanup,
+        now_unix_seconds()?,
+        |relative, maximum| {
+            if let Some(provider_run) = relative
+                .strip_prefix("provider-cleanup/")
+                .and_then(|value| value.strip_suffix(".json"))
+            {
+                read_bounded(
+                    &common_evidence.join(provider_run).join("cleanup.json"),
+                    maximum,
+                )
+            } else {
+                read_bounded(&supplemental_common.join(relative), maximum)
+            }
+        },
+    )?;
 
     fs::create_dir(output).map_err(string_error)?;
     #[cfg(unix)]
@@ -3100,7 +3431,9 @@ fn aggregate_observation_reports(
     }
     let reports = output.join("reports");
     let scenarios = reports.join("scenarios");
+    let provider_cleanup = output.join("provider-cleanup");
     fs::create_dir_all(&scenarios).map_err(string_error)?;
+    fs::create_dir_all(&provider_cleanup).map_err(string_error)?;
     atomic_write_new_owner_only(&reports.join("counters.json"), &counters_bytes)?;
     atomic_write_new_owner_only(&reports.join("provider-truth.json"), &truth_bytes)?;
     atomic_write_new_owner_only(&reports.join("cleanup.json"), &cleanup_bytes)?;
@@ -3108,10 +3441,234 @@ fn aggregate_observation_reports(
         &reports.join("receipt-trust-anchors.json"),
         &receipt_trust_bytes,
     )?;
+    for run in &runs {
+        atomic_write_new_owner_only(
+            &provider_cleanup.join(format!(
+                "{}.json",
+                run.collection.run_reference.provider_run_id
+            )),
+            &serde_json_canonicalizer::to_vec(&run.cleanup).map_err(string_error)?,
+        )?;
+    }
     for (scenario, bytes) in scenario_reports {
         atomic_write_new_owner_only(&scenarios.join(format!("{scenario}.json")), &bytes)?;
     }
     Ok(())
+}
+
+fn broker_cleanup_evidence(
+    record: &auths_profile_kit::QualificationEvidenceLedgerRecord,
+    connection_alias_sha256: &str,
+) -> Result<auths_profile_kit::QualificationBrokerCleanupEvidence, String> {
+    use auths_profile_kit::{
+        QualificationEvidenceEventKind as Kind, QualificationEvidenceEventPayload as Payload,
+    };
+    let mut connection_phases = BTreeSet::<(String, u8)>::new();
+    for event in &record.events {
+        if event.kind != Kind::ConnectionReread {
+            continue;
+        }
+        let Payload::Connection {
+            connection_alias_sha256: Some(alias),
+            ..
+        } = &event.payload
+        else {
+            return Err("connection reread omits its alias commitment".into());
+        };
+        if alias != connection_alias_sha256 {
+            return Err("connection reread differs from the cleanup connection".into());
+        }
+        connection_phases.insert((event.scenario_id.clone(), event.phase_index));
+    }
+    let mut leases = BTreeMap::<(String, u8, String, String, String, String), (u32, u32)>::new();
+    let mut succeeded_lease_count = 0_u32;
+    let mut closed_lease_count = 0_u32;
+    for event in &record.events {
+        let is_succeeded = event.kind == Kind::CredentialLeaseSucceeded;
+        let is_closed = event.kind == Kind::CredentialLeaseClosed;
+        if !is_succeeded && !is_closed {
+            continue;
+        }
+        if !connection_phases.contains(&(event.scenario_id.clone(), event.phase_index)) {
+            return Err("credential lease event has no cleanup-bound connection reread".into());
+        }
+        let Payload::Credential {
+            lease_sha256,
+            requested_scope_sha256,
+            effective_scope_sha256,
+        } = &event.payload
+        else {
+            return Err("credential lease event has a non-credential payload".into());
+        };
+        let operation_id = event
+            .operation_id
+            .clone()
+            .ok_or_else(|| "credential lease event omits its operation".to_owned())?;
+        let counts = leases
+            .entry((
+                event.scenario_id.clone(),
+                event.phase_index,
+                operation_id,
+                lease_sha256.clone(),
+                requested_scope_sha256.clone(),
+                effective_scope_sha256.clone(),
+            ))
+            .or_default();
+        if is_succeeded {
+            counts.0 = counts
+                .0
+                .checked_add(1)
+                .ok_or_else(|| "credential lease success count overflow".to_owned())?;
+            succeeded_lease_count = succeeded_lease_count
+                .checked_add(1)
+                .ok_or_else(|| "credential lease success count overflow".to_owned())?;
+        } else {
+            counts.1 = counts
+                .1
+                .checked_add(1)
+                .ok_or_else(|| "credential lease close count overflow".to_owned())?;
+            closed_lease_count = closed_lease_count
+                .checked_add(1)
+                .ok_or_else(|| "credential lease close count overflow".to_owned())?;
+        }
+    }
+    let unmatched_lease_count = u32::try_from(
+        leases
+            .values()
+            .filter(|(succeeded, closed)| *succeeded != 1 || *closed != 1)
+            .count(),
+    )
+    .map_err(string_error)?;
+    Ok(auths_profile_kit::QualificationBrokerCleanupEvidence {
+        succeeded_lease_count,
+        closed_lease_count,
+        unmatched_lease_count,
+    })
+}
+
+fn verify_retained_cleanup_evidence(
+    proposal: &auths_profile_kit::QualificationProposal,
+    cleanup: &crate::profile_qualification_reports::CleanupReport,
+    now_unix_seconds: u64,
+    mut read: impl FnMut(&str, u64) -> Result<Vec<u8>, String>,
+) -> Result<(), String> {
+    let mut derived = Vec::with_capacity(proposal.provider_runs().len());
+    let mut completed_at_unix_seconds = 0_u64;
+    for proposed in proposal.provider_runs() {
+        let provider_run = proposed.id();
+        let plan_bytes = read(&format!("ledger/{provider_run}/ledger-plan.json"), 262_144)?;
+        let plan = auths_profile_kit::QualificationEvidenceLedgerPlanV1::from_json(&plan_bytes)
+            .map_err(string_error)?;
+        let reference_bytes = read(
+            &format!("ledger/{provider_run}/cleanup-reference.json"),
+            262_144,
+        )?;
+        let reference: auths_profile_kit::QualificationCleanupReferenceV1 =
+            serde_json::from_slice(&reference_bytes).map_err(string_error)?;
+        reference.validate().map_err(string_error)?;
+        let runtime_bytes = read(&format!("runtime-cleanup/{provider_run}.json"), 262_144)?;
+        let runtime: auths_profile_kit::QualificationRuntimeCleanupObservationV1 =
+            serde_json::from_slice(&runtime_bytes).map_err(string_error)?;
+        runtime
+            .validate(&plan, &hex::encode(Sha256::digest(&plan_bytes)))
+            .map_err(string_error)?;
+        let provider_bytes = read(&format!("provider-cleanup/{provider_run}.json"), 262_144)?;
+        let provider: ProtectedCleanupProviderRun =
+            serde_json::from_slice(&provider_bytes).map_err(string_error)?;
+        let source_trust_bytes = read(
+            &format!("ledger/{provider_run}/evidence-source-trust.json"),
+            262_144,
+        )?;
+        let ledger_trust_bytes = read(
+            &format!("ledger/{provider_run}/evidence-ledger-trust.json"),
+            262_144,
+        )?;
+        let source_trust = auths_profile_kit::QualificationEvidenceSourceTrustRegistry::from_json(
+            &source_trust_bytes,
+        )
+        .map_err(string_error)?;
+        let ledger_trust = auths_profile_kit::QualificationEvidenceLedgerTrustRegistry::from_json(
+            &ledger_trust_bytes,
+        )
+        .map_err(string_error)?;
+        let ledger_bytes = read(&format!("ledger/{provider_run}/ledger.json"), 67_108_864)?;
+        let ledger = auths_profile_kit::QualificationEvidenceLedger::verify_json(
+            &ledger_bytes,
+            &source_trust,
+            &ledger_trust,
+            now_unix_seconds,
+        )
+        .map_err(string_error)?;
+        if serde_json_canonicalizer::to_vec(&reference).map_err(string_error)? != reference_bytes
+            || serde_json_canonicalizer::to_vec(&runtime).map_err(string_error)? != runtime_bytes
+            || serde_json_canonicalizer::to_vec(&provider).map_err(string_error)? != provider_bytes
+            || plan.cleanup_reference_sha256 != hex::encode(Sha256::digest(&reference_bytes))
+            || plan.setup_handoff_sha256 != reference.setup_handoff_sha256
+            || plan.provider_run_id != provider_run
+            || plan.domain != proposal.domain()
+            || plan.target != proposal.target()
+            || plan.candidate_revision != proposal.candidate_revision()
+            || reference.run_context.provider_run_id != provider_run
+            || reference.domain != proposal.domain()
+            || provider.schema != "auths.profile-qualification-cleanup-provider-run/1"
+            || provider.repository_id != reference.run_context.repository_id
+            || provider.candidate_revision != reference.run_context.candidate_revision
+            || provider.target != reference.run_context.target
+            || provider.protected_environment != reference.run_context.protected_environment
+            || provider.run_id != reference.run_context.run_id
+            || provider.run_attempt != reference.run_context.run_attempt
+            || provider.provider_run_id != provider_run
+            || provider.completed_at_unix_seconds < runtime.completed_at_unix_seconds
+            || runtime.completed_at_unix_seconds < ledger.record().completed_at_unix_seconds
+            || provider.completed_at_unix_seconds > now_unix_seconds
+            || runtime.completed_at_unix_seconds > now_unix_seconds
+            || provider.observation.provider_destination_sha256
+                != reference.provider_destination_sha256
+            || provider.observation.provider_namespace_sha256 != reference.provider_namespace_sha256
+            || proposed.runtime_cleanup_sha256() != hex::encode(Sha256::digest(&runtime_bytes))
+            || ledger.record().source_plan() != plan
+            || ledger.record().provider_run_id != provider_run
+        {
+            return Err(format!(
+                "retained cleanup evidence differs from provider row {provider_run}"
+            ));
+        }
+        let provider_evidence =
+            auths_profile_kit::QualificationProviderCleanupEvidence::try_from_provider_observation(
+                &provider.observation,
+                &reference,
+            )
+            .map_err(string_error)?;
+        let broker = broker_cleanup_evidence(ledger.record(), &reference.connection_alias_sha256)?;
+        derived.push(
+            auths_profile_kit::QualificationCleanupEvidence::try_from_observations(
+                &provider_evidence,
+                &runtime.evidence,
+                &broker,
+            )
+            .map_err(string_error)?,
+        );
+        completed_at_unix_seconds =
+            completed_at_unix_seconds.max(provider.completed_at_unix_seconds);
+    }
+    let residual_resource_count = derived.iter().try_fold(0_u32, |total, evidence| {
+        total
+            .checked_add(evidence.residual_resource_count())
+            .ok_or_else(|| "retained cleanup residual count overflow".to_owned())
+    })?;
+    cleanup.require_derived(
+        derived
+            .iter()
+            .all(auths_profile_kit::QualificationCleanupEvidence::provider_resources_destroyed),
+        derived
+            .iter()
+            .all(auths_profile_kit::QualificationCleanupEvidence::connection_disabled),
+        derived
+            .iter()
+            .all(auths_profile_kit::QualificationCleanupEvidence::credentials_revoked),
+        residual_resource_count,
+        completed_at_unix_seconds,
+    )
 }
 
 fn expected_binding_from_value(
@@ -3149,19 +3706,20 @@ fn expected_binding_from_value(
     )
 }
 
-fn installed_member_name(role: &str) -> &'static str {
+fn installed_member_name(role: &str) -> String {
+    if let Some(domain) = role.strip_prefix("python-profile-") {
+        return format!("auths-python-profile-{domain}.tar.zst");
+    }
     match role {
         "production-agent" => "auths-production-agent.tar.zst",
         "python-native" => "auths-python-native.so",
-        "python-profile-opentofu" => "auths-python-profile-opentofu.tar.zst",
-        "python-profile-postgresql" => "auths-python-profile-postgresql.tar.zst",
-        "python-profile-stripe" => "auths-python-profile-stripe.tar.zst",
         "python-wheel" => "auths-python-wheel.whl",
         "qualification-agent" => "auths-qualification-agent.tar.zst",
         "typescript-native" => "auths-typescript-native.wasm",
         "typescript-package" => "auths-typescript-package.tgz",
         _ => unreachable!("closed installed artifact role"),
     }
+    .to_owned()
 }
 
 fn validate_installed_package_directory(packages: &Path) -> Result<(), String> {
@@ -3177,13 +3735,16 @@ fn validate_installed_package_directory(packages: &Path) -> Result<(), String> {
     if roles
         .iter()
         .map(|entry| entry.file_name().to_string_lossy().into_owned())
-        .ne(VERIFIED_RELEASE_ARTIFACT_ROLES
+        .ne(QUALIFICATION_RELEASE_ARTIFACT_ROLES
             .iter()
             .map(|role| role.to_string()))
     {
         return Err("installed package directory has an extra, missing, or reordered role".into());
     }
-    for (entry, role) in roles.iter().zip(VERIFIED_RELEASE_ARTIFACT_ROLES) {
+    for (entry, role) in roles
+        .iter()
+        .zip(QUALIFICATION_RELEASE_ARTIFACT_ROLES.iter().copied())
+    {
         let metadata = fs::symlink_metadata(entry.path()).map_err(string_error)?;
         if !metadata.is_dir() || metadata.file_type().is_symlink() {
             return Err(format!("installed role is not a regular directory: {role}"));
@@ -3192,7 +3753,8 @@ fn validate_installed_package_directory(packages: &Path) -> Result<(), String> {
             .map_err(string_error)?
             .map(|value| value.map(|value| value.file_name()).map_err(string_error))
             .collect::<Result<Vec<_>, _>>()?;
-        if names.len() != 1 || names[0] != installed_member_name(role) {
+        let expected_member = installed_member_name(role);
+        if names.len() != 1 || names[0].as_os_str() != std::ffi::OsStr::new(&expected_member) {
             return Err(format!("installed role has an unexpected member: {role}"));
         }
     }
@@ -3729,11 +4291,14 @@ fn observe_arguments(arguments: &[String]) -> Result<(), String> {
 }
 
 fn cleanup_arguments(arguments: &[String]) -> Result<(), String> {
-    if arguments.len() != 8
+    if !matches!(arguments.len(), 8 | 10)
         || arguments[0] != "--domain"
         || arguments[2] != "--target"
         || arguments[4] != "--run-context"
-        || arguments[6] != "--output"
+        || (arguments.len() == 8 && arguments[6] != "--output")
+        || (arguments.len() == 10
+            && (arguments[6] != "--cleanup-reference" || arguments[8] != "--output"))
+        || arguments.iter().skip(1).step_by(2).any(String::is_empty)
     {
         return Err(usage());
     }
@@ -3774,13 +4339,31 @@ fn cleanup_arguments(arguments: &[String]) -> Result<(), String> {
         target,
         &run_context.provider_run_id,
     )?;
+    let cleanup_reference = if arguments.len() == 10 {
+        let (reference_bytes, _) = crate::profile_qualification_evidence::read_untrusted_regular(
+            Path::new(&arguments[7]),
+            262_144,
+        )?;
+        let reference: auths_profile_kit::QualificationCleanupReferenceV1 =
+            serde_json::from_slice(&reference_bytes).map_err(string_error)?;
+        if serde_json_canonicalizer::to_vec(&reference).map_err(string_error)? != reference_bytes
+            || reference.validate().is_err()
+            || reference.run_context != run_context
+            || reference.domain != *domain
+        {
+            return Err("cleanup reference differs from the protected run context".into());
+        }
+        Some(reference)
+    } else {
+        None
+    };
     let protected_output_root = PathBuf::from(required_env("QUALIFICATION_PROTECTED_OUTPUT_ROOT")?);
     let output_relative = PathBuf::from(domain)
         .join(target.as_str())
         .join(&run_context.provider_run_id);
     require_exact_output_path(
         &protected_output_root,
-        Path::new(&arguments[7]),
+        Path::new(arguments.last().ok_or_else(usage)?),
         &output_relative,
     )?;
     let output = create_private_output_directory(&protected_output_root, &output_relative)?;
@@ -3807,6 +4390,7 @@ fn cleanup_arguments(arguments: &[String]) -> Result<(), String> {
         repository: &repository,
         domain,
         run_context: &run_context,
+        cleanup_reference: cleanup_reference.as_ref(),
         output: &output,
         package: &domain_context.package,
     })
@@ -4050,6 +4634,7 @@ pub(crate) struct CleanupAdapterContext<'a> {
     pub(crate) repository: &'a Path,
     pub(crate) domain: &'a str,
     pub(crate) run_context: &'a auths_profile_kit::QualificationRunContext,
+    pub(crate) cleanup_reference: Option<&'a auths_profile_kit::QualificationCleanupReferenceV1>,
     pub(crate) output: &'a Path,
     pub(crate) package: &'a ProfilePackage,
 }
@@ -5566,7 +6151,8 @@ pub(crate) fn run_domain_adapter<A: QualificationCollectionAdapter>(
     let handoff_bytes = read_bounded(context.setup_handoff, MAX_CANDIDATE_COLLECTION_BYTES)?;
     let handoff: QualificationSetupHandoffV1 =
         serde_json::from_slice(&handoff_bytes).map_err(string_error)?;
-    if serde_json_canonicalizer::to_vec(&handoff).map_err(string_error)? != handoff_bytes
+    if hex::encode(Sha256::digest(&handoff_bytes)) != phase_runtime.plan.setup_handoff_sha256
+        || serde_json_canonicalizer::to_vec(&handoff).map_err(string_error)? != handoff_bytes
         || handoff.validate().is_err()
         || handoff.run_context != run_context
         || handoff.domain != context.domain
@@ -6051,20 +6637,88 @@ pub(crate) fn cleanup_domain_adapter<A: QualificationProtectedObserver>(
         &context.run_context.protected_environment,
         context.package,
     )?;
-    let cleanup = adapter
-        .cleanup(context.run_context, None)
-        .and_then(|evidence| {
-            evidence.validate()?;
-            Ok(evidence)
+    if existing_protected_cleanup(
+        context.output,
+        context.run_context,
+        context.cleanup_reference,
+    )?
+    .is_some()
+    {
+        return Ok(());
+    }
+    let cleanup_environment = adapter
+        .open_cleanup(context.run_context)
+        .map_err(string_error)?;
+    let observation = adapter
+        .cleanup(&cleanup_environment, context.run_context)
+        .and_then(|observation| {
+            observation.validate()?;
+            Ok(observation)
         })
         .map_err(string_error)?;
-    write_protected_cleanup(context.output, context.run_context, cleanup)
+    let Some(reference) = context.cleanup_reference else {
+        // Best-effort cleanup remains available after partial setup, but an
+        // exact signable report requires the protected cleanup expectation.
+        return Ok(());
+    };
+    let cleanup =
+        auths_profile_kit::QualificationProviderCleanupEvidence::try_from_provider_observation(
+            &observation,
+            reference,
+        )
+        .map_err(string_error)?;
+    cleanup.validate().map_err(string_error)?;
+    write_protected_cleanup(context.output, context.run_context, observation)
+}
+
+fn existing_protected_cleanup(
+    output: &Path,
+    run: &auths_profile_kit::QualificationRunContext,
+    reference: Option<&auths_profile_kit::QualificationCleanupReferenceV1>,
+) -> Result<Option<ProtectedCleanupProviderRun>, String> {
+    let path = output.join("cleanup.json");
+    if !path.exists() {
+        return Ok(None);
+    }
+    let (bytes, _) = crate::profile_qualification_evidence::read_untrusted_regular(&path, 262_144)?;
+    let report: ProtectedCleanupProviderRun =
+        serde_json::from_slice(&bytes).map_err(string_error)?;
+    if serde_json_canonicalizer::to_vec(&report).map_err(string_error)? != bytes
+        || report.schema != "auths.profile-qualification-cleanup-provider-run/1"
+        || report.repository_id != run.repository_id
+        || report.candidate_revision != run.candidate_revision
+        || report.target != run.target
+        || report.protected_environment != run.protected_environment
+        || report.run_id != run.run_id
+        || report.run_attempt != run.run_attempt
+        || report.provider_run_id != run.provider_run_id
+        || report.completed_at_unix_seconds == 0
+        || !provider_cleanup_binds_reference(&report.observation, reference)
+    {
+        return Err("retained provider cleanup report differs from the protected run".into());
+    }
+    report.observation.validate().map_err(string_error)?;
+    Ok(Some(report))
+}
+
+fn provider_cleanup_binds_reference(
+    observation: &auths_profile_kit::QualificationProviderCleanupObservation,
+    reference: Option<&auths_profile_kit::QualificationCleanupReferenceV1>,
+) -> bool {
+    observation.validate().is_ok()
+        && reference.is_none_or(|reference| {
+            auths_profile_kit::QualificationProviderCleanupEvidence::try_from_provider_observation(
+                observation,
+                reference,
+            )
+            .is_ok()
+        })
 }
 
 fn write_protected_cleanup(
     output: &Path,
     run: &auths_profile_kit::QualificationRunContext,
-    cleanup: auths_profile_kit::QualificationCleanupEvidence,
+    observation: auths_profile_kit::QualificationProviderCleanupObservation,
 ) -> Result<(), String> {
     fs::create_dir_all(output).map_err(string_error)?;
     let report = ProtectedCleanupProviderRun {
@@ -6076,7 +6730,7 @@ fn write_protected_cleanup(
         run_id: run.run_id.clone(),
         run_attempt: run.run_attempt,
         provider_run_id: run.provider_run_id.clone(),
-        evidence: cleanup,
+        observation,
         completed_at_unix_seconds: now_unix_seconds()?,
     };
     atomic_write_new(
@@ -6450,6 +7104,18 @@ fn verify_uploaded(
     let proposal = auths_profile_kit::QualificationProposal::from_json(&proposal_bytes)
         .map_err(string_error)?;
     let evidence = crate::profile_qualification_evidence::verify_and_extract(&archive_path)?;
+    let cleanup: crate::profile_qualification_reports::CleanupReport =
+        crate::profile_qualification_reports::parse_canonical(
+            &evidence.read_member("reports/cleanup.json", 262_144)?,
+        )?;
+    verify_retained_cleanup_evidence(
+        &proposal,
+        &cleanup,
+        now_unix_seconds()?,
+        |relative, maximum| {
+            evidence.read_member(relative, usize::try_from(maximum).map_err(string_error)?)
+        },
+    )?;
     rerun_independent_evidence_scans(&evidence)?;
     let record = reconstruct_protected_record(
         repository,
@@ -6638,16 +7304,6 @@ fn rerun_typed_forbidden_field_scan(
     evidence: &crate::profile_qualification_evidence::VerifiedEvidence,
     domain_fields: &[&str],
 ) -> Result<(), String> {
-    const FORBIDDEN_FIELDS: [&str; 8] = [
-        "authorization",
-        "credential",
-        "password",
-        "privateKey",
-        "recoveryHandle",
-        "resourceReferences",
-        "secret",
-        "seed",
-    ];
     const FORBIDDEN_CONTENT: [&[u8]; 3] = [b"-----BEGIN PRIVATE KEY-----", b"github_pat_", b"ghp_"];
     for path in evidence.scan_member_names() {
         let bytes = evidence.read_member(path, 16_777_216)?;
@@ -6660,14 +7316,7 @@ fn rerun_typed_forbidden_field_scan(
             ));
         }
         if path.ends_with(".json") {
-            let value: Value = serde_json::from_slice(&bytes).map_err(string_error)?;
-            if json_has_forbidden_field(&value, &FORBIDDEN_FIELDS)
-                || json_has_forbidden_field(&value, domain_fields)
-            {
-                return Err(format!(
-                    "qualification evidence contains a forbidden typed field: {path}"
-                ));
-            }
+            validate_typed_evidence_json(path, &bytes, domain_fields)?;
         }
     }
     Ok(())
@@ -7129,7 +7778,7 @@ fn validate_verified_release_build_binding(
         || binding.release_build_verifier_sha256
             != required_env("AUTHS_QUALIFICATION_RELEASE_VERIFIER_SHA256")?
         || validate_attester_tools_binding(&binding.attester_tools, now, repository_id).is_err()
-        || binding.artifacts.len() != VERIFIED_RELEASE_ARTIFACT_ROLES.len()
+        || binding.artifacts.len() != QUALIFICATION_RELEASE_ARTIFACT_ROLES.len()
     {
         return Err("verified release-build binding does not match the protected candidate".into());
     }
@@ -7181,7 +7830,7 @@ fn validate_verified_release_build_binding(
         .artifacts
         .iter()
         .zip(projected)
-        .zip(VERIFIED_RELEASE_ARTIFACT_ROLES)
+        .zip(QUALIFICATION_RELEASE_ARTIFACT_ROLES.iter().copied())
     {
         if actual.role != role
             || actual.role != expected["role"]
@@ -11902,6 +12551,86 @@ fn validate_complete_qualification_key_separation(
     .map_err(string_error)
 }
 
+fn validate_current_protected_qualification_keys(
+    attester_repository: &Path,
+    plan: &QualificationEvidenceLedgerPlanV1,
+    required_key_deadline_at_unix_seconds: u64,
+) -> Result<(), String> {
+    if required_key_deadline_at_unix_seconds < plan.deadline_at_unix_seconds {
+        return Err("protected key deadline is shorter than the ledger interval".into());
+    }
+    let sources = load_evidence_source_trust_registry(attester_repository)?;
+    let ledgers = load_evidence_ledger_trust_registry(attester_repository)?;
+    if sources.uses_process_uid(plan.supervisor_controller_uid)
+        || sources.uses_process_uid(plan.agent_uid)
+    {
+        return Err("protected source identity collides with controller or agent UID".into());
+    }
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(string_error)?
+        .as_secs();
+    for source in [
+        QualificationEvidenceSource::Supervisor,
+        QualificationEvidenceSource::ClientProxy,
+        QualificationEvidenceSource::ProviderProxy,
+        QualificationEvidenceSource::JournalReader,
+        QualificationEvidenceSource::CredentialBroker,
+        QualificationEvidenceSource::ProfileStateReader,
+        QualificationEvidenceSource::ReceiptVerifier,
+        QualificationEvidenceSource::ProviderObserver,
+    ] {
+        sources
+            .current_source_process_binding(
+                source,
+                &plan.domain,
+                plan.started_at_unix_seconds,
+                required_key_deadline_at_unix_seconds,
+                now,
+            )
+            .map_err(string_error)?;
+    }
+    ledgers
+        .current_key_id(
+            &plan.domain,
+            plan.started_at_unix_seconds,
+            required_key_deadline_at_unix_seconds,
+            now,
+        )
+        .map_err(string_error)?;
+    Ok(())
+}
+
+fn validate_protected_attester_policy(
+    candidate_repository: &Path,
+    attester_repository: &Path,
+    receipt_anchor_bytes: &[u8],
+    plan: &QualificationEvidenceLedgerPlanV1,
+    required_key_deadline_at_unix_seconds: u64,
+) -> Result<(), String> {
+    if !attester_repository.is_absolute()
+        || attester_repository == candidate_repository
+        || git_revision(attester_repository)? != plan.attester_revision
+    {
+        return Err("protected attester repository identity differs from the ledger plan".into());
+    }
+    let attestation = load_trust_registry(attester_repository)?;
+    let observer = load_observer_trust_registry(attester_repository)?;
+    validate_complete_qualification_key_separation(
+        attester_repository,
+        &attestation,
+        &observer,
+        receipt_anchor_bytes,
+        &plan.recovery_key_id,
+        &plan.recovery_public_key_base64url,
+    )?;
+    validate_current_protected_qualification_keys(
+        attester_repository,
+        plan,
+        required_key_deadline_at_unix_seconds,
+    )
+}
+
 fn attestation_path(repository: &Path, domain: &str, target: QualificationTarget) -> PathBuf {
     repository
         .join("release/qualification/v1/attestations")
@@ -12580,6 +13309,92 @@ mod tests {
     use super::*;
     use std::{cell::RefCell, rc::Rc};
 
+    #[test]
+    fn cleanup_cli_requires_the_exact_workflow_shape() {
+        let exact = [
+            "--domain",
+            "not-a-registered-domain",
+            "--target",
+            "linux-x86_64",
+            "--run-context",
+            "/protected/run-context.json",
+            "--output",
+            "/protected/output",
+        ]
+        .map(str::to_owned);
+        assert_ne!(cleanup_arguments(&exact).unwrap_err(), usage());
+        let with_reference = [
+            "--domain",
+            "not-a-registered-domain",
+            "--target",
+            "linux-x86_64",
+            "--run-context",
+            "/protected/run-context.json",
+            "--cleanup-reference",
+            "/protected/cleanup-reference.json",
+            "--output",
+            "/protected/output",
+        ]
+        .map(str::to_owned);
+        assert_ne!(cleanup_arguments(&with_reference).unwrap_err(), usage());
+        assert_eq!(cleanup_arguments(&exact[..6]).unwrap_err(), usage());
+        let mut extra = exact.to_vec();
+        extra.extend(["--unexpected".into(), "value".into()]);
+        assert_eq!(cleanup_arguments(&extra).unwrap_err(), usage());
+        let mut misplaced = with_reference;
+        misplaced.swap(6, 8);
+        assert_eq!(cleanup_arguments(&misplaced).unwrap_err(), usage());
+    }
+
+    #[test]
+    fn provider_cleanup_proof_is_reference_bound_outside_the_adapter() {
+        let resource_commitments = vec![format!("resource-sha256:{}", "3".repeat(64))];
+        let observation = auths_profile_kit::QualificationProviderCleanupObservation {
+            provider_destination_sha256: "1".repeat(64),
+            provider_namespace_sha256: "2".repeat(64),
+            discovered_resource_commitments: resource_commitments.clone(),
+            destroyed_resource_commitments: resource_commitments.clone(),
+            residual_resource_commitments: vec![],
+            credential_reauthentication_denied: true,
+        };
+        let reference = auths_profile_kit::QualificationCleanupReferenceV1 {
+            schema: "auths.profile-qualification-cleanup-reference/1".into(),
+            run_context: auths_profile_kit::QualificationRunContext {
+                repository_id: "1".into(),
+                candidate_revision: "4".repeat(40),
+                target: QualificationTarget::LinuxX86_64,
+                protected_environment: "qualification-test".into(),
+                run_id: "2".into(),
+                run_attempt: 1,
+                provider_run_id: "provider-run".into(),
+            },
+            domain: "test".into(),
+            setup_handoff_sha256: "5".repeat(64),
+            provider_destination_sha256: observation.provider_destination_sha256.clone(),
+            connection_alias_sha256: "6".repeat(64),
+            provider_namespace_sha256: observation.provider_namespace_sha256.clone(),
+            resource_roster_sha256: hex::encode(Sha256::digest(
+                serde_json_canonicalizer::to_vec(&resource_commitments).unwrap(),
+            )),
+            resource_commitments,
+            resource_count: 1,
+        };
+        assert!(provider_cleanup_binds_reference(&observation, None));
+        assert!(provider_cleanup_binds_reference(
+            &observation,
+            Some(&reference)
+        ));
+        let mut wrong = reference;
+        wrong.provider_namespace_sha256 = "7".repeat(64);
+        assert!(!provider_cleanup_binds_reference(
+            &observation,
+            Some(&wrong)
+        ));
+        let mut invalid = observation;
+        invalid.credential_reauthentication_denied = false;
+        assert!(!provider_cleanup_binds_reference(&invalid, None));
+    }
+
     struct PhaseTestAdapter {
         wrong_phase: Option<u8>,
         fail_phase: Option<u8>,
@@ -12881,6 +13696,8 @@ mod tests {
             "JOURNAL_READER",
             "CREDENTIAL_BROKER",
             "PROFILE_STATE_READER",
+            "PROVIDER_OBSERVER",
+            "PROVIDER_PROXY",
             "RECEIPT_VERIFIER",
         ] {
             let slot = format!("QUALIFICATION_SOURCE_{role}_SEED");

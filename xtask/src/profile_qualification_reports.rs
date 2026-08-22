@@ -320,6 +320,27 @@ impl CleanupReport {
     pub(crate) const fn completed_at_unix_seconds(&self) -> u64 {
         self.completed_at_unix_seconds
     }
+
+    pub(crate) fn require_derived(
+        &self,
+        provider_resources_destroyed: bool,
+        connection_disabled: bool,
+        credentials_revoked: bool,
+        residual_resource_count: u32,
+        completed_at_unix_seconds: u64,
+    ) -> Result<(), String> {
+        if self.provider_resources_destroyed != provider_resources_destroyed
+            || self.connection_disabled != connection_disabled
+            || self.credentials_revoked != credentials_revoked
+            || self.residual_resource_count != residual_resource_count
+            || self.completed_at_unix_seconds != completed_at_unix_seconds
+        {
+            return Err(
+                "qualification cleanup report differs from retained cleanup evidence".into(),
+            );
+        }
+        Ok(())
+    }
 }
 
 impl CountersReport {

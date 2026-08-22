@@ -17,7 +17,7 @@
     "errorRegistrySha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
     "providerMatrixSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
     "toolchain": {"$ref": "profile-qualification.schema.json#/$defs/toolchain"},
-    "candidateArtifacts": {"type": "array", "minItems": 9, "maxItems": 9, "uniqueItems": true, "x-auths-byteSortedBy": "role", "items": {"$ref": "profile-qualification.schema.json#/$defs/candidateArtifact"}},
+    "candidateArtifacts": {"type": "array", "minItems": 7, "maxItems": 70, "uniqueItems": true, "x-auths-byteSortedBy": "role", "items": {"$ref": "profile-qualification.schema.json#/$defs/candidateArtifact"}},
     "environmentClass": {"const": "disposable-provider-test"},
     "collectionStartedAtUnixSeconds": {"$ref": "profile-qualification.schema.json#/$defs/unixSeconds"},
     "collectionCompletedAtUnixSeconds": {"$ref": "profile-qualification.schema.json#/$defs/unixSeconds"},

@@ -150,17 +150,25 @@ logical intent IDs, closed domain stimulus tokens, serial/parallel groups,
 expectation authority, public outcome/effect/provider-call tuples, and protected
 hooks. Every hook names one exact case ID; scenario-wide or role-only hook
 selection is forbidden, and multi-case stimuli repeat the hook row for each
-case they govern. Protected setup emits one canonical public input for every case in exact
-program order. The common installed runner derives idempotency only from the
+case they govern. Protected setup emits one canonical public input for every
+case in exact program order. Before any reader starts, the workflow installs
+that canonical handoff as an owner-only ClientProxy-reader input and the reader
+exact-binds its run, domain, scenario-program digest, case IDs, and input
+commitments to the immutable ledger plan. The common installed runner derives idempotency only from the
 scenario, phase, and reviewed intent ID, executes every serial group in order,
 and starts every request in a parallel group before accepting its first
-terminal result. ClientProxy derives the case ID from that reviewed intent,
-signs it with request ingress, and the protected projection retains both ingress
-and terminal event sequence. Final validation exact-compares cases rather than
-aggregate totals, proves parallel overlap from the signed sequences, assigns a
-provider call only to the first case owning a durable operation, and reruns the
-static domain predicate over the signed operation and independent provider
-facts. The observed report retains both the exact program digest and that
+terminal result. ClientProxy derives the case ID from the reviewed intent and
+exact protected input commitment. For a paired effect whose prepared capability
+exists only after preflight, ClientProxy instead requires the reviewed
+case-to-case input relation over the authenticated prior ingress; arrival order
+alone is never case authority. ClientProxy signs the resulting case ID with
+request ingress, and the protected projection retains both ingress
+and terminal event sequence. Final validation exact-compares serial cases,
+while a reviewed same-stimulus, hook-free parallel race exact-compares its
+closed outcome/effect/provider-call multiset. It proves parallel overlap from
+the signed sequences, assigns a provider call only to the first case owning a
+durable operation, and reruns the static domain predicate over the signed
+operation and independent provider facts. The observed report retains both the exact program digest and that
 predicate commitment; aggregation recomputes and reruns both.
 
 The installed generated profile distribution is an exact verified release
@@ -387,7 +395,9 @@ Repository-controlled work implemented in the current tree:
   listed below);
 - retained PID/start-time process-group shutdown followed by root-only,
   plan-bound cleanup of the exact runtime and policy trees, empty delegated
-  cgroup, signing handles, sockets/logs, and reviewed protected agent install;
+  cgroup, signing handles, sockets/logs, and reviewed protected agent install,
+  followed by a root-owned post-fsync cleanup observation whose digest is
+  committed into the proposal;
 - co-persisted journal-boundary evidence, protected CredentialBroker and
   ProfileStateReader services, and exact response-loss resume semantics;
 - an authoritative ProviderProxy for execute and reconciliation traffic,
@@ -396,13 +406,23 @@ Repository-controlled work implemented in the current tree:
 - an in-row ProviderObserver that reads independently after candidate reap,
   durably appends redacted truth, and gates `ScenarioCompleted`;
 - protected setup handoffs, exact generated-profile release artifacts, a common
-  installed-client runner, and live setup/observer/cleanup implementations for
-  Stripe, PostgreSQL, and OpenTofu;
+  installed-client runner, and live setup/observer implementations for Stripe,
+  PostgreSQL, and OpenTofu;
 - source-authenticated, operation-free admission faults for configuration,
   connection, principal, and exact freshness-edge/stale scenarios;
+- database-owned PostgreSQL transaction-isolation evidence sampled inside the
+  exact effect transaction, persisted in the immutable execution ledger, and
+  independently re-read as `serializable` by reconciliation and final domain
+  validation;
 - one manifest-generated qualification route covering provider transport,
   provider observation/validation, receipt claims, and profile-state snapshot
-  inspection; and
+  inspection;
+- structural OpenTofu root-HCL and dependency-lock parsing with an exact
+  provider, version, and singleton reviewed `zh:` digest closure; the closed v1
+  parser rejects nested or override files, modules until their installed bytes
+  are authenticated, imports/moves/removals, filesystem functions, comment/text
+  substitution, duplicate fields, alternate checksums, and undeclared
+  providers; and
 - focused compile, unit, phase-seam, workflow-shape, and shell/YAML checks.
 
 Repository-controlled work still required for completion:
@@ -410,9 +430,27 @@ Repository-controlled work still required for completion:
 - bind every domain scenario to one protected immutable stimulus and an exact
   domain-owned outcome predicate; swapped, omitted, or happy-path-substituted
   scenario semantics must fail final verification;
+- make PostgreSQL setup, observation, and cleanup operate on one exact
+  run-scoped database/resource namespace so parallel and repeated rows cannot
+  collide or disable another run;
+- replace adapter-authored cleanup success literals with independently observed
+  provider-resource destruction, connection disablement, credential revocation,
+  and residual-resource commitments for the exact run. The common cleanup
+  combiner, redacted exact-roster reference, retry-safe provider observation,
+  and runtime-store/process observation exist, but each domain must still
+  provision and destroy a run-scoped provider containment root, negatively
+  reauthenticate its exact provider-issued per-row credential, and return the
+  measured provider-only commitment rosters bound to that identity and the
+  protected cleanup reference;
 - route every OpenTofu subprocess through the reviewed Linux namespace,
   filesystem, egress, seccomp, cgroup, pinned-executable, and process-tree
   cleanup policy, with hostile escape and timeout tests;
+- materialize each OpenTofu module as a bounded no-follow artifact, exact-check
+  its source/version/digest, structurally inspect the authenticated module tree,
+  and bind that closure to the manifest before enabling modules; then persist
+  saved plans only as authenticated encrypted,
+  quota/expiry-bound, no-follow artifacts with rotation, corruption, path-swap,
+  and cleanup tests;
 - compile and exercise a generated fourth provider through the full
   qualification lifecycle, not merely the scaffold/roster projection;
 - run the provider-free denied-phase Linux integration through final staging,

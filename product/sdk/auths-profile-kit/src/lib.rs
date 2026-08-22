@@ -3,6 +3,7 @@
 #![forbid(unsafe_code)]
 
 mod api;
+mod generated_qualification_roster;
 mod manifest;
 mod qualification;
 mod qualification_harness;
@@ -10,6 +11,7 @@ mod qualification_ledger;
 mod roster;
 
 pub use api::{ProfileApi, ProfileApiError, ProfileType};
+pub use generated_qualification_roster::QUALIFICATION_RELEASE_ARTIFACT_ROLES;
 pub use manifest::{
     ConnectionContract, DomainManifest, ProfileClient, ProfileContracts, ProfileEvidence,
     ProfileLimits, ProfileManifest, ProfilePackage, ProfilePackageError, ProfileSources,
@@ -32,8 +34,9 @@ pub use qualification::{
     validate_qualification_trust_separation,
 };
 pub use qualification_harness::{
-    QualificationAdapterMetadata, QualificationAttemptKind, QualificationCandidateCollectionV1,
-    QualificationCaseVector, QualificationCleanupEvidence, QualificationCollectedOperation,
+    QualificationAdapterMetadata, QualificationAttemptKind, QualificationBrokerCleanupEvidence,
+    QualificationCandidateCollectionV1, QualificationCaseVector, QualificationCleanupEvidence,
+    QualificationCleanupReferenceV1, QualificationCollectedOperation,
     QualificationCollectedScenario, QualificationCollectionAdapter,
     QualificationCommonOperationEvidence, QualificationCommonOperationInstanceEvidence,
     QualificationCommonPhaseEvidence, QualificationCommonReceiptClaims, QualificationCompletion,
@@ -41,13 +44,16 @@ pub use qualification_harness::{
     QualificationInstalledClient, QualificationInstalledClientCaseOutcome,
     QualificationInstalledClientOutcome, QualificationOperationRole, QualificationOutcomeKind,
     QualificationPhaseClient, QualificationProtectedObserver, QualificationProtectedSetup,
-    QualificationProtectedSetupInput, QualificationProviderTruth,
+    QualificationProtectedSetupInput, QualificationProviderCleanupEvidence,
+    QualificationProviderCleanupObservation, QualificationProviderTruth,
     QualificationReceiptDecisionClass, QualificationReceiptExecutionOutcome,
     QualificationReceiptState, QualificationRedactedAttempt, QualificationRedactedOperation,
     QualificationRedactedOperationInstance, QualificationRunContext, QualificationRunReference,
+    QualificationRuntimeCleanupEvidence, QualificationRuntimeCleanupObservationV1,
     QualificationSetupCaseV1, QualificationSetupHandoffV1, QualificationSetupVectorV1,
-    QualificationVector, qualification_pre_admission_attempt_count,
-    validate_scenario_program_projection,
+    QualificationVector, qualification_case_profile_input_cbor,
+    qualification_changed_profile_input_cbor, qualification_pre_admission_attempt_count,
+    qualification_profile_input_cbor, validate_scenario_program_projection,
 };
 pub use qualification_ledger::{
     QualificationAdmissionFaultV1, QualificationAgentTrust, QualificationClientBridgeBindingV1,

@@ -51,11 +51,59 @@ impl QualificationRoute {
         }
     }
 
+    pub(crate) fn qualification_effect_case_inputs(
+        self,
+        profile: &str,
+        value: &[u8],
+    ) -> Result<Option<(Vec<u8>, Vec<u8>)>, QualificationHarnessError> {
+        match self {
+            Self::Opentofu => {
+                auths_opentofu::qualification::qualification_effect_case_inputs(profile, value)
+            }
+            Self::Postgresql => {
+                auths_postgresql::qualification::qualification_effect_case_inputs(profile, value)
+            }
+            Self::Stripe => {
+                auths_stripe::qualification::qualification_effect_case_inputs(profile, value)
+            }
+        }
+    }
+
+    pub(crate) fn qualification_effect_fallback_case_json(
+        self,
+        profile: &str,
+        scenario_id: &str,
+        stimulus: &str,
+    ) -> Result<Option<Vec<u8>>, QualificationHarnessError> {
+        match self {
+            Self::Opentofu => {
+                auths_opentofu::qualification::qualification_effect_fallback_case_json(
+                    profile,
+                    scenario_id,
+                    stimulus,
+                )
+            }
+            Self::Postgresql => {
+                auths_postgresql::qualification::qualification_effect_fallback_case_json(
+                    profile,
+                    scenario_id,
+                    stimulus,
+                )
+            }
+            Self::Stripe => auths_stripe::qualification::qualification_effect_fallback_case_json(
+                profile,
+                scenario_id,
+                stimulus,
+            ),
+        }
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(crate) async fn dispatch_provider_transport(
         self,
         profile: &str,
         scenario_id: &str,
+        case_id: &str,
         kind: QualificationProviderCallKind,
         command: &[u8],
         profile_state: &[u8],
@@ -71,6 +119,7 @@ impl QualificationRoute {
                 auths_opentofu::qualification::dispatch_provider_transport(
                     profile,
                     scenario_id,
+                    case_id,
                     kind,
                     command,
                     profile_state,
@@ -87,6 +136,7 @@ impl QualificationRoute {
                 auths_postgresql::qualification::dispatch_provider_transport(
                     profile,
                     scenario_id,
+                    case_id,
                     kind,
                     command,
                     profile_state,
@@ -103,6 +153,7 @@ impl QualificationRoute {
                 auths_stripe::qualification::dispatch_provider_transport(
                     profile,
                     scenario_id,
+                    case_id,
                     kind,
                     command,
                     profile_state,
@@ -120,6 +171,7 @@ impl QualificationRoute {
 
     pub(crate) async fn observe_provider_truth(
         self,
+        scenario_id: &str,
         record: &JournalRecordV1,
         credential: &[u8],
         observer_root: &Path,
@@ -128,6 +180,7 @@ impl QualificationRoute {
         match self {
             Self::Opentofu => {
                 auths_opentofu::qualification::observe_provider_truth(
+                    scenario_id,
                     record,
                     credential,
                     observer_root,
@@ -137,6 +190,7 @@ impl QualificationRoute {
             }
             Self::Postgresql => {
                 auths_postgresql::qualification::observe_provider_truth(
+                    scenario_id,
                     record,
                     credential,
                     observer_root,
@@ -146,6 +200,7 @@ impl QualificationRoute {
             }
             Self::Stripe => {
                 auths_stripe::qualification::observe_provider_truth(
+                    scenario_id,
                     record,
                     credential,
                     observer_root,
