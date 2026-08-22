@@ -2,9 +2,18 @@
 
 #![allow(clippy::missing_errors_doc)]
 
+use auths_config::{AgentConfig, AgentPlatform, ReceiptSigningRole};
 use auths_profile_kit::{
-    ProfileRoster, QUALIFICATION_RELEASE_ARTIFACT_ROLES, QualificationReleaseBuild,
+    ProfileRoster, QUALIFICATION_RELEASE_ARTIFACT_ROLES, QualificationCommonPhaseEvidence,
+    QualificationEvidenceLedger, QualificationEvidenceLedgerPlanV1,
+    QualificationEvidenceLedgerTrustRegistry, QualificationEvidenceSourceTrustRegistry,
+    QualificationReleaseBuild, qualification_common_phase_matches_exact_pre_admission_ledger,
+    qualification_plan_is_provider_free_configuration_mismatch,
 };
+use auths_receipts::{
+    ReceiptTrustAnchor, ReceiptTrustAnchorRole, ReceiptTrustAnchors, encode_receipt_trust_anchors,
+};
+use base64ct::{Base64UrlUnpadded, Encoding as _};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest as _, Sha256};
@@ -18,6 +27,141 @@ const RELEASE_MEMBERS_SCHEMA: &str = "auths.qualification-release-members/1";
 const MAX_JSON_BYTES: u64 = 262_144;
 const MAX_ARTIFACT_BYTES: u64 = 536_870_912;
 const MAX_AGGREGATE_ARTIFACT_BYTES: u64 = 4_294_967_296;
+
+fn string_error(error: impl std::fmt::Display) -> String {
+    error.to_string()
+}
+
+/// Derives the one canonical public receipt-anchor snapshot from an exact
+/// parsed agent configuration. Protected setup, launch, and observation use
+/// this shared projection so a separately valid anchor file cannot describe a
+/// different exercised agent.
+pub fn qualification_receipt_anchors_from_agent_config(
+    config: &AgentConfig,
+) -> Result<Vec<u8>, String> {
+    let mut anchors = Vec::with_capacity(config.receipt_signing().prior().len() + 2);
+    for value in config.receipt_signing().prior() {
+        let mut public_key = [0_u8; 32];
+        Base64UrlUnpadded::decode(value.public_key_base64url(), &mut public_key)
+            .map_err(string_error)?;
+        anchors.push(
+            ReceiptTrustAnchor::new(
+                match value.role() {
+                    ReceiptSigningRole::Decision => ReceiptTrustAnchorRole::Decision,
+                    ReceiptSigningRole::Execution => ReceiptTrustAnchorRole::Execution,
+                },
+                value.key_id(),
+                value.verification_method(),
+                public_key,
+                value.not_before_unix_seconds(),
+                value.not_after_unix_seconds(),
+            )
+            .map_err(string_error)?,
+        );
+    }
+    for (role, value) in [
+        (
+            ReceiptTrustAnchorRole::Decision,
+            config.receipt_signing().decision(),
+        ),
+        (
+            ReceiptTrustAnchorRole::Execution,
+            config.receipt_signing().execution(),
+        ),
+    ] {
+        let mut public_key = [0_u8; 32];
+        Base64UrlUnpadded::decode(value.public_key_base64url(), &mut public_key)
+            .map_err(string_error)?;
+        anchors.push(
+            ReceiptTrustAnchor::new(
+                role,
+                value.key_id(),
+                value.verification_method(),
+                public_key,
+                value.not_before_unix_seconds(),
+                value.not_after_unix_seconds(),
+            )
+            .map_err(string_error)?,
+        );
+    }
+    anchors.sort_by(|left, right| {
+        (left.role(), left.key_id().as_bytes()).cmp(&(right.role(), right.key_id().as_bytes()))
+    });
+    encode_receipt_trust_anchors(&ReceiptTrustAnchors::new(anchors).map_err(string_error)?)
+        .map_err(string_error)
+}
+
+/// Freshly verifies the complete sealed provider-free acceptance ledger using
+/// only canonical public artifacts and the supplied test trust roots.
+#[allow(clippy::too_many_arguments)]
+pub fn verify_provider_free_qualification_ledger(
+    plan_bytes: &[u8],
+    common_phase_bytes: &[u8],
+    ledger_bytes: &[u8],
+    source_trust_bytes: &[u8],
+    ledger_trust_bytes: &[u8],
+    agent_config_bytes: &[u8],
+    receipt_trust_bytes: &[u8],
+    now_unix_seconds: u64,
+) -> Result<(), String> {
+    let plan = QualificationEvidenceLedgerPlanV1::from_json(plan_bytes).map_err(string_error)?;
+    if !qualification_plan_is_provider_free_configuration_mismatch(&plan) {
+        return Err("provider-free verifier received a non-provider-free plan".into());
+    }
+    let source_trust = QualificationEvidenceSourceTrustRegistry::from_json(source_trust_bytes)
+        .map_err(string_error)?;
+    let ledger_trust = QualificationEvidenceLedgerTrustRegistry::from_json(ledger_trust_bytes)
+        .map_err(string_error)?;
+    let ledger = QualificationEvidenceLedger::verify_json(
+        ledger_bytes,
+        &source_trust,
+        &ledger_trust,
+        now_unix_seconds,
+    )
+    .map_err(string_error)?;
+    if ledger.record().source_plan() != plan {
+        return Err("provider-free sealed ledger differs from its immutable plan".into());
+    }
+    let common_phase: QualificationCommonPhaseEvidence =
+        serde_json::from_slice(common_phase_bytes).map_err(string_error)?;
+    let [commitment] = ledger.record().phases() else {
+        return Err("provider-free sealed ledger has the wrong phase roster".into());
+    };
+    if serde_json_canonicalizer::to_vec(&common_phase).map_err(string_error)? != common_phase_bytes
+        || hex::encode(Sha256::digest(common_phase_bytes))
+            != commitment.common_phase_evidence_sha256
+        || !qualification_common_phase_matches_exact_pre_admission_ledger(
+            ledger.record(),
+            commitment,
+            &common_phase,
+        )
+        .map_err(string_error)?
+    {
+        return Err("provider-free common phase differs from its signed transcript".into());
+    }
+    let config = AgentConfig::from_toml(
+        std::str::from_utf8(agent_config_bytes).map_err(string_error)?,
+        AgentPlatform::Linux,
+    )
+    .map_err(string_error)?;
+    if hex::encode(Sha256::digest(agent_config_bytes)) != plan.agent_configuration_sha256
+        || qualification_receipt_anchors_from_agent_config(&config)? != receipt_trust_bytes
+        || hex::encode(Sha256::digest(receipt_trust_bytes)) != plan.receipt_trust_anchor_sha256
+    {
+        return Err("provider-free exercised-agent trust artifacts differ from the plan".into());
+    }
+    let agent_trust = ledger
+        .record()
+        .agent_trust()
+        .ok_or_else(|| "provider-free ledger omits post-READY exercised-agent trust".to_owned())?;
+    if agent_trust.recovery_key_id() != plan.recovery_key_id
+        || agent_trust.recovery_public_key_base64url() != plan.recovery_public_key_base64url
+        || agent_trust.receipt_trust_anchor_sha256() != plan.receipt_trust_anchor_sha256
+    {
+        return Err("provider-free exercised-agent trust differs from the plan".into());
+    }
+    Ok(())
+}
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]

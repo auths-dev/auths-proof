@@ -34,14 +34,24 @@ pub fn qualification_effect_case_inputs(
     Ok(None)
 }
 
-/// Stripe has no paired preflight capability or fallback effect input.
+/// Returns the one inert, provider-independent input used only by the
+/// provider-free configuration-mismatch acceptance fixture.
 pub fn qualification_effect_fallback_case_json(
     profile: &str,
-    _scenario_id: &str,
-    _stimulus: &str,
+    scenario_id: &str,
+    stimulus: &str,
 ) -> Result<Option<Vec<u8>>, QualificationHarnessError> {
     if profile != "auths.stripe.refund/1" {
         return Err(QualificationHarnessError::Invocation);
+    }
+    if scenario_id == "configuration-mismatch" && stimulus == "canonical" {
+        return serde_json_canonicalizer::to_vec(&serde_json::json!({
+            "amount": 2_000,
+            "currency": "usd",
+            "paymentIntent": "pi_provider_free_configuration_mismatch",
+        }))
+        .map(Some)
+        .map_err(|_| QualificationHarnessError::Invocation);
     }
     Ok(None)
 }
@@ -1282,5 +1292,29 @@ mod tests {
             }
         }
         assert!(stripe_case_amount("misspelled-stimulus", 2_000).is_err());
+    }
+
+    #[test]
+    fn provider_free_configuration_mismatch_has_one_exact_inert_input() {
+        let bytes = qualification_effect_fallback_case_json(
+            "auths.stripe.refund/1",
+            "configuration-mismatch",
+            "canonical",
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(
+            bytes,
+            br#"{"amount":2000,"currency":"usd","paymentIntent":"pi_provider_free_configuration_mismatch"}"#
+        );
+        assert!(
+            qualification_effect_fallback_case_json(
+                "auths.stripe.refund/1",
+                "configuration-mismatch",
+                "changed-input",
+            )
+            .unwrap()
+            .is_none()
+        );
     }
 }

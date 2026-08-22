@@ -315,6 +315,21 @@ the second samples `expiresAt` and produces operation-free `Unavailable`. The
 bridge fault is nullable for every other scenario and any unsupported,
 duplicate, or out-of-order fault request is fatal.
 
+The provider-free `configuration-mismatch` acceptance path is exactly one
+Linux Stripe effect phase with zero setup and cleanup commitments. It uses one
+reviewed inert SDK input and may not fabricate provider resources, connection
+generations, or a setup handoff. All protected source roles still authenticate
+and advance their phase protocols. CredentialBroker and ProviderObserver defer
+opening provider material until an authenticated nonempty request requires it,
+so the exact empty phase neither reads a provider credential nor enters a
+provider. In that provider-free plan, any credential-lease request or
+provider-entered journal record is fatal before a store, credential, or provider
+is opened. After the launcher has authenticated the candidate executable and
+configuration, verified the seed-derived agent identities, and received
+`READY`, the source-signed `ScenarioStarted` event binds the plan's agent
+configuration, recovery identity, and receipt trust anchor without fabricating
+a `Decision` event.
+
 ### 4.7 Generated qualification routing and provider-write ownership
 
 One generated qualification route, derived from each `profile-package.json`,
@@ -428,6 +443,13 @@ Repository-controlled work implemented in the current tree:
 
 Repository-controlled work still required for completion:
 
+- run every installed candidate application/SDK import and invocation—ordinary
+  live rows and the provider-free acceptance row—under one reviewed ephemeral
+  workload identity with no sudo authority, a closed read-only mount view,
+  dedicated PID/network/mount namespaces, seccomp, and a row-owned cgroup;
+  pin the protected launcher/tool bytes across invocation, kill and reap the
+  entire candidate process tree, prove the cgroup empty before sealing or any
+  later secret use, and only then enable the workflow's candidate-sandbox gate;
 - bind every domain scenario to one protected immutable stimulus and an exact
   domain-owned outcome predicate; swapped, omitted, or happy-path-substituted
   scenario semantics must fail final verification;

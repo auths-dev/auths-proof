@@ -6,7 +6,7 @@
 
 #![forbid(unsafe_code)]
 
-use auths_config::{AgentConfig, AgentPlatform, ReceiptSigningRole};
+use auths_config::{AgentConfig, AgentPlatform};
 use auths_profile_kit::{
     QualificationAttemptKind, QualificationCandidateCollectionV1,
     QualificationCommonOperationEvidence, QualificationCommonOperationInstanceEvidence,
@@ -17,8 +17,10 @@ use auths_profile_kit::{
     QualificationEvidenceLedgerTrustRegistry, QualificationEvidencePhaseCommitment,
     QualificationEvidenceSource, QualificationEvidenceSourceTrustRegistry,
     QualificationOutcomeKind, QualificationReceiptState, QualificationRedactedAttempt,
-    qualification_admission_expectation, qualification_common_phase_matches_ledger,
-    qualification_evidence_event_chain_valid, qualification_pre_admission_attempt_count,
+    qualification_admission_expectation, qualification_common_phase_is_exact_pre_admission,
+    qualification_common_phase_matches_ledger, qualification_evidence_event_chain_valid,
+    qualification_plan_is_provider_free_configuration_mismatch,
+    qualification_pre_admission_attempt_count,
 };
 #[cfg(target_os = "linux")]
 use auths_profile_kit::{
@@ -29,10 +31,10 @@ use auths_qualification_evidence_source::{
     QualificationSourceSessionPeer, read_source_session_frame_before,
     write_source_session_frame_before,
 };
-use auths_receipts::{
-    ReceiptTrustAnchor, ReceiptTrustAnchorRole, ReceiptTrustAnchors, decode_receipt_trust_anchors,
-    encode_receipt_trust_anchors,
+use auths_qualification_supervisor::{
+    qualification_receipt_anchors_from_agent_config, verify_provider_free_qualification_ledger,
 };
+use auths_receipts::decode_receipt_trust_anchors;
 use base64ct::{Base64UrlUnpadded, Encoding as _};
 #[cfg(target_os = "linux")]
 use ed25519_dalek::SigningKey;
@@ -131,13 +133,64 @@ fn run(arguments: &[String]) -> Result<(), String> {
         Some("cleanup-protected-install") => cleanup_protected_install(arguments),
         Some("materialize-agent-signing-key") => materialize_agent_signing_key(arguments),
         Some("serve-append-session") => serve_append_session(arguments),
-        Some("stage-common-phases") => stage_common_phases(arguments),
+        Some("stage-common-phases" | "stage-provider-free-pre-admission") => {
+            stage_common_phases(arguments)
+        }
         Some("build-event-index") => build_event_index(arguments),
         Some("assemble-ledger") => assemble_ledger(arguments),
         Some("seal-ledger") => seal_ledger(arguments),
         Some("export-receipt-anchors") => export_receipt_anchors(arguments),
+        Some("verify-provider-free-ledger") => verify_provider_free_ledger(arguments),
         _ => Err(usage()),
     }
+}
+
+fn verify_provider_free_ledger(arguments: &[String]) -> Result<(), String> {
+    let [
+        command,
+        plan_flag,
+        plan,
+        phase_flag,
+        common_phase,
+        ledger_flag,
+        ledger,
+        source_flag,
+        source_trust,
+        ledger_trust_flag,
+        ledger_trust,
+        config_flag,
+        agent_config,
+        receipt_flag,
+        receipt_trust,
+    ] = arguments
+    else {
+        return Err(usage());
+    };
+    if command != "verify-provider-free-ledger"
+        || plan_flag != "--plan"
+        || phase_flag != "--common-phase"
+        || ledger_flag != "--ledger"
+        || source_flag != "--source-trust"
+        || ledger_trust_flag != "--ledger-trust"
+        || config_flag != "--agent-config"
+        || receipt_flag != "--receipt-trust"
+    {
+        return Err(usage());
+    }
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(string_error)?
+        .as_secs();
+    verify_provider_free_qualification_ledger(
+        &read_bounded(Path::new(plan), 262_144, false)?,
+        &read_bounded(Path::new(common_phase), 1_048_576, false)?,
+        &read_bounded(Path::new(ledger), 16_777_216, false)?,
+        &read_bounded(Path::new(source_trust), 262_144, false)?,
+        &read_bounded(Path::new(ledger_trust), 262_144, false)?,
+        &read_bounded(Path::new(agent_config), MAX_AGENT_CONFIG_BYTES, false)?,
+        &read_bounded(Path::new(receipt_trust), 262_144, false)?,
+        now,
+    )
 }
 
 fn export_receipt_anchors(arguments: &[String]) -> Result<(), String> {
@@ -180,56 +233,7 @@ fn export_receipt_anchors(arguments: &[String]) -> Result<(), String> {
     }
     let source = std::str::from_utf8(&config_bytes).map_err(string_error)?;
     let config = AgentConfig::from_toml(source, AgentPlatform::Linux).map_err(string_error)?;
-    let mut anchors = Vec::with_capacity(config.receipt_signing().prior().len() + 2);
-    for value in config.receipt_signing().prior() {
-        let mut public_key = [0_u8; 32];
-        Base64UrlUnpadded::decode(value.public_key_base64url(), &mut public_key)
-            .map_err(string_error)?;
-        anchors.push(
-            ReceiptTrustAnchor::new(
-                match value.role() {
-                    ReceiptSigningRole::Decision => ReceiptTrustAnchorRole::Decision,
-                    ReceiptSigningRole::Execution => ReceiptTrustAnchorRole::Execution,
-                },
-                value.key_id(),
-                value.verification_method(),
-                public_key,
-                value.not_before_unix_seconds(),
-                value.not_after_unix_seconds(),
-            )
-            .map_err(string_error)?,
-        );
-    }
-    for (role, value) in [
-        (
-            ReceiptTrustAnchorRole::Decision,
-            config.receipt_signing().decision(),
-        ),
-        (
-            ReceiptTrustAnchorRole::Execution,
-            config.receipt_signing().execution(),
-        ),
-    ] {
-        let mut public_key = [0_u8; 32];
-        Base64UrlUnpadded::decode(value.public_key_base64url(), &mut public_key)
-            .map_err(string_error)?;
-        anchors.push(
-            ReceiptTrustAnchor::new(
-                role,
-                value.key_id(),
-                value.verification_method(),
-                public_key,
-                value.not_before_unix_seconds(),
-                value.not_after_unix_seconds(),
-            )
-            .map_err(string_error)?,
-        );
-    }
-    anchors.sort_by(|left, right| {
-        (left.role(), left.key_id().as_bytes()).cmp(&(right.role(), right.key_id().as_bytes()))
-    });
-    let anchors = ReceiptTrustAnchors::new(anchors).map_err(string_error)?;
-    let anchor_bytes = encode_receipt_trust_anchors(&anchors).map_err(string_error)?;
+    let anchor_bytes = qualification_receipt_anchors_from_agent_config(&config)?;
     if hex::encode(Sha256::digest(&anchor_bytes)) != *expected_sha256 {
         return Err("protected agent receipt anchors differ from environment policy".into());
     }
@@ -331,51 +335,94 @@ fn initialize_ledger(arguments: &[String]) -> Result<(), String> {
 
 #[allow(clippy::too_many_lines)]
 fn stage_common_phases(arguments: &[String]) -> Result<(), String> {
-    let [
-        command,
-        plan_flag,
-        plan_path,
-        collection_flag,
-        collection_path,
-        common_flag,
-        common_root,
-        source_trust_flag,
-        source_trust_path,
-        receipt_trust_flag,
-        receipt_trust_path,
-    ] = arguments
-    else {
-        return Err(usage());
-    };
-    if command != "stage-common-phases"
-        || plan_flag != "--plan"
-        || collection_flag != "--candidate-collection"
-        || common_flag != "--common-root"
-        || source_trust_flag != "--source-trust"
-        || receipt_trust_flag != "--receipt-trust"
-    {
-        return Err(usage());
-    }
+    let (plan_path, collection_path, common_root, source_trust_path, receipt_trust_path) =
+        match arguments {
+            [
+                command,
+                plan_flag,
+                plan_path,
+                collection_flag,
+                collection_path,
+                common_flag,
+                common_root,
+                source_trust_flag,
+                source_trust_path,
+                receipt_trust_flag,
+                receipt_trust_path,
+            ] if command == "stage-common-phases"
+                && plan_flag == "--plan"
+                && collection_flag == "--candidate-collection"
+                && common_flag == "--common-root"
+                && source_trust_flag == "--source-trust"
+                && receipt_trust_flag == "--receipt-trust" =>
+            {
+                (
+                    plan_path,
+                    Some(collection_path),
+                    common_root,
+                    source_trust_path,
+                    receipt_trust_path,
+                )
+            }
+            [
+                command,
+                plan_flag,
+                plan_path,
+                common_flag,
+                common_root,
+                source_trust_flag,
+                source_trust_path,
+                receipt_trust_flag,
+                receipt_trust_path,
+            ] if command == "stage-provider-free-pre-admission"
+                && plan_flag == "--plan"
+                && common_flag == "--common-root"
+                && source_trust_flag == "--source-trust"
+                && receipt_trust_flag == "--receipt-trust" =>
+            {
+                (
+                    plan_path,
+                    None,
+                    common_root,
+                    source_trust_path,
+                    receipt_trust_path,
+                )
+            }
+            _ => return Err(usage()),
+        };
     let plan_bytes = read_bounded(Path::new(plan_path), 262_144, true)?;
     let plan = QualificationEvidenceLedgerPlanV1::from_json(&plan_bytes).map_err(string_error)?;
-    let collection_bytes = read_bounded(Path::new(collection_path), MAX_COLLECTION_BYTES, false)?;
-    let collection: QualificationCandidateCollectionV1 =
-        serde_json::from_slice(&collection_bytes).map_err(string_error)?;
-    collection.validate().map_err(string_error)?;
-    if serde_json_canonicalizer::to_vec(&collection).map_err(string_error)? != collection_bytes {
-        return Err("candidate collection is not exact canonical JSON".into());
+    let provider_free = qualification_plan_is_provider_free_configuration_mismatch(&plan);
+    if collection_path.is_none() != provider_free {
+        return Err("candidate collection presence differs from the immutable plan mode".into());
     }
-    let reference = &collection.run_reference;
-    if reference.repository_id != plan.repository_id
-        || reference.candidate_revision != plan.candidate_revision
-        || reference.run_id != plan.run_id
-        || reference.run_attempt != plan.run_attempt
-        || reference.domain != plan.domain
-        || reference.target != plan.target
-        || reference.provider_run_id != plan.provider_run_id
-    {
-        return Err("candidate collection differs from the immutable ledger plan".into());
-    }
+    let collection = collection_path
+        .map(
+            |collection_path| -> Result<QualificationCandidateCollectionV1, String> {
+                let bytes = read_bounded(Path::new(collection_path), MAX_COLLECTION_BYTES, false)?;
+                let collection: QualificationCandidateCollectionV1 =
+                    serde_json::from_slice(&bytes).map_err(string_error)?;
+                collection.validate().map_err(string_error)?;
+                if serde_json_canonicalizer::to_vec(&collection).map_err(string_error)? != bytes {
+                    return Err("candidate collection is not exact canonical JSON".into());
+                }
+                let reference = &collection.run_reference;
+                if reference.repository_id != plan.repository_id
+                    || reference.candidate_revision != plan.candidate_revision
+                    || reference.run_id != plan.run_id
+                    || reference.run_attempt != plan.run_attempt
+                    || reference.domain != plan.domain
+                    || reference.target != plan.target
+                    || reference.provider_run_id != plan.provider_run_id
+                {
+                    return Err(
+                        "candidate collection differs from the immutable ledger plan".into(),
+                    );
+                }
+                Ok(collection)
+            },
+        )
+        .transpose()?;
     let source_trust_bytes =
         read_bounded(Path::new(source_trust_path), MAX_SOURCE_TRUST_BYTES, false)?;
     let source_trust = QualificationEvidenceSourceTrustRegistry::from_json(&source_trust_bytes)
@@ -411,20 +458,23 @@ fn stage_common_phases(arguments: &[String]) -> Result<(), String> {
     )?;
     validate_phase_prefix(&plan, &events, true)?;
 
-    let collection_scenarios = collection
-        .scenarios
-        .iter()
-        .map(|scenario| (scenario.scenario_id.as_str(), scenario))
-        .collect::<BTreeMap<_, _>>();
+    let collection_scenarios = collection.as_ref().map(|collection| {
+        collection
+            .scenarios
+            .iter()
+            .map(|scenario| (scenario.scenario_id.as_str(), scenario))
+            .collect::<BTreeMap<_, _>>()
+    });
     let planned_scenarios = plan
         .phases
         .iter()
         .map(|phase| phase.scenario_id.as_str())
         .collect::<BTreeSet<_>>();
-    if collection_scenarios
-        .keys()
-        .copied()
-        .ne(planned_scenarios.iter().copied())
+    if let Some(collection_scenarios) = &collection_scenarios
+        && collection_scenarios
+            .keys()
+            .copied()
+            .ne(planned_scenarios.iter().copied())
     {
         return Err(
             "candidate collection does not exactly cover the planned scenario roster".into(),
@@ -432,27 +482,34 @@ fn stage_common_phases(arguments: &[String]) -> Result<(), String> {
     }
     let scenarios_root = open_private_child_directory(&common_root, "scenarios")?;
     for phase in &plan.phases {
-        let scenario = collection_scenarios
-            .get(phase.scenario_id.as_str())
-            .ok_or_else(|| "candidate collection omits a planned scenario".to_owned())?;
-        let phase_position = usize::from(phase.phase_index)
-            .checked_sub(1)
-            .ok_or_else(|| "planned phase index is zero".to_owned())?;
-        let operation = scenario
-            .operations
-            .get(phase_position)
-            .ok_or_else(|| "candidate collection omits a planned phase".to_owned())?;
-        if operation.role != phase.role
-            || operation.profile != phase.profile
-            || scenario.operations.len()
-                != plan
-                    .phases
-                    .iter()
-                    .filter(|candidate| candidate.scenario_id == phase.scenario_id)
-                    .count()
-        {
-            return Err("candidate operation roster differs from the immutable phase plan".into());
-        }
+        let operation_profile = if let Some(collection_scenarios) = &collection_scenarios {
+            let scenario = collection_scenarios
+                .get(phase.scenario_id.as_str())
+                .ok_or_else(|| "candidate collection omits a planned scenario".to_owned())?;
+            let phase_position = usize::from(phase.phase_index)
+                .checked_sub(1)
+                .ok_or_else(|| "planned phase index is zero".to_owned())?;
+            let operation = scenario
+                .operations
+                .get(phase_position)
+                .ok_or_else(|| "candidate collection omits a planned phase".to_owned())?;
+            if operation.role != phase.role
+                || operation.profile != phase.profile
+                || scenario.operations.len()
+                    != plan
+                        .phases
+                        .iter()
+                        .filter(|candidate| candidate.scenario_id == phase.scenario_id)
+                        .count()
+            {
+                return Err(
+                    "candidate operation roster differs from the immutable phase plan".into(),
+                );
+            }
+            operation.profile.as_str()
+        } else {
+            phase.profile.as_str()
+        };
         let phase_events = events
             .iter()
             .filter(|event| {
@@ -497,32 +554,6 @@ fn stage_common_phases(arguments: &[String]) -> Result<(), String> {
             })
             .collect::<Result<BTreeMap<_, _>, _>>()?;
         let attempts = protected_attempts(&phase_events, &projections)?;
-        if pre_admission_rejection {
-            let expected_attempts =
-                pre_admission_attempts.expect("a pre-admission phase has one closed attempt count");
-            if attempts.len() != expected_attempts
-                || attempts.iter().any(|attempt| {
-                    attempt.operation_id.is_some()
-                        || attempt.outcome != QualificationOutcomeKind::Unavailable
-                        || attempt.completion.is_some()
-                        || attempt.configuration_sha256.is_some()
-                        || !attempt.receipt_ids.is_empty()
-                })
-                || phase_events.iter().any(|event| {
-                    !matches!(
-                        event.kind,
-                        QualificationEvidenceEventKind::ScenarioStarted
-                            | QualificationEvidenceEventKind::RequestReceived
-                            | QualificationEvidenceEventKind::ResponseProjected
-                            | QualificationEvidenceEventKind::ScenarioCompleted
-                    )
-                })
-            {
-                return Err(
-                    "protected pre-admission rejection has an invalid source transcript".into(),
-                );
-            }
-        }
         let instances = projections
             .into_iter()
             .map(|(operation_id, projection)| {
@@ -536,7 +567,7 @@ fn stage_common_phases(arguments: &[String]) -> Result<(), String> {
                         protected_receipt_claim(
                             u8::try_from(index + 1).map_err(string_error)?,
                             attempt,
-                            &operation.profile,
+                            operation_profile,
                             &projection,
                             &phase_events,
                         )
@@ -573,6 +604,13 @@ fn stage_common_phases(arguments: &[String]) -> Result<(), String> {
             instances,
             attempts,
         };
+        if pre_admission_rejection
+            && !qualification_common_phase_is_exact_pre_admission(&phase_events, &projection)
+        {
+            return Err(
+                "protected pre-admission rejection has an invalid source transcript".into(),
+            );
+        }
         let bytes = serde_json_canonicalizer::to_vec(&projection).map_err(string_error)?;
         let scenario_directory = open_private_child_directory(&scenarios_root, &phase.scenario_id)?;
         let provider_directory =
@@ -1547,6 +1585,37 @@ fn validate_broker_store_before_cleanup(
         || directory.mode() & 0o777 != 0o700
     {
         return Err("credential-broker store directory differs from protected policy".into());
+    }
+    if qualification_plan_is_provider_free_configuration_mismatch(plan) {
+        let names = directory_names(&store, 3)?;
+        if names != ["ledger-plan.json", "source-trust.json"] {
+            return Err("provider-free runtime contains credential-broker material".into());
+        }
+        for (name, maximum) in [
+            ("ledger-plan.json", 262_144),
+            ("source-trust.json", MAX_SOURCE_TRUST_BYTES),
+        ] {
+            let store_bytes = read_owned_file_at(
+                &store,
+                name,
+                maximum,
+                directory.uid(),
+                plan.agent_gid,
+                0o600,
+            )?;
+            let runtime_bytes = read_owned_file_at(
+                runtime,
+                name,
+                maximum,
+                plan.supervisor_controller_uid,
+                plan.agent_gid,
+                0o600,
+            )?;
+            if store_bytes != runtime_bytes {
+                return Err("provider-free broker policy copy differs from runtime policy".into());
+            }
+        }
+        return Ok(());
     }
     for name in ["connections.cbor", "credentials.cbor"] {
         let file = File::from(
@@ -3384,9 +3453,12 @@ fn assemble_ledger(arguments: &[String]) -> Result<(), String> {
         ledger_appender_artifact_sha256: plan.ledger_appender_artifact_sha256,
         agent_uid: plan.agent_uid,
         agent_gid: plan.agent_gid,
+        agent_launcher_artifact_sha256: plan.agent_launcher_artifact_sha256,
         agent_executable_sha256: plan.agent_executable_sha256,
+        agent_configuration_sha256: plan.agent_configuration_sha256,
         recovery_key_id: plan.recovery_key_id,
         recovery_public_key_base64url: plan.recovery_public_key_base64url,
+        receipt_trust_anchor_sha256: plan.receipt_trust_anchor_sha256,
         phase_commitments,
         events,
         started_at_unix_seconds: plan.started_at_unix_seconds,
@@ -4097,7 +4169,7 @@ fn write_new(path: &Path, bytes: &[u8]) -> Result<(), String> {
 }
 
 fn usage() -> String {
-    "usage: auths-qualification-supervisor <export-receipt-anchors --config-output <new-config> --anchors-output <new-anchors> --expected-sha256 <digest>|initialize-ledger --plan <canonical-plan> --common-root <owner-only-common-root> --source-trust <registry> --ledger-trust <registry>|prepare-row-runtime --plan <canonical-plan> --source-trust <registry> --receipt-trust <anchors> --runtime-root <new-runtime-root> --cgroup-root <new-delegated-cgroup-root>|cleanup-row-runtime --plan <canonical-plan> --runtime-root <prepared-row-runtime> --policy-root <root-owned-row-policy> --cgroup-root <delegated-cgroup-root> --cleanup-evidence-root <root-owned-evidence-root>|cleanup-protected-install --root <protected-install-root> --agent-sha256 <digest> --launcher-sha256 <digest> --config-sha256 <digest>|materialize-agent-signing-key --role <decision|execution|recovery> --plan <canonical-plan> --config <public-agent-config> --runtime-root <prepared-row-runtime>|serve-append-session --plan <canonical-plan> --common-root <owner-only-common-root> --source-trust <registry> --socket <new-protected-unix-socket>|stage-common-phases --plan <canonical-plan> --candidate-collection <canonical-collection> --common-root <owner-only-common-root> --source-trust <registry> --receipt-trust <anchors>|build-event-index --plan <canonical-plan> --common-root <owner-only-common-root> --source-trust <registry>|assemble-ledger --plan <canonical-plan> --event-index <canonical-index> --common-root <owner-only-common-root> --source-trust <registry> --output <new-record>|seal-ledger --record <canonical-record> --source-trust <registry> --ledger-trust <registry> --output <new-path> --key-id <id>>; prepare-row-runtime is the root-only exact UID/GID topology and role-policy snapshot materializer and accepts no seed; cleanup-row-runtime removes only the exact plan-bound runtime, policy, and empty delegated cgroup through retained no-follow descriptors, then writes one root-owned plan-bound cleanup observation; cleanup-protected-install removes only the reviewed root-owned agent, launcher, and public configuration; materialize-agent-signing-key consumes exactly one base64url seed on stdin and writes only its fixed scenario-state handles; serve-append-session is the sole source-event writer and owns the provider-row lock while an authenticated reader obtains each signature; export-receipt-anchors reads one base64url public agent configuration from stdin, and seal-ledger reads its one seed from stdin".into()
+    "usage: auths-qualification-supervisor <export-receipt-anchors --config-output <new-config> --anchors-output <new-anchors> --expected-sha256 <digest>|verify-provider-free-ledger --plan <canonical-plan> --common-phase <canonical-phase> --ledger <sealed-ledger> --source-trust <registry> --ledger-trust <registry> --agent-config <public-config> --receipt-trust <anchors>|initialize-ledger --plan <canonical-plan> --common-root <owner-only-common-root> --source-trust <registry> --ledger-trust <registry>|prepare-row-runtime --plan <canonical-plan> --source-trust <registry> --receipt-trust <anchors> --runtime-root <new-runtime-root> --cgroup-root <new-delegated-cgroup-root>|cleanup-row-runtime --plan <canonical-plan> --runtime-root <prepared-row-runtime> --policy-root <root-owned-row-policy> --cgroup-root <delegated-cgroup-root> --cleanup-evidence-root <root-owned-evidence-root>|cleanup-protected-install --root <protected-install-root> --agent-sha256 <digest> --launcher-sha256 <digest> --config-sha256 <digest>|materialize-agent-signing-key --role <decision|execution|recovery> --plan <canonical-plan> --config <public-agent-config> --runtime-root <prepared-row-runtime>|serve-append-session --plan <canonical-plan> --common-root <owner-only-common-root> --source-trust <registry> --socket <new-protected-unix-socket>|stage-common-phases --plan <canonical-plan> --candidate-collection <canonical-collection> --common-root <owner-only-common-root> --source-trust <registry> --receipt-trust <anchors>|stage-provider-free-pre-admission --plan <zero-setup-single-configuration-mismatch-plan> --common-root <owner-only-common-root> --source-trust <registry> --receipt-trust <anchors>|build-event-index --plan <canonical-plan> --common-root <owner-only-common-root> --source-trust <registry>|assemble-ledger --plan <canonical-plan> --event-index <canonical-index> --common-root <owner-only-common-root> --source-trust <registry> --output <new-record>|seal-ledger --record <canonical-record> --source-trust <registry> --ledger-trust <registry> --output <new-path> --key-id <id>>; prepare-row-runtime is the root-only exact UID/GID topology and role-policy snapshot materializer and accepts no seed; cleanup-row-runtime removes only the exact plan-bound runtime, policy, and empty delegated cgroup through retained no-follow descriptors, then writes one root-owned plan-bound cleanup observation; cleanup-protected-install removes only the reviewed root-owned agent, launcher, and public configuration; materialize-agent-signing-key consumes exactly one base64url seed on stdin and writes only its fixed scenario-state handles; serve-append-session is the sole source-event writer and owns the provider-row lock while an authenticated reader obtains each signature; the provider-free staging command accepts only the exact zero-setup Stripe configuration-mismatch plan and derives its projection from authenticated events; the fresh provider-free verifier replays the canonical trust, transcript, and post-READY agent binding without provider material; export-receipt-anchors reads one base64url public agent configuration from stdin, and seal-ledger reads its one seed from stdin".into()
 }
 
 fn lower_hex_64(value: &str) -> bool {
@@ -4327,9 +4399,12 @@ mod tests {
             ledger_appender_artifact_sha256: "7".repeat(64),
             agent_uid: 1001,
             agent_gid: 1001,
+            agent_launcher_artifact_sha256: "d".repeat(64),
             agent_executable_sha256: "6".repeat(64),
+            agent_configuration_sha256: "b".repeat(64),
             recovery_key_id: "recovery".into(),
             recovery_public_key_base64url: Base64UrlUnpadded::encode_string(&[9; 32]),
+            receipt_trust_anchor_sha256: "c".repeat(64),
             phases: vec![QualificationEvidencePhasePlanV1 {
                 scenario_id: "happy-path".into(),
                 phase_index: 1,

@@ -39,6 +39,8 @@ use auths_profile_kit::QualificationCredentialBrokerObservationV1;
 use auths_profile_kit::QualificationOperationRole;
 #[cfg(target_os = "linux")]
 use auths_profile_kit::QualificationProviderProxyObservationV1;
+#[cfg(all(test, target_os = "linux"))]
+use auths_profile_kit::qualification_profile_input_cbor;
 #[cfg(target_os = "linux")]
 use auths_profile_kit::{
     QualificationAdmissionFaultV1, QualificationClientBridgeBindingV1,
@@ -52,7 +54,6 @@ use auths_profile_kit::{
     QualificationSupervisorPhaseRequestV1, qualification_admission_expectation,
     qualification_case_profile_input_cbor, qualification_changed_profile_input_cbor,
     qualification_event_marker_sha256, qualification_pre_admission_attempt_count,
-    qualification_profile_input_cbor,
 };
 #[cfg(any(target_os = "linux", test))]
 use auths_profile_kit::{
@@ -1430,7 +1431,7 @@ fn path_text(path: &Path) -> Result<String, String> {
 
 #[cfg(target_os = "linux")]
 fn run_client_proxy_ordinary_row(arguments: &[String]) -> Result<(), String> {
-    let values = exact_flag_values_for(
+    let values = exact_flag_values_with_optional_for(
         arguments,
         "serve-ordinary-row-session",
         &[
@@ -1439,45 +1440,51 @@ fn run_client_proxy_ordinary_row(arguments: &[String]) -> Result<(), String> {
             "--sequencer-socket",
             "--ledger-plan",
             "--source-trust",
-            "--setup-handoff",
         ],
+        &["--setup-handoff"],
         typed_source_usage,
     )?;
     let plan = ordinary_row_plan(&values)?;
+    let provider_free =
+        auths_profile_kit::qualification_plan_is_provider_free_configuration_mismatch(&plan);
+    if values.contains_key("--setup-handoff") == provider_free {
+        return Err(
+            "ClientProxy setup handoff presence differs from the immutable plan mode".into(),
+        );
+    }
     let runtime_root = Path::new(value_for(&values, "--runtime-root", typed_source_usage)?);
     let row_bindings = Arc::new(Mutex::new(ClientProxyRowBindings::default()));
     for phase in ordinary_row_phases(&plan) {
         let root = ordinary_row_phase_root(runtime_root, phase)?;
-        run_client_proxy_reader_with_bindings(
-            &[
-                "serve-reader-session".into(),
-                "--client-socket".into(),
-                path_text(&root.join("client-proxy/client.sock"))?,
-                "--result-socket".into(),
-                path_text(&root.join("client-proxy/result.sock"))?,
-                "--control-socket".into(),
-                path_text(&root.join("client-proxy/control.sock"))?,
-                "--agent-socket".into(),
-                path_text(&root.join("agent/agent.sock"))?,
-                "--signer-socket".into(),
-                row_value(&values, "--signer-socket")?,
-                "--sequencer-socket".into(),
-                row_value(&values, "--sequencer-socket")?,
-                "--ledger-plan".into(),
-                row_value(&values, "--ledger-plan")?,
-                "--source-trust".into(),
-                row_value(&values, "--source-trust")?,
-                "--setup-handoff".into(),
-                row_value(&values, "--setup-handoff")?,
-                "--scenario".into(),
-                phase.scenario_id.clone(),
-                "--phase-index".into(),
-                phase.phase_index.to_string(),
-                "--supervisor-generation".into(),
-                "1".into(),
-            ],
-            Arc::clone(&row_bindings),
-        )?;
+        let mut phase_arguments = vec![
+            "serve-reader-session".into(),
+            "--client-socket".into(),
+            path_text(&root.join("client-proxy/client.sock"))?,
+            "--result-socket".into(),
+            path_text(&root.join("client-proxy/result.sock"))?,
+            "--control-socket".into(),
+            path_text(&root.join("client-proxy/control.sock"))?,
+            "--agent-socket".into(),
+            path_text(&root.join("agent/agent.sock"))?,
+            "--signer-socket".into(),
+            row_value(&values, "--signer-socket")?,
+            "--sequencer-socket".into(),
+            row_value(&values, "--sequencer-socket")?,
+            "--ledger-plan".into(),
+            row_value(&values, "--ledger-plan")?,
+            "--source-trust".into(),
+            row_value(&values, "--source-trust")?,
+            "--scenario".into(),
+            phase.scenario_id.clone(),
+            "--phase-index".into(),
+            phase.phase_index.to_string(),
+            "--supervisor-generation".into(),
+            "1".into(),
+        ];
+        if let Some(setup_handoff) = values.get("--setup-handoff") {
+            phase_arguments.extend(["--setup-handoff".into(), (*setup_handoff).to_owned()]);
+        }
+        run_client_proxy_reader_with_bindings(&phase_arguments, Arc::clone(&row_bindings))?;
     }
     complete_typed_source_row(QualificationEvidenceSource::ClientProxy, &values, &plan)
 }
@@ -1611,7 +1618,7 @@ fn run_provider_observer_ordinary_row(arguments: &[String]) -> Result<(), String
         typed_source_usage,
     )?;
     reject_secret_environment()?;
-    let credential = read_runtime_read_credential()?;
+    let mut credential = None;
     let plan = ordinary_row_plan(&values)?;
     let runtime_root = Path::new(value_for(&values, "--runtime-root", typed_source_usage)?);
     for phase in ordinary_row_phases(&plan) {
@@ -1641,7 +1648,7 @@ fn run_provider_observer_ordinary_row(arguments: &[String]) -> Result<(), String
                 "--phase-index".into(),
                 phase.phase_index.to_string(),
             ],
-            &credential,
+            &mut credential,
         )?;
     }
     complete_typed_source_row(
@@ -2725,14 +2732,22 @@ struct CredentialBrokerShared {
     plan: QualificationEvidenceLedgerPlanV1,
     phase: QualificationEvidencePhasePlanV1,
     supervisor_generation: u32,
-    connections: PersistentConnectionStore,
-    credentials: PersistentCredentialStore,
+    connection_store: PathBuf,
+    credential_store: PathBuf,
+    reader_uid: u32,
+    stores: Mutex<Option<CredentialBrokerStores>>,
     provider_proxy_reader_uid: u32,
     provider_proxy_reader_artifact_sha256: String,
     appender: Mutex<CredentialBrokerAppender>,
     leases: Mutex<BTreeMap<String, CredentialBrokerLease>>,
     checkpoint: Mutex<Option<CredentialBrokerCheckpoint>>,
     in_flight: Arc<AtomicUsize>,
+}
+
+#[cfg(target_os = "linux")]
+struct CredentialBrokerStores {
+    connections: PersistentConnectionStore,
+    credentials: PersistentCredentialStore,
 }
 
 #[cfg(target_os = "linux")]
@@ -2852,17 +2867,19 @@ fn run_credential_broker_reader(arguments: &[String]) -> Result<(), String> {
     if connection_store == credential_store {
         return Err("CredentialBroker stores must be distinct".into());
     }
-    validate_broker_store_path(connection_store, reader_uid)?;
-    validate_broker_store_path(credential_store, reader_uid)?;
-    let limits = RegistryLimits {
-        maximum_records: std::num::NonZeroUsize::new(10_000)
-            .ok_or_else(|| "CredentialBroker connection bound is invalid".to_owned())?,
-        maximum_encoded_bytes: std::num::NonZeroUsize::new(268_435_456)
-            .ok_or_else(|| "CredentialBroker connection byte bound is invalid".to_owned())?,
+    let provider_free =
+        auths_profile_kit::qualification_plan_is_provider_free_configuration_mismatch(&plan);
+    let stores = if provider_free {
+        validate_broker_store_parent_path(connection_store, reader_uid)?;
+        validate_broker_store_parent_path(credential_store, reader_uid)?;
+        None
+    } else {
+        Some(load_credential_broker_stores(
+            connection_store,
+            credential_store,
+            reader_uid,
+        )?)
     };
-    let connections =
-        PersistentConnectionStore::open(connection_store, limits).map_err(string_error)?;
-    let credentials = PersistentCredentialStore::open(credential_store).map_err(string_error)?;
     let socket = Path::new(value_for(&values, "--socket", typed_source_usage)?);
     let checkpoint_socket = Path::new(value_for(
         &values,
@@ -2912,8 +2929,10 @@ fn run_credential_broker_reader(arguments: &[String]) -> Result<(), String> {
         plan: plan.clone(),
         phase,
         supervisor_generation,
-        connections,
-        credentials,
+        connection_store: connection_store.to_owned(),
+        credential_store: credential_store.to_owned(),
+        reader_uid,
+        stores: Mutex::new(stores),
         provider_proxy_reader_uid,
         provider_proxy_reader_artifact_sha256: provider_proxy_reader_artifact.to_owned(),
         appender: Mutex::new(CredentialBrokerAppender {
@@ -3064,6 +3083,66 @@ fn validate_broker_store_path(path: &Path, owner_uid: u32) -> Result<(), String>
         return Err("CredentialBroker store ownership or mode is invalid".into());
     }
     Ok(())
+}
+
+#[cfg(target_os = "linux")]
+fn validate_broker_store_parent_path(path: &Path, owner_uid: u32) -> Result<(), String> {
+    if !path.is_absolute()
+        || path.file_name().is_none()
+        || path
+            .components()
+            .any(|component| !matches!(component, Component::RootDir | Component::Normal(_)))
+    {
+        return Err("CredentialBroker store path is not normalized and absolute".into());
+    }
+    let parent = open_directory_componentwise(
+        path.parent()
+            .ok_or_else(|| "CredentialBroker store path has no parent".to_owned())?,
+    )?;
+    let metadata = parent.metadata().map_err(string_error)?;
+    if metadata.uid() != owner_uid || metadata.mode() & 0o777 != 0o700 {
+        return Err("CredentialBroker store parent ownership or mode is invalid".into());
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+fn open_credential_broker_stores(
+    shared: &CredentialBrokerShared,
+) -> Result<std::sync::MutexGuard<'_, Option<CredentialBrokerStores>>, String> {
+    let mut stores = shared
+        .stores
+        .lock()
+        .map_err(|_| "CredentialBroker store state is unavailable".to_owned())?;
+    if stores.is_none() {
+        *stores = Some(load_credential_broker_stores(
+            &shared.connection_store,
+            &shared.credential_store,
+            shared.reader_uid,
+        )?);
+    }
+    Ok(stores)
+}
+
+#[cfg(target_os = "linux")]
+fn load_credential_broker_stores(
+    connection_store: &Path,
+    credential_store: &Path,
+    reader_uid: u32,
+) -> Result<CredentialBrokerStores, String> {
+    validate_broker_store_path(connection_store, reader_uid)?;
+    validate_broker_store_path(credential_store, reader_uid)?;
+    let limits = RegistryLimits {
+        maximum_records: std::num::NonZeroUsize::new(10_000)
+            .ok_or_else(|| "CredentialBroker connection bound is invalid".to_owned())?,
+        maximum_encoded_bytes: std::num::NonZeroUsize::new(268_435_456)
+            .ok_or_else(|| "CredentialBroker connection byte bound is invalid".to_owned())?,
+    };
+    Ok(CredentialBrokerStores {
+        connections: PersistentConnectionStore::open(connection_store, limits)
+            .map_err(string_error)?,
+        credentials: PersistentCredentialStore::open(credential_store).map_err(string_error)?,
+    })
 }
 
 #[cfg(target_os = "linux")]
@@ -3250,6 +3329,11 @@ fn acquire_credential_lease(
     request: &QualificationCredentialLeaseRequest,
     deadline: Instant,
 ) -> Result<Option<Zeroizing<Vec<u8>>>, String> {
+    if auths_profile_kit::qualification_plan_is_provider_free_configuration_mismatch(&shared.plan) {
+        return Err(
+            "CredentialBroker provider-free phase cannot acquire a credential lease".into(),
+        );
+    }
     let mut leases = shared
         .leases
         .lock()
@@ -3267,6 +3351,10 @@ fn acquire_credential_lease(
     if leases.len() >= 8 {
         return Err("CredentialBroker active lease bound is exhausted".into());
     }
+    let stores = open_credential_broker_stores(shared)?;
+    let stores = stores
+        .as_ref()
+        .ok_or_else(|| "CredentialBroker stores were not retained".to_owned())?;
     let provider = ProviderKind::parse(request.provider_kind()).map_err(string_error)?;
     let alias = ConnectionAlias::parse(request.connection_alias()).map_err(string_error)?;
     let profile = ConnectionProfile::new(
@@ -3274,7 +3362,7 @@ fn acquire_credential_lease(
         request.profile_version(),
     )
     .map_err(string_error)?;
-    let binding = shared
+    let binding = stores
         .connections
         .resolve(&provider, Some(&alias), request.workload_id(), &profile)
         .map_err(string_error)?;
@@ -3287,7 +3375,7 @@ fn acquire_credential_lease(
     {
         return Err("CredentialBroker resolved binding differs from the agent request".into());
     }
-    let record = shared
+    let record = stores
         .connections
         .reread_before_lease(&binding, request.workload_id(), &profile)
         .map_err(string_error)?;
@@ -3330,7 +3418,7 @@ fn acquire_credential_lease(
         record.descriptor(),
         &binding,
         request.credential_scope(),
-        &shared.credentials,
+        &stores.credentials,
         deadline,
     )?;
     let mut capability = Zeroizing::new([0_u8; 32]);
@@ -4209,14 +4297,13 @@ fn read_runtime_read_credential() -> Result<Zeroizing<Vec<u8>>, String> {
 #[cfg(target_os = "linux")]
 fn run_provider_observer_reader(arguments: &[String]) -> Result<(), String> {
     reject_secret_environment()?;
-    let credential = read_runtime_read_credential()?;
-    run_provider_observer_reader_with_credential(arguments, &credential)
+    run_provider_observer_reader_with_credential(arguments, &mut None)
 }
 
 #[cfg(target_os = "linux")]
 fn run_provider_observer_reader_with_credential(
     arguments: &[String],
-    credential: &[u8],
+    credential: &mut Option<Zeroizing<Vec<u8>>>,
 ) -> Result<(), String> {
     let values = exact_flag_values_for(
         arguments,
@@ -4239,6 +4326,8 @@ fn run_provider_observer_reader_with_credential(
         true,
     )?)
     .map_err(string_error)?;
+    let provider_free =
+        auths_profile_kit::qualification_plan_is_provider_free_configuration_mismatch(&plan);
     let trust = QualificationEvidenceSourceTrustRegistry::from_json(&read_bounded(
         Path::new(value_for(&values, "--source-trust", typed_source_usage)?),
         MAX_TRUST_BYTES,
@@ -4280,6 +4369,9 @@ fn run_provider_observer_reader_with_credential(
         != QualificationEvidenceSource::ProviderObserver
     {
         return Err("ProviderObserver reader differs from source trust".into());
+    }
+    if credential.is_none() && !provider_free {
+        *credential = Some(read_runtime_read_credential()?);
     }
     let observer_root = Path::new(value_for(&values, "--observer-root", typed_source_usage)?);
     let observer_directory = open_directory_componentwise(observer_root)?;
@@ -4413,8 +4505,17 @@ fn run_provider_observer_reader_with_credential(
         if records.len() > 8 {
             return Err("ProviderObserver operation roster exceeds its bound".into());
         }
+        if provider_free && !records.is_empty() {
+            return Err("ProviderObserver provider-free phase entered the provider".into());
+        }
+        if !records.is_empty() && credential.is_none() {
+            *credential = Some(read_runtime_read_credential()?);
+        }
         let mut operations = Vec::with_capacity(records.len());
         for record in records {
+            let credential = credential
+                .as_deref()
+                .ok_or_else(|| "ProviderObserver runtime-read credential is absent".to_owned())?;
             let (effect, facts) = block_on_protected_provider_operation(
                 &runtime,
                 deadline,
@@ -5701,7 +5802,7 @@ fn run_client_proxy_reader_with_bindings(
     arguments: &[String],
     row_bindings: Arc<Mutex<ClientProxyRowBindings>>,
 ) -> Result<(), String> {
-    let values = exact_flag_values_for(
+    let values = exact_flag_values_with_optional_for(
         arguments,
         "serve-reader-session",
         &[
@@ -5713,11 +5814,11 @@ fn run_client_proxy_reader_with_bindings(
             "--sequencer-socket",
             "--ledger-plan",
             "--source-trust",
-            "--setup-handoff",
             "--scenario",
             "--phase-index",
             "--supervisor-generation",
         ],
+        &["--setup-handoff"],
         typed_source_usage,
     )?;
     reject_secret_environment()?;
@@ -5743,55 +5844,63 @@ fn run_client_proxy_reader_with_bindings(
         .find(|phase| phase.scenario_id == scenario && phase.phase_index == phase_index)
         .cloned()
         .ok_or_else(|| "ClientProxy phase is absent from the immutable ledger plan".to_owned())?;
-    let setup_bytes = read_bounded(
-        Path::new(value_for(&values, "--setup-handoff", typed_source_usage)?),
-        MAX_SETUP_HANDOFF_BYTES,
-        true,
-    )?;
-    let setup: QualificationSetupHandoffV1 =
-        serde_json::from_slice(&setup_bytes).map_err(string_error)?;
-    if hex::encode(Sha256::digest(&setup_bytes)) != plan.setup_handoff_sha256
-        || serde_json_canonicalizer::to_vec(&setup).map_err(string_error)? != setup_bytes
-        || setup.validate().is_err()
-        || setup.run_context.repository_id != plan.repository_id
-        || setup.run_context.candidate_revision != plan.candidate_revision
-        || setup.run_context.target != plan.target
-        || setup.run_context.protected_environment != plan.protected_environment
-        || setup.run_context.run_id != plan.run_id
-        || setup.run_context.run_attempt != plan.run_attempt
-        || setup.run_context.provider_run_id != plan.provider_run_id
-        || setup.domain != plan.domain
-    {
-        return Err("ClientProxy setup handoff differs from immutable ledger policy".into());
+    let provider_free =
+        auths_profile_kit::qualification_plan_is_provider_free_configuration_mismatch(&plan);
+    let setup_handoff = values.get("--setup-handoff").copied();
+    if setup_handoff.is_some() == provider_free {
+        return Err(
+            "ClientProxy setup handoff presence differs from the immutable plan mode".into(),
+        );
     }
-    let setup_vector = setup
-        .vectors
-        .iter()
-        .find(|vector| vector.id == phase.scenario_id)
-        .ok_or_else(|| "ClientProxy phase has no protected setup vector".to_owned())?;
-    if setup_vector
-        .scenario_program
-        .sha256()
-        .map_err(string_error)?
-        != phase.scenario_program_sha256
-    {
-        return Err("ClientProxy setup program differs from immutable phase".into());
+    let route = QualificationRoute::for_profile(&phase.profile)?;
+    let reviewed_program = route.scenario_program(&phase.scenario_id)?;
+    if reviewed_program.sha256().map_err(string_error)? != phase.scenario_program_sha256 {
+        return Err("ClientProxy reviewed program differs from immutable phase".into());
     }
-    let case_input_sha256 = setup_vector
-        .cases
-        .iter()
-        .zip(setup_vector.scenario_program.cases())
-        .map(|(case, program_case)| {
-            let input = base64ct::Base64UrlUnpadded::decode_vec(&case.input_base64url)
-                .map_err(string_error)?;
-            let input = qualification_case_profile_input_cbor(program_case.stimulus(), &input)
-                .map_err(string_error)?;
-            Ok((
-                case.case_id.clone(),
-                hex::encode(local_preparation_input_commitment(&input)),
-            ))
-        })
-        .collect::<Result<BTreeMap<_, _>, String>>()?;
+    let case_input_sha256 = if let Some(setup_handoff) = setup_handoff {
+        let setup_bytes = read_bounded(Path::new(setup_handoff), MAX_SETUP_HANDOFF_BYTES, true)?;
+        let setup: QualificationSetupHandoffV1 =
+            serde_json::from_slice(&setup_bytes).map_err(string_error)?;
+        if hex::encode(Sha256::digest(&setup_bytes)) != plan.setup_handoff_sha256
+            || serde_json_canonicalizer::to_vec(&setup).map_err(string_error)? != setup_bytes
+            || setup.validate().is_err()
+            || setup.run_context.repository_id != plan.repository_id
+            || setup.run_context.candidate_revision != plan.candidate_revision
+            || setup.run_context.target != plan.target
+            || setup.run_context.protected_environment != plan.protected_environment
+            || setup.run_context.run_id != plan.run_id
+            || setup.run_context.run_attempt != plan.run_attempt
+            || setup.run_context.provider_run_id != plan.provider_run_id
+            || setup.domain != plan.domain
+        {
+            return Err("ClientProxy setup handoff differs from immutable ledger policy".into());
+        }
+        let setup_vector = setup
+            .vectors
+            .iter()
+            .find(|vector| vector.id == phase.scenario_id)
+            .ok_or_else(|| "ClientProxy phase has no protected setup vector".to_owned())?;
+        if setup_vector.scenario_program != reviewed_program {
+            return Err("ClientProxy setup program differs from immutable phase".into());
+        }
+        setup_vector
+            .cases
+            .iter()
+            .zip(setup_vector.scenario_program.cases())
+            .map(|(case, program_case)| {
+                let input = base64ct::Base64UrlUnpadded::decode_vec(&case.input_base64url)
+                    .map_err(string_error)?;
+                let input = qualification_case_profile_input_cbor(program_case.stimulus(), &input)
+                    .map_err(string_error)?;
+                Ok((
+                    case.case_id.clone(),
+                    hex::encode(local_preparation_input_commitment(&input)),
+                ))
+            })
+            .collect::<Result<BTreeMap<_, _>, String>>()?
+    } else {
+        BTreeMap::new()
+    };
     let supervisor_generation = value_for(&values, "--supervisor-generation", typed_source_usage)?
         .parse::<u32>()
         .map_err(string_error)?;
@@ -6970,6 +7079,8 @@ fn reviewed_client_case(
         .collect::<std::collections::BTreeSet<_>>();
     let setup_input_authoritative = shared.plan.domain == "stripe"
         || shared.phase.role == auths_profile_kit::QualificationOperationRole::Preflight;
+    let provider_free =
+        auths_profile_kit::qualification_plan_is_provider_free_configuration_mismatch(&shared.plan);
     let effect_bindings = shared
         .row_bindings
         .lock()
@@ -7006,11 +7117,10 @@ fn reviewed_client_case(
             );
             let same_intent =
                 hex::encode(local_idempotency_commitment(&intent)) == idempotency_sha256;
-            let exact_setup_input = facts.preparation_input_sha256.as_deref()
-                == shared
-                    .case_input_sha256
-                    .get(case.case_id())
-                    .map(String::as_str);
+            let setup_input = shared
+                .case_input_sha256
+                .get(case.case_id())
+                .map(String::as_str);
             let derived_input = effect_bindings
                 .get(&(
                     shared.phase.scenario_id.clone(),
@@ -7023,23 +7133,43 @@ fn reviewed_client_case(
                         commitments.primary_sha256.as_str()
                     }
                 });
-            let exact_derived_input = facts.preparation_input_sha256.as_deref() == derived_input;
             let fallback_input = fallback_inputs
                 .get(case.case_id())
                 .and_then(Option::as_deref);
-            let exact_fallback_input = facts.preparation_input_sha256.as_deref() == fallback_input;
             same_intent
-                && if setup_input_authoritative {
-                    exact_setup_input
-                } else if fallback_input.is_some() {
-                    exact_fallback_input
-                } else {
-                    exact_derived_input
-                }
+                && reviewed_client_input_matches(
+                    provider_free,
+                    setup_input_authoritative,
+                    facts.preparation_input_sha256.as_deref(),
+                    setup_input,
+                    fallback_input,
+                    derived_input,
+                )
                 && !used.contains(case.case_id())
         })
         .map(|case| case.case_id().to_owned())
         .ok_or_else(|| "ClientProxy request does not match one unconsumed reviewed case".to_owned())
+}
+
+#[cfg(any(target_os = "linux", test))]
+fn reviewed_client_input_matches(
+    provider_free: bool,
+    setup_input_authoritative: bool,
+    actual: Option<&str>,
+    setup: Option<&str>,
+    fallback: Option<&str>,
+    derived: Option<&str>,
+) -> bool {
+    if provider_free {
+        return fallback.is_some() && actual == fallback;
+    }
+    if setup_input_authoritative {
+        return setup.is_some() && actual == setup;
+    }
+    if fallback.is_some() {
+        return actual == fallback;
+    }
+    derived.is_some() && actual == derived
 }
 
 #[cfg(target_os = "linux")]
@@ -8743,6 +8873,43 @@ fn exact_flag_values_for<'a>(
     Ok(values)
 }
 
+#[cfg(any(target_os = "linux", test))]
+fn exact_flag_values_with_optional_for<'a>(
+    arguments: &'a [String],
+    command: &str,
+    required_flags: &[&str],
+    optional_flags: &[&str],
+    usage: fn() -> String,
+) -> Result<BTreeMap<&'a str, &'a str>, String> {
+    if arguments.first().map(String::as_str) != Some(command)
+        || arguments.len() < 1 + required_flags.len() * 2
+        || arguments.len() > 1 + (required_flags.len() + optional_flags.len()) * 2
+        || arguments.len().is_multiple_of(2)
+    {
+        return Err(usage());
+    }
+    let required = required_flags.iter().copied().collect::<BTreeSet<_>>();
+    let allowed = required_flags
+        .iter()
+        .chain(optional_flags)
+        .copied()
+        .collect::<BTreeSet<_>>();
+    let mut values = BTreeMap::new();
+    for pair in arguments[1..].chunks_exact(2) {
+        let flag = pair[0].as_str();
+        if !allowed.contains(flag)
+            || pair[1].is_empty()
+            || values.insert(flag, pair[1].as_str()).is_some()
+        {
+            return Err(usage());
+        }
+    }
+    if required.iter().any(|flag| !values.contains_key(flag)) {
+        return Err(usage());
+    }
+    Ok(values)
+}
+
 #[cfg(target_os = "linux")]
 fn value<'a>(values: &'a BTreeMap<&str, &'a str>, flag: &str) -> Result<&'a str, String> {
     values.get(flag).copied().ok_or_else(journal_reader_usage)
@@ -10110,6 +10277,88 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn client_proxy_setup_handoff_is_the_only_optional_row_and_phase_argument() {
+        let required = ["--ledger-plan", "--source-trust"];
+        let base = vec![
+            "serve-reader-session".to_owned(),
+            "--ledger-plan".to_owned(),
+            "plan.json".to_owned(),
+            "--source-trust".to_owned(),
+            "trust.json".to_owned(),
+        ];
+        assert!(
+            exact_flag_values_with_optional_for(
+                &base,
+                "serve-reader-session",
+                &required,
+                &["--setup-handoff"],
+                supervisor_usage,
+            )
+            .is_ok()
+        );
+        let mut with_handoff = base.clone();
+        with_handoff.extend(["--setup-handoff".to_owned(), "setup.json".to_owned()]);
+        assert!(
+            exact_flag_values_with_optional_for(
+                &with_handoff,
+                "serve-reader-session",
+                &required,
+                &["--setup-handoff"],
+                supervisor_usage,
+            )
+            .is_ok()
+        );
+        let mut duplicate = with_handoff;
+        duplicate.extend(["--setup-handoff".to_owned(), "other.json".to_owned()]);
+        assert!(
+            exact_flag_values_with_optional_for(
+                &duplicate,
+                "serve-reader-session",
+                &required,
+                &["--setup-handoff"],
+                supervisor_usage,
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn provider_free_client_input_requires_the_exact_reviewed_fallback() {
+        assert!(reviewed_client_input_matches(
+            true,
+            true,
+            Some("reviewed"),
+            None,
+            Some("reviewed"),
+            None,
+        ));
+        assert!(!reviewed_client_input_matches(
+            true,
+            true,
+            Some("changed"),
+            None,
+            Some("reviewed"),
+            None,
+        ));
+        assert!(!reviewed_client_input_matches(
+            true,
+            true,
+            None,
+            None,
+            Some("reviewed"),
+            None,
+        ));
+        assert!(!reviewed_client_input_matches(
+            true,
+            true,
+            Some("reviewed"),
+            None,
+            None,
+            None,
+        ));
     }
 
     #[test]

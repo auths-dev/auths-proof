@@ -1207,14 +1207,20 @@ It is signed by the domain-scoped protected observer key and verified through
 `observer-trust-keys.json`.
 
 The observation also carries the exact recovery key ID and Ed25519 public key
-of the exercised agent. Every independently source-signed `decision-durable`
-journal-reader event carries that same recovery identity and the exact receipt
-trust-anchor digest read from durable agent configuration. The protected
-observer and final attester require exact equality across every provider-run
-ledger, the signed observation, the exported receipt anchors, and the protected
-deployment policy before applying the global key-separation check. A public
-policy value without this authenticated exercised-agent binding is not
-qualification evidence.
+of the exercised agent. The immutable ledger plan and every source-event
+context commit the exact public agent-configuration digest, recovery identity,
+and receipt-trust-anchor digest. The protected launcher authenticates the exact
+candidate executable and configuration, verifies the seed-derived agent
+identities, and waits for `READY`; only then may the controller request the
+source-signed `ScenarioStarted` event. That post-`READY` event is the
+exercised-agent binding for an operation-free admission phase. Every
+independently source-signed `decision-durable` journal-reader event additionally
+carries the same recovery identity and receipt-trust-anchor digest whenever a
+decision exists. The protected observer and final attester require exact
+equality across every provider-run ledger, the signed observation, the exported
+receipt anchors, and the protected deployment policy before applying the
+global key-separation check. A plan or public-policy value without the
+post-`READY` source-signed event is not qualification evidence.
 
 The observer executes only pinned trusted code, verifies the complete retained
 source records and ledger, independently rereads durable journal/profile state,

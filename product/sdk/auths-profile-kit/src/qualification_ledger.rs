@@ -1249,11 +1249,17 @@ pub struct QualificationEvidenceLedgerPlanV1 {
     /// Exact unprivileged identity of the exercised qualification agent.
     pub agent_uid: u32,
     pub agent_gid: u32,
+    /// Digest of the exact protected launcher that exercised the agent.
+    pub agent_launcher_artifact_sha256: String,
     /// Digest of the verified release-built qualification agent executable.
     pub agent_executable_sha256: String,
+    /// Digest of the exact public configuration loaded by the exercised agent.
+    pub agent_configuration_sha256: String,
     /// Deployed public recovery-handle verification identity.
     pub recovery_key_id: String,
     pub recovery_public_key_base64url: String,
+    /// Digest of the exact public receipt-anchor snapshot loaded at startup.
+    pub receipt_trust_anchor_sha256: String,
     pub phases: Vec<QualificationEvidencePhasePlanV1>,
     pub started_at_unix_seconds: u64,
     pub deadline_at_unix_seconds: u64,
@@ -1285,9 +1291,12 @@ pub struct QualificationEvidenceLedgerRecord {
     pub ledger_appender_artifact_sha256: String,
     pub agent_uid: u32,
     pub agent_gid: u32,
+    pub agent_launcher_artifact_sha256: String,
     pub agent_executable_sha256: String,
+    pub agent_configuration_sha256: String,
     pub recovery_key_id: String,
     pub recovery_public_key_base64url: String,
+    pub receipt_trust_anchor_sha256: String,
     pub phase_commitments: Vec<QualificationEvidencePhaseCommitment>,
     pub events: Vec<QualificationEvidenceEvent>,
     pub started_at_unix_seconds: u64,
@@ -1372,9 +1381,12 @@ impl QualificationEvidenceLedgerRecord {
             || self.agent_gid == 0
             || self.agent_gid == u32::MAX
             || self.agent_uid == self.supervisor_controller_uid
+            || !digest(&self.agent_launcher_artifact_sha256)
             || !digest(&self.agent_executable_sha256)
+            || !digest(&self.agent_configuration_sha256)
             || !registered_token(&self.recovery_key_id)
             || decode_fixed::<32>(&self.recovery_public_key_base64url).is_err()
+            || !digest(&self.receipt_trust_anchor_sha256)
             || self.phase_commitments.is_empty()
             || self.phase_commitments.len() > MAX_PHASES
             || self.events.is_empty()
@@ -1404,9 +1416,11 @@ impl QualificationEvidenceLedgerRecord {
                 QualificationEvidenceEventPayload::Decision {
                     recovery_key_id,
                     recovery_public_key_base64url,
+                    receipt_trust_anchor_sha256,
                     ..
                 } if recovery_key_id != &self.recovery_key_id
                     || recovery_public_key_base64url != &self.recovery_public_key_base64url
+                    || receipt_trust_anchor_sha256 != &self.receipt_trust_anchor_sha256
             )
         }) {
             return Err(QualificationEvidenceLedgerError::InvalidRecord);
@@ -1414,27 +1428,22 @@ impl QualificationEvidenceLedgerRecord {
         validate_phases(&self.phase_commitments, &self.events)
     }
 
-    /// Returns the actual exercised agent trust identity authenticated by the
-    /// independently signed journal-reader decision events.
+    /// Returns the exercised agent trust identity bound by the immutable
+    /// source context and source-signed post-READY phase start. Every durable
+    /// Decision event is additionally required to exact-match these values.
     #[must_use]
     pub fn agent_trust(&self) -> Option<QualificationAgentTrust<'_>> {
-        self.events.iter().find_map(|event| {
-            if let QualificationEvidenceEventPayload::Decision {
-                recovery_key_id,
-                recovery_public_key_base64url,
-                receipt_trust_anchor_sha256,
-                ..
-            } = &event.payload
-            {
-                Some(QualificationAgentTrust {
-                    recovery_key_id,
-                    recovery_public_key_base64url,
-                    receipt_trust_anchor_sha256,
-                })
-            } else {
-                None
-            }
-        })
+        self.events
+            .iter()
+            .any(|event| {
+                event.source == QualificationEvidenceSource::Supervisor
+                    && event.kind == QualificationEvidenceEventKind::ScenarioStarted
+            })
+            .then_some(QualificationAgentTrust {
+                recovery_key_id: &self.recovery_key_id,
+                recovery_public_key_base64url: &self.recovery_public_key_base64url,
+                receipt_trust_anchor_sha256: &self.receipt_trust_anchor_sha256,
+            })
     }
 
     /// Finds the one exact reviewed phase commitment.
@@ -1596,9 +1605,12 @@ impl QualificationEvidenceLedgerRecord {
             ledger_appender_artifact_sha256: self.ledger_appender_artifact_sha256.clone(),
             agent_uid: self.agent_uid,
             agent_gid: self.agent_gid,
+            agent_launcher_artifact_sha256: self.agent_launcher_artifact_sha256.clone(),
             agent_executable_sha256: self.agent_executable_sha256.clone(),
+            agent_configuration_sha256: self.agent_configuration_sha256.clone(),
             recovery_key_id: self.recovery_key_id.clone(),
             recovery_public_key_base64url: self.recovery_public_key_base64url.clone(),
+            receipt_trust_anchor_sha256: self.receipt_trust_anchor_sha256.clone(),
             phases: self
                 .phase_commitments
                 .iter()
@@ -2352,6 +2364,123 @@ pub fn qualification_common_phase_matches_ledger(
     Ok(true)
 }
 
+/// Requires the exact operation-free transcript for one reviewed
+/// pre-admission phase.
+///
+/// This is deliberately stricter than the general phase matcher. Only the
+/// Supervisor start/completion pair and one `ClientProxy` ingress/terminal pair
+/// per reviewed attempt are admitted.
+#[must_use]
+pub fn qualification_common_phase_is_exact_pre_admission(
+    events: &[&QualificationEvidenceEvent],
+    phase: &crate::QualificationCommonPhaseEvidence,
+) -> bool {
+    use QualificationEvidenceEventKind as Kind;
+    use QualificationEvidenceSource as Source;
+
+    let Some(expected_attempts) =
+        crate::qualification_pre_admission_attempt_count(&phase.scenario_id)
+    else {
+        return false;
+    };
+    let expected_events = expected_attempts
+        .checked_mul(2)
+        .and_then(|count| count.checked_add(2));
+    phase.failpoint.is_none()
+        && phase.instances.is_empty()
+        && phase.attempts.len() == expected_attempts
+        && Some(events.len()) == expected_events
+        && phase.attempts.iter().all(|attempt| {
+            attempt.kind == crate::QualificationAttemptKind::Execute
+                && attempt.operation_id.is_none()
+                && attempt.recovery_id.is_none()
+                && attempt.outcome == QualificationOutcomeKind::Unavailable
+                && attempt.completion.is_none()
+                && attempt.connection_generation.is_none()
+                && attempt.requested_scope_sha256.is_none()
+                && attempt.configuration_sha256.is_none()
+                && attempt.sealed_command_sha256.is_none()
+                && attempt.receipt_ids.is_empty()
+        })
+        && events.iter().all(|event| {
+            event.operation_id.is_none()
+                && event.connection_generation.is_none()
+                && event.receipt_id.is_none()
+                && matches!(
+                    (event.source, event.kind),
+                    (
+                        Source::Supervisor,
+                        Kind::ScenarioStarted | Kind::ScenarioCompleted
+                    ) | (
+                        Source::ClientProxy,
+                        Kind::RequestReceived | Kind::ResponseProjected
+                    )
+                )
+        })
+        && events
+            .iter()
+            .filter(|event| event.kind == Kind::ScenarioStarted)
+            .count()
+            == 1
+        && events
+            .iter()
+            .filter(|event| event.kind == Kind::ScenarioCompleted)
+            .count()
+            == 1
+        && events
+            .iter()
+            .filter(|event| event.kind == Kind::RequestReceived)
+            .count()
+            == expected_attempts
+        && events
+            .iter()
+            .filter(|event| event.kind == Kind::ResponseProjected)
+            .count()
+            == expected_attempts
+}
+
+/// Reports whether a plan is the one deliberately provider-free Linux
+/// configuration-mismatch acceptance fixture. The zero setup and cleanup
+/// commitments are part of the authority boundary, not placeholders for a
+/// normal provider qualification row.
+#[must_use]
+pub fn qualification_plan_is_provider_free_configuration_mismatch(
+    plan: &QualificationEvidenceLedgerPlanV1,
+) -> bool {
+    let [phase] = plan.phases.as_slice() else {
+        return false;
+    };
+    plan.domain == "stripe"
+        && plan.target == crate::QualificationTarget::LinuxX86_64
+        && plan.setup_handoff_sha256.bytes().all(|byte| byte == b'0')
+        && plan
+            .cleanup_reference_sha256
+            .bytes()
+            .all(|byte| byte == b'0')
+        && phase.scenario_id == "configuration-mismatch"
+        && phase.phase_index == 1
+        && phase.role == crate::QualificationOperationRole::Effect
+        && phase.profile == "auths.stripe.refund/1"
+        && phase.failpoint.is_none()
+}
+
+/// Exact-compares a retained phase and additionally proves that it is one of
+/// the closed operation-free pre-admission transcripts.
+pub fn qualification_common_phase_matches_exact_pre_admission_ledger(
+    ledger: &QualificationEvidenceLedgerRecord,
+    commitment: &QualificationEvidencePhaseCommitment,
+    phase: &crate::QualificationCommonPhaseEvidence,
+) -> Result<bool, QualificationEvidenceLedgerError> {
+    let Some(events) = ledger.phase_events(commitment) else {
+        return Ok(false);
+    };
+    let event_refs = events.iter().collect::<Vec<_>>();
+    Ok(
+        qualification_common_phase_matches_ledger(ledger, commitment, phase)?
+            && qualification_common_phase_is_exact_pre_admission(&event_refs, phase),
+    )
+}
+
 fn common_receipt_claims_match_attempts(
     operation: &crate::QualificationCommonOperationEvidence,
     attempts: &[crate::QualificationRedactedAttempt],
@@ -2528,9 +2657,12 @@ impl QualificationEvidenceLedgerPlanV1 {
             || self.agent_gid == 0
             || self.agent_gid == u32::MAX
             || self.agent_uid == self.supervisor_controller_uid
+            || !digest(&self.agent_launcher_artifact_sha256)
             || !digest(&self.agent_executable_sha256)
+            || !digest(&self.agent_configuration_sha256)
             || !registered_token(&self.recovery_key_id)
             || decode_fixed::<32>(&self.recovery_public_key_base64url).is_err()
+            || !digest(&self.receipt_trust_anchor_sha256)
             || self.phases.is_empty()
             || self.phases.len() > MAX_PHASES
             || self.started_at_unix_seconds >= self.deadline_at_unix_seconds
@@ -2583,8 +2715,10 @@ impl QualificationEvidenceLedgerPlanV1 {
             .collect::<Vec<_>>();
         let context = serde_json::json!({
             "attesterRevision": self.attester_revision,
+            "agentConfigurationSha256": self.agent_configuration_sha256,
             "agentExecutableSha256": self.agent_executable_sha256,
             "agentGid": self.agent_gid,
+            "agentLauncherArtifactSha256": self.agent_launcher_artifact_sha256,
             "agentUid": self.agent_uid,
             "candidateRevision": self.candidate_revision,
             "domain": self.domain,
@@ -2595,6 +2729,7 @@ impl QualificationEvidenceLedgerPlanV1 {
             "providerRunId": self.provider_run_id,
             "recoveryKeyId": self.recovery_key_id,
             "recoveryPublicKeyBase64url": self.recovery_public_key_base64url,
+            "receiptTrustAnchorSha256": self.receipt_trust_anchor_sha256,
             "repositoryId": self.repository_id,
             "runAttempt": self.run_attempt,
             "runId": self.run_id,
@@ -6339,9 +6474,12 @@ mod tests {
             ledger_appender_artifact_sha256: "7".repeat(64),
             agent_uid: 1001,
             agent_gid: 1001,
+            agent_launcher_artifact_sha256: "d".repeat(64),
             agent_executable_sha256: "6".repeat(64),
+            agent_configuration_sha256: "b".repeat(64),
             recovery_key_id: "recovery".into(),
             recovery_public_key_base64url: Base64UrlUnpadded::encode_string(&[9; 32]),
+            receipt_trust_anchor_sha256: "c".repeat(64),
             phase_commitments: vec![QualificationEvidencePhaseCommitment {
                 scenario_id: "happy-path".into(),
                 phase_index: 1,
@@ -6376,6 +6514,33 @@ mod tests {
         );
         record.events = vec![first, second];
         record
+    }
+
+    #[test]
+    fn provider_free_plan_is_one_exact_zero_commitment_configuration_mismatch() {
+        let mut plan = record().source_plan();
+        plan.setup_handoff_sha256 = ZERO_DIGEST.into();
+        plan.cleanup_reference_sha256 = ZERO_DIGEST.into();
+        plan.phases[0].scenario_id = "configuration-mismatch".into();
+        assert!(qualification_plan_is_provider_free_configuration_mismatch(
+            &plan
+        ));
+
+        let mut changed = plan.clone();
+        changed.setup_handoff_sha256 = "1".repeat(64);
+        assert!(!qualification_plan_is_provider_free_configuration_mismatch(
+            &changed
+        ));
+        let mut changed = plan.clone();
+        changed.phases[0].failpoint = Some(QualificationFailpoint::AfterDecision);
+        assert!(!qualification_plan_is_provider_free_configuration_mismatch(
+            &changed
+        ));
+        let mut changed = plan;
+        changed.phases.push(changed.phases[0].clone());
+        assert!(!qualification_plan_is_provider_free_configuration_mismatch(
+            &changed
+        ));
     }
 
     #[test]
@@ -6576,6 +6741,25 @@ mod tests {
             )
             .unwrap()
         );
+        let mismatch_events = mismatch_ledger.events.iter().collect::<Vec<_>>();
+        assert!(qualification_common_phase_is_exact_pre_admission(
+            &mismatch_events,
+            &mismatch_phase,
+        ));
+        assert!(
+            qualification_common_phase_matches_exact_pre_admission_ledger(
+                &mismatch_ledger,
+                &mismatch_ledger.phase_commitments[0],
+                &mismatch_phase,
+            )
+            .unwrap()
+        );
+        let mut failpoint_phase = mismatch_phase.clone();
+        failpoint_phase.failpoint = Some(QualificationFailpoint::AfterDecision);
+        assert!(!qualification_common_phase_is_exact_pre_admission(
+            &mismatch_events,
+            &failpoint_phase,
+        ));
 
         for wrong_fault in [
             None,
@@ -7195,9 +7379,12 @@ mod tests {
             ledger_appender_artifact_sha256: "7".repeat(64),
             agent_uid: context.agent_uid,
             agent_gid: context.agent_gid,
+            agent_launcher_artifact_sha256: context.agent_launcher_artifact_sha256.clone(),
             agent_executable_sha256: context.agent_executable_sha256.clone(),
+            agent_configuration_sha256: "b".repeat(64),
             recovery_key_id: "recovery".into(),
             recovery_public_key_base64url: Base64UrlUnpadded::encode_string(&[9; 32]),
+            receipt_trust_anchor_sha256: "c".repeat(64),
             phases: vec![context.phase.clone()],
             started_at_unix_seconds: NOW - 10,
             deadline_at_unix_seconds: NOW + 10,

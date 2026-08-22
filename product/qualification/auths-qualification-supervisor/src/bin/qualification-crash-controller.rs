@@ -10,6 +10,7 @@
 
 #[cfg(target_os = "linux")]
 mod linux {
+    use auths_config::{AgentConfig, AgentPlatform};
     use auths_lifecycle::OperationEffectV1;
     use auths_profile_kit::{
         QualificationCrashActionContextV1, QualificationCrashActionFactsV1,
@@ -31,6 +32,7 @@ mod linux {
         qualification_profile_state_snapshot_path, read_bounded_session_frame_before,
         read_source_session_frame_before, write_source_session_frame_before,
     };
+    use auths_qualification_supervisor::qualification_receipt_anchors_from_agent_config;
     use auths_stores::{
         QualificationJournalBoundaryKindV1, open_persisted_operation_snapshot_at_for_qualification,
         read_persisted_operation_record_from_qualification_snapshot,
@@ -475,8 +477,30 @@ mod linux {
             false,
         )?;
         let agent_configuration_sha256 = hex::encode(Sha256::digest(&agent_config_bytes));
-        if agent_configuration_sha256 != required_env("AUTHS_QUALIFICATION_AGENT_CONFIG_SHA256")? {
+        if agent_configuration_sha256 != plan.agent_configuration_sha256
+            || agent_configuration_sha256
+                != required_env("AUTHS_QUALIFICATION_AGENT_CONFIG_SHA256")?
+        {
             return Err("ordinary phase agent config differs from protected policy".into());
+        }
+        let receipt_trust = read_bounded(
+            Path::new(value(&values, "--receipt-trust")?),
+            MAX_RECEIPT_TRUST_BYTES,
+            false,
+        )?;
+        let receipt_trust_anchor_sha256 = hex::encode(Sha256::digest(&receipt_trust));
+        if receipt_trust_anchor_sha256 != plan.receipt_trust_anchor_sha256 {
+            return Err("ordinary phase receipt trust differs from protected policy".into());
+        }
+        let agent_config = AgentConfig::from_toml(
+            std::str::from_utf8(&agent_config_bytes).map_err(string_error)?,
+            AgentPlatform::Linux,
+        )
+        .map_err(string_error)?;
+        if qualification_receipt_anchors_from_agent_config(&agent_config)? != receipt_trust {
+            return Err(
+                "ordinary phase receipt trust differs from the exercised agent config".into(),
+            );
         }
         let state_directory_path = Path::new(value(&values, "--agent-state-directory")?);
         let state_directory = open_protected_state_directory(state_directory_path, agent_uid)?;
@@ -688,6 +712,9 @@ mod linux {
             })?;
         let deadline = Instant::now() + Duration::from_secs(remaining);
         let launcher_sha256 = required_env("AUTHS_QUALIFICATION_AGENT_LAUNCHER_SHA256")?;
+        if launcher_sha256 != plan.agent_launcher_artifact_sha256 {
+            return Err("ordinary phase launcher differs from the immutable plan".into());
+        }
         let cgroup = Path::new(value(&values, "--cgroup")?);
         let crash_identity_ref = crash_identity
             .as_ref()
@@ -831,11 +858,7 @@ mod linux {
                 state_directory: state_directory.try_clone().map_err(string_error)?,
                 common_root: common_root.to_path_buf(),
                 principal: value(&values, "--principal")?.to_owned(),
-                receipt_trust: read_bounded(
-                    Path::new(value(&values, "--receipt-trust")?),
-                    MAX_RECEIPT_TRUST_BYTES,
-                    false,
-                )?,
+                receipt_trust,
                 decision_supervisor_socket: PathBuf::from(value(
                     &values,
                     "--decision-supervisor-socket",
@@ -1952,7 +1975,8 @@ mod linux {
                 ) == self.policy.phase.profile
             })
             .collect::<Vec<_>>();
-            if boundaries.is_empty() {
+            let allow_empty = pre_admission_rejection_scenario(&self.policy.phase.scenario_id);
+            if boundaries.is_empty() && !allow_empty {
                 return Err("journal has no durable boundaries for the exact phase".into());
             }
             let boundary_kinds = boundaries
@@ -2066,29 +2090,12 @@ mod linux {
         }
 
         fn verify_pre_admission_empty(&mut self, deadline: Instant) -> Result<(), String> {
-            self.policy.verify_agent_unchanged()?;
-            let mut snapshot = open_persisted_operation_snapshot_at_for_qualification(
-                &self.policy.state_directory,
-                self.policy.plan.agent_uid,
-            )
-            .map_err(string_error)?;
-            self.policy.verify_prior_journal_prefix(&mut snapshot)?;
-            let records = read_persisted_operation_records_from_qualification_snapshot(
-                &mut snapshot,
-                self.policy.plan.agent_uid,
-            )
-            .map_err(string_error)?;
-            let boundaries = read_persisted_qualification_boundaries_from_snapshot(
-                &mut snapshot,
-                self.policy.plan.agent_uid,
-            )
-            .map_err(string_error)?;
-            if records.len() != self.policy.prior_record_sha256.len()
-                || boundaries.len() != self.policy.prior_boundary_sha256.len()
+            if !self.decisions.is_empty()
+                || !self.drain(deadline)?.is_empty()
+                || !self.boundary_processes.is_empty()
             {
                 return Err("pre-admission rejection changed the prior journal prefix".into());
             }
-            self.drain_profile_state(&mut snapshot, false, deadline)?;
             self.policy.verify_agent_unchanged()
         }
 

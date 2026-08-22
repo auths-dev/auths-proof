@@ -77,8 +77,11 @@ pub use qualification_ledger::{
     QualificationProviderObserverRecordV1, QualificationProviderProxyObservationV1,
     QualificationProviderProxyRecordV1, QualificationReceiptVerifierRecordV1,
     QualificationSourceEventContextV1, QualificationSourceProcessBindingV1,
-    QualificationSupervisorPhaseRequestV1, qualification_common_phase_matches_ledger,
-    qualification_event_marker_sha256, qualification_evidence_event_chain_valid,
+    QualificationSupervisorPhaseRequestV1, qualification_common_phase_is_exact_pre_admission,
+    qualification_common_phase_matches_exact_pre_admission_ledger,
+    qualification_common_phase_matches_ledger, qualification_event_marker_sha256,
+    qualification_evidence_event_chain_valid,
+    qualification_plan_is_provider_free_configuration_mismatch,
     qualification_state_directory_commitment, qualification_supervisor_phase_context_sha256,
 };
 pub use roster::{

@@ -10,8 +10,19 @@ require_file() {
   [[ -f "$1" && ! -L "$1" ]] || die "required regular file is absent: $1"
 }
 
+resolve_row_ids() {
+  if [[ -n "${QUALIFICATION_PROVIDER_RUN:-}" ]]; then
+    jq -er --arg row "$QUALIFICATION_PROVIDER_RUN" \
+      '.runs | map(.id) | if length > 0 and length == (unique | length) and ([.[] | select(. == $row)] | length) == 1 then $row else error("selected row is absent or the roster is invalid") end' \
+      "$MATRIX"
+  else
+    jq -er '.runs | map(.id) | if length > 0 and length == (unique | length) then .[] else error("invalid row roster") end' "$MATRIX"
+  fi
+}
+
 row_ids() {
-  jq -er '.runs | map(.id) | if length > 0 and length == (unique | length) then .[] else error("invalid row roster") end' "$MATRIX"
+  [[ -n "${RESOLVED_ROW_IDS:-}" ]] || die "row roster was not resolved"
+  printf '%s\n' "$RESOLVED_ROW_IDS"
 }
 
 row_runtime() {
@@ -246,21 +257,29 @@ start_source() {
 
 start_provider_observer_readers() {
   local row runtime uid gid binary first_scenario first_phase
-  [[ -n "${QUALIFICATION_RUNTIME_READ_CREDENTIAL:-}" ]] \
-    || die "ProviderObserver runtime-read credential is absent"
   uid="$(policy_value provider-observer readerUid)"
   binary="$(source_binary provider-observer)"
   require_file "$binary"
   while read -r row; do
     runtime="$(row_runtime "$row")"
     gid="$(jq -er '.agentGid' "$runtime/ledger-plan.json")"
-    start_runtime_read_background "$runtime" provider-observer-reader "$uid" "$gid" \
-      "$binary" serve-ordinary-row-session \
-      --runtime-root "$runtime" \
-      --signer-socket "$runtime/provider-observer-signer/source.sock" \
-      --sequencer-socket "$runtime/sequencer.sock" \
-      --ledger-plan "$runtime/provider-observer-reader/ledger-plan.json" \
-      --source-trust "$runtime/provider-observer-reader/source-trust.json"
+    if [[ -n "${QUALIFICATION_RUNTIME_READ_CREDENTIAL:-}" ]]; then
+      start_runtime_read_background "$runtime" provider-observer-reader "$uid" "$gid" \
+        "$binary" serve-ordinary-row-session \
+        --runtime-root "$runtime" \
+        --signer-socket "$runtime/provider-observer-signer/source.sock" \
+        --sequencer-socket "$runtime/sequencer.sock" \
+        --ledger-plan "$runtime/provider-observer-reader/ledger-plan.json" \
+        --source-trust "$runtime/provider-observer-reader/source-trust.json"
+    else
+      start_background "$runtime" provider-observer-reader "$uid" "$gid" \
+        "$binary" serve-ordinary-row-session \
+        --runtime-root "$runtime" \
+        --signer-socket "$runtime/provider-observer-signer/source.sock" \
+        --sequencer-socket "$runtime/sequencer.sock" \
+        --ledger-plan "$runtime/provider-observer-reader/ledger-plan.json" \
+        --source-trust "$runtime/provider-observer-reader/source-trust.json"
+    fi
     first_scenario="$(jq -er '.phases[0].scenarioId' "$runtime/ledger-plan.json")"
     first_phase="$(jq -er '.phases[0].phaseIndex' "$runtime/ledger-plan.json")"
     wait_for_socket \
@@ -270,21 +289,30 @@ start_provider_observer_readers() {
 }
 
 start_readers() {
-  local row runtime uid gid binary first_scenario first_phase
+  local row runtime uid gid binary first_scenario first_phase setup_handoff_sha256
+  local -a client_proxy_arguments
   while read -r row; do
     runtime="$(row_runtime "$row")"
     gid="$(jq -er '.agentGid' "$runtime/ledger-plan.json")"
 
     uid="$(policy_value client-proxy readerUid)"
     binary="$(source_binary client-proxy)"
+    client_proxy_arguments=(
+      "$binary" serve-ordinary-row-session
+      --runtime-root "$runtime"
+      --signer-socket "$runtime/client-proxy-signer/source.sock"
+      --sequencer-socket "$runtime/sequencer.sock"
+      --ledger-plan "$runtime/client-proxy-reader/ledger-plan.json"
+      --source-trust "$runtime/client-proxy-reader/source-trust.json"
+    )
+    setup_handoff_sha256="$(jq -er '.setupHandoffSha256' "$runtime/ledger-plan.json")"
+    if [[ "$setup_handoff_sha256" != "$(printf '0%.0s' {1..64})" ]]; then
+      client_proxy_arguments+=(
+        --setup-handoff "$runtime/client-proxy-reader/setup-handoff.json"
+      )
+    fi
     start_background "$runtime" client-proxy-reader "$uid" "$gid" \
-      "$binary" serve-ordinary-row-session \
-      --runtime-root "$runtime" \
-      --signer-socket "$runtime/client-proxy-signer/source.sock" \
-      --sequencer-socket "$runtime/sequencer.sock" \
-      --ledger-plan "$runtime/client-proxy-reader/ledger-plan.json" \
-      --source-trust "$runtime/client-proxy-reader/source-trust.json" \
-      --setup-handoff "$runtime/client-proxy-reader/setup-handoff.json"
+      "${client_proxy_arguments[@]}"
 
     uid="$(policy_value credential-broker readerUid)"
     binary="$(source_binary credential-broker)"
@@ -344,14 +372,14 @@ wait_all() {
   local row runtime file status=0 deadline service_status
   while read -r row; do
     runtime="$(row_runtime "$row")"
-    deadline="$(jq -er '.deadlineAtUnixSeconds' "$runtime/ledger-plan.json")"
+    deadline=$((SECONDS + 30))
     for file in "$runtime"/pids/*.pid; do
       [[ -e "$file" ]] || continue
-      while [[ ! -f "${file%.pid}.status" && "$(date +%s)" -lt "$deadline" ]]; do
+      while [[ ! -f "${file%.pid}.status" && $SECONDS -lt $deadline ]]; do
         sleep 0.1
       done
       if [[ ! -f "${file%.pid}.status" ]]; then
-        printf 'service exceeded row deadline: %s\n' "${file##*/}" >&2
+        printf 'service exceeded post-controller shutdown deadline: %s\n' "${file##*/}" >&2
         status=1
         continue
       fi
@@ -497,6 +525,7 @@ if [[ "$COMMAND" == materialize-agent-key ]]; then
   : "${AGENT_CONFIG:?AGENT_CONFIG is required}"
   require_file "$MATRIX"
   require_file "$AGENT_CONFIG"
+  RESOLVED_ROW_IDS="$(resolve_row_ids)" || die "could not resolve the selected row roster"
   materialize_agent_key "$1"
   exit 0
 fi
@@ -509,6 +538,7 @@ fi
 : "${AGENT_GID:?AGENT_GID is required}"
 require_file "$MATRIX"
 require_file "$SOURCE_TRUST"
+RESOLVED_ROW_IDS="$(resolve_row_ids)" || die "could not resolve the selected row roster"
 
 case "$COMMAND" in
   start-appender)
@@ -521,7 +551,6 @@ case "$COMMAND" in
     ;;
   start-readers) start_readers ;;
   start-provider-observer-readers)
-    : "${QUALIFICATION_RUNTIME_READ_CREDENTIAL:?QUALIFICATION_RUNTIME_READ_CREDENTIAL is required}"
     start_provider_observer_readers
     ;;
   wait) wait_all ;;

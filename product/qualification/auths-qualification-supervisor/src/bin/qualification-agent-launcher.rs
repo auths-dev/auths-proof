@@ -11,6 +11,7 @@
 mod linux {
     use auths_profile_kit::{
         QualificationEvidenceLedgerPlanV1, QualificationFailpoint,
+        qualification_plan_is_provider_free_configuration_mismatch,
         qualification_state_directory_commitment,
     };
     use base64ct::{Base64UrlUnpadded, Encoding as _};
@@ -347,13 +348,24 @@ mod linux {
         {
             return Err("qualification state directory differs from its protected identity".into());
         }
-        install_public_connection_store(
-            Path::new(value(&values, "--qualification-connection-store-template")?),
-            &state_directory,
-            credential_broker_uid,
-            uid,
-            gid,
-        )?;
+        if qualification_plan_is_provider_free_configuration_mismatch(&plan) {
+            if read_agent_store_at(&state_directory, CONNECTION_STORE_NAME, uid, false)?.is_some()
+                || read_agent_store_at(&state_directory, CONNECTION_STORE_STAGE_NAME, uid, true)?
+                    .is_some()
+            {
+                return Err(
+                    "provider-free qualification state contains connection material".into(),
+                );
+            }
+        } else {
+            install_public_connection_store(
+                Path::new(value(&values, "--qualification-connection-store-template")?),
+                &state_directory,
+                credential_broker_uid,
+                uid,
+                gid,
+            )?;
+        }
         // The exact directory descriptor is intentionally the only additional
         // descriptor inherited by candidate code. Its identity is rechecked by
         // the qualification agent before any state member is opened.

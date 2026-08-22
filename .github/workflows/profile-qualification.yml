@@ -13,6 +13,13 @@ on:
 
 permissions: {actions: read, attestations: read, contents: read}
 
+# Installed candidate code is not allowed to run in this secret-bearing job
+# until the shared ordinary/provider-free SDK process boundary is implemented.
+# The repository-owned provider-free protocol is retained below, but remains
+# independently gated until that Linux acceptance path is reviewed as well.
+env:
+  PROVIDER_FREE_SANDBOX_READY: "false"
+
 jobs:
   collect:
     environment: ${{ inputs.protected_environment }}
@@ -169,14 +176,18 @@ jobs:
           ATTESTER_REVISION: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_REVISION }}
           SUPERVISOR_CONTROLLER_SHA256: ${{ steps.tools.outputs.crash_controller_sha256 }}
           LEDGER_APPENDER_SHA256: ${{ steps.tools.outputs.ledger_appender_sha256 }}
+          AGENT_LAUNCHER_SHA256: ${{ steps.tools.outputs.agent_launcher_sha256 }}
           AGENT_UID: ${{ vars.AUTHS_QUALIFICATION_AGENT_UID }}
           AGENT_GID: ${{ vars.AUTHS_QUALIFICATION_AGENT_GID }}
           WORKLOAD_ID_SHA256: ${{ vars.AUTHS_QUALIFICATION_WORKLOAD_ID_SHA256 }}
           RECOVERY_KEY_ID: ${{ vars.AUTHS_QUALIFICATION_RECOVERY_KEY_ID }}
           RECOVERY_PUBLIC_KEY_BASE64URL: ${{ vars.AUTHS_QUALIFICATION_RECOVERY_PUBLIC_KEY_BASE64URL }}
+          RECEIPT_TRUST_SHA256: ${{ vars.AUTHS_QUALIFICATION_RECEIPT_TRUST_ANCHOR_SHA256 }}
         run: |
           set -euo pipefail
           receipt_trust="$GITHUB_WORKSPACE/target/qualification-common-evidence/$DOMAIN/$TARGET/anchor-snapshots/receipt-trust-anchors.json"
+          agent_config="$RUNNER_TEMP/qualification-agent-config/$DOMAIN/$TARGET/agent.toml"
+          agent_config_sha256="$(sha256sum "$agent_config" | awk '{print $1}')"
           while read -r provider_run; do
             env -i \
               AUTHS_XTASK_REPOSITORY_ROOT="$GITHUB_WORKSPACE" \
@@ -185,11 +196,14 @@ jobs:
               AUTHS_QUALIFICATION_ATTESTER_REVISION="$ATTESTER_REVISION" \
               AUTHS_QUALIFICATION_SUPERVISOR_CONTROLLER_SHA256="$SUPERVISOR_CONTROLLER_SHA256" \
               AUTHS_QUALIFICATION_LEDGER_APPENDER_SHA256="$LEDGER_APPENDER_SHA256" \
+              AUTHS_QUALIFICATION_AGENT_LAUNCHER_SHA256="$AGENT_LAUNCHER_SHA256" \
               AUTHS_QUALIFICATION_AGENT_UID="$AGENT_UID" \
               AUTHS_QUALIFICATION_AGENT_GID="$AGENT_GID" \
+              AUTHS_QUALIFICATION_AGENT_CONFIG_SHA256="$agent_config_sha256" \
               AUTHS_QUALIFICATION_WORKLOAD_ID_SHA256="$WORKLOAD_ID_SHA256" \
               AUTHS_QUALIFICATION_RECOVERY_KEY_ID="$RECOVERY_KEY_ID" \
               AUTHS_QUALIFICATION_RECOVERY_PUBLIC_KEY_BASE64URL="$RECOVERY_PUBLIC_KEY_BASE64URL" \
+              AUTHS_QUALIFICATION_RECEIPT_TRUST_ANCHOR_SHA256="$RECEIPT_TRUST_SHA256" \
               AUTHS_QUALIFICATION_RELEASE_BUILD_BINDING="$GITHUB_WORKSPACE/verified-release-build/verified-release-build.json" \
               GITHUB_REPOSITORY_ID="$GITHUB_REPOSITORY_ID" \
               GITHUB_RUN_ID="$GITHUB_RUN_ID" \
@@ -204,6 +218,300 @@ jobs:
               --attester-repository "$GITHUB_WORKSPACE/trusted-attester"
           done < <(jq -r '.runs[].id' \
             "product/integrations/auths-$DOMAIN/qualification/provider-matrix-v1.json")
+      - name: Checkout an isolated provider-free candidate runtime
+        if: env.PROVIDER_FREE_SANDBOX_READY == 'true' && inputs.domain == 'stripe'
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.candidate_revision }}
+          path: provider-free-candidate
+          persist-credentials: false
+      - name: Install the exact protected Python toolchain
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with: {python-version: "3.13.5"}
+      - name: Build and prepare the zero-provider pre-admission row
+        if: env.PROVIDER_FREE_SANDBOX_READY == 'true' && inputs.domain == 'stripe'
+        shell: bash
+        env:
+          PROTECTED_ENVIRONMENT: ${{ inputs.protected_environment }}
+          CANDIDATE_REVISION: ${{ inputs.candidate_revision }}
+          ATTESTER_REVISION: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_REVISION }}
+          SUPERVISOR_CONTROLLER_SHA256: ${{ steps.tools.outputs.crash_controller_sha256 }}
+          LEDGER_APPENDER_SHA256: ${{ steps.tools.outputs.ledger_appender_sha256 }}
+          AGENT_LAUNCHER_SHA256: ${{ steps.tools.outputs.agent_launcher_sha256 }}
+          AGENT_UID: ${{ vars.AUTHS_QUALIFICATION_AGENT_UID }}
+          AGENT_GID: ${{ vars.AUTHS_QUALIFICATION_AGENT_GID }}
+          WORKLOAD_ID_SHA256: ${{ vars.AUTHS_QUALIFICATION_WORKLOAD_ID_SHA256 }}
+          RECOVERY_KEY_ID: ${{ vars.AUTHS_QUALIFICATION_RECOVERY_KEY_ID }}
+          RECOVERY_PUBLIC_KEY_BASE64URL: ${{ vars.AUTHS_QUALIFICATION_RECOVERY_PUBLIC_KEY_BASE64URL }}
+          RECEIPT_TRUST_SHA256: ${{ vars.AUTHS_QUALIFICATION_RECEIPT_TRUST_ANCHOR_SHA256 }}
+        run: |
+          set -euo pipefail
+          candidate="$GITHUB_WORKSPACE/provider-free-candidate"
+          matrix="$candidate/product/integrations/auths-stripe/qualification/provider-matrix-v1.json"
+          provider_run="$(jq -er '[.runs[] | select(.scenarioIds | index("configuration-mismatch"))] | if length == 1 then .[0].id else error("configuration-mismatch row is not unique") end' "$matrix")"
+          printf '%s\n' "$provider_run" > "$RUNNER_TEMP/provider-free-row"
+          common_root="$candidate/target/qualification-common-evidence/stripe/linux-x86_64"
+          row="$common_root/ledger/$provider_run"
+          source_trust="$GITHUB_WORKSPACE/trusted-attester/release/qualification/v1/evidence-source-trust-keys.json"
+          ledger_trust="$GITHUB_WORKSPACE/trusted-attester/release/qualification/v1/evidence-ledger-trust-keys.json"
+          receipt_trust="$GITHUB_WORKSPACE/target/qualification-common-evidence/stripe/linux-x86_64/anchor-snapshots/receipt-trust-anchors.json"
+          agent_config="$RUNNER_TEMP/qualification-agent-config/stripe/linux-x86_64/agent.toml"
+          agent_config_sha256="$(sha256sum "$agent_config" | awk '{print $1}')"
+          env -i \
+            AUTHS_XTASK_REPOSITORY_ROOT="$candidate" \
+            QUALIFICATION_CANDIDATE_REVISION="$CANDIDATE_REVISION" \
+            AUTHS_QUALIFICATION_WORKFLOW_REVISION="$GITHUB_WORKFLOW_SHA" \
+            AUTHS_QUALIFICATION_ATTESTER_REVISION="$ATTESTER_REVISION" \
+            AUTHS_QUALIFICATION_SUPERVISOR_CONTROLLER_SHA256="$SUPERVISOR_CONTROLLER_SHA256" \
+            AUTHS_QUALIFICATION_LEDGER_APPENDER_SHA256="$LEDGER_APPENDER_SHA256" \
+            AUTHS_QUALIFICATION_AGENT_LAUNCHER_SHA256="$AGENT_LAUNCHER_SHA256" \
+            AUTHS_QUALIFICATION_AGENT_UID="$AGENT_UID" \
+            AUTHS_QUALIFICATION_AGENT_GID="$AGENT_GID" \
+            AUTHS_QUALIFICATION_AGENT_CONFIG_SHA256="$agent_config_sha256" \
+            AUTHS_QUALIFICATION_WORKLOAD_ID_SHA256="$WORKLOAD_ID_SHA256" \
+            AUTHS_QUALIFICATION_RECOVERY_KEY_ID="$RECOVERY_KEY_ID" \
+            AUTHS_QUALIFICATION_RECOVERY_PUBLIC_KEY_BASE64URL="$RECOVERY_PUBLIC_KEY_BASE64URL" \
+            AUTHS_QUALIFICATION_RECEIPT_TRUST_ANCHOR_SHA256="$RECEIPT_TRUST_SHA256" \
+            AUTHS_QUALIFICATION_RELEASE_BUILD_BINDING="$GITHUB_WORKSPACE/verified-release-build/verified-release-build.json" \
+            GITHUB_REPOSITORY_ID="$GITHUB_REPOSITORY_ID" \
+            GITHUB_RUN_ID="$GITHUB_RUN_ID" \
+            GITHUB_RUN_ATTEMPT="$GITHUB_RUN_ATTEMPT" \
+            "$TOOLS/xtask" profile qualification build-provider-free-ledger-plan \
+            --domain stripe \
+            --target linux-x86_64 \
+            --environment "$PROTECTED_ENVIRONMENT" \
+            --provider-run "$provider_run" \
+            --output "$row/ledger-plan.json"
+          env -i "$TOOLS/auths-qualification-supervisor" initialize-ledger \
+            --plan "$row/ledger-plan.json" \
+            --common-root "$common_root" \
+            --source-trust "$source_trust" \
+            --ledger-trust "$ledger_trust"
+          env -i AUTHS_XTASK_REPOSITORY_ROOT="$candidate" \
+            "$TOOLS/xtask" profile qualification preflight-key-separation \
+            --ledger-plan "$row/ledger-plan.json" \
+            --receipt-trust "$receipt_trust" \
+            --attester-repository "$GITHUB_WORKSPACE/trusted-attester"
+
+          runtime_parent="/run/auths-qualification-provider-free-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          policy_parent="/run/auths-qualification-provider-free-policy-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          protected_bins="/usr/local/libexec/auths-qualification-provider-free-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          runtime="$runtime_parent/$provider_run"
+          policy="$policy_parent/$provider_run"
+          cgroup="/sys/fs/cgroup/auths-q-provider-free-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$provider_run"
+          sudo install -d -o root -g root -m 0711 "$policy_parent"
+          sudo install -d -o root -g root -m 0700 "$policy"
+          sudo install -o root -g root -m 0600 "$row/ledger-plan.json" "$policy/ledger-plan.json"
+          sudo install -o root -g root -m 0600 "$source_trust" "$policy/source-trust.json"
+          sudo install -o root -g root -m 0600 "$receipt_trust" "$policy/receipt-trust.json"
+          sudo install -d -o root -g root -m 0711 "$runtime_parent"
+          sudo install -d -o root -g root -m 0755 "$protected_bins"
+          sudo install -o root -g root -m 4755 \
+            "$TOOLS/qualification-agent-launcher" \
+            "$protected_bins/qualification-agent-launcher"
+          sudo tar --zstd -xOf \
+            "$GITHUB_WORKSPACE/verified-release-build/artifacts/auths-qualification-agent.tar.zst" \
+            auths-qualification-agent/target/release/auths-qualification-agent \
+            | sudo install -o root -g root -m 0755 /dev/stdin "$protected_bins/auths-qualification-agent"
+          sudo install -o root -g root -m 0644 "$agent_config" "$protected_bins/agent.toml"
+          sudo env -i "$TOOLS/auths-qualification-supervisor" prepare-row-runtime \
+            --plan "$policy/ledger-plan.json" \
+            --source-trust "$policy/source-trust.json" \
+            --receipt-trust "$policy/receipt-trust.json" \
+            --runtime-root "$runtime" \
+            --cgroup-root "$cgroup"
+      - name: Materialize the provider-free decision signing seed
+        if: env.PROVIDER_FREE_SANDBOX_READY == 'true' && inputs.domain == 'stripe'
+        shell: bash
+        env:
+          QUALIFICATION_AGENT_SIGNING_SEED: ${{ secrets.QUALIFICATION_DECISION_RECEIPT_SEED }}
+        run: trusted-attester/.github/scripts/qualification-provider-free-row.sh materialize-agent-key decision
+      - name: Materialize the provider-free execution signing seed
+        if: env.PROVIDER_FREE_SANDBOX_READY == 'true' && inputs.domain == 'stripe'
+        shell: bash
+        env:
+          QUALIFICATION_AGENT_SIGNING_SEED: ${{ secrets.QUALIFICATION_EXECUTION_RECEIPT_SEED }}
+        run: trusted-attester/.github/scripts/qualification-provider-free-row.sh materialize-agent-key execution
+      - name: Materialize the provider-free recovery signing seed
+        if: env.PROVIDER_FREE_SANDBOX_READY == 'true' && inputs.domain == 'stripe'
+        shell: bash
+        env:
+          QUALIFICATION_AGENT_SIGNING_SEED: ${{ secrets.QUALIFICATION_RECOVERY_SEED }}
+        run: trusted-attester/.github/scripts/qualification-provider-free-row.sh materialize-agent-key recovery
+      - name: Start the provider-free append session
+        if: env.PROVIDER_FREE_SANDBOX_READY == 'true' && inputs.domain == 'stripe'
+        shell: bash
+        run: trusted-attester/.github/scripts/qualification-provider-free-row.sh start-appender
+      - name: Start the provider-free Supervisor source
+        if: env.PROVIDER_FREE_SANDBOX_READY == 'true' && inputs.domain == 'stripe'
+        shell: bash
+        env:
+          QUALIFICATION_SOURCE_SEED: ${{ secrets.QUALIFICATION_SOURCE_SUPERVISOR_SEED }}
+        run: trusted-attester/.github/scripts/qualification-provider-free-row.sh start-source supervisor
+      - name: Start the provider-free ClientProxy source
+        if: env.PROVIDER_FREE_SANDBOX_READY == 'true' && inputs.domain == 'stripe'
+        shell: bash
+        env:
+          QUALIFICATION_SOURCE_SEED: ${{ secrets.QUALIFICATION_SOURCE_CLIENT_PROXY_SEED }}
+        run: trusted-attester/.github/scripts/qualification-provider-free-row.sh start-source client-proxy
+      - name: Start the provider-free JournalReader source
+        if: env.PROVIDER_FREE_SANDBOX_READY == 'true' && inputs.domain == 'stripe'
+        shell: bash
+        env:
+          QUALIFICATION_SOURCE_SEED: ${{ secrets.QUALIFICATION_SOURCE_JOURNAL_READER_SEED }}
+        run: trusted-attester/.github/scripts/qualification-provider-free-row.sh start-source journal-reader
+      - name: Start the provider-free CredentialBroker source
+        if: env.PROVIDER_FREE_SANDBOX_READY == 'true' && inputs.domain == 'stripe'
+        shell: bash
+        env:
+          QUALIFICATION_SOURCE_SEED: ${{ secrets.QUALIFICATION_SOURCE_CREDENTIAL_BROKER_SEED }}
+        run: trusted-attester/.github/scripts/qualification-provider-free-row.sh start-source credential-broker
+      - name: Start the provider-free ProfileStateReader source
+        if: env.PROVIDER_FREE_SANDBOX_READY == 'true' && inputs.domain == 'stripe'
+        shell: bash
+        env:
+          QUALIFICATION_SOURCE_SEED: ${{ secrets.QUALIFICATION_SOURCE_PROFILE_STATE_READER_SEED }}
+        run: trusted-attester/.github/scripts/qualification-provider-free-row.sh start-source profile-state-reader
+      - name: Start the provider-free ReceiptVerifier source
+        if: env.PROVIDER_FREE_SANDBOX_READY == 'true' && inputs.domain == 'stripe'
+        shell: bash
+        env:
+          QUALIFICATION_SOURCE_SEED: ${{ secrets.QUALIFICATION_SOURCE_RECEIPT_VERIFIER_SEED }}
+        run: trusted-attester/.github/scripts/qualification-provider-free-row.sh start-source receipt-verifier
+      - name: Start the provider-free ProviderProxy source
+        if: env.PROVIDER_FREE_SANDBOX_READY == 'true' && inputs.domain == 'stripe'
+        shell: bash
+        env:
+          QUALIFICATION_SOURCE_SEED: ${{ secrets.QUALIFICATION_SOURCE_PROVIDER_PROXY_SEED }}
+        run: trusted-attester/.github/scripts/qualification-provider-free-row.sh start-source provider-proxy
+      - name: Start the provider-free ProviderObserver source
+        if: env.PROVIDER_FREE_SANDBOX_READY == 'true' && inputs.domain == 'stripe'
+        shell: bash
+        env:
+          QUALIFICATION_SOURCE_SEED: ${{ secrets.QUALIFICATION_SOURCE_PROVIDER_OBSERVER_SEED }}
+        run: trusted-attester/.github/scripts/qualification-provider-free-row.sh start-source provider-observer
+      - name: Start the provider-free no-seed readers
+        if: env.PROVIDER_FREE_SANDBOX_READY == 'true' && inputs.domain == 'stripe'
+        shell: bash
+        run: trusted-attester/.github/scripts/qualification-provider-free-row.sh start-readers
+      - name: Start the provider-free credential-lazy observer
+        if: env.PROVIDER_FREE_SANDBOX_READY == 'true' && inputs.domain == 'stripe'
+        shell: bash
+        run: trusted-attester/.github/scripts/qualification-provider-free-row.sh start-provider-observer-readers
+      - name: Run the installed provider-free configuration-mismatch phase
+        if: env.PROVIDER_FREE_SANDBOX_READY == 'true' && inputs.domain == 'stripe'
+        shell: bash
+        env:
+          PROTECTED_ENVIRONMENT: ${{ inputs.protected_environment }}
+          QUALIFICATION_PRINCIPAL: ${{ vars.AUTHS_QUALIFICATION_PRINCIPAL }}
+        run: |
+          set -euo pipefail
+          candidate="$GITHUB_WORKSPACE/provider-free-candidate"
+          provider_run="$(<"$RUNNER_TEMP/provider-free-row")"
+          runtime="/run/auths-qualification-provider-free-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT/$provider_run"
+          protected_bins="/usr/local/libexec/auths-qualification-provider-free-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          env -i \
+            AUTHS_XTASK_REPOSITORY_ROOT="$candidate" \
+            AUTHS_QUALIFICATION_PHASE_CONTROLLER="$TOOLS/qualification-crash-controller" \
+            AUTHS_QUALIFICATION_AGENT="$protected_bins/auths-qualification-agent" \
+            AUTHS_QUALIFICATION_AGENT_CONFIG="$protected_bins/agent.toml" \
+            AUTHS_QUALIFICATION_AGENT_LAUNCHER="$protected_bins/qualification-agent-launcher" \
+            AUTHS_QUALIFICATION_LEDGER_PLAN="$candidate/target/qualification-common-evidence/stripe/linux-x86_64/ledger/$provider_run/ledger-plan.json" \
+            AUTHS_QUALIFICATION_LAUNCHER_LEDGER_PLAN="/run/auths-qualification-provider-free-policy-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT/$provider_run/ledger-plan.json" \
+            AUTHS_QUALIFICATION_SOURCE_TRUST="$GITHUB_WORKSPACE/trusted-attester/release/qualification/v1/evidence-source-trust-keys.json" \
+            AUTHS_QUALIFICATION_RECEIPT_TRUST="$GITHUB_WORKSPACE/target/qualification-common-evidence/stripe/linux-x86_64/anchor-snapshots/receipt-trust-anchors.json" \
+            AUTHS_QUALIFICATION_CONNECTION_STORE_TEMPLATE="$runtime/credential-broker-store/connections.cbor" \
+            AUTHS_QUALIFICATION_PHASE_RUNTIME_ROOT="$runtime" \
+            AUTHS_QUALIFICATION_CGROUP_ROOT="/sys/fs/cgroup/auths-q-provider-free-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$provider_run" \
+            AUTHS_QUALIFICATION_PRINCIPAL="$QUALIFICATION_PRINCIPAL" \
+            AUTHS_QUALIFICATION_RELEASE_BUILD_BINDING="$GITHUB_WORKSPACE/verified-release-build/verified-release-build.json" \
+            AUTHS_QUALIFICATION_RELEASE_ARTIFACTS="$GITHUB_WORKSPACE/verified-release-build/artifacts" \
+            AUTHS_QUALIFICATION_PYTHON="${{ env.pythonLocation }}/bin/python" \
+            GITHUB_ACTIONS=true \
+            GITHUB_REPOSITORY_ID="$GITHUB_REPOSITORY_ID" \
+            GITHUB_RUN_ID="$GITHUB_RUN_ID" \
+            GITHUB_RUN_ATTEMPT="$GITHUB_RUN_ATTEMPT" \
+            "$TOOLS/xtask" profile qualification run-provider-free-pre-admission \
+            --domain stripe \
+            --target linux-x86_64 \
+            --environment "$PROTECTED_ENVIRONMENT" \
+            --provider-run "$provider_run"
+      - name: Seal the provider-free acceptance ledger
+        if: env.PROVIDER_FREE_SANDBOX_READY == 'true' && inputs.domain == 'stripe'
+        shell: bash
+        env:
+          QUALIFICATION_LEDGER_SEALER_SEED: ${{ secrets.QUALIFICATION_LEDGER_SEALER_SEED }}
+          LEDGER_KEY_ID: ${{ vars.AUTHS_QUALIFICATION_LEDGER_KEY_ID }}
+        run: |
+          set -euo pipefail
+          provider_run="$(<"$RUNNER_TEMP/provider-free-row")"
+          candidate="$GITHUB_WORKSPACE/provider-free-candidate"
+          matrix="$candidate/product/integrations/auths-stripe/qualification/provider-matrix-v1.json"
+          common_root="$candidate/target/qualification-common-evidence/stripe/linux-x86_64"
+          row="$common_root/ledger/$provider_run"
+          source_trust="$row/evidence-source-trust.json"
+          ledger_trust="$row/evidence-ledger-trust.json"
+          sudo --preserve-env=TOOLS,MATRIX,RUNTIME_ROOT,SOURCE_TRUST,DOMAIN,AGENT_GID,COMMON_ROOT,QUALIFICATION_PROVIDER_RUN \
+            TOOLS="$TOOLS" MATRIX="$matrix" \
+            RUNTIME_ROOT="/run/auths-qualification-provider-free-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            SOURCE_TRUST="$GITHUB_WORKSPACE/trusted-attester/release/qualification/v1/evidence-source-trust-keys.json" \
+            DOMAIN=stripe AGENT_GID="${{ vars.AUTHS_QUALIFICATION_AGENT_GID }}" COMMON_ROOT="$common_root" \
+            QUALIFICATION_PROVIDER_RUN="$provider_run" \
+            bash "$GITHUB_WORKSPACE/trusted-attester/.github/scripts/qualification-row-services.sh" wait
+          env -i "$TOOLS/auths-qualification-supervisor" stage-provider-free-pre-admission \
+            --plan "$row/ledger-plan.json" \
+            --common-root "$common_root" \
+            --source-trust "$source_trust" \
+            --receipt-trust "$GITHUB_WORKSPACE/target/qualification-common-evidence/stripe/linux-x86_64/anchor-snapshots/receipt-trust-anchors.json"
+          env -i "$TOOLS/auths-qualification-supervisor" build-event-index \
+            --plan "$row/ledger-plan.json" --common-root "$common_root" --source-trust "$source_trust"
+          env -i "$TOOLS/auths-qualification-supervisor" assemble-ledger \
+            --plan "$row/ledger-plan.json" --event-index "$row/event-index.json" \
+            --common-root "$common_root" --source-trust "$source_trust" --output "$row/ledger-record.json"
+          printf '%s' "$QUALIFICATION_LEDGER_SEALER_SEED" | env -i \
+            "$TOOLS/auths-qualification-supervisor" seal-ledger \
+            --record "$row/ledger-record.json" --source-trust "$source_trust" \
+            --ledger-trust "$ledger_trust" --output "$row/ledger.json" --key-id "$LEDGER_KEY_ID"
+          output="$GITHUB_WORKSPACE/target/provider-free-qualification"
+          install -d -m 0700 "$output"
+          install -m 0444 "$row/ledger-plan.json" "$output/ledger-plan.json"
+          install -m 0444 "$common_root/scenarios/configuration-mismatch/$provider_run/1.json" "$output/common-phase.json"
+          install -m 0444 "$row/ledger.json" "$output/ledger.json"
+          install -m 0444 \
+            "/usr/local/libexec/auths-qualification-provider-free-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT/agent.toml" \
+            "$output/agent.toml"
+          install -m 0444 \
+            "$GITHUB_WORKSPACE/target/qualification-common-evidence/stripe/linux-x86_64/anchor-snapshots/receipt-trust-anchors.json" \
+            "$output/receipt-trust-anchors.json"
+      - name: Stop and measure the provider-free runtime
+        if: always() && env.PROVIDER_FREE_SANDBOX_READY == 'true' && inputs.domain == 'stripe'
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -f "$RUNNER_TEMP/provider-free-row" ]] || exit 0
+          provider_run="$(<"$RUNNER_TEMP/provider-free-row")"
+          policy_root="/run/auths-qualification-provider-free-policy-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          [[ -f "$policy_root/$provider_run/ledger-plan.json" ]] || exit 0
+          sudo --preserve-env=TOOLS,MATRIX,RUNTIME_ROOT,POLICY_ROOT,CGROUP_ROOT_PREFIX,PROTECTED_BIN_ROOT,AGENT_CONFIG,SOURCE_TRUST,DOMAIN,AGENT_GID,COMMON_ROOT,CLEANUP_EVIDENCE_ROOT,QUALIFICATION_PROVIDER_RUN \
+            TOOLS="$TOOLS" \
+            MATRIX="$GITHUB_WORKSPACE/provider-free-candidate/product/integrations/auths-stripe/qualification/provider-matrix-v1.json" \
+            RUNTIME_ROOT="/run/auths-qualification-provider-free-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            POLICY_ROOT="$policy_root" \
+            CGROUP_ROOT_PREFIX="/sys/fs/cgroup/auths-q-provider-free-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            PROTECTED_BIN_ROOT="/usr/local/libexec/auths-qualification-provider-free-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            AGENT_CONFIG="$RUNNER_TEMP/qualification-agent-config/stripe/linux-x86_64/agent.toml" \
+            SOURCE_TRUST="$GITHUB_WORKSPACE/trusted-attester/release/qualification/v1/evidence-source-trust-keys.json" \
+            DOMAIN=stripe AGENT_GID="${{ vars.AUTHS_QUALIFICATION_AGENT_GID }}" \
+            COMMON_ROOT="$GITHUB_WORKSPACE/provider-free-candidate/target/qualification-common-evidence/stripe/linux-x86_64" \
+            CLEANUP_EVIDENCE_ROOT="/var/lib/auths-qualification-provider-free-cleanup/$GITHUB_REPOSITORY_ID-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            QUALIFICATION_PROVIDER_RUN="$provider_run" \
+            bash "$GITHUB_WORKSPACE/trusted-attester/.github/scripts/qualification-row-services.sh" stop
+      - name: Refuse live qualification without the reviewed candidate sandbox
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "AP-0044 candidate SDK sandbox is not implemented; refusing provider provisioning" >&2
+          exit 1
       - name: Create live provider resources and protected setup handoffs
         shell: bash
         env:
@@ -247,13 +555,17 @@ jobs:
           ATTESTER_REVISION: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_REVISION }}
           SUPERVISOR_CONTROLLER_SHA256: ${{ steps.tools.outputs.crash_controller_sha256 }}
           LEDGER_APPENDER_SHA256: ${{ steps.tools.outputs.ledger_appender_sha256 }}
+          AGENT_LAUNCHER_SHA256: ${{ steps.tools.outputs.agent_launcher_sha256 }}
           AGENT_UID: ${{ vars.AUTHS_QUALIFICATION_AGENT_UID }}
           AGENT_GID: ${{ vars.AUTHS_QUALIFICATION_AGENT_GID }}
           WORKLOAD_ID_SHA256: ${{ vars.AUTHS_QUALIFICATION_WORKLOAD_ID_SHA256 }}
           RECOVERY_KEY_ID: ${{ vars.AUTHS_QUALIFICATION_RECOVERY_KEY_ID }}
           RECOVERY_PUBLIC_KEY_BASE64URL: ${{ vars.AUTHS_QUALIFICATION_RECOVERY_PUBLIC_KEY_BASE64URL }}
+          RECEIPT_TRUST_SHA256: ${{ vars.AUTHS_QUALIFICATION_RECEIPT_TRUST_ANCHOR_SHA256 }}
         run: |
           set -euo pipefail
+          agent_config="$RUNNER_TEMP/qualification-agent-config/$DOMAIN/$TARGET/agent.toml"
+          agent_config_sha256="$(sha256sum "$agent_config" | awk '{print $1}')"
           while read -r provider_run; do
             env -i \
               AUTHS_XTASK_REPOSITORY_ROOT="$GITHUB_WORKSPACE" \
@@ -262,11 +574,14 @@ jobs:
               AUTHS_QUALIFICATION_ATTESTER_REVISION="$ATTESTER_REVISION" \
               AUTHS_QUALIFICATION_SUPERVISOR_CONTROLLER_SHA256="$SUPERVISOR_CONTROLLER_SHA256" \
               AUTHS_QUALIFICATION_LEDGER_APPENDER_SHA256="$LEDGER_APPENDER_SHA256" \
+              AUTHS_QUALIFICATION_AGENT_LAUNCHER_SHA256="$AGENT_LAUNCHER_SHA256" \
               AUTHS_QUALIFICATION_AGENT_UID="$AGENT_UID" \
               AUTHS_QUALIFICATION_AGENT_GID="$AGENT_GID" \
+              AUTHS_QUALIFICATION_AGENT_CONFIG_SHA256="$agent_config_sha256" \
               AUTHS_QUALIFICATION_WORKLOAD_ID_SHA256="$WORKLOAD_ID_SHA256" \
               AUTHS_QUALIFICATION_RECOVERY_KEY_ID="$RECOVERY_KEY_ID" \
               AUTHS_QUALIFICATION_RECOVERY_PUBLIC_KEY_BASE64URL="$RECOVERY_PUBLIC_KEY_BASE64URL" \
+              AUTHS_QUALIFICATION_RECEIPT_TRUST_ANCHOR_SHA256="$RECEIPT_TRUST_SHA256" \
               AUTHS_QUALIFICATION_RELEASE_BUILD_BINDING="$GITHUB_WORKSPACE/verified-release-build/verified-release-build.json" \
               GITHUB_REPOSITORY_ID="$GITHUB_REPOSITORY_ID" \
               GITHUB_RUN_ID="$GITHUB_RUN_ID" \
@@ -466,9 +781,6 @@ jobs:
         env:
           QUALIFICATION_RUNTIME_READ_CREDENTIAL: ${{ secrets.QUALIFICATION_RUNTIME_READ_CREDENTIAL }}
         run: sudo --preserve-env=TOOLS,MATRIX,RUNTIME_ROOT,SOURCE_TRUST,DOMAIN,AGENT_GID,COMMON_ROOT,QUALIFICATION_RUNTIME_READ_CREDENTIAL bash trusted-attester/.github/scripts/qualification-row-services.sh start-provider-observer-readers
-      - name: Install the exact protected Python toolchain
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
-        with: {python-version: "3.13.5"}
       - name: Collect every exact provider row
         shell: bash
         env:
@@ -622,6 +934,11 @@ jobs:
           path: |
             target/qualification-candidate/${{ inputs.domain }}/${{ inputs.target }}/
             target/qualification-common-evidence/${{ inputs.domain }}/${{ inputs.target }}/
+            target/provider-free-qualification/ledger-plan.json
+            target/provider-free-qualification/common-phase.json
+            target/provider-free-qualification/ledger.json
+            target/provider-free-qualification/agent.toml
+            target/provider-free-qualification/receipt-trust-anchors.json
             verified-release-build/
             proposal.json
           if-no-files-found: error
@@ -1078,6 +1395,84 @@ jobs:
           QUALIFICATION_ATTESTER_TOOLS_MANIFEST: ${{ github.workspace }}/attester-tools/manifest.json
           QUALIFICATION_RELEASE_OUTPUT: ${{ github.workspace }}/fresh-release-build
         run: trusted-attester/.github/scripts/verify-qualification-release-build.sh
+      - name: Rebind immutable provider-free acceptance metadata
+        if: env.PROVIDER_FREE_SANDBOX_READY == 'true' && inputs.domain == 'stripe'
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          COLLECTION_ARTIFACT_ID: ${{ needs.collect.outputs.artifact_id }}
+          COLLECTION_ARTIFACT_DIGEST: ${{ needs.collect.outputs.artifact_digest }}
+          COLLECTION_ARTIFACT_NAME: profile-qualification-collection-${{ inputs.domain }}-${{ inputs.target }}-attempt-${{ github.run_attempt }}
+        with:
+          script: |
+            const artifactId = Number(process.env.COLLECTION_ARTIFACT_ID);
+            if (!Number.isSafeInteger(artifactId) || artifactId <= 0) throw new Error('invalid provider-free artifact ID');
+            const {data: artifact} = await github.rest.actions.getArtifact({owner: context.repo.owner, repo: context.repo.repo, artifact_id: artifactId});
+            const digest = String(process.env.COLLECTION_ARTIFACT_DIGEST).replace(/^sha256:/, '');
+            if (artifact.name !== process.env.COLLECTION_ARTIFACT_NAME || artifact.digest !== `sha256:${digest}` || artifact.expired || String(artifact.workflow_run?.id) !== String(context.runId)) throw new Error('provider-free artifact metadata drifted');
+            const created = Math.floor(Date.parse(artifact.created_at) / 1000);
+            const expires = Math.floor(Date.parse(artifact.expires_at) / 1000);
+            if (!Number.isSafeInteger(created) || !Number.isSafeInteger(expires) || expires < created + 90 * 86400) throw new Error('provider-free artifact retention is insufficient');
+      - name: Download the immutable provider-free acceptance handoff
+        if: env.PROVIDER_FREE_SANDBOX_READY == 'true' && inputs.domain == 'stripe'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          artifact-ids: ${{ needs.collect.outputs.artifact_id }}
+          path: provider-free-collection
+      - name: Freshly verify the sealed provider-free acceptance ledger
+        if: env.PROVIDER_FREE_SANDBOX_READY == 'true' && inputs.domain == 'stripe'
+        shell: bash
+        env:
+          ATTESTER_REVISION: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_REVISION }}
+          ATTESTER_TOOLS_RUN_ID: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_TOOLS_RUN_ID }}
+          ATTESTER_TOOLS_RUN_ATTEMPT: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_TOOLS_RUN_ATTEMPT }}
+          ATTESTER_TOOLS_ARTIFACT_ID: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_TOOLS_ARTIFACT_ID }}
+          ATTESTER_TOOLS_ARTIFACT_DIGEST: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_TOOLS_ARTIFACT_DIGEST }}
+          ATTESTER_TOOLS_MANIFEST_SHA256: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_TOOLS_MANIFEST_SHA256 }}
+          RETENTION_DAYS: ${{ vars.AUTHS_QUALIFICATION_RETENTION_DAYS }}
+          RELEASE_RUN_ID: ${{ inputs.release_build_run_id }}
+          RELEASE_ARTIFACT_ID: ${{ inputs.release_build_artifact_id }}
+          RELEASE_ARTIFACT_DIGEST: ${{ inputs.release_build_artifact_digest }}
+          WORKLOAD_ID_SHA256: ${{ vars.AUTHS_QUALIFICATION_WORKLOAD_ID_SHA256 }}
+          AGENT_UID: ${{ vars.AUTHS_QUALIFICATION_AGENT_UID }}
+          AGENT_GID: ${{ vars.AUTHS_QUALIFICATION_AGENT_GID }}
+        run: |
+          set -euo pipefail
+          env -i \
+            AUTHS_XTASK_REPOSITORY_ROOT="$GITHUB_WORKSPACE/trusted-attester" \
+            AUTHS_QUALIFICATION_WORKFLOW_REVISION="$GITHUB_WORKFLOW_SHA" \
+            AUTHS_QUALIFICATION_ATTESTER_REVISION="$ATTESTER_REVISION" \
+            AUTHS_QUALIFICATION_ATTESTER_TOOLS_RUN_ID="$ATTESTER_TOOLS_RUN_ID" \
+            AUTHS_QUALIFICATION_ATTESTER_TOOLS_RUN_ATTEMPT="$ATTESTER_TOOLS_RUN_ATTEMPT" \
+            AUTHS_QUALIFICATION_ATTESTER_TOOLS_ARTIFACT_ID="$ATTESTER_TOOLS_ARTIFACT_ID" \
+            AUTHS_QUALIFICATION_ATTESTER_TOOLS_ARTIFACT_DIGEST="${ATTESTER_TOOLS_ARTIFACT_DIGEST#sha256:}" \
+            AUTHS_QUALIFICATION_ATTESTER_TOOLS_MANIFEST_SHA256="$ATTESTER_TOOLS_MANIFEST_SHA256" \
+            AUTHS_QUALIFICATION_GITLEAKS_SHA256="${{ steps.attest_tools.outputs.gitleaks_sha256 }}" \
+            AUTHS_QUALIFICATION_GH_CLI_SHA256="${{ steps.attest_tools.outputs.gh_sha256 }}" \
+            AUTHS_QUALIFICATION_GH_TRUSTED_ROOT_SHA256="${{ steps.attest_tools.outputs.root_sha256 }}" \
+            AUTHS_QUALIFICATION_RELEASE_VERIFIER_SHA256="${{ steps.attest_tools.outputs.release_verifier_sha256 }}" \
+            AUTHS_QUALIFICATION_RETENTION_DAYS="$RETENTION_DAYS" \
+            AUTHS_QUALIFICATION_WORKLOAD_ID_SHA256="$WORKLOAD_ID_SHA256" \
+            AUTHS_QUALIFICATION_AGENT_UID="$AGENT_UID" \
+            AUTHS_QUALIFICATION_AGENT_GID="$AGENT_GID" \
+            OFFICIAL_RELEASE_BUILD_RUN_ID="$RELEASE_RUN_ID" \
+            OFFICIAL_RELEASE_BUILD_ARTIFACT_ID="$RELEASE_ARTIFACT_ID" \
+            OFFICIAL_RELEASE_BUILD_ARTIFACT_DIGEST="${RELEASE_ARTIFACT_DIGEST#sha256:}" \
+            GITHUB_REPOSITORY_ID="$GITHUB_REPOSITORY_ID" \
+            GITHUB_RUN_ID="$GITHUB_RUN_ID" \
+            GITHUB_RUN_ATTEMPT="$GITHUB_RUN_ATTEMPT" \
+            "$GITHUB_WORKSPACE/attester-tools/xtask" \
+            profile qualification verify-provider-free-acceptance \
+            --candidate-repository "$GITHUB_WORKSPACE/candidate" \
+            --attester-repository "$GITHUB_WORKSPACE/trusted-attester" \
+            --release-binding "$GITHUB_WORKSPACE/fresh-release-build/verified-release-build.json" \
+            --release-build "$GITHUB_WORKSPACE/fresh-release-build/projection/release-build.json" \
+            --attester-tools-verification "$RUNNER_TEMP/attest-attester-tools-verification.json" \
+            --attester-tools-manifest "$GITHUB_WORKSPACE/attester-tools/manifest.json" \
+            --plan "$GITHUB_WORKSPACE/provider-free-collection/target/provider-free-qualification/ledger-plan.json" \
+            --common-phase "$GITHUB_WORKSPACE/provider-free-collection/target/provider-free-qualification/common-phase.json" \
+            --ledger "$GITHUB_WORKSPACE/provider-free-collection/target/provider-free-qualification/ledger.json" \
+            --agent-config "$GITHUB_WORKSPACE/provider-free-collection/target/provider-free-qualification/agent.toml" \
+            --receipt-trust "$GITHUB_WORKSPACE/provider-free-collection/target/provider-free-qualification/receipt-trust-anchors.json"
       - name: Verify uploaded evidence without a signing seed
         shell: bash
         env:

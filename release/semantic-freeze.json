@@ -1,6 +1,6 @@
 {
   "schema": "auths.semantic-freeze/1",
-  "freezeVersion": 157,
+  "freezeVersion": 158,
   "publicSurface": {
     "rustRoots": [
       "auths",
@@ -607,7 +607,7 @@
     },
     {
       "id": "auths.portable-abi-bindings",
-      "version": 67,
+      "version": 68,
       "classification": "frozen-meaning",
       "categories": [
         "portable-abi",
@@ -624,11 +624,11 @@
         "core/crates/auths-model/src/lib.rs",
         "core/spec/v1/auths-proof.cddl"
       ],
-      "sha256": "1a40ad5b9f6822f34f2a125157fba96a40455211f155d9d1266a1b370a8ae873"
+      "sha256": "87ef6d6b74f803bcd924f56f0b2c331eb7b9894e298e11b51d56a889cf310bb7"
     },
     {
       "id": "auths.product.bounded-domains",
-      "version": 13,
+      "version": 14,
       "classification": "frozen-meaning",
       "categories": [
         "bounded-domain-inventory",
@@ -649,7 +649,7 @@
         "product/integrations/auths-records-api/src",
         "product/integrations/auths-stripe/src"
       ],
-      "sha256": "41edbdc0b7b030a206d2ebe28e44ace206c651dbe8ad7bbbd4dddc3bcc0ac485"
+      "sha256": "6871fb436e4f867baec733fe25869e62d6ed25d69d24c38592db1d11b53b0191"
     },
     {
       "id": "auths.product.bounded-policy",
@@ -874,7 +874,7 @@
     },
     {
       "id": "auths.product.profile-qualification-launch",
-      "version": 7,
+      "version": 8,
       "classification": "frozen-meaning",
       "categories": [
         "profile-roster-v2",
@@ -893,11 +893,11 @@
         "xtask/src/profile_codegen.rs",
         "xtask/src/profile_qualification.rs"
       ],
-      "sha256": "5560a8be95d991c7daac525bf3322410c851a84ea9de897997bdc2e40f6a9fb4"
+      "sha256": "8c9f353ef7ce58cae619b59e0775b6a9dba72a6bd70275c332c4d9a681c0b7a3"
     },
     {
       "id": "auths.product.public-sdk-contract",
-      "version": 57,
+      "version": 58,
       "classification": "frozen-meaning",
       "categories": [
         "rust-sdk-contract",
@@ -915,7 +915,7 @@
         "product/runtime/auths-runtime/src",
         "product/sdk/auths-sdk/src"
       ],
-      "sha256": "536ae4093141f0809f09d3784a82dc0c304c1484dec0848daa4ca9ddd04d4383"
+      "sha256": "1a262195b8b6aec195e598b29e2a2dc8a042aebaffe9e03cfba2523aa9986d02"
     },
     {
       "id": "auths.product.receipts",
@@ -1037,7 +1037,7 @@
     },
     {
       "id": "auths.release.public-surface",
-      "version": 155,
+      "version": 156,
       "classification": "release-metadata",
       "categories": [
         "package-names",
@@ -1127,7 +1127,7 @@
         "xtask/src/release_control.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "0ba0e1e0ae429fb815bf984cd4c658381581060c12a59401054d7d89a0cc2511"
+      "sha256": "ad4248c9014e71cb498c88342a014a14ba90ea5283592e3396dfd83c7ea35305"
     }
   ]
 }

@@ -1,6 +1,6 @@
 use crate::prelude::*;
 use crate::root;
-use auths_config::{AgentConfig, AgentPlatform, ReceiptSigningRole};
+use auths_config::{AgentConfig, AgentPlatform};
 use auths_profile_kit::{
     ProfileApi, ProfilePackage, ProfileQualification, ProfileRoster,
     QUALIFICATION_RELEASE_ARTIFACT_ROLES, QualificationAttestation, QualificationCollectedScenario,
@@ -15,13 +15,15 @@ use auths_profile_kit::{
     QualificationProtectedSetupInput, QualificationRecord, QualificationReleaseBuild,
     QualificationRunReference, QualificationScenarioManifest, QualificationSetupHandoffV1,
     QualificationTarget, QualificationTrustIdentity, QualificationTrustRegistry,
-    QualificationVerifiedRecordBinding, qualification_state_directory_commitment,
+    QualificationVerifiedRecordBinding,
+    qualification_common_phase_matches_exact_pre_admission_ledger,
+    qualification_pre_admission_attempt_count, qualification_state_directory_commitment,
     validate_qualification_key_separation, validate_qualification_trust_separation,
 };
-use auths_receipts::{
-    ReceiptTrustAnchor, ReceiptTrustAnchorRole, ReceiptTrustAnchors, decode_receipt_trust_anchors,
-    encode_receipt_trust_anchors,
+use auths_qualification_supervisor::{
+    qualification_receipt_anchors_from_agent_config, verify_provider_free_qualification_ledger,
 };
+use auths_receipts::decode_receipt_trust_anchors;
 use base64ct::Encoding as _;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -472,6 +474,15 @@ pub(crate) fn profile_qualification_command(arguments: &[String]) -> Result<(), 
         "verify-uploaded" => verify_uploaded_arguments(&arguments[1..]),
         "installed-verify" => installed_verify_arguments(&arguments[1..]),
         "build-ledger-plan" => build_ledger_plan_arguments(&arguments[1..]),
+        "build-provider-free-ledger-plan" => {
+            build_provider_free_ledger_plan_arguments(&arguments[1..])
+        }
+        "run-provider-free-pre-admission" => {
+            run_provider_free_pre_admission_arguments(&arguments[1..])
+        }
+        "verify-provider-free-acceptance" => {
+            verify_provider_free_acceptance_arguments(&arguments[1..])
+        }
         "build-cleanup-contexts" => build_cleanup_contexts_arguments(&arguments[1..]),
         "build-proposal" => build_proposal_arguments(&arguments[1..]),
         "assemble-evidence" => assemble_evidence_arguments(&arguments[1..]),
@@ -486,7 +497,7 @@ pub(crate) fn profile_qualification_command(arguments: &[String]) -> Result<(), 
 }
 
 fn usage() -> String {
-    "usage: cargo xtask profile qualification <closure --domain <domain>|status [--domain <domain>]|preflight-ledger-policy --domain <domain> --target <target> --environment <token> --provider-run <id> --receipt-trust <path> --attester-repository <path>|build-ledger-plan --domain <domain> --target <target> --environment <token> --provider-run <id> --setup-handoff <path> --output <path>|build-cleanup-contexts --domain <domain> --target <target> --environment <token> --output <directory>|setup-row --domain <domain> --target <target> --environment <token> --provider-run <id> --agent-config <path> --output <path>|build-proposal --domain <domain> --target <target> --collections <directory> --common-evidence <directory> --release-build <path> --runtime-cleanup <directory> --output <path>|installed-verify --proposal <path> --packages <directory> --output <path>|assemble-evidence --proposal <path> --aggregate <directory> --installed <path> --supplemental <directory> --output <directory>|build-observation-record --proposal <path> --evidence <directory> --release-build <path> --output <path>|package-observation --proposal <path> --observation <signed-observation> --cleanup <cleanup-report> --output <directory>|collect --domain <domain> --target <target> --environment <token> --provider-run <id> --setup-handoff <path> --output <directory>|observe --proposal <path> --collections <directory> --common-evidence <directory> --receipt-trust <path> --supplemental-common <directory> --output <directory>|observe-row --domain <domain> --target <target> --environment <token> --provider-run <id> --candidate-evidence <path> --common-evidence <path> --output <directory>|cleanup --domain <domain> --target <target> --run-context <path> [--cleanup-reference <path>] --output <path>|preflight-key-separation --ledger-plan <path> --receipt-trust <path> --attester-repository <path>|verify-uploaded --artifact <directory> --output <verified-record>|verify --attestation <path>|import --attestation <path>|check [--domain <domain>|--all]|release-check|validate-workflow-inputs>".into()
+    "usage: cargo xtask profile qualification <closure --domain <domain>|status [--domain <domain>]|preflight-ledger-policy --domain <domain> --target <target> --environment <token> --provider-run <id> --receipt-trust <path> --attester-repository <path>|build-ledger-plan --domain <domain> --target <target> --environment <token> --provider-run <id> --setup-handoff <path> --output <path>|build-provider-free-ledger-plan --domain stripe --target linux-x86_64 --environment <token> --provider-run <checked-row> --output <path>|run-provider-free-pre-admission --domain stripe --target linux-x86_64 --environment <token> --provider-run <checked-row>|verify-provider-free-acceptance --candidate-repository <fresh-checkout> --attester-repository <fresh-checkout> --release-binding <verified-binding> --release-build <canonical-release-build> --attester-tools-verification <hosted-verification> --attester-tools-manifest <manifest> --plan <canonical-plan> --common-phase <canonical-phase> --ledger <sealed-ledger> --agent-config <public-config> --receipt-trust <anchors>|build-cleanup-contexts --domain <domain> --target <target> --environment <token> --output <directory>|setup-row --domain <domain> --target <target> --environment <token> --provider-run <id> --agent-config <path> --output <path>|build-proposal --domain <domain> --target <target> --collections <directory> --common-evidence <directory> --release-build <path> --runtime-cleanup <directory> --output <path>|installed-verify --proposal <path> --packages <directory> --output <path>|assemble-evidence --proposal <path> --aggregate <directory> --installed <path> --supplemental <directory> --output <directory>|build-observation-record --proposal <path> --evidence <directory> --release-build <path> --output <path>|package-observation --proposal <path> --observation <signed-observation> --cleanup <cleanup-report> --output <directory>|collect --domain <domain> --target <target> --environment <token> --provider-run <id> --setup-handoff <path> --output <directory>|observe --proposal <path> --collections <directory> --common-evidence <directory> --receipt-trust <path> --supplemental-common <directory> --output <directory>|observe-row --domain <domain> --target <target> --environment <token> --provider-run <id> --candidate-evidence <path> --common-evidence <path> --output <directory>|cleanup --domain <domain> --target <target> --run-context <path> [--cleanup-reference <path>] --output <path>|preflight-key-separation --ledger-plan <path> --receipt-trust <path> --attester-repository <path>|verify-uploaded --artifact <directory> --output <verified-record>|verify --attestation <path>|import --attestation <path>|check [--domain <domain>|--all]|release-check|validate-workflow-inputs>".into()
 }
 
 fn setup_arguments(arguments: &[String]) -> Result<(), String> {
@@ -783,6 +794,36 @@ fn build_ledger_plan_arguments(arguments: &[String]) -> Result<(), String> {
         Some(Path::new(&arguments[11])),
         None,
         None,
+        false,
+    )
+}
+
+fn build_provider_free_ledger_plan_arguments(arguments: &[String]) -> Result<(), String> {
+    const FLAGS: [&str; 5] = [
+        "--domain",
+        "--target",
+        "--environment",
+        "--provider-run",
+        "--output",
+    ];
+    if arguments.len() != FLAGS.len() * 2
+        || arguments
+            .chunks_exact(2)
+            .zip(FLAGS)
+            .any(|(pair, flag)| pair[0] != flag || pair[1].is_empty())
+    {
+        return Err(usage());
+    }
+    build_ledger_plan(
+        &arguments[1],
+        QualificationTarget::parse(&arguments[3]).map_err(string_error)?,
+        &arguments[5],
+        &arguments[7],
+        None,
+        Some(Path::new(&arguments[9])),
+        None,
+        None,
+        true,
     )
 }
 
@@ -812,6 +853,7 @@ fn preflight_ledger_policy_arguments(arguments: &[String]) -> Result<(), String>
         None,
         Some(Path::new(&arguments[9])),
         Some(Path::new(&arguments[11])),
+        false,
     )
 }
 
@@ -993,6 +1035,7 @@ fn build_ledger_plan(
     output: Option<&Path>,
     preflight_receipt_trust: Option<&Path>,
     preflight_attester_repository: Option<&Path>,
+    provider_free_configuration_mismatch: bool,
 ) -> Result<(), String> {
     reject_secret_bearing_environment()?;
     let repository = root();
@@ -1021,6 +1064,21 @@ fn build_ledger_plan(
         .ok_or_else(|| {
             "qualification provider run is not an exact checked matrix row".to_owned()
         })?;
+    if provider_free_configuration_mismatch
+        && (domain != "stripe"
+            || target != QualificationTarget::LinuxX86_64
+            || !provider_run
+                .scenario_ids
+                .iter()
+                .any(|scenario| scenario == "configuration-mismatch")
+            || setup_handoff.is_some()
+            || preflight_receipt_trust.is_some()
+            || preflight_attester_repository.is_some())
+    {
+        return Err(
+            "provider-free plan is not the checked Stripe configuration-mismatch fixture".into(),
+        );
+    }
     let (setup_handoff_sha256, cleanup_reference_bytes) = if let Some(setup_handoff) = setup_handoff
     {
         let setup_bytes = read_bounded(setup_handoff, MAX_CANDIDATE_COLLECTION_BYTES)?;
@@ -1066,7 +1124,12 @@ fn build_ledger_plan(
         .ok_or_else(|| "qualified profile domain has no provider connection".to_owned())?;
     let workload_id_sha256 = required_sha256_env("AUTHS_QUALIFICATION_WORKLOAD_ID_SHA256")?;
     let mut phases = Vec::new();
-    for scenario_id in &provider_run.scenario_ids {
+    let scenario_ids = if provider_free_configuration_mismatch {
+        vec!["configuration-mismatch".to_owned()]
+    } else {
+        provider_run.scenario_ids.clone()
+    };
+    for scenario_id in &scenario_ids {
         let scenario_program_sha256 =
             scenario_program_sha256_at(&repository, &context, &candidate_revision, scenario_id)?;
         let operations = operation_plans
@@ -1176,21 +1239,36 @@ fn build_ledger_plan(
         )?,
         agent_uid: required_u32_env("AUTHS_QUALIFICATION_AGENT_UID")?,
         agent_gid: required_u32_env("AUTHS_QUALIFICATION_AGENT_GID")?,
+        agent_launcher_artifact_sha256: required_sha256_env(
+            "AUTHS_QUALIFICATION_AGENT_LAUNCHER_SHA256",
+        )?,
         agent_executable_sha256,
+        agent_configuration_sha256: required_sha256_env("AUTHS_QUALIFICATION_AGENT_CONFIG_SHA256")?,
         recovery_key_id: required_env("AUTHS_QUALIFICATION_RECOVERY_KEY_ID")?,
         recovery_public_key_base64url: required_env(
             "AUTHS_QUALIFICATION_RECOVERY_PUBLIC_KEY_BASE64URL",
+        )?,
+        receipt_trust_anchor_sha256: required_sha256_env(
+            "AUTHS_QUALIFICATION_RECEIPT_TRUST_ANCHOR_SHA256",
         )?,
         phases,
         started_at_unix_seconds,
         deadline_at_unix_seconds,
     };
     plan.validate().map_err(string_error)?;
+    if provider_free_configuration_mismatch
+        && !auths_profile_kit::qualification_plan_is_provider_free_configuration_mismatch(&plan)
+    {
+        return Err("provider-free plan differs from the closed acceptance fixture".into());
+    }
     if let Some(receipt_trust) = preflight_receipt_trust {
         let attester_repository = preflight_attester_repository.ok_or_else(|| {
             "preflight ledger policy omitted the protected attester repository".to_owned()
         })?;
         let anchors = read_bounded(receipt_trust, 262_144)?;
+        if hex::encode(Sha256::digest(&anchors)) != plan.receipt_trust_anchor_sha256 {
+            return Err("preflight receipt trust differs from the immutable ledger policy".into());
+        }
         let required_key_deadline_at_unix_seconds = plan
             .deadline_at_unix_seconds
             .checked_add(QUALIFICATION_PREPROVISION_SETUP_BUDGET_SECONDS)
@@ -4212,6 +4290,382 @@ fn collect_arguments(arguments: &[String]) -> Result<(), String> {
     })
 }
 
+fn run_provider_free_pre_admission_arguments(arguments: &[String]) -> Result<(), String> {
+    const FLAGS: [&str; 4] = ["--domain", "--target", "--environment", "--provider-run"];
+    if arguments.len() != FLAGS.len() * 2
+        || arguments
+            .chunks_exact(2)
+            .zip(FLAGS)
+            .any(|(pair, flag)| pair[0] != flag || pair[1].is_empty())
+    {
+        return Err(usage());
+    }
+    if env::var("GITHUB_ACTIONS").as_deref() != Ok("true")
+        || reject_secret_bearing_environment().is_err()
+    {
+        return Err(
+            "provider-free pre-admission must run as a no-secret protected coordinator".into(),
+        );
+    }
+    let domain = &arguments[1];
+    let target = QualificationTarget::parse(&arguments[3]).map_err(string_error)?;
+    let environment = &arguments[5];
+    let provider_run_id = &arguments[7];
+    if domain != "stripe" || target != QualificationTarget::LinuxX86_64 {
+        return Err("provider-free pre-admission is the exact Linux Stripe fixture".into());
+    }
+    let repository = root();
+    let domain_context = load_domain(&repository, domain)?;
+    if domain_context
+        .package
+        .qualification()
+        .protected_environment()
+        != environment
+        || !domain_context
+            .package
+            .qualification()
+            .targets()
+            .contains(&target)
+    {
+        return Err("provider-free pre-admission differs from the manifest-owned target".into());
+    }
+    let provider_run = require_provider_run(&repository, &domain_context, target, provider_run_id)?;
+    if !provider_run
+        .scenario_ids
+        .iter()
+        .any(|scenario| scenario == "configuration-mismatch")
+    {
+        return Err("checked Stripe row omits configuration-mismatch".into());
+    }
+    let all_operation_plans = load_operation_plans(&repository, &domain_context)?;
+    let operation = all_operation_plans
+        .get("configuration-mismatch")
+        .cloned()
+        .ok_or_else(|| "configuration-mismatch has no reviewed operation plan".to_owned())?;
+    let scenario_ids = vec!["configuration-mismatch".to_owned()];
+    let operation_plans = BTreeMap::from([("configuration-mismatch".to_owned(), operation)]);
+    let mut runtime =
+        ProcessProtectedPhaseRuntime::from_reviewed_context(&ReviewedPhaseRuntimeContext {
+            repository: &repository,
+            domain,
+            target,
+            environment,
+            provider_run_id,
+            scenario_ids: &scenario_ids,
+            operation_plans: &operation_plans,
+            package: &domain_context.package,
+        })?;
+    if !auths_profile_kit::qualification_plan_is_provider_free_configuration_mismatch(&runtime.plan)
+    {
+        return Err("provider-free runtime plan differs from the closed fixture".into());
+    }
+    let program = scenario_program_at(
+        &repository,
+        &domain_context,
+        &runtime.plan.candidate_revision,
+        "configuration-mismatch",
+    )?;
+    let cases = program
+        .cases()
+        .iter()
+        .filter(|case| case.role() == auths_profile_kit::QualificationOperationRole::Effect)
+        .map(|case| {
+            let input = auths_stripe::qualification::qualification_effect_fallback_case_json(
+                "auths.stripe.refund/1",
+                "configuration-mismatch",
+                case.stimulus(),
+            )
+            .map_err(string_error)?
+            .ok_or_else(|| "provider-free reviewed case has no inert input".to_owned())?;
+            Ok(auths_profile_kit::QualificationCaseVector {
+                case_id: case.case_id().to_owned(),
+                input,
+            })
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+    let vector = auths_profile_kit::QualificationVector {
+        id: "configuration-mismatch".into(),
+        scenario_program: program,
+        cases,
+        failpoint: None,
+    };
+    vector.validate().map_err(string_error)?;
+    let [planned] = operation_plans
+        .get("configuration-mismatch")
+        .map(Vec::as_slice)
+        .ok_or_else(|| "configuration-mismatch operation plan disappeared".to_owned())?
+    else {
+        return Err("configuration-mismatch must have exactly one reviewed phase".into());
+    };
+    let mut phase = runtime.enter(&vector, 1, planned)?;
+    let outcome = phase
+        .client()
+        .invoke_installed("provider-free-configuration-mismatch", &vector.cases)
+        .map_err(string_error)?;
+    let [case] = outcome.cases.as_slice() else {
+        return Err("installed SDK returned the wrong provider-free case roster".into());
+    };
+    if case.case_id != "rejected" || case.kind != "unavailable" || case.value.is_some() {
+        return Err("installed SDK returned the wrong provider-free terminal result".into());
+    }
+    phase.complete()
+}
+
+fn verify_provider_free_acceptance_arguments(arguments: &[String]) -> Result<(), String> {
+    const FLAGS: [&str; 11] = [
+        "--candidate-repository",
+        "--attester-repository",
+        "--release-binding",
+        "--release-build",
+        "--attester-tools-verification",
+        "--attester-tools-manifest",
+        "--plan",
+        "--common-phase",
+        "--ledger",
+        "--agent-config",
+        "--receipt-trust",
+    ];
+    if arguments.len() != FLAGS.len() * 2
+        || arguments
+            .chunks_exact(2)
+            .zip(FLAGS)
+            .any(|(pair, flag)| pair[0] != flag || pair[1].is_empty())
+    {
+        return Err(usage());
+    }
+    reject_secret_bearing_environment()?;
+    let candidate_repository = Path::new(&arguments[1]);
+    let attester_repository = Path::new(&arguments[3]);
+    if !candidate_repository.is_absolute()
+        || !attester_repository.is_absolute()
+        || candidate_repository == attester_repository
+    {
+        return Err("provider-free verification requires two distinct fresh checkouts".into());
+    }
+    let plan_bytes = read_bounded(Path::new(&arguments[13]), 262_144)?;
+    let plan = QualificationEvidenceLedgerPlanV1::from_json(&plan_bytes).map_err(string_error)?;
+    if !auths_profile_kit::qualification_plan_is_provider_free_configuration_mismatch(&plan)
+        || plan.repository_id != required_env("GITHUB_REPOSITORY_ID")?
+        || plan.workflow_path != ".github/workflows/profile-qualification-stripe.yml"
+        || plan.workflow_revision != required_env("AUTHS_QUALIFICATION_WORKFLOW_REVISION")?
+        || plan.run_id != required_env("GITHUB_RUN_ID")?
+        || plan.run_attempt
+            != required_env("GITHUB_RUN_ATTEMPT")?
+                .parse::<u32>()
+                .map_err(string_error)?
+        || git_revision(candidate_repository)? != plan.candidate_revision
+        || git_revision(attester_repository)? != plan.attester_revision
+    {
+        return Err("provider-free plan differs from the fresh protected run identity".into());
+    }
+
+    let context = load_domain_from_git(candidate_repository, "stripe", &plan.candidate_revision)?;
+    if context.package.qualification().protected_environment() != plan.protected_environment
+        || !context
+            .package
+            .qualification()
+            .targets()
+            .contains(&plan.target)
+    {
+        return Err("provider-free plan differs from the fresh profile package".into());
+    }
+    let provider_run = load_provider_matrix_at(
+        candidate_repository,
+        &context,
+        plan.target,
+        &plan.candidate_revision,
+    )?
+    .runs
+    .into_iter()
+    .find(|run| run.id == plan.provider_run_id)
+    .filter(|run| {
+        run.scenario_ids
+            .iter()
+            .any(|scenario| scenario == "configuration-mismatch")
+    })
+    .ok_or_else(|| "provider-free plan row is absent from the fresh matrix".to_owned())?;
+    let operation_plans =
+        load_operation_plans_at(candidate_repository, &context, &plan.candidate_revision)?;
+    let operations = operation_plans
+        .get("configuration-mismatch")
+        .ok_or_else(|| "fresh operation plan omits configuration-mismatch".to_owned())?;
+    let [operation] = operations.as_slice() else {
+        return Err("configuration-mismatch no longer has one reviewed phase".into());
+    };
+    let [phase] = plan.phases.as_slice() else {
+        return Err("provider-free plan no longer has one immutable phase".into());
+    };
+    let operation_plan_sha256 = hex::encode(Sha256::digest(
+        serde_json_canonicalizer::to_vec(operations).map_err(string_error)?,
+    ));
+    let scenario_program_sha256 = scenario_program_sha256_at(
+        candidate_repository,
+        &context,
+        &plan.candidate_revision,
+        "configuration-mismatch",
+    )?;
+    let profile = context
+        .package
+        .profiles()
+        .iter()
+        .find(|profile| format!("{}/{}", profile.id(), profile.version()) == operation.profile)
+        .ok_or_else(|| "fresh profile package omits the reviewed phase profile".to_owned())?;
+    let connection = context
+        .package
+        .domain()
+        .connection()
+        .ok_or_else(|| "fresh Stripe profile package has no connection".to_owned())?;
+    if provider_run.id != plan.provider_run_id
+        || phase.role != operation.role
+        || phase.profile != operation.profile
+        || phase.operation_plan_sha256 != operation_plan_sha256
+        || phase.scenario_program_sha256 != scenario_program_sha256
+        || phase.credential_requirement.workload_id_sha256
+            != required_sha256_env("AUTHS_QUALIFICATION_WORKLOAD_ID_SHA256")?
+        || phase.credential_requirement.provider_kind != connection.provider_kind()
+        || phase.credential_requirement.contract != connection.contract()
+        || phase.credential_requirement.descriptor_schema != connection.descriptor_schema()
+        || phase.credential_requirement.credential_scope
+            != profile
+                .credential_scope()
+                .ok_or_else(|| "fresh phase profile has no credential scope".to_owned())?
+    {
+        return Err("provider-free plan differs from the fresh reviewed scenario".into());
+    }
+
+    let release_binding_bytes = read_bounded(Path::new(&arguments[5]), 262_144)?;
+    let release_binding: VerifiedQualificationReleaseBuildBinding =
+        crate::profile_qualification_reports::parse_canonical(&release_binding_bytes)?;
+    let release_build_bytes = read_bounded(Path::new(&arguments[7]), 262_144)?;
+    let expected_agent_sha256 = validate_verified_release_build_binding(
+        &release_binding,
+        &release_build_bytes,
+        &plan.candidate_revision,
+        &plan.repository_id,
+        attester_repository,
+    )?;
+    let attester_tools =
+        verified_attester_tools_from_files(Path::new(&arguments[9]), Path::new(&arguments[11]))?;
+    let now = now_unix_seconds()?;
+    validate_attester_tools_binding(&attester_tools, now, &plan.repository_id)?;
+    let tool_sha256 = |path: &str| {
+        attester_tools
+            .members
+            .iter()
+            .find(|member| member.path == path)
+            .map(|member| member.sha256.as_str())
+            .ok_or_else(|| format!("fresh protected tool roster omits {path}"))
+    };
+    if expected_agent_sha256 != plan.agent_executable_sha256
+        || plan.agent_uid != required_u32_env("AUTHS_QUALIFICATION_AGENT_UID")?
+        || plan.agent_gid != required_u32_env("AUTHS_QUALIFICATION_AGENT_GID")?
+        || tool_sha256("qualification-agent-launcher")? != plan.agent_launcher_artifact_sha256
+        || tool_sha256("qualification-crash-controller")?
+            != plan.supervisor_controller_artifact_sha256
+        || tool_sha256("auths-qualification-supervisor")? != plan.ledger_appender_artifact_sha256
+    {
+        return Err("provider-free executable identities differ from protected releases".into());
+    }
+
+    let receipt_trust_bytes = read_bounded(Path::new(&arguments[21]), 262_144)?;
+    validate_protected_attester_policy(
+        candidate_repository,
+        attester_repository,
+        &receipt_trust_bytes,
+        &plan,
+        plan.deadline_at_unix_seconds,
+    )?;
+    let source_trust_bytes = read_bounded(
+        &attester_repository.join(EVIDENCE_SOURCE_TRUST_PATH),
+        262_144,
+    )?;
+    let ledger_trust_bytes = read_bounded(
+        &attester_repository.join(EVIDENCE_LEDGER_TRUST_PATH),
+        262_144,
+    )?;
+    let source_trust = QualificationEvidenceSourceTrustRegistry::from_json(&source_trust_bytes)
+        .map_err(string_error)?;
+    for (source, member) in [
+        (
+            QualificationEvidenceSource::Supervisor,
+            "qualification-source-supervisor",
+        ),
+        (
+            QualificationEvidenceSource::ClientProxy,
+            "qualification-source-client-proxy",
+        ),
+        (
+            QualificationEvidenceSource::JournalReader,
+            "qualification-source-journal-reader",
+        ),
+        (
+            QualificationEvidenceSource::CredentialBroker,
+            "qualification-source-credential-broker",
+        ),
+        (
+            QualificationEvidenceSource::ProfileStateReader,
+            "qualification-source-profile-state-reader",
+        ),
+        (
+            QualificationEvidenceSource::ProviderProxy,
+            "qualification-source-provider-proxy",
+        ),
+        (
+            QualificationEvidenceSource::ReceiptVerifier,
+            "qualification-source-receipt-verifier",
+        ),
+        (
+            QualificationEvidenceSource::ProviderObserver,
+            "qualification-source-provider-observer",
+        ),
+    ] {
+        let (_, _, signer_artifact, _) = source_trust
+            .current_source_process_binding(
+                source,
+                &plan.domain,
+                plan.started_at_unix_seconds,
+                plan.deadline_at_unix_seconds,
+                now,
+            )
+            .map_err(string_error)?;
+        if signer_artifact != tool_sha256(member)? {
+            return Err(format!(
+                "fresh source trust differs from protected tool {member}"
+            ));
+        }
+        if !matches!(
+            source,
+            QualificationEvidenceSource::Supervisor | QualificationEvidenceSource::JournalReader
+        ) {
+            let (_, _, _, _, reader_artifact, _) = source_trust
+                .fixed_source_process_binding(
+                    source,
+                    signer_artifact,
+                    &plan.domain,
+                    plan.started_at_unix_seconds,
+                    plan.deadline_at_unix_seconds,
+                    now,
+                )
+                .map_err(string_error)?;
+            if reader_artifact != signer_artifact {
+                return Err(format!(
+                    "fresh reader trust differs from protected tool {member}"
+                ));
+            }
+        }
+    }
+    verify_provider_free_qualification_ledger(
+        &plan_bytes,
+        &read_bounded(Path::new(&arguments[15]), 1_048_576)?,
+        &read_bounded(Path::new(&arguments[17]), 16_777_216)?,
+        &source_trust_bytes,
+        &ledger_trust_bytes,
+        &read_bounded(Path::new(&arguments[19]), 262_144)?,
+        &receipt_trust_bytes,
+        now,
+    )
+}
+
 fn observe_arguments(arguments: &[String]) -> Result<(), String> {
     if arguments.len() != 14
         || arguments[0] != "--domain"
@@ -4639,6 +5093,17 @@ pub(crate) struct CleanupAdapterContext<'a> {
     pub(crate) package: &'a ProfilePackage,
 }
 
+struct ReviewedPhaseRuntimeContext<'a> {
+    repository: &'a Path,
+    domain: &'a str,
+    target: QualificationTarget,
+    environment: &'a str,
+    provider_run_id: &'a str,
+    scenario_ids: &'a [String],
+    operation_plans: &'a BTreeMap<String, Vec<QualificationPlannedOperation>>,
+    package: &'a ProfilePackage,
+}
+
 trait ProtectedPhaseGuard {
     fn client(&self) -> &QualificationPhaseClient;
 
@@ -4703,6 +5168,19 @@ struct ProcessProtectedPhaseGuard {
 
 impl ProcessProtectedPhaseRuntime {
     fn from_context(context: &RunAdapterContext<'_>) -> Result<Self, String> {
+        Self::from_reviewed_context(&ReviewedPhaseRuntimeContext {
+            repository: context.repository,
+            domain: context.domain,
+            target: context.target,
+            environment: context.environment,
+            provider_run_id: context.provider_run_id,
+            scenario_ids: context.scenario_ids,
+            operation_plans: context.operation_plans,
+            package: context.package,
+        })
+    }
+
+    fn from_reviewed_context(context: &ReviewedPhaseRuntimeContext<'_>) -> Result<Self, String> {
         let controller = required_absolute_path_env("AUTHS_QUALIFICATION_PHASE_CONTROLLER")?;
         let agent = required_absolute_path_env("AUTHS_QUALIFICATION_AGENT")?;
         let agent_config = required_absolute_path_env("AUTHS_QUALIFICATION_AGENT_CONFIG")?;
@@ -4809,7 +5287,9 @@ impl ProcessProtectedPhaseRuntime {
                 .map_err(string_error)?;
         let receipt_trust_bytes = read_bounded(&receipt_trust, 262_144)?;
         decode_receipt_trust_anchors(&receipt_trust_bytes).map_err(string_error)?;
-        if receipt_anchors_from_agent_config(&parsed_agent_config)? != receipt_trust_bytes {
+        if qualification_receipt_anchors_from_agent_config(&parsed_agent_config)?
+            != receipt_trust_bytes
+        {
             return Err(
                 "protected receipt anchors differ from the public agent configuration".into(),
             );
@@ -4911,59 +5391,6 @@ impl ProcessProtectedPhaseRuntime {
     fn cgroup_path(&self, scenario: &str, phase_index: u8) -> PathBuf {
         self.cgroup_root.join(format!("{scenario}-{phase_index}"))
     }
-}
-
-fn receipt_anchors_from_agent_config(config: &AgentConfig) -> Result<Vec<u8>, String> {
-    let mut anchors = Vec::with_capacity(config.receipt_signing().prior().len() + 2);
-    for value in config.receipt_signing().prior() {
-        let mut public_key = [0_u8; 32];
-        base64ct::Base64UrlUnpadded::decode(value.public_key_base64url(), &mut public_key)
-            .map_err(string_error)?;
-        anchors.push(
-            ReceiptTrustAnchor::new(
-                match value.role() {
-                    ReceiptSigningRole::Decision => ReceiptTrustAnchorRole::Decision,
-                    ReceiptSigningRole::Execution => ReceiptTrustAnchorRole::Execution,
-                },
-                value.key_id(),
-                value.verification_method(),
-                public_key,
-                value.not_before_unix_seconds(),
-                value.not_after_unix_seconds(),
-            )
-            .map_err(string_error)?,
-        );
-    }
-    for (role, value) in [
-        (
-            ReceiptTrustAnchorRole::Decision,
-            config.receipt_signing().decision(),
-        ),
-        (
-            ReceiptTrustAnchorRole::Execution,
-            config.receipt_signing().execution(),
-        ),
-    ] {
-        let mut public_key = [0_u8; 32];
-        base64ct::Base64UrlUnpadded::decode(value.public_key_base64url(), &mut public_key)
-            .map_err(string_error)?;
-        anchors.push(
-            ReceiptTrustAnchor::new(
-                role,
-                value.key_id(),
-                value.verification_method(),
-                public_key,
-                value.not_before_unix_seconds(),
-                value.not_after_unix_seconds(),
-            )
-            .map_err(string_error)?,
-        );
-    }
-    anchors.sort_by(|left, right| {
-        (left.role(), left.key_id().as_bytes()).cmp(&(right.role(), right.key_id().as_bytes()))
-    });
-    let anchors = ReceiptTrustAnchors::new(anchors).map_err(string_error)?;
-    encode_receipt_trust_anchors(&anchors).map_err(string_error)
 }
 
 impl ProtectedPhaseRuntime for ProcessProtectedPhaseRuntime {
@@ -8060,6 +8487,14 @@ fn verify_retained_evidence_ledgers(
     let recovery_key_id = required_env("AUTHS_QUALIFICATION_RECOVERY_KEY_ID")?;
     let recovery_public_key_base64url =
         required_env("AUTHS_QUALIFICATION_RECOVERY_PUBLIC_KEY_BASE64URL")?;
+    let receipt_trust_anchor_sha256 =
+        required_env("AUTHS_QUALIFICATION_RECEIPT_TRUST_ANCHOR_SHA256")?;
+    if observation.recovery_key_id() != recovery_key_id
+        || observation.recovery_public_key_base64url() != recovery_public_key_base64url
+        || observation.receipt_trust_anchor_sha256() != receipt_trust_anchor_sha256
+    {
+        return Err("retained observation agent trust policy differs from protected inputs".into());
+    }
     require_exact_ledger_roots(
         evidence,
         observation.provider_runs().iter().map(|run| run.id()),
@@ -8213,10 +8648,6 @@ fn verify_retained_evidence_ledgers(
                 }
             }
         }
-        let agent_trust = ledger
-            .record()
-            .agent_trust()
-            .ok_or_else(|| "retained ledger omits the exercised agent trust identity".to_owned())?;
         if ledger.key_id() != reference.sealer_key_id()
             || ledger.record().provider_run_id() != reference.provider_run_id()
             || ledger.record().domain() != observation.domain()
@@ -8231,11 +8662,6 @@ fn verify_retained_evidence_ledgers(
             || ledger.record().protected_environment() != protected_environment
             || ledger.record().started_at_unix_seconds() < observation.started_at_unix_seconds()
             || ledger.record().completed_at_unix_seconds() > observation.completed_at_unix_seconds()
-            || agent_trust.recovery_key_id() != observation.recovery_key_id()
-            || agent_trust.recovery_public_key_base64url()
-                != observation.recovery_public_key_base64url()
-            || agent_trust.receipt_trust_anchor_sha256()
-                != observation.receipt_trust_anchor_sha256()
         {
             return Err("retained qualification ledger context differs from observation".into());
         }
@@ -8252,19 +8678,43 @@ fn verify_retained_evidence_ledgers(
             let bytes = evidence.read_member(&path, 1_048_576)?;
             let common: QualificationCommonPhaseEvidence =
                 serde_json::from_slice(&bytes).map_err(string_error)?;
+            let phase_matches =
+                if qualification_pre_admission_attempt_count(&phase.scenario_id).is_some() {
+                    qualification_common_phase_matches_exact_pre_admission_ledger(
+                        ledger.record(),
+                        phase,
+                        &common,
+                    )
+                } else {
+                    auths_profile_kit::qualification_common_phase_matches_ledger(
+                        ledger.record(),
+                        phase,
+                        &common,
+                    )
+                }
+                .map_err(string_error)?;
             if serde_json_canonicalizer::to_vec(&common).map_err(string_error)? != bytes
                 || hex::encode(Sha256::digest(&bytes)) != phase.common_phase_evidence_sha256
-                || !auths_profile_kit::qualification_common_phase_matches_ledger(
-                    ledger.record(),
-                    phase,
-                    &common,
-                )
-                .map_err(string_error)?
+                || !phase_matches
             {
                 return Err(
                     "retained common phase differs from its authenticated source events".into(),
                 );
             }
+        }
+        let agent_trust = ledger
+            .record()
+            .agent_trust()
+            .ok_or_else(|| "retained ledger omits the exercised agent trust identity".to_owned())?;
+        if agent_trust.recovery_key_id() != observation.recovery_key_id()
+            || agent_trust.recovery_public_key_base64url()
+                != observation.recovery_public_key_base64url()
+            || agent_trust.receipt_trust_anchor_sha256()
+                != observation.receipt_trust_anchor_sha256()
+        {
+            return Err(
+                "retained ledger exercised agent trust differs from the observation".into(),
+            );
         }
         let expected_records = ledger
             .record()
@@ -13685,7 +14135,14 @@ mod tests {
             .find("Start and authenticate every no-seed ordinary row reader")
             .unwrap();
         let collection = workflow.find("Collect every exact provider row").unwrap();
+        let provider_free = workflow
+            .find("Run the installed provider-free configuration-mismatch phase")
+            .unwrap();
+        let provider_setup = workflow
+            .find("Create live provider resources and protected setup handoffs")
+            .unwrap();
         assert!(appender < readers && readers < collection);
+        assert!(provider_free < provider_setup);
         assert!(!services.contains("verify-source-seed"));
         for role in [
             "SUPERVISOR",
@@ -13698,8 +14155,60 @@ mod tests {
             "RECEIPT_VERIFIER",
         ] {
             let slot = format!("QUALIFICATION_SOURCE_{role}_SEED");
-            assert_eq!(workflow.matches(&slot).count(), 1, "{slot}");
+            assert_eq!(workflow.matches(&slot).count(), 2, "{slot}");
         }
+        let private_seed_slots = [
+            "QUALIFICATION_DECISION_RECEIPT_SEED",
+            "QUALIFICATION_EXECUTION_RECEIPT_SEED",
+            "QUALIFICATION_RECOVERY_SEED",
+            "QUALIFICATION_SOURCE_SUPERVISOR_SEED",
+            "QUALIFICATION_SOURCE_CLIENT_PROXY_SEED",
+            "QUALIFICATION_SOURCE_JOURNAL_READER_SEED",
+            "QUALIFICATION_SOURCE_CREDENTIAL_BROKER_SEED",
+            "QUALIFICATION_SOURCE_PROFILE_STATE_READER_SEED",
+            "QUALIFICATION_SOURCE_RECEIPT_VERIFIER_SEED",
+            "QUALIFICATION_SOURCE_PROVIDER_PROXY_SEED",
+            "QUALIFICATION_SOURCE_PROVIDER_OBSERVER_SEED",
+            "QUALIFICATION_LEDGER_SEALER_SEED",
+        ];
+        for step in workflow.split("\n      - name:") {
+            let seed_count = private_seed_slots
+                .iter()
+                .filter(|slot| step.contains(**slot))
+                .count();
+            assert!(
+                seed_count <= 1,
+                "workflow step receives {seed_count} private seeds"
+            );
+        }
+        for command in [
+            "build-provider-free-ledger-plan",
+            "run-provider-free-pre-admission",
+            "stage-provider-free-pre-admission",
+            "build-event-index",
+            "assemble-ledger",
+            "seal-ledger",
+            "verify-provider-free-acceptance",
+        ] {
+            assert!(workflow.contains(command), "{command}");
+        }
+        assert!(workflow.contains("--candidate-repository \"$GITHUB_WORKSPACE/candidate\""));
+        assert!(workflow.contains("fresh-release-build/verified-release-build.json"));
+        assert!(!workflow.contains("target/provider-free-qualification/\n"));
+        assert!(workflow.contains("PROVIDER_FREE_SANDBOX_READY: \"false\""));
+        assert!(!workflow.contains("PROVIDER_FREE_SANDBOX_READY: \"true\""));
+        let sandbox_gate = workflow
+            .find("Refuse live qualification without the reviewed candidate sandbox")
+            .unwrap();
+        assert!(sandbox_gate < provider_setup && provider_setup < collection);
+        let sandbox_gate_block = &workflow[sandbox_gate..provider_setup];
+        assert!(!sandbox_gate_block.contains("if:"));
+        assert!(sandbox_gate_block.contains(
+            "AP-0044 candidate SDK sandbox is not implemented; refusing provider provisioning"
+        ));
+        assert!(!workflow.contains("CANDIDATE_SANDBOX_READY"));
+        assert!(!workflow.contains("GITHUB_ENV"));
+        assert!(workflow.contains("--attester-repository \"$GITHUB_WORKSPACE/trusted-attester\""));
         assert!(!workflow[..collection].contains("profile qualification collect"));
     }
 
