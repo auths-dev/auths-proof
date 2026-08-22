@@ -99,6 +99,7 @@ jobs:
       candidate_tag: ${{ inputs.candidate_tag }}
       run_label: official
     permissions:
+      actions: read
       artifact-metadata: write
       attestations: write
       contents: read
@@ -114,6 +115,7 @@ jobs:
       candidate_tag: ${{ inputs.candidate_tag }}
       run_label: reproduction
     permissions:
+      actions: read
       artifact-metadata: write
       attestations: write
       contents: read

@@ -13,20 +13,35 @@
     "runId": {"$ref": "profile-qualification.schema.json#/$defs/decimal32"},
     "runAttempt": {"type": "integer", "minimum": 1, "maximum": 4294967295},
     "retentionDays": {"type": "integer", "minimum": 90, "maximum": 365},
-    "projection": {"$ref": "#/$defs/hostedArtifact"},
-    "artifacts": {"type": "array", "minItems": 9, "maxItems": 9, "items": {"$ref": "#/$defs/hostedArtifact"}, "x-auths-byteSortedBy": "role"}
+    "projection": {"$ref": "#/$defs/projectionArtifact"},
+    "artifacts": {"type": "array", "minItems": 7, "maxItems": 70, "items": {"$ref": "#/$defs/hostedArtifact"}, "x-auths-byteSortedBy": "role"}
   },
   "$defs": {
+    "projectionArtifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "name", "artifactId", "uploadedArchiveSha256", "sizeInBytes", "createdAtUnixSeconds", "expiresAtUnixSeconds", "expired"],
+      "properties": {
+        "role": {"const": "release-build"},
+        "name": {"type": "string", "minLength": 1, "maxLength": 256, "pattern": "^[A-Za-z0-9._-]+$"},
+        "artifactId": {"$ref": "profile-qualification.schema.json#/$defs/decimal32"},
+        "uploadedArchiveSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "sizeInBytes": {"type": "integer", "minimum": 1, "maximum": 16777216},
+        "createdAtUnixSeconds": {"$ref": "profile-qualification.schema.json#/$defs/unixSeconds"},
+        "expiresAtUnixSeconds": {"$ref": "profile-qualification.schema.json#/$defs/unixSeconds"},
+        "expired": {"type": "boolean"}
+      }
+    },
     "hostedArtifact": {
       "type": "object",
       "additionalProperties": false,
       "required": ["role", "name", "artifactId", "uploadedArchiveSha256", "sizeInBytes", "createdAtUnixSeconds", "expiresAtUnixSeconds", "expired"],
       "properties": {
-        "role": {"type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-z][a-z0-9-]*$"},
+        "role": {"type": "string", "minLength": 1, "maxLength": 79, "pattern": "^(production-agent|python-native|python-wheel|qualification-agent|typescript-native|typescript-package|python-profile-[a-z][a-z0-9-]{0,63})$"},
         "name": {"type": "string", "minLength": 1, "maxLength": 256, "pattern": "^[A-Za-z0-9._-]+$"},
         "artifactId": {"$ref": "profile-qualification.schema.json#/$defs/decimal32"},
         "uploadedArchiveSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
-        "sizeInBytes": {"type": "integer", "minimum": 1, "maximum": 536870912},
+        "sizeInBytes": {"type": "integer", "minimum": 1, "maximum": 4294967296},
         "createdAtUnixSeconds": {"$ref": "profile-qualification.schema.json#/$defs/unixSeconds"},
         "expiresAtUnixSeconds": {"$ref": "profile-qualification.schema.json#/$defs/unixSeconds"},
         "expired": {"type": "boolean"}

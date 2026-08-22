@@ -9,17 +9,9 @@ const RELEASE_MANIFEST_INPUT_SCHEMA: &str = "auths.release-manifest-input/1";
 const RELEASE_SUBJECTS_SCHEMA: &str = "auths.release-subjects/1";
 const QUALIFICATION_RELEASE_SURFACE_SCHEMA: &str = "auths.qualification-release-surface/1";
 const QUALIFICATION_RELEASE_MEMBERS_SCHEMA: &str = "auths.qualification-release-members/1";
-const QUALIFICATION_ARTIFACT_ROLES: [&str; 9] = [
-    "production-agent",
-    "python-native",
-    "python-profile-opentofu",
-    "python-profile-postgresql",
-    "python-profile-stripe",
-    "python-wheel",
-    "qualification-agent",
-    "typescript-native",
-    "typescript-package",
-];
+const MAX_QUALIFICATION_MEMBER_BYTES: u64 = 536_870_912;
+const MAX_QUALIFICATION_AGGREGATE_BYTES: u64 = 4_294_967_296;
+const QUALIFICATION_AGGREGATE_ARCHIVE_OVERHEAD_RESERVE: u64 = 1_048_576;
 pub(crate) const RELEASE_REPOSITORY: &str = "auths-dev/auths-proof";
 const REPRODUCIBILITY_CLASSES: [&str; 4] = [
     "byte-identical",
@@ -147,6 +139,23 @@ fn validate_release_workflow_contract() -> Result<(), String> {
     if controller.contains("tags: [\"auths-v*\"]") {
         return Err("release control must not build from a tag push".to_owned());
     }
+    for (caller, next_job) in [
+        ("official-preparation:", "\n  reproduction-preparation:"),
+        ("reproduction-preparation:", "\n  compare-and-stage:"),
+    ] {
+        let start = controller
+            .find(caller)
+            .ok_or_else(|| format!("release control workflow is missing: {caller}"))?;
+        let remainder = &controller[start + caller.len()..];
+        let end = remainder
+            .find(next_job)
+            .ok_or_else(|| format!("release preparation job is unterminated: {caller}"))?;
+        if !remainder[..end].contains("      actions: read\n") {
+            return Err(format!(
+                "release preparation does not grant reusable builder Actions read authority: {caller}"
+            ));
+        }
+    }
     for required in [
         "workflow_call:",
         "actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6",
@@ -155,15 +164,12 @@ fn validate_release_workflow_contract() -> Result<(), String> {
         "--deny-self-hosted-runners",
         "--signer-digest \"$CANDIDATE_COMMIT\"",
         "cargo xtask release-control finalize",
-        "cargo xtask release-control canonicalize-qualification-build",
+        "cargo xtask release-control assemble-qualification-build",
+        "Upload exact aggregate qualification member artifact",
+        "members-attempt-${{ github.run_attempt }}",
         "qualification_release_build_artifact_id:",
         "target/qualification-release/release-build.json",
-        "auths-production-agent.tar.zst",
-        "auths-python-native.so",
-        "auths-python-wheel.whl",
-        "auths-qualification-agent.tar.zst",
-        "auths-typescript-native.wasm",
-        "auths-typescript-package.tgz",
+        "hosted-artifacts.json",
     ] {
         if !builder.contains(required) {
             return Err(format!("reusable release builder is missing: {required}"));
@@ -723,7 +729,7 @@ fn prepare_qualification_release_artifacts(
         fs::remove_dir_all(&directory)
             .map_err(|error| format!("could not clear qualification release directory: {error}"))?;
     }
-    for role in QUALIFICATION_ARTIFACT_ROLES {
+    for role in auths_profile_kit::QUALIFICATION_RELEASE_ARTIFACT_ROLES {
         fs::create_dir_all(directory.join(role)).map_err(|error| {
             format!("could not create qualification role directory {role}: {error}")
         })?;
@@ -764,8 +770,14 @@ fn prepare_qualification_release_artifacts(
     copy_bounded_release_member(&wheel, &python_wheel, "Python wheel")?;
     let python_native = directory.join("python-native/auths-python-native.so");
     extract_python_native(&wheel, &python_native)?;
+    let roster_bytes = fs::read(root().join("product/runtime/auths-node/profile-packages.json"))
+        .map_err(|error| format!("could not read profile package roster: {error}"))?;
+    let roster = auths_profile_kit::ProfileRoster::from_json(&roster_bytes)
+        .map_err(|error| format!("profile package roster is invalid: {error}"))?;
     let mut generated_profile_archives = BTreeMap::new();
-    for domain in ["opentofu", "postgresql", "stripe"] {
+    for package in roster.packages() {
+        let domain = package.domain();
+        let module_domain = domain.replace('-', "_");
         let role = format!("python-profile-{domain}");
         let member = format!("auths-python-profile-{domain}.tar.zst");
         let archive = directory.join(&role).join(&member);
@@ -774,9 +786,9 @@ fn prepare_qualification_release_artifacts(
         for relative in [
             "pyproject.toml",
             "README.md",
-            &format!("src/auths_profiles/{domain}/__init__.py"),
-            &format!("src/auths_profiles/{domain}/generated.py"),
-            &format!("src/auths_profiles/{domain}/py.typed"),
+            &format!("src/auths_profiles/{module_domain}/__init__.py"),
+            &format!("src/auths_profiles/{module_domain}/generated.py"),
+            &format!("src/auths_profiles/{module_domain}/py.typed"),
         ] {
             let path = format!("{source_root}/{relative}");
             let metadata = fs::symlink_metadata(root().join(&path)).map_err(|error| {
@@ -834,72 +846,64 @@ fn prepare_qualification_release_artifacts(
     fs::write(&surface_path, &surface_bytes)
         .map_err(|error| format!("could not write qualification surface: {error}"))?;
 
-    let members = [
+    let mut members = vec![
         (
-            "production-agent",
-            "auths-production-agent.tar.zst",
+            "production-agent".to_owned(),
+            "auths-production-agent.tar.zst".to_owned(),
             production_archive,
         ),
-        ("python-native", "auths-python-native.so", python_native),
         (
-            "python-profile-opentofu",
-            generated_profile_archives["python-profile-opentofu"]
-                .0
-                .as_str(),
-            generated_profile_archives["python-profile-opentofu"]
-                .1
-                .clone(),
+            "python-native".to_owned(),
+            "auths-python-native.so".to_owned(),
+            python_native,
         ),
         (
-            "python-profile-postgresql",
-            generated_profile_archives["python-profile-postgresql"]
-                .0
-                .as_str(),
-            generated_profile_archives["python-profile-postgresql"]
-                .1
-                .clone(),
+            "python-wheel".to_owned(),
+            "auths-python-wheel.whl".to_owned(),
+            python_wheel,
         ),
         (
-            "python-profile-stripe",
-            generated_profile_archives["python-profile-stripe"]
-                .0
-                .as_str(),
-            generated_profile_archives["python-profile-stripe"]
-                .1
-                .clone(),
-        ),
-        ("python-wheel", "auths-python-wheel.whl", python_wheel),
-        (
-            "qualification-agent",
-            "auths-qualification-agent.tar.zst",
+            "qualification-agent".to_owned(),
+            "auths-qualification-agent.tar.zst".to_owned(),
             qualification_archive,
         ),
         (
-            "typescript-native",
-            "auths-typescript-native.wasm",
+            "typescript-native".to_owned(),
+            "auths-typescript-native.wasm".to_owned(),
             typescript_native,
         ),
         (
-            "typescript-package",
-            "auths-typescript-package.tgz",
+            "typescript-package".to_owned(),
+            "auths-typescript-package.tgz".to_owned(),
             typescript_package,
         ),
     ];
+    members.extend(
+        generated_profile_archives
+            .into_iter()
+            .map(|(role, (member, path))| (role, member, path)),
+    );
+    members.sort_by(|left, right| left.0.cmp(&right.0));
     let mut member_rows = Vec::with_capacity(members.len());
     let mut checksums = BTreeMap::new();
+    let mut aggregate_content_bytes = u64::try_from(surface_bytes.len())
+        .map_err(|_| "qualification surface length overflowed".to_owned())?;
     for (role, member_path, path) in members {
         let metadata = fs::symlink_metadata(&path)
             .map_err(|error| format!("could not inspect {role} artifact: {error}"))?;
         if !metadata.is_file()
             || metadata.file_type().is_symlink()
             || metadata.len() == 0
-            || metadata.len() > 536_870_912
+            || metadata.len() > MAX_QUALIFICATION_MEMBER_BYTES
         {
             return Err(format!(
                 "invalid qualification release member: {}",
                 path.display()
             ));
         }
+        aggregate_content_bytes = aggregate_content_bytes
+            .checked_add(metadata.len())
+            .ok_or("qualification aggregate length overflowed")?;
         let relative = path.strip_prefix(root()).map_err(|_| {
             format!(
                 "qualification member escaped repository: {}",
@@ -924,6 +928,17 @@ fn prepare_qualification_release_artifacts(
     });
     let member_manifest_bytes = serde_json_canonicalizer::to_vec(&member_manifest)
         .map_err(|error| format!("could not canonicalize qualification members: {error}"))?;
+    aggregate_content_bytes = aggregate_content_bytes
+        .checked_add(
+            u64::try_from(member_manifest_bytes.len())
+                .map_err(|_| "qualification member manifest length overflowed".to_owned())?,
+        )
+        .ok_or("qualification aggregate length overflowed")?;
+    if aggregate_content_bytes
+        > MAX_QUALIFICATION_AGGREGATE_BYTES - QUALIFICATION_AGGREGATE_ARCHIVE_OVERHEAD_RESERVE
+    {
+        return Err("qualification aggregate member artifact exceeds its upload bound".into());
+    }
     let member_manifest_path = directory.join("members.json");
     fs::write(&member_manifest_path, &member_manifest_bytes)
         .map_err(|error| format!("could not write qualification member manifest: {error}"))?;
@@ -2224,7 +2239,7 @@ mod tests {
         fn new() -> Self {
             let temporary = tempfile::tempdir().expect("qualification fixture directory");
             let artifact_root = temporary.path().join("artifacts");
-            for role in QUALIFICATION_ARTIFACT_ROLES {
+            for role in auths_profile_kit::QUALIFICATION_RELEASE_ARTIFACT_ROLES {
                 fs::create_dir_all(artifact_root.join(role)).expect("qualification role directory");
             }
             let production_entries = vec![
@@ -2543,10 +2558,10 @@ mod tests {
             "runAttempt": 1,
             "runLabel": "official",
             "qualificationSurfaceSha256": sha256_file(&fixture.surface_path).expect("surface digest"),
-            "artifacts": fixture.members.artifacts.iter().enumerate().map(|(index, member)| json!({
+            "artifacts": fixture.members.artifacts.iter().map(|member| json!({
                 "role": member.role,
-                "artifactId": format!("{}", 1000 + index),
-                "uploadedArchiveSha256": format!("{:064x}", index + 1),
+                "artifactId": "1000",
+                "uploadedArchiveSha256": "1".repeat(64),
                 "memberPath": member.member_path,
                 "memberSha256": member.member_sha256,
                 "bytes": member.bytes,
@@ -2775,7 +2790,9 @@ mod tests {
     #[test]
     fn qualification_release_verifier_accepts_exact_nine_role_fixture() {
         let fixture = QualificationReleaseFixture::new();
-        fixture.verify().expect("exact nine-role release fixture");
+        fixture
+            .verify()
+            .expect("exact generated-roster release fixture");
 
         let release_build_path = fixture._temporary.path().join("release-build.json");
         write_test_canonical(
@@ -2789,7 +2806,7 @@ mod tests {
             &fixture.artifact_root,
             QUALIFICATION_TEST_COMMIT,
         )
-        .expect("release-build projection binds the exact nine members");
+        .expect("release-build projection binds the exact generated members");
     }
 
     #[test]
@@ -2806,7 +2823,7 @@ mod tests {
             .map(|artifact| {
                 json!({
                     "role": artifact["role"],
-                    "name": format!("auths-qualification-{}-official-{}", QUALIFICATION_TEST_COMMIT, artifact["role"].as_str().expect("role")),
+                    "name": format!("auths-qualification-{}-official-members-attempt-1", QUALIFICATION_TEST_COMMIT),
                     "artifactId": artifact["artifactId"],
                     "uploadedArchiveSha256": artifact["uploadedArchiveSha256"],
                     "sizeInBytes": 1024,
@@ -2827,7 +2844,7 @@ mod tests {
             "retentionDays": 90,
             "projection": {
                 "role": "release-build",
-                "name": format!("auths-qualification-{}-official-release-build", QUALIFICATION_TEST_COMMIT),
+                "name": format!("auths-qualification-{}-official-release-build-attempt-1", QUALIFICATION_TEST_COMMIT),
                 "artifactId": "2000",
                 "uploadedArchiveSha256": "d".repeat(64),
                 "sizeInBytes": 1024,
@@ -2946,6 +2963,47 @@ mod tests {
             "auths.qualification-release-build-verification/1"
         );
         assert_eq!(binding["artifacts"].as_array().map(Vec::len), Some(9));
+
+        let mut large_aggregate = hosted.clone();
+        for artifact in large_aggregate["artifacts"].as_array_mut().unwrap() {
+            artifact["sizeInBytes"] = json!(536_870_913_u64);
+        }
+        write_test_canonical(&hosted_path, &large_aggregate);
+        auths_qualification_supervisor::verify_hosted_release_build(
+            &release_build_path,
+            &fixture.surface_path,
+            &fixture.members_path,
+            &fixture.artifact_root,
+            &root(),
+            &hosted_path,
+            &provenance_path,
+            &tools_verification_path,
+            &tools_manifest_path,
+            QUALIFICATION_TEST_COMMIT,
+            100,
+        )
+        .expect("aggregate may exceed the single-member bound");
+
+        let mut oversized_aggregate = large_aggregate;
+        for artifact in oversized_aggregate["artifacts"].as_array_mut().unwrap() {
+            artifact["sizeInBytes"] = json!(4_294_967_297_u64);
+        }
+        write_test_canonical(&hosted_path, &oversized_aggregate);
+        let error = auths_qualification_supervisor::verify_hosted_release_build(
+            &release_build_path,
+            &fixture.surface_path,
+            &fixture.members_path,
+            &fixture.artifact_root,
+            &root(),
+            &hosted_path,
+            &provenance_path,
+            &tools_verification_path,
+            &tools_manifest_path,
+            QUALIFICATION_TEST_COMMIT,
+            100,
+        )
+        .expect_err("aggregate above the protected bound must fail");
+        assert!(error.contains("outside retention"));
 
         let mut expired = hosted;
         expired["artifacts"][0]["expired"] = json!(true);

@@ -1,6 +1,8 @@
 //! Provider-free protected qualification mechanisms.
 
-use auths_profile_kit::QualificationReleaseBuild;
+use auths_profile_kit::{
+    ProfileRoster, QUALIFICATION_RELEASE_ARTIFACT_ROLES, QualificationReleaseBuild,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest as _, Sha256};
@@ -13,14 +15,7 @@ const RELEASE_SURFACE_SCHEMA: &str = "auths.qualification-release-surface/1";
 const RELEASE_MEMBERS_SCHEMA: &str = "auths.qualification-release-members/1";
 const MAX_JSON_BYTES: u64 = 262_144;
 const MAX_ARTIFACT_BYTES: u64 = 536_870_912;
-const ARTIFACT_ROLES: [&str; 6] = [
-    "production-agent",
-    "python-native",
-    "python-wheel",
-    "qualification-agent",
-    "typescript-native",
-    "typescript-package",
-];
+const MAX_AGGREGATE_ARTIFACT_BYTES: u64 = 4_294_967_296;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -228,7 +223,7 @@ struct ProvenanceVerification {
     release_build_verifier_sha256: String,
 }
 
-/// Verifies the exact six qualification release members and the closed
+/// Verifies the exact nine qualification release members and the closed
 /// production-versus-qualification executable surface.
 pub fn verify_release_surface(
     surface_path: &Path,
@@ -266,10 +261,14 @@ pub fn verify_release_surface(
         &surface.qualification_members,
         &policy.qualification_member_paths,
     )?;
-    if members.artifacts.len() != ARTIFACT_ROLES.len() {
+    if members.artifacts.len() != QUALIFICATION_RELEASE_ARTIFACT_ROLES.len() {
         return Err("qualification release member roster is not exact".into());
     }
-    for (member, expected_role) in members.artifacts.iter().zip(ARTIFACT_ROLES) {
+    for (member, expected_role) in members
+        .artifacts
+        .iter()
+        .zip(QUALIFICATION_RELEASE_ARTIFACT_ROLES.iter().copied())
+    {
         if member.role != expected_role
             || member.member_path.is_empty()
             || member.member_path.contains(['/', '\\'])
@@ -293,12 +292,22 @@ pub fn verify_release_surface(
             ));
         }
     }
-    let production_archive = artifact_root
-        .join("production-agent")
-        .join(&members.artifacts[0].member_path);
-    let qualification_archive = artifact_root
-        .join("qualification-agent")
-        .join(&members.artifacts[3].member_path);
+    let production_archive = artifact_root.join("production-agent").join(
+        &members
+            .artifacts
+            .iter()
+            .find(|member| member.role == "production-agent")
+            .ok_or("release members omit the production agent")?
+            .member_path,
+    );
+    let qualification_archive = artifact_root.join("qualification-agent").join(
+        &members
+            .artifacts
+            .iter()
+            .find(|member| member.role == "qualification-agent")
+            .ok_or("release members omit the qualification agent")?
+            .member_path,
+    );
     let production = read_exact_archive(
         &production_archive,
         "auths-production-agent",
@@ -365,6 +374,34 @@ fn verify_candidate_build_surface(repository: &Path) -> Result<(), String> {
     if !metadata.is_dir() || metadata.file_type().is_symlink() {
         return Err("candidate repository is not one real directory".into());
     }
+    let roster_bytes = read_candidate_file(
+        repository,
+        "product/runtime/auths-node/profile-packages.json",
+        131_072,
+    )?;
+    let roster = ProfileRoster::from_json(&roster_bytes)
+        .map_err(|error| format!("candidate profile roster is invalid: {error}"))?;
+    let mut candidate_profile_roles = roster
+        .packages()
+        .iter()
+        .map(|package| format!("python-profile-{}", package.domain()))
+        .collect::<Vec<_>>();
+    candidate_profile_roles.sort();
+    let protected_profile_roles = QUALIFICATION_RELEASE_ARTIFACT_ROLES
+        .iter()
+        .copied()
+        .filter(|role| role.starts_with("python-profile-"))
+        .collect::<Vec<_>>();
+    if candidate_profile_roles
+        != protected_profile_roles
+            .iter()
+            .map(|role| (*role).to_owned())
+            .collect::<Vec<_>>()
+    {
+        return Err(
+            "candidate profile roster differs from the protected release-role authority".into(),
+        );
+    }
 
     let node_manifest =
         read_candidate_file(repository, "product/runtime/auths-node/Cargo.toml", 131_072)?;
@@ -377,16 +414,25 @@ fn verify_candidate_build_surface(repository: &Path) -> Result<(), String> {
         .get("features")
         .and_then(toml::Value::as_table)
         .ok_or("candidate auths-node manifest has no feature table")?;
+    let mut qualification_features = vec![
+        "auths-connections/qualification-broker".to_owned(),
+        "auths-stores/qualification-evidence".to_owned(),
+    ];
+    qualification_features.extend(
+        roster
+            .packages()
+            .iter()
+            .map(|package| format!("{}/qualification", package.rust_package())),
+    );
+    qualification_features.sort();
+    let qualification_feature_refs = qualification_features
+        .iter()
+        .map(String::as_str)
+        .collect::<Vec<_>>();
     if node_features.len() != 2
         || !toml_string_array_eq(
             node_features.get("qualification-failpoints"),
-            &[
-                "auths-connections/qualification-broker",
-                "auths-opentofu/qualification",
-                "auths-postgresql/qualification",
-                "auths-stores/qualification-evidence",
-                "auths-stripe/qualification",
-            ],
+            &qualification_feature_refs,
         )
         || !toml_string_array_eq(
             node_features.get("testkit-agent"),
@@ -455,7 +501,29 @@ fn verify_candidate_build_surface(repository: &Path) -> Result<(), String> {
             ));
         }
     }
-    verify_reserved_qualification_feature_roster(repository, &workspace, workspace_dependencies)?;
+    for package in roster.packages() {
+        let package_root = Path::new(package.manifest_path())
+            .parent()
+            .ok_or("candidate profile package manifest has no parent")?;
+        let package_path = package_root
+            .to_str()
+            .ok_or("candidate profile package path is not UTF-8")?;
+        if !exact_workspace_path_dependency(
+            workspace_dependencies.get(package.rust_package()),
+            package_path,
+        ) {
+            return Err(format!(
+                "candidate workspace profile dependency drifted: {}",
+                package.rust_package()
+            ));
+        }
+    }
+    verify_reserved_qualification_feature_roster(
+        repository,
+        &workspace,
+        workspace_dependencies,
+        &roster,
+    )?;
 
     let connections = parse_candidate_manifest(
         repository,
@@ -505,13 +573,12 @@ fn verify_candidate_build_surface(repository: &Path) -> Result<(), String> {
         .get("profiles")
         .and_then(Value::as_array)
         .ok_or("candidate launch projection has no profile roster")?;
-    let expected_profiles = [
-        ("auths.opentofu.plan-preflight/1", false),
-        ("auths.opentofu.saved-plan-apply/1", false),
-        ("auths.postgresql.bounded-update/1", false),
-        ("auths.postgresql.update-preflight/1", false),
-        ("auths.stripe.refund/1", true),
-    ];
+    let expected_profiles = roster
+        .packages()
+        .iter()
+        .flat_map(|package| package.profiles())
+        .map(|profile| (profile.profile_ref(), profile.testkit_available()))
+        .collect::<Vec<_>>();
     if profiles.len() != expected_profiles.len() {
         return Err("candidate qualification profile roster is not exact".into());
     }
@@ -672,6 +739,7 @@ fn verify_reserved_qualification_feature_roster(
     repository: &Path,
     workspace: &toml::Value,
     workspace_dependencies: &toml::map::Map<String, toml::Value>,
+    roster: &ProfileRoster,
 ) -> Result<(), String> {
     const MAX_MANIFESTS: usize = 256;
     let mut pending = BTreeSet::new();
@@ -724,7 +792,7 @@ fn verify_reserved_qualification_feature_roster(
         }
     }
 
-    let expected = BTreeMap::from([
+    let mut expected = BTreeMap::from([
         (
             (
                 "product/runtime/auths-node/Cargo.toml".to_owned(),
@@ -775,30 +843,6 @@ fn verify_reserved_qualification_feature_roster(
         ),
         (
             (
-                "product/integrations/auths-opentofu/Cargo.toml".to_owned(),
-                "qualification-broker".to_owned(),
-                "value".to_owned(),
-            ),
-            1,
-        ),
-        (
-            (
-                "product/integrations/auths-postgresql/Cargo.toml".to_owned(),
-                "qualification-broker".to_owned(),
-                "value".to_owned(),
-            ),
-            1,
-        ),
-        (
-            (
-                "product/integrations/auths-stripe/Cargo.toml".to_owned(),
-                "qualification-broker".to_owned(),
-                "value".to_owned(),
-            ),
-            1,
-        ),
-        (
-            (
                 "product/qualification/auths-qualification-supervisor/Cargo.toml".to_owned(),
                 "qualification-evidence".to_owned(),
                 "value".to_owned(),
@@ -830,6 +874,23 @@ fn verify_reserved_qualification_feature_roster(
             1,
         ),
     ]);
+    for package in roster.packages() {
+        let manifest = Path::new(package.manifest_path())
+            .parent()
+            .ok_or("candidate profile package manifest has no parent")?
+            .join("Cargo.toml")
+            .to_str()
+            .ok_or("candidate profile package manifest path is not UTF-8")?
+            .replace('\\', "/");
+        expected.insert(
+            (
+                manifest,
+                "qualification-broker".to_owned(),
+                "value".to_owned(),
+            ),
+            1,
+        );
+    }
     if occurrences != expected {
         return Err("candidate reserved qualification feature roster drifted".into());
     }
@@ -1085,7 +1146,7 @@ pub fn verify_hosted_release_build(
         || release_build["runLabel"] != "official"
         || metadata.run_id != release_build["runId"]
         || Value::from(metadata.run_attempt) != release_build["runAttempt"]
-        || metadata.artifacts.len() != ARTIFACT_ROLES.len()
+        || metadata.artifacts.len() != QUALIFICATION_RELEASE_ARTIFACT_ROLES.len()
         || metadata.projection.role != "release-build"
         || !(90..=365).contains(&metadata.retention_days)
     {
@@ -1094,7 +1155,10 @@ pub fn verify_hosted_release_build(
     validate_hosted_artifact(
         &metadata.projection,
         now_unix_seconds,
-        &format!("auths-qualification-{expected_commit}-official-release-build"),
+        &format!(
+            "auths-qualification-{expected_commit}-official-release-build-attempt-{}",
+            metadata.run_attempt
+        ),
         16_777_216,
         metadata.retention_days,
     )?;
@@ -1105,13 +1169,16 @@ pub fn verify_hosted_release_build(
         .artifacts
         .iter()
         .zip(release_artifacts)
-        .zip(ARTIFACT_ROLES)
+        .zip(QUALIFICATION_RELEASE_ARTIFACT_ROLES.iter().copied())
     {
         validate_hosted_artifact(
             hosted,
             now_unix_seconds,
-            &format!("auths-qualification-{expected_commit}-official-{expected_role}"),
-            MAX_ARTIFACT_BYTES,
+            &format!(
+                "auths-qualification-{expected_commit}-official-members-attempt-{}",
+                metadata.run_attempt
+            ),
+            MAX_AGGREGATE_ARTIFACT_BYTES,
             metadata.retention_days,
         )?;
         if hosted.role != expected_role
@@ -1577,9 +1644,10 @@ fn semver_triplet(value: &str) -> bool {
 mod tests {
     use super::*;
 
-    const CANDIDATE_FILES: [&str; 12] = [
+    const CANDIDATE_FILES: [&str; 16] = [
         "Cargo.toml",
         "product/runtime/auths-node/Cargo.toml",
+        "product/runtime/auths-node/profile-packages.json",
         "product/runtime/auths-connections/Cargo.toml",
         "product/stores/auths-stores/Cargo.toml",
         "product/runtime/auths-node/src/bin/auths-production.rs",
@@ -1587,6 +1655,9 @@ mod tests {
         "product/runtime/auths-node/src/profile_launch.rs",
         "product/runtime/auths-node/src/generated/profile_routes.rs",
         "product/runtime/auths-connections/src/lib.rs",
+        "product/integrations/auths-opentofu/profile-package.json",
+        "product/integrations/auths-postgresql/profile-package.json",
+        "product/integrations/auths-stripe/profile-package.json",
         "product/integrations/auths-stripe/src/lib.rs",
         "product/stores/auths-stores/src/lib.rs",
         "product/stores/auths-stores/src/operation.rs",
@@ -1631,6 +1702,26 @@ mod tests {
     #[test]
     fn candidate_surface_reconstruction_accepts_the_checked_tree() {
         verify_candidate_build_surface(&repository()).unwrap();
+        let candidate = copied_candidate();
+        verify_candidate_build_surface(candidate.path()).unwrap();
+    }
+
+    #[test]
+    fn candidate_surface_reconstruction_rejects_roster_release_role_drift() {
+        let candidate = copied_candidate();
+        let roster_path = candidate
+            .path()
+            .join("product/runtime/auths-node/profile-packages.json");
+        let mut roster: Value = serde_json::from_slice(&fs::read(&roster_path).unwrap()).unwrap();
+        roster["packages"]
+            .as_array_mut()
+            .unwrap()
+            .pop()
+            .expect("fixture has a profile package");
+        let mut canonical = serde_json_canonicalizer::to_vec(&roster).unwrap();
+        canonical.push(b'\n');
+        fs::write(roster_path, canonical).unwrap();
+        assert!(verify_candidate_build_surface(candidate.path()).is_err());
     }
 
     #[test]

@@ -95,7 +95,7 @@ extract_exact_projection() {
     [[ "$wanted" == "release-build.json" || "$wanted" == "qualification-surface.json" || "$wanted" == "members.json" ]] && maximum=262144
     local matches=()
     for entry in "${entries[@]}"; do
-      [[ "$entry" != /* && "$entry" != *'\'* && "$entry" != *'../'* ]]
+      [[ "$entry" != /* && "$entry" != *\\* && "$entry" != *'../'* ]]
       [[ "${entry##*/}" == "$wanted" ]] && matches+=("$entry")
     done
     [[ "${#matches[@]}" -eq 1 ]] || {
@@ -129,10 +129,11 @@ jq -e \
   --arg artifactId "$OFFICIAL_RELEASE_BUILD_ARTIFACT_ID" \
   --arg digest "sha256:$OFFICIAL_RELEASE_BUILD_ARTIFACT_DIGEST" \
   --arg runId "$OFFICIAL_RELEASE_BUILD_RUN_ID" \
-  --arg candidate "$CANDIDATE_REVISION" '
+  --arg candidate "$CANDIDATE_REVISION" \
+  --arg attempt "$(jq -r '.run_attempt' "$RUN_METADATA")" '
     (.id|tostring) == $artifactId and
     .digest == $digest and
-    .name == ("auths-qualification-" + $candidate + "-official-release-build") and
+    .name == ("auths-qualification-" + $candidate + "-official-release-build-attempt-" + $attempt) and
     (.size_in_bytes > 0 and .size_in_bytes <= 16777216) and
     .expired == false and
     (.workflow_run.id|tostring) == $runId
@@ -242,19 +243,73 @@ jq -e \
     .runId == $runId and
     .runAttempt == $runAttempt and
     .runLabel == "official" and
-    (.artifacts|length) == 9
+    (.artifacts|length) >= 7 and
+    (.artifacts|length) <= 70
   ' "$RELEASE_BUILD" >/dev/null
+
+ARTIFACT_COUNT="$(jq -r '.artifacts|length' "$RELEASE_BUILD")"
+AGGREGATE_ARTIFACT_ID="$(jq -r '.artifacts[0].artifactId' "$RELEASE_BUILD")"
+AGGREGATE_ARCHIVE_DIGEST="$(jq -r '.artifacts[0].uploadedArchiveSha256' "$RELEASE_BUILD")"
+[[ "$AGGREGATE_ARTIFACT_ID" =~ ^(0|[1-9][0-9]{0,31})$ ]]
+[[ "$AGGREGATE_ARCHIVE_DIGEST" =~ ^[0-9a-f]{64}$ ]]
+jq -e \
+  --arg artifactId "$AGGREGATE_ARTIFACT_ID" \
+  --arg digest "$AGGREGATE_ARCHIVE_DIGEST" '
+    all(.artifacts[]; .artifactId == $artifactId and .uploadedArchiveSha256 == $digest)
+  ' "$RELEASE_BUILD" >/dev/null
+
+AGGREGATE_METADATA="$QUALIFICATION_RELEASE_OUTPUT/downloads/members.metadata.json"
+api "$(artifact_api_path "$AGGREGATE_ARTIFACT_ID")" > "$AGGREGATE_METADATA"
+jq -e \
+  --arg artifactId "$AGGREGATE_ARTIFACT_ID" \
+  --arg digest "sha256:$AGGREGATE_ARCHIVE_DIGEST" \
+  --arg runId "$OFFICIAL_RELEASE_BUILD_RUN_ID" \
+  --arg candidate "$CANDIDATE_REVISION" \
+  --arg attempt "$(jq -r '.run_attempt' "$RUN_METADATA")" '
+    (.id|tostring) == $artifactId and
+    .digest == $digest and
+    .name == ("auths-qualification-" + $candidate + "-official-members-attempt-" + $attempt) and
+    (.size_in_bytes > 0 and .size_in_bytes <= 4294967296) and
+    .expired == false and
+    (.workflow_run.id|tostring) == $runId
+  ' "$AGGREGATE_METADATA" >/dev/null
+AGGREGATE_ARCHIVE="$QUALIFICATION_RELEASE_OUTPUT/downloads/members.zip"
+download_artifact "$AGGREGATE_ARTIFACT_ID" "$AGGREGATE_ARCHIVE" \
+  "$AGGREGATE_ARCHIVE_DIGEST" \
+  "$(jq -r '.size_in_bytes' "$AGGREGATE_METADATA")" 4294967296
+EXPECTED_ENTRIES="$QUALIFICATION_RELEASE_OUTPUT/downloads/members.expected"
+ACTUAL_ENTRIES_UNSORTED="$QUALIFICATION_RELEASE_OUTPUT/downloads/members.actual.unsorted"
+ACTUAL_ENTRIES="$QUALIFICATION_RELEASE_OUTPUT/downloads/members.actual"
+{
+  printf '%s\n' members.json qualification-surface.json
+  jq -r '.artifacts[] | (.role + "/" + .memberPath)' "$RELEASE_BUILD"
+} | LC_ALL=C sort > "$EXPECTED_ENTRIES"
+ENTRY_LIMIT=$(( ARTIFACT_COUNT + 3 ))
+timeout 10 zipinfo -1 "$AGGREGATE_ARCHIVE" \
+  | head -n "$ENTRY_LIMIT" > "$ACTUAL_ENTRIES_UNSORTED"
+[[ "$(wc -l < "$ACTUAL_ENTRIES_UNSORTED")" -eq $(( ARTIFACT_COUNT + 2 )) ]]
+LC_ALL=C sort "$ACTUAL_ENTRIES_UNSORTED" > "$ACTUAL_ENTRIES"
+cmp "$EXPECTED_ENTRIES" "$ACTUAL_ENTRIES"
+while IFS= read -r entry; do
+  attributes="$(timeout 5 zipinfo -l "$AGGREGATE_ARCHIVE" "$entry")"
+  [[ "$attributes" == -* && "$attributes" != *$'\n'* ]]
+done < "$EXPECTED_ENTRIES"
+for metadata_name in members.json qualification-surface.json; do
+  embedded="$QUALIFICATION_RELEASE_OUTPUT/downloads/embedded-$metadata_name"
+  ( ulimit -f 513; timeout 10 unzip -p "$AGGREGATE_ARCHIVE" "$metadata_name" > "$embedded" )
+  cmp "$embedded" "$QUALIFICATION_RELEASE_OUTPUT/projection/$metadata_name"
+done
 
 HOSTED_ROWS="$QUALIFICATION_RELEASE_OUTPUT/hosted-rows.jsonl"
 : > "$HOSTED_ROWS"
-for row in $(seq 0 8); do
+for (( row=0; row<ARTIFACT_COUNT; row++ )); do
   role="$(jq -r ".artifacts[$row].role" "$RELEASE_BUILD")"
   artifact_id="$(jq -r ".artifacts[$row].artifactId" "$RELEASE_BUILD")"
   archive_digest="$(jq -r ".artifacts[$row].uploadedArchiveSha256" "$RELEASE_BUILD")"
   member_path="$(jq -r ".artifacts[$row].memberPath" "$RELEASE_BUILD")"
   member_digest="$(jq -r ".artifacts[$row].memberSha256" "$RELEASE_BUILD")"
   member_bytes="$(jq -r ".artifacts[$row].bytes" "$RELEASE_BUILD")"
-  [[ "$role" =~ ^[a-z][a-z0-9-]{0,63}$ ]]
+  [[ "$role" =~ ^[a-z][a-z0-9-]{0,78}$ ]]
   [[ "$artifact_id" =~ ^(0|[1-9][0-9]{0,31})$ ]]
   [[ "$archive_digest" =~ ^[0-9a-f]{64}$ ]]
   [[ "$member_path" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,255}$ ]]
@@ -262,33 +317,14 @@ for row in $(seq 0 8); do
   [[ "$member_bytes" =~ ^[1-9][0-9]{0,8}$ ]]
   (( member_bytes <= 536870912 ))
 
-  metadata="$QUALIFICATION_RELEASE_OUTPUT/downloads/$role.metadata.json"
-  api "$(artifact_api_path "$artifact_id")" > "$metadata"
-  jq -e \
-    --arg artifactId "$artifact_id" \
-    --arg digest "sha256:$archive_digest" \
-    --arg runId "$OFFICIAL_RELEASE_BUILD_RUN_ID" \
-    --arg name "auths-qualification-$CANDIDATE_REVISION-official-$role" '
-      (.id|tostring) == $artifactId and
-      .digest == $digest and
-      .name == $name and
-      (.size_in_bytes > 0 and .size_in_bytes <= 536870912) and
-      .expired == false and
-      (.workflow_run.id|tostring) == $runId
-    ' "$metadata" >/dev/null
-
-  archive="$QUALIFICATION_RELEASE_OUTPUT/downloads/$role.zip"
-  download_artifact "$artifact_id" "$archive" "$archive_digest" \
-    "$(jq -r '.size_in_bytes' "$metadata")" 536870912
-  mapfile -t entries < <(timeout 10 zipinfo -1 "$archive" | head -n 3)
-  [[ "${#entries[@]}" -eq 1 ]]
-  entry="${entries[0]}"
-  [[ "$entry" != /* && "$entry" != *'\'* && "$entry" != *'../'* ]]
-  [[ "${entry##*/}" == "$member_path" ]]
+  [[ "$artifact_id" == "$AGGREGATE_ARTIFACT_ID" ]]
+  [[ "$archive_digest" == "$AGGREGATE_ARCHIVE_DIGEST" ]]
+  entry="$role/$member_path"
+  [[ "$entry" != /* && "$entry" != *\\* && "$entry" != *'../'* ]]
   mkdir -p "$QUALIFICATION_RELEASE_OUTPUT/artifacts/$role"
   destination="$QUALIFICATION_RELEASE_OUTPUT/artifacts/$role/$member_path"
   file_blocks=$(( (member_bytes + 511) / 512 + 1 ))
-  ( ulimit -f "$file_blocks"; timeout 300 unzip -p "$archive" "$entry" > "$destination" )
+  ( ulimit -f "$file_blocks"; timeout 300 unzip -p "$AGGREGATE_ARCHIVE" "$entry" > "$destination" )
   [[ "$(stat -c '%s' "$destination")" == "$member_bytes" ]]
   [[ "$(sha256sum "$destination" | cut -d' ' -f1)" == "$member_digest" ]]
   jq -cS \
@@ -305,7 +341,7 @@ for row in $(seq 0 8); do
         expiresAtUnixSeconds: (.expires_at | fromdateiso8601),
         expired: .expired
       }
-    ' "$metadata" >> "$HOSTED_ROWS"
+    ' "$AGGREGATE_METADATA" >> "$HOSTED_ROWS"
 done
 
 NOW="$(date +%s)"

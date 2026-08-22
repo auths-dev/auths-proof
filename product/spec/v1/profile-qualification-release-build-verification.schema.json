@@ -31,7 +31,7 @@
     "provenanceVerifierVersion": {"type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
     "releaseBuildVerifierSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
     "attesterTools": {"$ref": "#/$defs/attesterTools"},
-    "artifacts": {"type": "array", "minItems": 9, "maxItems": 9, "items": {"$ref": "#/$defs/verifiedArtifact"}, "x-auths-byteSortedBy": "role"}
+    "artifacts": {"type": "array", "minItems": 7, "maxItems": 70, "items": {"$ref": "#/$defs/verifiedArtifact"}, "x-auths-byteSortedBy": "role"}
   },
   "$defs": {
     "qualificationSurface": {
@@ -93,11 +93,11 @@
       "additionalProperties": false,
       "required": ["role", "name", "artifactId", "uploadedArchiveSha256", "uploadedArchiveBytes", "createdAtUnixSeconds", "expiresAtUnixSeconds", "memberPath", "memberSha256", "bytes"],
       "properties": {
-        "role": {"type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-z][a-z0-9-]*$"},
+        "role": {"type": "string", "minLength": 1, "maxLength": 79, "pattern": "^(production-agent|python-native|python-wheel|qualification-agent|typescript-native|typescript-package|python-profile-[a-z][a-z0-9-]{0,63})$"},
         "name": {"type": "string", "minLength": 1, "maxLength": 256, "pattern": "^[A-Za-z0-9._-]+$"},
         "artifactId": {"$ref": "profile-qualification.schema.json#/$defs/decimal32"},
         "uploadedArchiveSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
-        "uploadedArchiveBytes": {"type": "integer", "minimum": 1, "maximum": 536870912},
+        "uploadedArchiveBytes": {"type": "integer", "minimum": 1, "maximum": 4294967296},
         "createdAtUnixSeconds": {"$ref": "profile-qualification.schema.json#/$defs/unixSeconds"},
         "expiresAtUnixSeconds": {"$ref": "profile-qualification.schema.json#/$defs/unixSeconds"},
         "memberPath": {"type": "string", "minLength": 1, "maxLength": 256, "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"},

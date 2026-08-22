@@ -53,8 +53,9 @@ two preparations must start again from its new merged revision.
 This repository change does not configure GitHub settings, upload a secret,
 run a preparation, approve a manifest, create or move a tag, create a GitHub
 prerelease, publish a registry package, engage an external reviewer, or make a
-public assurance claim. The SLSA build assessment has passed, but the exact
-candidate must be prepared again; owner promotion authorization and the Phase
+public assurance claim. The changed reusable-builder bytes require a new SLSA
+runtime assessment, and the exact candidate must be prepared again; owner
+promotion authorization and the Phase
 9 independent security review remain pending. Issue #50 continues to govern
 separately authorized publication.
 
