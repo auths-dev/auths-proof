@@ -889,7 +889,7 @@ fn qualification_adapter_scaffold(arguments: &NewProfileArguments) -> Result<Str
     Ok(format!(
         "//! Qualification-only adapter scaffold. Every method remains fail-closed until live closure.\n\n\
 use auths_connections::{{ProviderCredentialLease, QualificationProviderCallKind}};\n\
-use auths_profile_kit::{{QualificationAdapterMetadata, QualificationCleanupEvidence, QualificationCollectedOperation, QualificationCollectionAdapter, QualificationCommonOperationInstanceEvidence, QualificationCommonReceiptClaims, QualificationEffect, QualificationHarnessError, QualificationOperationRole, QualificationPhaseClient, QualificationProfileStateFactV1, QualificationProtectedObserver, QualificationProviderTruth, QualificationRedactedOperation, QualificationRunContext, QualificationRunReference, QualificationScenarioProgramV1, QualificationSetupHandoffV1, QualificationTarget, QualificationVector}};\n\
+use auths_profile_kit::{{QualificationAdapterMetadata, QualificationCleanupEvidence, QualificationCollectedOperation, QualificationCollectionAdapter, QualificationCommonOperationInstanceEvidence, QualificationCommonReceiptClaims, QualificationEffect, QualificationHarnessError, QualificationOperationRole, QualificationPhaseClient, QualificationProfileStateFactV1, QualificationProtectedObserver, QualificationProtectedSetup, QualificationProtectedSetupInput, QualificationProviderTruth, QualificationRedactedOperation, QualificationRunContext, QualificationRunReference, QualificationScenarioProgramV1, QualificationSetupHandoffV1, QualificationTarget, QualificationVector}};\n\
 use auths_profile_runtime::{{ProfileReceiptInspection, ProfileRuntimeError}};\n\
 use auths_stores::JournalRecordV1;\n\
 use std::{{path::Path, time::Instant}};\n\n\
@@ -897,6 +897,7 @@ pub struct {adapter};\n\n\
 pub fn qualification_requirement_ids() -> &'static [&'static str] {{ &[{requirement_id:?}] }}\n\n\
 pub const fn qualification_requirements_sha256() -> &'static str {{ {requirements_sha256:?} }}\n\n\
 pub fn qualification_domain_scenario_ids() -> &'static [&'static str] {{ &[{scenario:?}] }}\n\n\
+pub fn qualification_scenario_program(_id: &str) -> Result<QualificationScenarioProgramV1, QualificationHarnessError> {{ Err(unavailable()) }}\n\n\
 pub fn qualification_receipt_claim_ids() -> &'static [&'static str] {{ &[{receipt_claim:?}] }}\n\n\
 pub fn qualification_provider_truth_fields() -> &'static [&'static str] {{ &[\"implemented\", \"schema\"] }}\n\n\
 pub fn qualification_forbidden_evidence_fields() -> &'static [&'static str] {{ &[] }}\n\n\
@@ -914,13 +915,17 @@ impl QualificationCollectionAdapter for {adapter} {{\n\
     fn open(&self, _context: &QualificationRunContext, _handoff: &QualificationSetupHandoffV1) -> Result<(), QualificationHarnessError> {{ Err(unavailable()) }}\n\
     fn invoke_phase(&self, _environment: &mut (), _client: &QualificationPhaseClient, _connection_alias: &str, _vector: &QualificationVector, _phase_index: u8, _role: QualificationOperationRole, _profile: &str) -> Result<QualificationCollectedOperation, QualificationHarnessError> {{ Err(unavailable()) }}\n\
 }}\n\n\
+impl QualificationProtectedSetup for {adapter} {{\n\
+    fn metadata(&self) -> QualificationAdapterMetadata {{ metadata() }}\n\
+    fn setup(&self, _input: QualificationProtectedSetupInput<'_>, _setup_credential: &[u8]) -> Result<QualificationSetupHandoffV1, QualificationHarnessError> {{ Err(unavailable()) }}\n\
+}}\n\n\
 impl QualificationProtectedObserver for {adapter} {{\n\
     type Environment = ();\n\
     fn metadata(&self) -> QualificationAdapterMetadata {{ metadata() }}\n\
     fn open(&self, _context: &QualificationRunContext, _reference: Option<&QualificationRunReference>) -> Result<(), QualificationHarnessError> {{ Err(unavailable()) }}\n\
-    fn provider_truth(&self, _environment: &(), _phase: &QualificationCollectedOperation, _instance: &QualificationCommonOperationInstanceEvidence) -> Result<QualificationProviderTruth, QualificationHarnessError> {{ Err(unavailable()) }}\n\
+    fn provider_truth(&self, _environment: &(), _scenario_id: &str, _phase: &QualificationCollectedOperation, _instance: &QualificationCommonOperationInstanceEvidence, _in_row_domain_facts: &[u8]) -> Result<QualificationProviderTruth, QualificationHarnessError> {{ Err(unavailable()) }}\n\
     fn validate_receipt_payload(&self, _environment: &(), _phase: &QualificationCollectedOperation, _instance: &QualificationCommonOperationInstanceEvidence, _truth: &QualificationProviderTruth, _claims: &[QualificationCommonReceiptClaims]) -> Result<(), QualificationHarnessError> {{ Err(unavailable()) }}\n\
-    fn validate_scenario_program(&self, _environment: &(), _program: &QualificationScenarioProgramV1, _operations: &[QualificationRedactedOperation], _truths: &[QualificationProviderTruth]) -> Result<(), QualificationHarnessError> {{ Err(unavailable()) }}\n\
+    fn validate_domain_scenario(&self, _environment: &(), _program: &QualificationScenarioProgramV1, _operations: &[QualificationRedactedOperation], _truths: &[QualificationProviderTruth]) -> Result<(), QualificationHarnessError> {{ Err(unavailable()) }}\n\
     fn cleanup(&self, _context: &QualificationRunContext, _reference: Option<&QualificationRunReference>) -> Result<QualificationCleanupEvidence, QualificationHarnessError> {{ Err(unavailable()) }}\n\
 }}\n\n\
 pub fn validate_provider_truth_facts(_bytes: &[u8], _effect: QualificationEffect) -> Result<(), QualificationHarnessError> {{ Err(unavailable()) }}\n\n\

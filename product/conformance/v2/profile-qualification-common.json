@@ -7,9 +7,12 @@
       "cases": [
         {
           "caseId": "rejected",
+          "intentId": "rejected",
+          "stimulus": "canonical",
           "role": "effect",
           "group": 1,
           "topology": "serial",
+          "expectation": "exact",
           "expectedOutcome": "unavailable",
           "expectedEffect": "not-applied",
           "expectedProviderCalls": 0
@@ -22,18 +25,24 @@
       "cases": [
         {
           "caseId": "primary",
+          "intentId": "primary",
+          "stimulus": "canonical",
           "role": "effect",
           "group": 1,
           "topology": "serial",
+          "expectation": "exact",
           "expectedOutcome": "completed",
           "expectedEffect": "applied",
           "expectedProviderCalls": 1
         },
         {
           "caseId": "changed-input",
+          "intentId": "changed-input",
+          "stimulus": "canonical",
           "role": "effect",
           "group": 2,
           "topology": "serial",
+          "expectation": "exact",
           "expectedOutcome": "conflict",
           "expectedEffect": "applied",
           "expectedProviderCalls": 0
@@ -46,9 +55,12 @@
       "cases": [
         {
           "caseId": "rejected",
+          "intentId": "rejected",
+          "stimulus": "canonical",
           "role": "effect",
           "group": 1,
           "topology": "serial",
+          "expectation": "exact",
           "expectedOutcome": "unavailable",
           "expectedEffect": "not-applied",
           "expectedProviderCalls": 0
@@ -61,9 +73,12 @@
       "cases": [
         {
           "caseId": "rejected",
+          "intentId": "rejected",
+          "stimulus": "canonical",
           "role": "effect",
           "group": 1,
           "topology": "serial",
+          "expectation": "exact",
           "expectedOutcome": "unavailable",
           "expectedEffect": "not-applied",
           "expectedProviderCalls": 0
@@ -76,9 +91,12 @@
       "cases": [
         {
           "caseId": "primary",
+          "intentId": "primary",
+          "stimulus": "canonical",
           "role": "effect",
           "group": 1,
           "topology": "serial",
+          "expectation": "failpoint",
           "expectedOutcome": "completed",
           "expectedEffect": "applied",
           "expectedProviderCalls": 1
@@ -96,9 +114,12 @@
       "cases": [
         {
           "caseId": "primary",
+          "intentId": "primary",
+          "stimulus": "canonical",
           "role": "effect",
           "group": 1,
           "topology": "serial",
+          "expectation": "failpoint",
           "expectedOutcome": "completed",
           "expectedEffect": "applied",
           "expectedProviderCalls": 1
@@ -116,9 +137,12 @@
       "cases": [
         {
           "caseId": "primary",
+          "intentId": "primary",
+          "stimulus": "canonical",
           "role": "effect",
           "group": 1,
           "topology": "serial",
+          "expectation": "failpoint",
           "expectedOutcome": "completed",
           "expectedEffect": "applied",
           "expectedProviderCalls": 1
@@ -136,9 +160,12 @@
       "cases": [
         {
           "caseId": "primary",
+          "intentId": "primary",
+          "stimulus": "canonical",
           "role": "effect",
           "group": 1,
           "topology": "serial",
+          "expectation": "failpoint",
           "expectedOutcome": "completed",
           "expectedEffect": "applied",
           "expectedProviderCalls": 1
@@ -156,9 +183,12 @@
       "cases": [
         {
           "caseId": "primary",
+          "intentId": "primary",
+          "stimulus": "canonical",
           "role": "effect",
           "group": 1,
           "topology": "serial",
+          "expectation": "failpoint",
           "expectedOutcome": "completed",
           "expectedEffect": "applied",
           "expectedProviderCalls": 1
@@ -176,9 +206,12 @@
       "cases": [
         {
           "caseId": "primary",
+          "intentId": "primary",
+          "stimulus": "canonical",
           "role": "effect",
           "group": 1,
           "topology": "serial",
+          "expectation": "failpoint",
           "expectedOutcome": "completed",
           "expectedEffect": "applied",
           "expectedProviderCalls": 1
@@ -196,9 +229,12 @@
       "cases": [
         {
           "caseId": "primary",
+          "intentId": "primary",
+          "stimulus": "canonical",
           "role": "effect",
           "group": 1,
           "topology": "serial",
+          "expectation": "failpoint",
           "expectedOutcome": "completed",
           "expectedEffect": "applied",
           "expectedProviderCalls": 1
@@ -216,9 +252,12 @@
       "cases": [
         {
           "caseId": "primary",
+          "intentId": "primary",
+          "stimulus": "canonical",
           "role": "effect",
           "group": 1,
           "topology": "serial",
+          "expectation": "failpoint",
           "expectedOutcome": "completed",
           "expectedEffect": "applied",
           "expectedProviderCalls": 1
@@ -236,9 +275,12 @@
       "cases": [
         {
           "caseId": "primary",
+          "intentId": "primary",
+          "stimulus": "canonical",
           "role": "effect",
           "group": 1,
           "topology": "serial",
+          "expectation": "failpoint",
           "expectedOutcome": "completed",
           "expectedEffect": "applied",
           "expectedProviderCalls": 1
@@ -256,9 +298,12 @@
       "cases": [
         {
           "caseId": "primary",
+          "intentId": "primary",
+          "stimulus": "canonical",
           "role": "effect",
           "group": 1,
           "topology": "serial",
+          "expectation": "failpoint",
           "expectedOutcome": "completed",
           "expectedEffect": "applied",
           "expectedProviderCalls": 1
@@ -276,9 +321,12 @@
       "cases": [
         {
           "caseId": "primary",
+          "intentId": "primary",
+          "stimulus": "canonical",
           "role": "effect",
           "group": 1,
           "topology": "serial",
+          "expectation": "failpoint",
           "expectedOutcome": "completed",
           "expectedEffect": "applied",
           "expectedProviderCalls": 1
@@ -296,9 +344,12 @@
       "cases": [
         {
           "caseId": "primary",
+          "intentId": "primary",
+          "stimulus": "canonical",
           "role": "effect",
           "group": 1,
           "topology": "serial",
+          "expectation": "failpoint",
           "expectedOutcome": "completed",
           "expectedEffect": "applied",
           "expectedProviderCalls": 1
@@ -316,9 +367,12 @@
       "cases": [
         {
           "caseId": "primary",
+          "intentId": "primary",
+          "stimulus": "canonical",
           "role": "effect",
           "group": 1,
           "topology": "serial",
+          "expectation": "exact",
           "expectedOutcome": "completed",
           "expectedEffect": "applied",
           "expectedProviderCalls": 1
@@ -331,9 +385,12 @@
       "cases": [
         {
           "caseId": "primary",
+          "intentId": "primary",
+          "stimulus": "canonical",
           "role": "effect",
           "group": 1,
           "topology": "serial",
+          "expectation": "exact",
           "expectedOutcome": "completed",
           "expectedEffect": "applied",
           "expectedProviderCalls": 1
@@ -345,10 +402,49 @@
       "id": "malformed-input",
       "cases": [
         {
-          "caseId": "rejected",
+          "caseId": "duplicate-field",
+          "intentId": "duplicate-field",
+          "stimulus": "canonical",
           "role": "effect",
           "group": 1,
           "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "unavailable",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        },
+        {
+          "caseId": "missing-field",
+          "intentId": "missing-field",
+          "stimulus": "canonical",
+          "role": "effect",
+          "group": 2,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "unavailable",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        },
+        {
+          "caseId": "noncanonical-integer",
+          "intentId": "noncanonical-integer",
+          "stimulus": "canonical",
+          "role": "effect",
+          "group": 3,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "unavailable",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        },
+        {
+          "caseId": "unknown-field",
+          "intentId": "unknown-field",
+          "stimulus": "canonical",
+          "role": "effect",
+          "group": 4,
+          "topology": "serial",
+          "expectation": "exact",
           "expectedOutcome": "unavailable",
           "expectedEffect": "not-applied",
           "expectedProviderCalls": 0
@@ -361,9 +457,12 @@
       "cases": [
         {
           "caseId": "rejected",
+          "intentId": "rejected",
+          "stimulus": "canonical",
           "role": "effect",
           "group": 1,
           "topology": "serial",
+          "expectation": "exact",
           "expectedOutcome": "unavailable",
           "expectedEffect": "not-applied",
           "expectedProviderCalls": 0
@@ -376,9 +475,12 @@
       "cases": [
         {
           "caseId": "denied",
+          "intentId": "denied",
+          "stimulus": "canonical",
           "role": "effect",
           "group": 1,
           "topology": "serial",
+          "expectation": "exact",
           "expectedOutcome": "denied",
           "expectedEffect": "not-applied",
           "expectedProviderCalls": 0
@@ -391,18 +493,24 @@
       "cases": [
         {
           "caseId": "contender-a",
+          "intentId": "contender-a",
+          "stimulus": "canonical",
           "role": "effect",
           "group": 1,
           "topology": "parallel",
+          "expectation": "exact",
           "expectedOutcome": "completed",
           "expectedEffect": "applied",
           "expectedProviderCalls": 1
         },
         {
           "caseId": "contender-b",
+          "intentId": "contender-b",
+          "stimulus": "canonical",
           "role": "effect",
           "group": 1,
           "topology": "parallel",
+          "expectation": "exact",
           "expectedOutcome": "unavailable",
           "expectedEffect": "not-applied",
           "expectedProviderCalls": 0
@@ -415,18 +523,24 @@
       "cases": [
         {
           "caseId": "fresh",
+          "intentId": "fresh",
+          "stimulus": "canonical",
           "role": "effect",
           "group": 1,
           "topology": "serial",
+          "expectation": "exact",
           "expectedOutcome": "completed",
           "expectedEffect": "applied",
           "expectedProviderCalls": 1
         },
         {
           "caseId": "replay",
+          "intentId": "replay",
+          "stimulus": "canonical",
           "role": "effect",
           "group": 2,
           "topology": "serial",
+          "expectation": "exact",
           "expectedOutcome": "completed",
           "expectedEffect": "applied",
           "expectedProviderCalls": 0
@@ -439,18 +553,24 @@
       "cases": [
         {
           "caseId": "fresh-edge",
+          "intentId": "fresh-edge",
+          "stimulus": "canonical",
           "role": "effect",
           "group": 1,
           "topology": "serial",
+          "expectation": "exact",
           "expectedOutcome": "completed",
           "expectedEffect": "applied",
           "expectedProviderCalls": 1
         },
         {
           "caseId": "stale",
+          "intentId": "stale",
+          "stimulus": "canonical",
           "role": "effect",
           "group": 2,
           "topology": "serial",
+          "expectation": "exact",
           "expectedOutcome": "unavailable",
           "expectedEffect": "not-applied",
           "expectedProviderCalls": 0

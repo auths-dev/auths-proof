@@ -7,18 +7,24 @@
       "cases": [
         {
           "caseId": "preflight",
+          "intentId": "preflight",
+          "stimulus": "canonical",
           "role": "preflight",
           "group": 1,
           "topology": "serial",
+          "expectation": "exact",
           "expectedOutcome": "completed",
           "expectedEffect": "not-applied",
           "expectedProviderCalls": 0
         },
         {
           "caseId": "effect",
+          "intentId": "effect",
+          "stimulus": "canonical",
           "role": "effect",
           "group": 1,
           "topology": "serial",
+          "expectation": "exact",
           "expectedOutcome": "completed",
           "expectedEffect": "applied",
           "expectedProviderCalls": 1
@@ -36,18 +42,24 @@
       "cases": [
         {
           "caseId": "preflight",
+          "intentId": "preflight",
+          "stimulus": "canonical",
           "role": "preflight",
           "group": 1,
           "topology": "serial",
+          "expectation": "exact",
           "expectedOutcome": "completed",
           "expectedEffect": "not-applied",
           "expectedProviderCalls": 0
         },
         {
           "caseId": "effect",
+          "intentId": "effect",
+          "stimulus": "canonical",
           "role": "effect",
           "group": 1,
           "topology": "serial",
+          "expectation": "exact",
           "expectedOutcome": "completed",
           "expectedEffect": "applied",
           "expectedProviderCalls": 1
@@ -65,18 +77,24 @@
       "cases": [
         {
           "caseId": "preflight",
+          "intentId": "preflight",
+          "stimulus": "canonical",
           "role": "preflight",
           "group": 1,
           "topology": "serial",
+          "expectation": "exact",
           "expectedOutcome": "completed",
           "expectedEffect": "not-applied",
           "expectedProviderCalls": 0
         },
         {
           "caseId": "effect",
+          "intentId": "effect",
+          "stimulus": "canonical",
           "role": "effect",
           "group": 1,
           "topology": "serial",
+          "expectation": "exact",
           "expectedOutcome": "completed",
           "expectedEffect": "applied",
           "expectedProviderCalls": 1
@@ -89,18 +107,24 @@
       "cases": [
         {
           "caseId": "preflight",
+          "intentId": "preflight",
+          "stimulus": "canonical",
           "role": "preflight",
           "group": 1,
           "topology": "serial",
+          "expectation": "exact",
           "expectedOutcome": "completed",
           "expectedEffect": "not-applied",
           "expectedProviderCalls": 0
         },
         {
           "caseId": "effect",
+          "intentId": "effect",
+          "stimulus": "canonical",
           "role": "effect",
           "group": 1,
           "topology": "serial",
+          "expectation": "exact",
           "expectedOutcome": "completed",
           "expectedEffect": "applied",
           "expectedProviderCalls": 1
@@ -118,18 +142,24 @@
       "cases": [
         {
           "caseId": "preflight",
+          "intentId": "preflight",
+          "stimulus": "canonical",
           "role": "preflight",
           "group": 1,
           "topology": "serial",
+          "expectation": "exact",
           "expectedOutcome": "completed",
           "expectedEffect": "not-applied",
           "expectedProviderCalls": 0
         },
         {
           "caseId": "effect",
+          "intentId": "effect",
+          "stimulus": "canonical",
           "role": "effect",
           "group": 1,
           "topology": "serial",
+          "expectation": "exact",
           "expectedOutcome": "completed",
           "expectedEffect": "applied",
           "expectedProviderCalls": 1
@@ -147,18 +177,24 @@
       "cases": [
         {
           "caseId": "preflight",
+          "intentId": "preflight",
+          "stimulus": "canonical",
           "role": "preflight",
           "group": 1,
           "topology": "serial",
+          "expectation": "exact",
           "expectedOutcome": "completed",
           "expectedEffect": "not-applied",
           "expectedProviderCalls": 0
         },
         {
           "caseId": "effect",
+          "intentId": "effect",
+          "stimulus": "canonical",
           "role": "effect",
           "group": 1,
           "topology": "serial",
+          "expectation": "exact",
           "expectedOutcome": "completed",
           "expectedEffect": "applied",
           "expectedProviderCalls": 1
@@ -171,18 +207,24 @@
       "cases": [
         {
           "caseId": "preflight",
+          "intentId": "preflight",
+          "stimulus": "canonical",
           "role": "preflight",
           "group": 1,
           "topology": "serial",
+          "expectation": "exact",
           "expectedOutcome": "completed",
           "expectedEffect": "not-applied",
           "expectedProviderCalls": 0
         },
         {
           "caseId": "effect",
+          "intentId": "effect",
+          "stimulus": "canonical",
           "role": "effect",
           "group": 1,
           "topology": "serial",
+          "expectation": "exact",
           "expectedOutcome": "completed",
           "expectedEffect": "applied",
           "expectedProviderCalls": 1
@@ -200,18 +242,24 @@
       "cases": [
         {
           "caseId": "preflight",
+          "intentId": "preflight",
+          "stimulus": "canonical",
           "role": "preflight",
           "group": 1,
           "topology": "serial",
+          "expectation": "exact",
           "expectedOutcome": "completed",
           "expectedEffect": "not-applied",
           "expectedProviderCalls": 0
         },
         {
           "caseId": "effect",
+          "intentId": "effect",
+          "stimulus": "canonical",
           "role": "effect",
           "group": 1,
           "topology": "serial",
+          "expectation": "exact",
           "expectedOutcome": "completed",
           "expectedEffect": "applied",
           "expectedProviderCalls": 1
@@ -229,18 +277,24 @@
       "cases": [
         {
           "caseId": "preflight",
+          "intentId": "preflight",
+          "stimulus": "canonical",
           "role": "preflight",
           "group": 1,
           "topology": "serial",
+          "expectation": "exact",
           "expectedOutcome": "completed",
           "expectedEffect": "not-applied",
           "expectedProviderCalls": 0
         },
         {
           "caseId": "effect",
+          "intentId": "effect",
+          "stimulus": "canonical",
           "role": "effect",
           "group": 1,
           "topology": "serial",
+          "expectation": "exact",
           "expectedOutcome": "completed",
           "expectedEffect": "applied",
           "expectedProviderCalls": 1
@@ -258,18 +312,24 @@
       "cases": [
         {
           "caseId": "preflight",
+          "intentId": "preflight",
+          "stimulus": "canonical",
           "role": "preflight",
           "group": 1,
           "topology": "serial",
+          "expectation": "exact",
           "expectedOutcome": "completed",
           "expectedEffect": "not-applied",
           "expectedProviderCalls": 0
         },
         {
           "caseId": "effect",
+          "intentId": "effect",
+          "stimulus": "canonical",
           "role": "effect",
           "group": 1,
           "topology": "serial",
+          "expectation": "exact",
           "expectedOutcome": "completed",
           "expectedEffect": "applied",
           "expectedProviderCalls": 1

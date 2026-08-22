@@ -4473,7 +4473,7 @@ impl ProtectedPhaseRuntime for ProcessProtectedPhaseRuntime {
                 absolute_path_string(&client_result_socket)?,
             )
             .map_err(string_error)?
-            .with_reviewed_phase(vector.scenario_program.clone(), phase_index)
+            .with_reviewed_phase(vector.scenario_program.clone(), phase_index, planned.role)
             .map_err(string_error)?
             .with_installed_client(
                 QualificationInstalledClient::new(
@@ -5599,6 +5599,11 @@ pub(crate) fn observe_domain_adapter<A: QualificationProtectedObserver>(
         context.scenario_ids,
         context.operation_plans,
     )?;
+    let reviewed_domain = load_domain_from_git(
+        context.repository,
+        context.domain,
+        &run_context.candidate_revision,
+    )?;
     let parsed = metadata_validation.and_then(|()| {
         let collection_path = context.evidence.join("collection.json");
         let (bytes, _) = crate::profile_qualification_evidence::read_untrusted_regular(
@@ -5665,6 +5670,12 @@ pub(crate) fn observe_domain_adapter<A: QualificationProtectedObserver>(
             let mut reports = Vec::with_capacity(collection.scenarios.len());
             let mut provider_truth = Vec::new();
             for invocation in &collection.scenarios {
+                let program = scenario_program_at(
+                    context.repository,
+                    &reviewed_domain,
+                    &run_context.candidate_revision,
+                    &invocation.scenario_id,
+                )?;
                 let planned = context
                     .operation_plans
                     .get(&invocation.scenario_id)
@@ -5675,6 +5686,7 @@ pub(crate) fn observe_domain_adapter<A: QualificationProtectedObserver>(
                     serde_json_canonicalizer::to_vec(planned).map_err(string_error)?,
                 ));
                 let mut operation_reports = Vec::with_capacity(invocation.operations.len());
+                let mut scenario_truths = Vec::new();
                 for (phase_index, phase) in invocation.operations.iter().enumerate() {
                     let common = read_protected_common_phase_evidence(
                         context.common_evidence,
@@ -5751,6 +5763,7 @@ pub(crate) fn observe_domain_adapter<A: QualificationProtectedObserver>(
                                 &common_instance.receipt_claims,
                             )
                             .map_err(string_error)?;
+                        scenario_truths.push(truth.clone());
                         provider_truth.push(ProtectedObservedTruth {
                             operation_id: truth.operation_id.clone(),
                             provider_run_id: truth.provider_run_id.clone(),
@@ -5861,6 +5874,28 @@ pub(crate) fn observe_domain_adapter<A: QualificationProtectedObserver>(
                     report.validate().map_err(string_error)?;
                     operation_reports.push(report);
                 }
+                scenario_truths.sort_by(|left, right| left.operation_id.cmp(&right.operation_id));
+                if scenario_truths
+                    .windows(2)
+                    .any(|pair| pair[0].operation_id == pair[1].operation_id)
+                {
+                    return Err("scenario provider truth repeats an operation".into());
+                }
+                auths_profile_kit::validate_scenario_program_projection(
+                    &program,
+                    invocation.failpoint,
+                    &operation_reports,
+                    &scenario_truths,
+                )
+                .map_err(string_error)?;
+                adapter
+                    .validate_domain_scenario(
+                        &environment,
+                        &program,
+                        &operation_reports,
+                        &scenario_truths,
+                    )
+                    .map_err(string_error)?;
                 reports.push(operation_reports);
             }
             provider_truth.sort_by(|left, right| left.operation_id.cmp(&right.operation_id));
@@ -10558,6 +10593,17 @@ fn scenario_program_sha256_at(
     revision: &str,
     scenario_id: &str,
 ) -> Result<String, String> {
+    scenario_program_at(repository, context, revision, scenario_id)?
+        .sha256()
+        .map_err(string_error)
+}
+
+fn scenario_program_at(
+    repository: &Path,
+    context: &DomainContext,
+    revision: &str,
+    scenario_id: &str,
+) -> Result<auths_profile_kit::QualificationScenarioProgramV1, String> {
     let domain_path = format!(
         "product/integrations/auths-{}/{}",
         context.package.domain().id(),
@@ -10577,12 +10623,11 @@ fn scenario_program_sha256_at(
         262_144,
     )?)
     .map_err(string_error)?;
-    domain
+    Ok(domain
         .program(scenario_id)
         .or_else(|| common.program(scenario_id))
         .ok_or_else(|| "qualification scenario has no executable program".to_owned())?
-        .sha256()
-        .map_err(string_error)
+        .clone())
 }
 
 fn scenario_roster_bytes(

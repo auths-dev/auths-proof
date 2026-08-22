@@ -14,7 +14,7 @@ use auths_profile_kit::{
     QualificationProtectedSetup, QualificationProtectedSetupInput, QualificationProviderTruth,
     QualificationRunContext, QualificationRunReference, QualificationScenarioProgramV1,
     QualificationSetupHandoffV1, QualificationTarget, QualificationVector,
-    qualification_scenario_program,
+    qualification_scenario_program as resolve_qualification_scenario_program,
 };
 use auths_profile_runtime::{ProfileReceiptInspection, ProfileRuntimeError};
 use auths_stores::JournalRecordV1;
@@ -321,8 +321,10 @@ const SCENARIOS: &[&str] = &[
     "stripe-timeout-after-write",
 ];
 
-fn scenario_program(id: &str) -> Result<QualificationScenarioProgramV1, QualificationHarnessError> {
-    qualification_scenario_program(
+pub fn qualification_scenario_program(
+    id: &str,
+) -> Result<QualificationScenarioProgramV1, QualificationHarnessError> {
+    resolve_qualification_scenario_program(
         include_bytes!("../../../conformance/v2/profile-qualification-common.json"),
         include_bytes!("../qualification/scenarios-v1.json"),
         "stripe",
@@ -492,10 +494,20 @@ async fn stripe_setup(
             "paymentIntent": intent.id,
         }))
         .map_err(|_| QualificationHarnessError::Onboarding)?;
+        let scenario_program = qualification_scenario_program(scenario_id)?;
+        let input_base64url = Base64UrlUnpadded::encode_string(&vector);
+        let cases = scenario_program
+            .cases()
+            .iter()
+            .map(|case| auths_profile_kit::QualificationSetupCaseV1 {
+                case_id: case.case_id().into(),
+                input_base64url: input_base64url.clone(),
+            })
+            .collect();
         vectors.push(auths_profile_kit::QualificationSetupVectorV1 {
             id: scenario_id.clone(),
-            scenario_program: scenario_program(scenario_id)?,
-            input_base64url: Base64UrlUnpadded::encode_string(&vector),
+            scenario_program,
+            cases,
             failpoint: scenario_id
                 .strip_prefix("crash-")
                 .and_then(auths_profile_kit::QualificationFailpoint::from_token),
@@ -566,7 +578,14 @@ impl QualificationCollectionAdapter for StripeQualificationAdapter {
         {
             return Err(QualificationHarnessError::Invocation);
         }
-        client.invoke_installed(connection_alias, &vector.input)?;
+        client.invoke_installed(
+            connection_alias,
+            &vector
+                .cases
+                .first()
+                .ok_or(QualificationHarnessError::Invocation)?
+                .input,
+        )?;
         Ok(QualificationCollectedOperation {
             role,
             profile: profile.into(),
@@ -667,14 +686,20 @@ impl QualificationProtectedObserver for StripeQualificationAdapter {
         Ok(())
     }
 
-    fn validate_scenario_program(
+    fn validate_domain_scenario(
         &self,
         _environment: &StripeProtectedObserverEnvironment,
         program: &QualificationScenarioProgramV1,
-        operations: &[auths_profile_kit::QualificationRedactedOperation],
-        truths: &[QualificationProviderTruth],
+        _operations: &[auths_profile_kit::QualificationRedactedOperation],
+        _truths: &[QualificationProviderTruth],
     ) -> Result<(), QualificationHarnessError> {
-        auths_profile_kit::validate_scenario_program_projection(program, operations, truths)
+        if !metadata().scenarios.contains(&program.id()) {
+            Ok(())
+        } else {
+            Err(QualificationHarnessError::PrerequisiteUnavailable(
+                "Stripe scenario predicate is not implemented",
+            ))
+        }
     }
 
     fn cleanup(

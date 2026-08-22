@@ -384,9 +384,12 @@ pub struct QualificationScenarioProgramV1 {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct QualificationScenarioCaseV1 {
     case_id: String,
+    intent_id: String,
+    stimulus: String,
     role: QualificationOperationRole,
     group: u8,
     topology: QualificationScenarioTopology,
+    expectation: QualificationScenarioExpectation,
     expected_outcome: QualificationOutcomeKind,
     expected_effect: QualificationEffect,
     expected_provider_calls: u32,
@@ -398,6 +401,16 @@ pub struct QualificationScenarioCaseV1 {
 pub enum QualificationScenarioTopology {
     Serial,
     Parallel,
+}
+
+/// Authority that owns the case's terminal expectation.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum QualificationScenarioExpectation {
+    /// The scenario program fixes the exact public outcome/effect/call tuple.
+    Exact,
+    /// The reviewed failpoint contract fixes the terminal tuple instead.
+    Failpoint,
 }
 
 /// Closed protected hook stages. The domain-owned hook token fixes meaning.
@@ -1741,9 +1754,15 @@ impl QualificationScenarioProgramV1 {
             })
             || self.cases.iter().any(|case| {
                 !registered_token(&case.case_id)
+                    || !registered_token(&case.intent_id)
+                    || !registered_token(&case.stimulus)
                     || case.group == 0
                     || case.expected_provider_calls > 1
             })
+            || self
+                .cases
+                .windows(2)
+                .any(|pair| pair[0].expectation != pair[1].expectation)
             || !self
                 .hooks
                 .windows(2)
@@ -1800,6 +1819,19 @@ impl QualificationScenarioCaseV1 {
         &self.case_id
     }
 
+    /// Stable logical request identity. Replay and changed-input cases may
+    /// intentionally share this value.
+    #[must_use]
+    pub fn intent_id(&self) -> &str {
+        &self.intent_id
+    }
+
+    /// Closed domain-owned stimulus selected by protected setup and hooks.
+    #[must_use]
+    pub fn stimulus(&self) -> &str {
+        &self.stimulus
+    }
+
     #[must_use]
     pub const fn role(&self) -> QualificationOperationRole {
         self.role
@@ -1813,6 +1845,11 @@ impl QualificationScenarioCaseV1 {
     #[must_use]
     pub const fn topology(&self) -> QualificationScenarioTopology {
         self.topology
+    }
+
+    #[must_use]
+    pub const fn expectation(&self) -> QualificationScenarioExpectation {
+        self.expectation
     }
 
     #[must_use]

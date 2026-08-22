@@ -10,7 +10,8 @@ use auths_profile_kit::{
     QualificationProtectedSetup, QualificationProtectedSetupInput, QualificationProviderTruth,
     QualificationRunContext, QualificationRunReference, QualificationScenarioProgramV1,
     QualificationSetupHandoffV1, QualificationTarget, QualificationVector,
-    qualification_pre_admission_attempt_count, qualification_scenario_program,
+    qualification_pre_admission_attempt_count,
+    qualification_scenario_program as resolve_qualification_scenario_program,
 };
 use auths_profile_runtime::{ProfileReceiptInspection, ProfileRuntimeError};
 use auths_stores::JournalRecordV1;
@@ -462,8 +463,10 @@ pub const fn qualification_domain_scenario_ids() -> &'static [&'static str] {
     SCENARIOS
 }
 
-fn scenario_program(id: &str) -> Result<QualificationScenarioProgramV1, QualificationHarnessError> {
-    qualification_scenario_program(
+pub fn qualification_scenario_program(
+    id: &str,
+) -> Result<QualificationScenarioProgramV1, QualificationHarnessError> {
+    resolve_qualification_scenario_program(
         include_bytes!("../../../conformance/v2/profile-qualification-common.json"),
         include_bytes!("../qualification/scenarios-v1.json"),
         "postgresql",
@@ -541,10 +544,20 @@ impl QualificationProtectedSetup for PostgresqlQualificationAdapter {
                 "tenantKey":tenant,
             }))
             .map_err(|_| QualificationHarnessError::Onboarding)?;
+            let scenario_program = qualification_scenario_program(scenario_id)?;
+            let input_base64url = Base64UrlUnpadded::encode_string(&vector);
+            let cases = scenario_program
+                .cases()
+                .iter()
+                .map(|case| auths_profile_kit::QualificationSetupCaseV1 {
+                    case_id: case.case_id().into(),
+                    input_base64url: input_base64url.clone(),
+                })
+                .collect();
             vectors.push(auths_profile_kit::QualificationSetupVectorV1 {
                 id: scenario_id.clone(),
-                scenario_program: scenario_program(scenario_id)?,
-                input_base64url: Base64UrlUnpadded::encode_string(&vector),
+                scenario_program,
+                cases,
                 failpoint: scenario_id
                     .strip_prefix("crash-")
                     .and_then(auths_profile_kit::QualificationFailpoint::from_token),
@@ -620,7 +633,14 @@ impl QualificationCollectionAdapter for PostgresqlQualificationAdapter {
                 if environment.prepared_update.is_some() {
                     return Err(QualificationHarnessError::Invocation);
                 }
-                let outcome = client.invoke_installed(connection_alias, &vector.input)?;
+                let outcome = client.invoke_installed(
+                    connection_alias,
+                    &vector
+                        .cases
+                        .first()
+                        .ok_or(QualificationHarnessError::Invocation)?
+                        .input,
+                )?;
                 if outcome.kind == "completed" {
                     environment.prepared_update = Some(
                         outcome
@@ -636,7 +656,14 @@ impl QualificationCollectionAdapter for PostgresqlQualificationAdapter {
             }
             (2, QualificationOperationRole::Effect, "auths.postgresql.bounded-update/1") => {
                 if qualification_pre_admission_attempt_count(&vector.id).is_some() {
-                    let outcome = client.invoke_installed(connection_alias, &vector.input)?;
+                    let outcome = client.invoke_installed(
+                        connection_alias,
+                        &vector
+                            .cases
+                            .first()
+                            .ok_or(QualificationHarnessError::Invocation)?
+                            .input,
+                    )?;
                     if outcome.kind != "unavailable" {
                         return Err(QualificationHarnessError::Invocation);
                     }
@@ -786,14 +813,20 @@ impl QualificationProtectedObserver for PostgresqlQualificationAdapter {
         Ok(())
     }
 
-    fn validate_scenario_program(
+    fn validate_domain_scenario(
         &self,
         _environment: &PostgresqlProtectedObserverEnvironment,
         program: &QualificationScenarioProgramV1,
-        operations: &[auths_profile_kit::QualificationRedactedOperation],
-        truths: &[QualificationProviderTruth],
+        _operations: &[auths_profile_kit::QualificationRedactedOperation],
+        _truths: &[QualificationProviderTruth],
     ) -> Result<(), QualificationHarnessError> {
-        auths_profile_kit::validate_scenario_program_projection(program, operations, truths)
+        if !metadata().scenarios.contains(&program.id()) {
+            Ok(())
+        } else {
+            Err(QualificationHarnessError::PrerequisiteUnavailable(
+                "PostgreSQL scenario predicate is not implemented",
+            ))
+        }
     }
 
     fn cleanup(

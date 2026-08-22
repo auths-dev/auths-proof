@@ -325,7 +325,7 @@ pub struct QualificationSetupHandoffV1 {
     pub connection_alias: String,
     /// Secret-free provider resource and cleanup reference.
     pub run_reference: QualificationRunReference,
-    /// Exact byte-sorted scenario inputs selected by protected setup.
+    /// Exact program-ordered scenario inputs selected by protected setup.
     pub vectors: Vec<QualificationSetupVectorV1>,
 }
 
@@ -337,10 +337,18 @@ pub struct QualificationSetupVectorV1 {
     pub id: String,
     /// Exact executable scenario program committed by the ledger plan.
     pub scenario_program: crate::QualificationScenarioProgramV1,
-    /// Base64url-without-padding encoding of the bounded public SDK input.
-    pub input_base64url: String,
+    /// Exact case-scoped public SDK inputs in scenario-program order.
+    pub cases: Vec<QualificationSetupCaseV1>,
     /// Optional closed crash boundary fixed by the reviewed scenario ID.
     pub failpoint: Option<QualificationFailpoint>,
+}
+
+/// One protected-setup public input bound to a reviewed scenario case.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct QualificationSetupCaseV1 {
+    pub case_id: String,
+    pub input_base64url: String,
 }
 
 /// Immutable protected input supplied to one domain-owned setup implementation.
@@ -428,7 +436,7 @@ pub enum QualificationAttemptKind {
 }
 
 /// Closed public outcome projections.
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum QualificationOutcomeKind {
     Denied,
@@ -485,10 +493,17 @@ pub struct QualificationVector {
     pub id: String,
     /// Exact reviewed executable scenario program.
     pub scenario_program: crate::QualificationScenarioProgramV1,
-    /// Opaque bounded domain input interpreted only by the static adapter.
-    pub input: Vec<u8>,
+    /// Exact reviewed case inputs interpreted only by the static adapter.
+    pub cases: Vec<QualificationCaseVector>,
     /// Optional closed crash boundary selected by the common supervisor.
     pub failpoint: Option<QualificationFailpoint>,
+}
+
+/// One decoded bounded public SDK case input.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct QualificationCaseVector {
+    pub case_id: String,
+    pub input: Vec<u8>,
 }
 
 /// Independent provider observation that does not trust the Auths result.
@@ -788,6 +803,7 @@ pub struct QualificationPhaseClient {
     result_socket: String,
     scenario_program: Option<crate::QualificationScenarioProgramV1>,
     phase_index: Option<u8>,
+    role: Option<QualificationOperationRole>,
     installed: Option<QualificationInstalledClient>,
 }
 
@@ -848,6 +864,7 @@ impl QualificationPhaseClient {
             result_socket,
             scenario_program: None,
             phase_index: None,
+            role: None,
             installed: None,
         })
     }
@@ -859,6 +876,7 @@ impl QualificationPhaseClient {
         mut self,
         scenario_program: crate::QualificationScenarioProgramV1,
         phase_index: u8,
+        role: QualificationOperationRole,
     ) -> Result<Self, QualificationHarnessError> {
         if !lower_token(scenario_program.id())
             || scenario_program.sha256().is_err()
@@ -868,6 +886,7 @@ impl QualificationPhaseClient {
         }
         self.scenario_program = Some(scenario_program);
         self.phase_index = Some(phase_index);
+        self.role = Some(role);
         Ok(self)
     }
 
@@ -906,7 +925,7 @@ impl QualificationPhaseClient {
             .installed
             .as_ref()
             .ok_or(QualificationHarnessError::InvalidPhaseClient)?;
-        if self.scenario_program.is_none() || self.phase_index.is_none() {
+        if self.scenario_program.is_none() || self.phase_index.is_none() || self.role.is_none() {
             return Err(QualificationHarnessError::InvalidPhaseClient);
         }
         installed.invoke(self, connection_alias, canonical_input)
@@ -995,6 +1014,13 @@ impl QualificationInstalledClient {
                 .map_err(|_| QualificationHarnessError::InvalidPhaseClient)?,
         )
         .map_err(|_| QualificationHarnessError::InvalidPhaseClient)?;
+        let role = match phase
+            .role
+            .ok_or(QualificationHarnessError::InvalidPhaseClient)?
+        {
+            QualificationOperationRole::Preflight => "preflight",
+            QualificationOperationRole::Effect => "effect",
+        };
         let mut child = std::process::Command::new(&self.python)
             .args([
                 "-I",
@@ -1010,6 +1036,7 @@ impl QualificationInstalledClient {
                 connection_alias,
                 scenario_program.id(),
                 &phase_index,
+                role,
                 &scenario_program_json,
             ])
             .current_dir(&self.working_directory)
@@ -1151,10 +1178,10 @@ const INSTALLED_QUALIFICATION_CLIENT: &str = r#"
 import asyncio, copy, dataclasses, importlib, json, sys
 from auths._cbor import encode as encode_cbor
 
-source, module_name, client_name, group_name, method_name, input_name, socket, connection, scenario, phase_index, program_json = sys.argv[1:]
+source, module_name, client_name, group_name, method_name, input_name, socket, connection, scenario, phase_index, role, program_json = sys.argv[1:]
 phase_index = int(phase_index)
 program = json.loads(program_json)
-if program.get("id") != scenario or not isinstance(program.get("cases"), list):
+if program.get("id") != scenario or not isinstance(program.get("cases"), list) or role not in ("preflight", "effect"):
     raise ValueError("installed-client scenario program differs from selected scenario")
 sys.path.insert(0, source)
 import auths
@@ -1455,7 +1482,7 @@ pub trait QualificationProtectedObserver {
 
     /// Exact-validates one executable scenario program after all common and
     /// independently observed provider facts have been authenticated.
-    fn validate_scenario_program(
+    fn validate_domain_scenario(
         &self,
         environment: &Self::Environment,
         program: &crate::QualificationScenarioProgramV1,
@@ -1475,12 +1502,12 @@ pub trait QualificationProtectedObserver {
 /// Domain adapters call this first, then enforce their hook-specific facts.
 pub fn validate_scenario_program_projection(
     program: &crate::QualificationScenarioProgramV1,
+    failpoint: Option<QualificationFailpoint>,
     operations: &[QualificationRedactedOperation],
     truths: &[QualificationProviderTruth],
 ) -> Result<(), QualificationHarnessError> {
     if operations.is_empty()
         || operations.len() > 8
-        || truths.is_empty()
         || truths.len() > 32
         || truths
             .windows(2)
@@ -1488,69 +1515,107 @@ pub fn validate_scenario_program_projection(
     {
         return Err(QualificationHarnessError::ProviderTruth);
     }
-    let mut projected_provider_calls = 0_u32;
+    let mut projected_instances = Vec::new();
+    let mut matched_roles = std::collections::BTreeSet::new();
     for operation in operations {
         operation.validate()?;
+        projected_instances.extend(operation.instances.iter());
         let cases = program
             .cases()
             .iter()
             .filter(|case| case.role() == operation.role)
             .collect::<Vec<_>>();
         if cases.is_empty() {
+            continue;
+        }
+        matched_roles.insert(operation.role);
+        let exact_expectation = cases
+            .iter()
+            .all(|case| case.expectation() == crate::QualificationScenarioExpectation::Exact);
+        if exact_expectation == failpoint.is_some() {
             return Err(QualificationHarnessError::ProviderTruth);
         }
-        let expected_outcomes = cases
-            .iter()
-            .map(|case| case.expected_outcome())
-            .collect::<Vec<_>>();
-        let actual_outcomes = operation
-            .attempts
-            .iter()
-            .map(|attempt| attempt.outcome)
-            .collect::<Vec<_>>();
-        let crash_program = program.id().starts_with("crash-");
-        if !crash_program && actual_outcomes != expected_outcomes {
-            return Err(QualificationHarnessError::ProviderTruth);
+        if exact_expectation {
+            if operation.attempts.len() != cases.len() {
+                return Err(QualificationHarnessError::ProviderTruth);
+            }
+            let mut offset = 0_usize;
+            while offset < cases.len() {
+                let group = cases[offset].group();
+                let end = cases[offset..]
+                    .iter()
+                    .position(|case| case.group() != group)
+                    .map_or(cases.len(), |relative| offset + relative);
+                let topology = cases[offset].topology();
+                if cases[offset..end]
+                    .iter()
+                    .any(|case| case.topology() != topology)
+                {
+                    return Err(QualificationHarnessError::ProviderTruth);
+                }
+                let mut expected = cases[offset..end]
+                    .iter()
+                    .map(|case| (case.expected_outcome(), case.expected_effect()))
+                    .collect::<Vec<_>>();
+                let mut actual = operation.attempts[offset..end]
+                    .iter()
+                    .map(|attempt| {
+                        let effect = attempt.operation_id.as_deref().map_or(
+                            Ok(QualificationEffect::NotApplied),
+                            |operation_id| {
+                                operation
+                                    .instances
+                                    .iter()
+                                    .find(|instance| instance.operation_id == operation_id)
+                                    .map(|instance| instance.effect)
+                                    .ok_or(QualificationHarnessError::ProviderTruth)
+                            },
+                        )?;
+                        Ok((attempt.outcome, effect))
+                    })
+                    .collect::<Result<Vec<_>, QualificationHarnessError>>()?;
+                if topology == crate::QualificationScenarioTopology::Parallel {
+                    expected.sort_unstable();
+                    actual.sort_unstable();
+                }
+                if actual != expected {
+                    return Err(QualificationHarnessError::ProviderTruth);
+                }
+                offset = end;
+            }
         }
-        let expected_effects = cases
-            .iter()
-            .map(|case| case.expected_effect())
-            .collect::<std::collections::BTreeSet<_>>();
-        let actual_effects = operation
-            .instances
-            .iter()
-            .map(|instance| instance.effect)
-            .collect::<std::collections::BTreeSet<_>>();
-        if expected_effects != actual_effects {
-            return Err(QualificationHarnessError::ProviderTruth);
-        }
-        let expected_calls = cases.iter().try_fold(0_u32, |total, case| {
-            total.checked_add(case.expected_provider_calls())
-        });
-        let actual_calls = operation
-            .instances
-            .iter()
-            .try_fold(0_u32, |total, instance| {
-                total.checked_add(instance.counters.provider_calls)
+        if exact_expectation {
+            let expected_calls = cases.iter().try_fold(0_u32, |total, case| {
+                total.checked_add(case.expected_provider_calls())
             });
-        if expected_calls.is_none() || expected_calls != actual_calls {
-            return Err(QualificationHarnessError::ProviderTruth);
+            let actual_calls = operation
+                .instances
+                .iter()
+                .try_fold(0_u32, |total, instance| {
+                    total.checked_add(instance.counters.provider_calls)
+                });
+            if expected_calls.is_none() || expected_calls != actual_calls {
+                return Err(QualificationHarnessError::ProviderTruth);
+            }
         }
-        projected_provider_calls = projected_provider_calls
-            .checked_add(actual_calls.unwrap_or_default())
-            .ok_or(QualificationHarnessError::ProviderTruth)?;
     }
-    let truth_calls = truths.iter().try_fold(0_u32, |total, truth| {
-        total.checked_add(truth.provider_calls)
-    });
-    if truth_calls != Some(projected_provider_calls)
-        || truths.iter().any(|truth| {
-            operations.iter().all(|operation| {
-                operation.instances.iter().all(|instance| {
-                    instance.operation_id != truth.operation_id || instance.effect != truth.effect
-                })
+    if program
+        .cases()
+        .iter()
+        .any(|case| !matched_roles.contains(&case.role()))
+    {
+        return Err(QualificationHarnessError::ProviderTruth);
+    }
+    projected_instances.sort_by(|left, right| left.operation_id.cmp(&right.operation_id));
+    if projected_instances.len() != truths.len()
+        || projected_instances
+            .iter()
+            .zip(truths)
+            .any(|(instance, truth)| {
+                instance.operation_id != truth.operation_id
+                    || instance.effect != truth.effect
+                    || instance.counters.provider_calls != truth.provider_calls
             })
-        })
     {
         return Err(QualificationHarnessError::ProviderTruth);
     }
@@ -1591,7 +1656,17 @@ impl QualificationVector {
         if !registered_token(&self.id)
             || self.scenario_program.id() != self.id
             || self.scenario_program.sha256().is_err()
-            || self.input.len() > MAX_VECTOR_BYTES
+            || self.cases.is_empty()
+            || self.cases.len() != self.scenario_program.cases().len()
+            || self
+                .cases
+                .iter()
+                .zip(self.scenario_program.cases())
+                .any(|(actual, expected)| {
+                    actual.case_id != expected.case_id()
+                        || actual.input.is_empty()
+                        || actual.input.len() > MAX_VECTOR_BYTES
+                })
         {
             return Err(QualificationHarnessError::Limit);
         }
@@ -1620,13 +1695,33 @@ impl QualificationSetupVectorV1 {
     /// Decodes and validates one public scenario vector.
     pub fn vector(&self) -> Result<QualificationVector, QualificationHarnessError> {
         if !registered_token(&self.id)
-            || self.input_base64url.len() > encoded_vector_bound()
-            || self.input_base64url.contains('=')
+            || self.scenario_program.id() != self.id
+            || self.cases.is_empty()
+            || self.cases.len() != self.scenario_program.cases().len()
+            || self
+                .cases
+                .iter()
+                .zip(self.scenario_program.cases())
+                .any(|(actual, expected)| {
+                    actual.case_id != expected.case_id()
+                        || actual.input_base64url.is_empty()
+                        || actual.input_base64url.len() > encoded_vector_bound()
+                        || actual.input_base64url.contains('=')
+                })
         {
             return Err(QualificationHarnessError::InvalidSetupHandoff);
         }
-        let input = Base64UrlUnpadded::decode_vec(&self.input_base64url)
-            .map_err(|_| QualificationHarnessError::InvalidSetupHandoff)?;
+        let cases = self
+            .cases
+            .iter()
+            .map(|case| {
+                Ok(QualificationCaseVector {
+                    case_id: case.case_id.clone(),
+                    input: Base64UrlUnpadded::decode_vec(&case.input_base64url)
+                        .map_err(|_| QualificationHarnessError::InvalidSetupHandoff)?,
+                })
+            })
+            .collect::<Result<Vec<_>, QualificationHarnessError>>()?;
         let expected_failpoint = self
             .id
             .strip_prefix("crash-")
@@ -1637,11 +1732,18 @@ impl QualificationSetupVectorV1 {
         let vector = QualificationVector {
             id: self.id.clone(),
             scenario_program: self.scenario_program.clone(),
-            input,
+            cases,
             failpoint: self.failpoint,
         };
         vector.validate()?;
-        if Base64UrlUnpadded::encode_string(&vector.input) != self.input_base64url {
+        if vector
+            .cases
+            .iter()
+            .zip(&self.cases)
+            .any(|(decoded, encoded)| {
+                Base64UrlUnpadded::encode_string(&decoded.input) != encoded.input_base64url
+            })
+        {
             return Err(QualificationHarnessError::InvalidSetupHandoff);
         }
         Ok(vector)
@@ -2373,7 +2475,10 @@ mod tests {
         .unwrap();
         assert_eq!(client.agent_socket(), "/run/auths/phase/client.sock");
         assert_eq!(client.result_socket(), "/run/auths/phase/result.sock");
-        let reviewed = client.clone().with_reviewed_phase(conflict, 2).unwrap();
+        let reviewed = client
+            .clone()
+            .with_reviewed_phase(conflict, 2, QualificationOperationRole::Effect)
+            .unwrap();
         assert_eq!(
             reviewed
                 .scenario_program
@@ -2382,8 +2487,9 @@ mod tests {
             Some("changed-input-conflict")
         );
         assert_eq!(reviewed.phase_index, Some(2));
+        assert_eq!(reviewed.role, Some(QualificationOperationRole::Effect));
         assert_eq!(
-            client.with_reviewed_phase(happy, 0),
+            client.with_reviewed_phase(happy, 0, QualificationOperationRole::Effect),
             Err(QualificationHarnessError::InvalidPhaseClient)
         );
         assert_eq!(

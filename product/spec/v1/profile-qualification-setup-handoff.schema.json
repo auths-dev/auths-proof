@@ -57,11 +57,27 @@
     "vector": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "inputBase64url", "failpoint"],
+      "required": ["id", "scenarioProgram", "cases", "failpoint"],
       "properties": {
         "id": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
-        "inputBase64url": {"type": "string", "maxLength": 22369624, "pattern": "^[A-Za-z0-9_-]*$"},
+        "scenarioProgram": {"$ref": "profile-qualification-scenarios.schema.json#/$defs/program"},
+        "cases": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/case"}
+        },
         "failpoint": {"$ref": "profile-qualification-report-common.schema.json#/$defs/nullableFailpoint"}
+      }
+    },
+    "case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["caseId", "inputBase64url"],
+      "properties": {
+        "caseId": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+        "inputBase64url": {"type": "string", "minLength": 1, "maxLength": 22369624, "pattern": "^[A-Za-z0-9_-]+$"}
       }
     }
   }

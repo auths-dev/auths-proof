@@ -30,12 +30,15 @@
     "case": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["caseId", "role", "group", "topology", "expectedOutcome", "expectedEffect", "expectedProviderCalls"],
+      "required": ["caseId", "intentId", "stimulus", "role", "group", "topology", "expectation", "expectedOutcome", "expectedEffect", "expectedProviderCalls"],
       "properties": {
         "caseId": {"$ref": "#/$defs/token"},
+        "intentId": {"$ref": "#/$defs/token"},
+        "stimulus": {"$ref": "#/$defs/token"},
         "role": {"enum": ["preflight", "effect"]},
         "group": {"type": "integer", "minimum": 1, "maximum": 255},
         "topology": {"enum": ["serial", "parallel"]},
+        "expectation": {"enum": ["exact", "failpoint"]},
         "expectedOutcome": {"enum": ["denied", "unavailable", "completed", "partial", "not-applied", "recovery-required", "conflict"]},
         "expectedEffect": {"enum": ["applied", "not-applied", "possible"]},
         "expectedProviderCalls": {"type": "integer", "minimum": 0, "maximum": 1}
