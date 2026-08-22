@@ -105,11 +105,15 @@ pub async fn dispatch_provider_transport(
 /// credential and returns only the closed effect plus canonical redacted facts.
 pub async fn observe_provider_truth(
     record: &JournalRecordV1,
-    credential: Vec<u8>,
+    credential: &[u8],
+    _observer_root: &std::path::Path,
+    _now_unix_seconds: u64,
 ) -> Result<(QualificationEffect, Vec<u8>), ProfileRuntimeError> {
-    let lease =
-        ProviderCredentialLease::from_adapter(credential, Instant::now() + Duration::from_secs(30))
-            .map_err(|_| ProfileRuntimeError::Invalid)?;
+    let lease = ProviderCredentialLease::from_adapter(
+        credential.to_vec(),
+        Instant::now() + Duration::from_secs(30),
+    )
+    .map_err(|_| ProfileRuntimeError::Invalid)?;
     crate::local_agent::refunds_create_observe_provider_truth(record, lease).await
 }
 

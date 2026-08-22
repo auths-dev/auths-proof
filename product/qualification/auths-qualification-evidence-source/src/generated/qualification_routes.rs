@@ -114,13 +114,19 @@ impl QualificationRoute {
                 auths_postgresql::qualification::observe_provider_truth(
                     record,
                     credential,
+                    observer_root,
                     now_unix_seconds,
                 )
                 .await
             }
             Self::Stripe => {
-                auths_stripe::qualification::observe_provider_truth(record, credential.to_vec())
-                    .await
+                auths_stripe::qualification::observe_provider_truth(
+                    record,
+                    credential,
+                    observer_root,
+                    now_unix_seconds,
+                )
+                .await
             }
         }
     }

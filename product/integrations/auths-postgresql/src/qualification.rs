@@ -23,6 +23,7 @@ use zeroize::Zeroizing;
 pub async fn observe_provider_truth(
     record: &JournalRecordV1,
     credential: &[u8],
+    _observer_root: &std::path::Path,
     now_unix_seconds: u64,
 ) -> Result<(QualificationEffect, Vec<u8>), ProfileRuntimeError> {
     crate::local_agent::observe_provider_truth_for_qualification(

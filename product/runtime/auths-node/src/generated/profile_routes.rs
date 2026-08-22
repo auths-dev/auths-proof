@@ -1020,6 +1020,7 @@ impl RegisteredProfile {
                     result.as_deref(),
                 )
             }
+            _ => Err(ProfileRuntimeError::Invalid),
         }
     }
 

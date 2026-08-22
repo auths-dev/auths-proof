@@ -776,7 +776,7 @@ fn write_new_profile_scaffold(
     fs::write(
         package_root.join("Cargo.toml"),
         format!(
-            "[package]\nname = \"auths-{domain}\"\nversion.workspace = true\nedition.workspace = true\nlicense.workspace = true\nrust-version.workspace = true\npublish = false\n\n[features]\nqualification = [\"dep:auths-profile-kit\"]\n\n[dependencies]\nasync-trait.workspace = true\nauths-connections.workspace = true\nauths-errors.workspace = true\nauths-profile-kit = {{ workspace = true, optional = true }}\nauths-profile-runtime.workspace = true\nminicbor.workspace = true\nserde.workspace = true\nserde_json.workspace = true\nserde_json_canonicalizer.workspace = true\nsha2.workspace = true\nthiserror.workspace = true\n\n[lints]\nworkspace = true\n"
+            "[package]\nname = \"auths-{domain}\"\nversion.workspace = true\nedition.workspace = true\nlicense.workspace = true\nrust-version.workspace = true\npublish = false\n\n[features]\nqualification = [\"dep:auths-profile-kit\", \"auths-connections/qualification-broker\"]\n\n[dependencies]\nasync-trait.workspace = true\nauths-connections.workspace = true\nauths-errors.workspace = true\nauths-profile-kit = {{ workspace = true, optional = true }}\nauths-profile-runtime.workspace = true\nauths-stores.workspace = true\nminicbor.workspace = true\nserde.workspace = true\nserde_json.workspace = true\nserde_json_canonicalizer.workspace = true\nsha2.workspace = true\nthiserror.workspace = true\n\n[lints]\nworkspace = true\n"
         ),
     )
     .map_err(|error| error.to_string())?;
@@ -872,7 +872,11 @@ fn qualification_adapter_scaffold(arguments: &NewProfileArguments) -> Result<Str
     let requirements_sha256 = hex::encode(Sha256::digest(canonical_json(&requirements)?));
     Ok(format!(
         "//! Qualification-only adapter scaffold. Every method remains fail-closed until live closure.\n\n\
-use auths_profile_kit::{{QualificationAdapterMetadata, QualificationCleanupEvidence, QualificationCollectedOperation, QualificationCollectionAdapter, QualificationCommonOperationInstanceEvidence, QualificationCommonReceiptClaims, QualificationEffect, QualificationHarnessError, QualificationOperationRole, QualificationPhaseClient, QualificationProtectedObserver, QualificationProviderTruth, QualificationRunContext, QualificationRunReference, QualificationSetupHandoffV1, QualificationTarget, QualificationVector}};\n\n\
+use auths_connections::{{ProviderCredentialLease, QualificationProviderCallKind}};\n\
+use auths_profile_kit::{{QualificationAdapterMetadata, QualificationCleanupEvidence, QualificationCollectedOperation, QualificationCollectionAdapter, QualificationCommonOperationInstanceEvidence, QualificationCommonReceiptClaims, QualificationEffect, QualificationHarnessError, QualificationOperationRole, QualificationPhaseClient, QualificationProfileStateFactV1, QualificationProtectedObserver, QualificationProviderTruth, QualificationRunContext, QualificationRunReference, QualificationSetupHandoffV1, QualificationTarget, QualificationVector}};\n\
+use auths_profile_runtime::{{ProfileReceiptInspection, ProfileRuntimeError}};\n\
+use auths_stores::JournalRecordV1;\n\
+use std::{{path::Path, time::Instant}};\n\n\
 pub struct {adapter};\n\n\
 pub fn qualification_requirement_ids() -> &'static [&'static str] {{ &[{requirement_id:?}] }}\n\n\
 pub const fn qualification_requirements_sha256() -> &'static str {{ {requirements_sha256:?} }}\n\n\
@@ -881,6 +885,11 @@ pub fn qualification_receipt_claim_ids() -> &'static [&'static str] {{ &[{receip
 pub fn qualification_provider_truth_fields() -> &'static [&'static str] {{ &[\"implemented\", \"schema\"] }}\n\n\
 pub fn qualification_forbidden_evidence_fields() -> &'static [&'static str] {{ &[] }}\n\n\
 pub fn qualification_redaction_prefixes() -> &'static [&'static str] {{ &[] }}\n\n\
+#[allow(clippy::too_many_arguments)]\n\
+pub async fn dispatch_provider_transport(_profile: &str, _kind: QualificationProviderCallKind, _command: &[u8], _profile_state: &[u8], _credential: &ProviderCredentialLease, _configuration: Option<&[u8]>, _transport_root: &Path, _operation_id: &str, _now_unix_seconds: u64, _deadline: Instant) -> Result<Option<Vec<u8>>, ProfileRuntimeError> {{ Err(ProfileRuntimeError::Invalid) }}\n\n\
+pub async fn observe_provider_truth(_record: &JournalRecordV1, _credential: &[u8], _observer_root: &Path, _now_unix_seconds: u64) -> Result<(QualificationEffect, Vec<u8>), ProfileRuntimeError> {{ Err(ProfileRuntimeError::Invalid) }}\n\n\
+pub fn inspect_receipt_claims(_profile: &str, _inspection: ProfileReceiptInspection<'_>) -> Result<(), ProfileRuntimeError> {{ Err(ProfileRuntimeError::Invalid) }}\n\n\
+pub fn inspect_profile_state(_profile: &str, _journal: &[JournalRecordV1], _store_bytes: &[u8]) -> Result<Vec<QualificationProfileStateFactV1>, ProfileRuntimeError> {{ Err(ProfileRuntimeError::Invalid) }}\n\n\
 pub fn qualification_provider_matrix_rows() -> &'static [(&'static str, &'static str, &'static str, &'static str, &'static str)] {{ &[({provider_run:?}, {provider:?}, \"unimplemented\", \"0000000000000000000000000000000000000000000000000000000000000000\", \"linux-x86_64\")] }}\n\n\
 pub fn qualification_operation_plan() -> &'static [(QualificationOperationRole, &'static str, bool, bool)] {{ &[(QualificationOperationRole::Effect, {profile:?}, true, true)] }}\n\n\
 impl QualificationCollectionAdapter for {adapter} {{\n\
@@ -1877,6 +1886,7 @@ fn render_root_profile_roster(repository: &Path, roster: &ProfileRoster) -> Resu
                     result.as_deref(),
                 )
             }
+            _ => Err(ProfileRuntimeError::Invalid),
         }
     }
 
@@ -2197,21 +2207,10 @@ pub(crate) enum QualificationRoute {\n",
     output.push_str("        }\n    }\n\n    pub(crate) async fn observe_provider_truth(\n        self,\n        record: &JournalRecordV1,\n        credential: &[u8],\n        observer_root: &Path,\n        now_unix_seconds: u64,\n    ) -> Result<(QualificationEffect, Vec<u8>), ProfileRuntimeError> {\n        match self {\n");
     for entry in roster.packages() {
         let crate_name = entry.rust_package().replace('-', "_");
-        let call = match entry.domain() {
-            "stripe" => format!(
-                "{crate_name}::qualification::observe_provider_truth(record, credential.to_vec()).await"
-            ),
-            "opentofu" => format!(
-                "{crate_name}::qualification::observe_provider_truth(record, credential, observer_root, now_unix_seconds).await"
-            ),
-            _ => format!(
-                "{crate_name}::qualification::observe_provider_truth(record, credential, now_unix_seconds).await"
-            ),
-        };
         writeln!(
             output,
-            "            Self::{} => {call},",
-            pascal(entry.domain())
+            "            Self::{} => {crate_name}::qualification::observe_provider_truth(record, credential, observer_root, now_unix_seconds).await,",
+            pascal(entry.domain()),
         )
         .map_err(|error| error.to_string())?;
     }
@@ -3620,6 +3619,9 @@ fn render_typescript_types(
                 .map_err(|error| error.to_string())?;
         }
     }
+    while output.ends_with("\n\n") {
+        output.pop();
+    }
     Ok(output)
 }
 
@@ -3830,6 +3832,9 @@ fn render_python_types(
             "from auths import OperationMetadata\nfrom auths.profile_runtime import ProfileFile\n",
             1,
         );
+    }
+    while output.ends_with("\n\n") {
+        output.pop();
     }
     Ok(output)
 }
@@ -4649,6 +4654,31 @@ mod tests {
                 .unwrap()
                 .contains("not qualified")
         );
+        let qualification = fs::read_to_string(
+            repository.join("product/integrations/auths-mailbox/src/qualification.rs"),
+        )
+        .unwrap();
+        for required in [
+            "pub async fn dispatch_provider_transport",
+            "pub async fn observe_provider_truth",
+            "pub fn inspect_receipt_claims",
+            "pub fn inspect_profile_state",
+        ] {
+            assert!(qualification.contains(required), "missing {required}");
+        }
+        let source_routes = fs::read_to_string(repository.join(
+            "product/qualification/auths-qualification-evidence-source/src/generated/qualification_routes.rs",
+        ))
+        .unwrap();
+        assert!(source_routes.contains("Self::Mailbox"));
+        assert!(source_routes.contains("auths_mailbox::qualification::observe_provider_truth"));
+        assert!(source_routes.contains("observer_root"));
+        let root_routes = fs::read_to_string(
+            repository.join("product/runtime/auths-node/src/generated/profile_routes.rs"),
+        )
+        .unwrap();
+        assert!(root_routes.contains("Self::MailboxSendExecute"));
+        assert!(root_routes.contains("_ => Err(ProfileRuntimeError::Invalid)"));
         assert!(scaffold_at(repository, &request).is_err());
     }
 }
