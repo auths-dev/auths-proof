@@ -6,8 +6,10 @@ use crate::profile_qualification::{
     observe_domain_adapter, run_domain_adapter,
 };
 use auths_profile_kit::{
-    QualificationEffect, QualificationOperationRole, QualificationProtectedSetup,
-    QualificationProtectedSetupInput, QualificationSetupHandoffV1,
+    QualificationEffect, QualificationHarnessError, QualificationOperationRole,
+    QualificationProtectedObserver, QualificationProtectedSetup, QualificationProtectedSetupInput,
+    QualificationProviderTruth, QualificationRedactedOperation, QualificationScenarioProgramV1,
+    QualificationSetupHandoffV1,
 };
 
 pub(crate) fn qualification_domain_scenario_ids(
@@ -198,6 +200,24 @@ pub(crate) fn validate_provider_matrix_contract(
             provider_artifact_sha256,
         ),
         _ => return Err("qualification domain has no generated provider-matrix validator".into()),
+    };
+    result.map_err(|error| error.to_string())
+}
+
+pub(crate) fn validate_domain_scenario(
+    domain: &str,
+    program: &QualificationScenarioProgramV1,
+    operations: &[QualificationRedactedOperation],
+    truths: &[QualificationProviderTruth],
+) -> Result<(), String> {
+    let result: Result<(), QualificationHarnessError> = match domain {
+        "opentofu" => auths_opentofu::qualification::OpentofuQualificationAdapter
+            .validate_domain_scenario(program, operations, truths),
+        "postgresql" => auths_postgresql::qualification::PostgresqlQualificationAdapter
+            .validate_domain_scenario(program, operations, truths),
+        "stripe" => auths_stripe::qualification::StripeQualificationAdapter
+            .validate_domain_scenario(program, operations, truths),
+        _ => return Err("qualification domain has no generated scenario validator".into()),
     };
     result.map_err(|error| error.to_string())
 }

@@ -5114,6 +5114,7 @@ struct ClientSessionState {
 #[derive(Clone)]
 struct ClientAttemptState {
     sequence: u16,
+    case_id: String,
     process: ClientProcessIdentity,
     principal_sha256: String,
     idempotency_sha256: Option<String>,
@@ -5734,12 +5735,14 @@ fn relay_client_proxy_connection(
         if !state.attempts.contains_key(&facts.request_id) {
             let attempt_sequence = u16::try_from(state.attempts.len() + 1)
                 .map_err(|_| "ClientProxy attempt sequence exceeds its hard bound".to_owned())?;
+            let case_id = reviewed_client_case(shared, &facts, &state)?;
             let principal_sha256 = session.principal_sha256.clone();
             let record = client_proxy_record(
                 shared,
                 facts.request_id.clone(),
                 None,
                 QualificationClientProxyObservationV1::RequestReceived {
+                    case_id: case_id.clone(),
                     request_input_sha256: facts.request_input_sha256,
                     principal_sha256: principal_sha256.clone(),
                     idempotency_sha256: facts.idempotency_sha256.clone(),
@@ -5755,6 +5758,7 @@ fn relay_client_proxy_connection(
                 facts.request_id,
                 ClientAttemptState {
                     sequence: attempt_sequence,
+                    case_id,
                     process: session.process.clone(),
                     principal_sha256,
                     idempotency_sha256: facts.idempotency_sha256,
@@ -6556,6 +6560,57 @@ struct ClientRequestFacts {
     idempotency_sha256: Option<String>,
     preparation_input_sha256: Option<String>,
     recovery_request_sha256: Option<String>,
+}
+
+#[cfg(target_os = "linux")]
+fn reviewed_client_case(
+    shared: &ClientProxyShared,
+    facts: &ClientRequestFacts,
+    state: &ClientProxyState,
+) -> Result<String, String> {
+    let idempotency_sha256 = facts
+        .idempotency_sha256
+        .as_deref()
+        .ok_or_else(|| "ClientProxy new request omits its reviewed case intent".to_owned())?;
+    let route = QualificationRoute::for_profile(&shared.phase.profile)?;
+    let program = route.scenario_program(&shared.phase.scenario_id)?;
+    if program.sha256().map_err(string_error)? != shared.phase.scenario_program_sha256 {
+        return Err("ClientProxy scenario program differs from the immutable phase".into());
+    }
+    let role_cases = program
+        .cases()
+        .iter()
+        .filter(|case| case.role() == shared.phase.role)
+        .collect::<Vec<_>>();
+    let role_cases = if role_cases.is_empty() {
+        let mut intents = std::collections::BTreeSet::new();
+        program
+            .cases()
+            .iter()
+            .filter(|case| intents.insert(case.intent_id()))
+            .collect::<Vec<_>>()
+    } else {
+        role_cases
+    };
+    let used = state
+        .attempts
+        .values()
+        .map(|attempt| attempt.case_id.as_str())
+        .collect::<std::collections::BTreeSet<_>>();
+    role_cases
+        .into_iter()
+        .find(|case| {
+            let intent = format!(
+                "aq:{}:{}:{}",
+                shared.phase.scenario_id,
+                shared.phase.phase_index,
+                case.intent_id()
+            );
+            hex::encode(local_idempotency_commitment(&intent)) == idempotency_sha256
+                && !used.contains(case.case_id())
+        })
+        .map(|case| case.case_id().to_owned())
+        .ok_or_else(|| "ClientProxy request does not match one unconsumed reviewed case".to_owned())
 }
 
 #[cfg(target_os = "linux")]

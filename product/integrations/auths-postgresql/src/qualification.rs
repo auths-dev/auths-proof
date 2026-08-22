@@ -597,7 +597,7 @@ impl QualificationProtectedSetup for PostgresqlQualificationAdapter {
 
 #[derive(Default)]
 pub struct PostgresqlQualificationEnvironment {
-    prepared_update: Option<String>,
+    prepared_updates: std::collections::BTreeMap<String, String>,
 }
 
 impl QualificationCollectionAdapter for PostgresqlQualificationAdapter {
@@ -630,41 +630,43 @@ impl QualificationCollectionAdapter for PostgresqlQualificationAdapter {
     ) -> Result<QualificationCollectedOperation, QualificationHarnessError> {
         match (phase_index, role, profile) {
             (1, QualificationOperationRole::Preflight, "auths.postgresql.update-preflight/1") => {
-                if environment.prepared_update.is_some() {
+                if !environment.prepared_updates.is_empty() {
                     return Err(QualificationHarnessError::Invocation);
                 }
-                let outcome = client.invoke_installed(
-                    connection_alias,
-                    &vector
-                        .cases
-                        .first()
+                let outcome = client.invoke_installed(connection_alias, &vector.cases)?;
+                for case_outcome in outcome.cases {
+                    if case_outcome.kind != "completed" {
+                        continue;
+                    }
+                    let intent = vector
+                        .scenario_program
+                        .cases()
+                        .iter()
+                        .find(|case| case.case_id() == case_outcome.case_id)
                         .ok_or(QualificationHarnessError::Invocation)?
-                        .input,
-                )?;
-                if outcome.kind == "completed" {
-                    environment.prepared_update = Some(
-                        outcome
-                            .value
-                            .as_ref()
-                            .and_then(|value| value.get("prepared_update"))
-                            .and_then(serde_json::Value::as_str)
-                            .filter(|value| (48..=96).contains(&value.len()))
-                            .ok_or(QualificationHarnessError::Invocation)?
-                            .into(),
-                    );
+                        .intent_id()
+                        .to_owned();
+                    let prepared = case_outcome
+                        .value
+                        .as_ref()
+                        .and_then(|value| value.get("prepared_update"))
+                        .and_then(serde_json::Value::as_str)
+                        .filter(|value| (48..=96).contains(&value.len()))
+                        .ok_or(QualificationHarnessError::Invocation)?
+                        .to_owned();
+                    if environment
+                        .prepared_updates
+                        .insert(intent, prepared)
+                        .is_some()
+                    {
+                        return Err(QualificationHarnessError::Invocation);
+                    }
                 }
             }
             (2, QualificationOperationRole::Effect, "auths.postgresql.bounded-update/1") => {
                 if qualification_pre_admission_attempt_count(&vector.id).is_some() {
-                    let outcome = client.invoke_installed(
-                        connection_alias,
-                        &vector
-                            .cases
-                            .first()
-                            .ok_or(QualificationHarnessError::Invocation)?
-                            .input,
-                    )?;
-                    if outcome.kind != "unavailable" {
+                    let outcome = client.invoke_installed(connection_alias, &vector.cases)?;
+                    if outcome.cases.iter().any(|case| case.kind != "unavailable") {
                         return Err(QualificationHarnessError::Invocation);
                     }
                     return Ok(QualificationCollectedOperation {
@@ -672,15 +674,29 @@ impl QualificationCollectionAdapter for PostgresqlQualificationAdapter {
                         profile: profile.into(),
                     });
                 }
-                let prepared_update = environment
-                    .prepared_update
-                    .take()
-                    .ok_or(QualificationHarnessError::Invocation)?;
-                let input = serde_json::to_vec(&serde_json::json!({
-                    "preparedUpdate": prepared_update,
-                }))
-                .map_err(|_| QualificationHarnessError::Invocation)?;
-                client.invoke_installed(connection_alias, &input)?;
+                let mut cases = vector.cases.clone();
+                for program_case in vector
+                    .scenario_program
+                    .cases()
+                    .iter()
+                    .filter(|case| case.role() == QualificationOperationRole::Effect)
+                {
+                    let prepared_update = environment
+                        .prepared_updates
+                        .get(program_case.intent_id())
+                        .cloned()
+                        .ok_or(QualificationHarnessError::Invocation)?;
+                    let case = cases
+                        .iter_mut()
+                        .find(|case| case.case_id == program_case.case_id())
+                        .ok_or(QualificationHarnessError::Invocation)?;
+                    case.input = serde_json_canonicalizer::to_vec(&serde_json::json!({
+                        "preparedUpdate": prepared_update,
+                    }))
+                    .map_err(|_| QualificationHarnessError::Invocation)?;
+                }
+                client.invoke_installed(connection_alias, &cases)?;
+                environment.prepared_updates.clear();
             }
             _ => return Err(QualificationHarnessError::Invocation),
         }
@@ -815,7 +831,6 @@ impl QualificationProtectedObserver for PostgresqlQualificationAdapter {
 
     fn validate_domain_scenario(
         &self,
-        _environment: &PostgresqlProtectedObserverEnvironment,
         program: &QualificationScenarioProgramV1,
         _operations: &[auths_profile_kit::QualificationRedactedOperation],
         _truths: &[QualificationProviderTruth],

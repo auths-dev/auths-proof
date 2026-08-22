@@ -616,6 +616,7 @@ fn protected_attempts(
                 return Err("protected client result does not bind one ingress request".into());
             };
             let Payload::Request {
+                case_id,
                 request_input_sha256,
                 principal_sha256,
                 idempotency_sha256,
@@ -672,6 +673,9 @@ fn protected_attempts(
             );
             let value = QualificationRedactedAttempt {
                 sequence: u8::try_from(index + 1).map_err(string_error)?,
+                case_id: case_id.to_owned(),
+                request_event_sequence: ingress.sequence,
+                terminal_event_sequence: event.sequence,
                 kind,
                 request_id: request_id.to_owned(),
                 operation_id,
@@ -4078,6 +4082,7 @@ mod tests {
                 profile: "auths.stripe.refund/1".into(),
                 failpoint: None,
                 operation_plan_sha256: "5".repeat(64),
+                scenario_program_sha256: "a".repeat(64),
                 credential_requirement: auths_profile_kit::QualificationCredentialRequirementV1 {
                     workload_id_sha256: "8".repeat(64),
                     provider_kind: "stripe".into(),

@@ -71,9 +71,12 @@
   "$defs": {
     "attempt": {
       "type": "object", "additionalProperties": false,
-      "required": ["sequence", "kind", "requestId", "operationId", "recoveryId", "outcome", "completion", "idempotencySha256", "requestInputSha256", "preparationInputSha256", "principalSha256", "connectionAliasSha256", "connectionGeneration", "requestedScopeSha256", "configurationSha256", "sealedCommandSha256", "errorCode", "issueMetadataSha256", "resultSha256", "receiptIds"],
+      "required": ["sequence", "caseId", "requestEventSequence", "terminalEventSequence", "kind", "requestId", "operationId", "recoveryId", "outcome", "completion", "idempotencySha256", "requestInputSha256", "preparationInputSha256", "principalSha256", "connectionAliasSha256", "connectionGeneration", "requestedScopeSha256", "configurationSha256", "sealedCommandSha256", "errorCode", "issueMetadataSha256", "resultSha256", "receiptIds"],
       "properties": {
         "sequence": {"type": "integer", "minimum": 1, "maximum": 8},
+        "caseId": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+        "requestEventSequence": {"type": "integer", "minimum": 1, "maximum": 16384},
+        "terminalEventSequence": {"type": "integer", "minimum": 2, "maximum": 16384},
         "kind": {"enum": ["execute", "replay", "conflict", "status", "recover", "cancel-after-write"]},
         "requestId": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
         "operationId": {"oneOf": [{"type": "null"}, {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"}]},

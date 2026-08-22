@@ -148,7 +148,41 @@ struct ProtectedObservedProviderRun {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct ProtectedObservedScenario {
     scenario_id: String,
+    scenario_program_sha256: String,
+    domain_predicate_sha256: String,
     operations: Vec<auths_profile_kit::QualificationRedactedOperation>,
+}
+
+fn scenario_predicate_sha256(
+    program: &auths_profile_kit::QualificationScenarioProgramV1,
+    failpoint: Option<auths_profile_kit::QualificationFailpoint>,
+    operations: &[auths_profile_kit::QualificationRedactedOperation],
+    truths: &[auths_profile_kit::QualificationProviderTruth],
+) -> Result<String, String> {
+    let truth_projection = truths
+        .iter()
+        .map(|truth| {
+            Ok(serde_json::json!({
+                "commitmentSha256": hex::encode(truth.commitment),
+                "domainFactsSha256": hex::encode(Sha256::digest(&truth.domain_facts)),
+                "effect": truth.effect,
+                "operationId": truth.operation_id,
+                "providerArtifactSha256": truth.provider_artifact_sha256,
+                "providerCalls": truth.provider_calls,
+                "providerRunId": truth.provider_run_id,
+                "providerVersion": truth.provider_version,
+            }))
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+    let projection = serde_json::json!({
+        "failpoint": failpoint,
+        "operations": operations,
+        "programSha256": program.sha256().map_err(string_error)?,
+        "truths": truth_projection,
+    });
+    Ok(hex::encode(Sha256::digest(
+        serde_json_canonicalizer::to_vec(&projection).map_err(string_error)?,
+    )))
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -2739,6 +2773,76 @@ fn aggregate_observation_reports(
                 "provider row does not exactly cover its scenario roster: {}",
                 matrix_run.id
             ));
+        }
+        for (collected, protected) in collection.scenarios.iter().zip(&observed.scenarios) {
+            let program = scenario_program_at(
+                &repository,
+                &domain,
+                proposal.candidate_revision(),
+                &collected.scenario_id,
+            )?;
+            let operation_ids = protected
+                .operations
+                .iter()
+                .flat_map(|operation| &operation.instances)
+                .map(|instance| instance.operation_id.as_str())
+                .collect::<std::collections::BTreeSet<_>>();
+            let truths = observed
+                .provider_truth
+                .iter()
+                .filter(|truth| operation_ids.contains(truth.operation_id.as_str()))
+                .map(|truth| {
+                    let commitment = hex::decode(&truth.commitment_sha256)
+                        .map_err(string_error)?
+                        .try_into()
+                        .map_err(|_| {
+                            "protected provider truth commitment has the wrong length".to_owned()
+                        })?;
+                    let domain_facts = serde_json_canonicalizer::to_vec(&truth.domain_facts)
+                        .map_err(string_error)?;
+                    if hex::encode(Sha256::digest(&domain_facts)) != truth.commitment_sha256 {
+                        return Err(
+                            "protected provider truth facts differ from their commitment".into(),
+                        );
+                    }
+                    Ok(auths_profile_kit::QualificationProviderTruth {
+                        operation_id: truth.operation_id.clone(),
+                        provider_run_id: truth.provider_run_id.clone(),
+                        effect: truth.effect,
+                        provider_calls: truth.provider_calls,
+                        commitment,
+                        domain_facts,
+                        provider_version: truth.provider_version.clone(),
+                        provider_artifact_sha256: truth.provider_artifact_sha256.clone(),
+                    })
+                })
+                .collect::<Result<Vec<_>, String>>()?;
+            if protected.scenario_program_sha256 != program.sha256().map_err(string_error)?
+                || protected.domain_predicate_sha256
+                    != scenario_predicate_sha256(
+                        &program,
+                        collected.failpoint,
+                        &protected.operations,
+                        &truths,
+                    )?
+            {
+                return Err(
+                    "protected scenario predicate commitment differs at aggregation".into(),
+                );
+            }
+            auths_profile_kit::validate_scenario_program_projection(
+                &program,
+                collected.failpoint,
+                &protected.operations,
+                &truths,
+            )
+            .map_err(string_error)?;
+            crate::profile_qualification_adapters::validate_domain_scenario(
+                proposal.domain(),
+                &program,
+                &protected.operations,
+                &truths,
+            )?;
         }
         runs.push(RunReports {
             collection,
@@ -5889,14 +5993,19 @@ pub(crate) fn observe_domain_adapter<A: QualificationProtectedObserver>(
                 )
                 .map_err(string_error)?;
                 adapter
-                    .validate_domain_scenario(
-                        &environment,
+                    .validate_domain_scenario(&program, &operation_reports, &scenario_truths)
+                    .map_err(string_error)?;
+                reports.push(ProtectedObservedScenario {
+                    scenario_id: invocation.scenario_id.clone(),
+                    scenario_program_sha256: program.sha256().map_err(string_error)?,
+                    domain_predicate_sha256: scenario_predicate_sha256(
                         &program,
+                        invocation.failpoint,
                         &operation_reports,
                         &scenario_truths,
-                    )
-                    .map_err(string_error)?;
-                reports.push(operation_reports);
+                    )?,
+                    operations: operation_reports,
+                });
             }
             provider_truth.sort_by(|left, right| left.operation_id.cmp(&right.operation_id));
             if provider_truth
@@ -5916,19 +6025,10 @@ pub(crate) fn observe_domain_adapter<A: QualificationProtectedObserver>(
             if reports.len() != collection.scenarios.len() {
                 return Err("protected report roster differs from the candidate scenarios".into());
             }
-            let scenarios = collection
-                .scenarios
-                .iter()
-                .zip(reports)
-                .map(|(scenario, operations)| ProtectedObservedScenario {
-                    scenario_id: scenario.scenario_id.clone(),
-                    operations,
-                })
-                .collect();
             let observed = ProtectedObservedProviderRun {
                 schema: "auths.profile-qualification-observed-provider-run/1".into(),
                 run_reference: collection.run_reference.clone(),
-                scenarios,
+                scenarios: reports,
                 provider_truth,
             };
             atomic_write_new(

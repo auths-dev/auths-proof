@@ -15,7 +15,7 @@ AP-SPEC-0044 is complete only when all of the following are true:
 - the protected workflow starts the sole append sequencer and every role-fixed
   signer and reader before candidate provisioning;
 - each reviewed operation phase is entered through the protected phase
-  controller, invokes one installed generated-client operation, and cannot be
+  controller, invokes its exact installed generated-client case roster, and cannot be
   released until every required source has received a durable append ACK;
 - Stripe, PostgreSQL, and OpenTofu use their real production provider paths and
   independent protected observer paths; no fixture or candidate-authored
@@ -131,7 +131,8 @@ No shipping public API is added.
 
 `QualificationCollectionAdapter::invoke_phase` remains the sole domain seam.
 It receives the reviewed scenario, phase index, role, and profile; it invokes
-exactly one installed generated-client method and returns one bounded untrusted
+the exact ordered case roster selected for that phase through the installed
+generated-client method and returns one bounded untrusted
 `QualificationCollectedOperation`. That object contains only the reviewed role
 and semantic profile. Attempts, receipt claims, lifecycle state, counters, and
 provider truth are derived only from authenticated ClientProxy, JournalReader,
@@ -143,6 +144,22 @@ it is never serialized into the candidate collection.
 The common harness owns phase ordering. An adapter cannot receive a callback,
 batch phases, author signed evidence, select a socket, change a profile, or
 advance after a controller/source failure.
+
+Each immutable scenario program fixes an ordered roster of case IDs, stable
+logical intent IDs, closed domain stimulus tokens, serial/parallel groups,
+expectation authority, public outcome/effect/provider-call tuples, and protected
+hooks. Protected setup emits one canonical public input for every case in exact
+program order. The common installed runner derives idempotency only from the
+scenario, phase, and reviewed intent ID, executes every serial group in order,
+and starts every request in a parallel group before accepting its first
+terminal result. ClientProxy derives the case ID from that reviewed intent,
+signs it with request ingress, and the protected projection retains both ingress
+and terminal event sequence. Final validation exact-compares cases rather than
+aggregate totals, proves parallel overlap from the signed sequences, assigns a
+provider call only to the first case owning a durable operation, and reruns the
+static domain predicate over the signed operation and independent provider
+facts. The observed report retains both the exact program digest and that
+predicate commitment; aggregation recomputes and reruns both.
 
 The installed generated profile distribution is an exact verified release
 artifact beside the root SDK distribution. One common offline runner installs

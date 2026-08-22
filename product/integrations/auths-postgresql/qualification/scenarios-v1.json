@@ -7,7 +7,7 @@
       "cases": [
         {
           "caseId": "preflight",
-          "intentId": "preflight",
+          "intentId": "primary",
           "stimulus": "canonical",
           "role": "preflight",
           "group": 1,
@@ -19,7 +19,7 @@
         },
         {
           "caseId": "effect",
-          "intentId": "effect",
+          "intentId": "primary",
           "stimulus": "canonical",
           "role": "effect",
           "group": 1,
@@ -42,7 +42,7 @@
       "cases": [
         {
           "caseId": "preflight",
-          "intentId": "preflight",
+          "intentId": "primary",
           "stimulus": "canonical",
           "role": "preflight",
           "group": 1,
@@ -54,7 +54,7 @@
         },
         {
           "caseId": "effect",
-          "intentId": "effect",
+          "intentId": "primary",
           "stimulus": "canonical",
           "role": "effect",
           "group": 1,
@@ -72,7 +72,7 @@
       "cases": [
         {
           "caseId": "preflight",
-          "intentId": "preflight",
+          "intentId": "primary",
           "stimulus": "canonical",
           "role": "preflight",
           "group": 1,
@@ -84,7 +84,7 @@
         },
         {
           "caseId": "effect",
-          "intentId": "effect",
+          "intentId": "primary",
           "stimulus": "canonical",
           "role": "effect",
           "group": 1,
@@ -107,7 +107,7 @@
       "cases": [
         {
           "caseId": "preflight",
-          "intentId": "preflight",
+          "intentId": "primary",
           "stimulus": "canonical",
           "role": "preflight",
           "group": 1,
@@ -119,7 +119,7 @@
         },
         {
           "caseId": "effect",
-          "intentId": "effect",
+          "intentId": "primary",
           "stimulus": "canonical",
           "role": "effect",
           "group": 1,
@@ -142,7 +142,7 @@
       "cases": [
         {
           "caseId": "preflight",
-          "intentId": "preflight",
+          "intentId": "primary",
           "stimulus": "canonical",
           "role": "preflight",
           "group": 1,
@@ -154,7 +154,7 @@
         },
         {
           "caseId": "effect",
-          "intentId": "effect",
+          "intentId": "primary",
           "stimulus": "canonical",
           "role": "effect",
           "group": 1,
@@ -177,7 +177,7 @@
       "cases": [
         {
           "caseId": "preflight-maximum",
-          "intentId": "preflight-maximum",
+          "intentId": "maximum",
           "stimulus": "canonical",
           "role": "preflight",
           "group": 1,
@@ -189,7 +189,7 @@
         },
         {
           "caseId": "effect-maximum",
-          "intentId": "effect-maximum",
+          "intentId": "maximum",
           "stimulus": "canonical",
           "role": "effect",
           "group": 1,
@@ -201,7 +201,7 @@
         },
         {
           "caseId": "preflight-plus-one",
-          "intentId": "preflight-plus-one",
+          "intentId": "maximum-plus-one",
           "stimulus": "canonical",
           "role": "preflight",
           "group": 2,
@@ -213,7 +213,7 @@
         },
         {
           "caseId": "effect-plus-one",
-          "intentId": "effect-plus-one",
+          "intentId": "maximum-plus-one",
           "stimulus": "canonical",
           "role": "effect",
           "group": 2,
@@ -231,7 +231,7 @@
       "cases": [
         {
           "caseId": "preflight",
-          "intentId": "preflight",
+          "intentId": "primary",
           "stimulus": "canonical",
           "role": "preflight",
           "group": 1,
@@ -243,7 +243,7 @@
         },
         {
           "caseId": "effect",
-          "intentId": "effect",
+          "intentId": "primary",
           "stimulus": "canonical",
           "role": "effect",
           "group": 1,
@@ -266,7 +266,7 @@
       "cases": [
         {
           "caseId": "preflight",
-          "intentId": "preflight",
+          "intentId": "primary",
           "stimulus": "canonical",
           "role": "preflight",
           "group": 1,
@@ -278,7 +278,7 @@
         },
         {
           "caseId": "effect",
-          "intentId": "effect",
+          "intentId": "primary",
           "stimulus": "canonical",
           "role": "effect",
           "group": 1,
@@ -296,7 +296,7 @@
       "cases": [
         {
           "caseId": "preflight",
-          "intentId": "preflight",
+          "intentId": "primary",
           "stimulus": "canonical",
           "role": "preflight",
           "group": 1,
@@ -308,7 +308,7 @@
         },
         {
           "caseId": "effect",
-          "intentId": "effect",
+          "intentId": "primary",
           "stimulus": "canonical",
           "role": "effect",
           "group": 1,
@@ -335,7 +335,7 @@
       "cases": [
         {
           "caseId": "preflight",
-          "intentId": "preflight",
+          "intentId": "primary",
           "stimulus": "canonical",
           "role": "preflight",
           "group": 1,
@@ -347,7 +347,7 @@
         },
         {
           "caseId": "effect",
-          "intentId": "effect",
+          "intentId": "primary",
           "stimulus": "canonical",
           "role": "effect",
           "group": 1,

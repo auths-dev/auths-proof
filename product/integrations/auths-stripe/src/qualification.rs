@@ -578,14 +578,7 @@ impl QualificationCollectionAdapter for StripeQualificationAdapter {
         {
             return Err(QualificationHarnessError::Invocation);
         }
-        client.invoke_installed(
-            connection_alias,
-            &vector
-                .cases
-                .first()
-                .ok_or(QualificationHarnessError::Invocation)?
-                .input,
-        )?;
+        client.invoke_installed(connection_alias, &vector.cases)?;
         Ok(QualificationCollectedOperation {
             role,
             profile: profile.into(),
@@ -688,7 +681,6 @@ impl QualificationProtectedObserver for StripeQualificationAdapter {
 
     fn validate_domain_scenario(
         &self,
-        _environment: &StripeProtectedObserverEnvironment,
         program: &QualificationScenarioProgramV1,
         _operations: &[auths_profile_kit::QualificationRedactedOperation],
         _truths: &[QualificationProviderTruth],

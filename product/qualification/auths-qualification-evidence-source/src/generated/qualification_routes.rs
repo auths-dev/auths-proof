@@ -4,6 +4,7 @@
 use auths_connections::{ProviderCredentialLease, QualificationProviderCallKind};
 use auths_profile_kit::{
     QualificationEffect, QualificationHarnessError, QualificationProfileStateFactV1,
+    QualificationScenarioProgramV1,
 };
 use auths_profile_runtime::{ProfileReceiptInspection, ProfileRuntimeError};
 use auths_stores::JournalRecordV1;
@@ -27,6 +28,26 @@ impl QualificationRoute {
             }
             "auths.stripe.refund/1" => Ok(Self::Stripe),
             _ => Err("profile is absent from the generated qualification route roster".into()),
+        }
+    }
+
+    pub(crate) fn scenario_program(
+        self,
+        scenario_id: &str,
+    ) -> Result<QualificationScenarioProgramV1, String> {
+        match self {
+            Self::Opentofu => {
+                auths_opentofu::qualification::qualification_scenario_program(scenario_id)
+                    .map_err(|error| error.to_string())
+            }
+            Self::Postgresql => {
+                auths_postgresql::qualification::qualification_scenario_program(scenario_id)
+                    .map_err(|error| error.to_string())
+            }
+            Self::Stripe => {
+                auths_stripe::qualification::qualification_scenario_program(scenario_id)
+                    .map_err(|error| error.to_string())
+            }
         }
     }
 

@@ -755,6 +755,9 @@ impl QualificationCommonReceiptClaims {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct QualificationRedactedAttempt {
     pub sequence: u8,
+    pub case_id: String,
+    pub request_event_sequence: u32,
+    pub terminal_event_sequence: u32,
     pub kind: QualificationAttemptKind,
     pub request_id: String,
     pub operation_id: Option<String>,
@@ -824,10 +827,27 @@ pub struct QualificationInstalledClient {
 /// Bounded canonical public outcome returned by the installed generated SDK.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct QualificationInstalledClientOutcome {
+    /// Exact program-ordered outcomes for the current phase role.
+    pub cases: Vec<QualificationInstalledClientCaseOutcome>,
+}
+
+/// One installed generated-client case outcome.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct QualificationInstalledClientCaseOutcome {
+    /// Exact reviewed case ID.
+    pub case_id: String,
     /// Closed public SDK outcome kind.
     pub kind: String,
     /// Generated public success value; absent for every non-completed outcome.
     pub value: Option<serde_json::Value>,
+}
+
+impl QualificationInstalledClientOutcome {
+    /// Looks up exactly one returned case.
+    #[must_use]
+    pub fn case(&self, case_id: &str) -> Option<&QualificationInstalledClientCaseOutcome> {
+        self.cases.iter().find(|case| case.case_id == case_id)
+    }
 }
 
 impl QualificationPhaseClient {
@@ -916,7 +936,7 @@ impl QualificationPhaseClient {
     pub fn invoke_installed(
         &self,
         connection_alias: &str,
-        canonical_input: &[u8],
+        cases: &[QualificationCaseVector],
     ) -> Result<QualificationInstalledClientOutcome, QualificationHarnessError> {
         if !registered_token(connection_alias) {
             return Err(QualificationHarnessError::Invocation);
@@ -928,7 +948,7 @@ impl QualificationPhaseClient {
         if self.scenario_program.is_none() || self.phase_index.is_none() || self.role.is_none() {
             return Err(QualificationHarnessError::InvalidPhaseClient);
         }
-        installed.invoke(self, connection_alias, canonical_input)
+        installed.invoke(self, connection_alias, cases)
     }
 }
 
@@ -985,22 +1005,12 @@ impl QualificationInstalledClient {
         &self,
         phase: &QualificationPhaseClient,
         connection_alias: &str,
-        canonical_input: &[u8],
+        cases: &[QualificationCaseVector],
     ) -> Result<QualificationInstalledClientOutcome, QualificationHarnessError> {
         use std::io::{Read as _, Write as _};
         use std::process::Stdio;
         use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-        if canonical_input.is_empty()
-            || canonical_input.len() > MAX_VECTOR_BYTES
-            || serde_json::from_slice::<serde_json::Value>(canonical_input)
-                .ok()
-                .and_then(|value| serde_json_canonicalizer::to_vec(&value).ok())
-                .as_deref()
-                != Some(canonical_input)
-        {
-            return Err(QualificationHarnessError::Invocation);
-        }
         let phase_index = phase
             .phase_index
             .ok_or(QualificationHarnessError::InvalidPhaseClient)?
@@ -1021,6 +1031,46 @@ impl QualificationInstalledClient {
             QualificationOperationRole::Preflight => "preflight",
             QualificationOperationRole::Effect => "effect",
         };
+        let selected_program_cases = scenario_program
+            .cases()
+            .iter()
+            .filter(|case| case.role() == phase.role.expect("phase role was validated"))
+            .collect::<Vec<_>>();
+        let selected_program_cases = if selected_program_cases.is_empty() {
+            let mut intents = std::collections::BTreeSet::new();
+            scenario_program
+                .cases()
+                .iter()
+                .filter(|case| intents.insert(case.intent_id()))
+                .collect::<Vec<_>>()
+        } else {
+            selected_program_cases
+        };
+        let selected_cases = selected_program_cases
+            .iter()
+            .map(|program_case| {
+                let case = cases
+                    .iter()
+                    .find(|case| case.case_id == program_case.case_id())
+                    .ok_or(QualificationHarnessError::Invocation)?;
+                let value: serde_json::Value = serde_json::from_slice(&case.input)
+                    .map_err(|_| QualificationHarnessError::Invocation)?;
+                if serde_json_canonicalizer::to_vec(&value)
+                    .map_err(|_| QualificationHarnessError::Invocation)?
+                    != case.input
+                {
+                    return Err(QualificationHarnessError::Invocation);
+                }
+                Ok(serde_json::json!({"caseId": case.case_id, "input": value}))
+            })
+            .collect::<Result<Vec<_>, QualificationHarnessError>>()?;
+        let canonical_input = serde_json_canonicalizer::to_vec(&serde_json::json!({
+            "cases": selected_cases,
+        }))
+        .map_err(|_| QualificationHarnessError::Invocation)?;
+        if canonical_input.is_empty() || canonical_input.len() > MAX_VECTOR_BYTES {
+            return Err(QualificationHarnessError::Invocation);
+        }
         let mut child = std::process::Command::new(&self.python)
             .args([
                 "-I",
@@ -1056,7 +1106,7 @@ impl QualificationInstalledClient {
             .take()
             .ok_or(QualificationHarnessError::Invocation)?;
         input
-            .write_all(canonical_input)
+            .write_all(&canonical_input)
             .map_err(|_| QualificationHarnessError::Invocation)?;
         drop(input);
         let output = child
@@ -1107,38 +1157,64 @@ impl QualificationInstalledClient {
         let object = value
             .as_object()
             .ok_or(QualificationHarnessError::Invocation)?;
-        if object.keys().map(String::as_str).collect::<Vec<_>>()
-            != if object.contains_key("value") {
-                vec!["kind", "value"]
-            } else {
-                vec!["kind"]
-            }
-        {
+        if object.keys().map(String::as_str).collect::<Vec<_>>() != vec!["cases"] {
             return Err(QualificationHarnessError::Invocation);
         }
-        let kind = object
-            .get("kind")
-            .and_then(serde_json::Value::as_str)
-            .filter(|kind| {
-                matches!(
-                    *kind,
-                    "completed"
-                        | "denied"
-                        | "unavailable"
-                        | "conflict"
-                        | "not-applied"
-                        | "partial"
-                        | "recovery-required"
-                        | "receipt-integrity-failed"
-                )
+        let returned = object
+            .get("cases")
+            .and_then(serde_json::Value::as_array)
+            .ok_or(QualificationHarnessError::Invocation)?;
+        if returned.len() != selected_program_cases.len() {
+            return Err(QualificationHarnessError::Invocation);
+        }
+        let cases = returned
+            .iter()
+            .zip(selected_program_cases)
+            .map(|(value, expected)| {
+                let object = value
+                    .as_object()
+                    .ok_or(QualificationHarnessError::Invocation)?;
+                if object.keys().map(String::as_str).collect::<Vec<_>>()
+                    != if object.contains_key("value") {
+                        vec!["caseId", "kind", "value"]
+                    } else {
+                        vec!["caseId", "kind"]
+                    }
+                    || object.get("caseId").and_then(serde_json::Value::as_str)
+                        != Some(expected.case_id())
+                {
+                    return Err(QualificationHarnessError::Invocation);
+                }
+                let kind = object
+                    .get("kind")
+                    .and_then(serde_json::Value::as_str)
+                    .filter(|kind| {
+                        matches!(
+                            *kind,
+                            "completed"
+                                | "denied"
+                                | "unavailable"
+                                | "conflict"
+                                | "not-applied"
+                                | "partial"
+                                | "recovery-required"
+                                | "receipt-integrity-failed"
+                        )
+                    })
+                    .ok_or(QualificationHarnessError::Invocation)?
+                    .to_owned();
+                let value = object.get("value").cloned();
+                if (kind == "completed") != value.is_some() {
+                    return Err(QualificationHarnessError::Invocation);
+                }
+                Ok(QualificationInstalledClientCaseOutcome {
+                    case_id: expected.case_id().into(),
+                    kind,
+                    value,
+                })
             })
-            .ok_or(QualificationHarnessError::Invocation)?
-            .to_owned();
-        let value = object.get("value").cloned();
-        if (kind == "completed") != value.is_some() {
-            return Err(QualificationHarnessError::Invocation);
-        }
-        Ok(QualificationInstalledClientOutcome { kind, value })
+            .collect::<Result<Vec<_>, QualificationHarnessError>>()?;
+        Ok(QualificationInstalledClientOutcome { cases })
     }
 }
 
@@ -1270,10 +1346,32 @@ async def main():
     raw = sys.stdin.buffer.read(16_777_217)
     if not raw or len(raw) > 16_777_216:
         raise ValueError("installed-client input exceeds bound")
-    request = json.loads(raw)
-    canonical = json.dumps(request, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
-    if canonical != raw or not isinstance(request, dict):
+    envelope = json.loads(raw)
+    canonical = json.dumps(envelope, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+    if canonical != raw or not isinstance(envelope, dict) or set(envelope) != {"cases"}:
         raise ValueError("installed-client input is not canonical")
+    supplied = envelope["cases"]
+    selected = [case for case in program["cases"] if case["role"] == role]
+    prerequisite = not selected
+    if prerequisite:
+        intents = set()
+        selected = []
+        for case in program["cases"]:
+            if case["intentId"] not in intents:
+                intents.add(case["intentId"])
+                selected.append(case)
+    if (
+        not isinstance(supplied, list)
+        or len(supplied) != len(selected)
+        or any(
+            not isinstance(item, dict)
+            or set(item) != {"caseId", "input"}
+            or item["caseId"] != case["caseId"]
+            or not isinstance(item["input"], dict)
+            for item, case in zip(supplied, selected)
+        )
+    ):
+        raise ValueError("installed-client cases differ from reviewed program")
     async with auths.connect(options=auths.ClientOptions(agent_socket=socket)) as session:
         client = getattr(module, client_name)(session, connection=connection)
         group = getattr(client, group_name)
@@ -1291,91 +1389,75 @@ async def main():
                 **kwargs,
                 options=auths.OperationOptions(idempotency_key=key),
             )
-
-        intent = "aq:" + scenario + ":" + str(phase_index)
-        if scenario == "boundary-plus-one":
-            outcome = await bound_profile._qualification_invoke_encoded_outcome(
-                encode_cbor(request),
+        async def invoke_case(case, request):
+            intent = "aq:" + scenario + ":" + str(phase_index) + ":" + case["intentId"]
+            stimulus = case["stimulus"]
+            if stimulus == "changed-input":
+                request = conflict_input(request)
+            if stimulus == "noncanonical-integer":
+                encoded = b"\x18\x00"
+            elif stimulus == "duplicate-field":
+                encoded = b"\xa2\x61x\x01\x61x\x02"
+            elif stimulus == "missing-field":
+                if not request:
+                    raise ValueError("missing-field stimulus has no record field")
+                hostile = copy.deepcopy(request)
+                hostile.pop(sorted(hostile)[0])
+                encoded = encode_cbor(hostile)
+            elif stimulus == "unknown-field":
+                hostile = copy.deepcopy(request)
+                hostile["__unknown"] = 1
+                encoded = encode_cbor(hostile)
+            elif stimulus == "encoded-canonical":
+                encoded = encode_cbor(request)
+            else:
+                encoded = None
+            if encoded is None:
+                return await invoke(request, intent)
+            return await bound_profile._qualification_invoke_encoded_outcome(
+                encoded,
                 options=auths.OperationOptions(idempotency_key=intent),
             )
-            if outcome.kind != "unavailable" or operation_id(outcome) is not None:
-                raise ValueError("installed-client boundary-plus-one reached admission")
-        elif scenario == "malformed-input":
-            if not isinstance(request, dict) or not request:
-                raise ValueError("malformed-input vector has no record shape")
-            missing = copy.deepcopy(request)
-            missing.pop(sorted(missing)[0])
-            unknown = copy.deepcopy(request)
-            unknown["__unknown"] = 1
-            hostile = (
-                b"\x18\x00",                       # noncanonical integer encoding
-                encode_cbor(unknown),               # unknown field
-                encode_cbor(missing),               # missing field
-                b"\xa2\x61x\x01\x61x\x02",       # duplicate map field
-            )
-            outcomes = []
-            for index, encoded in enumerate(hostile):
-                candidate = await bound_profile._qualification_invoke_encoded_outcome(
-                    encoded,
-                    options=auths.OperationOptions(
-                        idempotency_key=intent + ":" + str(index),
-                    ),
-                )
-                if candidate.kind != "unavailable" or operation_id(candidate) is not None:
-                    raise ValueError("installed-client malformed input reached admission")
-                outcomes.append(candidate)
-            outcome = outcomes[-1]
-        elif scenario == "stale-evidence":
-            edge = await invoke(request, intent + ":edge")
-            stale = await invoke(request, intent + ":stale")
-            if (
-                edge.kind != "completed"
-                or operation_id(edge) is None
-                or completion(edge) not in ("fresh", "reconciled")
-                or stale.kind != "unavailable"
-                or operation_id(stale) is not None
-            ):
-                raise ValueError("installed-client freshness boundary was not exact")
-            outcome = edge
-        elif scenario == "replay":
-            first = await invoke(request, intent)
-            second = await invoke(request, intent)
-            if (
-                first.kind != "completed"
-                or second.kind != "completed"
-                or stable_completed_value(first) != stable_completed_value(second)
-                or operation_id(first) != operation_id(second)
-                or completion(first) not in ("fresh", "reconciled")
-                or completion(second) != "replayed"
-            ):
-                raise ValueError("installed-client replay changed durable result identity")
-            outcome = second
-        elif scenario == "changed-input-conflict":
-            first = await invoke(request, intent)
-            second = await invoke(conflict_input(request), intent)
-            if (
-                first.kind != "completed"
-                or second.kind != "conflict"
-                or operation_id(first) != operation_id(second)
-            ):
-                raise ValueError("installed-client changed-input conflict was not exact")
-            outcome = first
-        elif scenario == "quota-final-capacity" and (
-            client_name == "Stripe" or phase_index == 2
-        ):
-            contenders = await asyncio.gather(
-                invoke(request, intent + ":a"),
-                invoke(request, intent + ":b"),
-            )
-            winners = [candidate for candidate in contenders if candidate.kind == "completed"]
-            if len(winners) != 1:
-                raise ValueError("installed-client final capacity did not select one winner")
-            outcome = winners[0]
+
+        results = []
+        offset = 0
+        while offset < len(selected):
+            group_id = selected[offset]["group"]
+            end = offset
+            while end < len(selected) and selected[end]["group"] == group_id:
+                end += 1
+            group_cases = selected[offset:end]
+            group_inputs = supplied[offset:end]
+            if group_cases[0]["topology"] == "parallel":
+                outcomes = await asyncio.gather(*(
+                    invoke_case(case, item["input"])
+                    for case, item in zip(group_cases, group_inputs)
+                ))
+            else:
+                outcomes = []
+                for case, item in zip(group_cases, group_inputs):
+                    outcomes.append(await invoke_case(case, item["input"]))
+            results.extend(zip(group_cases, outcomes))
+            offset = end
+
+    first_by_intent = {}
+    response_cases = []
+    for case, outcome in results:
+        if not prerequisite and case["expectation"] == "exact" and outcome.kind != case["expectedOutcome"]:
+            raise ValueError("installed-client case outcome differs from reviewed program")
+        prior = first_by_intent.get(case["intentId"])
+        if prior is not None and outcome.kind in ("completed", "conflict"):
+            if operation_id(prior) != operation_id(outcome):
+                raise ValueError("installed-client logical intent changed operation identity")
+            if outcome.kind == "completed" and stable_completed_value(prior) != stable_completed_value(outcome):
+                raise ValueError("installed-client replay changed durable public result")
         else:
-            outcome = await invoke(request, intent)
-    response = {"kind": outcome.kind}
-    if outcome.kind == "completed":
-        response["value"] = public(outcome.value)
+            first_by_intent[case["intentId"]] = outcome
+        result = {"caseId": case["caseId"], "kind": outcome.kind}
+        if outcome.kind == "completed":
+            result["value"] = public(outcome.value)
+        response_cases.append(result)
+    response = {"cases": response_cases}
     encoded = json.dumps(response, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
     if len(encoded) > 16_777_216:
         raise ValueError("installed-client output exceeds bound")
@@ -1484,7 +1566,6 @@ pub trait QualificationProtectedObserver {
     /// independently observed provider facts have been authenticated.
     fn validate_domain_scenario(
         &self,
-        environment: &Self::Environment,
         program: &crate::QualificationScenarioProgramV1,
         operations: &[QualificationRedactedOperation],
         truths: &[QualificationProviderTruth],
@@ -1539,6 +1620,19 @@ pub fn validate_scenario_program_projection(
             if operation.attempts.len() != cases.len() {
                 return Err(QualificationHarnessError::ProviderTruth);
             }
+            let attempts = operation
+                .attempts
+                .iter()
+                .map(|attempt| (attempt.case_id.as_str(), attempt))
+                .collect::<std::collections::BTreeMap<_, _>>();
+            if attempts.len() != cases.len()
+                || cases
+                    .iter()
+                    .any(|case| !attempts.contains_key(case.case_id()))
+            {
+                return Err(QualificationHarnessError::ProviderTruth);
+            }
+            let mut provider_call_owners = std::collections::BTreeSet::new();
             let mut offset = 0_usize;
             while offset < cases.len() {
                 let group = cases[offset].group();
@@ -1553,49 +1647,55 @@ pub fn validate_scenario_program_projection(
                 {
                     return Err(QualificationHarnessError::ProviderTruth);
                 }
-                let mut expected = cases[offset..end]
+                let group_attempts = cases[offset..end]
                     .iter()
-                    .map(|case| (case.expected_outcome(), case.expected_effect()))
-                    .collect::<Vec<_>>();
-                let mut actual = operation.attempts[offset..end]
-                    .iter()
-                    .map(|attempt| {
-                        let effect = attempt.operation_id.as_deref().map_or(
-                            Ok(QualificationEffect::NotApplied),
-                            |operation_id| {
-                                operation
-                                    .instances
-                                    .iter()
-                                    .find(|instance| instance.operation_id == operation_id)
-                                    .map(|instance| instance.effect)
-                                    .ok_or(QualificationHarnessError::ProviderTruth)
-                            },
-                        )?;
-                        Ok((attempt.outcome, effect))
+                    .map(|case| {
+                        attempts
+                            .get(case.case_id())
+                            .copied()
+                            .ok_or(QualificationHarnessError::ProviderTruth)
                     })
                     .collect::<Result<Vec<_>, QualificationHarnessError>>()?;
                 if topology == crate::QualificationScenarioTopology::Parallel {
-                    expected.sort_unstable();
-                    actual.sort_unstable();
+                    let last_request = group_attempts
+                        .iter()
+                        .map(|attempt| attempt.request_event_sequence)
+                        .max()
+                        .ok_or(QualificationHarnessError::ProviderTruth)?;
+                    let first_terminal = group_attempts
+                        .iter()
+                        .map(|attempt| attempt.terminal_event_sequence)
+                        .min()
+                        .ok_or(QualificationHarnessError::ProviderTruth)?;
+                    if last_request >= first_terminal {
+                        return Err(QualificationHarnessError::ProviderTruth);
+                    }
                 }
-                if actual != expected {
-                    return Err(QualificationHarnessError::ProviderTruth);
+                for (case, attempt) in cases[offset..end].iter().zip(group_attempts) {
+                    let (effect, provider_calls) = attempt.operation_id.as_deref().map_or(
+                        Ok((QualificationEffect::NotApplied, 0)),
+                        |operation_id| {
+                            let instance = operation
+                                .instances
+                                .iter()
+                                .find(|instance| instance.operation_id == operation_id)
+                                .ok_or(QualificationHarnessError::ProviderTruth)?;
+                            let provider_calls = if provider_call_owners.insert(operation_id) {
+                                instance.counters.provider_calls
+                            } else {
+                                0
+                            };
+                            Ok((instance.effect, provider_calls))
+                        },
+                    )?;
+                    if attempt.outcome != case.expected_outcome()
+                        || effect != case.expected_effect()
+                        || provider_calls != case.expected_provider_calls()
+                    {
+                        return Err(QualificationHarnessError::ProviderTruth);
+                    }
                 }
                 offset = end;
-            }
-        }
-        if exact_expectation {
-            let expected_calls = cases.iter().try_fold(0_u32, |total, case| {
-                total.checked_add(case.expected_provider_calls())
-            });
-            let actual_calls = operation
-                .instances
-                .iter()
-                .try_fold(0_u32, |total, instance| {
-                    total.checked_add(instance.counters.provider_calls)
-                });
-            if expected_calls.is_none() || expected_calls != actual_calls {
-                return Err(QualificationHarnessError::ProviderTruth);
             }
         }
     }
@@ -1653,6 +1753,10 @@ impl QualificationAdapterMetadata {
 impl QualificationVector {
     /// Validates one domain vector before application or provider I/O.
     pub fn validate(&self) -> Result<(), QualificationHarnessError> {
+        let total_bytes = self
+            .cases
+            .iter()
+            .try_fold(0_usize, |total, case| total.checked_add(case.input.len()));
         if !registered_token(&self.id)
             || self.scenario_program.id() != self.id
             || self.scenario_program.sha256().is_err()
@@ -1667,6 +1771,7 @@ impl QualificationVector {
                         || actual.input.is_empty()
                         || actual.input.len() > MAX_VECTOR_BYTES
                 })
+            || total_bytes.is_none_or(|total| total > MAX_VECTOR_BYTES)
         {
             return Err(QualificationHarnessError::Limit);
         }
@@ -2123,6 +2228,9 @@ impl QualificationRedactedAttempt {
     /// Validates one protected public call projection.
     pub fn validate(&self) -> Result<(), QualificationHarnessError> {
         if self.sequence == 0
+            || !registered_token(&self.case_id)
+            || self.request_event_sequence == 0
+            || self.request_event_sequence >= self.terminal_event_sequence
             || !registered_token(&self.request_id)
             || self
                 .operation_id
@@ -2388,9 +2496,22 @@ fn sorted_unique_decimal(values: &[String]) -> bool {
 mod tests {
     use super::*;
 
+    fn parallel_program() -> crate::QualificationScenarioProgramV1 {
+        crate::qualification_scenario_program(
+            br#"{"schema":"auths.profile-qualification-scenarios/2","domain":"common","programs":[{"id":"parallel-test","cases":[{"caseId":"a","intentId":"a","stimulus":"canonical","role":"effect","group":1,"topology":"parallel","expectation":"exact","expectedOutcome":"denied","expectedEffect":"not-applied","expectedProviderCalls":0},{"caseId":"b","intentId":"b","stimulus":"canonical","role":"effect","group":1,"topology":"parallel","expectation":"exact","expectedOutcome":"unavailable","expectedEffect":"not-applied","expectedProviderCalls":0}],"hooks":[]}]}"#,
+            br#"{"schema":"auths.profile-qualification-scenarios/2","domain":"test","programs":[{"id":"domain-placeholder","cases":[{"caseId":"primary","intentId":"primary","stimulus":"canonical","role":"effect","group":1,"topology":"serial","expectation":"exact","expectedOutcome":"denied","expectedEffect":"not-applied","expectedProviderCalls":0}],"hooks":[]}]}"#,
+            "test",
+            "parallel-test",
+        )
+        .unwrap()
+    }
+
     fn operation_free_attempt() -> QualificationRedactedAttempt {
         QualificationRedactedAttempt {
             sequence: 1,
+            case_id: "primary".into(),
+            request_event_sequence: 2,
+            terminal_event_sequence: 3,
             kind: QualificationAttemptKind::Execute,
             request_id: "request-1".into(),
             operation_id: None,
@@ -2411,6 +2532,41 @@ mod tests {
             result_sha256: "d".repeat(64),
             receipt_ids: Vec::new(),
         }
+    }
+
+    #[test]
+    fn case_projection_binds_identity_and_parallel_overlap() {
+        let program = parallel_program();
+        let mut first = operation_free_attempt();
+        first.case_id = "a".into();
+        first.terminal_event_sequence = 5;
+        let mut second = operation_free_attempt();
+        second.sequence = 2;
+        second.case_id = "b".into();
+        second.request_id = "request-2".into();
+        second.request_event_sequence = 3;
+        second.terminal_event_sequence = 4;
+        second.outcome = QualificationOutcomeKind::Unavailable;
+        let operation = QualificationRedactedOperation {
+            role: QualificationOperationRole::Effect,
+            profile: "auths.test.effect/1".into(),
+            instances: Vec::new(),
+            attempts: vec![first.clone(), second.clone()],
+        };
+        assert!(
+            validate_scenario_program_projection(&program, None, &[operation.clone()], &[]).is_ok()
+        );
+
+        let mut sequential = operation.clone();
+        sequential.attempts[0].terminal_event_sequence = 3;
+        sequential.attempts[1].request_event_sequence = 4;
+        sequential.attempts[1].terminal_event_sequence = 5;
+        assert!(validate_scenario_program_projection(&program, None, &[sequential], &[]).is_err());
+
+        let mut swapped = operation;
+        swapped.attempts[0].case_id = "b".into();
+        swapped.attempts[1].case_id = "a".into();
+        assert!(validate_scenario_program_projection(&program, None, &[swapped], &[]).is_err());
     }
 
     #[test]

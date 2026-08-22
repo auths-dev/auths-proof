@@ -8,7 +8,7 @@
         {
           "caseId": "rejected",
           "intentId": "rejected",
-          "stimulus": "canonical",
+          "stimulus": "encoded-canonical",
           "role": "effect",
           "group": 1,
           "topology": "serial",
@@ -37,8 +37,8 @@
         },
         {
           "caseId": "changed-input",
-          "intentId": "changed-input",
-          "stimulus": "canonical",
+          "intentId": "primary",
+          "stimulus": "changed-input",
           "role": "effect",
           "group": 2,
           "topology": "serial",
@@ -404,7 +404,7 @@
         {
           "caseId": "duplicate-field",
           "intentId": "duplicate-field",
-          "stimulus": "canonical",
+          "stimulus": "duplicate-field",
           "role": "effect",
           "group": 1,
           "topology": "serial",
@@ -416,7 +416,7 @@
         {
           "caseId": "missing-field",
           "intentId": "missing-field",
-          "stimulus": "canonical",
+          "stimulus": "missing-field",
           "role": "effect",
           "group": 2,
           "topology": "serial",
@@ -428,7 +428,7 @@
         {
           "caseId": "noncanonical-integer",
           "intentId": "noncanonical-integer",
-          "stimulus": "canonical",
+          "stimulus": "noncanonical-integer",
           "role": "effect",
           "group": 3,
           "topology": "serial",
@@ -440,7 +440,7 @@
         {
           "caseId": "unknown-field",
           "intentId": "unknown-field",
-          "stimulus": "canonical",
+          "stimulus": "unknown-field",
           "role": "effect",
           "group": 4,
           "topology": "serial",
@@ -535,8 +535,8 @@
         },
         {
           "caseId": "replay",
-          "intentId": "replay",
-          "stimulus": "canonical",
+          "intentId": "fresh",
+          "stimulus": "replay",
           "role": "effect",
           "group": 2,
           "topology": "serial",
@@ -566,7 +566,7 @@
         {
           "caseId": "stale",
           "intentId": "stale",
-          "stimulus": "canonical",
+          "stimulus": "stale-evidence",
           "role": "effect",
           "group": 2,
           "topology": "serial",

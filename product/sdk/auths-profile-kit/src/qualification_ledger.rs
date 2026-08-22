@@ -237,6 +237,7 @@ pub enum QualificationEvidenceEventPayload {
         control_plane_ready: bool,
     },
     Request {
+        case_id: String,
         request_input_sha256: String,
         principal_sha256: String,
         idempotency_sha256: Option<String>,
@@ -626,6 +627,7 @@ impl QualificationClientBridgeBindingV1 {
 )]
 pub enum QualificationClientProxyObservationV1 {
     RequestReceived {
+        case_id: String,
         request_input_sha256: String,
         principal_sha256: String,
         idempotency_sha256: Option<String>,
@@ -1813,11 +1815,14 @@ pub fn qualification_common_phase_matches_ledger(
                         && matches!(
                             &event.payload,
                             Payload::Request {
+                                case_id,
                                 request_input_sha256,
                                 principal_sha256,
                                 idempotency_sha256,
                                 preparation_input_sha256,
-                            } if request_input_sha256 == &attempt.request_input_sha256
+                            } if case_id == &attempt.case_id
+                                && event.sequence == attempt.request_event_sequence
+                                && request_input_sha256 == &attempt.request_input_sha256
                                 && principal_sha256 == &attempt.principal_sha256
                                 && idempotency_sha256 == &attempt.idempotency_sha256
                                 && preparation_input_sha256 == &attempt.preparation_input_sha256
@@ -1825,6 +1830,7 @@ pub fn qualification_common_phase_matches_ledger(
                 })
                 .count()
                 != 1
+            || matching_terminal[0].sequence != attempt.terminal_event_sequence
         {
             return Ok(false);
         }
@@ -4232,6 +4238,7 @@ impl QualificationClientProxyRecordV1 {
     ) -> QualificationEvidenceEvent {
         let (kind, payload, attempt) = match &self.observation {
             QualificationClientProxyObservationV1::RequestReceived {
+                case_id,
                 request_input_sha256,
                 principal_sha256,
                 idempotency_sha256,
@@ -4239,6 +4246,7 @@ impl QualificationClientProxyRecordV1 {
             } => (
                 QualificationEvidenceEventKind::RequestReceived,
                 QualificationEvidenceEventPayload::Request {
+                    case_id: case_id.clone(),
                     request_input_sha256: request_input_sha256.clone(),
                     principal_sha256: principal_sha256.clone(),
                     idempotency_sha256: idempotency_sha256.clone(),
@@ -5415,12 +5423,14 @@ fn payload_valid(payload: &QualificationEvidenceEventPayload) -> bool {
                 && *control_plane_ready
         }
         Payload::Request {
+            case_id,
             request_input_sha256,
             principal_sha256,
             idempotency_sha256,
             preparation_input_sha256,
         } => {
-            digest(request_input_sha256)
+            registered_token(case_id)
+                && digest(request_input_sha256)
                 && digest(principal_sha256)
                 && optional_digest(idempotency_sha256)
                 && optional_digest(preparation_input_sha256)
@@ -6274,6 +6284,9 @@ mod tests {
         );
         let attempt = crate::QualificationRedactedAttempt {
             sequence: 1,
+            case_id: "primary".into(),
+            request_event_sequence: 2,
+            terminal_event_sequence: 3,
             kind: crate::QualificationAttemptKind::Execute,
             request_id: "request-1".into(),
             operation_id: None,
@@ -6312,6 +6325,7 @@ mod tests {
         request.request_id = Some(attempt.request_id.clone());
         request.kind = QualificationEvidenceEventKind::RequestReceived;
         request.payload = QualificationEvidenceEventPayload::Request {
+            case_id: attempt.case_id.clone(),
             request_input_sha256: attempt.request_input_sha256.clone(),
             principal_sha256: attempt.principal_sha256.clone(),
             idempotency_sha256: attempt.idempotency_sha256.clone(),
